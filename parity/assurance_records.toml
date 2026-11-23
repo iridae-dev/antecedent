@@ -252,5 +252,5 @@ theorems = [
 ]
 
 [records.result]
-inputs_digest = ""
-checked_commit = ""
+inputs_digest = "16523ba9e58ae62afaa74467dd621cb5ab11f3904554eccf63477bb0c7c021c3"
+checked_commit = "4382fb44cb96811da901aa99712269934ad48b64"
