@@ -208,3 +208,49 @@ rust_items = [
 [records.result]
 inputs_digest = "5d31349241a57bfce9f76213ff3f00e7fd4b5140d2721b16330e3f879b3f098f"
 checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
+
+[[records]]
+id = "contract.transformations_keep_obligations"
+proposition = "A contract's claim holds wherever its premises hold, and dropping a premise is not sound in general. Composing transformation reports, and any chain of them, keeps every unresolved obligation of every step, records every effect any step recorded on each layer, and is refused when any step was refused: no chain of transformations ends with a stronger standing than a step left it."
+scope = "The composition rule of TransformationReport::compose, as a model over obligations (id, kind, status) and per-layer effects. Input identities and refusal messages are outside this record. The production compose is exercised by the adversarial campaign (contract.* cases)."
+trusted = [
+    "the Lean 4 kernel",
+    "the model's addObligation states the obligation rule of TransformationReport::compose (reviewed, not machine-checked)",
+]
+limitations = [
+    "Obligation records are compared by id, kind and status in the model; the production comparison also covers scope, source, required check, evidence, assumption and description.",
+]
+
+[records.operation]
+inputs = ["a transformation report", "the next transformation report"]
+output = "the composed report"
+premises = []
+transformation = "per-layer effects unioned; later obligations added in order, a resolved one never hiding an earlier record with its id and an unresolved one replacing only resolved records with its id"
+justification = [
+    "Antecedent.Contract.drop_premise_unsound",
+    "Antecedent.Contract.compose_keeps_unresolved",
+    "Antecedent.Contract.chain_keeps_unresolved",
+    "Antecedent.Contract.chain_keeps_effects",
+    "Antecedent.Contract.compose_refused",
+]
+implementation = ["antecedent_contract::transform::TransformationReport::compose"]
+obligations = ["A machine check connecting TransformationReport::compose to Report.compose is not yet in place; see scope."]
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Contract.lean"]
+theorems = [
+    "Antecedent.Contract.Contract.means_add_premise",
+    "Antecedent.Contract.Contract.drop_premise_unsound",
+    "Antecedent.Contract.compose_keeps_unresolved",
+    "Antecedent.Contract.compose_effects",
+    "Antecedent.Contract.compose_refused",
+    "Antecedent.Contract.chain_keeps_unresolved",
+    "Antecedent.Contract.chain_keeps_effects",
+]
+
+[records.result]
+inputs_digest = ""
+checked_commit = ""

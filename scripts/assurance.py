@@ -131,13 +131,14 @@ def inputs_digest(root: Path, record: dict) -> str:
 
 
 def _theorem_declared(text: str, name: str) -> bool:
-    """Whether `name` (fully qualified) is declared as a theorem in `text`."""
-    *namespace, short = name.split(".")
+    """Whether `name` (fully qualified) is declared as a theorem in `text`.
+
+    A declaration's full name is the enclosing namespace followed by its declared name,
+    which may itself be dotted (`theorem Contract.means_add_premise`)."""
     code = _lean_code(text)
-    if not re.search(rf"^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+)?theorem\s+{re.escape(short)}\b", code, re.M):
-        return False
-    opened = re.findall(r"^namespace\s+([\w.]+)", code, re.M)
-    return not namespace or ".".join(namespace) in opened
+    declared = re.findall(r"^\s*(?:@\[[^\]]*\]\s*)?(?:private\s+)?theorem\s+([\w.']+)", code, re.M)
+    namespaces = [""] + re.findall(r"^namespace\s+([\w.]+)", code, re.M)
+    return any((f"{ns}.{d}" if ns else d) == name for ns in namespaces for d in declared)
 
 
 def validate(root: Path, data: dict, toolchain: dict) -> list[str]:

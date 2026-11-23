@@ -103,6 +103,24 @@ runner = "rust"
 test = "relay_without_its_premises_is_refused"
 
 [[cases]]
+id = "contract.chain_keeps_unresolved_obligations"
+kind = "changing"
+runner = "rust"
+test = "chain_keeps_unresolved_obligations"
+
+[[cases]]
+id = "contract.chain_keeps_layer_effects"
+kind = "changing"
+runner = "rust"
+test = "chain_keeps_layer_effects"
+
+[[cases]]
+id = "contract.refused_step_refuses_chain"
+kind = "invalid"
+runner = "rust"
+test = "chain_with_a_refused_step_is_refused"
+
+[[cases]]
 id = "acceptance.matching_expectation_bound"
 kind = "preserving"
 runner = "rust"
@@ -180,3 +198,17 @@ file = "crates/antecedent-io-core/src/bound_identity.rs"
 old = "        return Ok(BoundMatch::NotRequired { slot: required });"
 new = "        return Ok(BoundMatch::Bound { slot: required });"
 caught_by = ["acceptance.no_expectation_never_bound", "acceptance.bound_over_all_inputs"]
+
+[[mutations]]
+id = "compose_drops_earlier_unresolved_obligation"
+file = "crates/antecedent-contract/src/transform.rs"
+old = ".retain(|existing| existing.id != obligation.id || existing.is_unresolved());"
+new = ".retain(|existing| existing.id != obligation.id);"
+caught_by = ["contract.chain_keeps_unresolved_obligations"]
+
+[[mutations]]
+id = "compose_overwrites_layer_effects"
+file = "crates/antecedent-contract/src/transform.rs"
+old = "                *existing = existing.union(incoming);"
+new = "                *existing = incoming.clone();"
+caught_by = ["contract.chain_keeps_layer_effects", "contract.refused_step_refuses_chain"]

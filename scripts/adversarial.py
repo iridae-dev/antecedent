@@ -8,6 +8,7 @@ introduced into production code, each naming the cases that must catch it.
     python3 scripts/adversarial.py check                # static: cases exist, mutations apply
     python3 scripts/adversarial.py run                  # run every case; all must run and pass
     python3 scripts/adversarial.py run --mutations      # then apply each mutation and rerun
+    python3 scripts/adversarial.py run --runners rust   # only the cases of the named runners (CI)
 
 A required case that did not run is a failure, never a pass. A mutation is reported as
 detected (a named case failed), undetected (every named case passed) or unexecuted (the
@@ -138,13 +139,21 @@ def run_cases(root: Path, campaign: dict, only: set[str] | None = None) -> dict[
     return outcomes
 
 
-def run(root: Path = REPO_ROOT, mutations: bool = False) -> int:
+def run(root: Path = REPO_ROOT, mutations: bool = False, runners: set[str] | None = None) -> int:
     campaign = load(root)
     errors = validate(root, campaign)
+    unknown = (runners or set()) - set(campaign["runners"])
+    if unknown:
+        errors.append(f"unknown runner(s) {sorted(unknown)}")
+    if mutations and runners:
+        errors.append("--mutations runs every runner a mutation names; it takes no --runners")
     if errors:
         for error in errors:
             print(f"adversarial: {error}", file=sys.stderr)
         return 1
+    selected = None if runners is None else {c["id"] for c in campaign["cases"] if c["runner"] in runners}
+    if selected is not None:
+        campaign = {**campaign, "cases": [c for c in campaign["cases"] if c["id"] in selected]}
     outcomes = run_cases(root, campaign)
     bad = {k: v for k, v in outcomes.items() if v != "passed"}
     for case in campaign["cases"]:
@@ -198,7 +207,12 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["check"]:
         return check()
     if argv[:1] == ["run"]:
-        return run(mutations="--mutations" in argv[1:])
+        rest = argv[1:]
+        runners = None
+        if "--runners" in rest:
+            index = rest.index("--runners")
+            runners = set(rest[index + 1].split(",")) if index + 1 < len(rest) else set()
+        return run(mutations="--mutations" in rest, runners=runners)
     print(__doc__, file=sys.stderr)
     return 2
 

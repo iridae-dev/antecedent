@@ -589,9 +589,11 @@ jobs:
         with:
           workspaces: formal/adversarial
 
+      # Fails when a required case (parity/adversarial_campaign.toml) did not run or failed.
+      # The Python cases run with the Python test suite, the Lean and Aeneas cases in the
+      # proofs job and the Kani cases in the kani job.
       - name: Run the generated cases
-        working-directory: formal/adversarial
-        run: cargo test --locked
+        run: python3 scripts/adversarial.py run --runners rust
 
   # Linux source-tree Python checks all use one native extension from this run.
   # Keep the full release wheel matrix independent: it checks packaged installs
