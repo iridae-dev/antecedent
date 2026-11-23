@@ -44,6 +44,7 @@ use antecedent::decision_evidence::{
 use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement, UtilityExpr};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::dependence::SharedFactorKind;
+use antecedent_contract::propagation_chain::TableConstruction;
 use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind};
 use antecedent_contract::{ProgramBinding, ScientificQuantity};
 use antecedent_core::{
@@ -54,7 +55,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionCalibration};
 use antecedent_io::propagation_chain_record::{
-    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainStageWire,
+    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
@@ -502,4 +504,102 @@ fn separately_fitted_outcomes_meet_through_a_declared_dependence() {
     let exact = decided.exact().unwrap();
     assert!(!exact.actions[0].admissible);
     assert_eq!(exact.verdict, PreferenceVerdict::NecessarilyBest("low".into()));
+}
+
+/// The `outcome` coordinate of `variable` under `regime`.
+fn outcome_quantity(variable: &str, units: &str, regime: &str) -> ScientificQuantity {
+    ScientificQuantity {
+        variable_id: variable.into(),
+        variable_name: variable.into(),
+        role: antecedent_contract::QuantityRole::Outcome,
+        units: units.into(),
+        population_id: "patients".into(),
+        regime_id: regime.into(),
+        horizon: 0,
+        functional_id: "outcome".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    }
+}
+
+#[test]
+fn a_predictive_chain_answers_outcome_inputs() {
+    let ctx = ExecutionContext::for_tests(59);
+    // Aligned predictive draws of each outcome under each action: one row per simulated
+    // patient, the treated rows sharing a disturbance with the untreated ones.
+    let n = 400_u32;
+    let shock: Vec<f64> = (0..n).map(|i| wobble(i + 1, 12.9898)).collect();
+    let outputs = [
+        ("treat_benefit", 4.0, 1.0, outcome_quantity("benefit", "points", "do(t=1)")),
+        ("treat_harm", 2.0, 0.5, outcome_quantity("harm", "events", "do(t=1)")),
+        ("wait_benefit", 2.0, 1.0, outcome_quantity("benefit", "points", "do(t=0)")),
+        ("wait_harm", 1.0, 0.5, outcome_quantity("harm", "events", "do(t=0)")),
+    ];
+    let sources = outputs
+        .iter()
+        .zip(0_u32..)
+        .map(|((stage, centre, spread, _), k)| {
+            let values: Vec<f64> = (0..n)
+                .zip(&shock)
+                .map(|(i, s)| centre + spread * (s + 0.3 * wobble(i * 7 + 3 * k, 0.9)))
+                .collect();
+            ChainSourceWire::draws(
+                &format!("{stage}_draws"),
+                LawMeaning::Predictive,
+                "joint:trial",
+                &values,
+            )
+            .with_factor(SharedFactorKind::Disturbance, "trial-shock")
+        })
+        .collect();
+    let stages = outputs
+        .iter()
+        .map(|(stage, ..)| {
+            ChainStageWire::new(
+                stage,
+                StageKind::DerivedQuantity,
+                &[format!("{stage}_draws").as_str()],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            )
+        })
+        .collect();
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        outputs[0].0,
+        sources,
+        stages,
+    )
+    .with_output_quantity(ScientificQuantityWire::from(&outputs[0].3))
+    .with_joint_outputs(
+        outputs
+            .iter()
+            .map(|(stage, _, _, quantity)| ChainJointOutputWire {
+                stage: (*stage).into(),
+                quantity: ScientificQuantityWire::from(quantity),
+            })
+            .collect(),
+    );
+    let chain = compile_propagation_chain(draft, &ctx).unwrap().execute(&ctx).unwrap();
+    let law = pd::chain_joint_law(&chain).unwrap();
+    let source = NativeDecisionSource::JointLaw(Box::new(law.clone()));
+    let actions = vec![
+        action("high", &outputs[0].3, &outputs[1].3),
+        action("low", &outputs[2].3, &outputs[3].3),
+    ];
+    let gain = mean(&column(&law, 0)) - mean(&column(&law, 2));
+    let extra_harm = mean(&column(&law, 1)) - mean(&column(&law, 3));
+    assert!(gain > 1.5 && extra_harm > 0.7, "{gain} {extra_harm}");
+    check_switch(
+        |lower, upper| {
+            verdict(
+                &contract(traded(lower, upper), actions.clone(), vec![], "patients", 0),
+                &source,
+            )
+        },
+        gain / extra_harm,
+    );
 }

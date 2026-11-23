@@ -664,7 +664,9 @@ pub fn chain_joint_law(
     let semantic = if record.reading == ChainReading::Posterior.as_str() {
         DistributionMeaningWire::CausalFunctionalPosterior
     } else if record.reading == ChainReading::Predictive.as_str() {
-        DistributionMeaningWire::PosteriorPredictive
+        // A predictive chain reads the outcome law under the chain's intervention, so its
+        // `outcome` coordinates are answered as the chain decision answers them.
+        DistributionMeaningWire::InterventionalPredictive
     } else {
         return Err(invalid("a chain law is read as a posterior or a predictive law"));
     };
