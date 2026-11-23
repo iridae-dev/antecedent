@@ -2015,6 +2015,10 @@ mod tests {
     /// A decoded payload is hashed as stored, so every set-valued list must be in the form its
     /// constructor builds; another order (or a repeat) is a second identity for one premise.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one table of every set-valued wire, each checked in canonical and non-canonical form"
+    )]
     fn decoded_set_valued_payloads_are_canonical_only_in_constructor_form() {
         use antecedent_graph::Admg;
         let node = DenseNodeId::from_raw;
