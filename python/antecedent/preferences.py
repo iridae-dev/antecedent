@@ -1174,20 +1174,15 @@ class Contract:
         coordinates by columns of study ``j``'s. A static-regime design reads its arm means,
         or with ``refits=`` (at least 99, under ``seed=``) its aligned whole-subject refits.
         """
-        from ._joint_panel_designs import PreparedNativeJointDesign
-        from ._panel_execution import run_panel
+        from ._preference_design import compile_with_design, is_compiled_design
         from .design.ranking import _bound_native
         from .transport._controls import call_native
 
         source = require_success(source)
         contract_json = json.dumps(self._wire())
-        if isinstance(source, PreparedNativeJointDesign):
-            bootstrap = None if refits is None else json.dumps({"replicates": refits, "seed": seed})
-            compiled, refusal = run_panel(
-                execution,
-                source._handle.compile_for_preference_decision,
-                contract_json,
-                bootstrap,
+        if is_compiled_design(source):
+            compiled, refusal = compile_with_design(
+                source, contract_json, refits=refits, seed=seed, execution=execution
             )
         elif isinstance(source, (list, tuple)):
             natives = [_bound_native(require_success(study)) for study in source]
