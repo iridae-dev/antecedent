@@ -207,6 +207,61 @@ mod tests {
     }
 
     #[test]
+    fn shape_learning_refusals_are_registered() {
+        let value =
+            PreferenceModelError::ValueRelationRowsInvalid { relation: "choice.r1.b".into() }
+                .to_refusal();
+        registered(&value, "declare");
+        assert_eq!(value.offending.as_deref(), Some("choice.r1.b"));
+        registered(
+            &PreferenceModelError::ValueRelationToleranceInvalid { relation: "v".into() }
+                .to_refusal(),
+            "declare",
+        );
+        let value = SetLearningError::RegionBudgetInvalid { option: "max_boxes" }.to_refusal();
+        registered(&value, "learn");
+        assert_eq!(value.offending.as_deref(), Some("max_boxes"));
+        let value = PreferenceDecisionError::CertifiedRouteRequired {
+            reason: CertifiedRouteReason::ValueRelations { relations: vec!["choice.r1.b".into()] },
+        }
+        .to_refusal();
+        registered(&value, "evaluate");
+        assert_eq!(value.code, "route_not_supported");
+        assert_eq!(value.remedy, Some(CERTIFIED_ROUTE));
+        let value =
+            ChoiceModelError::SeparatedAtShape { decider: None, shape: vec![("risk".into(), 0.5)] }
+                .to_refusal();
+        registered(&value, "estimate");
+        assert_eq!(value.detail, reason_details::preference_choice_model::SEPARATED);
+        assert_eq!(value.supplied.as_deref(), Some("risk=0.5"));
+        for error in [
+            ChoiceModelError::ShapeNotIdentified {
+                decider: None,
+                parameter: "risk".into(),
+                profile_range: 0.1,
+            },
+            ChoiceModelError::ShapeEstimateAtBound {
+                decider: Some("d1".into()),
+                parameter: "risk".into(),
+                estimate: 0.3,
+                interval: (0.3, 0.6),
+            },
+            ChoiceModelError::ProfileMultimodal {
+                decider: None,
+                parameter: "risk".into(),
+                modes: (0.2, 1.8),
+            },
+            ChoiceModelError::ShapeSearchBudget { decider: None, dimensions: 4, limit: 3 },
+        ] {
+            registered(&error.to_refusal(), "estimate");
+        }
+        let value = AcceptedPreferencesError::Undetermined { decider: None, boundary_boxes: 3 }
+            .to_refusal();
+        registered(&value, "accept");
+        assert_eq!(value.detail, reason_details::accepted_preferences::SET_UNDETERMINED);
+    }
+
+    #[test]
     fn evaluation_and_artifact_refusals_are_registered() {
         let value =
             PreferenceEvaluationError::JointDrawsRequired { reason: "criterion" }.to_refusal();

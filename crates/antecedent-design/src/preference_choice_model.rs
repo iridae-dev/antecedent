@@ -56,8 +56,33 @@
 //! value; unresolved parameters sit at the midpoint of their declared range, a placeholder the
 //! measure says nothing about.
 //!
+//! Shape parameters. When the value is not affine in some free parameters (a risk attitude inside
+//! an exponential, a breakpoint inside a kink), `V = F(theta_S) + sum_k theta_k T_k(theta_S)` and
+//! the model is fitted by [`fit_nonlinear_conditional_logit`]: the profile over the shape
+//! parameters, each point an ordinary conditional logit, searched on a Sobol grid over the
+//! declared box, refined, and polished by Fisher scoring in the direct parameters
+//! `(lambda, theta_L, theta_S)`; the information uses first derivatives of the value only
+//! (forward mode through
+//! [`PreferenceExpr::evaluate_with_gradient`](crate::preference_model::PreferenceExpr::evaluate_with_gradient)),
+//! and the cluster sandwich uses per-decider score sums as above. A shape parameter the
+//! within-record differences of the value provably never depend on (every option of every record
+//! of the fit has the same rows of the attributes that move with it) is not learnable: it is
+//! listed in [`ChoiceModelEstimate::not_learnable`] and left out of the fit, as a linear
+//! parameter whose term never differs is. A shape parameter whose profile varies by less than
+//! `chi2_1(level) / 2` over its declared range is refused
+//! ([`ChoiceModelError::ShapeNotIdentified`]): the linear estimates would rest on an arbitrary
+//! shape value. So is an estimate on a declared bound ([`ChoiceModelError::ShapeEstimateAtBound`],
+//! the normal approximation does not hold there; the profile likelihood-ratio interval truncated
+//! at the bound is reported) and a profile with two maxima separated by a deeper dip
+//! ([`ChoiceModelError::ProfileMultimodal`]). Linear parameters then carry Wald intervals from the
+//! covariance of the direct parameters, shape parameters profile likelihood-ratio intervals
+//! ([`ParameterIntervalMethod`]), and the measure draws the direct parameters from the normal
+//! approximation, kept inside the declared set. The calibration key is
+//! [`shape_calibration_basis`].
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -68,12 +93,15 @@ use antecedent_io_core::contract_section::CalibrationStatus;
 use antecedent_io_core::distribution_artifact::DistributionCalibration;
 use antecedent_kernels::{cholesky_spd_into, gauss_jordan_solve, norm_inv, standard_normal};
 use antecedent_stats::{
-    ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitOptions, fit_conditional_logit,
-    fit_conditional_logit_with_context,
+    ChoiceUtility, ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitOptions,
+    NonlinearChoiceError, NonlinearConditionalLogitFit, NonlinearConditionalLogitOptions,
+    SOBOL_DIMENSIONS, ShapeSearchOptions, UtilityNotEvaluable, fit_conditional_logit,
+    fit_conditional_logit_with_context, fit_nonlinear_conditional_logit,
 };
 
 use crate::choice_record::{
-    ChoiceRecordError, ChoiceRecordSet, ChoiceSetFeatures, Pooling, choice_features,
+    ChoiceRecordError, ChoiceRecordSet, ChoiceSetFeatures, Pooling, ShapeData, choice_features,
+    shape_data,
 };
 use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use crate::preference_model::{PreferenceModelError, RelationSense, ValueModel};
@@ -142,6 +170,55 @@ pub fn calibration_basis(
     .with_validation("not_applicable")
 }
 
+/// Estimator of the intervals of an estimate with shape parameters: the direct parameters of the
+/// conditional logit profiled over the shape parameters.
+pub const CALIBRATION_SHAPE_ESTIMATOR: &str = "preference.nonlinear_conditional_logit.profile";
+/// Interval method of an estimate with shape parameters: Wald intervals for the linear
+/// parameters, profile likelihood-ratio intervals for the shape parameters.
+pub const CALIBRATION_SHAPE_INTERVAL_METHOD: &str = "wald_and_profile_likelihood_ratio";
+
+/// The calibration key of the parameter intervals of an estimate with shape parameters: the
+/// covariance kind, the numbers of learnable linear and fitted shape parameters, the records in
+/// the fit and the nominal level. As [`calibration_basis`], the key carries no authority.
+#[must_use]
+pub fn shape_calibration_basis(
+    kind: CovarianceKind,
+    learnable: usize,
+    shape: usize,
+    records: u64,
+    level: f64,
+) -> CalibrationBasis {
+    let a = |text: &str| std::sync::Arc::<str>::from(text);
+    let (se_kind, dependence) = match kind {
+        CovarianceKind::Model => ("expected_information", "independent_records"),
+        CovarianceKind::ClusteredByDecider => {
+            ("clustered_by_decider", "records_clustered_by_decider")
+        }
+    };
+    CalibrationBasis::new(
+        [
+            a(CALIBRATION_QUERY),
+            a("NotApplicable"),
+            a("fixed"),
+            a("recorded_choices"),
+            a("Frequentist"),
+            a(CALIBRATION_SHAPE_ESTIMATOR),
+            a(CALIBRATION_SHAPE_INTERVAL_METHOD),
+            a(se_kind),
+            a(dependence),
+            a(""),
+            std::sync::Arc::from(format!("shape_trade_off.learnable_{learnable}.shape_{shape}")),
+        ],
+        level,
+        a("point"),
+        records,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("not_applicable")
+}
+
 /// The calibration status of the intervals under `basis`, resolved from the shipped coverage
 /// table: measured only when the slot is calibrated, not measured otherwise (no record, a stale
 /// record, or an execution outside what the record measured).
@@ -167,12 +244,32 @@ pub struct ChoiceModelOptions {
     pub seed: u64,
     /// Controls of the conditional logit fit.
     pub fit: ConditionalLogitOptions,
+    /// Controls of the search over shape parameters; read only when the value has shape
+    /// parameters.
+    pub shape_search: ShapeSearchOptions,
 }
 
 impl Default for ChoiceModelOptions {
     fn default() -> Self {
-        Self { level: 0.95, n_draws: 2000, seed: 0, fit: ConditionalLogitOptions::default() }
+        Self {
+            level: 0.95,
+            n_draws: 2000,
+            seed: 0,
+            fit: ConditionalLogitOptions::default(),
+            shape_search: ShapeSearchOptions::default(),
+        }
     }
+}
+
+/// How a parameter interval was formed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParameterIntervalMethod {
+    /// `estimate +- z * standard_error` from the chosen covariance (with the delta method for the
+    /// ratio `beta_k / beta_0` when the value has no fitted shape parameter).
+    Wald,
+    /// `{v : 2 (l_max - l_p(v)) <= chi2_1(level)}` from the profile log-likelihood of a shape
+    /// parameter.
+    ProfileLikelihood,
 }
 
 /// Which covariance of the coefficients an estimate uses.
@@ -203,13 +300,15 @@ pub struct ParameterEstimate {
     pub estimate: f64,
     /// Delta-method standard error from the chosen covariance.
     pub standard_error: f64,
-    /// Two-sided normal interval `estimate +- z * standard_error` at the estimate's level; its
+    /// Two-sided interval at the estimate's level, formed as `interval_method` states; its
     /// coverage is not measured.
     pub interval: (f64, f64),
     /// Declared `(lower, upper)` range.
     pub declared: (f64, f64),
     /// Whether the point estimate lies in the declared range.
     pub inside_declared: bool,
+    /// How `interval` was formed.
+    pub interval_method: ParameterIntervalMethod,
 }
 
 /// Estimate of the trade-offs one group of recorded decision-makers acted on, under the logit
@@ -266,6 +365,12 @@ pub struct ChoiceModelEstimate {
     /// Sorted, distinct: parameter assumptions, the record set's assumptions and
     /// [`ASSUMPTION_LOGIT_CHOICE`].
     pub assumptions: Vec<String>,
+    /// Identities of the fitted shape parameters, in model order. Empty when the value has no
+    /// fitted shape parameter: `coefficient_covariance` is then the covariance of
+    /// `beta = (lambda, lambda * theta)`. Otherwise it is the covariance of the direct parameters
+    /// `(lambda, theta_learnable..., theta_shape...)`: the learnable linear parameters and then
+    /// these shape parameters, each in model order.
+    pub shape_parameters: Vec<String>,
 }
 
 /// The outcome of one per-decider fit.
@@ -380,6 +485,54 @@ pub enum ChoiceModelError {
     },
     /// The execution context was cancelled between Newton steps, fits or measure draws.
     Cancelled,
+    /// The choices are perfectly consistent with a value in the family at a value of the shape
+    /// parameters, so the likelihood has no finite maximum.
+    SeparatedAtShape {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// The shape parameters and their values where separation was found.
+        shape: Vec<(String, f64)>,
+    },
+    /// The profile log-likelihood of a shape parameter varies by less than `chi2_1(level) / 2`
+    /// over its declared range.
+    ShapeNotIdentified {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// The shape parameter.
+        parameter: String,
+        /// Largest minus smallest profile log-likelihood over the range.
+        profile_range: f64,
+    },
+    /// The estimate of a shape parameter lies on a declared bound.
+    ShapeEstimateAtBound {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// The shape parameter.
+        parameter: String,
+        /// The estimate.
+        estimate: f64,
+        /// The profile likelihood-ratio interval, truncated at the bound.
+        interval: (f64, f64),
+    },
+    /// The profile of a shape parameter has two maxima close to the overall maximum separated by
+    /// a deeper dip.
+    ProfileMultimodal {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// The shape parameter.
+        parameter: String,
+        /// The two maximising values.
+        modes: (f64, f64),
+    },
+    /// More shape parameters to fit than the search covers.
+    ShapeSearchBudget {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// Shape parameters to fit.
+        dimensions: usize,
+        /// The search limit.
+        limit: usize,
+    },
 }
 
 impl ChoiceModelError {
@@ -404,7 +557,9 @@ impl ChoiceModelError {
                 reason_details::preference_choice_model::NOTHING_IDENTIFIED
             }
             Self::RankDeficient { .. } => reason_details::preference_choice_model::RANK_DEFICIENT,
-            Self::Separated { .. } => reason_details::preference_choice_model::SEPARATED,
+            Self::Separated { .. } | Self::SeparatedAtShape { .. } => {
+                reason_details::preference_choice_model::SEPARATED
+            }
             Self::ConsistencyNotPositive { .. } => {
                 reason_details::preference_choice_model::CONSISTENCY_NOT_POSITIVE
             }
@@ -417,6 +572,18 @@ impl ChoiceModelError {
                 reason_details::preference_choice_model::NO_DRAW_INSIDE_SET
             }
             Self::Cancelled => reason_details::preference_choice_model::CANCELLED,
+            Self::ShapeNotIdentified { .. } => {
+                reason_details::preference_choice_model::SHAPE_NOT_IDENTIFIED
+            }
+            Self::ShapeEstimateAtBound { .. } => {
+                reason_details::preference_choice_model::SHAPE_ESTIMATE_AT_BOUND
+            }
+            Self::ProfileMultimodal { .. } => {
+                reason_details::preference_choice_model::PROFILE_MULTIMODAL
+            }
+            Self::ShapeSearchBudget { .. } => {
+                reason_details::preference_choice_model::SHAPE_SEARCH_BUDGET
+            }
         }
     }
 }
@@ -487,6 +654,31 @@ impl fmt::Display for ChoiceModelError {
                 who(decider.as_deref())
             ),
             Self::Cancelled => write!(f, "estimating the choice model was cancelled"),
+            Self::SeparatedAtShape { decider, shape } => write!(
+                f,
+                "{}: choices are perfectly consistent with a value in the family at shape values {shape:?}; use the compatible-set method",
+                who(decider.as_deref())
+            ),
+            Self::ShapeNotIdentified { decider, parameter, profile_range } => write!(
+                f,
+                "{}: the profile log-likelihood of shape parameter `{parameter}` varies by only {profile_range} over its declared range",
+                who(decider.as_deref())
+            ),
+            Self::ShapeEstimateAtBound { decider, parameter, estimate, interval } => write!(
+                f,
+                "{}: shape parameter `{parameter}` is estimated on a declared bound ({estimate}); profile interval {interval:?}",
+                who(decider.as_deref())
+            ),
+            Self::ProfileMultimodal { decider, parameter, modes } => write!(
+                f,
+                "{}: the profile of shape parameter `{parameter}` has two maxima at {modes:?}",
+                who(decider.as_deref())
+            ),
+            Self::ShapeSearchBudget { decider, dimensions, limit } => write!(
+                f,
+                "{}: {dimensions} shape parameters exceed the search limit of {limit}",
+                who(decider.as_deref())
+            ),
         }
     }
 }
@@ -554,8 +746,19 @@ pub(crate) fn estimate_all(
     {
         return Err(ChoiceModelError::FitOptionsInvalid);
     }
+    let search = options.shape_search;
+    if search.grid_points == 0
+        || search.profile_points < 3
+        || search.max_refinements == 0
+        || search.max_dimensions > SOBOL_DIMENSIONS
+    {
+        return Err(ChoiceModelError::FitOptionsInvalid);
+    }
     let model_identity = model.identity().map_err(ChoiceModelError::Model)?;
     let records_digest = records.digest().map_err(ChoiceModelError::Records)?;
+    if model.shape_split().is_some_and(|split| !split.shape.is_empty()) {
+        return estimate_with_shape(model, records, options, ctx, model_identity, records_digest);
+    }
     let features = choice_features(model, records).map_err(ChoiceModelError::Records)?;
     let mut assumptions: BTreeSet<String> =
         model.preferences.parameters.iter().map(|p| p.assumption_id.clone()).collect();
@@ -601,6 +804,149 @@ pub(crate) fn estimate_all(
 /// Whether a record's choice set can enter the fit: at least two available options.
 fn informative(set: &ChoiceSetFeatures) -> bool {
     set.option_ids.len() >= 2
+}
+
+/// [`estimate_all`] for a value with shape parameters.
+fn estimate_with_shape(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    options: ChoiceModelOptions,
+    ctx: Option<&ExecutionContext>,
+    model_identity: String,
+    records_digest: String,
+) -> Result<ChoiceModelResult, ChoiceModelError> {
+    let data = shape_data(model, records).map_err(ChoiceModelError::Records)?;
+    let mut assumptions: BTreeSet<String> =
+        model.preferences.parameters.iter().map(|p| p.assumption_id.clone()).collect();
+    assumptions.extend(records.assumptions());
+    assumptions.insert(ASSUMPTION_LOGIT_CHOICE.to_owned());
+    let context = Context {
+        model,
+        options,
+        model_identity,
+        records_digest,
+        n_parameters: data.n_parameters,
+        assumptions: assumptions.into_iter().collect(),
+        stated: records.stated_records().into_iter().collect(),
+        ctx,
+    };
+    let informative: Vec<usize> =
+        (0..data.records.len()).filter(|&m| data.records[m].options.len() >= 2).collect();
+    match &records.pooling {
+        Pooling::Pooled { .. } => {
+            let estimate = context.estimate_shape(&data, &informative, None)?;
+            Ok(ChoiceModelResult { pooled: Some(Box::new(estimate)), per_decider: Vec::new() })
+        }
+        Pooling::PerDecider => {
+            let mut per_decider = Vec::new();
+            for decider in records.deciders() {
+                let members: Vec<usize> = informative
+                    .iter()
+                    .copied()
+                    .filter(|&m| data.records[m].decider == decider)
+                    .collect();
+                let outcome = match context.estimate_shape(&data, &members, Some(decider.as_str()))
+                {
+                    Ok(estimate) => EstimateOutcome::Estimated(Box::new(estimate)),
+                    Err(ChoiceModelError::Cancelled) => return Err(ChoiceModelError::Cancelled),
+                    Err(error) => EstimateOutcome::Refused(error),
+                };
+                per_decider.push((decider, outcome));
+            }
+            Ok(ChoiceModelResult { pooled: None, per_decider })
+        }
+    }
+}
+
+/// The option utilities of the records of one fit under a value with shape parameters.
+struct ShapeUtility<'d> {
+    data: &'d ShapeData,
+    members: &'d [usize],
+    /// Learnable linear parameters, in model order.
+    learnable: Vec<usize>,
+    /// Fitted shape parameters, in model order.
+    fitted: Vec<usize>,
+    /// Every parameter's value where not fitted: fixed values, and declared midpoints.
+    base: Vec<f64>,
+    set_starts: Vec<usize>,
+    chosen: Vec<usize>,
+    clusters: Option<Vec<u32>>,
+    /// The record refusal behind the last evaluation that failed.
+    failure: RefCell<Option<ChoiceRecordError>>,
+}
+
+impl ShapeUtility<'_> {
+    fn point(&self, shape: &[f64]) -> Vec<f64> {
+        let mut point = self.base.clone();
+        for (j, value) in self.fitted.iter().zip(shape) {
+            point[*j] = *value;
+        }
+        point
+    }
+
+    fn parts(&self) -> Vec<&crate::preference_model::PreferenceExpr> {
+        let form = &self.data.split.form;
+        std::iter::once(&form.fixed).chain(self.learnable.iter().map(|j| &form.terms[*j])).collect()
+    }
+
+    fn fail(&self, error: ChoiceRecordError) -> UtilityNotEvaluable {
+        *self.failure.borrow_mut() = Some(error);
+        UtilityNotEvaluable
+    }
+}
+
+impl ChoiceUtility for ShapeUtility<'_> {
+    fn n_linear(&self) -> usize {
+        self.learnable.len()
+    }
+
+    fn n_shape(&self) -> usize {
+        self.fitted.len()
+    }
+
+    fn set_starts(&self) -> &[usize] {
+        &self.set_starts
+    }
+
+    fn chosen(&self) -> &[usize] {
+        &self.chosen
+    }
+
+    fn clusters(&self) -> Option<&[u32]> {
+        self.clusters.as_deref()
+    }
+
+    fn features(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
+        let point = self.point(shape);
+        let parts = self.parts();
+        let mut out = Vec::new();
+        for &m in self.members {
+            for o in 0..self.data.records[m].options.len() {
+                for part in &parts {
+                    out.push(self.data.expectation(m, o, part, &point).map_err(|e| self.fail(e))?);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn shape_jacobian(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
+        let point = self.point(shape);
+        let parts = self.parts();
+        let mut out = Vec::new();
+        for &m in self.members {
+            for o in 0..self.data.records[m].options.len() {
+                for part in &parts {
+                    let (_, gradient) = self
+                        .data
+                        .expectation_with_gradient(m, o, part, &point)
+                        .map_err(|e| self.fail(e))?;
+                    out.extend(self.fitted.iter().map(|j| gradient[*j]));
+                }
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// What every fit of one call shares.
@@ -736,6 +1082,7 @@ impl Context<'_> {
             share_outside_declared: count_as_f64(draws.dropped)
                 / count_as_f64(self.options.n_draws),
             assumptions: self.assumptions.clone(),
+            shape_parameters: Vec::new(),
         })
     }
 
@@ -815,6 +1162,7 @@ impl Context<'_> {
                     interval: (estimate - z * standard_error, estimate + z * standard_error),
                     declared: (declared.lower, declared.upper),
                     inside_declared: estimate >= declared.lower && estimate <= declared.upper,
+                    interval_method: ParameterIntervalMethod::Wald,
                 })
             })
             .collect()
@@ -917,6 +1265,413 @@ impl Context<'_> {
                 }
             });
             if in_ranges && in_relations {
+                points.push(point);
+            } else {
+                dropped += 1;
+            }
+        }
+        Ok(MeasureDraws { points, dropped })
+    }
+}
+
+/// One parameter's `(index, estimate, standard error, interval, interval method)`.
+type EstimateEntry = (usize, f64, f64, (f64, f64), ParameterIntervalMethod);
+
+impl Context<'_> {
+    /// The estimate of one fit under a value with shape parameters.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the checks and outputs of the fit, in the documented order"
+    )]
+    fn estimate_shape(
+        &self,
+        data: &ShapeData,
+        members: &[usize],
+        decider: Option<&str>,
+    ) -> Result<ChoiceModelEstimate, ChoiceModelError> {
+        self.observe()?;
+        let owned = || decider.map(str::to_owned);
+        let stated =
+            members.iter().filter(|&&m| self.stated.contains(&data.records[m].record_id)).count();
+        if stated > 0 && stated < members.len() {
+            return Err(ChoiceModelError::StatedAndRecordedMixed {
+                decider: owned(),
+                stated,
+                recorded: members.len() - stated,
+            });
+        }
+        let set = &self.model.preferences;
+        let split = &data.split;
+        let fitted: Vec<usize> = split
+            .shape
+            .iter()
+            .copied()
+            .filter(|&j| data.varies(&data.attributes_moving_with(j), members))
+            .collect();
+        let learnable: Vec<usize> = split
+            .linear
+            .iter()
+            .copied()
+            .filter(|&j| data.varies(&data.term_attributes(j), members))
+            .collect();
+        let mut base = set.midpoint();
+        for (slot, value) in base.iter_mut().zip(&split.fixed) {
+            if let Some(value) = value {
+                *slot = *value;
+            }
+        }
+        if fitted.is_empty() {
+            // No shape parameter moves the within-record differences: the features at any shape
+            // value give the same likelihood, and the ordinary fit applies.
+            let features = data.features_at(&base).map_err(ChoiceModelError::Records)?;
+            let sets: Vec<&ChoiceSetFeatures> =
+                members.iter().map(|&m| &features.sets[m]).collect();
+            return self.estimate(&sets, decider);
+        }
+        if !data.varies(&data.fixed_attributes(), members) {
+            return Err(ChoiceModelError::NoUnitOfAccount { decider: owned() });
+        }
+        let unresolved: Vec<usize> = (0..set.dimension())
+            .filter(|j| split.fixed[*j].is_none() && !fitted.contains(j) && !learnable.contains(j))
+            .collect();
+        let deciders: Vec<&str> = members
+            .iter()
+            .map(|&m| data.records[m].decider.as_str())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let mut set_starts = vec![0];
+        let mut chosen = Vec::with_capacity(members.len());
+        for &m in members {
+            let last = set_starts.last().copied().unwrap_or(0);
+            set_starts.push(last + data.records[m].options.len());
+            chosen.push(data.records[m].chosen);
+        }
+        let clusters = (deciders.len() >= 2).then(|| {
+            members
+                .iter()
+                .map(|&m| {
+                    let position =
+                        deciders.binary_search(&data.records[m].decider.as_str()).unwrap_or(0);
+                    u32::try_from(position).unwrap_or(u32::MAX)
+                })
+                .collect()
+        });
+        let utility = ShapeUtility {
+            data,
+            members,
+            learnable: learnable.clone(),
+            fitted: fitted.clone(),
+            base: base.clone(),
+            set_starts,
+            chosen,
+            clusters,
+            failure: RefCell::new(None),
+        };
+        let bounds: Vec<(f64, f64)> =
+            fitted.iter().map(|j| (set.parameters[*j].lower, set.parameters[*j].upper)).collect();
+        let options = NonlinearConditionalLogitOptions {
+            fit: self.options.fit,
+            search: self.options.shape_search,
+            level: self.options.level,
+        };
+        let fit = fit_nonlinear_conditional_logit(&utility, &bounds, options, self.ctx)
+            .map_err(|error| self.shape_refusal(error, &utility, decider))?;
+        let at_estimate =
+            data.features_at(&utility.point(&fit.shape)).map_err(ChoiceModelError::Records)?;
+        let sets: Vec<&ChoiceSetFeatures> = members.iter().map(|&m| &at_estimate.sets[m]).collect();
+        if !column_differs(&sets, |set, i| set.fixed.get(i).copied()) {
+            return Err(ChoiceModelError::NoUnitOfAccount { decider: owned() });
+        }
+        let n_deciders = deciders.len();
+        let (kind, covariance) = match fit.cluster_covariance.clone() {
+            Some(clustered) if n_deciders >= 2 => (CovarianceKind::ClusteredByDecider, clustered),
+            _ => (CovarianceKind::Model, fit.covariance.clone()),
+        };
+        let q = 1 + learnable.len() + fitted.len();
+        let mut chol = vec![0.0; q * q];
+        if cholesky_spd_into(&covariance, q, &mut chol).is_err() {
+            return Err(ChoiceModelError::CovarianceNotPositiveDefinite { decider: owned(), kind });
+        }
+        let estimates = self.shape_estimates(&fit, &covariance, &learnable, &fitted);
+        let identity = self.shape_identity(decider, kind);
+        let draws = self.draw_direct(&fit, &chol, &base, &learnable, &fitted, &unresolved)?;
+        if draws.points.is_empty() {
+            return Err(ChoiceModelError::NoDrawInsideSet {
+                decider: owned(),
+                drawn: self.options.n_draws,
+            });
+        }
+        let id = |j: &usize| set.parameters.get(*j).map(|p| p.id.clone());
+        Ok(ChoiceModelEstimate {
+            identity: identity.clone(),
+            model_identity: self.model_identity.clone(),
+            records_digest: self.records_digest.clone(),
+            decider: owned(),
+            consistency: fit.consistency,
+            consistency_standard_error: covariance[0].max(0.0).sqrt(),
+            parameters: estimates,
+            not_learnable: unresolved.iter().filter_map(id).collect(),
+            log_likelihood: fit.log_likelihood,
+            null_log_likelihood: fit.null_log_likelihood,
+            n_records: members.len(),
+            n_deciders,
+            covariance_kind: kind,
+            coefficient_covariance: covariance,
+            level: self.options.level,
+            interval_calibration: interval_calibration(&shape_calibration_basis(
+                kind,
+                learnable.len(),
+                fitted.len(),
+                u64::try_from(members.len()).unwrap_or(u64::MAX),
+                self.options.level,
+            )),
+            measure: PreferenceMeasure {
+                points: draws.points,
+                weights: None,
+                labels: None,
+                origin: MeasureOrigin::ChoiceEstimate { estimate_identity: identity },
+                unresolved,
+            },
+            share_outside_declared: count_as_f64(draws.dropped)
+                / count_as_f64(self.options.n_draws),
+            assumptions: self.assumptions.clone(),
+            shape_parameters: fitted.iter().filter_map(id).collect(),
+        })
+    }
+
+    /// The refusal of a fit with shape parameters, naming parameters by id.
+    fn shape_refusal(
+        &self,
+        error: NonlinearChoiceError,
+        utility: &ShapeUtility<'_>,
+        decider: Option<&str>,
+    ) -> ChoiceModelError {
+        use NonlinearChoiceError as N;
+        let decider = decider.map(str::to_owned);
+        let parameters = &self.model.preferences.parameters;
+        let id = |j: usize| parameters.get(j).map(|p| p.id.clone()).unwrap_or_default();
+        let fitted = |m: usize| utility.fitted.get(m).map_or_else(String::new, |j| id(*j));
+        match error {
+            N::InvalidOptions | N::BoundsInvalid { .. } => ChoiceModelError::FitOptionsInvalid,
+            N::ShapeSearchBudget { dimensions, limit } => {
+                ChoiceModelError::ShapeSearchBudget { decider, dimensions, limit }
+            }
+            N::Design(error) => ChoiceModelError::Fit { decider, error },
+            N::UtilityNotEvaluable { .. } => match utility.failure.borrow_mut().take() {
+                Some(record) => ChoiceModelError::Records(record),
+                None => ChoiceModelError::Fit {
+                    decider,
+                    error: ConditionalLogitError::NonFiniteFeature { row: 0, column: 0 },
+                },
+            },
+            N::Separated { shape } => ChoiceModelError::SeparatedAtShape {
+                decider,
+                shape: utility.fitted.iter().zip(shape).map(|(j, value)| (id(*j), value)).collect(),
+            },
+            N::NotConverged { iterations, gradient_norm } => {
+                ChoiceModelError::NotConverged { decider, iterations, gradient_norm }
+            }
+            N::ConsistencyNotPositive { consistency } => {
+                ChoiceModelError::ConsistencyNotPositive { decider, consistency }
+            }
+            N::ShapeNotIdentified { dimension, profile_range } => {
+                ChoiceModelError::ShapeNotIdentified {
+                    decider,
+                    parameter: fitted(dimension),
+                    profile_range,
+                }
+            }
+            N::ProfileMultimodal { dimension, modes } => {
+                ChoiceModelError::ProfileMultimodal { decider, parameter: fitted(dimension), modes }
+            }
+            N::ShapeEstimateAtBound { dimension, estimate, interval } => {
+                ChoiceModelError::ShapeEstimateAtBound {
+                    decider,
+                    parameter: fitted(dimension),
+                    estimate,
+                    interval,
+                }
+            }
+            N::RankDeficient { columns } => {
+                let n_linear = utility.learnable.len();
+                ChoiceModelError::RankDeficient {
+                    decider,
+                    unit_of_account: columns.contains(&0),
+                    parameters: columns
+                        .iter()
+                        .filter_map(|c| c.checked_sub(1))
+                        .filter_map(|c| {
+                            if c < n_linear {
+                                utility.learnable.get(c).copied()
+                            } else {
+                                utility.fitted.get(c - n_linear).copied()
+                            }
+                        })
+                        .map(id)
+                        .collect(),
+                }
+            }
+            N::Cancelled => ChoiceModelError::Cancelled,
+        }
+    }
+
+    /// Estimates of the learnable linear parameters (Wald) and the fitted shape parameters
+    /// (profile likelihood ratio), in model order.
+    fn shape_estimates(
+        &self,
+        fit: &NonlinearConditionalLogitFit,
+        covariance: &[f64],
+        learnable: &[usize],
+        fitted: &[usize],
+    ) -> Vec<ParameterEstimate> {
+        let z = norm_inv(0.5 + 0.5 * self.options.level);
+        let q = 1 + learnable.len() + fitted.len();
+        let standard_error = |index: usize| covariance[index * q + index].max(0.0).sqrt();
+        let mut entries: Vec<EstimateEntry> = Vec::new();
+        for (c, j) in learnable.iter().enumerate() {
+            let estimate = fit.linear[c];
+            let se = standard_error(1 + c);
+            entries.push((
+                *j,
+                estimate,
+                se,
+                (estimate - z * se, estimate + z * se),
+                ParameterIntervalMethod::Wald,
+            ));
+        }
+        for (m, j) in fitted.iter().enumerate() {
+            let estimate = fit.shape[m];
+            let interval = fit.profiles.get(m).map_or((estimate, estimate), |p| p.interval);
+            entries.push((
+                *j,
+                estimate,
+                standard_error(1 + learnable.len() + m),
+                interval,
+                ParameterIntervalMethod::ProfileLikelihood,
+            ));
+        }
+        entries.sort_by_key(|entry| entry.0);
+        entries
+            .into_iter()
+            .filter_map(|(j, estimate, standard_error, interval, interval_method)| {
+                let declared = self.model.preferences.parameters.get(j)?;
+                Some(ParameterEstimate {
+                    parameter_id: declared.id.clone(),
+                    estimate,
+                    standard_error,
+                    interval,
+                    declared: (declared.lower, declared.upper),
+                    inside_declared: estimate >= declared.lower && estimate <= declared.upper,
+                    interval_method,
+                })
+            })
+            .collect()
+    }
+
+    /// [`Self::identity`] followed by the shape search controls.
+    fn shape_identity(&self, decider: Option<&str>, kind: CovarianceKind) -> String {
+        let options = &self.options;
+        let search = options.shape_search;
+        let mut out = CanonicalWriter::new("antecedent.choice_model_estimate.v1");
+        out.text(&self.model_identity).text(&self.records_digest);
+        match decider {
+            Some(decider) => out.word(1).text(decider),
+            None => out.word(0),
+        };
+        out.real(options.level)
+            .word(options.n_draws as u64)
+            .word(options.seed)
+            .word(options.fit.max_iterations as u64)
+            .real(options.fit.gradient_tolerance)
+            .real(options.fit.separation_bound)
+            .word(kind.tag())
+            .word(search.grid_points as u64)
+            .word(search.max_dimensions as u64)
+            .word(search.profile_points as u64)
+            .word(search.max_refinements as u64);
+        out.finish_hex()
+    }
+
+    /// Draws of the direct parameters `(lambda, theta_learnable, theta_shape)` from the normal
+    /// approximation mapped to parameter points and kept inside the declared set, as
+    /// [`Self::draw_measure`] keeps them; value relations are checked when no parameter is
+    /// unresolved.
+    fn draw_direct(
+        &self,
+        fit: &NonlinearConditionalLogitFit,
+        chol: &[f64],
+        base: &[f64],
+        learnable: &[usize],
+        fitted: &[usize],
+        unresolved: &[usize],
+    ) -> Result<MeasureDraws, ChoiceModelError> {
+        let set = &self.model.preferences;
+        let mut centre = vec![fit.consistency];
+        centre.extend(fit.linear.iter().copied());
+        centre.extend(fit.shape.iter().copied());
+        let q = centre.len();
+        let resolved: Vec<usize> = learnable.iter().chain(fitted).copied().collect();
+        let checked_relations: Vec<usize> = set
+            .relations
+            .iter()
+            .enumerate()
+            .filter(|(_, relation)| relation.terms.iter().all(|(j, _)| !unresolved.contains(j)))
+            .map(|(index, _)| index)
+            .collect();
+        let mut rng = CausalRng::from_seed(self.options.seed);
+        let mut normal = vec![0.0; q];
+        let mut draw = vec![0.0; q];
+        let mut points = Vec::new();
+        let mut dropped = 0;
+        for index in 0..self.options.n_draws {
+            if index % DRAWS_PER_CHECK == 0 {
+                self.observe()?;
+            }
+            for value in &mut normal {
+                *value = standard_normal(&mut rng);
+            }
+            for (i, slot) in draw.iter_mut().enumerate() {
+                *slot = centre[i] + (0..=i).map(|j| chol[i * q + j] * normal[j]).sum::<f64>();
+            }
+            let lambda = draw[0];
+            if lambda.is_nan() || lambda <= 0.0 {
+                dropped += 1;
+                continue;
+            }
+            let mut point = base.to_vec();
+            for (c, j) in resolved.iter().enumerate() {
+                point[*j] = draw[c + 1];
+            }
+            let in_ranges = resolved.iter().all(|j| {
+                let declared = &set.parameters[*j];
+                let value = point[*j];
+                value.is_finite()
+                    && value >= declared.lower - SET_TOLERANCE
+                    && value <= declared.upper + SET_TOLERANCE
+            });
+            let in_relations = checked_relations.iter().all(|index| {
+                let relation = &set.relations[*index];
+                let lhs: f64 = relation
+                    .terms
+                    .iter()
+                    .map(|(j, coefficient)| {
+                        coefficient * point.get(*j).copied().unwrap_or(f64::NAN)
+                    })
+                    .sum();
+                match relation.sense {
+                    RelationSense::AtLeast => lhs >= relation.bound - SET_TOLERANCE,
+                    RelationSense::AtMost => lhs <= relation.bound + SET_TOLERANCE,
+                    RelationSense::Equal => (lhs - relation.bound).abs() <= SET_TOLERANCE,
+                }
+            });
+            let in_values = !unresolved.is_empty()
+                || set.value_relations.iter().all(|relation| {
+                    self.model
+                        .value_relation_gap(relation, &point)
+                        .is_ok_and(|gap| gap >= -relation.tolerance - SET_TOLERANCE)
+                });
+            if in_ranges && in_relations && in_values {
                 points.push(point);
             } else {
                 dropped += 1;
@@ -1163,6 +1918,51 @@ impl ChoiceModelError {
                 self.detail(),
             )
             .build(),
+            Self::SeparatedAtShape { decider, shape } => fit(decider.clone(), COMPATIBLE_SET)
+                .supplied(
+                    shape
+                        .iter()
+                        .map(|(id, value)| format!("{id}={value}"))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                )
+                .build(),
+            Self::ShapeNotIdentified { decider, parameter, profile_range } => design(
+                decider.clone(),
+                "fix the shape parameter to a single value, record choices that tell its values \
+                 apart, or use the compatible-set method",
+            )
+            .supplied(format!("{parameter}: profile range {profile_range}"))
+            .build(),
+            Self::ShapeEstimateAtBound { decider, parameter, estimate, interval } => refusal(
+                antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .offending_opt(decider.clone())
+            .supplied(format!(
+                "{parameter} = {estimate}; profile interval [{}, {}]",
+                interval.0, interval.1
+            ))
+            .remedy(
+                "widen the declared range if the bound is not a limit of the preference, or use \
+                 the compatible-set method",
+            )
+            .build(),
+            Self::ProfileMultimodal { decider, parameter, modes } => fit(
+                decider.clone(),
+                "narrow the declared range of the shape parameter to one mode, or use the \
+                 compatible-set method",
+            )
+            .supplied(format!("{parameter}: maxima at {} and {}", modes.0, modes.1))
+            .build(),
+            Self::ShapeSearchBudget { decider, dimensions, limit } => {
+                invalid("fix some shape parameters to single values, or raise the search limit")
+                    .offending_opt(decider.clone())
+                    .expected(format!("at most {limit}"))
+                    .supplied(dimensions.to_string())
+                    .build()
+            }
         }
     }
 }

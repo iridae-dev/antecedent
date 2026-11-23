@@ -104,10 +104,7 @@ fn attribute(id: &str, units: &str) -> Attribute {
 fn two_attribute_model(lower: f64, upper: f64, value: P) -> ValueModel {
     ValueModel {
         attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("w", lower, upper)],
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(vec![parameter("w", lower, upper)], vec![]),
         value,
         utility_units: "events".to_owned(),
     }
@@ -645,7 +642,7 @@ fn random_problem(
     });
     let model = ValueModel {
         attributes: (0..=k).map(|j| attribute(&format!("x{j}"), &format!("u{j}"))).collect(),
-        preferences: PreferenceSet { parameters, relations: vec![] },
+        preferences: PreferenceSet::new(parameters, vec![]),
         value,
         utility_units: "utility".to_owned(),
     };
@@ -763,10 +760,10 @@ fn the_certified_route_never_contradicts_the_exact_route_on_affine_problems() {
 fn fixed_model() -> ValueModel {
     ValueModel {
         attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("u", 0.9, 0.9), parameter("w", 1.2, 1.2)],
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(
+            vec![parameter("u", 0.9, 0.9), parameter("w", 1.2, 1.2)],
+            vec![],
+        ),
         value: P::difference(
             P::product(P::Parameter(0), P::Attribute(0)),
             P::product(P::Parameter(1), P::Attribute(1)),
@@ -779,7 +776,7 @@ fn fixed_model() -> ValueModel {
 fn parameter_free_model() -> ValueModel {
     ValueModel {
         attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
-        preferences: PreferenceSet { parameters: vec![], relations: vec![] },
+        preferences: PreferenceSet::new(vec![], vec![]),
         value: P::difference(P::Attribute(0), P::Attribute(1)),
         utility_units: "events".to_owned(),
     }

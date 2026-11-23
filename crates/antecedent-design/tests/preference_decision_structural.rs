@@ -70,10 +70,7 @@ fn model(lower: f64, upper: f64) -> ValueModel {
             Attribute { id: "benefit".into(), units: "events".into() },
             Attribute { id: "cost".into(), units: "usd".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("w", lower, upper)],
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(vec![parameter("w", lower, upper)], vec![]),
         value: P::difference(shape::rate(0), P::product(P::Parameter(0), shape::rate(1))),
         utility_units: "events".into(),
     }
@@ -656,7 +653,7 @@ fn problem(rng: &mut Rng) -> Problem {
     }
     let model = ValueModel {
         attributes,
-        preferences: PreferenceSet { parameters, relations },
+        preferences: PreferenceSet::new(parameters, relations),
         value,
         utility_units: "utility".into(),
     };

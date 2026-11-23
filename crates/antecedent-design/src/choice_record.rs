@@ -34,6 +34,13 @@
 //! exactly the free parameters. A term's expectation from attribute means is its value at the
 //! means, which is exact only for a term affine in the attributes; any other term needs draws.
 //!
+//! A value that is not affine in some free parameters (shape parameters: a risk attitude inside
+//! an exponential, a breakpoint inside a kink) has no linear form, and [`choice_features`] refuses
+//! it by name. [`choice_features_at`] takes the features at a given value of the shape
+//! parameters instead: the shape values are substituted, and the value is then
+//! `fixed + sum_j theta_j * terms[j]` over the remaining free parameters, so the columns of the
+//! shape parameters are zero and their effect at the given point is in the fixed part.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -43,7 +50,7 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, is_blank};
 
 use crate::preference_model::{
-    Attribute, LinearForm, PreferenceExpr, PreferenceModelError, ValueModel,
+    Attribute, LinearForm, PreferenceExpr, PreferenceModelError, ShapeSplit, ValueModel,
 };
 use crate::preference_refusal::{DECLARE, at, refusal};
 use crate::signal::at_stage;
@@ -993,6 +1000,328 @@ pub fn choice_features(
         });
     }
     Ok(ChoiceFeatures { n_parameters, sets })
+}
+
+/// [`choice_features`] at given values of the shape parameters.
+///
+/// `parameters` holds one value per model parameter; only the values of the free shape
+/// parameters (those the value is not affine in once the fixed parameters are substituted) are
+/// read. Those values are substituted, every fixed parameter is substituted by its declared
+/// value, and the features are taken as [`choice_features`] takes them: the columns of the shape
+/// and fixed parameters are zero and their contribution is in the fixed part. For a value with no
+/// shape parameter the result equals [`choice_features`] up to the rounding of the expectation.
+///
+/// # Errors
+/// - [`ChoiceRecordError::Model`] for an invalid model, a point whose length is not the model's
+///   dimension or a non-finite value at a shape parameter, or any
+///   [`ChoiceRecordSet::validate`] refusal;
+/// - [`ChoiceRecordError::AttributesDiffer`] naming the first attribute that differs;
+/// - [`ChoiceRecordError::BeliefLawRequired`] for a means belief and a part not affine in the
+///   attributes;
+/// - [`ChoiceRecordError::TermNotFinite`] when a part's value or expectation is not finite.
+pub fn choice_features_at(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    parameters: &[f64],
+) -> Result<ChoiceFeatures, ChoiceRecordError> {
+    let data = shape_data(model, records)?;
+    let dimension = model.preferences.dimension();
+    if parameters.len() != dimension {
+        return Err(ChoiceRecordError::Model(PreferenceModelError::ParameterCount {
+            expected: dimension,
+            found: parameters.len(),
+        }));
+    }
+    if let Some(&index) = data.split.shape.iter().find(|j| !parameters[**j].is_finite()) {
+        return Err(ChoiceRecordError::Model(PreferenceModelError::NonFiniteParameterValue {
+            index,
+        }));
+    }
+    data.features_at(parameters)
+}
+
+/// One available option of a record as weighted attribute rows.
+#[derive(Clone, Debug)]
+pub(crate) struct OptionRows {
+    /// Identity of the option.
+    pub(crate) id: String,
+    /// Attribute rows, one per draw (one row of means for a means belief).
+    pub(crate) rows: Vec<Vec<f64>>,
+    /// One weight per row, as declared (uniform when absent).
+    pub(crate) weights: Vec<f64>,
+    /// Sum of `weights`.
+    pub(crate) total: f64,
+}
+
+impl OptionRows {
+    /// Weights normalised to sum to one.
+    pub(crate) fn normalised(&self) -> Vec<f64> {
+        self.weights.iter().map(|w| w / self.total).collect()
+    }
+
+    /// The rows restricted to `attributes`, paired with the normalised weights and sorted: two
+    /// options with equal signatures give every function of those attributes the same
+    /// expectation.
+    fn signature(&self, attributes: &[usize]) -> Vec<(f64, Vec<f64>)> {
+        let mut signature: Vec<(f64, Vec<f64>)> = self
+            .rows
+            .iter()
+            .zip(self.normalised())
+            .map(|(row, weight)| {
+                (weight, attributes.iter().map(|k| row.get(*k).copied().unwrap_or(0.0)).collect())
+            })
+            .collect();
+        signature.sort_by(|a, b| {
+            a.1.iter()
+                .zip(&b.1)
+                .map(|(x, y)| x.total_cmp(y))
+                .find(|o| o.is_ne())
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.0.total_cmp(&b.0))
+        });
+        signature
+    }
+}
+
+/// The available options of one record.
+#[derive(Clone, Debug)]
+pub(crate) struct RecordRows {
+    /// The record.
+    pub(crate) record_id: String,
+    /// Who chose.
+    pub(crate) decider: String,
+    /// The available options, in declared order.
+    pub(crate) options: Vec<OptionRows>,
+    /// Position of the chosen option in `options`.
+    pub(crate) chosen: usize,
+    /// The unavailable options, in declared order.
+    pub(crate) unavailable: Vec<UnavailableOption>,
+}
+
+/// Records read under a value split into shape parameters and a part affine in the rest.
+#[derive(Clone, Debug)]
+pub(crate) struct ShapeData {
+    /// The split of the value.
+    pub(crate) split: ShapeSplit,
+    /// The model's dimension.
+    pub(crate) n_parameters: usize,
+    /// Every record, in record order.
+    pub(crate) records: Vec<RecordRows>,
+}
+
+/// The records as weighted rows under the model's shape split, with means beliefs checked
+/// against parts that are not affine in the attributes.
+pub(crate) fn shape_data(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+) -> Result<ShapeData, ChoiceRecordError> {
+    model.validate().map_err(ChoiceRecordError::Model)?;
+    records.validate()?;
+    compare_attributes(&model.attributes, &records.attributes)?;
+    let split = model.shape_split().ok_or_else(|| ChoiceRecordError::ShapeParametersNotFixed {
+        parameters: model.preferences.parameters.iter().map(|p| p.id.clone()).collect(),
+    })?;
+    let width = records.attributes.len();
+    let mut out = Vec::with_capacity(records.records.len());
+    for record in &records.records {
+        let mut options = Vec::with_capacity(record.options.len());
+        let mut unavailable = Vec::new();
+        for option in &record.options {
+            let (rows, weights) = match &option.belief {
+                OptionBelief::Unavailable { constraint_id } => {
+                    unavailable.push(UnavailableOption {
+                        option_id: option.id.clone(),
+                        constraint_id: constraint_id.clone(),
+                    });
+                    continue;
+                }
+                OptionBelief::Means(means) => {
+                    let parts = std::iter::once((None, &split.form.fixed))
+                        .chain(split.linear.iter().map(|j| (Some(*j), &split.form.terms[*j])));
+                    for (term, part) in parts {
+                        if !part.is_affine_in_attributes() {
+                            return Err(ChoiceRecordError::BeliefLawRequired {
+                                record: record.id.clone(),
+                                option: option.id.clone(),
+                                term,
+                            });
+                        }
+                    }
+                    (vec![means.clone()], vec![1.0])
+                }
+                OptionBelief::Draws { rows, weights } => {
+                    let rows: Vec<Vec<f64>> =
+                        rows.chunks_exact(width).map(<[f64]>::to_vec).collect();
+                    let weights = weights.clone().unwrap_or_else(|| vec![1.0; rows.len()]);
+                    (rows, weights)
+                }
+            };
+            let total: f64 = weights.iter().sum();
+            options.push(OptionRows { id: option.id.clone(), rows, weights, total });
+        }
+        let chosen = options.iter().position(|o| o.id == record.chosen).unwrap_or(0);
+        out.push(RecordRows {
+            record_id: record.id.clone(),
+            decider: record.decider.clone(),
+            options,
+            chosen,
+            unavailable,
+        });
+    }
+    Ok(ShapeData { split, n_parameters: model.preferences.dimension(), records: out })
+}
+
+impl ShapeData {
+    /// The parts read by the features: `None` for the fixed part, `Some(j)` for the term of
+    /// linear parameter `j`.
+    fn parts(&self) -> impl Iterator<Item = (Option<usize>, &PreferenceExpr)> {
+        std::iter::once((None, &self.split.form.fixed))
+            .chain(self.split.linear.iter().map(|j| (Some(*j), &self.split.form.terms[*j])))
+    }
+
+    /// Expectation of one part under one option at a parameter point.
+    pub(crate) fn expectation(
+        &self,
+        record: usize,
+        option: usize,
+        part: &PreferenceExpr,
+        parameters: &[f64],
+    ) -> Result<f64, ChoiceRecordError> {
+        let set = &self.records[record];
+        let rows = &set.options[option];
+        let not_finite = || ChoiceRecordError::TermNotFinite {
+            record: set.record_id.clone(),
+            option: rows.id.clone(),
+        };
+        let mut weighted = 0.0;
+        for (row, weight) in rows.rows.iter().zip(&rows.weights) {
+            let value = part.evaluate(row, parameters).map_err(|_| not_finite())?;
+            weighted += weight * value;
+        }
+        let value = weighted / rows.total;
+        if value.is_finite() { Ok(value) } else { Err(not_finite()) }
+    }
+
+    /// Expectation of one part and of its gradient with respect to every parameter.
+    pub(crate) fn expectation_with_gradient(
+        &self,
+        record: usize,
+        option: usize,
+        part: &PreferenceExpr,
+        parameters: &[f64],
+    ) -> Result<(f64, Vec<f64>), ChoiceRecordError> {
+        let set = &self.records[record];
+        let rows = &set.options[option];
+        let not_finite = || ChoiceRecordError::TermNotFinite {
+            record: set.record_id.clone(),
+            option: rows.id.clone(),
+        };
+        let mut value = 0.0;
+        let mut gradient = vec![0.0; parameters.len()];
+        for (row, weight) in rows.rows.iter().zip(&rows.weights) {
+            let (v, g) = part.evaluate_with_gradient(row, parameters).map_err(|_| not_finite())?;
+            value += weight * v;
+            for (slot, x) in gradient.iter_mut().zip(g) {
+                *slot += weight * x;
+            }
+        }
+        let value = value / rows.total;
+        for slot in &mut gradient {
+            *slot /= rows.total;
+        }
+        if value.is_finite() && gradient.iter().all(|g| g.is_finite()) {
+            Ok((value, gradient))
+        } else {
+            Err(not_finite())
+        }
+    }
+
+    /// The features of every record at a parameter point (see [`choice_features_at`]).
+    pub(crate) fn features_at(
+        &self,
+        parameters: &[f64],
+    ) -> Result<ChoiceFeatures, ChoiceRecordError> {
+        let n_parameters = self.n_parameters;
+        let mut sets = Vec::with_capacity(self.records.len());
+        for (r, record) in self.records.iter().enumerate() {
+            let mut fixed = Vec::with_capacity(record.options.len());
+            let mut terms = vec![0.0; record.options.len() * n_parameters];
+            for o in 0..record.options.len() {
+                for (term, part) in self.parts() {
+                    let value = self.expectation(r, o, part, parameters)?;
+                    match term {
+                        None => fixed.push(value),
+                        Some(j) => terms[o * n_parameters + j] = value,
+                    }
+                }
+            }
+            sets.push(ChoiceSetFeatures {
+                record_id: record.record_id.clone(),
+                decider: record.decider.clone(),
+                option_ids: record.options.iter().map(|o| o.id.clone()).collect(),
+                chosen: record.chosen,
+                fixed,
+                terms,
+                unavailable: record.unavailable.clone(),
+            });
+        }
+        Ok(ChoiceFeatures { n_parameters, sets })
+    }
+
+    /// Whether, in some record of `members`, two available options differ in the rows of
+    /// `attributes` (with their weights). When none does, every function of those attributes has
+    /// the same expectation under every option of each of those records, whatever the
+    /// parameters.
+    pub(crate) fn varies(&self, attributes: &[usize], members: &[usize]) -> bool {
+        members.iter().filter_map(|m| self.records.get(*m)).any(|record| {
+            let mut signatures = record.options.iter().map(|o| o.signature(attributes));
+            let Some(first) = signatures.next() else { return false };
+            signatures.any(|other| {
+                other.len() != first.len()
+                    || other.iter().zip(&first).any(|(a, b)| {
+                        a.0.total_cmp(&b.0).is_ne()
+                            || a.1.iter().zip(&b.1).any(|(x, y)| x.total_cmp(y).is_ne())
+                    })
+            })
+        })
+    }
+
+    /// Attributes read by the parts that read parameter `j`, summand by summand: a summand of
+    /// the fixed part or a term that does not read `j` is left out.
+    pub(crate) fn attributes_moving_with(&self, j: usize) -> Vec<usize> {
+        let mut attributes = std::collections::BTreeSet::new();
+        for (_, part) in self.parts() {
+            for summand in summands(part) {
+                if summand.parameters_used().contains(&j) {
+                    attributes.extend(summand.attributes_used());
+                }
+            }
+        }
+        attributes.into_iter().collect()
+    }
+
+    /// Attributes read by the term of linear parameter `j`.
+    pub(crate) fn term_attributes(&self, j: usize) -> Vec<usize> {
+        self.split.form.terms.get(j).map(PreferenceExpr::attributes_used).unwrap_or_default()
+    }
+
+    /// Attributes read by the fixed part.
+    pub(crate) fn fixed_attributes(&self) -> Vec<usize> {
+        self.split.form.fixed.attributes_used()
+    }
+}
+
+/// The summands of an expression through `+`, `-` and negation.
+fn summands(expr: &PreferenceExpr) -> Vec<&PreferenceExpr> {
+    match expr {
+        PreferenceExpr::Add(a, b) | PreferenceExpr::Sub(a, b) => {
+            let mut out = summands(a);
+            out.extend(summands(b));
+            out
+        }
+        PreferenceExpr::Neg(a) => summands(a),
+        other => vec![other],
+    }
 }
 
 fn compare_attributes(model: &[Attribute], records: &[Attribute]) -> Result<(), ChoiceRecordError> {

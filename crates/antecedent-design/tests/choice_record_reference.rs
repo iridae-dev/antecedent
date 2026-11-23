@@ -95,7 +95,7 @@ fn model(name: &str) -> ValueModel {
     };
     ValueModel {
         attributes: attributes(),
-        preferences: PreferenceSet { parameters, relations: Vec::new() },
+        preferences: PreferenceSet::new(parameters, Vec::new()),
         value,
         utility_units: "utility".to_owned(),
     }

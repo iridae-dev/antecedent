@@ -96,7 +96,7 @@ fn model(
         attributes: (0..attributes)
             .map(|k| Attribute { id: format!("x{k}"), units: UNITS.into() })
             .collect(),
-        preferences: PreferenceSet { parameters, relations },
+        preferences: PreferenceSet::new(parameters, relations),
         value,
         utility_units: UNITS.into(),
     }

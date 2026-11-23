@@ -45,7 +45,7 @@ fn rate_model(ranges: &[(f64, f64)]) -> ValueModel {
     });
     ValueModel {
         attributes: attributes(parameters.len() + 1),
-        preferences: PreferenceSet { parameters, relations: Vec::new() },
+        preferences: PreferenceSet::new(parameters, Vec::new()),
         value,
         utility_units: "utility".to_owned(),
     }
@@ -105,6 +105,7 @@ fn learned(outcome: &SetOutcome) -> &LearnedPreferenceSet {
     match outcome {
         SetOutcome::Learned(set) => set,
         SetOutcome::Contradictory(conflict) => panic!("contradictory: {conflict:?}"),
+        SetOutcome::Undetermined(undetermined) => panic!("undetermined: {undetermined:?}"),
     }
 }
 
@@ -319,10 +320,10 @@ fn a_curve_with_shape_rules_keeps_them_and_is_narrowed_through_them() {
     relations.extend(curve.diminishing("dose"));
     let model = ValueModel {
         attributes: attributes(2),
-        preferences: PreferenceSet {
-            parameters: vec![parameter("s0", 0.0, 4.0), parameter("s1", 0.0, 4.0)],
+        preferences: PreferenceSet::new(
+            vec![parameter("s0", 0.0, 4.0), parameter("s1", 0.0, 4.0)],
             relations,
-        },
+        ),
         value: E::sum(E::Attribute(0), curve.expr()),
         utility_units: "utility".to_owned(),
     };

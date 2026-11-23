@@ -7,13 +7,17 @@
 //! over its interval; [`weighted_sum`] widens a weighted sum by `2 (n + 1) eps` times the sum of
 //! magnitudes so it also contains any floating summation order. [`Queued`] orders boxes
 //! waiting to be split: the box of largest volume first, ties broken by the lexicographically
-//! smallest lower corner.
+//! smallest lower corner. [`measure_box`] and [`split_box`] measure and halve a box relative to
+//! the declared ranges; [`linear_relation_fit`] and [`value_relation_fit`] place a box relative to
+//! the linear and value relations of a preference set.
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 
-use crate::preference_model::PreferenceExpr;
+use crate::preference_model::{
+    BeliefRows, LinearRelation, PreferenceExpr, RelationSense, ValueRelation,
+};
 
 /// Relative roundoff tolerance the decision layer uses when comparing cumulative weights with
 /// a quantile level.
@@ -235,4 +239,141 @@ pub(crate) enum Fit {
     Inside,
     Boundary,
     Outside,
+}
+
+/// Volume relative to the declared box and the largest relative width, over parameters of
+/// positive declared width.
+pub(crate) fn measure_box(declared: &[(f64, f64)], lower: &[f64], upper: &[f64]) -> (f64, f64) {
+    let mut volume = 1.0;
+    let mut widest = 0.0_f64;
+    for ((l, u), (dl, du)) in lower.iter().zip(upper).zip(declared) {
+        let range = du - dl;
+        if range > 0.0 {
+            let fraction = (u - l) / range;
+            volume *= fraction;
+            widest = widest.max(fraction);
+        }
+    }
+    (volume, widest)
+}
+
+/// The two halves of a box, split at the midpoint of the parameter whose width is largest
+/// relative to its declared range (the first such parameter on ties), or `None` when every
+/// relative width is at most `min_width_fraction` or the midpoint is not interior.
+pub(crate) fn split_box(
+    declared: &[(f64, f64)],
+    min_width_fraction: f64,
+    lower: &[f64],
+    upper: &[f64],
+) -> Option<[(Vec<f64>, Vec<f64>); 2]> {
+    let (_, widest) = measure_box(declared, lower, upper);
+    if widest <= min_width_fraction {
+        return None;
+    }
+    let mut chosen: Option<(usize, f64)> = None;
+    for (j, ((l, u), (dl, du))) in lower.iter().zip(upper).zip(declared).enumerate() {
+        let range = du - dl;
+        if range > 0.0 {
+            let fraction = (u - l) / range;
+            if chosen.is_none_or(|(_, best)| fraction > best) {
+                chosen = Some((j, fraction));
+            }
+        }
+    }
+    let (j, _) = chosen?;
+    let (l, u) = (lower[j], upper[j]);
+    let mid = 0.5 * l + 0.5 * u;
+    let interior = l < mid && mid < u;
+    if !interior {
+        return None;
+    }
+    let mut left_upper = upper.to_vec();
+    left_upper[j] = mid;
+    let mut right_lower = lower.to_vec();
+    right_lower[j] = mid;
+    Some([(lower.to_vec(), left_upper), (right_lower, upper.to_vec())])
+}
+
+/// Place a box relative to linear relations: `Outside` when some relation is proven violated
+/// everywhere in it, `Boundary` when some relation is neither proven satisfied nor proven
+/// violated, `Inside` otherwise. An enclosure failure names the position of its relation.
+pub(crate) fn linear_relation_fit(
+    relations: &[LinearRelation],
+    params: &[Interval],
+) -> Result<Fit, (EncloseFailure, usize)> {
+    let mut boundary = false;
+    for (position, relation) in relations.iter().enumerate() {
+        let lhs = relation
+            .terms
+            .iter()
+            .try_fold(Interval::point(0.0), |sum, (j, coefficient)| {
+                let parameter = params.get(*j).copied().ok_or(EncloseFailure::NonFinite)?;
+                sum.plus(parameter.scale(*coefficient)?)
+            })
+            .map_err(|failure| (failure, position))?;
+        let bound = relation.bound;
+        let (satisfied, violated) = match relation.sense {
+            RelationSense::AtLeast => (lhs.lo >= bound, lhs.hi < bound),
+            RelationSense::AtMost => (lhs.hi <= bound, lhs.lo > bound),
+            RelationSense::Equal => {
+                (lhs.lo >= bound && lhs.hi <= bound, lhs.hi < bound || lhs.lo > bound)
+            }
+        };
+        if violated {
+            return Ok(Fit::Outside);
+        }
+        boundary |= !satisfied;
+    }
+    Ok(if boundary { Fit::Boundary } else { Fit::Inside })
+}
+
+/// Enclosure of `sum_i w_i v(row_i)` over the rows of one belief, with every parameter ranging
+/// over its interval.
+pub(crate) fn expectation(
+    value: &PreferenceExpr,
+    belief: &BeliefRows,
+    params: &[Interval],
+) -> Result<Interval, EncloseFailure> {
+    let width = belief.rows.len().checked_div(belief.weights.len()).unwrap_or(0);
+    if width == 0 {
+        return Err(EncloseFailure::NonFinite);
+    }
+    let values = belief
+        .rows
+        .chunks_exact(width)
+        .map(|row| enclose(value, row, params))
+        .collect::<Result<Vec<_>, _>>()?;
+    weighted_sum(belief.weights.iter().copied().zip(values))
+}
+
+/// Enclosure of the gap `E_chosen[v] - E_rejected[v]` of a value relation over a box.
+pub(crate) fn value_relation_gap(
+    value: &PreferenceExpr,
+    relation: &ValueRelation,
+    params: &[Interval],
+) -> Result<Interval, EncloseFailure> {
+    expectation(value, &relation.chosen, params)?.minus(expectation(
+        value,
+        &relation.rejected,
+        params,
+    )?)
+}
+
+/// Place a box relative to one value relation: `Outside` when its gap is proven below
+/// `-tolerance` everywhere in the box, `Inside` when it is proven at least `-tolerance`,
+/// `Boundary` otherwise.
+pub(crate) fn value_relation_fit(
+    value: &PreferenceExpr,
+    relation: &ValueRelation,
+    params: &[Interval],
+) -> Result<Fit, EncloseFailure> {
+    let gap = value_relation_gap(value, relation, params)?;
+    let floor = -relation.tolerance;
+    Ok(if gap.hi < floor {
+        Fit::Outside
+    } else if gap.lo >= floor {
+        Fit::Inside
+    } else {
+        Fit::Boundary
+    })
 }

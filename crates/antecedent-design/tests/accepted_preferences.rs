@@ -72,10 +72,10 @@ fn rate_model() -> ValueModel {
     });
     ValueModel {
         attributes: (0..4).map(|k| attribute(&format!("x{k}"), &format!("unit_{k}"))).collect(),
-        preferences: PreferenceSet {
-            parameters: (0..3).map(|k| parameter(&format!("t{k}"), -4.0, 4.0)).collect(),
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(
+            (0..3).map(|k| parameter(&format!("t{k}"), -4.0, 4.0)).collect(),
+            vec![],
+        ),
         value,
         utility_units: "utility".to_owned(),
     }
@@ -93,7 +93,7 @@ fn cost_model(w: (f64, f64), harm: Option<(f64, f64)>) -> ValueModel {
     }
     ValueModel {
         attributes,
-        preferences: PreferenceSet { parameters, relations: vec![] },
+        preferences: PreferenceSet::new(parameters, vec![]),
         value,
         utility_units: "events".to_owned(),
     }

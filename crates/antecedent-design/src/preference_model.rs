@@ -5,8 +5,10 @@
 //! preference parameters. Each parameter carries a declared admissible range and the
 //! assumption that justifies it; [`LinearRelation`]s restrict the parameters jointly (an
 //! ordering of slopes, a recorded choice). The admissible set is a [`PreferenceSet`]: a box
-//! cut by linear relations. A result read over that set is an assumption range, not a
-//! probability statement.
+//! cut by linear relations and, when a recorded choice is read under a value with shape
+//! parameters, by [`ValueRelation`]s (the expected value of the chosen option at least that of
+//! the rejected one, less a tolerance, under the model's value expression). A result read over
+//! that set is an assumption range, not a probability statement.
 //!
 //! When the value is affine in every parameter, [`ValueModel::linear_form`] returns the exact
 //! symbolic decomposition `value = fixed + sum_j theta_j * terms[j]` with parameter-free parts;
@@ -216,6 +218,81 @@ impl PreferenceExpr {
             Self::Ln(a) => a.evaluate(attributes, parameters)?.ln(),
         };
         if value.is_finite() { Ok(value) } else { Err(E::NonFiniteValue) }
+    }
+
+    /// Evaluate at one point together with the gradient with respect to every parameter
+    /// (forward mode). `Min` and `Max` follow the branch they select (the left one on ties), so
+    /// at a tie the gradient is that of the left branch.
+    ///
+    /// # Errors
+    /// As [`Self::evaluate`]; a non-finite gradient entry is a non-finite value.
+    pub fn evaluate_with_gradient(
+        &self,
+        attributes: &[f64],
+        parameters: &[f64],
+    ) -> Result<(f64, Vec<f64>), PreferenceModelError> {
+        let (value, gradient) = self.dual(attributes, parameters)?;
+        if gradient.iter().all(|g| g.is_finite()) {
+            Ok((value, gradient))
+        } else {
+            Err(PreferenceModelError::NonFiniteValue)
+        }
+    }
+
+    fn dual(
+        &self,
+        attributes: &[f64],
+        parameters: &[f64],
+    ) -> Result<(f64, Vec<f64>), PreferenceModelError> {
+        use PreferenceModelError as E;
+        let n = parameters.len();
+        let go = |e: &Self| e.dual(attributes, parameters);
+        let (value, gradient) = match self {
+            Self::Const(value) => (*value, vec![0.0; n]),
+            Self::Attribute(k) => {
+                (*attributes.get(*k).ok_or(E::UnknownAttribute { index: *k })?, vec![0.0; n])
+            }
+            Self::Parameter(j) => {
+                let value = *parameters.get(*j).ok_or(E::UnknownParameter { index: *j })?;
+                let mut gradient = vec![0.0; n];
+                gradient[*j] = 1.0;
+                (value, gradient)
+            }
+            Self::Neg(a) => {
+                let (v, g) = go(a)?;
+                (-v, g.into_iter().map(|x| -x).collect())
+            }
+            Self::Add(a, b) => {
+                let ((va, ga), (vb, gb)) = (go(a)?, go(b)?);
+                (va + vb, ga.iter().zip(&gb).map(|(x, y)| x + y).collect())
+            }
+            Self::Sub(a, b) => {
+                let ((va, ga), (vb, gb)) = (go(a)?, go(b)?);
+                (va - vb, ga.iter().zip(&gb).map(|(x, y)| x - y).collect())
+            }
+            Self::Mul(a, b) => {
+                let ((va, ga), (vb, gb)) = (go(a)?, go(b)?);
+                (va * vb, ga.iter().zip(&gb).map(|(x, y)| x * vb + va * y).collect())
+            }
+            Self::Min(a, b) => {
+                let ((va, ga), (vb, gb)) = (go(a)?, go(b)?);
+                if va <= vb { (va, ga) } else { (vb, gb) }
+            }
+            Self::Max(a, b) => {
+                let ((va, ga), (vb, gb)) = (go(a)?, go(b)?);
+                if va >= vb { (va, ga) } else { (vb, gb) }
+            }
+            Self::Exp(a) => {
+                let (v, g) = go(a)?;
+                let e = v.exp();
+                (e, g.into_iter().map(|x| e * x).collect())
+            }
+            Self::Ln(a) => {
+                let (v, g) = go(a)?;
+                (v.ln(), g.into_iter().map(|x| x / v).collect())
+            }
+        };
+        if value.is_finite() { Ok((value, gradient)) } else { Err(E::NonFiniteValue) }
     }
 
     /// Rebuild the expression with each leaf optionally replaced.
@@ -429,13 +506,66 @@ impl LinearRelation {
     }
 }
 
-/// The admissible preference parameters: a box of declared ranges cut by linear relations.
+/// What was expected of one option, as weighted rows of attribute values: the expectation of a
+/// function `f` of the attributes is `sum_i weights[i] * f(row_i)`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BeliefRows {
+    /// Row-major `weights.len() x attributes` attribute values, in the model's attribute order.
+    pub rows: Vec<f64>,
+    /// One finite, non-negative weight per row with a positive sum. The expectation is the
+    /// weighted sum as given; a learner stores weights normalised to sum to one.
+    pub weights: Vec<f64>,
+}
+
+impl BeliefRows {
+    /// Whether the rows form a non-empty weighted table of finite values.
+    fn well_formed(&self) -> bool {
+        let total: f64 = self.weights.iter().sum();
+        !self.weights.is_empty()
+            && !self.rows.is_empty()
+            && self.rows.len().is_multiple_of(self.weights.len())
+            && self.rows.iter().all(|v| v.is_finite())
+            && self.weights.iter().all(|w| w.is_finite() && *w >= 0.0)
+            && total.is_finite()
+            && total > 0.0
+    }
+
+    /// Number of attribute values per row; zero for an empty table.
+    #[must_use]
+    pub fn width(&self) -> usize {
+        self.rows.len().checked_div(self.weights.len()).unwrap_or(0)
+    }
+}
+
+/// `E_chosen[v(x; theta)] - E_rejected[v(x; theta)] >= -tolerance` under the value expression of
+/// the model that holds the set: a recorded choice read under a value that is not affine in
+/// every parameter.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ValueRelation {
+    /// Stable relation identity, distinct from every linear relation's.
+    pub id: String,
+    /// Where the relation came from; part of the identity.
+    pub origin: RelationOrigin,
+    /// What was expected of the chosen option.
+    pub chosen: BeliefRows,
+    /// What was expected of the rejected option.
+    pub rejected: BeliefRows,
+    /// How far below the rejected option's expected value the chosen one may fall; finite and
+    /// non-negative.
+    pub tolerance: f64,
+}
+
+/// The admissible preference parameters: a box of declared ranges cut by linear relations and
+/// value relations.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreferenceSet {
     /// Parameters, in index order.
     pub parameters: Vec<PreferenceParameter>,
     /// Linear relations between parameters, in any order.
     pub relations: Vec<LinearRelation>,
+    /// Value relations, in any order; checked under the value expression of the model that
+    /// holds the set. Empty for a set of declared ranges and linear relations.
+    pub value_relations: Vec<ValueRelation>,
 }
 
 /// Rows of `A theta <= b`.
@@ -450,6 +580,12 @@ pub struct PreferenceRows {
 }
 
 impl PreferenceSet {
+    /// A set of declared ranges cut by linear relations, with no value relation.
+    #[must_use]
+    pub const fn new(parameters: Vec<PreferenceParameter>, relations: Vec<LinearRelation>) -> Self {
+        Self { parameters, relations, value_relations: Vec::new() }
+    }
+
     /// Check the parameters and relations.
     ///
     /// # Errors
@@ -517,6 +653,25 @@ impl PreferenceSet {
                 return Err(E::RelationNonFiniteBound { relation: relation.id.clone() });
             }
         }
+        for (offset, relation) in self.value_relations.iter().enumerate() {
+            if is_blank(&relation.id) {
+                return Err(E::BlankRelationId { position: self.relations.len() + offset });
+            }
+            if !relation_ids.insert(relation.id.as_str()) {
+                return Err(E::DuplicateRelation { id: relation.id.clone() });
+            }
+            if let RelationOrigin::Choice { record_id, rejected_option } = &relation.origin
+                && (is_blank(record_id) || is_blank(rejected_option))
+            {
+                return Err(E::BlankRelationOrigin { relation: relation.id.clone() });
+            }
+            if !(relation.tolerance.is_finite() && relation.tolerance >= 0.0) {
+                return Err(E::ValueRelationToleranceInvalid { relation: relation.id.clone() });
+            }
+            if !relation.chosen.well_formed() || !relation.rejected.well_formed() {
+                return Err(E::ValueRelationRowsInvalid { relation: relation.id.clone() });
+            }
+        }
         Ok(())
     }
 
@@ -526,9 +681,10 @@ impl PreferenceSet {
         self.parameters.len()
     }
 
-    /// Whether `parameters` lies in the set, every range and relation allowed to be off by
-    /// at most `tolerance`. A length mismatch, a non-finite value, or a negative or
-    /// non-finite tolerance is outside.
+    /// Whether `parameters` lies in the box and satisfies the linear relations, every range and
+    /// relation allowed to be off by at most `tolerance`. A length mismatch, a non-finite value,
+    /// or a negative or non-finite tolerance is outside. Value relations need the model's value
+    /// expression and are not checked here: [`ValueModel::contains`] checks them too.
     #[must_use]
     pub fn contains(&self, parameters: &[f64], tolerance: f64) -> bool {
         if parameters.len() != self.dimension() || !tolerance.is_finite() || tolerance < 0.0 {
@@ -646,6 +802,15 @@ impl ValueModel {
             }
         }
         self.preferences.validate()?;
+        let width = self.attributes.len();
+        if let Some(relation) = self
+            .preferences
+            .value_relations
+            .iter()
+            .find(|r| r.chosen.width() != width || r.rejected.width() != width)
+        {
+            return Err(E::ValueRelationRowsInvalid { relation: relation.id.clone() });
+        }
         if is_blank(&self.utility_units) {
             return Err(E::BlankUtilityUnits);
         }
@@ -708,6 +873,15 @@ impl ValueModel {
         }
         self.value.encode(&mut out);
         out.text(&self.utility_units);
+        if !self.preferences.value_relations.is_empty() {
+            let mut value_relations: Vec<[u8; 32]> =
+                self.preferences.value_relations.iter().map(encode_value_relation).collect();
+            value_relations.sort_unstable();
+            out.word(value_relations.len() as u64);
+            for relation in &value_relations {
+                out.bytes(relation);
+            }
+        }
         Ok(out.finish_hex())
     }
 
@@ -739,6 +913,76 @@ impl ValueModel {
         blocking.into_iter().collect()
     }
 
+    /// `E_chosen[v] - E_rejected[v]` of a value relation at one parameter point.
+    ///
+    /// # Errors
+    /// Rows whose width is not the number of attributes, a parameter count other than the
+    /// dimension, or a non-finite value.
+    pub fn value_relation_gap(
+        &self,
+        relation: &ValueRelation,
+        parameters: &[f64],
+    ) -> Result<f64, PreferenceModelError> {
+        let expectation = |belief: &BeliefRows| -> Result<f64, PreferenceModelError> {
+            let width = self.attributes.len();
+            if belief.width() != width {
+                return Err(PreferenceModelError::ValueRelationRowsInvalid {
+                    relation: relation.id.clone(),
+                });
+            }
+            let mut total = 0.0;
+            for (row, weight) in belief.rows.chunks_exact(width).zip(&belief.weights) {
+                total += weight * self.value_at(row, parameters)?;
+            }
+            Ok(total)
+        };
+        let gap = expectation(&relation.chosen)? - expectation(&relation.rejected)?;
+        if gap.is_finite() { Ok(gap) } else { Err(PreferenceModelError::NonFiniteValue) }
+    }
+
+    /// Whether `parameters` lies in the admissible set: the box, the linear relations and the
+    /// value relations, each allowed to be off by at most `tolerance` (a value relation whose
+    /// gap cannot be evaluated there is not satisfied). As [`PreferenceSet::contains`] for a set
+    /// without value relations.
+    #[must_use]
+    pub fn contains(&self, parameters: &[f64], tolerance: f64) -> bool {
+        self.preferences.contains(parameters, tolerance)
+            && self.preferences.value_relations.iter().all(|relation| {
+                self.value_relation_gap(relation, parameters)
+                    .is_ok_and(|gap| gap >= -relation.tolerance - tolerance)
+            })
+    }
+
+    /// The value split into shape parameters and a part affine in the rest. Parameters declared
+    /// with `lower == upper` are substituted by their value first and are in neither list. The
+    /// shape parameters are found by closure: every free parameter inside `Min`, `Max`, `Exp`
+    /// or `Ln` (with the shape parameters found so far read as constants), then every free
+    /// parameter of a product whose two factors both read free parameters, until nothing is
+    /// added. `None` only when the remaining value has no linear form, which the closure
+    /// excludes for a validated model.
+    pub(crate) fn shape_split(&self) -> Option<ShapeSplit> {
+        let dimension = self.preferences.dimension();
+        let fixed: Vec<Option<f64>> = self
+            .preferences
+            .parameters
+            .iter()
+            .map(|p| p.lower.total_cmp(&p.upper).is_eq().then_some(p.lower))
+            .collect();
+        let value = substitute(&self.value, &fixed);
+        let free: Vec<bool> = fixed.iter().map(Option::is_none).collect();
+        let shape_mask = shape_closure(&value, &free);
+        let linear_mask: Vec<bool> = free.iter().zip(&shape_mask).map(|(f, s)| *f && !*s).collect();
+        let affine = decompose_in(&value, dimension, &linear_mask)?;
+        let form = LinearForm {
+            fixed: affine.fixed,
+            terms: affine.terms.into_iter().map(|t| if is_zero(&t) { zero() } else { t }).collect(),
+        };
+        let indices = |mask: &[bool]| -> Vec<usize> {
+            mask.iter().enumerate().filter(|(_, m)| **m).map(|(j, _)| j).collect()
+        };
+        Some(ShapeSplit { shape: indices(&shape_mask), linear: indices(&linear_mask), fixed, form })
+    }
+
     /// The value at one point. Checks the lengths only; call [`Self::validate`] first.
     ///
     /// # Errors
@@ -762,6 +1006,172 @@ impl ValueModel {
             });
         }
         self.value.evaluate(attributes, parameters)
+    }
+}
+
+/// The value split into shape parameters and a part affine in the others
+/// ([`ValueModel::shape_split`]).
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ShapeSplit {
+    /// Free parameters the value is not affine in, ascending.
+    pub(crate) shape: Vec<usize>,
+    /// Free parameters the value is affine in once the shape parameters are held fixed,
+    /// ascending.
+    pub(crate) linear: Vec<usize>,
+    /// The value of each parameter declared with `lower == upper`, `None` for the others.
+    pub(crate) fixed: Vec<Option<f64>>,
+    /// `value = fixed + sum_{j in linear} theta_j * terms[j]`; the parts read attributes and
+    /// shape parameters only; `terms[j]` is exactly `Const(0.0)` for every other `j`.
+    pub(crate) form: LinearForm,
+}
+
+fn encode_origin(out: &mut CanonicalWriter, origin: &RelationOrigin) {
+    match origin {
+        RelationOrigin::Declared => {
+            out.word(1);
+        }
+        RelationOrigin::ShapeRule => {
+            out.word(2);
+        }
+        RelationOrigin::Choice { record_id, rejected_option } => {
+            out.word(3).text(record_id).text(rejected_option);
+        }
+    }
+}
+
+fn encode_value_relation(relation: &ValueRelation) -> [u8; 32] {
+    let mut out = CanonicalWriter::new("antecedent.value_model.value_relation.v1");
+    out.text(&relation.id);
+    encode_origin(&mut out, &relation.origin);
+    for belief in [&relation.chosen, &relation.rejected] {
+        out.reals(&belief.rows).reals(&belief.weights);
+    }
+    out.real(relation.tolerance);
+    out.finish()
+}
+
+/// Replace `Parameter(j)` by `Const(values[j])` where a value is given; leave the rest.
+pub(crate) fn substitute(expr: &PreferenceExpr, values: &[Option<f64>]) -> PreferenceExpr {
+    let Ok(substituted) = expr.map_leaves::<Infallible>(&mut |leaf| {
+        Ok(match leaf {
+            PreferenceExpr::Parameter(j) => {
+                values.get(*j).copied().flatten().map(PreferenceExpr::Const)
+            }
+            _ => None,
+        })
+    });
+    substituted
+}
+
+/// Whether the expression reads a parameter selected by `mask`.
+fn reads_any(expr: &PreferenceExpr, mask: &[bool]) -> bool {
+    let mut found = false;
+    expr.visit(&mut |node| {
+        if let PreferenceExpr::Parameter(j) = node {
+            found |= mask.get(*j).copied().unwrap_or(false);
+        }
+    });
+    found
+}
+
+/// Parameters selected by `mask` that the expression reads.
+fn selected_in(expr: &PreferenceExpr, mask: &[bool]) -> Vec<usize> {
+    expr.parameters_used().into_iter().filter(|j| mask.get(*j).copied().unwrap_or(false)).collect()
+}
+
+/// Active parameters inside `Min`, `Max`, `Exp` or `Ln`.
+fn nonlinear_reads(expr: &PreferenceExpr, active: &[bool], into: &mut BTreeSet<usize>) {
+    use PreferenceExpr as P;
+    match expr {
+        P::Const(_) | P::Attribute(_) | P::Parameter(_) => {}
+        P::Neg(a) => nonlinear_reads(a, active, into),
+        P::Add(a, b) | P::Sub(a, b) | P::Mul(a, b) => {
+            nonlinear_reads(a, active, into);
+            nonlinear_reads(b, active, into);
+        }
+        P::Min(..) | P::Max(..) | P::Exp(_) | P::Ln(_) => into.extend(selected_in(expr, active)),
+    }
+}
+
+/// Active parameters of a product whose two factors both read active parameters.
+fn product_reads(expr: &PreferenceExpr, active: &[bool], into: &mut BTreeSet<usize>) {
+    use PreferenceExpr as P;
+    match expr {
+        P::Const(_) | P::Attribute(_) | P::Parameter(_) => {}
+        P::Neg(a) | P::Exp(a) | P::Ln(a) => product_reads(a, active, into),
+        P::Add(a, b) | P::Sub(a, b) | P::Min(a, b) | P::Max(a, b) => {
+            product_reads(a, active, into);
+            product_reads(b, active, into);
+        }
+        P::Mul(a, b) => {
+            if reads_any(a, active) && reads_any(b, active) {
+                into.extend(selected_in(expr, active));
+            } else {
+                product_reads(a, active, into);
+                product_reads(b, active, into);
+            }
+        }
+    }
+}
+
+/// The shape parameters among the free ones: see [`ValueModel::shape_split`].
+fn shape_closure(expr: &PreferenceExpr, free: &[bool]) -> Vec<bool> {
+    let mut shape = vec![false; free.len()];
+    loop {
+        let active: Vec<bool> = free.iter().zip(&shape).map(|(f, s)| *f && !*s).collect();
+        let mut found = BTreeSet::new();
+        nonlinear_reads(expr, &active, &mut found);
+        if found.is_empty() {
+            product_reads(expr, &active, &mut found);
+        }
+        if found.is_empty() {
+            return shape;
+        }
+        for j in found {
+            if let Some(slot) = shape.get_mut(j) {
+                *slot = true;
+            }
+        }
+    }
+}
+
+/// [`decompose`] with only the parameters selected by `linear` read as variables; every other
+/// parameter is kept inside the parts as a constant would be.
+fn decompose_in(expr: &PreferenceExpr, dimension: usize, linear: &[bool]) -> Option<Affine> {
+    use PreferenceExpr as P;
+    if !reads_any(expr, linear) {
+        return Some(Affine { fixed: expr.clone(), terms: vec![zero(); dimension] });
+    }
+    match expr {
+        P::Parameter(j) => {
+            let mut terms = vec![zero(); dimension];
+            *terms.get_mut(*j)? = P::Const(1.0);
+            Some(Affine { fixed: zero(), terms })
+        }
+        P::Neg(a) => {
+            let a = decompose_in(a, dimension, linear)?;
+            Some(Affine { fixed: neg(a.fixed), terms: a.terms.into_iter().map(neg).collect() })
+        }
+        P::Add(a, b) => Some(combine(
+            decompose_in(a, dimension, linear)?,
+            decompose_in(b, dimension, linear)?,
+            add,
+        )),
+        P::Sub(a, b) => Some(combine(
+            decompose_in(a, dimension, linear)?,
+            decompose_in(b, dimension, linear)?,
+            sub,
+        )),
+        P::Mul(a, b) => {
+            if !reads_any(a, linear) {
+                Some(scale(a, decompose_in(b, dimension, linear)?, true))
+            } else if !reads_any(b, linear) {
+                Some(scale(b, decompose_in(a, dimension, linear)?, false))
+            } else {
+                None
+            }
+        }
+        P::Const(_) | P::Attribute(_) | P::Min(..) | P::Max(..) | P::Exp(_) | P::Ln(_) => None,
     }
 }
 
@@ -1280,6 +1690,19 @@ pub enum PreferenceModelError {
         /// Position of the first breakpoint not above its predecessor.
         position: usize,
     },
+    /// The rows of a value relation are not a non-empty weighted table of finite attribute
+    /// values with one value per model attribute, non-negative weights and a positive sum.
+    #[error("value relation {relation} has invalid rows or weights")]
+    ValueRelationRowsInvalid {
+        /// Relation id.
+        relation: String,
+    },
+    /// The tolerance of a value relation is negative or not finite.
+    #[error("value relation {relation} has an invalid tolerance")]
+    ValueRelationToleranceInvalid {
+        /// Relation id.
+        relation: String,
+    },
 }
 
 impl PreferenceModelError {
@@ -1354,6 +1777,12 @@ impl PreferenceModelError {
             }
             Self::CurveBreakpointsNotIncreasing { .. } => {
                 reason_details::preference_model::CURVE_BREAKPOINTS_NOT_INCREASING
+            }
+            Self::ValueRelationRowsInvalid { .. } => {
+                reason_details::preference_model::VALUE_RELATION_ROWS_INVALID
+            }
+            Self::ValueRelationToleranceInvalid { .. } => {
+                reason_details::preference_model::VALUE_RELATION_TOLERANCE_INVALID
             }
         }
     }
@@ -1471,6 +1900,14 @@ impl PreferenceModelError {
             }
             Self::CurveBreakpointsNotIncreasing { position } => {
                 (Some(position.to_string()), "order the curve breakpoints and remove repeats")
+            }
+            Self::ValueRelationRowsInvalid { relation } => (
+                Some(relation.clone()),
+                "give both options finite rows of one value per attribute and weights with a \
+                 positive sum",
+            ),
+            Self::ValueRelationToleranceInvalid { relation } => {
+                (Some(relation.clone()), "supply a finite, non-negative relation tolerance")
             }
         }
     }

@@ -36,13 +36,13 @@ fn relation(
 fn model() -> ValueModel {
     ValueModel {
         attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("w_benefit", 1.0, 3.0), parameter("w_cost", 0.5, 1.0)],
-            relations: vec![
+        preferences: PreferenceSet::new(
+            vec![parameter("w_benefit", 1.0, 3.0), parameter("w_cost", 0.5, 1.0)],
+            vec![
                 relation("ratio", vec![(0, 1.0), (1, -2.0)], RelationSense::AtLeast, 0.0),
                 relation("cap", vec![(0, 1.0)], RelationSense::AtMost, 2.5),
             ],
-        },
+        ),
         value: P::difference(
             P::difference(
                 P::product(P::Parameter(0), shape::rate(0)),
@@ -319,10 +319,10 @@ fn the_linear_form_is_an_exact_symbolic_decomposition() {
             P::product(P::sum(P::Parameter(0), P::Const(1.0)), P::Attribute(0)),
         ),
         attributes: vec![attribute("benefit", "events")],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("w", 0.0, 1.0), parameter("unused", 0.0, 1.0)],
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(
+            vec![parameter("w", 0.0, 1.0), parameter("unused", 0.0, 1.0)],
+            vec![],
+        ),
         utility_units: "usd".into(),
     };
     let form = scaled.linear_form().unwrap();
@@ -411,10 +411,10 @@ fn the_linear_form_reproduces_the_value_at_random_points() {
     let (attributes, parameters) = (3, 4);
     let base = ValueModel {
         attributes: (0..attributes).map(|k| attribute(&format!("a{k}"), "units")).collect(),
-        preferences: PreferenceSet {
-            parameters: (0..parameters).map(|j| parameter(&format!("p{j}"), -2.0, 2.0)).collect(),
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(
+            (0..parameters).map(|j| parameter(&format!("p{j}"), -2.0, 2.0)).collect(),
+            vec![],
+        ),
         value: P::Const(0.0),
         utility_units: "usd".into(),
     };
@@ -519,7 +519,7 @@ fn degenerate_models_are_accepted() {
     // No parameters: the value is fixed and the linear form is its fixed part alone.
     let fixed = ValueModel {
         attributes: vec![attribute("benefit", "events")],
-        preferences: PreferenceSet { parameters: vec![], relations: vec![] },
+        preferences: PreferenceSet::new(vec![], vec![]),
         value: shape::excess(0, 1.0),
         utility_units: "usd".into(),
     };
@@ -570,10 +570,10 @@ fn curves_are_piecewise_linear_with_shape_rules() {
     // at diminishing increasing slopes.
     let mut relations = increasing;
     relations.extend(diminishing);
-    let set = PreferenceSet {
-        parameters: (0..3).map(|j| parameter(&format!("s{j}"), 0.0, 4.0)).collect(),
+    let set = PreferenceSet::new(
+        (0..3).map(|j| parameter(&format!("s{j}"), 0.0, 4.0)).collect(),
         relations,
-    };
+    );
     assert_eq!(set.validate(), Ok(()));
     assert!(set.contains(&theta, 0.0));
     assert!(!set.contains(&[1.0, 2.0, 0.5], 0.0));
@@ -583,10 +583,10 @@ fn curves_are_piecewise_linear_with_shape_rules() {
     assert!(shared.diminishing("s").is_empty());
     let curved = ValueModel {
         attributes: vec![attribute("benefit", "events")],
-        preferences: PreferenceSet {
-            parameters: (0..3).map(|j| parameter(&format!("s{j}"), 0.0, 4.0)).collect(),
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(
+            (0..3).map(|j| parameter(&format!("s{j}"), 0.0, 4.0)).collect(),
+            vec![],
+        ),
         value: curve.expr(),
         utility_units: "usd".into(),
     };

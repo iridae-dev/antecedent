@@ -54,16 +54,16 @@ fn model() -> ValueModel {
             Attribute { id: "cost".into(), units: "usd".into() },
             Attribute { id: "benefit".into(), units: "events".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![PreferenceParameter {
+        preferences: PreferenceSet::new(
+            vec![PreferenceParameter {
                 id: "t".into(),
                 units: "usd/event".into(),
                 lower: -10.0,
                 upper: 10.0,
                 assumption_id: "declared_trade_off".into(),
             }],
-            relations: Vec::new(),
-        },
+            Vec::new(),
+        ),
         value: P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1))),
         utility_units: "usd".into(),
     }

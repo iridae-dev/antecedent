@@ -26,8 +26,8 @@ use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionCalibration};
 use antecedent_io_core::error::IoError;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
-use antecedent_stats::ConditionalLogitOptions;
 use antecedent_stats::linear_program::LpOptions;
+use antecedent_stats::{ConditionalLogitOptions, ShapeSearchOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::accepted_preferences::{
@@ -46,6 +46,7 @@ use crate::preference_certified::{
 };
 use crate::preference_choice_model::{
     ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, CovarianceKind, ParameterEstimate,
+    ParameterIntervalMethod,
 };
 use crate::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
@@ -60,12 +61,14 @@ use crate::preference_evaluation::{
     decide_on_draws, decide_preferences,
 };
 use crate::preference_model::{
-    Attribute, LinearRelation, PreferenceExpr, PreferenceParameter, PreferenceSet, RelationOrigin,
-    RelationSense, ValueModel,
+    Attribute, BeliefRows, LinearRelation, PreferenceExpr, PreferenceParameter, PreferenceSet,
+    RelationOrigin, RelationSense, ValueModel, ValueRelation,
 };
 use crate::preference_refusal::{CONSUME, EXPORT, refusal};
 use crate::preference_set_learning::{
-    BindingChoice, LearnedPreferenceSet, ParameterRange, SetLearningError, SetLearningOptions,
+    BindingChoice, CellStatus, DEFAULT_MAX_SHAPE_BOXES, DEFAULT_MIN_SHAPE_WIDTH_FRACTION,
+    LearnedPreferenceSet, LearnedRegion, ParameterRange, RangeBasis, RegionCell, SetLearningError,
+    SetLearningOptions,
 };
 use crate::signal::at_stage;
 
@@ -325,9 +328,59 @@ struct RelationWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct BeliefRowsWire {
+    rows: Vec<f64>,
+    weights: Vec<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValueRelationWire {
+    id: String,
+    origin: OriginWire,
+    chosen: BeliefRowsWire,
+    rejected: BeliefRowsWire,
+    tolerance: f64,
+}
+
+/// A set without value relations writes no `value_relations` field, so its wire (and every
+/// identity read from it) is what it was before value relations existed.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SetWire {
     parameters: Vec<ParameterWire>,
     relations: Vec<RelationWire>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    value_relations: Vec<ValueRelationWire>,
+}
+
+fn origin_wire(origin: &RelationOrigin) -> OriginWire {
+    match origin {
+        RelationOrigin::Declared => OriginWire::Declared,
+        RelationOrigin::ShapeRule => OriginWire::ShapeRule,
+        RelationOrigin::Choice { record_id, rejected_option } => OriginWire::Choice {
+            record_id: record_id.clone(),
+            rejected_option: rejected_option.clone(),
+        },
+    }
+}
+
+fn origin_from(wire: OriginWire) -> RelationOrigin {
+    match wire {
+        OriginWire::Declared => RelationOrigin::Declared,
+        OriginWire::ShapeRule => RelationOrigin::ShapeRule,
+        OriginWire::Choice { record_id, rejected_option } => {
+            RelationOrigin::Choice { record_id, rejected_option }
+        }
+    }
+}
+
+fn rows_wire(rows: &BeliefRows) -> BeliefRowsWire {
+    BeliefRowsWire { rows: rows.rows.clone(), weights: rows.weights.clone() }
+}
+
+fn rows_from(wire: BeliefRowsWire) -> BeliefRows {
+    BeliefRows { rows: wire.rows, weights: wire.weights }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -371,14 +424,18 @@ fn set_wire(set: &PreferenceSet) -> SetWire {
                     RelationSense::Equal => SenseWire::Equal,
                 },
                 bound: r.bound,
-                origin: match &r.origin {
-                    RelationOrigin::Declared => OriginWire::Declared,
-                    RelationOrigin::ShapeRule => OriginWire::ShapeRule,
-                    RelationOrigin::Choice { record_id, rejected_option } => OriginWire::Choice {
-                        record_id: record_id.clone(),
-                        rejected_option: rejected_option.clone(),
-                    },
-                },
+                origin: origin_wire(&r.origin),
+            })
+            .collect(),
+        value_relations: set
+            .value_relations
+            .iter()
+            .map(|r| ValueRelationWire {
+                id: r.id.clone(),
+                origin: origin_wire(&r.origin),
+                chosen: rows_wire(&r.chosen),
+                rejected: rows_wire(&r.rejected),
+                tolerance: r.tolerance,
             })
             .collect(),
     }
@@ -409,13 +466,18 @@ fn set_from(wire: SetWire) -> PreferenceSet {
                     SenseWire::Equal => RelationSense::Equal,
                 },
                 bound: r.bound,
-                origin: match r.origin {
-                    OriginWire::Declared => RelationOrigin::Declared,
-                    OriginWire::ShapeRule => RelationOrigin::ShapeRule,
-                    OriginWire::Choice { record_id, rejected_option } => {
-                        RelationOrigin::Choice { record_id, rejected_option }
-                    }
-                },
+                origin: origin_from(r.origin),
+            })
+            .collect(),
+        value_relations: wire
+            .value_relations
+            .into_iter()
+            .map(|r| ValueRelation {
+                id: r.id,
+                origin: origin_from(r.origin),
+                chosen: rows_from(r.chosen),
+                rejected: rows_from(r.rejected),
+                tolerance: r.tolerance,
             })
             .collect(),
     }
@@ -502,6 +564,7 @@ fn measure_from(wire: MeasureWire) -> PreferenceMeasure {
     }
 }
 
+/// `enclosure` is written only when set (an outer range under a value with shape parameters).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RangeWire {
@@ -510,6 +573,68 @@ struct RangeWire {
     learned: (f64, f64),
     varied_in_records: bool,
     narrowed: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    enclosure: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CellWire {
+    shape_lower: Vec<f64>,
+    shape_upper: Vec<f64>,
+    inside: bool,
+    linear_outer: Vec<(f64, f64)>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LearnedRegionWire {
+    shape_parameters: Vec<usize>,
+    linear_parameters: Vec<usize>,
+    cells: Vec<CellWire>,
+    boxes_used: usize,
+    min_width_fraction: f64,
+    budget_exhausted: bool,
+}
+
+fn region_wire(region: &LearnedRegion) -> LearnedRegionWire {
+    LearnedRegionWire {
+        shape_parameters: region.shape_parameters.clone(),
+        linear_parameters: region.linear_parameters.clone(),
+        cells: region
+            .cells
+            .iter()
+            .map(|c| CellWire {
+                shape_lower: c.shape_lower.clone(),
+                shape_upper: c.shape_upper.clone(),
+                inside: c.status == CellStatus::Inside,
+                linear_outer: c.linear_outer.clone(),
+            })
+            .collect(),
+        boxes_used: region.boxes_used,
+        min_width_fraction: region.min_width_fraction,
+        budget_exhausted: region.budget_exhausted,
+    }
+}
+
+fn region_from(wire: LearnedRegionWire) -> LearnedRegion {
+    LearnedRegion {
+        shape_parameters: wire.shape_parameters,
+        linear_parameters: wire.linear_parameters,
+        cells: wire
+            .cells
+            .into_iter()
+            .map(|c| RegionCell {
+                shape_lower: c.shape_lower,
+                shape_upper: c.shape_upper,
+                status: if c.inside { CellStatus::Inside } else { CellStatus::Boundary },
+                linear_outer: c.linear_outer,
+            })
+            .collect(),
+        boxes_used: wire.boxes_used,
+        min_width_fraction: wire.min_width_fraction,
+        budget_exhausted: wire.budget_exhausted,
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -531,6 +656,8 @@ struct LearnedWire {
     tolerance: f64,
     n_records: usize,
     assumptions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    region: Option<LearnedRegionWire>,
 }
 
 fn learned_wire(learned: &LearnedPreferenceSet) -> LearnedWire {
@@ -548,6 +675,7 @@ fn learned_wire(learned: &LearnedPreferenceSet) -> LearnedWire {
                 learned: r.learned,
                 varied_in_records: r.varied_in_records,
                 narrowed: r.narrowed,
+                enclosure: r.basis == RangeBasis::Enclosure,
             })
             .collect(),
         binding: learned
@@ -561,6 +689,7 @@ fn learned_wire(learned: &LearnedPreferenceSet) -> LearnedWire {
         tolerance: learned.tolerance,
         n_records: learned.n_records,
         assumptions: learned.assumptions.clone(),
+        region: learned.region.as_ref().map(region_wire),
     }
 }
 
@@ -579,6 +708,7 @@ fn learned_from(wire: LearnedWire) -> LearnedPreferenceSet {
                 learned: r.learned,
                 varied_in_records: r.varied_in_records,
                 narrowed: r.narrowed,
+                basis: if r.enclosure { RangeBasis::Enclosure } else { RangeBasis::LinearProgram },
             })
             .collect(),
         binding: wire
@@ -589,6 +719,7 @@ fn learned_from(wire: LearnedWire) -> LearnedPreferenceSet {
         tolerance: wire.tolerance,
         n_records: wire.n_records,
         assumptions: wire.assumptions,
+        region: wire.region.map(region_from),
     }
 }
 
@@ -601,6 +732,8 @@ struct EstimateParameterWire {
     interval: (f64, f64),
     declared: (f64, f64),
     inside_declared: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    profile_interval: bool,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -632,6 +765,8 @@ struct EstimateWire {
     measure: MeasureWire,
     share_outside_declared: f64,
     assumptions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    shape_parameters: Vec<String>,
 }
 
 fn estimate_wire(estimate: &ChoiceModelEstimate) -> EstimateWire {
@@ -652,6 +787,7 @@ fn estimate_wire(estimate: &ChoiceModelEstimate) -> EstimateWire {
                 interval: p.interval,
                 declared: p.declared,
                 inside_declared: p.inside_declared,
+                profile_interval: p.interval_method == ParameterIntervalMethod::ProfileLikelihood,
             })
             .collect(),
         not_learnable: estimate.not_learnable.clone(),
@@ -669,6 +805,7 @@ fn estimate_wire(estimate: &ChoiceModelEstimate) -> EstimateWire {
         measure: measure_wire(&estimate.measure),
         share_outside_declared: estimate.share_outside_declared,
         assumptions: estimate.assumptions.clone(),
+        shape_parameters: estimate.shape_parameters.clone(),
     }
 }
 
@@ -690,6 +827,11 @@ fn estimate_from(wire: EstimateWire) -> ChoiceModelEstimate {
                 interval: p.interval,
                 declared: p.declared,
                 inside_declared: p.inside_declared,
+                interval_method: if p.profile_interval {
+                    ParameterIntervalMethod::ProfileLikelihood
+                } else {
+                    ParameterIntervalMethod::Wald
+                },
             })
             .collect(),
         not_learnable: wire.not_learnable,
@@ -707,6 +849,7 @@ fn estimate_from(wire: EstimateWire) -> ChoiceModelEstimate {
         measure: measure_from(wire.measure),
         share_outside_declared: wire.share_outside_declared,
         assumptions: wire.assumptions,
+        shape_parameters: wire.shape_parameters,
     }
 }
 
@@ -766,12 +909,32 @@ fn lp_from(wire: LpWire) -> LpOptions {
     }
 }
 
+/// Written only when the shape subdivision options differ from their defaults.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegionOptionsWire {
+    max_boxes: usize,
+    min_width_fraction: f64,
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SetOptionsWire {
     tolerance: f64,
     conflict_search_size: usize,
     lp: LpWire,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    region: Option<RegionOptionsWire>,
+}
+
+/// Written only when the shape search options differ from their defaults.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ShapeSearchWire {
+    grid_points: usize,
+    max_dimensions: usize,
+    profile_points: usize,
+    max_refinements: usize,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -789,6 +952,8 @@ struct ChoiceOptionsWire {
     n_draws: usize,
     seed: u64,
     fit: FitWire,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    shape_search: Option<ShapeSearchWire>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -804,6 +969,12 @@ fn learning_wire(learning: &LearningOptions) -> LearningWire {
             tolerance: o.tolerance,
             conflict_search_size: o.conflict_search_size,
             lp: lp_wire(o.lp),
+            region: (o.max_boxes != DEFAULT_MAX_SHAPE_BOXES
+                || o.min_width_fraction.total_cmp(&DEFAULT_MIN_SHAPE_WIDTH_FRACTION).is_ne())
+            .then_some(RegionOptionsWire {
+                max_boxes: o.max_boxes,
+                min_width_fraction: o.min_width_fraction,
+            }),
         }),
         LearningOptions::ChoiceEstimate(o) => LearningWire::ChoiceEstimate(ChoiceOptionsWire {
             level: o.level,
@@ -814,6 +985,14 @@ fn learning_wire(learning: &LearningOptions) -> LearningWire {
                 gradient_tolerance: o.fit.gradient_tolerance,
                 separation_bound: o.fit.separation_bound,
             },
+            shape_search: (o.shape_search != ShapeSearchOptions::default()).then_some(
+                ShapeSearchWire {
+                    grid_points: o.shape_search.grid_points,
+                    max_dimensions: o.shape_search.max_dimensions,
+                    profile_points: o.shape_search.profile_points,
+                    max_refinements: o.shape_search.max_refinements,
+                },
+            ),
         }),
     }
 }
@@ -824,6 +1003,10 @@ fn learning_from(wire: LearningWire) -> LearningOptions {
             tolerance: o.tolerance,
             conflict_search_size: o.conflict_search_size,
             lp: lp_from(o.lp),
+            max_boxes: o.region.map_or(DEFAULT_MAX_SHAPE_BOXES, |r| r.max_boxes),
+            min_width_fraction: o
+                .region
+                .map_or(DEFAULT_MIN_SHAPE_WIDTH_FRACTION, |r| r.min_width_fraction),
         }),
         LearningWire::ChoiceEstimate(o) => LearningOptions::ChoiceEstimate(ChoiceModelOptions {
             level: o.level,
@@ -834,6 +1017,14 @@ fn learning_from(wire: LearningWire) -> LearningOptions {
                 gradient_tolerance: o.fit.gradient_tolerance,
                 separation_bound: o.fit.separation_bound,
             },
+            shape_search: o.shape_search.map_or_else(ShapeSearchOptions::default, |w| {
+                ShapeSearchOptions {
+                    grid_points: w.grid_points,
+                    max_dimensions: w.max_dimensions,
+                    profile_points: w.profile_points,
+                    max_refinements: w.max_refinements,
+                }
+            }),
         }),
     }
 }
@@ -2295,7 +2486,47 @@ fn compare_set(
         ensure(s.id == f.id && s.sense == f.sense && s.origin == f.origin, "relations")?;
         ensure(same_terms && close(s.bound, f.bound), "relation_terms")?;
     }
+    ensure(stored.value_relations.len() == fresh.value_relations.len(), "value_relations")?;
+    for (s, f) in stored.value_relations.iter().zip(&fresh.value_relations) {
+        ensure(s.id == f.id && s.origin == f.origin, "value_relations")?;
+        let same_rows = close_all(&s.chosen.rows, &f.chosen.rows)
+            && close_all(&s.chosen.weights, &f.chosen.weights)
+            && close_all(&s.rejected.rows, &f.rejected.rows)
+            && close_all(&s.rejected.weights, &f.rejected.weights)
+            && close(s.tolerance, f.tolerance);
+        ensure(same_rows, "value_relation_rows")?;
+    }
     Ok(())
+}
+
+fn compare_region(
+    stored: Option<&LearnedRegion>,
+    fresh: Option<&LearnedRegion>,
+) -> Result<(), PreferenceArtifactError> {
+    match (stored, fresh) {
+        (None, None) => Ok(()),
+        (Some(s), Some(f)) => {
+            ensure(
+                s.shape_parameters == f.shape_parameters
+                    && s.linear_parameters == f.linear_parameters
+                    && s.boxes_used == f.boxes_used
+                    && s.budget_exhausted == f.budget_exhausted
+                    && s.min_width_fraction.total_cmp(&f.min_width_fraction).is_eq(),
+                "region",
+            )?;
+            ensure(s.cells.len() == f.cells.len(), "region_cells")?;
+            for (a, b) in s.cells.iter().zip(&f.cells) {
+                let same = a.status == b.status
+                    && close_all(&a.shape_lower, &b.shape_lower)
+                    && close_all(&a.shape_upper, &b.shape_upper)
+                    && a.linear_outer.len() == b.linear_outer.len()
+                    && a.linear_outer.iter().zip(&b.linear_outer).all(|(x, y)| close_pair(*x, *y));
+                ensure(same, "region_cells")?;
+            }
+            Ok(())
+        }
+        _ => Err(E::ReplayMismatch { field: "region" }),
+    }
 }
 
 fn compare_learned(
@@ -2314,12 +2545,15 @@ fn compare_learned(
     for (s, f) in stored.ranges.iter().zip(&fresh.ranges) {
         ensure(s.parameter_id == f.parameter_id, "ranges")?;
         ensure(
-            s.varied_in_records == f.varied_in_records && s.narrowed == f.narrowed,
+            s.varied_in_records == f.varied_in_records
+                && s.narrowed == f.narrowed
+                && s.basis == f.basis,
             "range_labels",
         )?;
         ensure(close_pair(s.declared, f.declared) && close_pair(s.learned, f.learned), "ranges")?;
     }
     ensure(stored.binding == fresh.binding, "binding")?;
+    compare_region(stored.region.as_ref(), fresh.region.as_ref())?;
     ensure(stored.assumptions == fresh.assumptions, "assumptions")
 }
 
@@ -2342,6 +2576,7 @@ fn compare_estimate(
     for (s, f) in stored.parameters.iter().zip(&fresh.parameters) {
         ensure(s.parameter_id == f.parameter_id, "parameters")?;
         ensure(s.inside_declared == f.inside_declared, "inside_declared")?;
+        ensure(s.interval_method == f.interval_method, "interval_method")?;
         let numbers = close(s.estimate, f.estimate)
             && close(s.standard_error, f.standard_error)
             && close_pair(s.interval, f.interval)
@@ -2376,6 +2611,7 @@ fn compare_estimate(
         close(stored.share_outside_declared, fresh.share_outside_declared),
         "share_outside_declared",
     )?;
+    ensure(stored.shape_parameters == fresh.shape_parameters, "shape_parameters")?;
     ensure(stored.assumptions == fresh.assumptions, "assumptions")
 }
 
@@ -2501,16 +2737,16 @@ mod tests {
         use crate::preference_model::{Attribute as A, PreferenceParameter as Q};
         let model = ValueModel {
             attributes: vec![A { id: "benefit".into(), units: "events".into() }],
-            preferences: PreferenceSet {
-                parameters: vec![Q {
+            preferences: PreferenceSet::new(
+                vec![Q {
                     id: "w".into(),
                     units: "utility/event".into(),
                     lower: 0.0,
                     upper: 1.0,
                     assumption_id: "w-judgment".into(),
                 }],
-                relations: vec![],
-            },
+                vec![],
+            ),
             value: PreferenceExpr::product(
                 PreferenceExpr::Parameter(0),
                 PreferenceExpr::Attribute(0),

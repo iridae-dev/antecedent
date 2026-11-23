@@ -35,6 +35,20 @@
 //! also stands on the statement's named assumption that it reflects the preferences the person
 //! would act on (carried in [`LearnedPreferenceSet::assumptions`]).
 //!
+//! Shape parameters. When the value is not affine in some free parameters (a risk attitude inside
+//! an exponential, a breakpoint inside a kink), a recorded choice is not a linear relation. Each
+//! choice then becomes a [`ValueRelation`](crate::preference_model::ValueRelation) with the same
+//! id and origin, holding the recorded rows of the chosen and the rejected option (weights
+//! normalised to sum to one), and the learned set is the declared set with those value relations
+//! appended. Its extent is found by subdividing the shape parameters only, with linear programs
+//! over the parameters the value is affine in on each shape box (see the `region` submodule's
+//! documentation for the systems solved): the learned ranges are then outer ranges
+//! ([`RangeBasis::Enclosure`]) and the outcome carries the [`LearnedRegion`] of kept boxes. The
+//! records conflict only when every box is proven outside; when no box is proven inside before the
+//! subdivision stops, the outcome is [`SetOutcome::Undetermined`]. A decision across such a set
+//! goes to the certified route, which checks the value relations box by box. Choice relations are
+//! not reported as binding on this path.
+//!
 //! A learned set is an assumption range, not a probability statement.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -57,6 +71,8 @@ use crate::preference_model::{
 };
 use crate::preference_refusal::{LEARN, refusal};
 use crate::signal::at_stage;
+
+mod region;
 
 /// Identity of the assumption every learned set stands on: each recorded choice was at least as
 /// good as every rejected option, within the declared tolerance, under the declared value model
@@ -82,12 +98,99 @@ pub struct SetLearningOptions {
     pub conflict_search_size: usize,
     /// Tolerances and work limit of every linear program.
     pub lp: LpOptions,
+    /// Largest number of shape boxes one subdivision examines (the declared shape box
+    /// included) under a value with shape parameters; at least one.
+    pub max_boxes: usize,
+    /// A shape box is not split once every shape parameter's width is at most this fraction of
+    /// its declared range; finite, in `[0, 1]`.
+    pub min_width_fraction: f64,
 }
+
+/// Default of [`SetLearningOptions::max_boxes`].
+pub const DEFAULT_MAX_SHAPE_BOXES: usize = 4096;
+/// Default of [`SetLearningOptions::min_width_fraction`].
+pub const DEFAULT_MIN_SHAPE_WIDTH_FRACTION: f64 = 1e-4;
 
 impl Default for SetLearningOptions {
     fn default() -> Self {
-        Self { tolerance: 0.0, conflict_search_size: 3, lp: LpOptions::default() }
+        Self {
+            tolerance: 0.0,
+            conflict_search_size: 3,
+            lp: LpOptions::default(),
+            max_boxes: DEFAULT_MAX_SHAPE_BOXES,
+            min_width_fraction: DEFAULT_MIN_SHAPE_WIDTH_FRACTION,
+        }
     }
+}
+
+/// How a learned range was found.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RangeBasis {
+    /// Two linear programs over the learned polytope: the exact smallest and largest value.
+    LinearProgram,
+    /// The hull of the kept shape boxes and of their outer linear-program ranges: an outer
+    /// range, holding every admissible value and possibly more.
+    Enclosure,
+}
+
+/// What a kept shape box proves.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CellStatus {
+    /// Every shape value of the box admits linear parameters compatible with every record.
+    Inside,
+    /// Neither proven inside nor proven outside.
+    Boundary,
+}
+
+/// One kept shape box.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RegionCell {
+    /// Lower corner, one value per shape parameter in [`LearnedRegion::shape_parameters`] order.
+    pub shape_lower: Vec<f64>,
+    /// Upper corner, in the same order.
+    pub shape_upper: Vec<f64>,
+    /// What the box proves.
+    pub status: CellStatus,
+    /// Outer range of each linear parameter over the box, in
+    /// [`LearnedRegion::linear_parameters`] order.
+    pub linear_outer: Vec<(f64, f64)>,
+}
+
+/// The shape boxes that cover a compatible set under a value with shape parameters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LearnedRegion {
+    /// Indices of the shape parameters, ascending.
+    pub shape_parameters: Vec<usize>,
+    /// Indices of the free parameters the value is affine in once the shape parameters are
+    /// held fixed, ascending.
+    pub linear_parameters: Vec<usize>,
+    /// The kept boxes, sorted by lower corner.
+    pub cells: Vec<RegionCell>,
+    /// Boxes examined, the declared shape box and dropped boxes included.
+    pub boxes_used: usize,
+    /// The minimum width fraction the subdivision stopped at.
+    pub min_width_fraction: f64,
+    /// The box budget stopped the subdivision before every box was decided or reached the
+    /// minimum width.
+    pub budget_exhausted: bool,
+}
+
+/// Records whose compatibility with the declared set is not certified either way: no shape box
+/// was proven inside and not every box was proven outside before the subdivision stopped.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UndeterminedSet {
+    /// Identity of the value model.
+    pub model_identity: String,
+    /// Digest of the record set the outcome was read from.
+    pub records_digest: String,
+    /// The decider, or `None` for every decider's records.
+    pub decider: Option<String>,
+    /// Number of records.
+    pub n_records: usize,
+    /// The tolerance of the choice relations.
+    pub tolerance: f64,
+    /// The boundary boxes left when the subdivision stopped.
+    pub region: LearnedRegion,
 }
 
 /// The range of one parameter before and after the recorded choices.
@@ -103,8 +206,11 @@ pub struct ParameterRange {
     /// parameter differs.
     pub varied_in_records: bool,
     /// The learned range lies strictly inside the declared range as restricted by the declared
-    /// relations (beyond the linear-program feasibility tolerance) at either end.
+    /// relations (beyond the linear-program feasibility tolerance) at either end; for an outer
+    /// range ([`RangeBasis::Enclosure`]), strictly inside the declared range.
     pub narrowed: bool,
+    /// How `learned` was found.
+    pub basis: RangeBasis,
 }
 
 /// A choice relation that is tight at an extreme of some parameter's learned range.
@@ -124,6 +230,10 @@ pub enum ConflictKind {
     /// The deletion filter found it; dropping any one of its records removes the conflict, but
     /// a conflict with fewer records may exist.
     Irreducible,
+    /// The records are proven to conflict, but under a value with shape parameters it could not
+    /// be proven that every smaller group (or every group with one record dropped) is
+    /// compatible: a conflict with fewer of these records may exist.
+    NotMinimised,
 }
 
 /// Records that cannot all hold together with the declared set.
@@ -164,6 +274,9 @@ pub struct LearnedPreferenceSet {
     /// Sorted, distinct: parameter assumptions, the record set's assumptions, and
     /// [`ASSUMPTION_CHOICES_OPTIMAL`].
     pub assumptions: Vec<String>,
+    /// The kept shape boxes, present exactly when the value has shape parameters or the declared
+    /// set holds value relations.
+    pub region: Option<LearnedRegion>,
 }
 
 /// What a group of records says about the preference parameters.
@@ -173,6 +286,8 @@ pub enum SetOutcome {
     Learned(LearnedPreferenceSet),
     /// The records contradict the declared set.
     Contradictory(ChoiceConflict),
+    /// Neither compatibility nor contradiction is certified (a value with shape parameters only).
+    Undetermined(UndeterminedSet),
 }
 
 /// The outcome for one decider's records.
@@ -246,6 +361,12 @@ pub enum SetLearningError {
     /// The execution context was cancelled between linear programs.
     #[error("learning the compatible set was cancelled")]
     Cancelled,
+    /// The box budget or minimum width of the shape subdivision is out of range.
+    #[error("shape subdivision option {option} is out of range")]
+    RegionBudgetInvalid {
+        /// The option.
+        option: &'static str,
+    },
 }
 
 impl SetLearningError {
@@ -272,6 +393,9 @@ impl SetLearningError {
                 reason_details::preference_set_learning::PROGRAM_INCONSISTENT
             }
             Self::Cancelled => reason_details::preference_set_learning::CANCELLED,
+            Self::RegionBudgetInvalid { .. } => {
+                reason_details::preference_set_learning::REGION_BUDGET_INVALID
+            }
         }
     }
 }
@@ -290,7 +414,9 @@ impl SetLearningError {
 /// - [`SetLearningError::RelationIdCollision`] when a choice relation id is not unique;
 /// - [`SetLearningError::DeclaredSetEmpty`] when the declared set admits no point;
 /// - [`SetLearningError::Lp`] when a linear program refuses (its options, its work limit);
-/// - [`SetLearningError::ProgramInconsistent`] when linear programs over one region disagree.
+/// - [`SetLearningError::ProgramInconsistent`] when linear programs over one region disagree;
+/// - [`SetLearningError::RegionBudgetInvalid`] for a box budget below one or a minimum width
+///   fraction outside `[0, 1]`.
 pub fn learn_compatible_set(
     model: &ValueModel,
     records: &ChoiceRecordSet,
@@ -326,7 +452,18 @@ pub(crate) fn learn(
     if options.tolerance < 0.0 {
         return Err(SetLearningError::ToleranceNegative { tolerance: options.tolerance });
     }
+    if options.max_boxes == 0 {
+        return Err(SetLearningError::RegionBudgetInvalid { option: "max_boxes" });
+    }
+    let width = options.min_width_fraction;
+    if !(width.is_finite() && (0.0..=1.0).contains(&width)) {
+        return Err(SetLearningError::RegionBudgetInvalid { option: "min_width_fraction" });
+    }
     model.validate().map_err(SetLearningError::Model)?;
+    let has_shape = model.shape_split().is_some_and(|split| !split.shape.is_empty());
+    if has_shape || !model.preferences.value_relations.is_empty() {
+        return region::learn(model, records, options, ctx);
+    }
     let features = choice_features(model, records).map_err(SetLearningError::Records)?;
     let model_identity = model.identity().map_err(SetLearningError::Model)?;
     let choices = record_choices(&features, options.tolerance);
@@ -363,7 +500,7 @@ pub(crate) fn learn(
     let overlap = if matches!(records.pooling, Pooling::PerDecider) && per_decider.len() > 1 {
         let common = learner.outcome(&all, None, records)?;
         let disagreeing = match &common {
-            SetOutcome::Learned(_) => Vec::new(),
+            SetOutcome::Learned(_) | SetOutcome::Undetermined(_) => Vec::new(),
             SetOutcome::Contradictory(conflict) => {
                 let named: BTreeSet<&str> = learner
                     .choices
@@ -677,7 +814,7 @@ impl Learner<'_> {
         let n_declared = declared.relations.len();
         let mut relations = declared.relations.clone();
         relations.extend(members.iter().flat_map(|&m| self.choices[m].relations.iter().cloned()));
-        let set = PreferenceSet { parameters: declared.parameters.clone(), relations };
+        let set = PreferenceSet::new(declared.parameters.clone(), relations);
         set.validate().map_err(SetLearningError::Model)?;
         let region = Region::of(&set);
         if set.dimension() > 0 && !feasible(&region, self.options.lp, self.ctx)? {
@@ -715,6 +852,7 @@ impl Learner<'_> {
             tolerance: self.options.tolerance,
             n_records: members.len(),
             assumptions: assumptions.into_iter().collect(),
+            region: None,
         }))
     }
 
@@ -738,6 +876,7 @@ impl Learner<'_> {
                         .iter()
                         .any(|&m| self.choices[m].varied.get(k).copied().unwrap_or(false)),
                     narrowed,
+                    basis: RangeBasis::LinearProgram,
                 }
             })
             .collect()
@@ -910,6 +1049,11 @@ impl SetLearningError {
                 refusal(antecedent_core::reason_code!("cancelled_no_claim"), LEARN, self.detail())
                     .build()
             }
+            Self::RegionBudgetInvalid { option } => invalid(
+                "supply a box budget of at least one and a minimum width fraction in [0, 1]",
+            )
+            .offending(*option)
+            .build(),
         }
     }
 }

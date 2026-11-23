@@ -37,7 +37,11 @@
 //! Relations between parameters are checked per box with the same arithmetic: a box whose
 //! relation left side is proven to violate some relation everywhere is dropped; a box on which
 //! some relation is neither proven satisfied nor proven violated is kept and flagged as touching
-//! the relation boundary. Fractions are volume fractions of the kept boxes relative to their
+//! the relation boundary. A value relation (a recorded choice under a value with shape
+//! parameters: the expected value of the chosen option minus that of the rejected one, at least
+//! minus its tolerance) is checked the same way, its gap enclosed by evaluating the model
+//! expression on the recorded rows of both options. That enclosure need not be tight, so a box on
+//! which a value relation is undecided is split further even when an action is certified on it. Fractions are volume fractions of the kept boxes relative to their
 //! total volume, measured relative to the declared ranges, with a fixed parameter (zero width)
 //! contributing no dimension; a boundary box counts in full, although part of it may lie
 //! outside the set. Splitting is deterministic: the undecided box of largest volume (ties: the
@@ -72,9 +76,9 @@ use crate::preference_contract::{
 use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use crate::preference_enclosure::{
     EncloseFailure, Fit, Interval, Queued, affine, enclose, left_inverse, lexicographic,
-    weighted_sum,
+    linear_relation_fit, measure_box, split_box, value_relation_fit, weighted_sum,
 };
-use crate::preference_model::{LinearForm, PreferenceModelError, PreferenceSet, RelationSense};
+use crate::preference_model::{LinearForm, PreferenceModelError, ValueModel};
 use crate::preference_refusal::{EVALUATE, STRUCTURAL, refusal};
 use crate::signal::at_stage;
 use crate::structure_aggregator::{
@@ -844,6 +848,9 @@ struct Examined {
     lower: Vec<f64>,
     upper: Vec<f64>,
     boundary: bool,
+    /// Some value relation is undecided on the box: its enclosure need not contain a point of
+    /// the set, so a certified action does not stop the box from being split.
+    value_boundary: bool,
     eval: BoxEval,
     best: Option<usize>,
     candidates: Vec<usize>,
@@ -876,36 +883,36 @@ impl Engine<'_> {
         (0..self.admissible.len()).filter(|a| self.admissible[*a]).collect()
     }
 
+    /// Where the box sits relative to the relations, and whether some value relation is
+    /// undecided on it.
     fn relation_fit(
         &self,
         params: &[Interval],
         lower: &[f64],
         upper: &[f64],
-    ) -> Result<Fit, PreferenceCertifiedError> {
-        let mut boundary = false;
-        for relation in &self.contract.model.preferences.relations {
-            let lhs = relation
-                .terms
-                .iter()
-                .try_fold(Interval::point(0.0), |sum, (j, coefficient)| {
-                    let parameter = params.get(*j).copied().ok_or(EncloseFailure::NonFinite)?;
-                    sum.plus(parameter.scale(*coefficient)?)
-                })
-                .map_err(|failure| box_refusal(failure, &relation.id, lower, upper))?;
-            let bound = relation.bound;
-            let (satisfied, violated) = match relation.sense {
-                RelationSense::AtLeast => (lhs.lo >= bound, lhs.hi < bound),
-                RelationSense::AtMost => (lhs.hi <= bound, lhs.lo > bound),
-                RelationSense::Equal => {
-                    (lhs.lo >= bound && lhs.hi <= bound, lhs.hi < bound || lhs.lo > bound)
-                }
-            };
-            if violated {
-                return Ok(Fit::Outside);
+    ) -> Result<(Fit, bool), PreferenceCertifiedError> {
+        let set = &self.contract.model.preferences;
+        let linear =
+            linear_relation_fit(&set.relations, params).map_err(|(failure, position)| {
+                box_refusal(failure, &set.relations[position].id, lower, upper)
+            })?;
+        let boundary = match linear {
+            Fit::Outside => return Ok((Fit::Outside, false)),
+            Fit::Inside => false,
+            Fit::Boundary => true,
+        };
+        let mut value_boundary = false;
+        for relation in &set.value_relations {
+            match value_relation_fit(&self.contract.model.value, relation, params)
+                .map_err(|failure| box_refusal(failure, &relation.id, lower, upper))?
+            {
+                Fit::Outside => return Ok((Fit::Outside, false)),
+                Fit::Inside => {}
+                Fit::Boundary => value_boundary = true,
             }
-            boundary |= !satisfied;
         }
-        Ok(if boundary { Fit::Boundary } else { Fit::Inside })
+        let fit = if boundary || value_boundary { Fit::Boundary } else { Fit::Inside };
+        Ok((fit, value_boundary))
     }
 
     /// Per-draw value enclosures of action `a` on the box.
@@ -1167,17 +1174,7 @@ impl Engine<'_> {
     /// Volume relative to the declared box and the largest relative width, over parameters
     /// of positive declared width.
     fn measure_box(&self, lower: &[f64], upper: &[f64]) -> (f64, f64) {
-        let mut volume = 1.0;
-        let mut widest = 0.0_f64;
-        for ((l, u), (dl, du)) in lower.iter().zip(upper).zip(&self.declared) {
-            let range = du - dl;
-            if range > 0.0 {
-                let fraction = (u - l) / range;
-                volume *= fraction;
-                widest = widest.max(fraction);
-            }
-        }
-        (volume, widest)
+        measure_box(&self.declared, lower, upper)
     }
 
     fn examine(
@@ -1187,7 +1184,8 @@ impl Engine<'_> {
     ) -> Result<Option<Examined>, PreferenceCertifiedError> {
         let params: Vec<Interval> =
             lower.iter().zip(&upper).map(|(l, u)| Interval { lo: *l, hi: *u }).collect();
-        let boundary = match self.relation_fit(&params, &lower, &upper)? {
+        let (fit, value_boundary) = self.relation_fit(&params, &lower, &upper)?;
+        let boundary = match fit {
             Fit::Outside => return Ok(None),
             Fit::Inside => false,
             Fit::Boundary => true,
@@ -1195,39 +1193,21 @@ impl Engine<'_> {
         let eval = self.evaluate_box(&params, &lower, &upper)?;
         let (best, candidates) = self.classify(&eval);
         let (volume, _) = self.measure_box(&lower, &upper);
-        Ok(Some(Examined { lower, upper, boundary, eval, best, candidates, volume }))
+        Ok(Some(Examined {
+            lower,
+            upper,
+            boundary,
+            value_boundary,
+            eval,
+            best,
+            candidates,
+            volume,
+        }))
     }
 
     /// The two halves of a box, or `None` when it is not to be split.
     fn split(&self, item: &Examined) -> Option<[(Vec<f64>, Vec<f64>); 2]> {
-        let (_, widest) = self.measure_box(&item.lower, &item.upper);
-        if widest <= self.options.min_width_fraction {
-            return None;
-        }
-        let mut chosen: Option<(usize, f64)> = None;
-        for (j, ((l, u), (dl, du))) in
-            item.lower.iter().zip(&item.upper).zip(&self.declared).enumerate()
-        {
-            let range = du - dl;
-            if range > 0.0 {
-                let fraction = (u - l) / range;
-                if chosen.is_none_or(|(_, best)| fraction > best) {
-                    chosen = Some((j, fraction));
-                }
-            }
-        }
-        let (j, _) = chosen?;
-        let (l, u) = (item.lower[j], item.upper[j]);
-        let mid = 0.5 * l + 0.5 * u;
-        let interior = l < mid && mid < u;
-        if !interior {
-            return None;
-        }
-        let mut left_upper = item.upper.clone();
-        left_upper[j] = mid;
-        let mut right_lower = item.lower.clone();
-        right_lower[j] = mid;
-        Some([(item.lower.clone(), left_upper), (right_lower, item.upper.clone())])
+        split_box(&self.declared, self.options.min_width_fraction, &item.lower, &item.upper)
     }
 
     fn place(
@@ -1237,7 +1217,7 @@ impl Engine<'_> {
         slots: &mut Vec<Option<Examined>>,
         queue: &mut BinaryHeap<Queued>,
     ) {
-        if item.best.is_some() || self.split(&item).is_none() {
+        if (item.best.is_some() && !item.value_boundary) || self.split(&item).is_none() {
             kept.push(item);
         } else {
             queue.push(Queued {
@@ -1692,9 +1672,10 @@ fn validate_options(options: CertifiedOptions) -> Result<(), PreferenceCertified
 
 fn validate_measure(
     measure: &PreferenceMeasure,
-    set: &PreferenceSet,
+    model: &ValueModel,
 ) -> Result<(), PreferenceCertifiedError> {
     use PreferenceCertifiedError as E;
+    let set = &model.preferences;
     if measure.points.is_empty() {
         return Err(E::MeasureEmpty);
     }
@@ -1720,7 +1701,7 @@ fn validate_measure(
         if point.iter().any(|value| !value.is_finite()) {
             return Err(E::MeasureNonFinitePoint { index });
         }
-        if !set.contains(point, MEASURE_SET_TOLERANCE) {
+        if !model.contains(point, MEASURE_SET_TOLERANCE) {
             return Err(E::MeasurePointOutsideSet { index });
         }
     }
@@ -1761,7 +1742,7 @@ impl<'c> Setup<'c> {
         }
         let measure = if contract.preference_policy == PreferencePolicy::Weighted {
             let measure = measure.ok_or(E::MeasureRequired)?;
-            validate_measure(measure, &contract.model.preferences)?;
+            validate_measure(measure, &contract.model)?;
             Some(measure)
         } else {
             None

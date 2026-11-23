@@ -174,16 +174,16 @@ fn exact_contract() -> PreferenceContract {
         attributes: (0..3)
             .map(|k| Attribute { id: format!("x{k}"), units: UNITS.into() })
             .collect(),
-        preferences: PreferenceSet {
-            parameters: vec![parameter("a", 0.0, 1.0), parameter("b", 0.0, 1.0)],
-            relations: vec![LinearRelation {
+        preferences: PreferenceSet::new(
+            vec![parameter("a", 0.0, 1.0), parameter("b", 0.0, 1.0)],
+            vec![LinearRelation {
                 id: "budget".into(),
                 terms: vec![(0, 1.0), (1, 1.0)],
                 sense: RelationSense::AtMost,
                 bound: 1.5,
                 origin: RelationOrigin::Declared,
             }],
-        },
+        ),
         value,
         utility_units: UNITS.into(),
     };
@@ -243,10 +243,7 @@ fn certified_contract() -> PreferenceContract {
         attributes: (0..3)
             .map(|k| Attribute { id: format!("x{k}"), units: UNITS.into() })
             .collect(),
-        preferences: PreferenceSet {
-            parameters: vec![parameter("d", 0.5, 1.0)],
-            relations: vec![],
-        },
+        preferences: PreferenceSet::new(vec![parameter("d", 0.5, 1.0)], vec![]),
         value,
         utility_units: UNITS.into(),
     };
@@ -295,16 +292,16 @@ fn rate_model() -> ValueModel {
         attributes: (0..2)
             .map(|k| Attribute { id: format!("x{k}"), units: format!("unit_{k}") })
             .collect(),
-        preferences: PreferenceSet {
-            parameters: vec![PreferenceParameter {
+        preferences: PreferenceSet::new(
+            vec![PreferenceParameter {
                 id: "t".into(),
                 units: "utility/unit".into(),
                 lower: -4.0,
                 upper: 4.0,
                 assumption_id: "declared_t".into(),
             }],
-            relations: Vec::new(),
-        },
+            Vec::new(),
+        ),
         value: P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1))),
         utility_units: "utility".into(),
     }

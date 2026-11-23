@@ -20,8 +20,8 @@ fn model(attributes: &[&str], parameters: &[&str], value: P) -> ValueModel {
             .iter()
             .map(|id| Attribute { id: (*id).into(), units: "units".into() })
             .collect(),
-        preferences: PreferenceSet {
-            parameters: parameters
+        preferences: PreferenceSet::new(
+            parameters
                 .iter()
                 .map(|id| PreferenceParameter {
                     id: (*id).into(),
@@ -31,8 +31,8 @@ fn model(attributes: &[&str], parameters: &[&str], value: P) -> ValueModel {
                     assumption_id: format!("{id}-judgment"),
                 })
                 .collect(),
-            relations: vec![],
-        },
+            vec![],
+        ),
         value,
         utility_units: "usd".into(),
     }

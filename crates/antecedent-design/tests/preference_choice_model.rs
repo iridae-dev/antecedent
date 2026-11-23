@@ -90,7 +90,7 @@ fn add(a: E, c: E) -> E {
 fn model(attributes: Vec<Attribute>, parameters: Vec<PreferenceParameter>, value: E) -> ValueModel {
     ValueModel {
         attributes,
-        preferences: PreferenceSet { parameters, relations: Vec::new() },
+        preferences: PreferenceSet::new(parameters, Vec::new()),
         value,
         utility_units: "usd".to_owned(),
     }

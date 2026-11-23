@@ -66,7 +66,7 @@ fn attributes() -> Vec<Attribute> {
 fn model_with(parameters: Vec<PreferenceParameter>, value: P) -> ValueModel {
     ValueModel {
         attributes: attributes(),
-        preferences: PreferenceSet { parameters, relations: vec![] },
+        preferences: PreferenceSet::new(parameters, vec![]),
         value,
         utility_units: "events".into(),
     }

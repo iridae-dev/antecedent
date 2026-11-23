@@ -46,7 +46,7 @@ fn add(a: E, c: E) -> E {
 fn value_model(parameters: Vec<PreferenceParameter>, value: E) -> ValueModel {
     ValueModel {
         attributes: attributes(),
-        preferences: PreferenceSet { parameters, relations: Vec::new() },
+        preferences: PreferenceSet::new(parameters, Vec::new()),
         value,
         utility_units: "utility".to_owned(),
     }

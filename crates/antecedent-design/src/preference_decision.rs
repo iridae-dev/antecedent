@@ -693,6 +693,11 @@ pub enum CertifiedRouteReason {
     PartNotLowerable,
     /// The worst case of expected regret is not a linear program over the set.
     WorstCaseOfExpectedRegret,
+    /// The set holds value relations, which are not linear in the parameters.
+    ValueRelations {
+        /// Relation ids.
+        relations: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for CertifiedRouteReason {
@@ -711,6 +716,11 @@ impl std::fmt::Display for CertifiedRouteReason {
             Self::WorstCaseOfExpectedRegret => {
                 write!(formatter, "the worst case of expected regret is not a linear program")
             }
+            Self::ValueRelations { relations } => write!(
+                formatter,
+                "the preference set holds value relations {}, which are not linear",
+                relations.join(", ")
+            ),
         }
     }
 }
@@ -900,6 +910,9 @@ impl PreferenceDecisionError {
                 }
                 CertifiedRouteReason::WorstCaseOfExpectedRegret => {
                     reason_details::preference_decision::WORST_CASE_OF_EXPECTED_REGRET
+                }
+                CertifiedRouteReason::ValueRelations { .. } => {
+                    reason_details::preference_decision::VALUE_RELATIONS_NEED_CERTIFIED_ROUTE
                 }
             },
             Self::InvalidOptions { .. } => reason_details::preference_decision::OPTIONS_INVALID,
@@ -1947,6 +1960,13 @@ impl<'a> Prepared<'a> {
                 reason: CertifiedRouteReason::ShapeParameters { parameters },
             });
         }
+        if !set.value_relations.is_empty() {
+            return Err(E::CertifiedRouteRequired {
+                reason: CertifiedRouteReason::ValueRelations {
+                    relations: set.value_relations.iter().map(|r| r.id.clone()).collect(),
+                },
+            });
+        }
         let terms = contract
             .term_contract()
             .map_err(E::Contract)?
@@ -2773,6 +2793,9 @@ impl PreferenceDecisionError {
                     CertifiedRouteReason::ShapeParameters { parameters } => {
                         builder.offending(parameters.join(",")).build()
                     }
+                    CertifiedRouteReason::ValueRelations { relations } => {
+                        builder.offending(relations.join(",")).build()
+                    }
                     CertifiedRouteReason::PartNotLowerable
                     | CertifiedRouteReason::WorstCaseOfExpectedRegret => builder.build(),
                 }
@@ -2954,7 +2977,7 @@ mod tests {
     #[test]
     fn statement_numbers_have_four_significant_digits() {
         assert_eq!(plain_number(6300.0), "6300");
-        assert_eq!(plain_number(6300.000_000_1), "6300");
+        assert_eq!(plain_number(6_300.000_000_1), "6300");
         assert_eq!(plain_number(123_456.0), "123456");
         assert_eq!(plain_number(1.5), "1.5");
         assert_eq!(plain_number(-0.123_456), "-0.1235");

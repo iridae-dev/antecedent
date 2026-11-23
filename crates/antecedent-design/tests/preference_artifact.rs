@@ -77,16 +77,16 @@ fn attribute(id: &str, units: &str) -> Attribute {
 fn model_with(value: P) -> ValueModel {
     ValueModel {
         attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
-        preferences: PreferenceSet {
-            parameters: vec![PreferenceParameter {
+        preferences: PreferenceSet::new(
+            vec![PreferenceParameter {
                 id: "w".to_owned(),
                 units: "events/usd".to_owned(),
                 lower: 0.0,
                 upper: 3.0,
                 assumption_id: "w-judgment".to_owned(),
             }],
-            relations: vec![],
-        },
+            vec![],
+        ),
         value,
         utility_units: "events".to_owned(),
     }

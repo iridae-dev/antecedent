@@ -1,8 +1,9 @@
 //! One entry point over the exact and the certified verdict across a preference set.
 //!
 //! Route rule. The exact route ([`crate::preference_decision`]) answers a contract whose value
-//! model has a linear form and whose criterion is posterior expected utility, posterior expected
-//! loss or expected regret; every other contract goes to the certified route
+//! model has a linear form, whose preference set holds no value relation and whose criterion is
+//! posterior expected utility, posterior expected loss or expected regret; every other contract
+//! goes to the certified route
 //! ([`crate::preference_certified`]). When the exact evaluator itself reports that the certified
 //! route is needed (a part of the linear form that cannot be lowered, or the worst case of
 //! expected regret), the contract falls through to the certified route when the source has
@@ -49,6 +50,9 @@ pub const ROUTE_PART_NOT_LOWERABLE: &str = "preference_route.part_not_lowerable"
 /// Route label: the worst case of expected regret is not a linear program over the set.
 pub const ROUTE_WORST_CASE_OF_EXPECTED_REGRET: &str =
     "preference_route.worst_case_of_expected_regret";
+/// Route label: the preference set holds value relations (recorded choices under a value with
+/// shape parameters), which are not linear in the parameters.
+pub const ROUTE_VALUE_RELATIONS: &str = "preference_route.value_relations";
 
 /// Which verdict answers a contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -324,6 +328,9 @@ pub fn preference_route(
     if contract.model.linear_form().is_none() {
         return Ok(certified(ROUTE_SHAPE_PARAMETERS));
     }
+    if !contract.model.preferences.value_relations.is_empty() {
+        return Ok(certified(ROUTE_VALUE_RELATIONS));
+    }
     Ok(match contract.criterion {
         DecisionCriterion::PosteriorExpectedUtility
         | DecisionCriterion::PosteriorExpectedLoss
@@ -346,6 +353,7 @@ fn fall_through(error: &PreferenceDecisionError) -> Option<&'static str> {
             CertifiedRouteReason::ShapeParameters { .. } => ROUTE_SHAPE_PARAMETERS,
             CertifiedRouteReason::PartNotLowerable => ROUTE_PART_NOT_LOWERABLE,
             CertifiedRouteReason::WorstCaseOfExpectedRegret => ROUTE_WORST_CASE_OF_EXPECTED_REGRET,
+            CertifiedRouteReason::ValueRelations { .. } => ROUTE_VALUE_RELATIONS,
         }),
         _ => None,
     }

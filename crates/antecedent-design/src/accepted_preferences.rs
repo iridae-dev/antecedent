@@ -187,6 +187,15 @@ pub enum AcceptedPreferencesError {
         /// The conflict found.
         conflict: ChoiceConflict,
     },
+    /// The learner could certify neither that the selected records are compatible with the
+    /// declared set nor that they contradict it (a value with shape parameters only).
+    #[error("compatibility of the recorded choices with the declared preferences is undetermined")]
+    Undetermined {
+        /// The decider, `None` for the pooled records.
+        decider: Option<String>,
+        /// Shape boxes left undecided when the subdivision stopped.
+        boundary_boxes: usize,
+    },
     /// No item was given to acknowledge.
     #[error("no review item was given")]
     NoItems,
@@ -230,6 +239,7 @@ impl AcceptedPreferencesError {
             Self::Contradictory { .. } => {
                 reason_details::accepted_preferences::CHOICES_CONTRADICTORY
             }
+            Self::Undetermined { .. } => reason_details::accepted_preferences::SET_UNDETERMINED,
             Self::NoItems => reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY,
             Self::RepeatedItem { .. } => reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED,
             Self::NotPending { .. } => reason_details::accepted_preferences::NOT_PENDING,
@@ -750,6 +760,10 @@ pub(crate) fn select_learned(
         SetOutcome::Contradictory(conflict) => {
             Err(E::Contradictory { decider: decider.map(str::to_owned), conflict })
         }
+        SetOutcome::Undetermined(undetermined) => Err(E::Undetermined {
+            decider: decider.map(str::to_owned),
+            boundary_boxes: undetermined.region.cells.len(),
+        }),
     }
 }
 
@@ -948,6 +962,13 @@ impl AcceptedPreferencesError {
             .expected(format!("tolerance >= {}", conflict.tolerance_needed))
             .supplied(conflict.records.join(","))
             .build(),
+            Self::Undetermined { decider, boundary_boxes } => unsatisfied(
+                "raise SetLearningOptions::max_boxes or lower min_width_fraction, or narrow the \
+                 declared range of the shape parameters",
+            )
+            .offending_opt(decider.clone())
+            .supplied(format!("{boundary_boxes} undecided shape boxes"))
+            .build(),
             Self::NoItems => invalid("name at least one pending review item").build(),
             Self::RepeatedItem { item } => {
                 invalid("name each review item once").offending(format!("{item:?}")).build()
@@ -974,16 +995,16 @@ mod tests {
     fn model() -> ValueModel {
         ValueModel {
             attributes: vec![Attribute { id: "benefit".into(), units: "events".into() }],
-            preferences: PreferenceSet {
-                parameters: vec![PreferenceParameter {
+            preferences: PreferenceSet::new(
+                vec![PreferenceParameter {
                     id: "w".into(),
                     units: "utility/event".into(),
                     lower: 0.0,
                     upper: 1.0,
                     assumption_id: "w-judgment".into(),
                 }],
-                relations: vec![],
-            },
+                vec![],
+            ),
             value: PreferenceExpr::product(
                 PreferenceExpr::Parameter(0),
                 PreferenceExpr::Attribute(0),
@@ -1039,10 +1060,12 @@ mod tests {
         let b = PendingReview::ParameterNotVaried { parameter_id: "b".into() };
         let c = PendingReview::ToleranceApplied { tolerance: 0.5 };
         let all = vec![a.clone(), b.clone(), c.clone()];
-        let merged = canonical_acknowledged(&all, &[c.clone()], &[a.clone()]).unwrap();
+        let merged =
+            canonical_acknowledged(&all, std::slice::from_ref(&c), std::slice::from_ref(&a))
+                .unwrap();
         assert_eq!(merged, vec![a.clone(), c.clone()]);
         assert_eq!(
-            canonical_acknowledged(&all, &[c.clone()], &[c.clone()]),
+            canonical_acknowledged(&all, std::slice::from_ref(&c), std::slice::from_ref(&c)),
             Err(E::NotPending { item: c })
         );
         assert_eq!(

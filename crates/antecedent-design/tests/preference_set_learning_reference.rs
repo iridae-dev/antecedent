@@ -81,7 +81,7 @@ fn model(case: &Value) -> ValueModel {
         .collect();
     ValueModel {
         attributes,
-        preferences: PreferenceSet { parameters, relations },
+        preferences: PreferenceSet::new(parameters, relations),
         value,
         utility_units: "utility".to_owned(),
     }
@@ -165,6 +165,9 @@ fn learned_ranges_and_conflicts_match_the_exact_rational_reference() {
                 assert_eq!(conflict.records, ids, "{name}");
                 assert_eq!(conflict.kind, ConflictKind::Smallest, "{name}");
                 close(conflict.tolerance_needed, number(&want["tolerance_needed"]), name);
+            }
+            SetOutcome::Undetermined(undetermined) => {
+                panic!("{name}: undetermined under a linear value: {undetermined:?}")
             }
         }
     }

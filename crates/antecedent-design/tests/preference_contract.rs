@@ -44,16 +44,16 @@ fn model_with(value: P) -> ValueModel {
             Attribute { id: "benefit".into(), units: "events".into() },
             Attribute { id: "cost".into(), units: "usd".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![parameter("w_benefit", 1.0, 3.0), parameter("w_cost", 0.5, 1.0)],
-            relations: vec![LinearRelation {
+        preferences: PreferenceSet::new(
+            vec![parameter("w_benefit", 1.0, 3.0), parameter("w_cost", 0.5, 1.0)],
+            vec![LinearRelation {
                 id: "ratio".into(),
                 terms: vec![(0, 1.0), (1, -2.0)],
                 sense: RelationSense::AtLeast,
                 bound: 0.0,
                 origin: RelationOrigin::Declared,
             }],
-        },
+        ),
         value,
         utility_units: "usd".into(),
     }
