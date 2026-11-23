@@ -98,6 +98,10 @@ pub use gam::{
     fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
+    ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
+    conditional_logit_log_likelihood, fit_conditional_logit,
+};
+pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,
     MultinomialDesignRef, MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge,
     fit_glm_ridge_weighted, fit_glm_weighted, fit_logistic_weighted, fit_logit_laplace,
