@@ -339,6 +339,11 @@ class Lister:
                 pre += "#[doc(hidden)] "
             if "non_exhaustive" in text:
                 pre += "#[non_exhaustive] "
+        # rustdoc lifts `#[deprecated]` out of `attrs` into the item's `deprecation` field.
+        deprecation = item.get("deprecation")
+        if deprecation:
+            since = deprecation.get("since")
+            pre += f'#[deprecated(since = "{since}")] ' if since else "#[deprecated] "
         return pre
 
     def emit(self, line: str) -> None:

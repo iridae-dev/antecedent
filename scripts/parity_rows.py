@@ -39,7 +39,7 @@ RETIRED = ("intentional_deviation",)
 REASON_PROSE_SCHEMAS = frozenset({
     "support_refusal_reasons.toml", "support_n_a.toml", "support_axes.toml",
     "support_graphless.toml", "python_facade_surface.toml",
-    "estimator_route_residual.toml",
+    "estimator_route_residual.toml", "compiled_path.toml",
     "slow_correctness_tests.toml",
 })
 

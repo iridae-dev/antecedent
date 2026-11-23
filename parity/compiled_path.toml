@@ -1,0 +1,4656 @@
+# Classification of every scientific computation the facade and the Python package reach, read by
+# scripts/gate_compiled_path.py. The facade reaches a computation through the causal compiler; a
+# kernel crate's own API is not deprecated, and the facade may re-export a kernel run entry only
+# as a #[deprecated] wrapper that names its compiled replacement.
+#
+# [[row]]      a kernel function the facade re-exports, an executing function or method of a
+#              re-exported kernel type or module, or a facade function returning a result type.
+#              Keyed by the canonical path in parity/public_api.
+# [[python]]   a public Python function whose native binding reaches a pending or deprecated row.
+# [[verdict]]  a support-verdict literal that belongs in the generated support table.
+#
+# disposition: compiled (route = a PlanRoute in the lowering registry), deprecated (the snapshot
+# shows #[deprecated]; replacement = a compiled row), internal (#[doc(hidden)]), consume (artifact
+# or result consumer), not_scientific (reason), pending (owner = the follow-up area).
+# An unclassified candidate and a row no candidate matches both fail.
+
+[result_types]
+seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate"]
+
+[[row]]
+path = "antecedent::AcceptedPosterior::posterior"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::AdaptiveInferenceSession::measured_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::ChoiceInferenceSession::measured_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::EvidenceLedgerSession::pooled_interval_candidate"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::PreparedZTransport::estimate"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::PreparedZTransport::estimate_bayesian"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::PreparedZTransport::estimate_independent_components"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::PreparedZTransport::estimate_intervention_factorized_components"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::PrimaryEstimate::as_effect"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::PrimaryEstimate::as_effect_mut"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::discovery"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::interference_estimate"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::into_discovery"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::into_mediation"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::into_mediation_grid"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::into_transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::mediation"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::mediation_grid"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::mediation_mut"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::ResultPayload::transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::discovery"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::estimate"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::estimate_mut"
+disposition = "internal"
+
+[[row]]
+path = "antecedent::StudyResult::interference"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::into_discovery"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::into_mediation"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::into_mediation_grid"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::into_transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::mediation"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::mediation_grid"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::payload"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::StudyResult::transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::api::consume_z_transport_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::api::temporal_dependent_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::api::transport_trial_to_weighted_target"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::measured_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::cohort_decision::measured_cohort_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::count_fitted_observation::CountFittedObservation::calibrated_probability"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::count_fitted_observation::CountFittedObservation::interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::discovered_transport::discover_and_transport"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::analysis::graph_imputation::GraphImputationPoint::measured"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift::measured_interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::analysis::sample_split_analysis::SplitDiscovery::outcome"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::sample_split_effect::SplitEffect::measure"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::sample_split_effect::measure_source"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::sample_split_parent_set_effect::ParentSetEffect::measure"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::sample_split_parent_set_effect::measure_source"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent::analysis::temporal_dependent_interval_candidate"
+disposition = "pending"
+owner = "interval candidates"
+
+[[row]]
+path = "antecedent::discovery::discover_ci_screened_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_dbn_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_dbn_posterior_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_exact_dag_marginals"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_exact_dag_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_exact_pag_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_fci"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_ges"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_jpcmci_plus"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_lingam"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_lpcmci"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_lpcmci_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_notears"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_notears_with"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_order_mcmc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pag_mcmc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pcmci_plus"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pcmci_plus_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_ci_screened_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_dbn_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_exact_dag_marginals"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_exact_dag_posterior"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_order_mcmc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_pooled_structure_mcmc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_rfci"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_rpcmci"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_screened_exact_marginals"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::discover_structure_mcmc"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::discovery::pool_posteriors_over_imputations"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent::strategy_table::attach_static_bootstrap"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[row]]
+path = "antecedent_attribution::ChangeAttribution::run"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::ChangeAttribution::run_structure"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::anomaly::arrow_strengths"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::anomaly::population_do_contrast"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::anomaly::score_anomalies"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::anomaly::score_anomalies_with"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::detect_mechanism_changes"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::distribution_change"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::distribution_change::distribution_change_with_frequency_weights"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::distribution_change::distribution_change_with_row_weights"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::distribution_change_robust"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::feature_relevance"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::intrinsic_influence"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::intrinsic_influence::intrinsic_influence_with_temporal_runs"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::path::path_decompose"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::root_cause::root_cause_rank"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::structure_change"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::structure_change::structure_change_with_refit"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_attribution::unit_change"
+disposition = "pending"
+owner = "attribution operations"
+
+[[row]]
+path = "antecedent_contract::adaptive_design::procedure_cells"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::adaptive_design::procedure_status"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::adaptive_design::supported_routes"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::bridge::point_propagation_unavailable"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::calibration_refusal"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::callback_protocol::semantic_stream"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::callback_protocol::standing_label"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::callback_protocol::standing_of"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::capability_from_name"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::check_declared_independence_against_ledger"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::check_external_against_program"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::check_propagation"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::check_propagation_with_ledger"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::check_rows_pairable_across"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::composition_verification::shared_data_relations"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::evidence_ledger::parse_digest_hex"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::external_refusal::probe_from_name"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::interface_contract::operations_of_capabilities"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::interval_refusal"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::label_coordinates"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::measurement::measurement_interface_contract"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::provider_transport::connect_bound_provider_source"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::provider_transport::connect_provider_source"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::provider_verification::verify_external_object"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::response_coordinate_skeleton"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::response_coordinates"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::transport_revalidation::revalidate_transport"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_contract::transport_revalidation::transport_coordinate"
+disposition = "not_scientific"
+reason = "contract declaration, refusal or verification helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::TemporalPolicy::active_offsets_within"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::default_user_threads"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::execution_attempt::AttemptReport::execution_facts"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::inspect::inspect"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::reason_code::split_prefix"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::reason_details::codes_of"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_core::support_gate::require_supported_unscoped"
+disposition = "not_scientific"
+reason = "runtime, reason-code or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::abduct"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::abduct_with_rng"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::individual_treatment_effect"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::predict"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::predict_retaining_outcomes"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::CounterfactualEngine::predict_temporal"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::engine::nested_counterfactual"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::engine::nested_counterfactual_with_exo"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::engine::nested_hard_counterfactual"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::engine::simultaneous_hard_counterfactual"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_counterfactual::transported_gate::refuse_transported_counterfactual"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_data::EventData::align_to_grid_in"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::MultiEnvironmentData::try_new"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::MultiEnvironmentData::with_environment"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::NetworkData::try_new"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::OwnedColumnarStorage::content_digest_with_context"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::PanelData::with_unit_series"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::TableFile::materialize"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::TableFile::reader"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::TableFile::scan_identity"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::TableStream::reader"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::chunk_local_index"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::write_table_file"
+disposition = "not_scientific"
+reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_design::BackdoorRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::DesignRanker::rank"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::EvidencePlanArtifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::FrontDoorRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::HedgeRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::InstrumentRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::RepairReportArtifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::RepairReportArtifact::consume_with_read_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::SensitivityRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::StudyPlanArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::StudyPlanProposal::receive"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::TransportRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::TransportRepairFamily::try_new"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::ZTransportFailureSnapshot::from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::ZTransportProposalWire::replay"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::ZTransportRepairFamily::check_regimes"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch::execute"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch::verify_replay"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::candidate_generation::generate_candidates"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::candidate_generation::verified_unlocks"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::choice_evsi::rank_hierarchical_studies"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::choice_evsi::rank_studies"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::choice_evsi::rank_studies_with_context"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::composition_boundary::check_atom_combination"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::composition_boundary::check_composition"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::composition_boundary::check_paired_draws"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::composition_boundary::evaluate_functional_on_input"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::composition_boundary::evaluate_with_support"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::describe_artifact"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::detect_node_kind"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::evidence_relationship_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::mean_decision_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::mean_source_of"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::standard_consumer"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision::evaluate_decision"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::adapt_finite_scenarios"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::adapt_graph_dependent_claims"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::adapt_point_claim"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::adapt_weighted_graph_atoms"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::evaluate_adapted"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::evaluate_identified_sets"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_adapters::utility_interval"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_artifact::contract_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_artifact::contract_from_json_refusal"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_artifact::contract_to_json"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_artifact::mean_result_to_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_artifact::mean_result_to_json"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_artifact::result_to_json"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_artifact::source_digest"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_eval::evaluate_contract"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_eval::evaluate_contract_on_means"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_eval::evaluate_functional"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_reliability::calibration::support_route"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_reliability::rank"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::admit"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::evaluate"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::export"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::replay_decision"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::seal_decision"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::admissible_contract_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::admissible_contract_from_json_refusal"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::admissible_contract_to_json"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::atom_digests_of"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::design_ranking_artifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::design_ranking_artifact::consume_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::failure_routes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::identification_repair::latent_expansion"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::identified_under_intervention"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::inverse_query::evaluate_inverse_query"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::inverse_query::finite_enumeration_baseline"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::mutilate"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::obligation_adapters::identification_failure_obligations"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::plan_studies"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::plan_z_transport_evidence"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::prior_signal::adapt_prior_to_signal"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::proposal_receipt::on_arrival"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::proposal_receipt::verify"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::repair"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::rollout_artifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::sensitivity_decision::contract_from_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::sensitivity_decision::evaluate_sensitivity_decision"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[row]]
+path = "antecedent_design::snapshot_z_transport_failure"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::structure_identification::identifies"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::structure_identification::structure_posterior"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[row]]
+path = "antecedent_design::transported_decision_artifact::consume_transported_decision"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::transported_decision_artifact::export_transported_decision"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::CiScreenedPosterior::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::CiScreenedPosterior::screen_then_exact_marginals"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::DbnPosterior::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::DbnPosterior::run_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::DirectLingam::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::ExactDagPosterior::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Fci::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Ges::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::JpcmciPlus::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Lpcmci::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Lpcmci::run_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Notears::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::OrderMcmc::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Pc::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Pcmci::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Pcmci::run_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::PcmciPlus::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::PcmciPlus::run_on_frame"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::PcmciPlus::run_panel"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Rfci::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::Rpcmci::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::StructureMcmc::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask::adjacency_mask_from_admg"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask::adjacency_mask_from_cpdag"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask::adjacency_masks_from_pag"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask::has_edge"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask::mask_is_dag"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_mask_from_cpdag"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::adjacency_masks_from_pag"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::observed_marginals::signed_uniform_observed_marginals"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::rpcmci::two_regime_half_split"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::export_state"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::outcome"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::plan"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::resume"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::resume_with_limits"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::StaticSelectiveDiscovery::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::export_state"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::outcome"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::plan"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::resume"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::resume_with_limits"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::claims::request_downstream_interval"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::claims::request_recovery_claim"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::claims::request_score_search_reuse"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::identity::static_data_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::identity::temporal_data_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::selective::populations::PerPopulationDiscovery::run"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::request_selection_diagram"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::reuse::SampleSplitReceipt::check_analysis_table"
+disposition = "pending"
+owner = "discovery engines"
+
+[[row]]
+path = "antecedent_discovery::selective::reuse::SampleSplitReceipt::verify_against_source"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_discovery::selective::reuse::split_rows"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::temporal_admg_atoms::with_lagged_edge"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::estimate_streamed"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::fit_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::fit_checked_point"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::fit_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::population_linear_atc_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::population_linear_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::prepare_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::AipwAte::rebind_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CausalForest::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CausalForest::fit_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CausalForest::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CausalForest::score_table"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CellSaturatedAipw::fit_scores"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CellSaturatedAipw::fit_scores_sampling_weighted"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CellSaturatedAipw::fit_scores_with_assignment"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::ConditionalLinearAdjustment::estimate"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_ate"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_with_arm_scores"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_with_means"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::CrossfitNuisanceCache::bounded"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::CrossfitNuisanceCache::charged_to"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::DistanceMatching::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DistanceMatching::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DmlAte::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DmlAte::fit_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DmlAte::population_linear_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DmlAte::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DmlAte::score_table"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::fit_pointwise_profiles"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::fit_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::population_linear_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::DrLearner::score_table"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::fit_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::prepare_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::FrontDoorTwoStage::rebind_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::GlmAdjustmentAte::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::GlmAdjustmentAte::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::GlmAdjustmentAte::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LearnedContinuousOptions::analytic_interval_internal"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::estimate_streamed"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::fit_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::fit_point"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::fit_point_with_ols_residuals"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::prepare_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::prepare_checked_with_backend"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::rebind_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::LinearAdjustmentAte::rebind_checked_with_backend"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::ObservationMechanismEstimator::adjust_temporal_anchors"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::ObservationMechanismEstimator::adjust_temporal_series"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::ObservationMechanismEstimator::adjusted_outcome"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::ObservationMechanismEstimator::estimate_mean_curve"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::ObservationMechanismEstimator::gaussian_log_likelihood"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::PropensityMatching::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityMatching::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityStratification::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityStratification::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityStratification::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::attach_bootstrap"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::estimate_streamed"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::population_linear_score_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::population_score_interval"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::PropensityWeighting::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::RegimeSample::from_tabular"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::TemporalLinearPredictor::fit"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalLinearPredictor::predict_conditional"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::effect_surface"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::estimate"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_adjustment"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_block_bootstrap"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_extras"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::prepare_shared"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TemporalMediationEstimator::window_selection"
+disposition = "pending"
+owner = "temporal and mediation estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::estimate_streamed"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::fit_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::prepare_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::TwoStageLeastSquares::rebind_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::WaldIv::fit"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::WaldIv::fit_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::WaldIv::prepare"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::WaldIv::prepare_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::WaldIv::rebind_checked"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::adjustment_resume::count_adjusted_model_fits"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::ancova::fit_ancova"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::cohort_linear_effect::declared_export_refusal"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::compare_raw_adjusted"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::conditional_odds_ratio"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[row]]
+path = "antecedent_estimate::declared_joint_nuisance"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[row]]
+path = "antecedent_estimate::estimate_interference_with_context"
+disposition = "pending"
+owner = "interference estimators"
+
+[[row]]
+path = "antecedent_estimate::estimate_observational_exposure"
+disposition = "pending"
+owner = "interference estimators"
+
+[[row]]
+path = "antecedent_estimate::estimate_sampled_recovery"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::estimate_saturation_interference"
+disposition = "pending"
+owner = "interference estimators"
+
+[[row]]
+path = "antecedent_estimate::estimate_smoothed_dose_with_factories"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[row]]
+path = "antecedent_estimate::estimate_trial_aipw_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::evaluate_chain_recovery"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::external_cyclic_fit::fit_external_feedback"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[row]]
+path = "antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_design::compiled::JointDesignRecipe::execute"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_design::compiled::JointDesignRecipe::execute_native"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::PanelFitOptions::identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_hybrid_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law_streamed"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_panel_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law_streamed"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_values"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::decompose_weighted_hybrid_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::decomposition::propagate_hybrid_covariance"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::evaluate_panel_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::evaluate_panel_programs"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::expression::compile_panel_expression"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::fit_panel"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::project_panel_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::project_panel_responses"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::project_temporal_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::selection_uncertainty::decomposition_selection"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::stream_panel_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::stream_temporal_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_law"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_programs"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::fit_temporal_panel"
+disposition = "pending"
+owner = "joint panel estimators"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::require_coarser_contrast"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::time_varying::validate_temporal_spec"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::validate_fit_options"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::joint_panel::validate_panel_programs"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::measurement::correct_detection_dependent_prevalence"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::correct_exposure_misclassification"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::correct_soft_exposure_effect"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::exposure_routes::fit_repeat_codings"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::exposure_routes::soft_exposure_reliability_report"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::impute_exposure"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement::measured_exposure::pool_measured_effect"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[row]]
+path = "antecedent_estimate::measurement_transport::transport_measurement_model"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::orderings_for"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::parse_matched_sampling"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::plan_from_response_query"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_estimate::policy_value::evaluate_binary_ipw_policy"
+disposition = "pending"
+owner = "observational policy value"
+
+[[row]]
+path = "antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy"
+disposition = "pending"
+owner = "observational policy value"
+
+[[row]]
+path = "antecedent_estimate::policy_value::evaluate_policy_value_scores"
+disposition = "pending"
+owner = "observational policy value"
+
+[[row]]
+path = "antecedent_estimate::policy_value::uplift_by_score_bin"
+disposition = "pending"
+owner = "observational policy value"
+
+[[row]]
+path = "antecedent_estimate::randomized_joint::centered_fixed_cuped_totals"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::randomized_joint::complete_cluster_joint_contrast"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::randomized_neyman::stratified_neyman_effect"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::randomized_scores::cuped_ht_effect"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::raw_contrast"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::smoothed_dose::parse_smoothing_kernel"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_estimate::staggered_event_study::group_time_att"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::survival::randomized_survival_ipcw_summary"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::switchback::switchback_itt"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[row]]
+path = "antecedent_estimate::transform_mean_pair"
+disposition = "pending"
+owner = "raw estimators"
+
+[[row]]
+path = "antecedent_estimate::transport::transport_augmented_response_grid"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::transport::transport_augmented_response_grid_with_context"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::transport::trial_to_target_effect_with_context"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::evaluate"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::refresh"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::refresh_empirical"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[row]]
+path = "antecedent_graph::CompletionSampler::with_budget"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::CpdagCompletionSampler::with_budget"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::Dag::from_unfolding_within"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::Pag::from_unfolding_within"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::TemporalAdmg::unroll_window_over_within"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::TemporalDag::unfold_within"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::TemporalPag::unfold_within"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::cpdag_completion::is_mec_member"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::ensure_lagged"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_graph::latent_project"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate"
+
+[[row]]
+path = "antecedent_identify::ClassicalTransportDerivation::bind_catalog_with_context"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::ClassicalTransportDerivation::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::ClassicalTransportDerivation::search_catalog"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::ConditionalObstructionCandidate::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::ConditionalObstructionCandidate::recheck"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::CounterfactualTransportDerivation::replay_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::MixedSourceDerivation::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::TemporalMediationIdentifier::adjustment_nodes_within"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::TransportIdentifier::identify_with_context"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::ZTransportDerivation::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::ZTransportObstruction::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::admg_conditional_refusal"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_identify::binary_iv_ate_bounds"
+disposition = "pending"
+owner = "iv bounds"
+
+[[row]]
+path = "antecedent_identify::bind_mixed_source_catalog"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::bind_mz_transport_catalog"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::bind_transport_derivation"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::bind_z_transport_catalog"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::counterfactual_transport_refusal"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_identify::decide_admg_conditional_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_chain_recovery"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_mixed_source"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_mz_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_observation_recovery"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_two_source_z_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::decide_z_transport_inspecting"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::identify_catalog_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::identify_classical_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::identify_counterfactual_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::identify_meta_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::identify_z_transport"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::lower_transport_formula"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::mz_transport_refusal"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_identify::recovery::verify_recovery_witness"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::recovery_chain::verify_chain_witness"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::render_quantity"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_identify::sid::SHedgeCertificate::from_record_checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::sid::cpdag_completion::enumerate_cpdag_completions"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::sid::temporal_sequence::unroll_two_slice"
+disposition = "pending"
+owner = "raw identifiers"
+
+[[row]]
+path = "antecedent_identify::sid::verify_classical_transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_identify::sid::verify_s_hedge"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::accept_claim_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::from_bytes"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::from_meta"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::measure_interval"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::seal"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::to_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::consume_within"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::array_fit_artifact::inspect_array_fit_header"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::consume_prepared_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::consume_typed_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::export_with_context"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::seal_with_context"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::from_bytes_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::from_bytes_with_replay_operations"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::seal_declared"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::seal_with"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::consume_measured_interval"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::from_bytes"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::from_meta"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::measure_interval"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::seal"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::to_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::declaration_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::spec_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cpdag_completion_artifact::CpdagCompletionArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::execute"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::export"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::cyclic_family_artifact::consume_cyclic_family"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::execute"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::export"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::cyclic_system_artifact::consume_cyclic_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::decode_analysis_result_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire::consume_typed_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire::seal_with_context"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::dose_grid_functional_artifact::dose_support_table"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::encode_causal_posterior_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::execute"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::export"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::external_cyclic_artifact::consume_external_cyclic_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::external_cyclic_artifact::inspect_external_cyclic_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::interference_estimate_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::interference_estimate_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_panel_artifact::consume_panel_execution"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::latent_class_artifact::LatentClassArtifact::from_bytes_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::latent_class_artifact::LatentClassArtifact::seal_with"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::MeasuredInference::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::measure"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::measure"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::measured_inference::split_parent_set_effect::governing_topologies"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mnar_candidate_source::decode_source"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mz_transport_artifact::MzTransportArtifactWire::checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mz_transport_artifact::MzTransportArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build_measured"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build_measured"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact::from_bytes_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact::seal_with"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::randomized_ipow_artifact::replay_analysis_result"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::randomized_ipow_artifact::replay_loaded_result"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_artifact::RecoveryArtifactWire::consume_typed"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io::recovery_artifact::RecoveryArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::consume_typed"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::release_migration::consume_previous_release_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::release_migration::consume_previous_route_records"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::release_migration::current_score_row_digest"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::release_migration::narrow_score_row_digest"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::measure"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::measure"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute_within"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::checked"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::consume_measured"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::verify"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_transport_artifact::temporal_refusal"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io::transport_effect_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::transport_effect_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::transport_interference_wire::try_interference_estimate_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::transport_scenario_artifact::TransportScenarioArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::transport_scenario_artifact::scenario_refusal"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact::from_bytes_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact::seal_with"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::reconstruct"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::ObservationQueryArtifactWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::ObservationQueryArtifactWire::seal"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::admg_from_dot"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::admg_from_gml"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::admg_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::admg_from_networkx_node_link"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::admg_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::admg_to_dot"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::admg_to_gml"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::admg_to_json"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::admg_to_networkx_node_link"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::admg_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::analysis_result_artifact::encode_analysis_result_artifact"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::analysis_result_artifact::encode_analysis_result_artifact_with_contract"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::analysis_wire::identification_to_wire_with_registry"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::assumptions_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::causal_artifact::decode_causal_payload_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::causal_artifact::encode_causal_payload_artifact"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::causal_query_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::causal_query_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::causal_query_to_wire_with_registry"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::causal_response_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::causal_response_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::contract_section::decode_analysis_result_contract"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::contract_section::load_analysis_result"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::convert::dag_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::convert::dag_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::convert::from_cbor"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::convert::to_cbor"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::cpdag_from_dot"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cpdag_from_gml"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cpdag_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cpdag_from_networkx_node_link"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cpdag_to_dot"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::cpdag_to_gml"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::cpdag_to_json"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::cpdag_to_networkx_node_link"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::dag_from_dot"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::dag_from_gml"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::dag_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::dag_from_networkx_adjacency"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::dag_from_networkx_node_link"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::dag_to_dot"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::dag_to_gml"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::dag_to_json"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::dag_to_networkx_adjacency"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::dag_to_networkx_node_link"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::decode_posterior_artifact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::decode_prior_source_meta"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::discovery_wire::temporal_dag_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::encode_external_estimate_claim"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::encode_posterior_artifact"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::encode_prior_source_meta"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::executed_functional_labels"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::execution_digest"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::execution_identity_from_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::expr_arena_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::expr_arena_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::expr_wire::functional_program_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::expr_wire::functional_program_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::external_estimate::parse_digest_hex"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::feature_version::classify_feature_read"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_from_dot"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_from_gml"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_from_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_from_networkx_node_link"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_to_dot"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_to_gml"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_to_json"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_to_networkx_node_link"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::interference_query_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::interference_query_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::encode_policy_program"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::interventions_from_named_json"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::named_json_from_interventions"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::policy_program_callback_records"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::policy_program_identity"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::value_expression_identity"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::posterior::validate_posterior_meta"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::query_wire::transport_query_from_wire"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::query_wire::transport_query_to_wire"
+disposition = "not_scientific"
+reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_learn::FittedEffect::predict"
+disposition = "pending"
+owner = "learner-backed estimators"
+
+[[row]]
+path = "antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories"
+disposition = "pending"
+owner = "learner-backed estimators"
+
+[[row]]
+path = "antecedent_learn::fit_counts::count_resolved_fits"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_learn::transported_effect::assess_overlap"
+disposition = "pending"
+owner = "learner-backed estimators"
+
+[[row]]
+path = "antecedent_learn::transported_effect::transport_cohort_effect"
+disposition = "pending"
+owner = "learner-backed estimators"
+
+[[row]]
+path = "antecedent_model::KdeDoSampler::sample"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::McmcDoSampler::sample"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::assign_and_fit"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::assign_and_fit_polled"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::assign_and_fit_with"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::assign_and_fit_with_in"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::assign_and_fit_with_polled"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::refit_frequency_weighted_polled"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::refit_weighted"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::MechanismRegistry::refit_weighted_polled"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::ModelEvaluator::evaluate"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::NoiseTable::randomize"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::NoiseTable::sample"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::WeightingDoSampler::estimate"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::compile::standard_normal_log_density"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_model::discretized_scm_artifact::export_discretized_scm"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_model::do_sampler::interventional_mean"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::local_cyclic::LocalCyclicModel::abduce"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::local_cyclic::LocalCyclicModel::solve"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::policy_support"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_model::sample::sample_interventional"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_model::sample::sample_observational"
+disposition = "pending"
+owner = "gcm operations"
+
+[[row]]
+path = "antecedent_prob::apply_transport"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::apply_weighted_target_transport"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::check_weights_overlap"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_beta_power_priors"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_external_priors"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_external_priors_with_alphas"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_gamma_power_priors"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_with_transport"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::compose_with_weighted_target_transport"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::default_alpha_grid"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_prob::external_prior::rename_coordinates"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_prob::kernel_bandwidth_sensitivity"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_beta_power_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_beta_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_gamma_power_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_gamma_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_linear_power_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_prob::power_prior_alpha::select_linear_prior"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[row]]
+path = "antecedent_state::full_graph_score"
+disposition = "pending"
+owner = "kernel operations"
+
+[[row]]
+path = "antecedent_stats::PartialCorrelation::test_one"
+disposition = "pending"
+owner = "statistics kernels"
+
+[[row]]
+path = "antecedent_stats::interference::admit_exposure_probability_work_for_shape"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_stats::measurement_error::exposure_rates_from_validation"
+disposition = "pending"
+owner = "statistics kernels"
+
+[[row]]
+path = "antecedent_validate::AlphaThresholdSensitivity::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::BlockBootstrapStability::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::CiTestSensitivity::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::EnvironmentHoldout::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::FalsePositiveCheck::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::LagWindowSensitivity::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::OrientationStability::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::PosteriorPredictiveCheck::check_with_context"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::PosteriorPredictiveCheck::for_estimator"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::PriorPredictiveCheck::check"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::PriorPredictiveCheck::check_with_prior"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::PriorPredictiveCheck::for_estimator"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::RefutationProblem::new"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_validate::RegimeStability::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::StalenessBaseline::assess"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::StalenessBaseline::build"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::SyntheticNullCalibration::run"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::amplify"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::apply_conflict_and_compose"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::benchmark_bound"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_evalue_posterior_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_evalue_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_ovb_posterior_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_ovb_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::mediation_components_fit"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::mediation_path_ovb_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::mediation_paths_fit"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::mediation_posterior_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::mediation_vector_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::msm_parameter_fit"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::component_sensitivity::msm_parameter_fit_refitting_weights"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::evalue_posterior_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::evalue_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::evalue_vector_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::linear_adjustment_fit"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::matched_sets_break_even"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::matched_sets_upper_p"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::mediation_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::msm_ate_bounds_at"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::msm_ate_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::omitted_variable_bias::ovb_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::ovb_posterior_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::ovb_vector_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::predictive_assessment::distribution_drift"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::predictive_assessment::exact_expected_score"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::predictive_assessment::score_case"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::rosenbaum::rosenbaum_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::rosenbaum_vector_range"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[row]]
+path = "antecedent_validate::staleness::dependency_class"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_validate::staleness::snapshot_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_validate::target_native::finite_difference_consistency"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::target_native::local_linearity"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::target_native::posterior_predictive_target_check"
+disposition = "pending"
+owner = "validation checks"
+
+[[row]]
+path = "antecedent_validate::target_native::prior_sensitivity_target_check"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/adaptive_policy.py::search"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_distribution_change"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_distribution_change_robust"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_structure_change"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_path_specific"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_feature_relevance"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::anomaly_attribution"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_unit_change"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribution_uncertainty"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/attribution.py::attribute_root_causes"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"
+disposition = "pending"
+owner = "interval candidates"
+
+[[python]]
+path = "python/antecedent/composition.py::evaluate_with_support"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/composition.py::evaluate_functional"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/composition.py::check_composition"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/composition.py::check_paired_draws"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/composition.py::check_atom_combination"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/cyclic.py::PreparedCyclicSystem.posterior"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[python]]
+path = "python/antecedent/cyclic.py::LocalCyclicModel.execute"
+disposition = "pending"
+owner = "gcm operations"
+
+[[python]]
+path = "python/antecedent/decision.py::Contract.evaluate"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision.py::Decision.export"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision_evidence.py::JointEvidence.excursion_quantity"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/decision_evidence.py::decide_with_proxy"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/decision_evidence.py::decide_with_temporal_bridge"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/decision_evidence.py::evaluate"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/decision_reliability.py::rank"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision_robust.py::RobustDecision.export"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision_robust.py::robust"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision_robust.py::IdentifiedUtility.from_inputs"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/decision_robust.py::identified_sets"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/descriptive.py::raw_vs_adjusted"
+disposition = "pending"
+owner = "raw estimators"
+
+[[python]]
+path = "python/antecedent/descriptive.py::transform_mean_pair"
+disposition = "pending"
+owner = "raw estimators"
+
+[[python]]
+path = "python/antecedent/descriptive.py::raw_reporting_transform"
+disposition = "pending"
+owner = "raw estimators"
+
+[[python]]
+path = "python/antecedent/design/plans.py::StructurePrior.from_graphs"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/design/prior_signal.py::adapt_prior_to_signal"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/design/study_ranking.py::compile_for_study"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/design/study_ranking.py::evaluate_for_study"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/design/study_ranking.py::compile_decision_for_study"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/experiment.py::SwitchbackEffect.estimate"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/experiment.py::RandomizedEffect.estimate"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/experiment.py::estimate_cuped_effect"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/experiment.py::estimate_ancova_effect"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/experiment.py::exact_randomization_test"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/exposure_measurement.py::ExposureMeasurement.realize"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/exposure_measurement.py::RubinPool.interval"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/exposure_measurement.py::rubin_pool"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/external_learners.py::dml_ate"
+disposition = "pending"
+owner = "raw estimators"
+
+[[python]]
+path = "python/antecedent/external_learners.py::cross_fit_aipw"
+disposition = "pending"
+owner = "learner-backed estimators"
+
+[[python]]
+path = "python/antecedent/external_mechanisms.py::ExternalFeedbackModel.fit"
+disposition = "pending"
+owner = "dose-grid and cyclic fits"
+
+[[python]]
+path = "python/antecedent/external_mechanisms.py::ExternalFeedbackModel.execute"
+disposition = "pending"
+owner = "artifact-backed computations"
+
+[[python]]
+path = "python/antecedent/interference.py::estimate"
+disposition = "pending"
+owner = "interference estimators"
+
+[[python]]
+path = "python/antecedent/inverse_query.py::finite_enumeration_baseline"
+disposition = "pending"
+owner = "decisions over supplied claims"
+
+[[python]]
+path = "python/antecedent/matched.py::matched_case_control_odds_ratio"
+disposition = "pending"
+owner = "raw estimators"
+
+[[python]]
+path = "python/antecedent/measurement_exposure.py::correct_exposure_misclassification"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/measurement_exposure.py::soft_exposure_effect"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/measurement_exposure.py::soft_exposure_reliability"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/measurement_exposure.py::detection_dependent_prevalence"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/measurement_exposure.py::repeat_codings_latent_class"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/measurement_models.py::transport_pooled_differential"
+disposition = "pending"
+owner = "transport trial estimators"
+
+[[python]]
+path = "python/antecedent/missing.py::multiple_imputation_with_graph_selection"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/observation.py::gaussian_log_likelihood"
+disposition = "pending"
+owner = "measurement-error and observation-recovery corrections"
+
+[[python]]
+path = "python/antecedent/policy.py::uplift_by_score"
+disposition = "pending"
+owner = "observational policy value"
+
+[[python]]
+path = "python/antecedent/policy.py::evaluate_policy"
+disposition = "pending"
+owner = "observational policy value"
+
+[[python]]
+path = "python/antecedent/policy.py::evaluate_policy_doubly_robust"
+disposition = "pending"
+owner = "observational policy value"
+
+[[python]]
+path = "python/antecedent/policy.py::evaluate_multi_action_policy"
+disposition = "pending"
+owner = "observational policy value"
+
+[[python]]
+path = "python/antecedent/predictive_assessment.py::score_case"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/predictive_assessment.py::exact_expected_score"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/predictive_assessment.py::distribution_drift"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/quasi.py::estimate_group_time_att"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/selective_discovery.py::SelectiveDiscovery.resume"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/selective_discovery.py::request_score_search_reuse"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/selective_discovery.py::SplitEffect.measure"
+disposition = "pending"
+owner = "prepared-object interval and transport readings"
+
+[[python]]
+path = "python/antecedent/survival.py::estimate_survival_ipcw"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/survival.py::estimate_cumulative_incidence_ipcw"
+disposition = "pending"
+owner = "randomized-design kernels"
+
+[[python]]
+path = "python/antecedent/temporal_model.py::detect_mechanism_change"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/temporal_model.py::rollout_dynamics"
+disposition = "pending"
+owner = "prior composition and transport of posteriors"
+
+[[python]]
+path = "python/antecedent/transport/discovered.py::discover_and_transport"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_discovered_transport"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_transport_confidence_set"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/transport/trial_compatible.py::verify_trial_compatible_transport_confidence_set_against"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_block_bootstrap"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_false_positive"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_alpha_sensitivity"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_lag_sensitivity"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_ci_sensitivity"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_pcmci_plus_orientation"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_synthetic_null_calibration"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_environment_holdout"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/validation.py::validate_regime_stability"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/validation.py::evalue"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::omitted_variable_bias"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::omitted_variable_bias_from_data"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::rosenbaum_bounds"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::evalue_vector"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::evalue_posterior"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::omitted_variable_bias_vector"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::omitted_variable_bias_posterior"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::mediation_sensitivity_vector"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::mediation_path_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::mediation_sensitivity_posterior"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::msm_parameter_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::msm_parameter_sensitivity_refit"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::rosenbaum_bounds_vector"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::matched_sets_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::amplify"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::mediation_sensitivity"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::derivative_consistency"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::local_linearity"
+disposition = "pending"
+owner = "validation checks"
+
+[[python]]
+path = "python/antecedent/validation.py::prior_sensitivity_target"
+disposition = "pending"
+owner = "sensitivity ranges"
+
+[[python]]
+path = "python/antecedent/validation.py::posterior_predictive_target"
+disposition = "pending"
+owner = "validation checks"
+
+[[verdict]]
+path = "crates/antecedent-core/src/reason_details.rs::MALFORMED_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "crates/antecedent-core/src/reason_details.rs::POSTERIOR_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "crates/antecedent/src/analysis/composition.rs::BUNDLE_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "crates/antecedent/src/analysis/composition_decision_terminal.rs::BUNDLE_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "crates/antecedent/src/analysis/joint_panel/compiled.rs::JOINT_RESPONSE_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "crates/antecedent/src/analysis/observational_policy.rs::POLICY_CAPABILITY"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/_batch.py::not_assessed"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/experiment.py::unsupported_direct_estimator_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/experiment.py::unsupported_direct_inference_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/interference.py::unsupported_point_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/policy.py::unsupported_point_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/quasi.py::off_axis_interval_evidence"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/quasi.py::unsupported_point_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/quasi.py::unsupported_uncalibrated"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/regimes.py::caller_supplied_conditional_outcome_predictions"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/regimes.py::caller_supplied_sequential_Q_and_probabilities"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/regimes.py::caller_supplied_sequential_probabilities"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/regimes.py::unsupported_point_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/regimes.py::unsupported_uncalibrated"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/survival.py::unsupported_point_utility"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
+
+[[verdict]]
+path = "python/antecedent/survival.py::unsupported_simultaneous_band"
+disposition = "pending"
+owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
