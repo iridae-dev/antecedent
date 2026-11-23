@@ -557,3 +557,8 @@ pub use compile_preference::{
     PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
     StructureIdentification, compile_preference_decision_across_studies,
 };
+pub use compile_preference::{
+    CrossStudyCovariance, PreferenceJointLaw, SharedEvidence,
+    compile_preference_decision_across_prepared_studies,
+    compile_preference_decision_with_shared_evidence,
+};

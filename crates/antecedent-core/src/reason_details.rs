@@ -1861,6 +1861,14 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_choice_model.separated",
     "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.unit_of_account_missing",
+    "preference_compile.atom_kind_not_compiled",
+    "preference_compile.class_completions_truncated",
+    "preference_compile.cross_study_covariance_invalid",
+    "preference_compile.design_exposure_bounded",
+    "preference_compile.design_law_not_aligned",
+    "preference_compile.design_not_supported",
+    "preference_compile.program_carries_decision",
+    "preference_compile.studies_share_evidence",
     "preference_contract.action_duplicate",
     "preference_contract.action_id_blank",
     "preference_contract.action_without_quantity",
@@ -4813,6 +4821,14 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_choice_model.separated", &["glm_fit_refused"]),
     ("preference_choice_model.stated_and_recorded_mixed", &["route_not_supported"]),
     ("preference_choice_model.unit_of_account_missing", &["design_rank_deficient"]),
+    ("preference_compile.atom_kind_not_compiled", &["route_not_supported"]),
+    ("preference_compile.class_completions_truncated", &["route_not_supported"]),
+    ("preference_compile.cross_study_covariance_invalid", &["invalid_argument"]),
+    ("preference_compile.design_exposure_bounded", &["effect_not_identified"]),
+    ("preference_compile.design_law_not_aligned", &["joint_law_required"]),
+    ("preference_compile.design_not_supported", &["route_not_supported"]),
+    ("preference_compile.program_carries_decision", &["invalid_argument"]),
+    ("preference_compile.studies_share_evidence", &["evidence_double_counted"]),
     ("preference_contract.action_duplicate", &["invalid_argument"]),
     ("preference_contract.action_id_blank", &["invalid_argument"]),
     ("preference_contract.action_without_quantity", &["invalid_argument"]),
@@ -10157,6 +10173,26 @@ pub mod preference_choice_model {
     pub const STATED_AND_RECORDED_MIXED: &str = "preference_choice_model.stated_and_recorded_mixed";
     /// Detail `preference_choice_model.unit_of_account_missing`.
     pub const UNIT_OF_ACCOUNT_MISSING: &str = "preference_choice_model.unit_of_account_missing";
+}
+
+/// Details in the `preference_compile` family.
+pub mod preference_compile {
+    /// Detail `preference_compile.atom_kind_not_compiled`.
+    pub const ATOM_KIND_NOT_COMPILED: &str = "preference_compile.atom_kind_not_compiled";
+    /// Detail `preference_compile.class_completions_truncated`.
+    pub const CLASS_COMPLETIONS_TRUNCATED: &str = "preference_compile.class_completions_truncated";
+    /// Detail `preference_compile.cross_study_covariance_invalid`.
+    pub const CROSS_STUDY_COVARIANCE_INVALID: &str = "preference_compile.cross_study_covariance_invalid";
+    /// Detail `preference_compile.design_exposure_bounded`.
+    pub const DESIGN_EXPOSURE_BOUNDED: &str = "preference_compile.design_exposure_bounded";
+    /// Detail `preference_compile.design_law_not_aligned`.
+    pub const DESIGN_LAW_NOT_ALIGNED: &str = "preference_compile.design_law_not_aligned";
+    /// Detail `preference_compile.design_not_supported`.
+    pub const DESIGN_NOT_SUPPORTED: &str = "preference_compile.design_not_supported";
+    /// Detail `preference_compile.program_carries_decision`.
+    pub const PROGRAM_CARRIES_DECISION: &str = "preference_compile.program_carries_decision";
+    /// Detail `preference_compile.studies_share_evidence`.
+    pub const STUDIES_SHARE_EVIDENCE: &str = "preference_compile.studies_share_evidence";
 }
 
 /// Details in the `preference_contract` family.

@@ -282,6 +282,12 @@ impl PreparedNativeJointDesign {
     pub const fn lowered(&self) -> &Arc<LoweredProgram> {
         &self.program
     }
+    /// This design entering `program` instead of its own: the design's program with a
+    /// decision attached to layer four (`LoweredProgram::with_decision`). The recipe, proof,
+    /// dependency and point law are this design's.
+    pub(crate) fn with_lowered(&self, program: Arc<LoweredProgram>) -> Self {
+        Self { program, ..self.clone() }
+    }
     /// One view over every layer of the lowered program this design executes. Reading it
     /// executes nothing.
     #[must_use]

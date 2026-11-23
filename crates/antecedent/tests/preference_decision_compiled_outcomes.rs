@@ -30,6 +30,7 @@ use antecedent::analysis::preference_decision::{
     compile_preference_decision_across_studies, shape,
 };
 use antecedent::design::decision_contract::SourceRepresentation;
+use antecedent::planner::lowered::CarrierDemand;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
@@ -292,9 +293,10 @@ fn separately_estimated_outcomes_meet_by_their_means_or_under_declared_distinct_
     )
     .unwrap_err();
     let refusal = refused.refusal().expect("a compile refusal");
+    assert_eq!(refusal.code, "evidence_double_counted");
     assert_eq!(
         refusal.detail,
-        antecedent::reason::reason_details::decision_evidence::DEPENDENCE_UNKNOWN
+        antecedent::reason::reason_details::preference_compile::STUDIES_SHARE_EVIDENCE
     );
 }
 
@@ -378,7 +380,7 @@ fn one_design_answers_by_its_arm_means_or_its_aligned_refits() {
     // Arm means: the treatment raises benefit by 0.7 and harm by 1.4, so the switch is 0.5.
     let probe = compile(traded(0.1, 0.2), None).unwrap();
     assert_eq!(probe.demand().representation, SourceRepresentation::Mean);
-    assert_eq!(probe.demand().carrier, None);
+    assert_eq!(probe.demand().carrier, Some(CarrierDemand::Mean));
     assert!(probe.structures().is_empty());
     assert_eq!(probe.plan_views().len(), 1);
     let executed = probe.execute(None, options(), &ctx).unwrap();

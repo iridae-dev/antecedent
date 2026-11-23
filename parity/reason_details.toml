@@ -11580,6 +11580,54 @@ codes = ["invalid_argument"]
 meaning = "The value is not finite at the evaluated attribute and parameter point, for example a logarithm of a non-positive argument; narrow the ranges or change the value."
 
 [[detail]]
+id = "preference_compile.atom_kind_not_compiled"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "A graph posterior's atoms are of a kind the single-graph compiler cannot compile for the bound query (lagged temporal atoms, or a structure its route does not support); the refusal names the kind."
+
+[[detail]]
+id = "preference_compile.class_completions_truncated"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "Enumerating the completions of an equivalence-class atom stopped at its cap or budget, so the class mass cannot be accounted completion by completion; orient edges or declare the structure."
+
+[[detail]]
+id = "preference_compile.cross_study_covariance_invalid"
+family = "preference_compile"
+codes = ["invalid_argument"]
+meaning = "A declared cross-study covariance names a study out of range or out of order, has the wrong shape, holds a non-finite or zero term, or names two studies that share no observations."
+
+[[detail]]
+id = "preference_compile.design_exposure_bounded"
+family = "preference_compile"
+codes = ["effect_not_identified"]
+meaning = "The design's exposure declares bias bounds instead of no interference, so its arm means are not point identified; declare no interference or decide over the bounded set."
+
+[[detail]]
+id = "preference_compile.design_law_not_aligned"
+family = "preference_compile"
+codes = ["joint_law_required"]
+meaning = "The compiled design retains arm means with a conservative design-based covariance estimate, not an aligned joint law of its outcomes; read its means, or estimate the outcomes with a design whose inference draws an aligned law."
+
+[[detail]]
+id = "preference_compile.design_not_supported"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "The compiled design has no arm coordinates the decision can read; use a static-regime, cluster-randomized or matched-pair or switchback experiment design."
+
+[[detail]]
+id = "preference_compile.program_carries_decision"
+family = "preference_compile"
+codes = ["invalid_argument"]
+meaning = "The compiled program already carries a decision in layer four; compile the design again before attaching another."
+
+[[detail]]
+id = "preference_compile.studies_share_evidence"
+family = "preference_compile"
+codes = ["evidence_double_counted"]
+meaning = "Two studies share observations, so they are not independent evidence; declare their cross-study covariance or estimate the outcomes jointly in one design."
+
+[[detail]]
 id = "preference_set_learning.cancelled"
 family = "preference_set_learning"
 codes = ["cancelled_no_claim"]

@@ -2384,6 +2384,17 @@ class preference_choice_model:  # noqa: N801
     UNIT_OF_ACCOUNT_MISSING: Final = "preference_choice_model.unit_of_account_missing"
 
 
+class preference_compile:  # noqa: N801
+    ATOM_KIND_NOT_COMPILED: Final = "preference_compile.atom_kind_not_compiled"
+    CLASS_COMPLETIONS_TRUNCATED: Final = "preference_compile.class_completions_truncated"
+    CROSS_STUDY_COVARIANCE_INVALID: Final = "preference_compile.cross_study_covariance_invalid"
+    DESIGN_EXPOSURE_BOUNDED: Final = "preference_compile.design_exposure_bounded"
+    DESIGN_LAW_NOT_ALIGNED: Final = "preference_compile.design_law_not_aligned"
+    DESIGN_NOT_SUPPORTED: Final = "preference_compile.design_not_supported"
+    PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
+    STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
+
+
 class preference_contract:  # noqa: N801
     ACTION_DUPLICATE: Final = "preference_contract.action_duplicate"
     ACTION_ID_BLANK: Final = "preference_contract.action_id_blank"
@@ -5582,6 +5593,14 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.separated",
     "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.unit_of_account_missing",
+    "preference_compile.atom_kind_not_compiled",
+    "preference_compile.class_completions_truncated",
+    "preference_compile.cross_study_covariance_invalid",
+    "preference_compile.design_exposure_bounded",
+    "preference_compile.design_law_not_aligned",
+    "preference_compile.design_not_supported",
+    "preference_compile.program_carries_decision",
+    "preference_compile.studies_share_evidence",
     "preference_contract.action_duplicate",
     "preference_contract.action_id_blank",
     "preference_contract.action_without_quantity",
@@ -8596,6 +8615,14 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_choice_model.separated": ("glm_fit_refused",),
     "preference_choice_model.stated_and_recorded_mixed": ("route_not_supported",),
     "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
+    "preference_compile.atom_kind_not_compiled": ("route_not_supported",),
+    "preference_compile.class_completions_truncated": ("route_not_supported",),
+    "preference_compile.cross_study_covariance_invalid": ("invalid_argument",),
+    "preference_compile.design_exposure_bounded": ("effect_not_identified",),
+    "preference_compile.design_law_not_aligned": ("joint_law_required",),
+    "preference_compile.design_not_supported": ("route_not_supported",),
+    "preference_compile.program_carries_decision": ("invalid_argument",),
+    "preference_compile.studies_share_evidence": ("evidence_double_counted",),
     "preference_contract.action_duplicate": ("invalid_argument",),
     "preference_contract.action_id_blank": ("invalid_argument",),
     "preference_contract.action_without_quantity": ("invalid_argument",),

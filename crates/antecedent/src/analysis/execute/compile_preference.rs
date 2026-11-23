@@ -25,13 +25,24 @@
 //!
 //! Several outcomes compile through machinery that already joins them: separately estimated
 //! outcomes ([`compile_preference_decision_across_studies`]) meet as one mean source when
-//! means suffice and otherwise through a propagation-chain family table under the declared
-//! distinct evidence of the studies; the outcomes of one compiled static-regime design
+//! means suffice and otherwise through a propagation-chain family table declared and checked
+//! at compile, under the declared distinct evidence of the studies or, for studies the
+//! evidence ledger finds sharing observations, under a declared cross-study covariance
+//! ([`compile_preference_decision_with_shared_evidence`]); the outcomes of one compiled
+//! static-regime, cluster-randomized or experiment design
 //! ([`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_preference_decision`])
-//! are read from its arm means or from its aligned whole-subject bootstrap refits.
+//! are read from its arm means or, for a static regime, from its aligned whole-subject
+//! bootstrap refits, with the decision attached to layer four of the design's program.
+//!
+//! A graph posterior's structures are compiled per atom kind: DAG and ADMG atoms as studies
+//! of their own structure, equivalence-class atoms per completion (see `atoms`).
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod atoms;
+mod evidence;
+mod facts;
+mod joint;
 mod outcomes;
 
 use std::collections::HashSet;
@@ -56,16 +67,19 @@ use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationOptions, RouteChoice, StructuralPreferenceEvaluation,
     preference_route,
 };
-use antecedent_discovery::GraphPosteriorAtomKind;
-use antecedent_discovery::adjacency_mask::dag_from_adjacency_mask;
 use antecedent_io::distribution_artifact::DistributionCalibration;
 
+pub use evidence::{CrossStudyCovariance, SharedEvidence};
+pub use joint::PreferenceJointLaw;
 pub use outcomes::{
     DesignBootstrap, OutcomeDependence, compile_preference_decision_across_studies,
 };
+pub use outcomes::{
+    compile_preference_decision_across_prepared_studies,
+    compile_preference_decision_with_shared_evidence,
+};
 
 use super::Study;
-use crate::accepted::AcceptedGraph;
 use crate::analysis::contract::CausalContract;
 use crate::analysis::joint_panel::JointPanelError;
 use crate::analysis::lowering::CompileGoal;
@@ -75,11 +89,10 @@ use crate::analysis::native_claims::{
 use crate::analysis::preference_decision::{
     decide_across_structures_with_context, decide_with_context, structure_claims,
 };
-use crate::planner::lowered::{CarrierDemand, DecisionProgram};
+use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceValueFacts};
 use crate::planner::plan_view::IdentificationKind;
 use crate::planner::{PlanStage, PlanView};
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
-use crate::support::StructureSource;
 use crate::{CausalError, PreparedStudy};
 
 const STAGE_BIND: &str = "bind";
@@ -251,6 +264,7 @@ struct StudyQuery {
     causal_target: String,
     causal_identification: String,
     snapshot: String,
+    rows: usize,
 }
 
 /// A study bound to the decision: its program binding and the coordinates it targets.
@@ -262,6 +276,8 @@ struct BoundStudy {
     causal_target: String,
     causal_identification: String,
     snapshot: String,
+    /// Rows of the study's table: the observations its analysis reads.
+    rows: usize,
 }
 
 impl BoundStudy {
@@ -324,6 +340,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
         causal_target: causal.identities.target.to_hex(),
         causal_identification: causal.identities.identification.to_hex(),
         snapshot: causal.identities.data_snapshot.to_hex(),
+        rows: data.row_count(),
     })
 }
 
@@ -485,6 +502,7 @@ fn bind_studies(
                 causal_target: study.causal_target,
                 causal_identification: study.causal_identification,
                 snapshot: study.snapshot,
+                rows: study.rows,
             }
         })
         .collect();
@@ -624,6 +642,8 @@ pub enum StructureIdentification {
 #[derive(Clone, Debug)]
 pub struct CompiledStructure {
     key: Option<u64>,
+    /// Key of the equivalence-class atom a completion belongs to.
+    class: Option<u64>,
     weight: f64,
     source: usize,
     identification: StructureIdentification,
@@ -638,10 +658,19 @@ impl CompiledStructure {
         self.key
     }
 
-    /// Share of the posterior mass on this structure; one for a single structure.
+    /// Share of the posterior mass on this structure; one for a single structure. For a
+    /// completion of an equivalence-class atom it is the class weight split evenly over the
+    /// class's completions: an enumeration weight, not a probability.
     #[must_use]
     pub const fn weight(&self) -> f64 {
         self.weight
+    }
+
+    /// Graph key of the equivalence-class atom this structure completes; `None` for a
+    /// structure that is not a completion.
+    #[must_use]
+    pub const fn class_key(&self) -> Option<u64> {
+        self.class
     }
 
     /// Index of the study the structure belongs to.
@@ -668,7 +697,12 @@ impl CompiledStructure {
 #[derive(Clone, Debug)]
 enum Sources {
     /// Studies, each with one structure or the structures of a graph posterior.
-    Studies { studies: Vec<BoundStudy>, structures: Vec<CompiledStructure>, posterior: bool },
+    Studies {
+        studies: Vec<BoundStudy>,
+        structures: Vec<CompiledStructure>,
+        posterior: bool,
+        basis: StructuralWeightBasis,
+    },
     /// A compiled native joint design of several outcomes.
     Design(Box<outcomes::DesignSource>),
 }
@@ -684,24 +718,30 @@ pub struct CompiledPreferenceDecision {
     causal: Vec<(String, String)>,
     dependence: OutcomeDependence,
     sources: Sources,
+    /// Declared cross-study covariance blocks of studies that share observations.
+    shared: Arc<[CrossStudyCovariance]>,
+    /// The chain declared at compile that joins separately estimated outcomes.
+    joint: Option<PreferenceJointLaw>,
 }
 
 fn means_requirement(representation: SourceRepresentation) -> SourceRequirement {
     SourceRequirement { any_of: vec![representation], sampled_needs_error_receipt: false }
 }
 
-/// The decision program layer four carries for one study.
+/// The decision program layer four carries for one study or design.
 fn decision_program(
     contract: &PreferenceContract,
     identity: &str,
-    read: Vec<Arc<str>>,
+    stated: PreferenceValueFacts,
     (demand, carrier): (&PreferenceDemand, CarrierDemand),
 ) -> DecisionProgram {
+    let read = stated.quantities().iter().map(|q| Arc::from(q.identity())).collect();
     DecisionProgram {
         carrier,
         utility: DecisionProgram::preference_value_form(
             read,
             demand.representation == SourceRepresentation::Mean,
+            stated,
         ),
         actions: contract.actions.len(),
         constraints: contract.constraints.len(),
@@ -774,76 +814,6 @@ fn compile_structure(
     Ok(Ok((view, identified, runner)))
 }
 
-/// The study answering the query on graph-posterior structure `index`, when the structure is
-/// a directed acyclic graph.
-fn atom_study(study: &Study, index: usize) -> Option<Study> {
-    let posterior = study.graph_posterior.as_ref()?;
-    let mask = posterior.atoms().get(index)?;
-    let dag = dag_from_adjacency_mask(mask, posterior.n_vars()).ok()?;
-    let mut atom = study.clone();
-    atom.graph_posterior = None;
-    atom.graph = Arc::new(AcceptedGraph::dag(dag));
-    atom.structure_source = StructureSource::Explicit;
-    atom.clear_identification();
-    Some(atom)
-}
-
-/// Compile every distinct structure of the study's graph posterior as its own study.
-fn compile_atoms(
-    study: &Study,
-    goal: &CompileGoal,
-    source: usize,
-    ctx: &ExecutionContext,
-) -> Result<Vec<CompiledStructure>, PreferenceRouteError> {
-    let Some(posterior) = study.graph_posterior.as_ref() else {
-        return Ok(Vec::new());
-    };
-    if !matches!(posterior.atom_kind(), GraphPosteriorAtomKind::Dag)
-        || posterior.lag_masks().is_some()
-        || posterior.max_lag().is_some()
-    {
-        return Err(unsupported_query(
-            "a graph posterior whose atoms are not static directed acyclic graphs",
-        ));
-    }
-    let total: f64 = posterior.weights().iter().sum();
-    let mut structures: Vec<CompiledStructure> = Vec::new();
-    for index in 0..posterior.n_graphs() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
-        }
-        let key = posterior.graph_keys().get(index).copied();
-        let weight = posterior.weights().get(index).copied().unwrap_or(0.0) / total;
-        if let Some(existing) = structures.iter_mut().find(|s| s.key == key) {
-            existing.weight += weight;
-            continue;
-        }
-        let outcome = match atom_study(study, index) {
-            Some(atom) => compile_structure(&atom, goal, None, ctx)?,
-            None => Err("the structure is not a directed acyclic graph".to_owned()),
-        };
-        structures.push(match outcome {
-            Ok((plan, identification, runner)) => CompiledStructure {
-                key,
-                weight,
-                source,
-                identification,
-                plan: Some(plan),
-                runner: Some(runner),
-            },
-            Err(why) => CompiledStructure {
-                key,
-                weight,
-                source,
-                identification: StructureIdentification::NotIdentified(why),
-                plan: None,
-                runner: None,
-            },
-        });
-    }
-    Ok(structures)
-}
-
 /// One study entering the compile: its frozen causal contract and, for a prepared handle,
 /// the handle that executes it.
 pub(super) struct StudyEntry<'a> {
@@ -873,12 +843,14 @@ fn demand_of(
     Ok((demand, carrier))
 }
 
-/// Compile `entries` for `contract`: bind, derive the demand, check the declared dependence,
-/// then compile and prepare every structure of every study.
+/// Compile `entries` for `contract`: bind, derive the demand, check the declared dependence
+/// (and, for studies that share observations, the declared cross-study covariance), declare
+/// and check the chain that joins separately estimated outcomes, then compile and prepare
+/// every structure of every study.
 pub(super) fn compile_entries(
     entries: &[StudyEntry<'_>],
     contract: &PreferenceContract,
-    dependence: OutcomeDependence,
+    (dependence, shared): (OutcomeDependence, &[CrossStudyCovariance]),
     ctx: &ExecutionContext,
 ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
     crate::analysis::lowering::refuse_reentry(ctx)?;
@@ -893,24 +865,38 @@ pub(super) fn compile_entries(
         return Err(unsupported_query("a graph posterior among several separately fitted studies"));
     }
     let (demand, carrier) = demand_of(contract, bound.quantities.clone(), posterior)?;
-    outcomes::check_dependence(&bound.studies, &demand, dependence)?;
+    outcomes::check_dependence(&bound.studies, &demand, (dependence, shared), ctx)?;
+    let declared = joint::declare(&bound.studies, &demand, dependence, shared, &bound.identity)?;
     let mut structures = Vec::new();
+    let mut basis = StructuralWeightBasis::PosteriorProbability;
     for (source, entry) in entries.iter().enumerate() {
-        let read = demand
-            .quantities
-            .iter()
-            .filter(|q| q.source == source)
-            .map(|q| Arc::from(q.quantity.canonical_identity()))
-            .collect();
-        let program = decision_program(contract, &bound.identity, read, (&demand, carrier));
+        let read: Vec<&DemandedQuantity> =
+            demand.quantities.iter().filter(|q| q.source == source).collect();
+        let stated = facts::value_facts(
+            contract,
+            &demand,
+            &read,
+            bound.studies.get(source).map(|study| &study.schema),
+            declared.as_ref().map(|law| law.fact().clone()),
+        );
+        let program = decision_program(contract, &bound.identity, stated, (&demand, carrier));
         let goal = CompileGoal::Decision(program);
         if entry.study.graph_posterior.is_some() {
-            structures.extend(compile_atoms(entry.study, &goal, source, ctx)?);
+            let (compiled, weights) = atoms::compile_posterior(
+                entry.study,
+                &goal,
+                source,
+                contract.structural_policy,
+                ctx,
+            )?;
+            structures.extend(compiled);
+            basis = weights;
             continue;
         }
         match compile_structure(entry.study, &goal, entry.prepared, ctx)? {
             Ok((plan, identification, runner)) => structures.push(CompiledStructure {
                 key: None,
+                class: None,
                 weight: 1.0,
                 source,
                 identification,
@@ -918,8 +904,7 @@ pub(super) fn compile_entries(
                 runner: Some(runner),
             }),
             Err(why) => {
-                let read: Vec<DemandedQuantity> =
-                    demand.quantities.iter().filter(|q| q.source == source).cloned().collect();
+                let read: Vec<DemandedQuantity> = read.into_iter().cloned().collect();
                 return Err(not_identified(&read, 1.0, &why));
             }
         }
@@ -935,7 +920,9 @@ pub(super) fn compile_entries(
         identity: bound.identity,
         causal,
         dependence,
-        sources: Sources::Studies { studies: bound.studies, structures, posterior },
+        sources: Sources::Studies { studies: bound.studies, structures, posterior, basis },
+        shared: Arc::from(shared),
+        joint: declared,
     })
 }
 
@@ -970,15 +957,19 @@ impl Study {
     /// draws, which are required by a value not affine in the quantities, by a criterion
     /// other than an expectation, and by every graph posterior); a quantity not identified
     /// under the study's structure, or under any structure of its graph posterior
-    /// (`effect_not_identified`, with the unidentified mass); a graph posterior whose atoms
-    /// are not static directed acyclic graphs; and every refusal of compile and preparation.
+    /// (`effect_not_identified`, with the unidentified mass); graph-posterior atoms of a kind
+    /// the single-graph compiler cannot compile (`preference_compile.atom_kind_not_compiled`),
+    /// an equivalence class whose completions exceed the cap
+    /// (`preference_compile.class_completions_truncated`) and `BayesOverStructures` over
+    /// class completions, whose weights are not probabilities; and every refusal of compile
+    /// and preparation.
     pub fn compile_for_preference_decision(
         &self,
         contract: &PreferenceContract,
         ctx: &ExecutionContext,
     ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
         let entry = StudyEntry { study: self, causal: self.inspect()?, prepared: None };
-        compile_entries(&[entry], contract, OutcomeDependence::Undeclared, ctx)
+        compile_entries(&[entry], contract, (OutcomeDependence::Undeclared, &[]), ctx)
     }
 }
 
@@ -999,7 +990,7 @@ impl PreparedStudy {
         let study = self.study();
         let prepared = study.graph_posterior.is_none().then_some(self);
         let entry = StudyEntry { study, causal: self.contract()?, prepared };
-        compile_entries(&[entry], contract, OutcomeDependence::Undeclared, ctx)
+        compile_entries(&[entry], contract, (OutcomeDependence::Undeclared, &[]), ctx)
     }
 }
 
@@ -1112,6 +1103,21 @@ impl CompiledPreferenceDecision {
         self.dependence
     }
 
+    /// The declared cross-study covariance blocks of studies that share observations; empty
+    /// unless the studies were compiled under shared evidence.
+    #[must_use]
+    pub fn cross_study_covariance(&self) -> &[CrossStudyCovariance] {
+        &self.shared
+    }
+
+    /// The propagation chain declared and checked at compile that joins separately
+    /// estimated outcomes into one law; `None` when means suffice, for one study and for a
+    /// design.
+    #[must_use]
+    pub const fn joint_law(&self) -> Option<&PreferenceJointLaw> {
+        self.joint.as_ref()
+    }
+
     /// Every compiled structure, including the ones under which the quantities are not
     /// identified; empty for a design.
     #[must_use]
@@ -1188,10 +1194,15 @@ impl CompiledPreferenceDecision {
             return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
         }
         match &self.sources {
-            Sources::Studies { studies, structures, posterior: true } => {
-                self.execute_structures(studies, structures, measure, options, ctx)
-            }
-            Sources::Studies { studies, structures, posterior: false } => {
+            Sources::Studies { studies, structures, posterior: true, basis } => self
+                .execute_structures(
+                    studies,
+                    (structures.as_slice(), *basis),
+                    measure,
+                    options,
+                    ctx,
+                ),
+            Sources::Studies { studies, structures, posterior: false, .. } => {
                 self.execute_studies(studies, structures, measure, options, ctx)
             }
             Sources::Design(design) => {
@@ -1226,17 +1237,22 @@ impl CompiledPreferenceDecision {
                 return Err(not_identified(&self.demand.quantities, 1.0, "no prepared structure"));
             };
             let result = runner.estimate_retained(ctx)?;
-            let response = result.response().ok_or_else(no_response)?;
+            let response = retained_response(&result).ok_or_else(no_response)?;
             let claim =
-                NativeResponseClaim::from_response(response, &study.schema, &study.context(ctx))?;
+                NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
             inputs.push(claim.decision_source(&requirement)?);
             programs.extend(structure.plan.as_ref().map(PlanView::identity));
         }
         let source = if let [input] = inputs.as_slice() {
             input.source.clone()
         } else {
-            let (source, chain) =
-                outcomes::join_studies(&inputs, studies, self.dependence, &self.identity, ctx)?;
+            let (source, chain) = outcomes::join_studies(
+                &inputs,
+                studies,
+                (self.dependence, &self.shared),
+                &self.identity,
+                ctx,
+            )?;
             programs.extend(chain);
             source
         };
@@ -1253,7 +1269,7 @@ impl CompiledPreferenceDecision {
     fn execute_structures(
         &self,
         studies: &[BoundStudy],
-        structures: &[CompiledStructure],
+        (structures, basis): (&[CompiledStructure], StructuralWeightBasis),
         measure: Option<&PreferenceMeasure>,
         options: PreferenceEvaluationOptions,
         ctx: &ExecutionContext,
@@ -1273,9 +1289,9 @@ impl CompiledPreferenceDecision {
             programs.extend(structure.plan.as_ref().map(PlanView::identity));
             match runner.estimate_retained(ctx) {
                 Ok(result) => {
-                    if let Some(response) = result.response() {
+                    if let Some(response) = retained_response(&result) {
                         identified += weight;
-                        atoms.push(structural_atom(graph_key, weight, Some(response.clone())));
+                        atoms.push(structural_atom(graph_key, weight, Some(response)));
                     } else {
                         unevaluable += weight;
                         atoms.push(unevaluated_atom(graph_key, weight));
@@ -1289,7 +1305,7 @@ impl CompiledPreferenceDecision {
             }
         }
         let mixture = StructuralResponseMixture {
-            weight_basis: StructuralWeightBasis::PosteriorProbability,
+            weight_basis: basis,
             atoms,
             identified_mass: identified,
             unidentified_mass: unidentified,
@@ -1322,6 +1338,53 @@ impl CompiledPreferenceDecision {
 }
 
 /// A structure with its own response, or one under which the quantity is not identified.
+/// The response of `result` with the aligned draws its result retained beside it.
+///
+/// A mixed-graph Bayesian mean curve keeps its joint response-curve posterior (one
+/// `response_at_<level>` column per grid point, draws aligned across the grid) on the result
+/// and publishes a credible band without draws. The decision reads those columns as the
+/// response's own credible draws; a response that already carries draws, or a posterior of
+/// any other quantities, is returned as it is.
+fn retained_response(result: &crate::StudyResult) -> Option<antecedent_core::CausalResponse> {
+    let mut response = result.response()?.clone();
+    let width = match &response.estimate {
+        ResponseIdentification::PointIdentified(antecedent_core::ResponseValue::Surface {
+            mean,
+            ..
+        }) => mean.len(),
+        _ => return Some(response),
+    };
+    let antecedent_core::ResponseUncertainty::PointwiseBand {
+        interpretation: antecedent_core::IntervalInterpretation::Credible,
+        draws: draws @ None,
+        ..
+    } = &mut response.uncertainty
+    else {
+        return Some(response);
+    };
+    let Some(posterior) = result.posterior.as_ref() else {
+        return Some(response);
+    };
+    let quantities = &posterior.draws.schema.quantities;
+    let grid_columns = quantities.len() == width
+        && quantities.iter().all(|quantity| {
+            matches!(
+                quantity,
+                antecedent_prob::PosteriorQuantityKind::Scalar { name }
+                    if name.starts_with("response_at_")
+            )
+        });
+    if grid_columns {
+        let columns: Option<Vec<Vec<f64>>> =
+            (0..width).map(|j| posterior.draws.column(j).ok().map(<[f64]>::to_vec)).collect();
+        if let Some(columns) = columns {
+            *draws =
+                Some(antecedent_core::CredibleDraws::columns(posterior.draws.n_draws, &columns));
+        }
+    }
+    Some(response)
+}
+
 fn structural_atom(
     graph_key: u64,
     weight: f64,

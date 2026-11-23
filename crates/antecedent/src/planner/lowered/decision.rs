@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use antecedent_contract::DecisionRequest;
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::{CanonicalWriter, SemanticDigest, VariableId};
 
 const EVIDENCE_PROGRAM_TAG: &str = "antecedent.lowered_program.evidence";
 
@@ -162,7 +162,279 @@ pub enum UtilityForm {
         /// parameter value: the criterion is an expectation and every part of the value
         /// is affine in them.
         means_suffice: bool,
+        /// What the plan states about the decision: each quantity's coordinates, the source
+        /// representation, the trade-off parameters with their admissible ranges and, for
+        /// separately estimated outcomes joined into one law, the declared joint law.
+        facts: Arc<PreferenceValueFacts>,
     },
+}
+
+/// One scientific quantity a preference value reads, as the plan states it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferenceQuantityFact {
+    pub(crate) identity: Arc<str>,
+    pub(crate) variable: Option<VariableId>,
+    pub(crate) variable_id: Arc<str>,
+    pub(crate) regime: Arc<str>,
+    pub(crate) units: Arc<str>,
+    pub(crate) population: Arc<str>,
+    pub(crate) horizon: u32,
+    pub(crate) functional: Arc<str>,
+    pub(crate) transform: Arc<str>,
+    pub(crate) source: usize,
+}
+
+impl PreferenceQuantityFact {
+    /// Canonical identity of the coordinate.
+    #[must_use]
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    /// The schema variable, when the source is a study whose schema names it.
+    #[must_use]
+    pub const fn variable(&self) -> Option<VariableId> {
+        self.variable
+    }
+
+    /// The coordinate's variable identity.
+    #[must_use]
+    pub fn variable_id(&self) -> &str {
+        &self.variable_id
+    }
+
+    /// The regime the coordinate is read under.
+    #[must_use]
+    pub fn regime(&self) -> &str {
+        &self.regime
+    }
+
+    /// Units of the coordinate.
+    #[must_use]
+    pub fn units(&self) -> &str {
+        &self.units
+    }
+
+    /// Population of the coordinate.
+    #[must_use]
+    pub fn population(&self) -> &str {
+        &self.population
+    }
+
+    /// Horizon of the coordinate.
+    #[must_use]
+    pub const fn horizon(&self) -> u32 {
+        self.horizon
+    }
+
+    /// Functional of the coordinate.
+    #[must_use]
+    pub fn functional(&self) -> &str {
+        &self.functional
+    }
+
+    /// Scale of the coordinate.
+    #[must_use]
+    pub fn transform(&self) -> &str {
+        &self.transform
+    }
+
+    /// Index of the study or design that targets the coordinate.
+    #[must_use]
+    pub const fn source(&self) -> usize {
+        self.source
+    }
+}
+
+/// One trade-off parameter of a preference value, with its admissible range.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferenceParameterFact {
+    pub(crate) id: Arc<str>,
+    pub(crate) units: Arc<str>,
+    pub(crate) lower: f64,
+    pub(crate) upper: f64,
+    pub(crate) assumption: Arc<str>,
+}
+
+impl PreferenceParameterFact {
+    /// Parameter identity.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Units of the parameter.
+    #[must_use]
+    pub fn units(&self) -> &str {
+        &self.units
+    }
+
+    /// Lower end of the declared range.
+    #[must_use]
+    pub const fn lower(&self) -> f64 {
+        self.lower
+    }
+
+    /// Upper end of the declared range.
+    #[must_use]
+    pub const fn upper(&self) -> f64 {
+        self.upper
+    }
+
+    /// The assumption the range stands on.
+    #[must_use]
+    pub fn assumption(&self) -> &str {
+        &self.assumption
+    }
+}
+
+/// One column of a study's law the joint law reads: the chain source and stage it becomes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferenceChainInputFact {
+    pub(crate) source: Arc<str>,
+    pub(crate) stage: Arc<str>,
+    pub(crate) study: usize,
+    pub(crate) quantity: Arc<str>,
+    pub(crate) factor: Arc<str>,
+}
+
+impl PreferenceChainInputFact {
+    /// Identity of the chain source.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Identity of the stage whose output is the joined column.
+    #[must_use]
+    pub fn stage(&self) -> &str {
+        &self.stage
+    }
+
+    /// Index of the study whose law supplies the column.
+    #[must_use]
+    pub const fn study(&self) -> usize {
+        self.study
+    }
+
+    /// Canonical identity of the coordinate the column carries.
+    #[must_use]
+    pub fn quantity(&self) -> &str {
+        &self.quantity
+    }
+
+    /// The row factor the source declares: its study's data snapshot.
+    #[must_use]
+    pub fn factor(&self) -> &str {
+        &self.factor
+    }
+}
+
+/// The joint law separately estimated outcomes are joined into, declared at compile: the
+/// propagation chain's inputs, the declared dependence and the joint outputs it produces.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferenceJointLawFact {
+    pub(crate) inputs: Arc<[PreferenceChainInputFact]>,
+    pub(crate) dependence: Arc<str>,
+    pub(crate) cross_blocks: Arc<[(usize, usize)]>,
+    pub(crate) draws: usize,
+    pub(crate) seed: u64,
+    pub(crate) reading: Arc<str>,
+    pub(crate) label: Arc<str>,
+    pub(crate) declaration: Arc<str>,
+}
+
+impl PreferenceJointLawFact {
+    /// Every column the chain reads, in output order.
+    #[must_use]
+    pub fn inputs(&self) -> &[PreferenceChainInputFact] {
+        &self.inputs
+    }
+
+    /// The declared dependence between the studies (`distinct_evidence` or
+    /// `shared_evidence`).
+    #[must_use]
+    pub fn dependence(&self) -> &str {
+        &self.dependence
+    }
+
+    /// The study pairs whose cross covariance is declared.
+    #[must_use]
+    pub fn cross_blocks(&self) -> &[(usize, usize)] {
+        &self.cross_blocks
+    }
+
+    /// Aligned rows of the joined law.
+    #[must_use]
+    pub const fn draws(&self) -> usize {
+        self.draws
+    }
+
+    /// Seed of the family table.
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// What the chain's output is read as.
+    #[must_use]
+    pub fn reading(&self) -> &str {
+        &self.reading
+    }
+
+    /// The label the chain rule gives the result.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Digest of the checked chain declaration and the declared dependence.
+    #[must_use]
+    pub fn declaration(&self) -> &str {
+        &self.declaration
+    }
+}
+
+/// What a plan states about a decision across preferences.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferenceValueFacts {
+    pub(crate) quantities: Arc<[PreferenceQuantityFact]>,
+    pub(crate) representation: Arc<str>,
+    pub(crate) accepted: Arc<[Arc<str>]>,
+    pub(crate) parameters: Arc<[PreferenceParameterFact]>,
+    pub(crate) joint_law: Option<PreferenceJointLawFact>,
+}
+
+impl PreferenceValueFacts {
+    /// Every quantity the actions read, in first-read order.
+    #[must_use]
+    pub fn quantities(&self) -> &[PreferenceQuantityFact] {
+        &self.quantities
+    }
+
+    /// The representation the route reads (`mean` or `joint_draws`).
+    #[must_use]
+    pub fn representation(&self) -> &str {
+        &self.representation
+    }
+
+    /// The representations the contract accepts.
+    #[must_use]
+    pub fn accepted(&self) -> &[Arc<str>] {
+        &self.accepted
+    }
+
+    /// Every trade-off parameter with its admissible range.
+    #[must_use]
+    pub fn parameters(&self) -> &[PreferenceParameterFact] {
+        &self.parameters
+    }
+
+    /// The declared joint law of separately estimated outcomes, when the decision reads one.
+    #[must_use]
+    pub const fn joint_law(&self) -> Option<&PreferenceJointLawFact> {
+        self.joint_law.as_ref()
+    }
 }
 
 impl UtilityForm {
@@ -192,6 +464,15 @@ impl UtilityForm {
         }
     }
 
+    /// What the plan states about a preference value; `None` for any other utility.
+    #[must_use]
+    pub fn preference_facts(&self) -> Option<&PreferenceValueFacts> {
+        match self {
+            Self::PreferenceValue { facts, .. } => Some(facts),
+            Self::Affine(_) | Self::Opaque => None,
+        }
+    }
+
     fn write(&self, writer: &mut CanonicalWriter) {
         match self {
             Self::Affine(coefficients) => {
@@ -203,11 +484,17 @@ impl UtilityForm {
             Self::Opaque => {
                 writer.text("opaque");
             }
-            Self::PreferenceValue { quantities, means_suffice } => {
+            Self::PreferenceValue { quantities, means_suffice, facts } => {
                 writer
                     .text("preference_value")
                     .word(u64::from(*means_suffice))
                     .texts(&quantities[..]);
+                // The coordinates, representation and parameter ranges are bound by the
+                // quantity identities and the bound contract identity; a declared joint law
+                // is not, so it is written when present.
+                if let Some(joint) = &facts.joint_law {
+                    writer.text("joint_law").text(&joint.declaration);
+                }
             }
         }
     }
@@ -520,12 +807,18 @@ impl DecisionProgram {
         affine.map_or(UtilityForm::Opaque, |pairs| UtilityForm::Affine(Arc::from(pairs)))
     }
 
-    /// The utility form of a preference value reading `quantities` (canonical identities).
+    /// The utility form of a preference value reading `quantities` (canonical identities),
+    /// with what the plan states about it.
     pub(crate) fn preference_value_form(
         quantities: Vec<Arc<str>>,
         means_suffice: bool,
+        facts: PreferenceValueFacts,
     ) -> UtilityForm {
-        UtilityForm::PreferenceValue { quantities: Arc::from(quantities), means_suffice }
+        UtilityForm::PreferenceValue {
+            quantities: Arc::from(quantities),
+            means_suffice,
+            facts: Arc::new(facts),
+        }
     }
 
     /// Evidence the decision needs.

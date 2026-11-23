@@ -143,6 +143,11 @@ pub use super::execute::{
     PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
     StructureIdentification, compile_preference_decision_across_studies,
 };
+pub use super::execute::{
+    CrossStudyCovariance, PreferenceJointLaw, SharedEvidence,
+    compile_preference_decision_across_prepared_studies,
+    compile_preference_decision_with_shared_evidence,
+};
 
 use super::decision_contract_facade::DecisionFacadeRefusal;
 use super::native_claims::{

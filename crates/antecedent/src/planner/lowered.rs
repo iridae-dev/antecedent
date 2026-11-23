@@ -35,6 +35,10 @@ pub use decision::{
     CarrierDemand, Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, EvsiProgram,
 };
+pub use decision::{
+    PreferenceChainInputFact, PreferenceJointLawFact, PreferenceParameterFact,
+    PreferenceQuantityFact, PreferenceValueFacts,
+};
 pub(crate) use linear_gaussian::{
     linear_gaussian_physical_operators, linear_gaussian_program_operators,
     linear_gaussian_scientific_problem,
@@ -42,6 +46,7 @@ pub(crate) use linear_gaussian::{
 pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
 
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
+const ATTACHED_DECISION_TAG: &str = "antecedent.lowered_program.attached_decision";
 
 /// How far a route's lowering has been carried. Every registered route cell lowers
 /// each layer from its own scientific problem, except the atom operations a program
@@ -1836,6 +1841,23 @@ impl LoweredProgram {
     pub(crate) fn with_binding(mut self, binding: Option<[u8; 32]>) -> Self {
         self.binding = binding;
         self
+    }
+
+    /// The program with `decision` attached to layer four after lowering, for a compiled
+    /// program whose own lowering carries no decision (a compiled joint design). Every other
+    /// layer is kept. The identity binds this program's identity and the new layer four, so
+    /// it differs from this program's exactly by the decision and this program's identity is
+    /// unchanged. `None` when layer four already carries a decision.
+    pub(crate) fn with_decision(&self, decision: DecisionProgram) -> Option<Self> {
+        if self.evidence.decision.is_some() {
+            return None;
+        }
+        let mut evidence = self.evidence.clone();
+        evidence.decision = Some(decision);
+        let mut writer = CanonicalWriter::new(ATTACHED_DECISION_TAG);
+        writer.bytes(self.identity.as_bytes()).bytes(evidence.identity().as_bytes());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        Some(Self { evidence, identity, ..self.clone() })
     }
 
     /// Key of the study this program was compiled for, when it recorded one.
