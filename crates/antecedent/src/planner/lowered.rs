@@ -27,7 +27,8 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::{CompiledIdentificationProduct, IdentificationResult};
 
 use crate::analysis::IdentificationCache;
-use crate::analysis::lowering::RouteCell;
+use crate::analysis::lowering::program_families::program_families;
+use crate::analysis::lowering::{PlanRoute, RouteCell};
 use crate::planner::statistical::StatisticalProgram;
 
 pub use chain::ChainProgram;
@@ -1245,240 +1246,91 @@ impl JointPanelLoweredParts {
     }
 }
 
-/// The compiled cell a lowered program was lowered for: a route cell of
-/// `Study::compile`, a cyclic family that prepares through its own entry, a
-/// standalone experiment plan, or a propagation chain.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub(crate) enum ProgramCell {
-    /// A registered route cell.
-    Route(RouteCell),
-    /// A cyclic family, by its stable family name.
-    CyclicFamily(&'static str),
-    /// A standalone experiment plan, by its design name.
-    Planning(&'static str),
-    /// A chain of transformations, by the reading it answers.
-    PropagationChain(&'static str),
-    /// Complete observational policy learning and held-out scoring.
-    ObservationalPolicy,
-    /// Several noisy indicators of a construct in one observation query.
-    JointMeasuredObservation,
-    /// Dependent-error joint measurement on a finite construct.
-    DependentMeasuredObservation,
-    /// Joint indicator error fitted from labelled validation counts.
-    FittedDependentMeasuredObservation,
-    /// Paired intervention worlds derived from one compiled cyclic model.
-    CyclicActionWorldDecision,
-    /// Joint fitted-mechanism posterior predictive action worlds.
-    CyclicPosteriorActionDecision,
-    /// Joint cyclic feedback fit standardized to an independent target frame.
-    CyclicTargetFeedbackDecision,
-    /// Checked bridge transport and predictive utility in one program.
-    BridgeTransportDecision,
-    /// Independent source-target trial-level bridge premise assessment.
-    BridgeTransportPremiseAssessment,
-    /// Matched bridge validation and conditional predictive utility.
-    AssessedBridgeTransportDecision,
-    /// Fitted source-target effect posterior and utility in one program.
-    JointTransportEffectDecision,
-    TrialIpwTransportDecision,
-    TrialIpwPredictiveDecision,
-    /// Fitted target outcome prediction and paired-world utility.
-    JointTransportPredictiveDecision,
-    /// Target-population time-ordered path-specific transport.
-    TemporalPathTransport,
-    /// Whole-chain resampling union around a fixed assumption envelope.
-    SamplingAssumptionUnion,
-    /// Compiler-generated IID whole-chain bootstrap assumption union.
-    IidSamplingAssumptionUnion,
-    /// Compiler-generated whole-cluster bootstrap assumption union.
-    ClusterSamplingAssumptionUnion,
-    /// Compiler-generated moving-block bootstrap assumption union.
-    MovingBlockSamplingAssumptionUnion,
-    /// Full-refit cross-fitted policy subsampling.
-    PolicySubsampling,
-    SequentialPolicyReliability,
-    /// Bundle replay with a live executable chain terminal.
-    BundleRecomputation,
-    /// Bundle replay with a live scientific bridge terminal.
-    BridgeBundleRecomputation,
-    /// Bundle recomputation with a refitted cyclic posterior producer.
-    CyclicPosteriorBundleRecomputation,
-    /// A live bundle with an embedded cyclic posterior fit node.
-    CyclicPosteriorNodeBundleRecomputation,
-    /// A live bundle with an embedded trial-IPW fit node.
-    TrialIpwNodeBundleRecomputation,
-    /// A live bundle with a graph-imputation transport fit.
-    GraphImputationTransportNodeBundleRecomputation,
-    /// A live bundle with a joint source-target effect fit.
-    JointTransportEffectNodeBundleRecomputation,
-    JointTransportPredictiveNodeDecisionBundleRecomputation,
-    TrialIpwPredictiveNodeDecisionBundleRecomputation,
-    CyclicTargetFeedbackNodeDecisionBundleRecomputation,
-    GraphImputationPredictiveNodeDecisionBundleRecomputation,
-    AssessedBridgePosteriorNodeDecisionBundleRecomputation,
-    SequentialPolicyReliabilityNodeBundleRecomputation,
-    /// Checked connected components with a joint fitted action decision.
-    JointComponentPosteriorDecision,
-    /// Bounded transformation of jointly fitted component action worlds.
-    BoundedComponentPosteriorDecision,
-    /// Bundle recomputation of a parameter-posterior decision.
-    PosteriorDecisionBundleRecomputation,
-    /// A bounded graph-selection imputation composite.
-    GraphImputation,
-    /// Graph-imputation effect posterior and downstream utility.
-    GraphImputationEffectDecision,
-    GraphImputationBernoulliPredictiveWorldDecision,
-    GraphImputationGaussianTargetPredictiveWorldDecision,
-    GraphImputationBernoulliPredictiveClusterBootstrapDecision,
-    GraphImputationGaussianPredictiveClusterBootstrapDecision,
-    /// Graph-imputation target standardization and downstream utility.
-    GraphImputationTransportDecision,
-    GraphImputationTransportClusterBootstrapDecision,
-    GraphImputationConfoundedTransportDecision,
-    GraphImputationConfoundedTransportClusterBootstrapDecision,
-    /// Graph-imputation transport over mixed covariates with kernel weights.
-    GraphImputationKernelTransportDecision,
-    GraphImputationKernelTransportClusterBootstrapDecision,
-    GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
-    /// Declared-MAR complete-case weighted target standardization.
-    GraphImputationMarTransportDecision,
-    /// A scientifically closed categorical posterior candidate.
-    CategoricalPosteriorCandidate,
-    /// A fixed declared MNAR operation.
-    MnarFixedShift,
-    /// Latent additive soft-intervention discovery and prediction.
-    LatentSoftIntervention,
-    /// A native event-process or event-world program.
-    EventProcess,
-    /// A fitted joint multi-channel panel response over its declared program worlds.
-    JointPanelResponse,
-    /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
-    JointPanelTimeVarying,
-    /// A joint panel response pooled over multiply imputed completed panels.
-    JointPanelImputation,
-    /// A search for the best program over a fitted joint panel response.
-    JointPanelProgramSearch,
-    /// Held-out selection of a program from randomized or instrumented candidates.
-    JointPanelProgramSelection,
-    /// An independent experiment conditioning a joint panel or design law, and the decision
-    /// and next-study value read from the conditioned law.
-    JointPanelExperiment,
-    /// A design-native joint functional with its retained design proof.
-    JointDesign,
+macro_rules! program_cells {
+    ([] $($(#[$doc:meta])* $program:ident => $kind:ident, unit $unit:literal;)+) => {
+        /// The compiled cell a lowered program was lowered for: a route cell of
+        /// `Study::compile`, a cyclic family that prepares through its own entry, a
+        /// standalone experiment plan, a propagation chain, or a program family of the
+        /// `program_families` table.
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+        pub(crate) enum ProgramCell {
+            /// A registered route cell.
+            Route(RouteCell),
+            /// A cyclic family, by its stable family name.
+            CyclicFamily(&'static str),
+            /// A standalone experiment plan, by its design name.
+            Planning(&'static str),
+            /// A chain of transformations, by the reading it answers.
+            PropagationChain(&'static str),
+            $(
+                $(#[$doc])*
+                $program,
+            )+
+        }
+
+        impl ProgramCell {
+            /// Every program family with its support unit key, empty until the family
+            /// is keyed to a unit, in table order.
+            #[cfg_attr(
+                not(test),
+                allow(dead_code, reason = "the unit column is read by the conformance tests")
+            )]
+            pub(crate) const FAMILIES: &'static [(Self, &'static str)] =
+                &[$((Self::$program, $unit),)+];
+
+            /// Stable name, written to the supported-route record.
+            pub(crate) const fn as_str(self) -> &'static str {
+                match self {
+                    Self::Route(cell) => cell.as_str(),
+                    Self::CyclicFamily(_) => "CyclicFamily",
+                    Self::Planning(_) => "ExperimentPlanning",
+                    Self::PropagationChain(_) => "PropagationChain",
+                    $(Self::$program => stringify!($program),)+
+                }
+            }
+
+            /// The route a plan view names this cell by.
+            pub(crate) const fn plan_route(self) -> PlanRoute {
+                match self {
+                    Self::Route(cell) => cell.plan_route(),
+                    Self::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
+                    Self::Planning(design) => PlanRoute::Planning(design),
+                    Self::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
+                    $(Self::$program => PlanRoute::$program,)+
+                }
+            }
+
+            /// Stable family name when this is a cyclic family.
+            pub(crate) const fn cyclic_family(self) -> Option<&'static str> {
+                match self {
+                    Self::CyclicFamily(family) => Some(family),
+                    Self::Route(_) | Self::Planning(_) | Self::PropagationChain(_)
+                    $(| Self::$program)+ => None,
+                }
+            }
+
+            /// Stable design name when this is a standalone experiment plan.
+            pub(crate) const fn planned_design(self) -> Option<&'static str> {
+                match self {
+                    Self::Planning(design) => Some(design),
+                    Self::Route(_) | Self::CyclicFamily(_) | Self::PropagationChain(_)
+                    $(| Self::$program)+ => None,
+                }
+            }
+
+            /// The reading a propagation chain answers when this is one.
+            pub(crate) const fn chain_reading(self) -> Option<&'static str> {
+                match self {
+                    Self::PropagationChain(reading) => Some(reading),
+                    Self::Route(_) | Self::CyclicFamily(_) | Self::Planning(_)
+                    $(| Self::$program)+ => None,
+                }
+            }
+        }
+    };
 }
 
-impl ProgramCell {
-    /// Stable name, written to the supported-route record.
-    #[allow(clippy::too_many_lines, reason = "one exhaustive arm per program cell")]
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Route(cell) => cell.as_str(),
-            Self::CyclicFamily(_) => "CyclicFamily",
-            Self::Planning(_) => "ExperimentPlanning",
-            Self::PropagationChain(_) => "PropagationChain",
-            Self::ObservationalPolicy => "ObservationalPolicy",
-            Self::JointMeasuredObservation => "JointMeasuredObservation",
-            Self::DependentMeasuredObservation => "DependentMeasuredObservation",
-            Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
-            Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
-            Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
-            Self::CyclicTargetFeedbackDecision => "CyclicTargetFeedbackDecision",
-            Self::BridgeTransportDecision => "BridgeTransportDecision",
-            Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
-            Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
-            Self::JointTransportEffectDecision => "JointTransportEffectDecision",
-            Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
-            Self::TrialIpwPredictiveDecision => "TrialIpwPredictiveDecision",
-            Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
-            Self::TemporalPathTransport => "TemporalPathTransport",
-            Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
-            Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
-            Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
-            Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
-            Self::PolicySubsampling => "PolicySubsampling",
-            Self::SequentialPolicyReliability => "SequentialPolicyReliability",
-            Self::BundleRecomputation => "BundleRecomputation",
-            Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
-            Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
-            Self::CyclicPosteriorNodeBundleRecomputation => {
-                "CyclicPosteriorNodeBundleRecomputation"
-            }
-            Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
-            Self::GraphImputationTransportNodeBundleRecomputation => {
-                "GraphImputationTransportNodeBundleRecomputation"
-            }
-            Self::JointTransportEffectNodeBundleRecomputation => {
-                "JointTransportEffectNodeBundleRecomputation"
-            }
-            Self::JointTransportPredictiveNodeDecisionBundleRecomputation => {
-                "JointTransportPredictiveNodeDecisionBundleRecomputation"
-            }
-            Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
-                "TrialIpwPredictiveNodeDecisionBundleRecomputation"
-            }
-            Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
-                "CyclicTargetFeedbackNodeDecisionBundleRecomputation"
-            }
-            Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
-                "GraphImputationPredictiveNodeDecisionBundleRecomputation"
-            }
-            Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
-                "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
-            }
-            Self::SequentialPolicyReliabilityNodeBundleRecomputation => {
-                "SequentialPolicyReliabilityNodeBundleRecomputation"
-            }
-            Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
-            Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
-            Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
-            Self::GraphImputation => "GraphImputation",
-            Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
-            Self::GraphImputationBernoulliPredictiveWorldDecision => {
-                "GraphImputationBernoulliPredictiveWorldDecision"
-            }
-            Self::GraphImputationGaussianTargetPredictiveWorldDecision => {
-                "GraphImputationGaussianTargetPredictiveWorldDecision"
-            }
-            Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
-                "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
-            }
-            Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
-                "GraphImputationGaussianPredictiveClusterBootstrapDecision"
-            }
-            Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
-            Self::GraphImputationTransportClusterBootstrapDecision => {
-                "GraphImputationTransportClusterBootstrapDecision"
-            }
-            Self::GraphImputationConfoundedTransportDecision => {
-                "GraphImputationConfoundedTransportDecision"
-            }
-            Self::GraphImputationConfoundedTransportClusterBootstrapDecision => {
-                "GraphImputationConfoundedTransportClusterBootstrapDecision"
-            }
-            Self::GraphImputationKernelTransportDecision => {
-                "GraphImputationKernelTransportDecision"
-            }
-            Self::GraphImputationKernelTransportClusterBootstrapDecision => {
-                "GraphImputationKernelTransportClusterBootstrapDecision"
-            }
-            Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
-                "GraphImputationConfoundedKernelTransportClusterBootstrapDecision"
-            }
-            Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
-            Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
-            Self::MnarFixedShift => "MnarFixedShift",
-            Self::LatentSoftIntervention => "LatentSoftIntervention",
-            Self::EventProcess => "EventProcess",
-            Self::JointPanelResponse => "JointPanelResponse",
-            Self::JointPanelTimeVarying => "JointPanelTimeVarying",
-            Self::JointPanelImputation => "JointPanelImputation",
-            Self::JointPanelProgramSearch => "JointPanelProgramSearch",
-            Self::JointPanelProgramSelection => "JointPanelProgramSelection",
-            Self::JointPanelExperiment => "JointPanelExperiment",
-            Self::JointDesign => "JointDesign",
-        }
-    }
-}
+program_families! { program_cells }
 
 impl PartialEq<ProgramCell> for RouteCell {
     fn eq(&self, other: &ProgramCell) -> bool {
@@ -1525,220 +1377,19 @@ impl LoweredProgram {
     /// Stable family name when this program was lowered for a cyclic family.
     #[must_use]
     pub const fn cyclic_family(&self) -> Option<&'static str> {
-        match self.cell {
-            ProgramCell::CyclicFamily(family) => Some(family),
-            ProgramCell::Route(_)
-            | ProgramCell::Planning(_)
-            | ProgramCell::PropagationChain(_)
-            | ProgramCell::ObservationalPolicy
-            | ProgramCell::JointMeasuredObservation
-            | ProgramCell::DependentMeasuredObservation
-            | ProgramCell::FittedDependentMeasuredObservation
-            | ProgramCell::CyclicActionWorldDecision
-            | ProgramCell::CyclicPosteriorActionDecision
-            | ProgramCell::CyclicTargetFeedbackDecision
-            | ProgramCell::BridgeTransportDecision
-            | ProgramCell::BridgeTransportPremiseAssessment
-            | ProgramCell::AssessedBridgeTransportDecision
-            | ProgramCell::TrialIpwTransportDecision
-            | ProgramCell::TrialIpwPredictiveDecision
-            | ProgramCell::JointTransportEffectDecision
-            | ProgramCell::JointTransportPredictiveDecision
-            | ProgramCell::TemporalPathTransport
-            | ProgramCell::SamplingAssumptionUnion
-            | ProgramCell::IidSamplingAssumptionUnion
-            | ProgramCell::ClusterSamplingAssumptionUnion
-            | ProgramCell::MovingBlockSamplingAssumptionUnion
-            | ProgramCell::PolicySubsampling
-            | ProgramCell::SequentialPolicyReliability
-            | ProgramCell::BundleRecomputation
-            | ProgramCell::BridgeBundleRecomputation
-            | ProgramCell::CyclicPosteriorBundleRecomputation
-            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
-            | ProgramCell::TrialIpwNodeBundleRecomputation
-            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
-            | ProgramCell::JointTransportEffectNodeBundleRecomputation
-            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
-            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
-            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
-            | ProgramCell::JointComponentPosteriorDecision
-            | ProgramCell::BoundedComponentPosteriorDecision
-            | ProgramCell::PosteriorDecisionBundleRecomputation
-            | ProgramCell::GraphImputation
-            | ProgramCell::GraphImputationEffectDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
-            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportDecision
-            | ProgramCell::GraphImputationTransportDecision
-            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationKernelTransportDecision
-            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationMarTransportDecision
-            | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift
-            | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess
-            | ProgramCell::JointPanelResponse
-            | ProgramCell::JointPanelTimeVarying
-            | ProgramCell::JointPanelImputation
-            | ProgramCell::JointPanelProgramSearch
-            | ProgramCell::JointPanelProgramSelection
-            | ProgramCell::JointPanelExperiment
-            | ProgramCell::JointDesign => None,
-        }
+        self.cell.cyclic_family()
     }
 
     /// Stable design name when this program was lowered for a standalone experiment plan.
     #[must_use]
     pub const fn planned_design(&self) -> Option<&'static str> {
-        match self.cell {
-            ProgramCell::Planning(design) => Some(design),
-            ProgramCell::Route(_)
-            | ProgramCell::CyclicFamily(_)
-            | ProgramCell::PropagationChain(_)
-            | ProgramCell::ObservationalPolicy
-            | ProgramCell::JointMeasuredObservation
-            | ProgramCell::DependentMeasuredObservation
-            | ProgramCell::FittedDependentMeasuredObservation
-            | ProgramCell::CyclicActionWorldDecision
-            | ProgramCell::CyclicPosteriorActionDecision
-            | ProgramCell::CyclicTargetFeedbackDecision
-            | ProgramCell::BridgeTransportDecision
-            | ProgramCell::BridgeTransportPremiseAssessment
-            | ProgramCell::AssessedBridgeTransportDecision
-            | ProgramCell::TrialIpwTransportDecision
-            | ProgramCell::TrialIpwPredictiveDecision
-            | ProgramCell::JointTransportEffectDecision
-            | ProgramCell::JointTransportPredictiveDecision
-            | ProgramCell::TemporalPathTransport
-            | ProgramCell::SamplingAssumptionUnion
-            | ProgramCell::IidSamplingAssumptionUnion
-            | ProgramCell::ClusterSamplingAssumptionUnion
-            | ProgramCell::MovingBlockSamplingAssumptionUnion
-            | ProgramCell::PolicySubsampling
-            | ProgramCell::SequentialPolicyReliability
-            | ProgramCell::BundleRecomputation
-            | ProgramCell::BridgeBundleRecomputation
-            | ProgramCell::CyclicPosteriorBundleRecomputation
-            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
-            | ProgramCell::TrialIpwNodeBundleRecomputation
-            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
-            | ProgramCell::JointTransportEffectNodeBundleRecomputation
-            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
-            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
-            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
-            | ProgramCell::JointComponentPosteriorDecision
-            | ProgramCell::BoundedComponentPosteriorDecision
-            | ProgramCell::PosteriorDecisionBundleRecomputation
-            | ProgramCell::GraphImputation
-            | ProgramCell::GraphImputationEffectDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
-            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportDecision
-            | ProgramCell::GraphImputationTransportDecision
-            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationKernelTransportDecision
-            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationMarTransportDecision
-            | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift
-            | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess
-            | ProgramCell::JointPanelResponse
-            | ProgramCell::JointPanelTimeVarying
-            | ProgramCell::JointPanelImputation
-            | ProgramCell::JointPanelProgramSearch
-            | ProgramCell::JointPanelProgramSelection
-            | ProgramCell::JointPanelExperiment
-            | ProgramCell::JointDesign => None,
-        }
+        self.cell.planned_design()
     }
 
     /// The reading a propagation chain answers when this program was lowered for one.
     #[must_use]
     pub const fn chain_reading(&self) -> Option<&'static str> {
-        match self.cell {
-            ProgramCell::PropagationChain(reading) => Some(reading),
-            ProgramCell::Route(_)
-            | ProgramCell::CyclicFamily(_)
-            | ProgramCell::Planning(_)
-            | ProgramCell::ObservationalPolicy
-            | ProgramCell::JointMeasuredObservation
-            | ProgramCell::DependentMeasuredObservation
-            | ProgramCell::FittedDependentMeasuredObservation
-            | ProgramCell::CyclicActionWorldDecision
-            | ProgramCell::CyclicPosteriorActionDecision
-            | ProgramCell::CyclicTargetFeedbackDecision
-            | ProgramCell::BridgeTransportDecision
-            | ProgramCell::BridgeTransportPremiseAssessment
-            | ProgramCell::AssessedBridgeTransportDecision
-            | ProgramCell::TrialIpwTransportDecision
-            | ProgramCell::TrialIpwPredictiveDecision
-            | ProgramCell::JointTransportEffectDecision
-            | ProgramCell::JointTransportPredictiveDecision
-            | ProgramCell::TemporalPathTransport
-            | ProgramCell::SamplingAssumptionUnion
-            | ProgramCell::IidSamplingAssumptionUnion
-            | ProgramCell::ClusterSamplingAssumptionUnion
-            | ProgramCell::MovingBlockSamplingAssumptionUnion
-            | ProgramCell::PolicySubsampling
-            | ProgramCell::SequentialPolicyReliability
-            | ProgramCell::BundleRecomputation
-            | ProgramCell::BridgeBundleRecomputation
-            | ProgramCell::CyclicPosteriorBundleRecomputation
-            | ProgramCell::CyclicPosteriorNodeBundleRecomputation
-            | ProgramCell::TrialIpwNodeBundleRecomputation
-            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
-            | ProgramCell::JointTransportEffectNodeBundleRecomputation
-            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
-            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
-            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
-            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
-            | ProgramCell::JointComponentPosteriorDecision
-            | ProgramCell::BoundedComponentPosteriorDecision
-            | ProgramCell::PosteriorDecisionBundleRecomputation
-            | ProgramCell::GraphImputation
-            | ProgramCell::GraphImputationEffectDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
-            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
-            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportDecision
-            | ProgramCell::GraphImputationTransportDecision
-            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationKernelTransportDecision
-            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
-            | ProgramCell::GraphImputationMarTransportDecision
-            | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift
-            | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess
-            | ProgramCell::JointPanelResponse
-            | ProgramCell::JointPanelTimeVarying
-            | ProgramCell::JointPanelImputation
-            | ProgramCell::JointPanelProgramSearch
-            | ProgramCell::JointPanelProgramSelection
-            | ProgramCell::JointPanelExperiment
-            | ProgramCell::JointDesign => None,
-        }
+        self.cell.chain_reading()
     }
 
     /// The propagation chain this program was lowered from, when it was lowered

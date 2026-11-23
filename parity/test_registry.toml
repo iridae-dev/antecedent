@@ -580,6 +580,13 @@ path = "crates/antecedent/src/analysis/lowering/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "program-family-table-identity"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/program_families_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "feedback-target-vocabulary"
 crate = "antecedent-core"
 cargo_target = "lib"
