@@ -204,7 +204,10 @@ pub struct EvidenceObligation {
     /// Explicit scientific coordinates keyed by structural variable identity.
     /// Empty means no measurement semantics have been declared; never infer units.
     pub quantities: BTreeMap<VariableId, ScientificQuantity>,
-    /// Stable id: a digest of the canonical (order-independent) content.
+    /// Stable id: a digest of the canonical (order-independent) content,
+    /// truncated to 128 bits (32 hex digits). The field is public, so a
+    /// hand-built value can disagree with its content; [`Self::validate`]
+    /// refuses that, and decoders must call it.
     pub id: Arc<str>,
     /// Kind of evidence requested.
     pub kind: EvidenceObligationKind,
@@ -314,10 +317,26 @@ impl EvidenceObligation {
         self.kind.satisfiable_by_study()
     }
 
-    /// Canonical, order-independent content string the id is a digest of.
-    #[must_use]
-    pub fn canonical(&self) -> String {
-        canonical_content(&EvidenceObligationSpec {
+    /// Re-check a hand-built or decoded obligation: the content must pass the
+    /// same validation as [`Self::try_new`] and the stored `id` must equal the
+    /// id derived from that content.
+    ///
+    /// # Errors
+    /// `evidence_obligations.invalid_obligation` for malformed content or a
+    /// stored id that differs from the derived one.
+    pub fn validate(&self) -> Result<(), EvidenceObligationError> {
+        let spec = self.to_spec();
+        validate_spec(&spec)?;
+        if *derive_id(&spec) != *self.id {
+            return Err(EvidenceObligationError::invalid(
+                "a stored obligation id does not match its content",
+            ));
+        }
+        Ok(())
+    }
+
+    fn to_spec(&self) -> EvidenceObligationSpec {
+        EvidenceObligationSpec {
             quantities: self.quantities.clone(),
             kind: self.kind,
             scope: self.scope,
@@ -328,7 +347,13 @@ impl EvidenceObligation {
             required_slots: Arc::clone(&self.required_slots),
             min_additional_samples: self.min_additional_samples,
             provenance: self.provenance.clone(),
-        })
+        }
+    }
+
+    /// Canonical, order-independent content string the id is a digest of.
+    #[must_use]
+    pub fn canonical(&self) -> String {
+        canonical_content(&self.to_spec())
     }
 
     /// Necessary-condition screen: could evidence of this shape supply what the
@@ -438,12 +463,18 @@ impl EvidenceObligation {
 
     /// The `EstablishAssumption` obligation of an unresolved assumption record,
     /// or `None` when the record no longer blocks a claim.
-    #[must_use]
-    fn from_unresolved_record(record: &ObligationRecord) -> Option<Self> {
+    ///
+    /// # Errors
+    /// An unresolved record whose id or check cannot form an obligation (for
+    /// example an id containing a reserved identity separator) is refused,
+    /// never dropped.
+    fn from_unresolved_record(
+        record: &ObligationRecord,
+    ) -> Option<Result<Self, EvidenceObligationError>> {
         if !record.is_unresolved() {
             return None;
         }
-        Self::try_new(EvidenceObligationSpec {
+        Some(Self::try_new(EvidenceObligationSpec {
             quantities: std::collections::BTreeMap::new(),
             kind: EvidenceObligationKind::EstablishAssumption,
             scope: record.scope,
@@ -458,8 +489,7 @@ impl EvidenceObligation {
                 source: Arc::clone(&record.id),
                 proof_step: record.required_check.clone(),
             },
-        })
-        .ok()
+        }))
     }
 }
 
@@ -475,6 +505,27 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
     }
     if spec.required_slots.iter().any(|slot| slot.trim().is_empty()) {
         return Err(invalid("a required contract slot is empty"));
+    }
+    let mut seen_slots = BTreeSet::new();
+    if !spec.required_slots.iter().all(|slot| seen_slots.insert(&**slot)) {
+        return Err(invalid("a required contract slot is listed twice"));
+    }
+    if spec.required_slots.iter().any(|slot| slot.contains(SLOT_JOIN))
+        || [
+            spec.population.as_deref(),
+            spec.provenance.proof_step.as_deref(),
+            Some(&*spec.provenance.family),
+            Some(&*spec.provenance.source),
+        ]
+        .into_iter()
+        .flatten()
+        .chain(spec.required_slots.iter().map(AsRef::as_ref))
+        .any(|text| text.contains(FIELD_SEPARATOR))
+    {
+        return Err(invalid(
+            "an obligation population, slot, family, source or proof step contains a \
+             reserved identity separator (';' or, in a slot, '|')",
+        ));
     }
     if !distinct(&spec.variables)
         || !distinct(&spec.regime.interventions)
@@ -538,6 +589,11 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
     }
 }
 
+/// Separates the fields of the canonical content (`kind=..;scope=..;..`).
+const FIELD_SEPARATOR: char = ';';
+/// Joins the sorted required slots inside the `slots=[..]` field.
+const SLOT_JOIN: char = '|';
+
 fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     let mut slots: Vec<&str> = spec.required_slots.iter().map(AsRef::as_ref).collect();
     slots.sort_unstable();
@@ -552,7 +608,7 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
         id_list(&spec.regime.conditioned_on),
         spec.regime.joint,
         spec.min_additional_samples.map_or_else(String::new, |n| n.to_string()),
-        slots.join("|"),
+        slots.join(&SLOT_JOIN.to_string()),
         spec.provenance.family,
         spec.provenance.source,
         spec.provenance.proof_step.as_deref().unwrap_or(""),
@@ -564,14 +620,43 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     content
 }
 
+/// The id is `eo1:<kind>:` plus the first 32 hex digits (128 bits) of the
+/// BLAKE3 digest of the canonical content. The truncation is part of the stored
+/// identity and is kept so existing ids never change; 128 bits is ample against
+/// accidental collision but is not a collision bound against an adversary.
+///
+/// The canonical content is unframed text. It is injective on accepted inputs
+/// only because validation refuses the separators it uses: `;` (field
+/// separator) in the population, any slot, family, source or proof step, and
+/// `|` (slot join) in a slot; variable lists are numeric and slots are distinct.
 fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
     let digest = antecedent_core::identity::blake3_hex(canonical_content(spec).as_bytes());
     Arc::from(format!("eo1:{}:{}", spec.kind.as_str(), &digest[..32]))
 }
 
 /// The `EstablishAssumption` obligations of every unresolved assumption record.
+///
+/// This skips an unresolved record that cannot form an obligation (an id with a
+/// reserved identity separator); prefer [`try_unresolved_assumption_obligations`],
+/// which refuses instead.
 #[must_use]
 pub fn unresolved_assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceObligation> {
+    records
+        .iter()
+        .filter_map(EvidenceObligation::from_unresolved_record)
+        .filter_map(Result::ok)
+        .collect()
+}
+
+/// The `EstablishAssumption` obligations of every unresolved assumption record,
+/// refusing when any unresolved record cannot form an obligation, so an
+/// unresolved assumption never disappears from the evidence owed.
+///
+/// # Errors
+/// `evidence_obligations.invalid_obligation` for the first such record.
+pub fn try_unresolved_assumption_obligations(
+    records: &[ObligationRecord],
+) -> Result<Vec<EvidenceObligation>, EvidenceObligationError> {
     records.iter().filter_map(EvidenceObligation::from_unresolved_record).collect()
 }
 
@@ -612,5 +697,54 @@ mod tests {
         swapped.variables = Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]);
         let b = EvidenceObligation::try_new(swapped).unwrap();
         assert_eq!(a.id, b.id);
+    }
+
+    #[test]
+    fn separators_are_refused_so_encoding_is_injective() {
+        let mut joined = spec(EvidenceObligationKind::ProvideJointLaw);
+        joined.required_slots = Arc::from([Arc::from("a|b")]);
+        assert!(EvidenceObligation::try_new(joined).is_err());
+        let mut field = spec(EvidenceObligationKind::ProvideJointLaw);
+        field.provenance.source = Arc::from("x;step=y");
+        assert!(EvidenceObligation::try_new(field).is_err());
+        let mut pop = spec(EvidenceObligationKind::ProvideJointLaw);
+        pop.population = Some(Arc::from("t;vars=[1]"));
+        assert!(EvidenceObligation::try_new(pop).is_err());
+        let mut step = spec(EvidenceObligationKind::ProvideJointLaw);
+        step.provenance.proof_step = Some(Arc::from("s;quantity:0:x"));
+        assert!(EvidenceObligation::try_new(step).is_err());
+    }
+
+    #[test]
+    fn unresolved_record_with_a_separator_is_refused_not_dropped() {
+        let record = ObligationRecord::new(
+            "a|b",
+            ObligationScope::Program,
+            antecedent_core::assumption::AssumptionSource::UserDeclared,
+            crate::ObligationKind::CheckNotRun,
+            antecedent_core::assumption::AssumptionStatus::Declared,
+            "owed",
+        );
+        assert!(try_unresolved_assumption_obligations(std::slice::from_ref(&record)).is_err());
+    }
+
+    #[test]
+    fn duplicate_slots_are_refused() {
+        let mut dup = spec(EvidenceObligationKind::ProvideJointLaw);
+        dup.required_slots = Arc::from([Arc::from("a"), Arc::from("a")]);
+        assert!(EvidenceObligation::try_new(dup).is_err());
+    }
+
+    #[test]
+    fn validate_refuses_a_stored_id_that_disagrees() {
+        let good =
+            EvidenceObligation::try_new(spec(EvidenceObligationKind::ProvideJointLaw)).unwrap();
+        assert!(good.validate().is_ok());
+        let mut forged = good.clone();
+        forged.id = Arc::from("eo1:provide_joint_law:00000000000000000000000000000000");
+        assert!(forged.validate().is_err());
+        let mut tampered = good;
+        tampered.required_slots = Arc::from([Arc::from("a|b")]);
+        assert!(tampered.validate().is_err());
     }
 }

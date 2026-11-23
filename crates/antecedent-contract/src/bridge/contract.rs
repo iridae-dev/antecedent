@@ -652,14 +652,28 @@ impl BridgeContract {
         out.word(self.source_value.tag()).word(self.target_value.tag());
         out.text(&self.evidence_scope.population_id).text(&self.evidence_scope.regime_id);
         self.mapping.write_canonical(&mut out);
-        let mut assumptions: Vec<&BridgeAssumption> = self.assumptions.iter().collect();
-        assumptions.sort_by(|a, b| a.id.cmp(&b.id));
-        out.word(assumptions.len() as u64);
-        for assumption in assumptions {
+        // Ordered by id, then by the assumption's own encoding: valid contracts
+        // have distinct ids, so their order and identity are by id alone; an
+        // unvalidated repeat is still independent of listing order.
+        let encode = |out: &mut CanonicalWriter, assumption: &BridgeAssumption| {
             out.text(&assumption.id)
                 .word(assumption.kind.tag())
                 .text(&assumption.statement)
                 .opt_text(assumption.evidence.as_deref());
+        };
+        let mut assumptions: Vec<(&str, [u8; 32], &BridgeAssumption)> = self
+            .assumptions
+            .iter()
+            .map(|assumption| {
+                let mut own = CanonicalWriter::new(TAG_CONTRACT);
+                encode(&mut own, assumption);
+                (assumption.id.as_str(), own.finish(), assumption)
+            })
+            .collect();
+        assumptions.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+        out.word(assumptions.len() as u64);
+        for (_, _, assumption) in assumptions {
+            encode(&mut out, assumption);
         }
         match &self.transport {
             None => {

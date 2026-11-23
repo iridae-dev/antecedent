@@ -1483,3 +1483,27 @@ fn every_kind_and_class_has_a_stable_name_and_a_principal_assumption() {
         assert_eq!(MappingKind::from_name(mapping.as_str()), Some(mapping));
     }
 }
+
+#[test]
+fn repeated_assumption_ids_do_not_make_identity_order_dependent() {
+    let base = surrogate_contract(4, 0.9);
+    let first = assumption("dup", AssumptionKind::Additional, Some("one"));
+    let second = assumption("dup", AssumptionKind::Additional, Some("two"));
+    let mut forward = base.clone();
+    forward.assumptions.extend([first.clone(), second.clone()]);
+    let mut reversed = base.clone();
+    reversed.assumptions.extend([second, first]);
+    assert_eq!(forward.identity(), reversed.identity());
+}
+
+#[test]
+fn distinct_assumption_ids_keep_the_order_by_id_identity() {
+    let base = surrogate_contract(4, 0.9);
+    let a = assumption("a-first", AssumptionKind::Additional, None);
+    let b = assumption("b-second", AssumptionKind::Additional, None);
+    let mut sorted = base.clone();
+    sorted.assumptions.extend([a.clone(), b.clone()]);
+    let mut unsorted = base;
+    unsorted.assumptions.extend([b, a]);
+    assert_eq!(sorted.identity(), unsorted.identity());
+}

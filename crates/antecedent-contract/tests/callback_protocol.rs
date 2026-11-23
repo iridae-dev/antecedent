@@ -888,3 +888,36 @@ fn a_callback_connects_to_a_consumer_only_for_its_declared_quantity() {
     .unwrap_err();
     assert!(operation.iter().any(|r| r.detail.starts_with("interface_contract.operation")));
 }
+
+fn input_named(name: &str, semantic_identity: &str) -> CallbackInput {
+    let base = gaussian();
+    CallbackInput {
+        name: name.into(),
+        quantity: base.quantity.clone(),
+        semantic_identity: semantic_identity.into(),
+        support: base.support.clone(),
+        operation: CallbackOperation::Mean,
+        uncertainty: None,
+        supplier: InputSupplier::External,
+    }
+}
+
+#[test]
+fn repeated_input_names_do_not_make_identity_order_dependent() {
+    let (a, b) = (input_named("x", "estimand:one"), input_named("x", "estimand:two"));
+    let mut forward = gaussian();
+    forward.inputs = vec![a.clone(), b.clone()];
+    let mut reversed = gaussian();
+    reversed.inputs = vec![b, a];
+    assert_eq!(forward.canonical_identity(), reversed.canonical_identity());
+}
+
+#[test]
+fn distinct_input_names_keep_the_order_by_name_identity() {
+    let (a, b) = (input_named("a", "estimand:one"), input_named("b", "estimand:one"));
+    let mut sorted = gaussian();
+    sorted.inputs = vec![a.clone(), b.clone()];
+    let mut unsorted = gaussian();
+    unsorted.inputs = vec![b, a];
+    assert_eq!(sorted.canonical_identity(), unsorted.canonical_identity());
+}

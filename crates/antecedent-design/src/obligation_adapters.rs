@@ -15,7 +15,7 @@ use std::sync::Arc;
 use antecedent_contract::{
     EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
     ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
-    unresolved_assumption_obligations,
+    try_unresolved_assumption_obligations, unresolved_assumption_obligations,
 };
 use antecedent_core::{
     CausalQuery, DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, FactorNeed,
@@ -301,10 +301,23 @@ pub fn delta_obligations(
 }
 
 /// The `EstablishAssumption` obligations of unresolved assumption records. A
-/// proposed study never satisfies them.
+/// proposed study never satisfies them. A record that cannot form an obligation
+/// is skipped here; use [`try_assumption_obligations`] to refuse instead.
 #[must_use]
 pub fn assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceObligation> {
     unresolved_assumption_obligations(records)
+}
+
+/// As [`assumption_obligations`], refusing when an unresolved record cannot
+/// form an obligation, so it never disappears from the evidence owed.
+///
+/// # Errors
+/// The first unresolved record whose id is not a valid obligation identity.
+pub fn try_assumption_obligations(
+    records: &[ObligationRecord],
+) -> Result<Vec<EvidenceObligation>, RepairError> {
+    try_unresolved_assumption_obligations(records)
+        .map_err(|e| RepairError::invalid_request(e.to_string()))
 }
 
 /// A route that already identifies from the observed law is not a failure; its
