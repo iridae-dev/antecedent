@@ -8617,6 +8617,13 @@ path = "python/tests/test_evidence_ledger.py"
 gates = ["inventory"]
 
 [[test]]
+id = "adversarial-ledger-identity-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_adversarial_ledger_identity.py"
+gates = ["inventory"]
+
+[[test]]
 id = "examples-run-python"
 crate = "python"
 cargo_target = "script"
