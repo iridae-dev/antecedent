@@ -48,6 +48,7 @@ use super::counterfactual_transport::{
     PreparedCounterfactualTransport, consume_counterfactual_transport_artifact,
     prepare_counterfactual_transport,
 };
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -60,6 +61,12 @@ use crate::planner::{PlanStage, PlanView};
 const FEATURE: &str = "temporal_path_transport_v1";
 const SAMPLED_FEATURE: &str = "sampled_temporal_path_transport_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
+
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// The time-indexed edge intervention whose target outcome probability is
 /// compared with the baseline world. Variable ids are raw, and their time
@@ -474,6 +481,12 @@ pub fn compile_temporal_path_transport(
     })
 }
 
+impl CompiledProgramHandle for CompiledTemporalPathTransport {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledTemporalPathTransport {
     /// All six compiler layers of the time/path/selection/law program.
     #[must_use]
@@ -497,6 +510,10 @@ impl CompiledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
+        }
         let active = self.active.evaluate(&self.data, &scoped)?;
         let baseline = self.baseline.evaluate(&self.data, &scoped)?;
         let contrast = active.probability() - baseline.probability();
@@ -898,6 +915,12 @@ pub fn compile_sampled_temporal_path_transport(
     })
 }
 
+impl CompiledProgramHandle for CompiledSampledTemporalPathTransport {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledSampledTemporalPathTransport {
     /// The complete compiler program, including the sampled evidence identity.
     #[must_use]
@@ -920,6 +943,10 @@ impl CompiledSampledTemporalPathTransport {
         ctx: &ExecutionContext,
     ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
+        }
         let estimate = estimate_sampled_counterfactual_transport_contrast(
             self.active.derivation(),
             self.baseline.derivation(),
@@ -1463,6 +1490,12 @@ fn continuous_chain_draw(rng: &mut antecedent_core::CausalRng, n: usize) -> usiz
     }
 }
 
+impl CompiledProgramHandle for CompiledContinuousChainTransport {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledContinuousChainTransport {
     /// Inspect the complete lowered transport and sampling program.
     #[must_use]
@@ -1487,6 +1520,10 @@ impl CompiledContinuousChainTransport {
             return Err(TemporalPathTransportError::Invalid("continuous chain seed changed"));
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
+        }
         let arms: Vec<Vec<_>> = [false, true]
             .iter()
             .map(|arm| self.request.source.iter().filter(|row| row.treated == *arm).collect())

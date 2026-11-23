@@ -1,0 +1,32 @@
+feature_id = "transport.joint_transport_decision"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled joint source-target transport decisions
+# (crates/antecedent/src/analysis/joint_transport_effect_decision.rs and
+# joint_transport_predictive_decision.rs). The numerical engine is the exact conjugate Gaussian
+# posterior of provenance/transport.joint_bayesian.toml; these routes lower its draws through the
+# chain decision compiler. The predictive route adds the paired outcome draws described below,
+# an in-repo construction. papers = [] is an explicit judgment: the conjugate algebra is textbook
+# and no publication supplies the decision composition; none was retrieved in this review.
+papers = []
+
+implementation_deviations = [
+  "The effect route scores the posterior of the target average treatment effect, a parameter functional, never a future outcome; the draws are the engine's aligned joint draws, so source-target coupling through the shared treatment block is preserved.",
+  "The predictive route additionally assumes that the source-varying baseline block and the known residual variance apply in the target (a shared varying block is required), and draws the two potential outcomes of a target row as baseline plus treatment effect plus Gaussian disturbances whose correlation is declared; the source likelihood does not identify that cross-world correlation, so it is a declared premise and the paired-difference spread depends on it.",
+  "The predictive route draws the target covariate row uniformly from the empirical target frame for each posterior draw, so covariate sampling error of the frame is not propagated.",
+  "Known noise variance, independent sources with disjoint units and a randomized binary treatment under a supplied structural certificate: the limits of the posterior engine carry over, and no coverage or decision reliability is measured (calibration is reported as not_measured).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/joint_transport_decision_reference.rs (hand-solved two-parameter conjugate posterior, effect draws and decision utilities; the hand-derived posterior predictive law and the paired-difference variance Var(tau) + 2 sigma^2 (1 - rho))",
+  "crates/antecedent/src/analysis/joint_transport_effect_decision.rs",
+  "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs",
+  "crates/antecedent/tests/joint_transport_predictive_calibration.rs",
+  "crates/antecedent-estimate/tests/joint_bayesian_transport.rs",
+]

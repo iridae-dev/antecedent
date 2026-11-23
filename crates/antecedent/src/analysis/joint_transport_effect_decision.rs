@@ -37,6 +37,7 @@ use antecedent_io::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
@@ -52,6 +53,11 @@ use crate::planner::statistical::{
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "joint_transport_effect_decision_v1";
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// The complete structural and numerical declaration. The quantity must name
@@ -371,6 +377,12 @@ fn effect_chain(
     .with_output_quantity(ScientificQuantityWire::from(quantity)))
 }
 
+impl CompiledProgramHandle for CompiledJointTransportEffectDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledJointTransportEffectDecision {
     /// All six compiler layers of the fitted producer and decision.
     #[must_use]
@@ -394,6 +406,10 @@ impl CompiledJointTransportEffectDecision {
         ctx: &ExecutionContext,
     ) -> Result<JointTransportEffectDecisionResult, JointTransportEffectDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)
+                .map_err(|refusal| JointTransportEffectDecisionError::Invalid(refusal.message()))?;
+        }
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,
             &self.request.model,

@@ -1,0 +1,36 @@
+feature_id = "transport.temporal_path_specific"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Time-ordered path-specific transport (crates/antecedent/src/analysis/temporal_path_transport.rs):
+# a time check of an unrolled finite graph, two edge-intervention worlds, and, for the exact and
+# sampled routes, the identification and evaluation of the finite counterfactual transport of
+# provenance/counterfactual.transport_general.toml on each world; the continuous chain is a
+# restricted linear sequential model with a paired bootstrap. The static transported
+# path-specific route (counterfactual.transported_path_specific) is a closed gate and is not
+# this route. papers = [] is an explicit judgment: path-specific effects and selection-diagram
+# transportability (Pearl 2001; Avin, Shpitser and Pearl 2005; Bareinboim and Pearl 2014) motivate
+# the question, the identification itself is the engine of counterfactual.transport_general, and
+# no publication was retrieved in this review.
+papers = []
+
+implementation_deviations = [
+  "The exact and sampled routes subtract two probabilities that the finite identifier derived for the active and baseline edge-intervention worlds on the same regime laws; the contrast is exact for the supplied finite laws and the identification result is that of counterfactual.transport_general, so no theorem is inherited from a path-specific identification paper for graphs beyond what the identifier proves.",
+  "Time order is a declared property of every directed edge (a parent strictly precedes its child), checked structurally; an arrow that does not advance time refuses.",
+  "The sampled route is the plug-in contrast on count tables with a paired delta-method standard error that is withheld when a perturbation is undefined; the standard error is an uncalibrated spread and no coverage is measured.",
+  "The continuous chain is limited to an observed DAG with independent structural errors, linear conditional means fitted by ordinary least squares on randomized source units, no unmeasured mediator or outcome confounding, invariant source-to-target mechanisms and positivity in both worlds; none of these is checked beyond edge membership and topological order, and its interval is a paired arm-stratified bootstrap reported as not_measured.",
+  "Point-only outside the continuous chain: no sampling interval is published for the exact route, and no general continuous longitudinal functional is represented.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs (time_ordered_direct_path_transport_matches_independent_oracle: the exact route against the enumerated finite structural model)",
+  "crates/antecedent/tests/temporal_path_transport_reference.rs (the sampled route against the same enumerated truth, the time-order refusal and the support unit)",
+  "crates/antecedent/src/analysis/temporal_path_transport.rs (in-module test: the continuous chain recovers the planted path contrasts 2 and 7)",
+  "python/tests/test_temporal_path_transport.py",
+  "crates/antecedent/tests/sampled_temporal_path_transport_calibration.rs",
+]

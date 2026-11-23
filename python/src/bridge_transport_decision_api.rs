@@ -95,13 +95,14 @@ enum Failure {
 }
 
 fn binding_refusal(stage: &str, detail: &str, message: &str) -> String {
-    RefusalJson::new(
-        antecedent::reason::reason_code!("bridge_binding_mismatch"),
-        stage,
-        detail,
-        message,
-    )
-    .json()
+    // The support gate carries its registered `not_supported` reason in the message of an
+    // invalid-state refusal; it keeps that code instead of a binding mismatch.
+    let code = if message.contains("reason=not_supported") {
+        antecedent::reason::reason_code!("not_supported")
+    } else {
+        antecedent::reason::reason_code!("bridge_binding_mismatch")
+    };
+    RefusalJson::new(code, stage, detail, message).json()
 }
 
 fn cancelled() -> PyErr {
@@ -183,7 +184,12 @@ fn assessment_refusal(
 ) -> PyResult<String> {
     match error {
         BridgeTransportPremiseAssessmentError::Invalid(message) => {
-            Ok(RefusalJson::new(invalid_code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
+            let code = if message.contains("reason=not_supported") {
+                antecedent::reason::reason_code!("not_supported")
+            } else {
+                invalid_code
+            };
+            Ok(RefusalJson::new(code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
         }
         BridgeTransportPremiseAssessmentError::Io(inner) => io_refusal(inner, ASSESSMENT_STAGE),
     }
@@ -548,6 +554,11 @@ impl BridgePremiseAssessmentHandle {
         self.inner.plan_view().to_json().to_string()
     }
 
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        unit_support_of(&self.inner.plan_view()).to_string()
+    }
+
     /// Fit both trial relations and form the discrepancy bands, or the refusal.
     #[pyo3(signature = (seed=1, threads=None, cancel=None))]
     fn execute(
@@ -659,7 +670,29 @@ enum RouteResult {
     TargetPosterior(AssessedBridgePosteriorDecisionResult),
 }
 
+/// The support decision of the unit a compiled route is bound to, as JSON: `null` while the
+/// route is bound to no unit. Reading it changes no program identity.
+fn unit_support_of(view: &antecedent::planner::PlanView) -> Json {
+    view.unit_support().map_or(Json::Null, |support| {
+        json!({
+            "unit": support.unit(),
+            "status": support.status().as_str(),
+            "supported": support.supported(),
+            "missing_evidence": support.missing_evidence(),
+        })
+    })
+}
+
 impl CompiledRoute {
+    fn unit_support(&self) -> Json {
+        match self {
+            Self::Conditional(plan) => unit_support_of(&plan.plan_view()),
+            Self::Assessed(plan) => unit_support_of(&plan.plan_view()),
+            Self::Robust(plan) => unit_support_of(&plan.plan_view()),
+            Self::TargetPosterior(plan) => unit_support_of(&plan.plan_view()),
+        }
+    }
+
     const fn variant(&self) -> &'static str {
         match self {
             Self::Conditional(_) => "conditional",
@@ -827,6 +860,11 @@ impl BridgeTransportDecisionHandle {
     /// Every layer of the compiled program as JSON; nothing is mapped or scored.
     fn plan_view_json(&self) -> String {
         self.inner.plan_view().to_string()
+    }
+
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        self.inner.unit_support().to_string()
     }
 
     /// Execute the retained program, or the refusal.

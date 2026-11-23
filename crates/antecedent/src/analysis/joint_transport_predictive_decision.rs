@@ -44,6 +44,7 @@ use antecedent_io::{
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
@@ -60,6 +61,11 @@ use crate::planner::statistical::{
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "joint_transport_predictive_decision_v2";
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Complete source fit, target-frame prediction and paired decision declaration.
@@ -521,6 +527,12 @@ fn predictive_chain(
     .with_joint_outputs(joint)
 }
 
+impl CompiledProgramHandle for CompiledJointTransportPredictiveDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledJointTransportPredictiveDecision {
     /// The complete six-layer predictive program.
     #[must_use]
@@ -544,6 +556,11 @@ impl CompiledJointTransportPredictiveDecision {
         ctx: &ExecutionContext,
     ) -> Result<JointTransportPredictiveDecisionResult, JointTransportPredictiveDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self).map_err(|refusal| {
+                JointTransportPredictiveDecisionError::Invalid(refusal.message())
+            })?;
+        }
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,
             &self.request.model,
