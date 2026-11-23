@@ -59,4 +59,4 @@ IMPLEMENTATION.md
 AUDIT.md
 
 # Lean / Lake
-formal/.lake/
+formal/**/.lake/

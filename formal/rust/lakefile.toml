@@ -1,0 +1,21 @@
+name = "antecedent_rust"
+defaultTargets = ["AntecedentRust"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+
+# The Lean model of the Rust standard library that Aeneas translations target.
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas"
+rev = "nightly-2026.11.23-2e3d448"
+subDir = "backends/lean"
+
+# The specifications the translated Rust is proved against.
+[[require]]
+name = "antecedent_formal"
+path = ".."
+
+[[lean_lib]]
+name = "AntecedentRust"

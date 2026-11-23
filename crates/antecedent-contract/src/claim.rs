@@ -1124,9 +1124,7 @@ pub fn compose_claims(
         for axis in
             [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
         {
-            let from = parent.domain(axis);
-            let to = derived.domain(axis);
-            if from != to && !(from.is_positive() && to == DomainStatus::Unknown) {
+            if !domain_change_allowed(parent.domain(axis), derived.domain(axis)) {
                 return refuse_derived(
                     "retarget_invalid_domain_change",
                     parent_ids,
@@ -1270,11 +1268,28 @@ fn identification_strengthened(
     }) {
         return Some("parents_not_retroactively_strengthened");
     }
-    let weakest = parent_slots.iter().map(|slot| slot.status.strength_rank()).min();
-    if weakest.is_some_and(|rank| derived_slot.status.strength_rank() > rank) {
+    if parent_slots
+        .iter()
+        .any(|slot| !identification_status_kept_or_lowered(slot.status, derived_slot.status))
+    {
         return Some("derived_strengthens_identification_status");
     }
     None
+}
+
+/// Whether a relayed claim may report `to` at a domain coordinate where its parent
+/// reported `from`: the same status, or a positive status weakened to unknown. A
+/// relay never asserts a status its parent did not.
+fn domain_change_allowed(from: DomainStatus, to: DomainStatus) -> bool {
+    from == to || (from.is_positive() && to == DomainStatus::Unknown)
+}
+
+/// Whether a derived identification status keeps or lowers its parent's strength.
+fn identification_status_kept_or_lowered(
+    parent: antecedent_core::identification::IdentificationStatus,
+    derived: antecedent_core::identification::IdentificationStatus,
+) -> bool {
+    derived.strength_rank() <= parent.strength_rank()
 }
 
 fn provenance_node(
