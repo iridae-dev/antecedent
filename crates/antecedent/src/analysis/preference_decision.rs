@@ -718,7 +718,8 @@ pub fn chain_joint_law(
     .map_err(|_| invalid("the chain's joint output law forms a distribution artifact"))
 }
 
-/// One aligned joint law over the coordinates of several laws, when the joint-law rule says
+/// One aligned joint law over the coordinates of several laws (a single law is returned
+/// unchanged), when the joint-law rule says
 /// their rows are realizations of one joint law (equal alignment identities,
 /// `antecedent_contract::check_rows_pairable_across`); the columns are then placed side by
 /// side. Rows of separately produced laws are never paired: they refuse with the rule's own
@@ -731,6 +732,11 @@ pub fn chain_joint_law(
 pub fn joint_law_of(
     laws: &[&DistributionArtifact],
 ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
+    match laws {
+        [] => return Err(invalid("at least one law")),
+        [only] => return Ok((*only).clone()),
+        _ => {}
+    }
     let first_refusal = |refusal: super::joint_law_propagation::JointLawPropagationRefusal| {
         refusal.refusals.into_iter().next().unwrap_or_else(|| invalid("the rule refused"))
     };
@@ -743,12 +749,7 @@ pub fn joint_law_of(
     let inputs: Vec<(&str, &InputAlignment)> =
         names.iter().map(String::as_str).zip(alignments.iter()).collect();
     check_rows_pairable_across(&inputs)?;
-    let Some(first) = laws.first() else {
-        return Err(invalid("at least one law"));
-    };
-    if laws.len() == 1 {
-        return Ok((*first).clone());
-    }
+    let first = laws[0];
     let head = first.metadata();
     if laws.iter().any(|law| {
         let m = law.metadata();
