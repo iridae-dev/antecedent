@@ -45,6 +45,7 @@ pub mod objective;
 pub mod obligation_adapters;
 mod plan_common;
 pub mod planning;
+pub mod preference_certified;
 pub mod preference_contract;
 pub mod preference_decision;
 pub mod preference_model;

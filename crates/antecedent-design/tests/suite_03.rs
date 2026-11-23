@@ -21,3 +21,5 @@ mod preference_set_learning_reference;
 mod preference_decision;
 #[path = "preference_decision_structural.rs"]
 mod preference_decision_structural;
+#[path = "preference_certified.rs"]
+mod preference_certified;
