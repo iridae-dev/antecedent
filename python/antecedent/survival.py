@@ -27,6 +27,7 @@ from typing import Any
 
 import numpy as np
 
+from . import _deprecation
 from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import randomized_cumulative_incidence_ipcw as _randomized_cumulative_incidence_ipcw
@@ -533,6 +534,32 @@ def estimate_survival_ipcw(
     censoring_survival: Any,
     minimum_probability: float = 0.01,
 ) -> IPCWSurvivalEstimate:
+    """IPCW estimate from a caller-supplied censoring survival matrix.
+
+    Deprecated: this direct path runs without the causal compiler. Use ``analyze`` with a :class:`SurvivalOutcome` carrying ``known_censoring``; the
+    probabilities go in data columns on the same grid.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.survival.estimate_survival_ipcw",
+        "antecedent.analyze(data, query=SurvivalOutcome(..., observation_assumption=IndependentGiven(...), known_censoring=KnownCensoringSurvival(times, columns)))",
+    )
+    return _estimate_survival_ipcw_direct(
+        data,
+        query,
+        times=times,
+        censoring_survival=censoring_survival,
+        minimum_probability=minimum_probability,
+    )
+
+
+def _estimate_survival_ipcw_direct(
+    data: Any,
+    query: SurvivalOutcome,
+    *,
+    times: Sequence[float],
+    censoring_survival: Any,
+    minimum_probability: float = 0.01,
+) -> IPCWSurvivalEstimate:
     """Estimate inverse-probability-of-censoring weighted survival curves and RMST.
 
     Use this when censoring depends on covariates and you have fitted the censoring survival
@@ -625,6 +652,32 @@ def estimate_survival_ipcw(
 
 
 def estimate_cumulative_incidence_ipcw(
+    data: Any,
+    query: CompetingRisksOutcome,
+    *,
+    times: Sequence[float],
+    censoring_survival: Any,
+    minimum_probability: float = 0.01,
+) -> IPCWCumulativeIncidenceEstimate:
+    """IPCW estimate from a caller-supplied censoring survival matrix.
+
+    Deprecated: this direct path runs without the causal compiler. Use ``analyze`` with a :class:`CompetingRisksOutcome` carrying ``known_censoring``; the
+    probabilities go in data columns on the same grid.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.survival.estimate_cumulative_incidence_ipcw",
+        "antecedent.analyze(data, query=CompetingRisksOutcome(..., observation_assumption=IndependentGiven(...), known_censoring=KnownCensoringSurvival(times, columns)))",
+    )
+    return _estimate_cumulative_incidence_ipcw_direct(
+        data,
+        query,
+        times=times,
+        censoring_survival=censoring_survival,
+        minimum_probability=minimum_probability,
+    )
+
+
+def _estimate_cumulative_incidence_ipcw_direct(
     data: Any,
     query: CompetingRisksOutcome,
     *,

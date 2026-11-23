@@ -24,6 +24,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from . import _deprecation
 from ._data import as_columns
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
@@ -1206,6 +1207,27 @@ def estimate_did(
 ) -> DifferenceInDifferencesEstimate:
     """Estimate a 2x2 repeated-cross-section DiD using native Rust execution.
 
+    Deprecated: this direct path runs without the causal compiler. Use
+    ``analyze(data, query=PanelDifferenceInDifferences.repeated_cross_section(...))``, which
+    returns the same contrast with a cluster-robust standard error.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.quasi.estimate_did",
+        "antecedent.analyze(data, query=PanelDifferenceInDifferences.repeated_cross_section("
+        "outcome, subject, treated, post))",
+    )
+    return _estimate_did_direct(data, query, treated=treated, post=post)
+
+
+def _estimate_did_direct(
+    data: Any,
+    query: DifferenceInDifferences,
+    *,
+    treated: Sequence[bool] | None = None,
+    post: Sequence[bool] | None = None,
+) -> DifferenceInDifferencesEstimate:
+    """Estimate a 2x2 repeated-cross-section DiD using native Rust execution.
+
     Optional explicit ``treated`` and ``post`` vectors override the named
     columns. Panel, staggered-adoption, weighted, and clustered-inference
     designs are outside this utility's contract.
@@ -1257,6 +1279,24 @@ def _integer_column(values: Iterable[Any], name: str, *, minimum: int) -> list[i
 
 
 def estimate_group_time_att(
+    data: Any, query: StaggeredAdoption, *, cluster: str | None = None
+) -> StaggeredAdoptionEstimate:
+    """Estimate cohort-by-period ATT using never-treated controls and cohort-specific baselines.
+
+    Deprecated: this direct path runs without the causal compiler. Use
+    ``analyze(data, query=StaggeredAdoption(..., event_study=True))`` for the event-time curve
+    (its post-adoption effects are these cells) or ``StaggeredAdoption(..., target_cohort=g,
+    target_period=t)`` for one cell.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.quasi.estimate_group_time_att",
+        "antecedent.analyze(data, query=StaggeredAdoption(outcome, subject, period, cohort, "
+        "event_study=True))",
+    )
+    return _estimate_group_time_att_direct(data, query, cluster=cluster)
+
+
+def _estimate_group_time_att_direct(
     data: Any, query: StaggeredAdoption, *, cluster: str | None = None
 ) -> StaggeredAdoptionEstimate:
     """Estimate cohort-by-period ATT using never-treated controls and cohort-specific baselines.
@@ -1554,7 +1594,7 @@ def estimate_categorical_did(
         subset[query.treated] = np.array([key == level for key in group_keys[mask]], dtype=bool)
         standard_error: float | None = None
         if isinstance(query, DifferenceInDifferences):
-            estimate = estimate_did(subset, query).estimate
+            estimate = _estimate_did_direct(subset, query).estimate
             level_units = int(np.sum(group_keys == level))
             reference_units = int(np.sum(group_keys == reference))
         elif isinstance(query, PanelDifferenceInDifferences):

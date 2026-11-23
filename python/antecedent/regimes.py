@@ -17,7 +17,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 from numpy.typing import ArrayLike
 
-from . import _native
+from . import _deprecation, _native
 from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
 from .execution import Execution, resolve_execution
@@ -635,7 +635,7 @@ class MarginalStructuralModelResult:
     )
 
 
-def evaluate_regime_value(
+def _evaluate_regime_value_direct(
     outcomes: ArrayLike,
     treatment_history: ArrayLike,
     regime: Regime,
@@ -731,7 +731,7 @@ def evaluate_regime_value(
     return RegimeValue(value, ess, matched, max_weight)
 
 
-def evaluate_sequential_gformula(
+def _evaluate_sequential_gformula_direct(
     period_outcome_predictions: ArrayLike,
     treatment_history: ArrayLike,
     regime: Regime,
@@ -869,7 +869,7 @@ def evaluate_sequential_gformula(
     )
 
 
-def evaluate_sequential_doubly_robust(
+def _evaluate_sequential_doubly_robust_direct(
     outcomes: ArrayLike,
     outcome_observed: ArrayLike,
     observation_history: ArrayLike,
@@ -1058,6 +1058,102 @@ class TrajectorySurvivalIntervals:
     restricted_mean_difference: tuple[float, float]
     replicates_requested: int
     replicates_ok: int
+
+
+def evaluate_regime_value(
+    outcomes: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    treatment_probabilities: ArrayLike,
+    *,
+    covariate_history: ArrayLike | None = None,
+    outcome_observed: ArrayLike | None = None,
+    censoring_survival: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> RegimeValue:
+    """Deprecated direct path; use an inverse-probability ``LongitudinalRegime`` through ``analyze``."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.regimes.evaluate_regime_value",
+        'antecedent.analyze(data, query=LongitudinalRegime(..., method="ipw"))',
+    )
+    return _evaluate_regime_value_direct(
+        outcomes,
+        treatment_history,
+        regime,
+        treatment_probabilities,
+        covariate_history=covariate_history,
+        outcome_observed=outcome_observed,
+        censoring_survival=censoring_survival,
+        minimum_probability=minimum_probability,
+    )
+
+
+def evaluate_sequential_gformula(
+    period_outcome_predictions: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    treatment_probabilities: ArrayLike,
+    *,
+    subject_ids: Sequence[str],
+    fold_ids: Sequence[int],
+    covariate_history: ArrayLike | None = None,
+    censoring_survival: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> GFormulaValue:
+    """Deprecated direct path; use a g-formula ``LongitudinalRegime`` through ``analyze``."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.regimes.evaluate_sequential_gformula",
+        'antecedent.analyze(data, query=LongitudinalRegime(..., method="g_formula", period_outcome_predictions=...))',
+    )
+    return _evaluate_sequential_gformula_direct(
+        period_outcome_predictions,
+        treatment_history,
+        regime,
+        treatment_probabilities,
+        subject_ids=subject_ids,
+        fold_ids=fold_ids,
+        covariate_history=covariate_history,
+        censoring_survival=censoring_survival,
+        minimum_probability=minimum_probability,
+    )
+
+
+def evaluate_sequential_doubly_robust(
+    outcomes: ArrayLike,
+    outcome_observed: ArrayLike,
+    observation_history: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    q_predictions: ArrayLike,
+    treatment_probabilities: ArrayLike,
+    *,
+    subject_ids: Sequence[str],
+    fold_ids: Sequence[int],
+    prediction_fold_ids: Sequence[int],
+    covariate_history: ArrayLike | None = None,
+    censoring_probabilities: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> DoublyRobustRegimeValue:
+    """Deprecated direct path; use a sequential doubly robust ``LongitudinalRegime`` through ``analyze``."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.regimes.evaluate_sequential_doubly_robust",
+        'antecedent.analyze(data, query=LongitudinalRegime(..., method="sequential_dr", q_predictions=..., observation_history=...))',
+    )
+    return _evaluate_sequential_doubly_robust_direct(
+        outcomes,
+        outcome_observed,
+        observation_history,
+        treatment_history,
+        regime,
+        q_predictions,
+        treatment_probabilities,
+        subject_ids=subject_ids,
+        fold_ids=fold_ids,
+        prediction_fold_ids=prediction_fold_ids,
+        covariate_history=covariate_history,
+        censoring_probabilities=censoring_probabilities,
+        minimum_probability=minimum_probability,
+    )
 
 
 @dataclass(frozen=True, slots=True)

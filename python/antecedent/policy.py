@@ -19,6 +19,7 @@ from typing import Any
 
 import numpy as np
 
+from . import _deprecation
 from ._columns import coerce_fields, hold_unresolved, resolved, resolved_opt, scalar_or_values
 from ._data import as_columns
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
@@ -792,7 +793,7 @@ class ConditionalDoseResponse:
             )
 
 
-def uplift_by_score(
+def _uplift_by_score_direct(
     evaluation_data: Any,
     *,
     outcome: str,
@@ -842,7 +843,7 @@ def uplift_by_score(
     )
 
 
-def evaluate_policy(
+def _evaluate_policy_direct(
     evaluation_data: Any,
     *,
     outcome: str,
@@ -970,7 +971,7 @@ def _prediction_ownership(
     return "caller_declared_cross_fitted_excluded_fold_ids"
 
 
-def evaluate_policy_doubly_robust(
+def _evaluate_policy_doubly_robust_direct(
     evaluation_data: Any,
     *,
     outcome: str,
@@ -1007,7 +1008,7 @@ def evaluate_policy_doubly_robust(
     )
     # Reuse the native HT path for the established recommendation, availability,
     # capacity, and budget validation contract.
-    evaluate_policy(
+    _evaluate_policy_direct(
         evaluation_data,
         outcome=outcome,
         assignment=assignment,
@@ -1061,7 +1062,7 @@ def evaluate_policy_doubly_robust(
     )
 
 
-def evaluate_multi_action_policy(
+def _evaluate_multi_action_policy_direct(
     evaluation_data: Any,
     *,
     outcome: str,
@@ -1146,6 +1147,152 @@ def evaluate_multi_action_policy(
         reference_value - policy_value,
         treatment_rate,
         total_cost,
+    )
+
+
+def uplift_by_score(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    scores: Sequence[float],
+    bins: int = 10,
+) -> tuple[UpliftBin, ...]:
+    """Estimate held-out randomized uplift across descending score deciles.
+
+    Scores must come from an independently fitted or cross-fitted model. The
+    function does not verify fold separation or train a CATE model.
+
+    Deprecated: this direct path runs without the causal compiler. Pass
+    ``PolicyValue(..., uplift_scores=..., uplift_bin_count=...)`` to ``analyze``.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.policy.uplift_by_score",
+        "antecedent.analyze(data, query=PolicyValue(..., uplift_scores=scores, uplift_bin_count=bins))",
+    )
+    return _uplift_by_score_direct(
+        evaluation_data,
+        outcome=outcome,
+        assignment=assignment,
+        propensity=propensity,
+        scores=scores,
+        bins=bins,
+    )
+
+
+def evaluate_policy(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    policy: BinaryPolicy,
+    reference: BinaryPolicy | None = None,
+    available: Sequence[bool] | None = None,
+) -> PolicyEvaluation:
+    """Evaluate precomputed recommendations on randomized evaluation rows.
+
+    Supply outcomes and assignment from data held out from policy selection.
+    Assignment propensities must be known and positive for both actions. This
+    estimates value with the Horvitz--Thompson policy score and reports no
+    interval; it does not train or select the policy.
+
+    Deprecated: this direct path runs without the causal compiler. Pass a
+    ``PolicyValue`` without ``mu0``/``mu1`` to ``analyze``.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.policy.evaluate_policy",
+        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids))",
+    )
+    return _evaluate_policy_direct(
+        evaluation_data,
+        outcome=outcome,
+        assignment=assignment,
+        propensity=propensity,
+        policy=policy,
+        reference=reference,
+        available=available,
+    )
+
+
+def evaluate_policy_doubly_robust(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    mu0: Sequence[float],
+    mu1: Sequence[float],
+    policy: BinaryPolicy,
+    evaluation_subject_ids: Sequence[str],
+    training_subject_ids: Sequence[str] | None = None,
+    fold_ids: Sequence[int] | None = None,
+    prediction_excluded_fold_ids: Sequence[int] | None = None,
+    reference: BinaryPolicy | None = None,
+    available: Sequence[bool] | None = None,
+) -> DoublyRobustPolicyEvaluation:
+    """Evaluate a fixed binary policy using randomized AIPW scores.
+
+    Nuisance predictions must be from training subjects disjoint from evaluation
+    subjects, or caller-declared fold-specific fits that exclude each evaluated
+    fold. The metadata checks ownership shape/overlap but cannot prove which rows
+    the nuisance models actually used.
+
+    Deprecated: this direct path runs without the causal compiler. Pass a
+    ``PolicyValue`` with ``mu0`` and ``mu1`` to ``analyze``.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.policy.evaluate_policy_doubly_robust",
+        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids, mu0=mu0, mu1=mu1, training_subject_ids=training_subject_ids))",
+    )
+    return _evaluate_policy_doubly_robust_direct(
+        evaluation_data,
+        outcome=outcome,
+        assignment=assignment,
+        propensity=propensity,
+        mu0=mu0,
+        mu1=mu1,
+        policy=policy,
+        evaluation_subject_ids=evaluation_subject_ids,
+        training_subject_ids=training_subject_ids,
+        fold_ids=fold_ids,
+        prediction_excluded_fold_ids=prediction_excluded_fold_ids,
+        reference=reference,
+        available=available,
+    )
+
+
+def evaluate_multi_action_policy(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[str],
+    propensities: Sequence[Sequence[float]],
+    policy: MultiActionPolicy,
+    reference: MultiActionPolicy | None = None,
+    available: Sequence[Sequence[bool]] | None = None,
+) -> PolicyEvaluation:
+    """Evaluate fixed multi-action recommendations on randomized held-out rows.
+
+    The result is an HT point estimate. It does not fit the score matrix,
+    estimate CATEs, enforce a train/test split, or publish an interval.
+
+    Deprecated: this direct path runs without the causal compiler. Pass a
+    ``MultiActionPolicyValue`` to ``analyze``.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.policy.evaluate_multi_action_policy",
+        "antecedent.analyze(data, query=MultiActionPolicyValue(outcome, assignment, propensities, policy, evaluation_subject_ids))",
+    )
+    return _evaluate_multi_action_policy_direct(
+        evaluation_data,
+        outcome=outcome,
+        assignment=assignment,
+        propensities=propensities,
+        policy=policy,
+        reference=reference,
+        available=available,
     )
 
 
