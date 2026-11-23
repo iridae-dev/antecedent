@@ -245,11 +245,12 @@ fn quantity(name: &str) -> ScientificQuantity {
     }
 }
 
-/// An exact law of one column with equally weighted draws.
-fn law(name: &str, values: &[f64]) -> DistributionArtifact {
+/// An exact joint law of the sure payoff `s` (1 on every draw) and the lottery `x` (`values`,
+/// equally weighted): every action reads a quantity of the law.
+fn lottery_law(values: &[f64]) -> DistributionArtifact {
     let identity = DistributionIdentity::new(
         DistributionMeaningWire::InterventionalPredictive,
-        &[quantity(name)],
+        &[quantity("s"), quantity("x")],
         DrawAlignment::Joint,
         DistributionProvenance {
             source_id: "enumerated".into(),
@@ -265,7 +266,7 @@ fn law(name: &str, values: &[f64]) -> DistributionArtifact {
             version: 1,
             identity,
             axes: ["draw".into(), "quantity".into()],
-            shape: [values.len(), 1],
+            shape: [values.len(), 2],
             weights: None,
             supported: None,
             calibration: DistributionCalibration::Exact,
@@ -273,12 +274,12 @@ fn law(name: &str, values: &[f64]) -> DistributionArtifact {
             legacy_posterior: None,
             legacy_bindings: None,
         },
-        values.to_vec(),
+        values.iter().flat_map(|&x| [1.0, x]).collect(),
     )
     .unwrap()
 }
 
-/// `safe` pays 1 for sure; `risky` pays 0 or 2.5 evenly. Under `v = -exp(-r x)`, `safe` is
+/// `safe` pays 1 for sure (the column `s`); `risky` pays 0 or 2.5 evenly. Under `v = -exp(-r x)`, `safe` is
 /// better exactly when `exp(-r) < (1 + exp(-2.5 r)) / 2`, which holds for every `r` above about
 /// 0.32 and so on all of `[r*, 3]`.
 fn lottery_contract(model: ValueModel) -> PreferenceContract {
@@ -288,7 +289,7 @@ fn lottery_contract(model: ValueModel) -> PreferenceContract {
             PreferenceAction {
                 id: "safe".into(),
                 kind: ActionKind::Intervention,
-                inputs: vec![ActionInput::Fixed { value: 1.0, units: UNITS.into() }],
+                inputs: vec![ActionInput::Quantity(quantity("s"))],
             },
             PreferenceAction {
                 id: "risky".into(),
@@ -312,7 +313,7 @@ fn a_learned_risk_attitude_decides_on_the_certified_route_as_a_dense_grid_does()
     let accepted =
         learn_compatible_set_accepted(&model, &records, None, SetLearningOptions::default())
             .expect("accepted");
-    let source = law("x", &[0.0, 2.5]);
+    let source = lottery_law(&[0.0, 2.5]);
     let learned = lottery_contract(accepted.model().clone());
     let evaluation =
         decide_preferences(&learned, &source, None, PreferenceEvaluationOptions::default())
@@ -438,7 +439,7 @@ fn value_relations_are_checked_identified_and_sent_to_the_certified_route() {
             PreferenceAction {
                 id: "a".into(),
                 kind: ActionKind::Intervention,
-                inputs: vec![ActionInput::Fixed { value: 1.0, units: UNITS.into() }],
+                inputs: vec![ActionInput::Quantity(quantity("s"))],
             },
             PreferenceAction {
                 id: "b".into(),
@@ -449,7 +450,7 @@ fn value_relations_are_checked_identified_and_sent_to_the_certified_route() {
         ..lottery_contract(model)
     };
     assert_eq!(preference_route(&contract).unwrap().reason, ROUTE_VALUE_RELATIONS);
-    let source = law("x", &[0.0, 2.5]);
+    let source = lottery_law(&[0.0, 2.5]);
     assert_eq!(
         evaluate_preference_contract(
             &contract,

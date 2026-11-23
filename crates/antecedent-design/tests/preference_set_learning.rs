@@ -505,15 +505,29 @@ fn every_refusal_names_its_cause() {
     assert_eq!(missing.detail(), reason_details::choice_record::RECORDS_MISSING);
     assert_eq!(inner_detail(&missing), reason_details::choice_record::RECORDS_MISSING);
 
-    // `x0 + t * t * x1` has no linear form in the free parameter t.
+    // `x0 + t * t * x1` has no linear form in the free parameter t: the linear features refuse
+    // it, and the learner treats t as a shape parameter instead of refusing. Choosing (0, 1)
+    // over (1, 0) holds for t * t >= 1, so no kept box lies inside (-1, 1).
     let mut squared = model.clone();
     squared.value = E::sum(
         E::Attribute(0),
         E::product(E::product(E::Parameter(0), E::Parameter(0)), E::Attribute(1)),
     );
-    let no_form = refusal(&squared, &records, with(0.0));
-    assert_eq!(no_form.detail(), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
-    assert_eq!(inner_detail(&no_form), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
+    assert_eq!(
+        choice_features(&squared, &records).unwrap_err().detail(),
+        reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED
+    );
+    let shaped = learn_compatible_set(&squared, &records, with(0.0)).expect("a shape is learned");
+    let SetOutcome::Learned(learned) = &shaped.per_decider[0].outcome else {
+        panic!("learned: {shaped:?}");
+    };
+    let region = learned.region.as_ref().expect("a learned region");
+    assert!(
+        region
+            .cells
+            .iter()
+            .all(|cell| cell.shape_upper[0] <= -1.0 + 1e-3 || cell.shape_lower[0] >= 1.0 - 1e-3)
+    );
 
     let declared = |id: &str, bound: f64| LinearRelation {
         id: id.to_owned(),
