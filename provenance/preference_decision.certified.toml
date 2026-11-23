@@ -1,0 +1,30 @@
+# Algorithm provenance for preference_decision.certified.
+
+feature_id = "preference_decision.certified"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Introduction to Interval Analysis", doi = "10.1137/1.9780898717716", sections = ["interval arithmetic with outward rounding, the natural interval extension and its inclusion property, and refinement of an enclosure by subdivision of the argument box (chapter and section numbers not independently verified)"] },
+ { title = "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions", doi = "10.1016/j.ejor.2007.08.013", sections = ["the necessary and possible preference relations over the set of compatible value functions (section numbers not independently verified)"] },
+ { title = "Constraint-based optimization and utility elicitation using the minimax decision criterion", doi = "10.1016/j.artint.2006.02.003", sections = ["max regret of an alternative over a set of feasible utility parameters (section numbers not independently verified)"] },
+]
+implementation_deviations = [
+ "Outward rounding is obtained by computing each end with round-to-nearest and moving it one representable step outward (next_down / next_up), not by switching the rounding mode; exp and ln are moved two steps, which assumes the platform library functions err by less than that. Weighted sums are widened further by 2 (n + 1) eps times the sum of magnitudes so that any summation order is enclosed.",
+ "When the model has a linear form, the parameter-free parts are enclosed once per draw and combined affinely with the parameter intervals, and expectation margins combine the expected parts first, which removes the dependency between actions that share a parameter; otherwise the natural interval extension of the expression is used.",
+ "The certified quantities are those of the decision layer, not of the cited works: expectations, threshold probabilities P(U >= t), weighted empirical quantiles, largest per-draw regret and expected regret of actions whose attributes are causal quantities under a supplied law. A box is certified for an action only when its enclosures prove it better than every admissible rival by more than the tie tolerance on the whole box. Necessarily best and possibly best are read from certified boxes; worst-case regret over the set is enclosed, its upper end over every kept box and its lower end over boxes wholly inside the relations and their centre points.",
+ "Subdivision is deterministic: the undecided box of largest relative volume is split at the midpoint of its relatively widest parameter until every box is decided, a box budget (default 4096) is spent, or every width is at most a minimum fraction (default 1e-6) of its declared range. Undecided volume is reported rather than resolved.",
+ "Linear relations are checked per box with the same arithmetic: a box proven to violate a relation is dropped; a box neither proven inside nor outside is kept, flagged and counted in full. Reported fractions are volume fractions of kept boxes relative to the declared ranges, so they are not SMAA acceptability indices and carry no probability.",
+ "Hard constraints are evaluated once, independent of the preference parameters. Composition across causal structures is a repository construction outside the cited works.",
+ "The rigor checks against dense parameter grids and closed-form switch points in preference_certified.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/preference_certified.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_certified.rs (closed-form switch points, enclosures against dense parameter grids, relations, structures, measures and refusals)",
+]

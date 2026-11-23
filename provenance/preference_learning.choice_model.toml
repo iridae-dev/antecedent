@@ -1,0 +1,36 @@
+# Algorithm provenance for preference_learning.choice_model.
+
+feature_id = "preference_learning.choice_model"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Conditional logit analysis of qualitative choice behavior (McFadden, in Frontiers in Econometrics, ed. Zarembka, Academic Press, 1974)", sections = ["the conditional logit model, P(i | set) proportional to exp(x_i . beta) over the options of each choice set, and its maximum-likelihood estimation with a concave log-likelihood (section numbers not independently verified)"] },
+ { title = "Longitudinal data analysis using generalized linear models", doi = "10.1093/biomet/73.1.13", sections = ["the robust (sandwich) variance estimator with independent clusters"] },
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 3, the delta method: a smooth function of an asymptotically normal estimator is asymptotically normal with variance equal to the quadratic form of its gradient (section numbers not independently verified)"] },
+ { title = "On Approximating the Statistical Properties of Elasticities", doi = "10.2307/1924536", sections = ["simulating a nonlinear function of estimated coefficients by drawing the coefficients from their estimated asymptotic normal distribution"] },
+]
+implementation_deviations = [
+ "The choice model is a conditional logit in beta = (lambda, lambda * theta) on the features (F, T_1, ..., T_K) of each option, with lambda > 0 the choice consistency and V = F + sum_k theta_k T_k the declared value under the recorded expectations; theta_k = beta_k / beta_0. The fixed part F carries the unit of account: an estimate is refused unless F differs between the options of at least one record, and refused when the estimated consistency is not positive. A free parameter whose term differs in no record is left out of the fit and reported as not learnable.",
+ "The estimate describes the trade-offs the recorded decision-makers acted on under the stated choice model and recorded expectations, not what the trade-offs should be.",
+ "The fit is Newton's method from beta = 0 on the within-set differences z_j = x_j - x_chosen, with Cholesky solves and step halving (at most 60 halvings) against a rounding allowance of 64 eps (|l| + n_sets); convergence is a gradient bound relative to sum_s max_j |z_j|. Full column rank of the within-set centred design is checked by Gram-Schmidt at relative tolerance 1e-9 before iterating, and separation (no finite maximum) is refused when a Newton step or the coefficient direction certifies a separating direction at tolerances 1e-8 and 1e-6. These are repository policies, not part of the cited method.",
+ "Covariance is the cluster sandwich I^-1 (sum_c s_c s_c') I^-1 with per-decider score sums when the fit holds at least two decision-makers, the inverse observed information otherwise; no small-sample multiplier such as C / (C - 1) is applied. The cited sandwich is for generalised estimating equations; here it is applied to the conditional logit score.",
+ "Standard errors of theta_k are the delta-method value sqrt(V_kk - 2 theta_k V_k0 + theta_k^2 V_00) / beta_0 and intervals are theta_hat +- z se; their coverage is not measured and is reported as not measured.",
+ "The measure over the preference set is a normal approximation to the sampling distribution of the estimate, not a posterior: draws beta = beta_hat + L z from a seeded generator, mapped to theta = beta_k / beta_0, kept only when beta_0 > 0 and the point lies in the declared set (learnable coordinates in their declared ranges, relations checked only when they touch no unresolved parameter, both within 1e-9), with equal weights. Restricting to the declared set truncates the approximation; unresolved parameters sit at the midpoint of their declared range as a placeholder the measure says nothing about.",
+ "The 50-digit conditional logit reference (conditional_logit_reference.py: Newton on the raw option features in decimal arithmetic) and the simulated-recovery checks were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/preference_choice_model.rs",
+ "crates/antecedent-stats/src/glm/conditional_logit.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_choice_model.rs (recovery of a known consistency and rates from simulated logit choices, a hand-derived one-column fit, learnability, the measure, clustered and model covariance, refusals)",
+ "crates/antecedent-stats/tests/conditional_logit.rs (closed-form maxima, invariances, derivative checks, the cluster sandwich, varying set sizes, refusals)",
+ "crates/antecedent-stats/tests/conditional_logit_reference.rs (coefficients, log-likelihood, covariance and cluster covariance against a 50-digit Newton reference)",
+ "crates/antecedent-stats/tests/oracle_data/conditional_logit_reference.py",
+ "crates/antecedent-stats/tests/oracle_data/conditional_logit_reference.json",
+]
