@@ -353,6 +353,10 @@ impl SequentialPolicyReliabilityPlan {
         ctx: &ExecutionContext,
     ) -> Result<SequentialPolicyReliabilityResult, SequentialReliabilityError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        // A release build refuses an unsupported unit; the refusal rides `Invalid` with its
+        // `reason=not_supported:` wire message, which the Python binding raises as such.
+        crate::analysis::program_handle::gate_program(&scoped, self)
+            .map_err(|refused| SequentialReliabilityError::Invalid(refused.message()))?;
         // Enumerate reachable histories first: sampling cannot establish support.
         for policy in &self.policies {
             evaluate_policy(&self.model, policy, EvaluationLimits::default(), &scoped)?;
@@ -487,6 +491,12 @@ pub fn consume_sequential_policy_reliability(
         return Err(SequentialReliabilityError::Invalid("replayed diagnostic differs"));
     }
     Ok(result)
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for SequentialPolicyReliabilityPlan {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
 }
 
 #[cfg(test)]

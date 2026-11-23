@@ -40,6 +40,7 @@ use antecedent_io::contract_section::CalibrationSlotWire;
 use serde::{Deserialize, Serialize};
 
 use super::multi_level_treatment::AdjustmentColumn;
+use crate::analysis::program_handle::gate_program;
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -51,7 +52,7 @@ use crate::planner::statistical::{
     FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, StatisticalProgram,
 };
 use crate::planner::{PlanStage, PlanView};
-use crate::support::require_capability_route;
+use crate::support::unit::{SupportKey, UnitId, require_program};
 use crate::support::units_generated;
 
 /// Calibration standing of the reported standard errors.
@@ -679,6 +680,7 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ObservationalPolicyReportWire, CausalError> {
+        gate_program(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(policy_compiler_refusal(
                 "the execution split seed differs from the compiled policy program",
@@ -703,6 +705,7 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<HeldOutPolicyValueCandidate, CausalError> {
+        gate_program(ctx, self)?;
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
@@ -817,6 +820,7 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        gate_program(ctx, self)?;
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
@@ -1307,7 +1311,7 @@ impl PolicyRequestWire {
 // The capability unit whose support the policy subsampling routes run under; a release build
 // refuses each entry point by its route id (`parity/capability_records.toml`) while the unit is
 // not supported, and a development build runs it and records the refusal in its context.
-const POLICY_CAPABILITY: &str = units_generated::ESTIMATE_OBSERVATIONAL_POLICY_VALUE.as_str();
+const POLICY_UNIT: UnitId = units_generated::ESTIMATE_OBSERVATIONAL_POLICY_VALUE;
 const SUBSAMPLING_COMPILE_ROUTE: &str = "antecedent.policy.compile_policy_subsampling";
 const SUBSAMPLING_CONSUME_ROUTE: &str = "antecedent.policy.consume_policy_subsampling";
 
@@ -1370,7 +1374,7 @@ pub fn compile_policy_subsampling(
     replicates: usize,
     ctx: &ExecutionContext,
 ) -> Result<CompiledPolicySubsampling, CausalError> {
-    require_capability_route(ctx, POLICY_CAPABILITY, SUBSAMPLING_COMPILE_ROUTE)?;
+    require_program(ctx, &SupportKey::Unit(POLICY_UNIT), SUBSAMPLING_COMPILE_ROUTE)?;
     let n = request.outcome.len();
     if subsample_rows < 20
         || subsample_rows >= n
@@ -1515,6 +1519,7 @@ impl CompiledPolicySubsampling {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        gate_program(ctx, self)?;
         if ctx.rng.master_seed() != self.seed {
             return Err(policy_compiler_refusal("policy subsampling execution seed changed"));
         }
@@ -1568,7 +1573,7 @@ pub fn consume_policy_subsampling(
     expected: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
-    require_capability_route(ctx, POLICY_CAPABILITY, SUBSAMPLING_CONSUME_ROUTE)?;
+    require_program(ctx, &SupportKey::Unit(POLICY_UNIT), SUBSAMPLING_CONSUME_ROUTE)?;
     if bytes.len() > 80 * 1024 * 1024 {
         return Err(policy_compiler_refusal("policy subsampling artifact exceeds its byte bound"));
     }
@@ -1708,4 +1713,16 @@ fn assumptions(evaluation: &PolicyEvaluation, graph_checked: bool) -> Vec<String
         .to_owned(),
     );
     list
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledObservationalPolicy {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledPolicySubsampling {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
 }

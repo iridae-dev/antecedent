@@ -204,6 +204,14 @@ impl Plan {
         }
     }
 
+    fn unit_support(&self) -> Option<String> {
+        match self {
+            Self::Chain(plan) => crate::errors::unit_support_json(&plan.plan_view()),
+            Self::Decision { plan, .. } => crate::errors::unit_support_json(&plan.plan_view()),
+            Self::Predictive(plan) => crate::errors::unit_support_json(&plan.plan_view()),
+        }
+    }
+
     fn execute(&self, ctx: &ExecutionContext) -> Result<Receipt, String> {
         match self {
             Self::Chain(plan) => plan
@@ -307,6 +315,12 @@ impl PyBundleRecomputationPlan {
     /// Every compiler layer as JSON, with nothing executed.
     fn plan_view_json(&self) -> String {
         self.plan.plan_view_json()
+    }
+
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        self.plan.unit_support()
     }
 
     /// Replay every dependency through its own consumer and execute the live terminal.

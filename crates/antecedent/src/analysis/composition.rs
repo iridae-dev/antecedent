@@ -47,8 +47,8 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::unit::{SupportKey, UnitId, require_program, require_program_unscoped};
 use crate::support::units_generated;
-use crate::support::{require_capability_route, require_capability_route_unscoped};
 use antecedent_contract::DataClassification;
 use antecedent_contract::bridge::{BridgeContract, ValueKind};
 use antecedent_contract::propagation_chain::ChainRefusal;
@@ -897,7 +897,7 @@ pub fn consume_portable_chain_bundle_recomputation(
 // support status of its own: while the unit is not supported, a release build refuses each entry
 // point by its route id (`parity/capability_records.toml`) and a development build runs it and
 // records the refusal in its context.
-const BUNDLE_CAPABILITY: &str = units_generated::COMPOSITION_BUNDLE.as_str();
+const BUNDLE_UNIT: UnitId = units_generated::COMPOSITION_BUNDLE;
 const BRIDGE_COMPILE_ROUTE: &str = "antecedent.composition.compile_bridge_bundle_recomputation";
 const BRIDGE_CONSUME_ROUTE: &str =
     "antecedent.composition.consume_portable_bridge_bundle_recomputation";
@@ -929,7 +929,12 @@ fn require_bundle_route(
     ctx: &ExecutionContext,
     route: &'static str,
 ) -> Result<(), antecedent_core::NotSupported> {
-    require_capability_route(ctx, BUNDLE_CAPABILITY, route)
+    require_program(ctx, &SupportKey::Unit(BUNDLE_UNIT), route)
+}
+
+/// [`require_bundle_route`] for a compile entry point that takes no execution context.
+fn require_bundle_route_unscoped(route: &'static str) -> Result<(), antecedent_core::NotSupported> {
+    require_program_unscoped(&SupportKey::Unit(BUNDLE_UNIT), route)
 }
 
 const BRIDGE_BUNDLE_FEATURE: &str = "bridge_bundle_recomputation_portable_v1";
@@ -1009,7 +1014,7 @@ pub fn compile_bridge_bundle_recomputation(
     source: DistributionArtifact,
     seed: u64,
 ) -> Result<CompiledBridgeBundleRecomputation, BridgeBundleRecomputeError> {
-    require_capability_route_unscoped(BUNDLE_CAPABILITY, BRIDGE_COMPILE_ROUTE)?;
+    require_bundle_route_unscoped(BRIDGE_COMPILE_ROUTE)?;
     let node = bundle
         .nodes()
         .iter()
@@ -1919,6 +1924,12 @@ impl CompiledCyclicPosteriorNodeBundle {
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.lowered
+    }
+
+    /// Inspect the compiled route without refitting or replaying anything.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
     /// Refit the embedded source through the bundle consumer and execute the
@@ -4224,6 +4235,62 @@ mod compiler_recomputation_tests {
             .expect("fresh compiler replay"),
             receipt
         );
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledChainBundleRecomputation {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledBridgeBundleRecomputation {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledCyclicPosteriorBundleRecomputation
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledCyclicPosteriorNodeBundle {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledTrialIpwNodeBundle {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledGraphImputationTransportNodeBundle
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledJointTransportEffectNodeBundle
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledPredictiveFitDecisionBundle
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
     }
 }
 

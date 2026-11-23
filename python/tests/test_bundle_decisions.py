@@ -95,6 +95,8 @@ def test_a_chain_terminal_is_recomputed_by_its_compiler_and_replayed_portably() 
     assert plan.route == "chain"
     assert plan.bundle_identity == bundle.identity
     assert plan.plan_view()["route"] == "BundleRecomputation"
+    assert plan.unit_support()["unit"] == "composition.bundle"
+    assert plan.unit_support()["supported"] is True
     declared = require_success(
         cb.compile_chain_bundle_recomputation(bundle, "terminal", chain=chain)
     )

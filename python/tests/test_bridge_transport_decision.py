@@ -482,6 +482,7 @@ def test_a_bundle_with_a_predictive_bridge_terminal_recomputes_and_replays() -> 
         bundle, "terminal", declaration, source, stream=41
     )
     assert compiled.plan_view()["route"] == "BridgeBundleRecomputation"
+    assert compiled.unit_support()["unit"] == "composition.bundle"
     receipt = compiled.execute(execution=execution)
     assert receipt.bundle_identity == bundle.identity
     assert receipt.terminal_node == "terminal"

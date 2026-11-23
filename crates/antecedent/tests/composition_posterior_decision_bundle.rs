@@ -124,6 +124,9 @@ fn parameter_posterior_decision_replays_without_becoming_predictive() {
     )
     .unwrap();
     assert_eq!(plan.plan_view().route().as_str(), "PosteriorDecisionBundleRecomputation");
+    let unit = plan.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "composition.bundle");
+    assert!(unit.supported());
     let receipt = plan.execute(&ctx).unwrap();
     let portable = plan.export_portable(&receipt, &ctx).unwrap();
     assert_eq!(

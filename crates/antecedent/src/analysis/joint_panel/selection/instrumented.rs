@@ -613,6 +613,12 @@ pub fn replay_instrumented_selection(
     Ok(result)
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for PreparedInstrumentedSelection {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

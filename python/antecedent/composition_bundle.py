@@ -84,6 +84,7 @@ from ._artifact_protocol import (
 )
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._unit_support import read_unit_support
 from ._validate import count
 from ._validate import name as _name
 from .decision import Contract
@@ -1508,6 +1509,14 @@ class CompiledBundleRecomputation:
         """Every layer of the compiled program, with nothing executed."""
         return dict(json.loads(self._handle.plan_view_json()))
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
+
     @outcome_operation
     def execute(self, *, execution: Execution | None = None) -> BundleRecomputation:
         """Replay every embedded dependency through its own consumer and execute the terminal.
@@ -1695,6 +1704,14 @@ class SequentialReliabilityBundleReceipt(ScientificResult):
     acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
     _native: Any = field(default=None, repr=False, compare=False)
     _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        for a result replayed from an artifact, which retains no program.
+        """
+        return read_unit_support(self._native)
 
     @property
     def route(self) -> str | None:

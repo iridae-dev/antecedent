@@ -240,6 +240,11 @@ impl PyPanelExperiment {
     fn plan_view(&self) -> String {
         self.inner.plan_view().to_json().to_string()
     }
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.inner.plan_view())
+    }
     /// The lowered program's identity as 64 hex characters.
     fn program_identity(&self) -> String {
         self.inner.program_identity().to_hex()
@@ -499,6 +504,11 @@ impl PyDesignExperiment {
     fn plan_view(&self) -> String {
         self.inner.plan_view().to_json().to_string()
     }
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.inner.plan_view())
+    }
     /// The lowered program's identity as 64 hex characters.
     fn program_identity(&self) -> String {
         self.inner.program_identity().to_hex()
@@ -691,6 +701,11 @@ impl PyNativeExperiment {
     /// The compiled program's layers as JSON, read without fitting or simulating.
     fn plan_view(&self) -> String {
         self.inner.plan_view().to_json().to_string()
+    }
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.inner.plan_view())
     }
     /// The lowered program's identity as 64 hex characters.
     fn program_identity(&self) -> String {

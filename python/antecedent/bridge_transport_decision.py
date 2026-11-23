@@ -56,6 +56,7 @@ from . import _native
 from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, container_bytes
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
+from ._unit_support import read_unit_support
 from ._validate import count, finite_number, name, names
 from .composition_bundle import Bundle
 from .decision import ActionOutcome, ConstraintExclusion, Verdict
@@ -917,6 +918,14 @@ class CompiledBridgeBundleRecomputation:
     def plan_view(self) -> dict[str, Any]:
         """Every layer of the compiled program (route ``BridgeBundleRecomputation``)."""
         return dict(json.loads(self._handle.plan_view_json()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     def execute(self, *, execution: Execution | None = None) -> BridgeBundleRecomputation:
         """Replay every dependency and derive the terminal bridge from the bound declaration.

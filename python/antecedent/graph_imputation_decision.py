@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._refusal import raise_refusal
+from ._unit_support import read_unit_support
 from .decision import ActionOutcome, ConstraintExclusion, Contract, Verdict
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -333,6 +334,14 @@ class CompiledGraphImputationDecision:
     def program(self) -> str:
         """The compiled program identity (lowercase hex) a consumer retains."""
         return str(self._handle.program())
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     @property
     def route(self) -> GraphImputationRoute:

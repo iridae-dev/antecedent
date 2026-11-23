@@ -1163,6 +1163,12 @@ impl PreparedJointDesign {
     }
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for PreparedJointDesign {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program
+    }
+}
+
 #[cfg(test)]
 pub(crate) use native::{gaussian_longitudinal_chain_fixture, native_experiment_fixtures};
 

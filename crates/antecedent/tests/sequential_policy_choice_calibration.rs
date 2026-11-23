@@ -93,6 +93,9 @@ fn replicate(seed: u64, n: usize, logged: bool) -> Option<(SemanticDigest, bool)
     };
     let plan =
         compile_sequential_policy_reliability(model, policies, "utility".into(), mode).ok()?;
+    let unit = plan.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "decision_reliability.sampled_decision");
+    assert!(unit.supported());
     let scope = plan.decision_reliability_scope().ok()?;
     let result = plan.execute(&ExecutionContext::for_tests(grid_seed(seed))).ok()?;
     Some((scope, result.report.decided_id == best_id))

@@ -27,6 +27,11 @@ impl PyInstrumentedSelection {
     fn plan_view(&self) -> String {
         self.prepared.plan_view().to_json().to_string()
     }
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.prepared.plan_view())
+    }
     /// The executed program's identity as 64 hex characters.
     fn program_identity(&self) -> String {
         self.inner.program_identity().to_hex()

@@ -105,6 +105,7 @@ from ._reliability_records import (
     SourceUncertainty,
 )
 from ._scientific import ScientificResult
+from ._unit_support import read_unit_support
 from ._validate import count as _count
 from ._validate import finite_float_protocol as _real
 from ._validate import name as _name
@@ -1432,6 +1433,14 @@ class SequentialPolicyReliability(ScientificResult):
     acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
     _native: Any = field(default=None, repr=False, compare=False)
     _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        for a result replayed from an artifact, which retains no program.
+        """
+        return read_unit_support(self._native)
 
     @property
     def route(self) -> str | None:

@@ -53,6 +53,7 @@ from ._joint_panel_experiment import (
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
 from ._joint_panel_imputation import PanelImputationResult, PreparedPanelImputation
 from ._panel_execution import run_panel
+from ._unit_support import read_unit_support
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .intervention_programs import Expr
@@ -186,6 +187,14 @@ class PanelProgramCertificate:
         """The compiled certified-search program's layers, read without searching."""
         return dict(json.loads(self._handle.plan_view()))
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
+
     @property
     def program_identity(self) -> str:
         """The executed program's identity as 64 hex characters."""
@@ -220,6 +229,14 @@ class RandomizedProgramSelection:
         """The layers of the compiled selection program this selection executed."""
         return dict(json.loads(self._handle.plan_view()))
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
+
     @property
     def program_identity(self) -> str:
         """The executed program's identity as 64 hex characters."""
@@ -249,6 +266,14 @@ class PreparedRandomizedProgramSelection:
     def plan_view(self) -> dict[str, Any]:
         """The compiled program's layers, read without fitting or selecting."""
         return dict(json.loads(self._handle.plan_view()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     @property
     def program_identity(self) -> str:
@@ -356,6 +381,14 @@ class InstrumentedProgramSelection:
     def plan_view(self) -> dict[str, Any]:
         """The layers of the compiled selection program this selection executed."""
         return dict(json.loads(self._handle.plan_view()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     @property
     def program_identity(self) -> str:
@@ -741,6 +774,14 @@ class PreparedPanel:
     def plan_view(self) -> dict[str, Any]:
         """The compiled program's layers, read without fitting or simulating."""
         return dict(json.loads(self._handle.plan_view()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     @property
     def program_identity(self) -> str:

@@ -21,10 +21,11 @@
 //!
 //! # Release support
 //!
-//! Every route gates on the capability record that owns the joint-panel module and its earned
-//! evidence, `joint_response.interval_readings` in `parity/capability_records.toml`; its unit
-//! id in `antecedent-io-core/data/unit_support_status.json` is the same string. The record
-//! output that covers each route:
+//! Every route gates on the unit its program cell is bound to in `parity/compiled_units.toml`,
+//! the capability record that owns the joint-panel module and its earned evidence,
+//! `joint_response.interval_readings` in `parity/capability_records.toml`; its unit id in
+//! `antecedent-io-core/data/unit_support_status.json` is the same string. The record output
+//! that covers each route:
 //!
 //! - `JointPanelResponse`, `JointPanelTimeVarying`, `JointPanelImputation`:
 //!   `joint_response.interval_readings.values.1`, the fitted joint panel (`JointPanelResult`),
@@ -51,40 +52,32 @@ use crate::analysis::lowering::refuse_reentry;
 use crate::error::CausalError;
 use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
 use crate::support::CellStatus;
+use crate::support::unit::{SupportKey, UnitId, decide, require_program};
+use crate::support::units_generated::unit_of;
 
-/// Capability unit that owns the joint-panel module and its earned evidence.
-pub(crate) const JOINT_RESPONSE_CAPABILITY: &str =
-    crate::support::units_generated::JOINT_RESPONSE_INTERVAL_READINGS.as_str();
-
-/// The capability unit whose supported status gates `route` in a release build.
-pub(crate) const fn capability(route: JointPanelRoute) -> &'static str {
-    match route {
-        JointPanelRoute::Response
-        | JointPanelRoute::TimeVarying
-        | JointPanelRoute::Imputation
-        | JointPanelRoute::ProgramSearch
-        | JointPanelRoute::ProgramSelection
-        | JointPanelRoute::Experiment
-        | JointPanelRoute::Design => JOINT_RESPONSE_CAPABILITY,
-    }
+/// The support unit that gates `route` in a release build: the unit
+/// `parity/compiled_units.toml` binds the route's program cell to, which is the capability record
+/// that owns the joint-panel module and its earned evidence.
+pub(crate) fn unit(route: JointPanelRoute) -> UnitId {
+    unit_of(route.cell().as_str()).expect("every joint-panel route is bound to a support unit")
 }
 
-/// Whether the capability unit gating `route` is supported in this build's derived status.
+/// Whether the unit gating `route` is supported in this build's derived status.
 #[must_use]
 pub(crate) fn release_supported(route: JointPanelRoute) -> bool {
-    crate::support::capability_supported(capability(route))
+    decide(&SupportKey::Unit(unit(route))).status == CellStatus::Supported
 }
 
 /// The support status a lowering of `route` records on its scientific problem: supported
-/// exactly when the route's capability unit is. It does not enter the program identity.
+/// exactly when the route's unit is. It does not enter the program identity.
 #[must_use]
 pub(crate) fn support_status(route: JointPanelRoute) -> CellStatus {
     if release_supported(route) { CellStatus::Supported } else { CellStatus::NotSupported }
 }
 
 /// Pass the release support gate of `route` with the dispatch-scoped context. A release
-/// build refuses a route whose capability unit is not supported; a development build records
-/// what a release build refuses and runs the route.
+/// build refuses a route whose unit is not supported; a development build records what a
+/// release build refuses and runs the route.
 ///
 /// # Errors
 /// [`JointPanelError::Compiler`] carrying the `not_supported` refusal, in a release build.
@@ -92,7 +85,7 @@ pub(crate) fn require_release_support(
     ctx: &ExecutionContext,
     route: JointPanelRoute,
 ) -> Result<(), JointPanelError> {
-    crate::support::require_capability_route(ctx, capability(route), route.cell().as_str())
+    require_program(ctx, &SupportKey::Unit(unit(route)), route.cell().as_str())
         .map_err(|refusal| JointPanelError::Compiler(CausalError::from(refusal)))
 }
 
@@ -159,14 +152,14 @@ pub(crate) fn enter(
 mod tests {
     use antecedent_core::{ExecutionContext, SemanticDigest};
 
-    use super::{Entry, capability, release_supported};
+    use super::{Entry, release_supported, unit};
     use crate::planner::lowered::JointPanelRoute;
 
     #[test]
     fn every_route_gates_on_a_supported_capability_unit() {
         for route in JointPanelRoute::ALL {
             let cell = route.cell().as_str();
-            assert!(release_supported(route), "{cell} gates on {}", capability(route));
+            assert!(release_supported(route), "{cell} gates on {}", unit(route).as_str());
         }
     }
 
