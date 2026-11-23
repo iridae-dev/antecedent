@@ -80,6 +80,7 @@ from .._native import transport_node_bundle_consume as _bundle_consume
 from .._native import trial_ipw_decision_compile as _trial_compile
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
+from .._unit_support import read_unit_support
 from ..composition_bundle import (
     Bundle,
     BundleBuilder,
@@ -859,6 +860,14 @@ class CompiledNodeBundle:
     def identity(self) -> str:
         """The outer program identity (lowercase hex) a consumer retains."""
         return str(self._native.identity)
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._native)
 
     @property
     def plan(self) -> Mapping[str, Any]:

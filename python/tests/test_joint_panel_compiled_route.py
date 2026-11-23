@@ -55,6 +55,11 @@ def names_route(handle, route):
     assert view["route"] == route
     assert is_identity(handle.program_identity)
     assert view["identity"] == handle.program_identity
+    assert handle.unit_support() == {
+        "unit": "joint_response.interval_readings",
+        "supported": True,
+        "missing_evidence": [],
+    }
 
 
 def test_prepared_panel_and_result_name_the_response_route_and_share_one_identity():
@@ -62,6 +67,7 @@ def test_prepared_panel_and_result_name_the_response_route_and_share_one_identit
     prepared = request(groups, worlds)
     view = prepared.plan_view()
     assert view["route"] == "JointPanelResponse"
+    assert prepared.unit_support()["unit"] == "joint_response.interval_readings"
     assert is_identity(prepared.program_identity)
     assert prepared.inspect()["lowered_program_identity"] == prepared.program_identity
     result = prepared.estimate()
@@ -82,6 +88,7 @@ def test_retarget_changes_the_program_identity_and_keeps_the_route():
 def test_prepared_imputation_names_its_route():
     prepared = imputed_panel()
     assert prepared.plan_view()["route"] == "JointPanelImputation"
+    assert prepared.unit_support()["supported"] is True
     assert is_identity(prepared.program_identity)
 
 

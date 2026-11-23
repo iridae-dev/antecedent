@@ -38,8 +38,8 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::unit::{SupportKey, UnitId, require_program, require_program_unscoped};
 use crate::support::units_generated;
-use crate::support::{require_capability_route, require_capability_route_unscoped};
 
 const FEATURE: &str = "decision_bundle_recomputation_portable_v1";
 const POSTERIOR_FEATURE: &str = "posterior_decision_bundle_recomputation_portable_v1";
@@ -49,7 +49,7 @@ const MAX_BYTES: usize = 32 * 1024 * 1024;
 // support status of its own: while the unit is not supported, a release build refuses each entry
 // point by its route id (`parity/capability_records.toml`) and a development build runs it and
 // records the refusal.
-const BUNDLE_CAPABILITY: &str = units_generated::COMPOSITION_BUNDLE.as_str();
+const BUNDLE_UNIT: UnitId = units_generated::COMPOSITION_BUNDLE;
 const PREDICTIVE_COMPILE_ROUTE: &str =
     "antecedent.composition.compile_decision_bundle_recomputation";
 const PREDICTIVE_CONSUME_ROUTE: &str =
@@ -141,7 +141,7 @@ pub fn compile_decision_bundle_recomputation(
     contract: DecisionContract,
     source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
-    require_capability_route_unscoped(BUNDLE_CAPABILITY, PREDICTIVE_COMPILE_ROUTE)?;
+    require_program_unscoped(&SupportKey::Unit(BUNDLE_UNIT), PREDICTIVE_COMPILE_ROUTE)?;
     compile_decision_bundle(bundle, terminal_node, contract, source, false)
 }
 
@@ -156,7 +156,7 @@ pub fn compile_posterior_decision_bundle_recomputation(
     contract: DecisionContract,
     source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
-    require_capability_route_unscoped(BUNDLE_CAPABILITY, POSTERIOR_COMPILE_ROUTE)?;
+    require_program_unscoped(&SupportKey::Unit(BUNDLE_UNIT), POSTERIOR_COMPILE_ROUTE)?;
     compile_decision_bundle(bundle, terminal_node, contract, source, true)
 }
 
@@ -378,7 +378,7 @@ impl CompiledDecisionBundleRecomputation {
     ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let route = if self.posterior { POSTERIOR_COMPILE_ROUTE } else { PREDICTIVE_COMPILE_ROUTE };
-        require_capability_route(&scoped, BUNDLE_CAPABILITY, route)?;
+        require_program(&scoped, &SupportKey::Unit(BUNDLE_UNIT), route)?;
         if scoped.cancellation.is_cancelled() {
             return Err(DecisionBundleRecomputeError::Invalid("decision bundle was cancelled"));
         }
@@ -476,7 +476,7 @@ pub fn consume_portable_decision_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
-    require_capability_route(ctx, BUNDLE_CAPABILITY, PREDICTIVE_CONSUME_ROUTE)?;
+    require_program(ctx, &SupportKey::Unit(BUNDLE_UNIT), PREDICTIVE_CONSUME_ROUTE)?;
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, false)
 }
 
@@ -490,7 +490,7 @@ pub fn consume_portable_posterior_decision_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
-    require_capability_route(ctx, BUNDLE_CAPABILITY, POSTERIOR_CONSUME_ROUTE)?;
+    require_program(ctx, &SupportKey::Unit(BUNDLE_UNIT), POSTERIOR_CONSUME_ROUTE)?;
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, true)
 }
 
@@ -569,4 +569,12 @@ fn consume_portable_decision_bundle(
         ));
     }
     Ok(live)
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledDecisionBundleRecomputation
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
 }

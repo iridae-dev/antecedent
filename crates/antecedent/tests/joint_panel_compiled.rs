@@ -91,6 +91,9 @@ fn response_route_names_its_plan_and_matches_the_engines_bit_for_bit() {
     let ctx = context();
     let prepared = prepare(PanelInference::Frequentist { draws: 8 }, &ctx);
     assert_eq!(prepared.plan_view().route(), PlanRoute::JointPanelResponse);
+    let unit = prepared.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(prepared.lowered().identity(), prepared.program_identity());
     assert_eq!(prepared.fits_performed(), 0, "reading the plan fits nothing");
 
@@ -124,6 +127,9 @@ fn time_varying_declaration_names_its_own_route() {
     let varying = Study::prepare_joint_panel(data, request, &ctx).unwrap();
     let invariant = prepare(PanelInference::Frequentist { draws: 8 }, &ctx);
     assert_eq!(varying.plan_view().route(), PlanRoute::JointPanelTimeVarying);
+    let unit = varying.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(varying.lowered().identity(), varying.program_identity());
     assert_ne!(varying.program_identity(), invariant.program_identity());
 }
@@ -148,6 +154,9 @@ fn retarget_changes_the_program_identity_and_keeps_the_fit() {
     .unwrap();
     let next = prepared.retarget(worlds, target, &ctx).unwrap();
     assert_eq!(next.plan_view().route(), PlanRoute::JointPanelResponse);
+    let unit = next.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_ne!(next.program_identity(), prepared.program_identity());
 
     let second = next.estimate(&ctx).unwrap();
@@ -218,6 +227,9 @@ fn imputation_runs_its_children_inside_its_own_dispatch() {
     )
     .unwrap_or_else(|error| panic!("{error}"));
     assert_eq!(prepared.plan_view().route(), PlanRoute::JointPanelImputation);
+    let unit = prepared.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(prepared.lowered().identity(), prepared.program_identity());
     let response = prepare(PanelInference::Frequentist { draws: 8 }, &ctx);
     assert_ne!(prepared.program_identity(), response.program_identity());
@@ -279,6 +291,9 @@ fn finite_search_names_its_route_and_matches_the_search_engine() {
     };
     let search = result.compile_search(&request, &ctx).unwrap();
     assert_eq!(search.plan_view().route(), PlanRoute::JointPanelProgramSearch);
+    let unit = search.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(search.lowered().identity(), search.program_identity());
     assert_ne!(search.program_identity(), prepared.program_identity());
 
@@ -341,6 +356,9 @@ fn randomized_selection_names_its_route_and_is_reproducible() {
     };
     let (first, second) = (compile(), compile());
     assert_eq!(first.plan_view().route(), PlanRoute::JointPanelProgramSelection);
+    let unit = first.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(first.lowered().identity(), first.program_identity());
     assert_eq!(first.program_identity(), second.program_identity());
 
@@ -464,6 +482,9 @@ fn experiment_names_its_route_over_the_panel_program() {
     );
     let program = bayesian.with_experiment(update, &ledger).unwrap();
     assert_eq!(program.plan_view().route(), PlanRoute::JointPanelExperiment);
+    let unit = program.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(program.lowered().identity(), program.program_identity());
     assert_ne!(program.program_identity(), bayesian.program_identity());
     assert_eq!(bayesian.fits_performed(), 0, "compiling an experiment fits nothing");
@@ -503,6 +524,9 @@ fn native_design_names_its_route_and_matches_the_design_engine() {
     };
     let prepared = PreparedNativeJointDesign::compile(recipe(), &ctx).unwrap();
     assert_eq!(prepared.plan_view().route(), PlanRoute::JointDesign);
+    let unit = prepared.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "joint_response.interval_readings");
+    assert!(unit.supported());
     assert_eq!(prepared.lowered().identity(), prepared.program_identity());
     let again = PreparedNativeJointDesign::compile(recipe(), &ctx).unwrap();
     assert_eq!(prepared.program_identity(), again.program_identity());

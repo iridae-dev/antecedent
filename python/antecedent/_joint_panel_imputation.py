@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ._panel_execution import run_panel
+from ._unit_support import read_unit_support
 from .execution import Execution
 
 
@@ -81,6 +82,14 @@ class PreparedPanelImputation:
     def plan_view(self) -> dict[str, Any]:
         """The compiled program's layers, read without fitting or simulating."""
         return dict(json.loads(self._handle.plan_view()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        while no unit is bound to it.
+        """
+        return read_unit_support(self._handle)
 
     @property
     def program_identity(self) -> str:

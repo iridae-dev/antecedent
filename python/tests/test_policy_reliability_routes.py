@@ -135,6 +135,11 @@ def test_policy_subsampling_compiles_its_schedule_and_replays_every_refit() -> N
     assert candidate.value.evaluation_rows == 300
     assert candidate.lower <= candidate.upper
     assert candidate.level == 0.95
+    assert candidate.unit_support() == {
+        "unit": "estimate.observational_policy_value",
+        "supported": True,
+        "missing_evidence": [],
+    }
     assert candidate.calibration == candidate.slot["status"]
     assert candidate.basis["key"]["interval_method"] == "cross_fitted_policy_subsampling_basic_v2"
 
@@ -204,6 +209,11 @@ def _rollouts() -> dr.SequentialPolicyReliability:
 def test_rollout_reliability_compiles_and_replays_the_raw_declaration() -> None:
     result = _rollouts()
     assert result.route == "SequentialPolicyReliability"
+    assert result.unit_support() == {
+        "unit": "decision_reliability.sampled_decision",
+        "supported": True,
+        "missing_evidence": [],
+    }
     assert len(result.draws.candidate_ids) == 2
     assert result.report.decided_id in result.draws.candidate_ids
 
@@ -290,6 +300,11 @@ def test_the_producer_draws_and_diagnostic_recompute_as_one_bundle() -> None:
         cb.compile_sequential_reliability_node_bundle(bundle, execution=execution)
     )
     assert receipt.route == "SequentialPolicyReliabilityNodeBundleRecomputation"
+    assert receipt.unit_support() == {
+        "unit": "composition.bundle",
+        "supported": True,
+        "missing_evidence": [],
+    }
     assert receipt.bundle_identity == bundle.identity
     assert receipt.producer_program_identity == reliability.program_identity
     assert receipt.draws_digest == reliability.draws.digests()[0]

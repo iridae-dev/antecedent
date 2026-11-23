@@ -1,6 +1,6 @@
 //! Live raw sequential evaluation, aligned draws and diagnostic bundle.
 use super::{
-    Arc, BUNDLE_CAPABILITY, BundleBuilder, BundleLimits, BundleNode, BundleStage, CanonicalWriter,
+    Arc, BundleBuilder, BundleLimits, BundleNode, BundleStage, CanonicalWriter,
     ChainBundleRecomputeError, ClaimDemand, Composition, CompositionBundle, DataClassification,
     Deserialize, DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
     ExecutionContext, FunctionalKind, IdentificationLayer, IoError, LoweredProgram,
@@ -10,7 +10,7 @@ use super::{
     ReplayedBundleDependency, ScientificProblem, SemanticDigest, Serialize,
     StandaloneCompositionLoweredParts, StatisticalProgram, SuppliedSources, UncertaintyReading,
     UpstreamNode, VerifiedNode, export_bundle, fit_node_context, fit_node_failure,
-    native_fit_consumer, node_refused, require_bundle_route, require_capability_route_unscoped,
+    native_fit_consumer, node_refused, require_bundle_route, require_bundle_route_unscoped,
 };
 use antecedent_design::decision_reliability::{
     DecisionDraws, ReliabilityReport, ReliabilityRequest, assess,
@@ -344,7 +344,7 @@ pub fn compile_sequential_reliability_node_bundle(
     draws: &str,
     terminal: &str,
 ) -> Result<CompiledSequentialReliabilityBundle, SequentialReliabilityBundleError> {
-    require_capability_route_unscoped(BUNDLE_CAPABILITY, COMPILE_ROUTE)?;
+    require_bundle_route_unscoped(COMPILE_ROUTE)?;
     for (from, to) in [(producer, draws), (draws, terminal)] {
         if !bundle.edges().iter().any(|e| e.from == from && e.to == to) {
             return Err(SequentialReliabilityBundleError::Invalid(
@@ -607,6 +607,14 @@ pub fn consume_portable_sequential_reliability_node_bundle(
         return Err(SequentialReliabilityBundleError::Invalid("portable receipt differs"));
     }
     Ok(live)
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledSequentialReliabilityBundle
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
 }
 
 #[cfg(test)]

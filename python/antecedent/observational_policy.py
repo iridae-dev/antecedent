@@ -89,6 +89,7 @@ from . import _native
 from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, container_bytes
 from ._native import evaluate_observational_policy as _evaluate
 from ._scientific import ScientificResult
+from ._unit_support import read_unit_support
 from ._validate import count as _count
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
@@ -274,6 +275,14 @@ class CrossFittedPolicyValueCandidate(ScientificResult):
     program_identity: str
     _native: Any = field(default=None, repr=False, compare=False)
     _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
+        for a result replayed from an artifact, which retains no program.
+        """
+        return read_unit_support(self._native)
 
     def export(
         self, *, execution: Execution | None = None

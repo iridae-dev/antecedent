@@ -461,6 +461,12 @@ fn rebuilt(
     Ok(series)
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for PreparedJointPanelImputation {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program
+    }
+}
+
 #[cfg(test)]
 mod domain_tests {
     use super::*;

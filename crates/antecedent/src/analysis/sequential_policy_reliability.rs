@@ -45,6 +45,9 @@ pub enum SequentialReliabilityError {
     /// Portable representation refused.
     #[error("sequential reliability artifact: {0}")]
     Io(#[from] antecedent_io::IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("sequential policy reliability: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Raw evaluation mode; every policy is fixed before evaluating these data.
@@ -353,6 +356,7 @@ impl SequentialPolicyReliabilityPlan {
         ctx: &ExecutionContext,
     ) -> Result<SequentialPolicyReliabilityResult, SequentialReliabilityError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        crate::analysis::program_handle::gate_program(&scoped, self)?;
         // Enumerate reachable histories first: sampling cannot establish support.
         for policy in &self.policies {
             evaluate_policy(&self.model, policy, EvaluationLimits::default(), &scoped)?;
@@ -487,6 +491,12 @@ pub fn consume_sequential_policy_reliability(
         return Err(SequentialReliabilityError::Invalid("replayed diagnostic differs"));
     }
     Ok(result)
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for SequentialPolicyReliabilityPlan {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
 }
 
 #[cfg(test)]

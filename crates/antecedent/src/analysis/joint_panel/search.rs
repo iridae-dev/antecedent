@@ -800,3 +800,15 @@ pub(super) fn map_scientific_error(
         ScientificSourceError::Decision(error) => JointPanelError::compile(format!("{error:?}")),
     }
 }
+
+impl crate::analysis::program_handle::CompiledProgramHandle for JointPanelSearch {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle for JointPanelContinuousSearch {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program.lowered
+    }
+}

@@ -1072,6 +1072,13 @@ impl CompiledBundle {
         }
     }
 
+    fn unit_support(&self) -> Option<String> {
+        match self {
+            Self::Producer(plan) => crate::errors::unit_support_json(&plan.plan_view()),
+            Self::Node(plan) => crate::errors::unit_support_json(&plan.plan_view()),
+        }
+    }
+
     const fn feature(&self) -> &'static str {
         match self {
             Self::Producer(_) => BUNDLE,
@@ -1141,6 +1148,12 @@ impl PyCompiledCyclicBundle {
     /// The feature its portable artifact declares.
     fn kind(&self) -> &'static str {
         self.compiled.feature()
+    }
+
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        self.compiled.unit_support()
     }
 
     /// Refit the cyclic producer, execute the terminal chain and require both to agree.

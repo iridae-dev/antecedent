@@ -1633,6 +1633,14 @@ fn future_study_action_identity<A: serde::Serialize>(
     Ok(SemanticDigest::from_bytes(action_writer.finish()))
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for PreparedStudy<PanelExperimentState>
+{
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.state.lowered
+    }
+}
+
 #[cfg(test)]
 mod catalog_size_tests {
     use super::{PanelFutureSample, validate_future_sample_catalog};

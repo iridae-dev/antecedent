@@ -1170,6 +1170,12 @@ impl PyGraphImputationTransportBundle {
         self.inner.lowered().identity().to_hex()
     }
 
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.inner.plan_view())
+    }
+
     /// Refit the embedded fit and replay its chain terminal: `(receipt json, refusal)`.
     fn execute(&mut self, py: Python<'_>) -> PyResult<Refused<String>> {
         let ctx = crate::execution_api::context(self.seed);

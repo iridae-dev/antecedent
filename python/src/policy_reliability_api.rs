@@ -160,6 +160,12 @@ impl PyPolicySubsampling {
         candidate_wire(&self.candidate, self.plan.lowered().identity())
     }
 
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.plan.plan_view())
+    }
+
     /// Seal the source rows and the candidate after re-executing every refit.
     #[pyo3(signature = (*, memory_bytes=None, cancel=None))]
     fn export(
@@ -312,6 +318,9 @@ fn reliability_refusal(error: SequentialReliabilityError, replay: bool) -> PyRes
             Ok(crate::decision_reliability_api::error_json(&error))
         }
         SequentialReliabilityError::Io(error) => Err(crate::py_err(error)),
+        SequentialReliabilityError::NotSupported(refused) => {
+            Err(crate::errors::not_supported_err(&refused))
+        }
     }
 }
 
@@ -347,6 +356,12 @@ impl PySequentialPolicyReliability {
     #[getter]
     fn route(&self) -> &'static str {
         self.plan.lowered().route()
+    }
+
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.plan.plan_view())
     }
 
     /// Seal the raw declaration after re-evaluating it. Returns `(bytes, refusal)`.
@@ -597,6 +612,12 @@ impl PySequentialReliabilityBundle {
     #[getter]
     fn route(&self) -> &'static str {
         self.plan.lowered().route()
+    }
+
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.plan.plan_view())
     }
 
     /// Seal the bundle and its receipt after recomputing it. Returns `(bytes, refusal)`.

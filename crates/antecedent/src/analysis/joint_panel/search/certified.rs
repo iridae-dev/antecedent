@@ -495,3 +495,9 @@ pub fn replay_panel_certificate(
         certificate,
     ))
 }
+
+impl crate::analysis::program_handle::CompiledProgramHandle for JointPanelCertifiedSearch {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program.lowered
+    }
+}

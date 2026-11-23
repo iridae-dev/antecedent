@@ -131,6 +131,9 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
     let ctx = ExecutionContext::for_tests(split_seed);
     let plan = compile_policy_subsampling(request, n / 2, 100, &ctx).ok()?;
     assert_eq!(plan.plan_view().route().as_str(), "PolicySubsampling");
+    let unit = plan.plan_view().unit_support().expect("the route is bound to a unit");
+    assert_eq!(unit.unit(), "estimate.observational_policy_value");
+    assert!(unit.supported());
     let candidate = plan.execute(&ctx).ok()?;
     let artifact = plan.export(&candidate, &ctx).ok()?;
     let replay = consume_policy_subsampling(&artifact, plan.lowered().identity(), &ctx).ok()?;

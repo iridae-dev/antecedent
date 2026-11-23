@@ -984,6 +984,12 @@ impl PreparedNativeJointDesign {
     }
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for PreparedNativeJointDesign {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.program
+    }
+}
+
 #[cfg(test)]
 mod tests;
 

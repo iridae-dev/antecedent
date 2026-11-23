@@ -574,6 +574,12 @@ pub fn replay_randomized_selection(
     Ok(result)
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for PreparedRandomizedSelection {
+    fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
+        &self.lowered
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
