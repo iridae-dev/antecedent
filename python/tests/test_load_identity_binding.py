@@ -35,8 +35,16 @@ def test_a_correct_identity_is_bound():
     data, identities = exported()
     loaded = require_success(ant.load(data, expected={"model": identities["model"]}))
     assert loaded.acceptance.identity_bound
-    loaded = require_success(ant.load(data, expected=dict(identities)))
+    consumed = {name: identities[name] for name in ("model", "policy", "evaluation")}
+    loaded = require_success(ant.load(data, expected=consumed))
     assert loaded.acceptance.identity_bound
+
+
+def test_an_identity_the_consumer_does_not_take_is_refused():
+    data, identities = exported()
+    assert "behaviour" in identities
+    with pytest.raises(ant.CausalError, match="unknown expectation fields"):
+        require_success(ant.load(data, expected=dict(identities)))
 
 
 def test_a_wrong_identity_is_refused():
