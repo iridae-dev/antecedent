@@ -88,6 +88,7 @@ impl SourceEvidence {
         if !original.acceptance.recognized
             || !original.acceptance.claim_present
             || original.contract.is_none()
+            || !Self::verified_but_for_declared_dependencies(&original.acceptance)
         {
             return Err(invalid(
                 antecedent_core::reason_details::source_evidence::SOURCE_UNVERIFIED,
@@ -131,6 +132,19 @@ impl SourceEvidence {
             contract: None,
             actions: Vec::new(),
         })
+    }
+    /// Whether the contract replayed with nothing unresolved except the declared
+    /// `dependencies.*` gaps (operations and criteria the bytes alone cannot re-derive, which
+    /// the retained source is later re-executed against). Any other unresolved reason is a
+    /// reference that failed to verify, so a tampered contract is not admitted.
+    fn verified_but_for_declared_dependencies(
+        acceptance: &antecedent_contract::AcceptanceReport,
+    ) -> bool {
+        if acceptance.replayed_references {
+            return acceptance.unresolved.is_empty();
+        }
+        !acceptance.unresolved.is_empty()
+            && acceptance.unresolved.iter().all(|reason| reason.starts_with("dependencies."))
     }
     /// Original bound external artifact; independently validates full provider/request/quantity/value identity.
     /// Its declared support and ancestry are retained; absent numeric diagnostics remain explicitly unavailable.
