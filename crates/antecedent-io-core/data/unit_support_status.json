@@ -113,6 +113,14 @@
       "missing_evidence": []
     },
     {
+      "family": "randomized_effect",
+      "design": "bernoulli",
+      "method": "estimated_cuped_ht_score",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "family": "policy_value",
       "design": "binary_ipw",
       "method": "fixed_randomized_ipw_scores",

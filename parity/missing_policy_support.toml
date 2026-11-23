@@ -115,7 +115,7 @@ family = "randomized"
 default = "error"
 supported = ["error", "complete_case", "inverse_probability", "multiple_imputation"]
 next_attempt = "inverse_probability"
-imputation_estimators = ["randomized.ht_itt", "randomized.neyman_itt", "randomized.ancova_itt", "randomized.fixed_cuped_ht_itt", "randomized.switchback_ht_itt", "randomized.wald_cace_late"]
+imputation_estimators = ["randomized.ht_itt", "randomized.neyman_itt", "randomized.ancova_itt", "randomized.fixed_cuped_ht_itt", "randomized.estimated_cuped_ht_itt", "randomized.switchback_ht_itt", "randomized.wald_cace_late"]
 
 [[route]]
 query = "RandomizedEffect"

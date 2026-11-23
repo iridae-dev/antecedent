@@ -5,6 +5,8 @@
 
 #[path = "adaptive_policy_model_source.rs"]
 mod adaptive_policy_model_source;
+#[path = "compiled_twins_randomized.rs"]
+mod compiled_twins_randomized;
 #[cfg(feature = "calibration-internal")]
 #[path = "cross_world_edge_contrast.rs"]
 mod cross_world_edge_contrast;

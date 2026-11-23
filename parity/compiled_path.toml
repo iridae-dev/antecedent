@@ -1949,6 +1949,7 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_estimate::ancova::fit_ancova"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect with ancova_covariates (graphless row randomized_effect:bernoulli:ancova_hc0:pointwise_95_normal_interval)"
 
 [[row]]
 path = "antecedent_estimate::cohort_linear_effect::declared_export_refusal"
@@ -1984,11 +1985,13 @@ owner = "dose-grid and cyclic fits"
 path = "antecedent_estimate::estimate_interference_with_context"
 disposition = "pending"
 owner = "interference estimators"
+replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
 
 [[row]]
 path = "antecedent_estimate::estimate_observational_exposure"
 disposition = "pending"
 owner = "interference estimators"
+replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
 
 [[row]]
 path = "antecedent_estimate::estimate_sampled_recovery"
@@ -1999,6 +2002,7 @@ owner = "measurement-error and observation-recovery corrections"
 path = "antecedent_estimate::estimate_saturation_interference"
 disposition = "pending"
 owner = "interference estimators"
+replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
 
 [[row]]
 path = "antecedent_estimate::estimate_smoothed_dose_with_factories"
@@ -2024,6 +2028,7 @@ owner = "dose-grid and cyclic fits"
 path = "antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect over the four product cells as a multi-arm design (graphless row randomized_effect:multi_arm:independent_action_ht_scores:all_action_pointwise_95_normal_intervals); agrees to rounding, not to the bit"
 
 [[row]]
 path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
@@ -2249,21 +2254,25 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_estimate::policy_value::evaluate_binary_ipw_policy"
 disposition = "pending"
 owner = "observational policy value"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy"
 disposition = "pending"
 owner = "observational policy value"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::policy_value::evaluate_policy_value_scores"
 disposition = "pending"
 owner = "observational policy value"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::policy_value::uplift_by_score_bin"
 disposition = "pending"
 owner = "observational policy value"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::randomized_joint::centered_fixed_cuped_totals"
@@ -2279,16 +2288,19 @@ owner = "randomized-design kernels"
 path = "antecedent_estimate::randomized_neyman::stratified_neyman_effect"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect with a StratifiedRandomization design (graphless row randomized_effect:stratified:blocked_neyman_difference_in_means:pointwise_95_normal_interval)"
 
 [[row]]
 path = "antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect on a Bernoulli design of at most twenty rows with exact_randomization_test (graphless row randomized_effect:bernoulli:independent_action_ht_score:pointwise_95_normal_interval)"
 
 [[row]]
 path = "antecedent_estimate::randomized_scores::cuped_ht_effect"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect with estimated_cuped (graphless row randomized_effect:bernoulli:estimated_cuped_ht_score:pointwise_95_normal_interval)"
 
 [[row]]
 path = "antecedent_estimate::raw_contrast"
@@ -2303,16 +2315,19 @@ disposition = "internal"
 path = "antecedent_estimate::staggered_event_study::group_time_att"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::survival::randomized_survival_ipcw_summary"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "antecedent::Study::run"
 
 [[row]]
 path = "antecedent_estimate::switchback::switchback_itt"
 disposition = "pending"
 owner = "randomized-design kernels"
+replacement = "RandomizedEffect with a Switchback design (graphless row randomized_effect:switchback:independent_sequence_ht_score:pointwise_95_student_interval)"
 
 [[row]]
 path = "antecedent_estimate::transform_mean_pair"
@@ -2333,6 +2348,7 @@ owner = "transport trial estimators"
 path = "antecedent_estimate::transport::trial_to_target_effect_with_context"
 disposition = "pending"
 owner = "transport trial estimators"
+replacement = "the compiled row of the TransportQuery x Admg/Dag explicit x Frequentist cell (Study::run, Python analyze with TransportQuery(trial=, selection_probability=, treatment_probability=))"
 
 [[row]]
 path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::evaluate"
@@ -2455,6 +2471,7 @@ disposition = "internal"
 path = "antecedent_identify::binary_iv_ate_bounds"
 disposition = "pending"
 owner = "iv bounds"
+replacement = "the compiled row of route IvBounds (CausalQuery::IvBounds, Python antecedent.analyze with quasi.IvBounds)"
 
 [[row]]
 path = "antecedent_identify::bind_mixed_source_catalog"
@@ -4192,8 +4209,8 @@ owner = "prior composition and transport of posteriors"
 
 [[python]]
 path = "python/antecedent/experiment.py::SwitchbackEffect.estimate"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with SwitchbackEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::RandomizedEffect.estimate"
@@ -4202,18 +4219,18 @@ owner = "randomized-design kernels"
 
 [[python]]
 path = "python/antecedent/experiment.py::estimate_cuped_effect"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with RandomizedEffect(estimated_cuped=EstimatedCUPED(covariate))"
 
 [[python]]
 path = "python/antecedent/experiment.py::estimate_ancova_effect"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with RandomizedEffect(ancova_covariates=...)"
 
 [[python]]
 path = "python/antecedent/experiment.py::exact_randomization_test"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with RandomizedEffect(exact_randomization_test=True) on a Bernoulli design"
 
 [[python]]
 path = "python/antecedent/exposure_measurement.py::ExposureMeasurement.realize"
@@ -4252,8 +4269,8 @@ owner = "artifact-backed computations"
 
 [[python]]
 path = "python/antecedent/interference.py::estimate"
-disposition = "pending"
-owner = "interference estimators"
+disposition = "deprecated"
+replacement = "antecedent.analyze with Study.interference(InterferenceSpec) (route cell InterferenceDag)"
 
 [[python]]
 path = "python/antecedent/inverse_query.py::finite_enumeration_baseline"
@@ -4307,23 +4324,23 @@ owner = "measurement-error and observation-recovery corrections"
 
 [[python]]
 path = "python/antecedent/policy.py::uplift_by_score"
-disposition = "pending"
-owner = "observational policy value"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_policy"
-disposition = "pending"
-owner = "observational policy value"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_policy_doubly_robust"
-disposition = "pending"
-owner = "observational policy value"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_multi_action_policy"
-disposition = "pending"
-owner = "observational policy value"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/predictive_assessment.py::score_case"
@@ -4342,8 +4359,8 @@ owner = "validation checks"
 
 [[python]]
 path = "python/antecedent/quasi.py::estimate_group_time_att"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/selective_discovery.py::SelectiveDiscovery.resume"
@@ -4362,13 +4379,13 @@ owner = "prepared-object interval and transport readings"
 
 [[python]]
 path = "python/antecedent/survival.py::estimate_survival_ipcw"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/survival.py::estimate_cumulative_incidence_ipcw"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "antecedent.analyze with the program-family compiled study"
 
 [[python]]
 path = "python/antecedent/temporal_model.py::detect_mechanism_change"

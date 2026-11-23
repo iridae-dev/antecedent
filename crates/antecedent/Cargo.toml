@@ -1113,6 +1113,9 @@ path = "tests/temporal_sequential_gcomp_class_known_truth.rs"
 [[test]]
 name = "interference_estimators_known_truth"
 path = "tests/interference_estimators_known_truth.rs"
+[[test]]
+name = "compiled_twins_interference"
+path = "tests/compiled_twins_interference.rs"
 
 [[test]]
 name = "static_adjustment_known_truth"

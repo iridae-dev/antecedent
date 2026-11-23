@@ -33,7 +33,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "randomized_identification stamps the identification of a randomized-effect query: an expectation functional of the outcome, the rule name (intention-to-treat, multi-arm, Wald complier, one-sided treatment on the treated), and the declared assumptions of the assignment design, noncompliance, covariate adjustment and a requested exact test."
 no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options; it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
-covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
+covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.estimated_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
 record_sha256 = "b3cfbe62502a512c030711b5c68b8f20af3a438dfd4e99c50b432c8f28be388b"
 
 [[non_algorithm_review.artifacts]]

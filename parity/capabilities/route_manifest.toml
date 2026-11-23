@@ -1489,6 +1489,20 @@ retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs
 notes = "method=fixed_cuped_ht_score; assignment_unit=unit. Support row in parity/support_graphless.toml. Independent Bernoulli binary ITT adjusted by one pre-assignment covariate with a coefficient fixed outside these outcomes, known probabilities from 0.2 through 0.8 on every row, 30 observed assignments per arm, at least 40 expected assignments per arm, and a published positive-independent-unit score variance pointwise 95% interval. No row-count threshold applies. Twelve 2,000-allocation fixtures cover both probability boundaries, the midpoint, and varying probabilities at 200, 300 and 400 rows."
 
 [[route]]
+id = "graphless.randomized_effect.bernoulli.estimated_cuped_ht_score"
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design_time_model = "bernoulli"
+inference = "pointwise_95_normal_interval"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "graphless"
+owning_module = "crates/antecedent-estimate/src/randomized_scores.rs"
+retained_operation = "randomized"
+retained_route_test = "crates/antecedent/tests/compiled_twins_randomized.rs::estimated_slope_cuped_matches_the_direct_kernel"
+notes = "method=estimated_cuped_ht_score; assignment_unit=unit. Support row in parity/support_graphless.toml. Independent Bernoulli binary ITT adjusted by the pooled slope of one pre-assignment covariate estimated from the same rows (the kernel of antecedent.experiment.estimate_cuped_effect), known probabilities from 0.2 through 0.8 on every row, 30 observed assignments per arm, at least 40 expected assignments per arm and a positive score standard error."
+
+[[route]]
 id = "graphless.policy_value.binary_ipw.fixed_randomized_ipw_scores"
 target = "policy_value"
 graph_class = "RandomizedTrial"

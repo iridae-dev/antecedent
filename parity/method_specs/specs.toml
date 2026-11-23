@@ -1074,6 +1074,7 @@ route = "graphless.randomized_effect.bernoulli.independent_action_ht_score"
 target = "randomized_effect"
 provenance = [
   "estimate.randomized.fixed_cuped_ht_itt",
+  "estimate.randomized.estimated_cuped_ht_itt",
   "estimate.randomized.ht_itt",
   "estimate.randomized.wald_cace_late",
 ]

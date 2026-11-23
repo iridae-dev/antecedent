@@ -5,6 +5,14 @@
 
 #[path = "class_attribution_route.rs"]
 mod class_attribution_route;
+#[path = "compiled_twins_longitudinal_regime.rs"]
+mod compiled_twins_longitudinal_regime;
+#[path = "compiled_twins_policy_value.rs"]
+mod compiled_twins_policy_value;
+#[path = "compiled_twins_staggered_did.rs"]
+mod compiled_twins_staggered_did;
+#[path = "compiled_twins_survival_ipcw.rs"]
+mod compiled_twins_survival_ipcw;
 #[path = "counterfactual_class_route.rs"]
 mod counterfactual_class_route;
 #[path = "mediation_mixed_graph.rs"]
