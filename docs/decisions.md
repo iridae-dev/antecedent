@@ -13,6 +13,8 @@ For the worked story from a causal result to a stop, continue or run-longer
 choice, see [Decide under uncertainty](tutorials/decide-under-uncertainty.md).
 For decisions that combine several fitted routes, see
 [Decide from mixed evidence](guides/mixed-decisions.md).
+When the outcomes trade off only within a range you can declare, see
+[decide when trade-offs are a range](preference-decisions.md).
 
 ## Decide from an analysis result
 
@@ -604,5 +606,6 @@ cancellation and execution memory limits.
 
 - [Decide under uncertainty](tutorials/decide-under-uncertainty.md): the worked story from a causal result to a choice
 - [Decide from mixed evidence](guides/mixed-decisions.md) and [inverse queries](guides/inverse-outcome.md)
+- [Decide when trade-offs are a range](preference-decisions.md) and, optionally, [narrow trade-offs from past decisions](preference-learning.md)
 - [Rank the next study](design-ranking.md) and [decision reliability](decision-reliability.md)
 - [Beyond the marketing mix](tutorials/beyond-marketing-mix.md): a complete investigation using a shared panel fit

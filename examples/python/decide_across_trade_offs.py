@@ -217,11 +217,9 @@ assert {record_id for record_id, _ in manager.binding} == {"spring", "summer"}
 
 accepted = pl.CompatibleSet().accept(model, records, decider="returns_manager")
 assert np.allclose(accepted.ranges["return_cost"], (32.0, 45.0))
-# The fixed margin is not moved by any record, so it is listed for review; acknowledging it
-# says that is intended.
+# The trade-off was varied and narrowed at tolerance zero, and the fixed margin is a value
+# stated outright, so nothing is left for review.
 print("pending review items:", accepted.pending)
-assert accepted.pending == (pl.ReviewItem("parameter_not_varied", "margin"),)
-accepted = accepted.acknowledge(*accepted.pending)
 assert accepted.pending == ()
 
 narrowed = require_success(contract_for(accepted).evaluate(source))

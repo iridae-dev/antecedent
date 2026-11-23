@@ -161,6 +161,8 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `population` | Named predicates and custom target-distribution weights for analyze() | [python-options.md](python-options.md) |
 | `prediction` | Portable fitted CATE prediction, bound to an independently verified parent claim | [decisions.md](decisions.md) |
 | `predictive_assessment` | Assessment of predictive laws: proper scores, calibration diagnostics and held-out checks | [predictive-assessment.md](predictive-assessment.md) |
+| `preference_learning` | Optional: narrow trade-off ranges from recorded past decisions and stated comparisons, estimate trade-offs from choices read as noisy, and accept reviewed, versioned preferences | [preference-learning.md](preference-learning.md) |
+| `preferences` | Value models with trade-offs declared as ranges, fixed values, orderings and shapes, and decisions across every admissible trade-off | [preference-decisions.md](preference-decisions.md) |
 | `preflight` | Preflight diagnostics, rank-drop plans and cost counts | [guides/preflight-diagnostics.md](guides/preflight-diagnostics.md) |
 | `prepared` | Immutable prepared studies and the common exploration lifecycle | [guides/plan-view.md](guides/plan-view.md) |
 | `priors` | External prior bank: catalog metadata and compatibility filtering | [priors.md](priors.md) |

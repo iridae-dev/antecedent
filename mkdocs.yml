@@ -49,6 +49,7 @@ nav:
   - From day zero to publication: tutorials/research-from-day-zero.md
   - From a new experiment to the next study: tutorials/experiment-to-next-study.md
   - Stop, continue or run longer: tutorials/decide-under-uncertainty.md
+  - Choose a discount when the cost of a return is a range: tutorials/decide-across-trade-offs.md
   - Replay and current decisions: tutorials/replay-and-current-decisions.md
   - Estimate an effect from observational data: tutorials/observational-study.md
   - When the comparison group does not overlap: tutorials/when-overlap-fails.md
@@ -129,6 +130,8 @@ nav:
   - Decisions and study planning:
     - Evaluate actions with a decision contract: decisions.md
     - Decide from mixed evidence: guides/mixed-decisions.md
+    - Decide when trade-offs are a range: preference-decisions.md
+    - Narrow trade-offs from past decisions: preference-learning.md
     - Which actions reach a target: guides/inverse-outcome.md
     - Rank further studies: design-ranking.md
     - Optimise history-dependent policies: adaptive-policies.md
