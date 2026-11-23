@@ -17,6 +17,7 @@ The first two parts are useful on their own. If the third never ships, the earli
 Very little directly. Proofs, model checks and adversarial campaigns run during development and at release. They add no runtime cost and no required steps, and nobody using the library has to run a formal tool. Users see their effect in three ways:
 
 - Defects they find are fixed, or the affected route refuses until it is fixed.
+- From 3.1, every capability that produces a scientific result is reached through the compiled study path. A direct path that bypassed it is deprecated with its compiled replacement named, and removed in 4.0.
 - From 3.5, results from selected workflows carry assurance evidence that can be read through the existing result inspection.
 - From 3.6, if the research succeeds, some method combinations become supported without a dedicated implementation.
 
@@ -26,7 +27,7 @@ Support, refusal codes and calibration status keep their 3.0 meaning. Verificati
 
 | Release | Focus | What to expect |
 | --- | --- | --- |
-| 3.1 | Formal foundations | Proof and verification toolchains in CI. The first machine-checked properties, one of them against production Rust. A first adversarial campaign that fails when a known defect is introduced. |
+| 3.1 | Formal foundations and one compiled path | Proof and verification toolchains in CI. Identity, standing and acceptance properties machine-checked across every place they apply, against production Rust where the tools reach. An adversarial campaign that fails when a known defect is introduced. Every capability that produces a scientific result runs through the compiler under one support model. Decisions across trade-offs learned from recorded choices. |
 | 3.2 | Scientific state and contracts | Proved rules for evidence withdrawal, supersession, reuse and artifact acceptance. Model-checked operation sequences replayed against the Rust implementation. Composition that keeps unresolved assumptions. |
 | 3.3 | Causal derivations | Proved identification rules tied to their Rust counterparts. Generated valid and invalid causal compositions checked against those rules. |
 | 3.4 | Statistical computation | Verified estimation building blocks and numerical kernels. Generated tests for invalid variance, dependence and positivity constructions. |
@@ -35,9 +36,9 @@ Support, refusal codes and calibration status keep their 3.0 meaning. Verificati
 
 3.1 to 3.5 are engineering milestones. Work can move between them, and a release can be split or deferred. 3.6 ships only if its entry criteria are met; otherwise that release carries more of the 3.1 to 3.5 work instead and makes no synthesis claim.
 
-## 3.1: Formal foundations
+## 3.1: Formal foundations and one compiled path
 
-3.1 sets up the tools and shows that the approach works on real code. It is deliberately small. A few properties proved end to end matter more here than broad coverage.
+3.1 sets up the tools, shows that the approach works on real code, and carries its three properties across every place they apply. It also brings every capability that produces a scientific result into the compiler, because everything later in 3.x attaches to compiled operations: a capability left beside the compiler would get no operation record, no assurance and no synthesis.
 
 What it delivers:
 
@@ -47,12 +48,14 @@ What it delivers:
 - One description for every verified operation (see [operation records](#operation-records)).
 - An assurance record format: the property, the specification and code it covers, the tool and version, the inputs, what is trusted, the result, and what invalidates it. CI checks these records the way it checks the existing evidence records.
 - A first adversarial campaign: property-based generation (proptest, Hypothesis, and Plausible for Lean specifications) over identity and contract operations, with deliberately invalid compositions and negative controls. It runs through the existing gates and test runners.
+- One compiled path. Every user-facing capability that produces an estimate, interval, posterior, decision, ranking, forecast, test, discovered structure, transported effect or attribution runs through the compiler: one support model, typed refusals, a contract and claim, and evidence binding. This covers the effect families that declare their adjustment, transport and observation recovery, counterfactuals beyond the current routes, measurement models, composition and joint laws, evidence synthesis, adaptive, choice, sequential and predictive procedures, sensitivity and validation, decisions, and design ranking, and puts the families that already lower to compiled programs under the same support model as the support matrix. A second public path to a computation that has a compiled route is deprecated in favour of it and removed in 4.0; the gate that finds such paths checks types and methods, not only names.
+- Decisions across trade-offs: deciding when the weights between outcomes are uncertain, and learning them from recorded choices, through a compiled route in Rust and Python.
 
-The first proof targets:
+The proof targets, each across every place it applies:
 
-- A scientific identity does not change when declarations are reordered in a way defined as irrelevant.
-- A contract transformation cannot raise a claim's standing.
-- Artifact acceptance requires an expected identity established separately from the artifact.
+- A scientific identity does not change when declarations are reordered in a way defined as irrelevant, and any relevant change changes it. This covers every order-insensitive identity encoding, including identities recomputed from decoded bytes, and the lists whose order is deliberately significant.
+- A contract transformation cannot raise a claim's standing. This covers every claim operation, checked claim composition, handoff receipt chains, transformation reports, and revalidation of support, trust and calibration.
+- Artifact acceptance requires an expected identity established separately from the artifact. Every loader that accepts an artifact offers a form that requires one, bound through one checked comparison.
 
 The first adversarial properties:
 
@@ -67,6 +70,8 @@ Done when:
 3. Changing a dependency of an assurance record invalidates or reruns it.
 4. The adversarial campaign runs against production code, has positive and negative cases, fails if required cases are missing, and catches at least one deliberately introduced defect.
 5. All of it runs on pinned open-source tools.
+6. Each proof target names every place it applies, and each place is either machine-checked against production code, checked against a specification with generated cases on production code, or listed with the reason it cannot be.
+7. No capability that produces a scientific result is reachable except through the compiler or a deprecated path with a compiled replacement, and every compiled route is decided by one support model.
 
 If Aeneas cannot translate the chosen Rust code at a reasonable cost, use a direct Rust verifier or verify a smaller kernel. Proof scope is not widened to justify a tool that does not fit.
 
