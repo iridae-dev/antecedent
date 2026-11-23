@@ -549,3 +549,11 @@ mod tests;
 
 mod compile_robust;
 pub use compile_robust::CompiledRobustDecision;
+
+mod compile_preference;
+pub use compile_preference::{
+    BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
+    CompiledStructure, DemandedQuantity, DesignBootstrap, OutcomeDependence,
+    PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
+    StructureIdentification, compile_preference_decision_across_studies,
+};

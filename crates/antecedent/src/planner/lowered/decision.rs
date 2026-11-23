@@ -152,13 +152,25 @@ pub enum UtilityForm {
     /// The utility declares no affine form. Its identity is the decision
     /// contract's; a mean cannot carry it.
     Opaque,
+    /// A value over several outcome attributes whose trade-off parameters range over a
+    /// declared or learned set. Its identity is the bound preference contract's; the
+    /// program names every scientific quantity the actions read.
+    PreferenceValue {
+        /// Canonical identities of the quantities the actions read, in first-read order.
+        quantities: Arc<[Arc<str>]>,
+        /// Whether the means of those quantities answer the decision at every admissible
+        /// parameter value: the criterion is an expectation and every part of the value
+        /// is affine in them.
+        means_suffice: bool,
+    },
 }
 
 impl UtilityForm {
-    /// Whether the utility is affine in a scalar state.
+    /// Whether a mean carries the utility: an affine utility of a scalar state, or a
+    /// preference value whose expectation the means of its quantities answer.
     #[must_use]
     pub const fn is_affine(&self) -> bool {
-        matches!(self, Self::Affine(_))
+        matches!(self, Self::Affine(_) | Self::PreferenceValue { means_suffice: true, .. })
     }
 
     /// Per-action `(intercept, slope)` pairs of an affine utility.
@@ -166,7 +178,17 @@ impl UtilityForm {
     pub fn coefficients(&self) -> Option<&[(f64, f64)]> {
         match self {
             Self::Affine(coefficients) => Some(&coefficients[..]),
-            Self::Opaque => None,
+            Self::Opaque | Self::PreferenceValue { .. } => None,
+        }
+    }
+
+    /// Canonical identities of the scientific quantities a preference value reads; empty
+    /// for any other utility.
+    #[must_use]
+    pub fn quantities(&self) -> &[Arc<str>] {
+        match self {
+            Self::PreferenceValue { quantities, .. } => &quantities[..],
+            Self::Affine(_) | Self::Opaque => &[],
         }
     }
 
@@ -180,6 +202,12 @@ impl UtilityForm {
             }
             Self::Opaque => {
                 writer.text("opaque");
+            }
+            Self::PreferenceValue { quantities, means_suffice } => {
+                writer
+                    .text("preference_value")
+                    .word(u64::from(*means_suffice))
+                    .texts(&quantities[..]);
             }
         }
     }
@@ -490,6 +518,14 @@ impl DecisionProgram {
     /// opaque utility when there are none.
     pub(crate) fn utility_form(affine: Option<Vec<(f64, f64)>>) -> UtilityForm {
         affine.map_or(UtilityForm::Opaque, |pairs| UtilityForm::Affine(Arc::from(pairs)))
+    }
+
+    /// The utility form of a preference value reading `quantities` (canonical identities).
+    pub(crate) fn preference_value_form(
+        quantities: Vec<Arc<str>>,
+        means_suffice: bool,
+    ) -> UtilityForm {
+        UtilityForm::PreferenceValue { quantities: Arc::from(quantities), means_suffice }
     }
 
     /// Evidence the decision needs.

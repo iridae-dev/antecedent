@@ -8,6 +8,16 @@
 //! programs when the value is affine in the parameters and the criterion is an expectation,
 //! by certified subdivision otherwise ([`preference_route`]).
 //!
+//! The way in is the causal compiler. [`crate::Study::compile_for_preference_decision`] (and
+//! the same on [`crate::PreparedStudy`]) binds the contract to the study's query, lowers the
+//! decision's quantities and carrier into the study's plan, checks identification under every
+//! structure the study carries and refuses what cannot be answered before anything is fitted;
+//! [`CompiledPreferenceDecision::execute`] runs the plan once and calls the functions below.
+//! [`compile_preference_decision_across_studies`] and
+//! [`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_preference_decision`]
+//! compile several outcomes. The functions below are the lower layer that route calls; they
+//! read sources a caller already holds.
+//!
 //! This module connects that capability to the analysis surface and owns no scientific rule
 //! of its own:
 //!
@@ -48,7 +58,9 @@ use antecedent_contract::propagation_chain::{ChainReading, TableConstruction};
 use antecedent_contract::{
     InputAlignment, QuantityRole, ScientificQuantity, check_rows_pairable_across,
 };
-use antecedent_core::{CanonicalWriter, CausalResponse, CausalSchema, IdentificationStatus};
+use antecedent_core::{
+    CanonicalWriter, CausalResponse, CausalSchema, ExecutionContext, IdentificationStatus,
+};
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdapterError, ClaimProbability, SuppliedClaim, adapt_finite_scenarios,
     adapt_graph_dependent_claims, adapt_weighted_graph_atoms,
@@ -70,7 +82,8 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 
 pub use antecedent_design::accepted_preferences::{
     AcceptedPreferences, AcceptedPreferencesError, LearningOptions, PendingReview, PreferenceBasis,
-    PreferenceContractParts, estimate_accepted, learn_compatible_set_accepted,
+    PreferenceContractParts, estimate_accepted, estimate_accepted_with_context,
+    learn_compatible_set_accepted, learn_compatible_set_accepted_with_context,
 };
 pub use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
@@ -89,8 +102,10 @@ pub use antecedent_design::preference_certified::{
     PreferenceCertifiedError, RegionStatus, StructuralCertifiedResult, StructuralCertifiedVerdict,
 };
 pub use antecedent_design::preference_choice_model::{
-    ASSUMPTION_LOGIT_CHOICE, ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions,
-    ChoiceModelResult, CovarianceKind, EstimateOutcome, ParameterEstimate, estimate_choice_model,
+    ASSUMPTION_LOGIT_CHOICE, CALIBRATION_ESTIMATOR, CALIBRATION_INTERVAL_METHOD, CALIBRATION_QUERY,
+    ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, CovarianceKind,
+    EstimateOutcome, ParameterEstimate, calibration_basis, estimate_choice_model,
+    estimate_choice_model_with_context,
 };
 pub use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
@@ -107,7 +122,9 @@ pub use antecedent_design::preference_evaluation::{
     ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE, ROUTE_PART_NOT_LOWERABLE,
     ROUTE_SHAPE_PARAMETERS, ROUTE_WORST_CASE_OF_EXPECTED_REGRET, RouteChoice,
     StructuralPreferenceEvaluation, decide_preferences, decide_preferences_on_means,
-    decide_preferences_structural, decide_with_accepted, preference_route,
+    decide_preferences_on_means_with_context, decide_preferences_structural,
+    decide_preferences_structural_with_context, decide_preferences_with_context,
+    decide_with_accepted, decide_with_accepted_with_context, preference_route,
 };
 pub use antecedent_design::preference_model::{
     Attribute, Curve, LinearForm, LinearRelation, MAX_PREFERENCE_DEPTH, PreferenceExpr,
@@ -117,7 +134,14 @@ pub use antecedent_design::preference_model::{
 pub use antecedent_design::preference_set_learning::{
     ASSUMPTION_CHOICES_OPTIMAL, BindingChoice, ChoiceConflict, ConflictKind, DeciderOverlap,
     DeciderSet, LearnedPreferenceSet, ParameterRange, SetLearningError, SetLearningOptions,
-    SetLearningResult, SetOutcome, learn_compatible_set,
+    SetLearningResult, SetOutcome, learn_compatible_set, learn_compatible_set_with_context,
+};
+
+pub use super::execute::{
+    BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
+    CompiledStructure, DemandedQuantity, DesignBootstrap, OutcomeDependence,
+    PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
+    StructureIdentification, compile_preference_decision_across_studies,
 };
 
 use super::decision_contract_facade::DecisionFacadeRefusal;
@@ -188,11 +212,44 @@ pub fn decide(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
 ) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    match source {
-        NativeDecisionSource::Mean(means) => {
+    decide_in(contract, source, measure, options, None)
+}
+
+/// [`decide`] under an execution context: the answering route reads the context's
+/// cancellation token at its work boundaries.
+///
+/// # Errors
+/// As [`decide`]; a cancelled run is the answering route's cancellation refusal.
+pub fn decide_with_context(
+    contract: &PreferenceContract,
+    source: &NativeDecisionSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
+    decide_in(contract, source, measure, options, Some(ctx))
+}
+
+fn decide_in(
+    contract: &PreferenceContract,
+    source: &NativeDecisionSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
+    match (source, ctx) {
+        (NativeDecisionSource::Mean(means), None) => {
             decide_preferences_on_means(contract, means, measure, options)
         }
-        NativeDecisionSource::JointLaw(law) => decide_preferences(contract, law, measure, options),
+        (NativeDecisionSource::Mean(means), Some(ctx)) => {
+            decide_preferences_on_means_with_context(contract, means, measure, options, ctx)
+        }
+        (NativeDecisionSource::JointLaw(law), None) => {
+            decide_preferences(contract, law, measure, options)
+        }
+        (NativeDecisionSource::JointLaw(law), Some(ctx)) => {
+            decide_preferences_with_context(contract, law, measure, options, ctx)
+        }
     }
     .map_err(|e| e.to_refusal())
 }
@@ -211,9 +268,33 @@ pub fn decide_claim(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
 ) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
+    decide_claim_in(contract, claim, measure, options, None)
+}
+
+/// [`decide_claim`] under an execution context, as [`decide_with_context`].
+///
+/// # Errors
+/// As [`decide_claim`]; a cancelled run is the answering route's cancellation refusal.
+pub fn decide_claim_with_context(
+    contract: &PreferenceContract,
+    claim: &NativeResponseClaim,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
+    decide_claim_in(contract, claim, measure, options, Some(ctx))
+}
+
+fn decide_claim_in(
+    contract: &PreferenceContract,
+    claim: &NativeResponseClaim,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
     let requirement = source_requirement(contract)?;
     let input = claim.decision_source(&requirement)?;
-    let evaluation = decide(contract, &input.source, measure, options)?;
+    let evaluation = decide_in(contract, &input.source, measure, options, ctx)?;
     Ok(AnalysisPreferenceDecision { input, evaluation })
 }
 
@@ -231,6 +312,21 @@ pub fn decide_accepted(
 ) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
     let contract = accepted.contract(parts);
     decide(&contract, source, accepted.measure(), options)
+}
+
+/// [`decide_accepted`] under an execution context, as [`decide_with_context`].
+///
+/// # Errors
+/// As [`decide_accepted`]; a cancelled run is the answering route's cancellation refusal.
+pub fn decide_accepted_with_context(
+    accepted: &AcceptedPreferences,
+    parts: PreferenceContractParts,
+    source: &NativeDecisionSource,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
+    let contract = accepted.contract(parts);
+    decide_with_context(&contract, source, accepted.measure(), options, ctx)
 }
 
 /// Read the structures a study run over a graph posterior or a class of graphs examined as
@@ -356,6 +452,26 @@ pub fn decide_across_structures(
         return Err(AdapterError::PolicyMismatch.to_refusal());
     }
     decide_preferences_structural(contract, &claims.atoms, measure, options)
+        .map_err(|e| e.to_refusal())
+}
+
+/// [`decide_across_structures`] under an execution context: the answering route reads the
+/// context's cancellation token at its work boundaries.
+///
+/// # Errors
+/// As [`decide_across_structures`]; a cancelled run is the answering route's cancellation
+/// refusal.
+pub fn decide_across_structures_with_context(
+    contract: &PreferenceContract,
+    claims: &AdaptedClaims,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<StructuralPreferenceEvaluation, DecisionFacadeRefusal> {
+    if claims.policy != contract.structural_policy {
+        return Err(AdapterError::PolicyMismatch.to_refusal());
+    }
+    decide_preferences_structural_with_context(contract, &claims.atoms, measure, options, ctx)
         .map_err(|e| e.to_refusal())
 }
 
@@ -518,6 +634,21 @@ pub fn record_decision(
     options: PreferenceEvaluationOptions,
 ) -> Result<PreferenceDecisionArtifact, DecisionFacadeRefusal> {
     PreferenceDecisionArtifact::evaluate(contract, source, measure, options)
+        .map_err(|e| e.to_refusal())
+}
+
+/// [`record_decision`] under an execution context, as [`decide_with_context`].
+///
+/// # Errors
+/// As [`record_decision`]; a cancelled run is the answering route's cancellation refusal.
+pub fn record_decision_with_context(
+    contract: PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceDecisionArtifact, DecisionFacadeRefusal> {
+    PreferenceDecisionArtifact::evaluate_with_context(contract, source, measure, options, ctx)
         .map_err(|e| e.to_refusal())
 }
 

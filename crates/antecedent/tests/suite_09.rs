@@ -11,6 +11,12 @@ mod counterfactual_class_route;
 mod mediation_mixed_graph;
 #[path = "predictive_score_interval_facade.rs"]
 mod predictive_score_interval_facade;
+#[path = "preference_decision_compiled.rs"]
+mod preference_decision_compiled;
+#[path = "preference_decision_compiled_outcomes.rs"]
+mod preference_decision_compiled_outcomes;
+#[path = "preference_decision_compiled_structures.rs"]
+mod preference_decision_compiled_structures;
 #[path = "preference_decision_end_to_end.rs"]
 mod preference_decision_end_to_end;
 #[path = "preference_decision_several_outcomes.rs"]
