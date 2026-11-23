@@ -494,7 +494,12 @@ def python_functions(root: Path) -> list[PyFunction]:
 
 # -- verdict literals -----------------------------------------------------------------------
 
-_RUST_VERDICT = re.compile(r"\bconst\s+(\w*_CAPABILITY)\s*:\s*&(?:'static\s+)?str")
+# A verdict literal is a string literal (the lexer blanks it, so its initializer holds no
+# identifier); a constant that reads the generated unit table (`= units_generated::UNIT.as_str()`)
+# names no verdict of its own.
+_RUST_VERDICT = re.compile(r"\bconst\s+(\w*_CAPABILITY)\s*:\s*&(?:'static\s+)?str\s*=\s*(?!\s*[\w:]*[A-Za-z_])")
+# Names of reason details (`external_response_binding.malformed_capability`), not support verdicts.
+REASON_DETAILS_RS = "crates/antecedent-core/src/reason_details.rs"
 _PY_VERDICT = re.compile(r"^\s*support_status\s*:\s*str\s*=\s*[\"']([^\"']+)[\"']", re.M)
 
 
@@ -504,7 +509,7 @@ def verdict_literals(root: Path) -> set[str]:
     if crates.is_dir():
         for path in sorted(crates.rglob("*.rs")):
             rel = path.relative_to(root).as_posix()
-            if rel == GENERATED_VERDICTS_RS or "/target/" in rel:
+            if rel in (GENERATED_VERDICTS_RS, REASON_DETAILS_RS) or "/target/" in rel:
                 continue
             raw = path.read_text(encoding="utf-8")
             if "_CAPABILITY" not in raw:

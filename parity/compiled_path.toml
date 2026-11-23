@@ -4551,36 +4551,6 @@ disposition = "pending"
 owner = "validation checks"
 
 [[verdict]]
-path = "crates/antecedent-core/src/reason_details.rs::MALFORMED_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "crates/antecedent-core/src/reason_details.rs::POSTERIOR_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "crates/antecedent/src/analysis/composition.rs::BUNDLE_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "crates/antecedent/src/analysis/composition_decision_terminal.rs::BUNDLE_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "crates/antecedent/src/analysis/joint_panel/compiled.rs::JOINT_RESPONSE_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "crates/antecedent/src/analysis/observational_policy.rs::POLICY_CAPABILITY"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
 path = "python/antecedent/_batch.py::not_assessed"
 disposition = "pending"
 owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
