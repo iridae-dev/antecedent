@@ -394,6 +394,38 @@ pub fn evaluate_contract(
     evaluate_contract_validated(contract, source, identity)
 }
 
+/// Per-draw utility of every action of a contract on one aligned joint source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UtilityDraws {
+    /// `utilities[a][i]` is the utility of action `a` (declaration order) on draw `i`.
+    pub utilities: Vec<Vec<f64>>,
+    /// Draw weights, normalized to sum one.
+    pub weights: Vec<f64>,
+}
+
+/// Evaluate every action's utility on every aligned draw of `source`, without
+/// ranking the actions.
+///
+/// The rows are bound exactly as in [`evaluate_contract`]: joint alignment is
+/// required, each input is located by coordinate identity, a masked coordinate
+/// and a distribution meaning that cannot answer an outcome-law input refuse,
+/// and the weights are normalized. A caller that scores the actions under
+/// several utilities over the same quantities reads the draws once through a
+/// contract whose utilities are those quantities.
+///
+/// # Errors
+/// Refuses an invalid contract, non-joint draws, a missing or masked
+/// coordinate, a source meaning that cannot answer an outcome-law input and a
+/// non-finite utility.
+pub fn utility_draws(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<UtilityDraws, DecisionEvalError> {
+    contract.validate().map_err(DecisionEvalError::Contract)?;
+    let table = build_table(contract, source, None)?;
+    Ok(UtilityDraws { utilities: table.utilities, weights: table.weights })
+}
+
 pub(crate) fn evaluate_contract_for_program_search(
     contract: &DecisionContract,
     source: &DistributionArtifact,
