@@ -9,6 +9,10 @@
 //! and check that a construction without a justified pooling rule is refused with its own
 //! detail.
 #![allow(
+    deprecated,
+    reason = "these tests call the direct discovery functions the compiled route is compared with"
+)]
+#![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,
     clippy::too_many_lines,

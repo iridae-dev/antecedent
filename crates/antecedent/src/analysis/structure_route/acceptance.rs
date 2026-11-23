@@ -366,10 +366,10 @@ impl super::DiscoverySpec {
         source: Option<&str>,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<AcceptedPosterior, CausalError> {
-        use crate::discovery::{
-            CiSoftWeight, discover_pooled_ci_screened_posterior,
-            discover_pooled_exact_dag_posterior, discover_pooled_order_mcmc,
-            discover_pooled_structure_mcmc,
+        use crate::discovery::CiSoftWeight;
+        use crate::discovery::engines::{
+            discover_pooled_ci_screened_posterior, discover_pooled_exact_dag_posterior,
+            discover_pooled_order_mcmc, discover_pooled_structure_mcmc,
         };
         use antecedent_core::{DiscoveryMethod, ScreenWeight};
 

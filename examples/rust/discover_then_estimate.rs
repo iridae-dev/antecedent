@@ -36,11 +36,11 @@
 
 use std::sync::Arc;
 
-use antecedent::RefuteSuite;
-use antecedent::discovery::{StaticDiscoverParams, discover_pc};
+use antecedent::discovery::StaticDiscoverParams;
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent::io::{dag_from_json, dag_to_json};
 use antecedent::prelude::*;
+use antecedent::{CompiledExecution, DiscoverySpec, RefuteSuite};
 use antecedent_core::{CausalRng, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
 use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
 use antecedent_graph::DenseNodeId;
@@ -133,9 +133,12 @@ pub fn run() -> Result<(), CausalError> {
         max_subset: None,
         knowledge: antecedent_discovery::BackgroundKnowledge::default(),
     };
-    let discovery = discover_pc(&data, &vars, &params, &ctx)?;
+    let search = Study::tabular(data.clone())
+        .discovery(DiscoverySpec::pc(params, "parcorr"), vars)
+        .build()?;
+    let discovery = CompiledExecution::run(&search, &ctx)?;
     let discovery_calls = 1u32;
-    let _ = &discovery.evidence.graph;
+    let _ = discovery.result().discovery().map(|payload| &payload.structure);
 
     // Review: the accepted graph is a fully oriented DAG. Estimation requires an accepted
     // structure; a discovery output is never estimated on directly.

@@ -166,7 +166,7 @@ where
             imputed.iter().map(|&j| (float_ids[j], Arc::clone(&table.columns()[j]))).collect();
         let completed = complete_float_columns(data, &replacements)?;
         // The structure is selected afresh on this table, so the pooled spread carries it.
-        let graph_posterior = crate::discovery::discover_exact_dag_posterior(
+        let graph_posterior = crate::discovery::engines::discover_exact_dag_posterior(
             &completed,
             &selection.variables,
             &selection.params,

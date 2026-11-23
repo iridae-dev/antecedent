@@ -920,7 +920,7 @@ fn build_accepts_graph_posterior_under_frequentist() {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     let data = TabularData::new(storage);
     let ctx = antecedent_core::ExecutionContext::for_tests(1);
-    let gp = crate::discovery::discover_exact_dag_posterior(
+    let gp = crate::discovery::engines::discover_exact_dag_posterior(
         &data,
         &[VariableId::from_raw(0), VariableId::from_raw(1)],
         &crate::discovery::BayesianDiscoverParams::default(),
