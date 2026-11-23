@@ -240,6 +240,7 @@ pub mod per_population_discovery;
 pub mod planning;
 pub mod posterior_boundaries;
 pub mod predictive_assessment;
+pub mod preference_decision;
 mod preflight;
 pub mod propagation_chain;
 pub mod propagation_chain_decision;
