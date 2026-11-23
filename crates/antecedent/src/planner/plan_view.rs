@@ -57,8 +57,8 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::planner::fact::{Fact, fact};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, IdentificationLayer,
-    LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ScientificProblem,
-    UncertaintyReading, WidthSource,
+    LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ProgramCell,
+    ScientificProblem, UncertaintyReading, WidthSource,
 };
 use crate::planner::statistical::{PosteriorPlan, Realization, ResamplingPlan, StatisticalProgram};
 use crate::support::CellStatus;
@@ -1155,6 +1155,64 @@ impl SupportView {
     }
 }
 
+/// The support decision of the one unit a compiled route runs under: a support-matrix cell
+/// for a matrix route, or the capability record `parity/compiled_units.toml` binds any other
+/// route to. Never part of the program identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnitSupportView {
+    unit: String,
+    status: CellStatus,
+    missing_evidence: Vec<&'static str>,
+}
+
+impl UnitSupportView {
+    /// The support decision the program carries for its matrix cell, `None` off the matrix
+    /// axis.
+    fn of_matrix(scientific: &ScientificProblem) -> Option<Self> {
+        let status = scientific.support_status()?;
+        let unit = scientific.support_coordinate().map_or_else(
+            || "support cell".to_owned(),
+            |coordinate| format!("support cell {coordinate}"),
+        );
+        Some(Self { unit, status, missing_evidence: Vec::new() })
+    }
+
+    /// The support decision of the unit `route` is bound to, `None` while it is bound to none.
+    fn of_route(route: PlanRoute) -> Option<Self> {
+        let decision = crate::support::unit::route_decision(route.as_str())?;
+        Some(Self {
+            unit: decision.unit.label(),
+            status: decision.status,
+            missing_evidence: decision.missing_evidence,
+        })
+    }
+
+    /// The unit: `support cell <coordinate>` for a matrix route, else the capability record id.
+    #[must_use]
+    pub fn unit(&self) -> &str {
+        &self.unit
+    }
+
+    /// Whether the unit is supported.
+    #[must_use]
+    pub const fn supported(&self) -> bool {
+        matches!(self.status, CellStatus::Supported)
+    }
+
+    /// The unit's support status.
+    #[must_use]
+    pub const fn status(&self) -> CellStatus {
+        self.status
+    }
+
+    /// The evidence a capability unit lists as missing; empty for a supported unit and for a
+    /// matrix cell.
+    #[must_use]
+    pub fn missing_evidence(&self) -> &[&'static str] {
+        &self.missing_evidence
+    }
+}
+
 /// One structure of a graph-posterior mixture.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MixtureAtomView {
@@ -1875,6 +1933,20 @@ impl PlanView {
         &self.support
     }
 
+    /// The support decision of the unit the route runs under, computed from the route: for a
+    /// support-matrix route, the cell status the program carries (the same status as
+    /// [`Self::support`]); for any other route, the status of the capability record
+    /// `parity/compiled_units.toml` binds it to. `None` for a matrix query off the matrix axis
+    /// and for a route no unit is bound to yet. Reading it changes no program identity.
+    #[must_use]
+    pub fn unit_support(&self) -> Option<UnitSupportView> {
+        if matches!(self.program.cell(), ProgramCell::Route(_)) {
+            UnitSupportView::of_matrix(self.program.scientific())
+        } else {
+            UnitSupportView::of_route(self.route)
+        }
+    }
+
     /// The mixture of a graph-posterior analysis; `None` for every other family.
     #[must_use]
     pub const fn mixture(&self) -> Option<&MixtureView> {
@@ -2220,8 +2292,9 @@ pub(crate) mod checks {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{PlanRoute, RouteFamily};
+    use super::{PlanRoute, RouteFamily, UnitSupportView};
     use crate::analysis::lowering::{GraphPosteriorCell, REGISTERED, RouteCell};
+    use crate::support::CellStatus;
 
     #[test]
     fn every_route_cell_has_a_plan_route_of_its_registered_family() {
@@ -2255,5 +2328,25 @@ mod tests {
             assert_eq!(plan.family(), RouteFamily::JointPanel, "{}", cell.as_str());
             assert!(names.insert(plan.as_str()), "{} has one plan route", cell.as_str());
         }
+    }
+
+    #[test]
+    fn a_bound_route_reads_its_unit_support_and_an_unbound_route_reads_none() {
+        for (route, unit) in [
+            (PlanRoute::GraphImputation, "graph_imputation.compiled_candidate"),
+            (PlanRoute::CyclicFamily("system"), "cyclic.general_systems"),
+            (PlanRoute::ObservationalPolicy, "estimate.observational_policy_value"),
+        ] {
+            let view = UnitSupportView::of_route(route).expect("the route is bound to a unit");
+            let decision = crate::support::unit::route_decision(route.as_str())
+                .expect("the generated table binds the route");
+            assert_eq!(view.unit(), unit);
+            assert_eq!(view.status(), decision.status);
+            assert_eq!(view.supported(), decision.status == CellStatus::Supported);
+            assert_eq!(view.missing_evidence(), decision.missing_evidence.as_slice());
+        }
+        assert_eq!(UnitSupportView::of_route(PlanRoute::SamplingAssumptionUnion), None);
+        assert_eq!(UnitSupportView::of_route(PlanRoute::PropagationChain("spread")), None);
+        assert_eq!(UnitSupportView::of_route(PlanRoute::StaticAteDag), None);
     }
 }

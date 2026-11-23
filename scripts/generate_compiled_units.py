@@ -42,6 +42,16 @@ def load_routes() -> list[dict]:
         if row["lowering"] in seen:
             sys.exit(f"{SOURCE.name}: {row['lowering']} is bound twice")
         seen.add(row["lowering"])
+    listed: set[str] = set()
+    for row in doc.get("unbound") or []:
+        route = row.get("lowering")
+        if not route or not str(row.get("reason") or "").strip():
+            sys.exit(f"{SOURCE.name}: an [[unbound]] row needs `lowering` and a `reason`: {row}")
+        if route in seen:
+            sys.exit(f"{SOURCE.name}: {route} is bound and listed as unbound")
+        if route in listed:
+            sys.exit(f"{SOURCE.name}: {route} is listed as unbound twice")
+        listed.add(route)
     return routes
 
 
@@ -82,13 +92,23 @@ def render(routes: list[dict]) -> str:
     for unit in units:
         bound = sorted(row["lowering"] for row in routes if row["unit"] == unit)
         patterns = [f'"{route}"' for route in bound]
-        one = f"        {' | '.join(patterns)} => Some({names[unit]}),"
-        if len(one) <= 100:  # the width rustfmt leaves on one line
-            lines.append(one)
+        body = f"Some({names[unit]})"
+        joined = f"        {' | '.join(patterns)} =>"
+        # rustfmt keeps an arm on one line within 100 columns; when only the patterns fit, it
+        # moves the body into a block; otherwise it puts one pattern on each line.
+        if len(f"{joined} {body},") <= 100:
+            lines.append(f"{joined} {body},")
+            continue
+        if len(f"{joined} {{") <= 100:
+            lines += [f"{joined} {{", f"            {body}", "        }"]
             continue
         lines.append(f"        {patterns[0]}")
         lines += [f"        | {pattern}" for pattern in patterns[1:]]
-        lines[-1] += f" => Some({names[unit]}),"
+        if len(f"{lines[-1]} => {body},") <= 100:
+            lines[-1] += f" => {body},"
+        else:
+            lines[-1] += " => {"
+            lines += [f"            {body}", "        }"]
     lines += ["        _ => None,", "    }", "}", ""]
     return "\n".join(lines)
 

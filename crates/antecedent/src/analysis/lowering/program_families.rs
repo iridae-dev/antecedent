@@ -24,11 +24,11 @@ macro_rules! program_families {
         $generator! {
             [$($($context)*)?]
             /// Complete observational policy learning and scoring.
-            ObservationalPolicy => DesignBased, unit "";
+            ObservationalPolicy => DesignBased, unit "estimate.observational_policy_value";
             /// Joint measured-signal observation of a composed finite model.
-            JointMeasuredObservation => Structural, unit "";
+            JointMeasuredObservation => Structural, unit "observation_query.finite_law_conditioning";
             /// Dependent-error measurement of one finite construct.
-            DependentMeasuredObservation => Structural, unit "";
+            DependentMeasuredObservation => Structural, unit "observation_query.finite_law_conditioning";
             /// Fitted dependent-error measurement with posterior draws.
             FittedDependentMeasuredObservation => Structural, unit "";
             /// Model-derived paired intervention worlds and a decision.
@@ -64,7 +64,7 @@ macro_rules! program_families {
             /// An observational policy value under m-out-of-n full-refit subsampling.
             PolicySubsampling => DesignBased, unit "estimate.observational_policy_value";
             /// Sequential policy evaluation with a reliability diagnostic.
-            SequentialPolicyReliability => DesignBased, unit "";
+            SequentialPolicyReliability => DesignBased, unit "decision_reliability.sampled_decision";
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a live scientific bridge terminal.
@@ -101,7 +101,7 @@ macro_rules! program_families {
             /// Bundle replay with a parameter-posterior decision terminal.
             PosteriorDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// A graph-selection imputation composite.
-            GraphImputation => GraphImputation, unit "";
+            GraphImputation => GraphImputation, unit "graph_imputation.compiled_candidate";
             /// Graph-imputation effect posterior and downstream utility.
             GraphImputationEffectDecision => GraphImputation, unit "";
             /// Graph-imputation Bernoulli predictive-world draws and a decision.
@@ -129,7 +129,7 @@ macro_rules! program_families {
             /// Graph-imputation transport under a missing-at-random target.
             GraphImputationMarTransportDecision => GraphImputation, unit "";
             /// A scientifically closed categorical posterior candidate.
-            CategoricalPosteriorCandidate => CategoricalPosteriorCandidate, unit "";
+            CategoricalPosteriorCandidate => CategoricalPosteriorCandidate, unit "categorical_treatment.compiled_candidate";
             /// A bounded fixed-shift MNAR operation.
             MnarFixedShift => DesignBased, unit "mnar_fixed_shift.compiled_candidate";
             /// Latent additive soft-intervention discovery and prediction.

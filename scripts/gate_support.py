@@ -793,8 +793,9 @@ COMPILED_UNITS = "parity/compiled_units.toml"
 UNIT_STATUS = "crates/antecedent-io-core/data/unit_support_status.json"
 PLAN_ROUTE_SOURCE = "crates/antecedent/src/analysis/lowering/registry.rs"
 PROGRAM_FAMILIES_SOURCE = "crates/antecedent/src/analysis/lowering/program_families.rs"
-# The `PlanRoute` variants that carry a string and so stay written out in the registry.
-STRING_ROUTE_VARIANTS = {"CyclicFamily", "Planning", "PropagationChain"}
+# The `PlanRoute::as_str` names of the variants that carry a string and so stay written out in
+# the registry.
+STRING_ROUTE_VARIANTS = {"CyclicFamily", "ExperimentPlanning", "PropagationChain"}
 
 
 def program_family_rows(families_text: str) -> dict[str, str]:
@@ -835,8 +836,9 @@ def compiled_unit_problems(
     route outside the support matrix is bound to a capability record or a graphless row by
     parity/compiled_units.toml; the Rust table is generated from that file.
 
-    Not checked here: that every `PlanRoute` outside the support matrix is bound. That needs the
-    route table the registry macro expands, which is not readable from the source text."""
+    Every program family and every string-carrying route is bound, or listed in an [[unbound]]
+    row with a reason: a family whose `unit` column is empty and that no row lists fails. A
+    listed route is never bound, never carries a unit, and names a PlanRoute variant."""
     compiled = compiled if compiled is not None else _load(COMPILED_UNITS)
     records = records if records is not None else _load(RECORDS).get("record") or []
     status = status if status is not None else json.loads((ROOT / UNIT_STATUS).read_text(encoding="utf-8"))
@@ -893,6 +895,28 @@ def compiled_unit_problems(
     for name, unit in sorted(family_units.items()):
         if unit and name not in seen:
             found.append(f"{PROGRAM_FAMILIES_SOURCE}: {name} names unit {unit} but {COMPILED_UNITS} binds no such route")
+
+    unbound: set[str] = set()
+    for row in compiled.get("unbound") or []:
+        route = row.get("lowering")
+        where = f"{COMPILED_UNITS}: unbound {route}"
+        if route in unbound:
+            found.append(f"{where}: listed twice")
+        unbound.add(route)
+        if not str(row.get("reason") or "").strip():
+            found.append(f"{where}: no reason")
+        if route in seen:
+            found.append(f"{where}: also bound by a [[route]] row")
+        if family_units.get(route):
+            found.append(f"{where}: the {PROGRAM_FAMILIES_SOURCE} row names unit {family_units[route]}")
+        if variants and route not in variants:
+            found.append(f"{where}: not a PlanRoute variant")
+    must_bind = set(family_units) | (STRING_ROUTE_VARIANTS if variants else set())
+    for name in sorted(must_bind - seen - unbound):
+        found.append(
+            f"{name}: no unit; bind it in {COMPILED_UNITS} (and the {PROGRAM_FAMILIES_SOURCE} unit "
+            f"column for a program family) or list it in an [[unbound]] row with its reason"
+        )
     for unit, routes in sorted(bound.items()):
         declared = (record_ids.get(unit) or {}).get("compiled_routes")
         if declared is not None and set(declared) != routes:
@@ -935,9 +959,12 @@ def compiled_units_self_test() -> None:
     status = {"capabilities": [{"id": "estimate.demo", "status": "supported", "missing_evidence": []}]}
     route = {"lowering": "MnarFixedShift", "unit_kind": "capability", "unit": "estimate.demo",
              "entry": {"rust": "a.rs", "python": "a.py"}}
+    unbound = [{"lowering": name, "reason": "no owning record"}
+               for name in ["ObservationalPolicy", *sorted(STRING_ROUTE_VARIANTS)]]
 
     def run(name: str, want: str | None, **overrides) -> None:
-        args = {"compiled": {"route": [route]}, "records": records, "status": status, "rows": [],
+        args = {"compiled": {"route": [route], "unbound": unbound}, "records": records,
+                "status": status, "rows": [],
                 "registry_text": registry, "families_text": families, "check_files": False}
         args.update(overrides)
         got = compiled_unit_problems(**args)
@@ -951,22 +978,36 @@ def compiled_units_self_test() -> None:
     run("a unit with no record fails", "is not a record", records=[])
     run("a unit with no derived status fails", "no derived status", status={"capabilities": []})
     run("a route that is not a PlanRoute fails", "not a PlanRoute variant",
-        compiled={"route": [dict(route, lowering="NoSuchRoute")]})
+        compiled={"route": [dict(route, lowering="NoSuchRoute")], "unbound": unbound})
     run("a family row naming another unit fails", "row says",
         families_text=families.replace("estimate.demo", "estimate.other"))
     run("a family row naming a unit nothing binds fails", "binds no such route",
         families_text=families.replace('ObservationalPolicy => DesignBased, unit ""', 'ObservationalPolicy => DesignBased, unit "x.y"'))
-    run("a route bound twice fails", "bound twice", compiled={"route": [route, route]})
+    run("a route bound twice fails", "bound twice",
+        compiled={"route": [route, route], "unbound": unbound})
     run("an unknown unit kind fails", "neither capability nor graphless",
-        compiled={"route": [dict(route, unit_kind="matrix")]})
+        compiled={"route": [dict(route, unit_kind="matrix")], "unbound": unbound})
     run("a graphless unit with no row fails", "is not a row",
-        compiled={"route": [dict(route, unit_kind="graphless", unit="a:b:c:d")]})
+        compiled={"route": [dict(route, unit_kind="graphless", unit="a:b:c:d")], "unbound": unbound})
     run("an entry with no python path fails", "no python path",
-        compiled={"route": [dict(route, entry={"rust": "a.rs"})]})
+        compiled={"route": [dict(route, entry={"rust": "a.rs"})], "unbound": unbound})
     run("a record whose compiled_routes disagree fails", "compiled_routes",
         records=[dict(records[0], compiled_routes=["ObservationalPolicy"])])
     run("a record listing routes that nothing binds fails", "binds none",
-        records=[dict(records[0], compiled_routes=["ObservationalPolicy"])], compiled={"route": []})
+        records=[dict(records[0], compiled_routes=["ObservationalPolicy"])],
+        compiled={"route": [], "unbound": unbound})
+    run("a family with no unit that no row lists fails", "ObservationalPolicy: no unit",
+        compiled={"route": [route], "unbound": unbound[1:]})
+    run("a string-carrying route neither bound nor listed fails", "PropagationChain: no unit",
+        compiled={"route": [route], "unbound": [row for row in unbound if row["lowering"] != "PropagationChain"]})
+    run("a listed route that is also bound fails", "also bound",
+        compiled={"route": [route], "unbound": [*unbound, {"lowering": "MnarFixedShift", "reason": "x"}]})
+    run("a listed route whose family row names a unit fails", "names unit",
+        compiled={"route": [], "unbound": [*unbound, {"lowering": "MnarFixedShift", "reason": "x"}]})
+    run("a listed route without a reason fails", "no reason",
+        compiled={"route": [route], "unbound": [dict(unbound[0], reason=" "), *unbound[1:]]})
+    run("a listed route that is not a PlanRoute fails", "not a PlanRoute variant",
+        compiled={"route": [route], "unbound": [*unbound, {"lowering": "NoSuchRoute", "reason": "x"}]})
     run("a record whose compiled_routes agree passes", None,
         records=[dict(records[0], compiled_routes=["MnarFixedShift"])])
     print("compiled units self-test: ok")
