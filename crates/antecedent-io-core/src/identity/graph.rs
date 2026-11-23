@@ -61,6 +61,27 @@ pub enum GraphIdentityWire {
 }
 
 impl GraphIdentityWire {
+    /// Whether the graph is in the form its constructor builds, so equal graphs encode
+    /// equally: edge lists strictly ascending, undirected and bidirected pairs oriented to
+    /// ascending endpoints, temporal nodes sorted by key (strictly, for the class kinds) with
+    /// edges indexed into that order. A posterior is canonical when every atom's graph is.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        match self {
+            Self::Dag(wire) => dag_wire_is_canonical(wire),
+            Self::Admg(wire) => admg_wire_is_canonical(wire),
+            Self::Cpdag(wire) => cpdag_wire_is_canonical(wire),
+            Self::Pag(wire) => pag_wire_is_canonical(wire),
+            Self::TemporalDag(wire) => temporal_dag_wire_is_canonical(wire),
+            Self::TemporalAdmg(wire) => wire.is_canonical(),
+            Self::TemporalClass(wire) => wire.is_canonical(),
+            Self::RandomizedTrial => true,
+            Self::GraphPosterior { atoms, .. } => {
+                atoms.iter().all(|atom| atom.graph.is_canonical())
+            }
+        }
+    }
+
     /// Scientific projection hashed into identification premises.
     ///
     /// Posterior atoms are a weighted set: atoms are sorted canonically and
@@ -86,6 +107,87 @@ impl GraphIdentityWire {
                 }
             }
             other => other.clone(),
+        }
+    }
+}
+
+/// Directed edges of [`canonical_dag_wire`]: strictly ascending `(from, to)`.
+fn dag_wire_is_canonical(wire: &DagWire) -> bool {
+    super::is_strictly_ascending(&wire.edges)
+}
+
+/// The form of [`canonical_admg_wire`]: directed edges strictly ascending; bidirected pairs
+/// oriented to `a <= b`, strictly ascending.
+pub(super) fn admg_wire_is_canonical(wire: &AdmgWire) -> bool {
+    super::is_strictly_ascending(&wire.directed)
+        && wire.bidirected.iter().all(|&(a, b)| a <= b)
+        && super::is_strictly_ascending(&wire.bidirected)
+}
+
+/// The form of [`cpdag_identity`]: directed and undirected edges strictly ascending; undirected
+/// pairs oriented to `a <= b` by the wire conversion.
+fn cpdag_wire_is_canonical(wire: &CpdagWire) -> bool {
+    super::is_strictly_ascending(&wire.directed)
+        && wire.undirected.iter().all(|&(a, b)| a <= b)
+        && super::is_strictly_ascending(&wire.undirected)
+}
+
+/// The form of [`pag_identity`]: each pair once as `a < b`, strictly ascending by `(a, b)`.
+fn pag_wire_is_canonical(wire: &PagWire) -> bool {
+    wire.edges.iter().all(|edge| edge.a < edge.b)
+        && wire.edges.windows(2).all(|pair| (pair[0].a, pair[0].b) < (pair[1].a, pair[1].b))
+}
+
+/// The form of [`canonical_temporal_dag_wire`]: nodes sorted by `(variable, lag)`,
+/// directed edges (indexed into that order) strictly ascending.
+fn temporal_dag_wire_is_canonical(wire: &TemporalGraphWire) -> bool {
+    temporal_nodes_are_canonical(&wire.nodes) && super::is_strictly_ascending(&wire.directed)
+}
+
+/// Temporal DAG and ADMG nodes are only sorted by `(variable, lag)`: the graph may hold two
+/// nodes with one key, which the constructor keeps, so the order is non-strict.
+fn temporal_nodes_are_canonical(nodes: &[TemporalNodeKeyWire]) -> bool {
+    nodes.windows(2).all(|pair| (pair[0].variable, pair[0].lag) <= (pair[1].variable, pair[1].lag))
+}
+
+impl TemporalAdmgIdentityWire {
+    /// Whether this is the form the temporal ADMG identity builds: nodes sorted by
+    /// `(variable, lag)`, directed edges strictly ascending, bidirected pairs `a <= b` and
+    /// strictly ascending.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        temporal_nodes_are_canonical(&self.nodes)
+            && super::is_strictly_ascending(&self.directed)
+            && self.bidirected.iter().all(|&(a, b)| a <= b)
+            && super::is_strictly_ascending(&self.bidirected)
+    }
+}
+
+impl TemporalClassIdentityWire {
+    /// Whether this is the form the temporal class identity builds: nodes strictly ascending
+    /// in the node order (repeated nodes merged) and edges oriented to ascending endpoint
+    /// indices `a < b`, strictly ascending by `(a, b)` (one edge per pair).
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        super::is_strictly_ascending(&self.nodes)
+            && self.edges.iter().all(|edge| edge.a < edge.b)
+            && self.edges.windows(2).all(|pair| (pair[0].a, pair[0].b) < (pair[1].a, pair[1].b))
+    }
+}
+
+impl PosteriorAtomGraphWire {
+    /// Whether the atom's graph is in the canonical form of its class.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        match self {
+            Self::Static(wire) => dag_wire_is_canonical(wire),
+            Self::Admg(wire) => admg_wire_is_canonical(wire),
+            Self::Cpdag(wire) => cpdag_wire_is_canonical(wire),
+            Self::Pag(wire) => pag_wire_is_canonical(wire),
+            Self::Temporal(wire) => temporal_dag_wire_is_canonical(wire),
+            Self::TemporalAdmg(wire) => wire.is_canonical(),
+            Self::TemporalClass(wire) => wire.is_canonical(),
+            Self::Unrepresentable => true,
         }
     }
 }

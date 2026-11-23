@@ -13,7 +13,8 @@
 //! | Format tag | `IDENTITY_FORMAT` (little-endian `u16`) prefixes the hash; the same tag is stored on every payload. |
 //! | Ordered fields | Schema variables, query lists, partitions, and estimands keep writer order. |
 //! | Graphs | Edge lists are sorted; temporal-DAG, temporal-ADMG and temporal-class nodes are sorted by their key, repeated nodes merged, and edges re-indexed (class edges re-oriented to ascending endpoints with marks swapped); the class kinds are `temporal_cpdag.v2` and `temporal_pag.v2`. Insertion order never reaches a digest. |
-//! | Set-valued fields | Observation tags (with their variable arguments), named prior-parameter pairs (a CBOR list of `(source, target)` tuples), selection targets, and class-prior pairs are sorted then deduplicated. Graph-posterior atoms are sorted by their encoding with the position-derived execution key cleared. |
+//! | Set-valued fields | Observation tags (with their variable arguments) and named prior-parameter pairs (a CBOR list of `(source, target)` tuples) are sorted then deduplicated. Selection targets and class-prior pairs are sorted only: selection targets are distinct because the selection diagram holds each variable once, and class-prior pairs are distinct by completion key because the class prior refuses a repeated key. Graph-posterior atoms are sorted by their encoding with the position-derived execution key cleared. |
+//! | Canonical form of a decoded payload | A payload is hashed as stored, so each wire states the form its constructor builds in an `is_canonical` check: lists strictly ascending (sorted, no repeat), pairs in their stated orientation, temporal nodes sorted by key (strictly, for the class kinds) with edges indexed into that order. A decoded payload that is not canonical is refused at verification, never rehashed as another identity. |
 //! | Configuration | Estimator, prior, response, observation, and execution settings are structured wires of scalar fields; data-sized vectors are [`PayloadDigestWire`]s. Nothing is rendered through `Debug` or `Display`. |
 //! | Sub-digests | [`payload_digest`] (derive-key `antecedent.identity.payload`, a `kind` label, then little-endian bytes) is the only sub-digest convention. |
 //! | Floats | Knobs, weights, masses, and claim values are IEEE-754 bits (`f64::to_bits`) carried as `u64`. Floats that remain inside reused wire types (for example RD design cutoffs and query values) use ciborium's shortest exact encoding: a value is written in the narrowest of f16/f32/f64 that represents it exactly, NaN payloads and the sign of zero are kept, so the encoding is injective on bits. |
@@ -340,8 +341,27 @@ pub struct RdConfigWire {
 pub enum ClassPriorIdentityWire {
     /// Masses aligned with enumerated cases, as IEEE-754 bits.
     Ordered(Vec<u64>),
-    /// `(completion fingerprint, mass bits)` sorted by fingerprint.
+    /// `(completion fingerprint, mass bits)` strictly ascending by fingerprint (sorted; keys are
+    /// distinct because the class prior refuses a repeated key).
     Pairs(Vec<(u64, u64)>),
+}
+
+impl ClassPriorIdentityWire {
+    /// Whether this is the form the class prior builds: ordered masses carry no list
+    /// constraint; keyed pairs are strictly ascending by completion fingerprint (sorted, and
+    /// distinct because the class prior refuses a repeated key).
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        match self {
+            Self::Ordered(_) => true,
+            Self::Pairs(pairs) => pairs.windows(2).all(|pair| pair[0].0 < pair[1].0),
+        }
+    }
+}
+
+/// Whether `items` is strictly ascending: sorted with no repeated item.
+pub(crate) fn is_strictly_ascending<T: Ord>(items: &[T]) -> bool {
+    items.windows(2).all(|pair| pair[0] < pair[1])
 }
 
 /// Transport selection diagram and trial column bindings.
@@ -349,7 +369,8 @@ pub enum ClassPriorIdentityWire {
 pub struct TransportIdentityWire {
     /// Selection-diagram causal graph (canonical edge order), when frozen.
     pub selection_graph: Option<AdmgWire>,
-    /// Selection targets (mechanisms that may differ), sorted.
+    /// Selection targets (mechanisms that may differ), strictly ascending (sorted; distinct
+    /// because the selection diagram holds each target once).
     pub selection_targets: Vec<u32>,
     /// Trial-membership variable, when bound.
     pub trial: Option<u32>,
@@ -357,6 +378,17 @@ pub struct TransportIdentityWire {
     pub selection_probability: Option<u32>,
     /// Known `P(A=1 | X, S=1)` column, when bound.
     pub treatment_probability: Option<u32>,
+}
+
+impl TransportIdentityWire {
+    /// Whether this is the form [`transport_identity`] builds: a canonical selection graph and
+    /// selection targets strictly ascending (sorted; distinct because the selection diagram
+    /// holds each target once).
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        is_strictly_ascending(&self.selection_targets)
+            && self.selection_graph.as_ref().is_none_or(graph::admg_wire_is_canonical)
+    }
 }
 
 /// Canonical transport premises from a frozen selection diagram and trial columns.
@@ -415,6 +447,18 @@ pub struct IdentificationIdentityWire {
     pub graph: GraphIdentityWire,
     /// Observation-contract digest.
     pub observation: [u8; 32],
+}
+
+impl IdentificationIdentityWire {
+    /// Whether every set-valued part is in the form its constructor builds: the graph, the
+    /// class prior and the transport premises. A payload that is not canonical would hash to a
+    /// second identity for the same premises.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        self.graph.is_canonical()
+            && self.class_prior.as_ref().is_none_or(ClassPriorIdentityWire::is_canonical)
+            && self.transport.as_ref().is_none_or(TransportIdentityWire::is_canonical)
+    }
 }
 
 /// Digest identification premises.
@@ -1966,6 +2010,186 @@ mod tests {
             to_cbor(&named(&[("a->b", "c")])).unwrap()
         );
         assert_eq!(named(&[("x", "y"), ("a", "b")]), named(&[("a", "b"), ("x", "y"), ("a", "b")]));
+    }
+
+    /// A decoded payload is hashed as stored, so every set-valued list must be in the form its
+    /// constructor builds; another order (or a repeat) is a second identity for one premise.
+    #[test]
+    fn decoded_set_valued_payloads_are_canonical_only_in_constructor_form() {
+        use antecedent_graph::Admg;
+        let node = DenseNodeId::from_raw;
+        let (schema, _, _) = schema_and_query();
+
+        // Observation tags: sorted and distinct.
+        let observation = observation_identity_wire(&schema, ["b", "a", "b"]);
+        assert!(observation.is_canonical());
+        let digest = digest_wire(IdentityDomain::Observation, &observation).unwrap();
+        assert_eq!(
+            digest,
+            digest_wire(
+                IdentityDomain::Observation,
+                &observation_identity_wire(&schema, ["a", "b"])
+            )
+            .unwrap()
+        );
+        for tags in [vec!["b", "a"], vec!["a", "a", "b"]] {
+            let mut stored = observation.clone();
+            stored.observation = tags.into_iter().map(String::from).collect();
+            assert!(!stored.is_canonical(), "{:?}", stored.observation);
+        }
+
+        // Named prior pairs: sorted and distinct.
+        let named = |pairs: &[(&str, &str)]| PriorMappingIdentityWire::NamedParameters {
+            pairs: pairs.iter().map(|(a, b)| ((*a).into(), (*b).into())).collect(),
+        };
+        assert!(named(&[("a", "b"), ("x", "y")]).is_canonical());
+        assert!(!named(&[("x", "y"), ("a", "b")]).is_canonical());
+        assert!(!named(&[("a", "b"), ("a", "b")]).is_canonical());
+        assert!(PriorMappingIdentityWire::IdenticalCoefficientSubspace.is_canonical());
+
+        // Class-prior pairs: strictly ascending by completion key; ordered masses are free.
+        assert!(ClassPriorIdentityWire::Pairs(vec![(1, 9), (2, 3)]).is_canonical());
+        assert!(!ClassPriorIdentityWire::Pairs(vec![(2, 3), (1, 9)]).is_canonical());
+        assert!(!ClassPriorIdentityWire::Pairs(vec![(1, 9), (1, 3)]).is_canonical());
+        assert!(ClassPriorIdentityWire::Ordered(vec![9, 3]).is_canonical());
+
+        // Transport: canonical selection graph and strictly ascending targets.
+        let transport = |targets: Vec<u32>| TransportIdentityWire {
+            selection_graph: None,
+            selection_targets: targets,
+            trial: None,
+            selection_probability: None,
+            treatment_probability: None,
+        };
+        assert!(transport(vec![0, 2]).is_canonical());
+        assert!(!transport(vec![2, 0]).is_canonical());
+        assert!(!transport(vec![2, 2]).is_canonical());
+        let mut with_graph = transport(Vec::new());
+        with_graph.selection_graph =
+            Some(AdmgWire { node_count: 3, directed: vec![(1, 2), (0, 1)], bidirected: vec![] });
+        assert!(!with_graph.is_canonical());
+
+        // Static graphs.
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(node(1), node(2)).unwrap();
+        dag.insert_directed(node(0), node(1)).unwrap();
+        let canonical = dag_identity(&dag).unwrap();
+        assert!(canonical.is_canonical());
+        let GraphIdentityWire::Dag(wire) = &canonical else { panic!("a DAG") };
+        let mut shuffled = wire.clone();
+        shuffled.edges.reverse();
+        assert!(!GraphIdentityWire::Dag(shuffled).is_canonical());
+        let mut repeated = wire.clone();
+        repeated.edges.push(repeated.edges[0]);
+        assert!(!GraphIdentityWire::Dag(repeated).is_canonical());
+
+        let mut admg = Admg::with_variables(3);
+        admg.insert_directed(node(0), node(1)).unwrap();
+        admg.insert_bidirected(node(1), node(2)).unwrap();
+        let canonical = admg_identity(&admg).unwrap();
+        assert!(canonical.is_canonical());
+        let GraphIdentityWire::Admg(wire) = &canonical else { panic!("an ADMG") };
+        let mut flipped = wire.clone();
+        flipped.bidirected = flipped.bidirected.iter().map(|&(a, b)| (b, a)).collect();
+        assert!(!GraphIdentityWire::Admg(flipped).is_canonical());
+
+        let cpdag =
+            CpdagWire { node_count: 3, directed: vec![(0, 2)], undirected: vec![(0, 1), (1, 2)] };
+        assert!(GraphIdentityWire::Cpdag(cpdag.clone()).is_canonical());
+        let mut shuffled = cpdag.clone();
+        shuffled.undirected.reverse();
+        assert!(!GraphIdentityWire::Cpdag(shuffled).is_canonical());
+        let mut flipped = cpdag;
+        flipped.undirected[0] = (1, 0);
+        assert!(!GraphIdentityWire::Cpdag(flipped).is_canonical());
+
+        let marked = |a, b| crate::wire::MarkedEdgeWire {
+            a,
+            b,
+            at_a: EndpointWire::Tail,
+            at_b: EndpointWire::Arrow,
+        };
+        let pag = PagWire { node_count: 3, edges: vec![marked(0, 1), marked(1, 2)] };
+        assert!(GraphIdentityWire::Pag(pag.clone()).is_canonical());
+        let mut shuffled = pag.clone();
+        shuffled.edges.reverse();
+        assert!(!GraphIdentityWire::Pag(shuffled).is_canonical());
+        let mut flipped = pag;
+        flipped.edges[0] = marked(1, 0);
+        assert!(!GraphIdentityWire::Pag(flipped).is_canonical());
+
+        // Temporal graphs: nodes in key order, edges indexed into it.
+        let key = |variable, lag| TemporalNodeKeyWire { variable, lag };
+        let temporal = DiscoveryTemporalGraphWire {
+            kind: "temporal_dag".into(),
+            nodes: vec![key(0, 0), key(0, 1), key(1, 0)],
+            directed: vec![(0, 2), (1, 2)],
+        };
+        assert!(GraphIdentityWire::TemporalDag(temporal.clone()).is_canonical());
+        let mut unsorted_nodes = temporal.clone();
+        unsorted_nodes.nodes.swap(0, 1);
+        assert!(!GraphIdentityWire::TemporalDag(unsorted_nodes).is_canonical());
+        let mut unsorted_edges = temporal;
+        unsorted_edges.directed.reverse();
+        assert!(!GraphIdentityWire::TemporalDag(unsorted_edges).is_canonical());
+
+        let admg = TemporalAdmgIdentityWire {
+            nodes: vec![key(0, 0), key(1, 0), key(1, 1)],
+            directed: vec![(0, 1)],
+            bidirected: vec![(1, 2)],
+        };
+        assert!(GraphIdentityWire::TemporalAdmg(admg.clone()).is_canonical());
+        let mut flipped = admg.clone();
+        flipped.bidirected = vec![(2, 1)];
+        assert!(!GraphIdentityWire::TemporalAdmg(flipped).is_canonical());
+        let mut unsorted_nodes = admg;
+        unsorted_nodes.nodes.reverse();
+        assert!(!GraphIdentityWire::TemporalAdmg(unsorted_nodes).is_canonical());
+
+        let edge = |a, b| IdentityMarkedEdgeWire {
+            a,
+            b,
+            at_a: EndpointWire::Tail,
+            at_b: EndpointWire::Arrow,
+            middle: "unknown".into(),
+        };
+        let class = TemporalClassIdentityWire {
+            kind: "temporal_cpdag.v2".into(),
+            nodes: vec![
+                IdentityNodeWire::Lagged { variable: 0, lag: 0 },
+                IdentityNodeWire::Lagged { variable: 1, lag: 0 },
+                IdentityNodeWire::Lagged { variable: 2, lag: 0 },
+            ],
+            edges: vec![edge(0, 1), edge(1, 2)],
+        };
+        assert!(GraphIdentityWire::TemporalClass(class.clone()).is_canonical());
+        let mut reversed_edges = class.clone();
+        reversed_edges.edges.reverse();
+        assert!(!GraphIdentityWire::TemporalClass(reversed_edges).is_canonical());
+        let mut unoriented = class.clone();
+        unoriented.edges[0] = edge(1, 0);
+        assert!(!GraphIdentityWire::TemporalClass(unoriented).is_canonical());
+        let mut repeated_node = class.clone();
+        repeated_node.nodes.push(repeated_node.nodes[2].clone());
+        assert!(!GraphIdentityWire::TemporalClass(repeated_node).is_canonical());
+        let mut unsorted_nodes = class;
+        unsorted_nodes.nodes.swap(0, 2);
+        assert!(!GraphIdentityWire::TemporalClass(unsorted_nodes).is_canonical());
+
+        // A posterior is canonical when every atom's graph is.
+        let atom = |graph| PosteriorAtomIdentityWire {
+            format: IDENTITY_FORMAT,
+            weight_bits: 1.0f64.to_bits(),
+            graph,
+            execution_key: 0,
+        };
+        let posterior = |edges: Vec<(u32, u32)>| GraphIdentityWire::GraphPosterior {
+            graph_class: "dag".into(),
+            n_atoms: 1,
+            atoms: vec![atom(PosteriorAtomGraphWire::Static(DagWire { node_count: 3, edges }))],
+        };
+        assert!(posterior(vec![(0, 1), (1, 2)]).is_canonical());
+        assert!(!posterior(vec![(1, 2), (0, 1)]).is_canonical());
     }
 
     #[test]

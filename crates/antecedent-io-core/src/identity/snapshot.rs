@@ -33,6 +33,15 @@ pub fn observation_identity_wire(
     ObservationIdentityWire { format: IDENTITY_FORMAT, schema: schema_to_wire(schema), observation }
 }
 
+impl ObservationIdentityWire {
+    /// Whether the tags are in the form [`observation_identity_wire`] builds: strictly
+    /// ascending, so sorted and without a repeated tag.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        super::is_strictly_ascending(&self.observation)
+    }
+}
+
 /// Ordered storage partition in a data snapshot.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DataPartitionIdentityWire {

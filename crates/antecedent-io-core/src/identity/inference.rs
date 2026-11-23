@@ -80,6 +80,16 @@ pub enum PriorMappingIdentityWire {
 }
 
 impl PriorMappingIdentityWire {
+    /// Whether this is the form [`Self::from_mapping`] builds: named pairs strictly ascending
+    /// (sorted, no repeated pair).
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        match self {
+            Self::NamedParameters { pairs } => super::is_strictly_ascending(pairs),
+            Self::IdenticalCoefficientSubspace | Self::EffectFunctional { .. } => true,
+        }
+    }
+
     /// Canonical mapping (named pairs sorted and deduplicated).
     #[must_use]
     pub fn from_mapping(mapping: &crate::PriorMapping) -> Self {
@@ -410,6 +420,18 @@ pub struct ResponseOptionsWire {
     pub simultaneous_replicates: Option<u32>,
     /// Multiplier seed for the simultaneous band.
     pub multiplier_seed: u64,
+}
+
+impl InferenceBindingWire {
+    /// Whether every set-valued field is in the form its constructor builds: the prior
+    /// mapping's named pairs, strictly ascending.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        self.bayesian
+            .as_ref()
+            .and_then(|bayesian| bayesian.prior_mapping.as_ref())
+            .is_none_or(PriorMappingIdentityWire::is_canonical)
+    }
 }
 
 /// Digest an inference binding.

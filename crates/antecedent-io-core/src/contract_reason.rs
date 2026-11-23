@@ -327,6 +327,9 @@ pub enum ContractReason {
     IdentitiesTarget,
     /// `identities.target_weights`.
     IdentitiesTargetWeights,
+    /// `identity.noncanonical_payload`: a stored identity payload whose set-valued lists are
+    /// not in the form its constructor builds, so it would hash to a second identity.
+    IdentityNoncanonicalPayload,
     /// `inference_binding.bayesian`.
     InferenceBindingBayesian,
     /// `inference_binding.inference`.
@@ -746,6 +749,7 @@ impl ContractReason {
             Self::IdentitiesScoreReuse => "identities.score_reuse",
             Self::IdentitiesTarget => "identities.target",
             Self::IdentitiesTargetWeights => "identities.target_weights",
+            Self::IdentityNoncanonicalPayload => "identity.noncanonical_payload",
             Self::InferenceBindingBayesian => "inference_binding.bayesian",
             Self::InferenceBindingInference => "inference_binding.inference",
             Self::InferenceBindingValidationSuite => "inference_binding.validation_suite",
@@ -1104,6 +1108,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::IdentitiesScoreReuse,
     ContractReason::IdentitiesTarget,
     ContractReason::IdentitiesTargetWeights,
+    ContractReason::IdentityNoncanonicalPayload,
     ContractReason::InferenceBindingBayesian,
     ContractReason::InferenceBindingInference,
     ContractReason::InferenceBindingValidationSuite,
@@ -1327,6 +1332,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "identities.score_reuse",
     "identities.target",
     "identities.target_weights",
+    "identity.noncanonical_payload",
     "inference_binding.bayesian",
     "inference_binding.inference",
     "inference_binding.validation_suite",

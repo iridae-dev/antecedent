@@ -316,6 +316,90 @@ fn distribution_consumer_names_missing_factor_laws_as_replay_dependency() {
     );
 }
 
+/// A stored set-valued payload in another order (or with a repeat) hashes to a second identity
+/// for the same science. Even with its digest re-advertised, it is refused as non-canonical,
+/// while the canonical payload keeps its digest and is not refused.
+#[test]
+fn decoded_payloads_outside_canonical_form_are_refused_at_verification() {
+    use crate::identity::{
+        ClassPriorIdentityWire, GraphIdentityWire, TransportIdentityWire, identification_digest,
+    };
+    use antecedent_graph::{Dag, DenseNodeId};
+    const REASON: &str = "identity.noncanonical_payload";
+    let (body, target, names) = fixture_body_for(&["t", "y", "z"]);
+    let header = AnalysisResultHeader { variable_names: names };
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    let refused = |contract: &AnalysisResultContractWire| {
+        verify_contract_against_body(&header, &body, contract)
+            .iter()
+            .any(|reason| reason.as_ref() == REASON)
+    };
+    let base = contract_for_dag(target.clone(), &body, &dag);
+    assert!(!refused(&base));
+
+    // Observation tags.
+    let tags = |tags: &[&str]| {
+        let mut wire = base.observation.clone().unwrap();
+        wire.observation = tags.iter().map(|tag| (*tag).to_owned()).collect();
+        wire
+    };
+    for stored in [tags(&["a", "b"]), tags(&["b", "a"]), tags(&["a", "a", "b"])] {
+        let mut contract = base.clone();
+        contract.identities.observation =
+            *digest_wire(IdentityDomain::Observation, &stored).unwrap().as_bytes();
+        let canonical = stored.is_canonical();
+        contract.observation = Some(stored);
+        assert_eq!(refused(&contract), !canonical);
+    }
+
+    // Identification: graph edges, class-prior pairs and transport targets.
+    let readvertised = |edit: &dyn Fn(&mut IdentificationIdentityWire)| {
+        let mut contract = base.clone();
+        let identification = contract.identification.as_mut().unwrap();
+        edit(identification);
+        contract.identities.identification =
+            *identification_digest(identification).unwrap().as_bytes();
+        contract
+    };
+    let canonical_digest = base.identities.identification;
+    let kept = readvertised(&|_| {});
+    assert_eq!(kept.identities.identification, canonical_digest);
+    assert!(!refused(&kept));
+    let GraphIdentityWire::Dag(graph) = &base.identification.as_ref().unwrap().graph else {
+        panic!("the fixture carries a DAG");
+    };
+    assert_eq!(graph.edges, vec![(0, 1), (2, 1)]);
+    let reordered = readvertised(&|identification| {
+        identification.graph = GraphIdentityWire::Dag(crate::wire::DagWire {
+            node_count: 3,
+            edges: vec![(2, 1), (0, 1)],
+        });
+    });
+    assert_ne!(reordered.identities.identification, canonical_digest);
+    assert!(refused(&reordered));
+    assert!(refused(&readvertised(&|identification| {
+        identification.class_prior = Some(ClassPriorIdentityWire::Pairs(vec![(2, 1), (1, 1)]));
+    })));
+    assert!(!refused(&readvertised(&|identification| {
+        identification.class_prior = Some(ClassPriorIdentityWire::Pairs(vec![(1, 1), (2, 1)]));
+    })));
+    let transport = |selection_targets: Vec<u32>| TransportIdentityWire {
+        selection_graph: None,
+        selection_targets,
+        trial: None,
+        selection_probability: None,
+        treatment_probability: None,
+    };
+    assert!(refused(&readvertised(&|identification| {
+        identification.transport = Some(transport(vec![1, 0]));
+    })));
+    assert!(!refused(&readvertised(&|identification| {
+        identification.transport = Some(transport(vec![0, 1]));
+    })));
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one fixture exercised end to end; later assertions read locals built above them"
