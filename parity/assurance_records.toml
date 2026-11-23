@@ -225,8 +225,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "5d31349241a57bfce9f76213ff3f00e7fd4b5140d2721b16330e3f879b3f098f"
-checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
+inputs_digest = "0828208c07532d96863fdbe682fd48a8921d5d5ef6341be2fe9c4884f9d136b3"
+checked_commit = "7dae9c72947fc02da71dd9ec1f6fcfb1ab74e8b5"
 
 [[records]]
 id = "contract.transformations_keep_obligations"
