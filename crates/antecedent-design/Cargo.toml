@@ -175,3 +175,7 @@ path = "tests/transported_decision_artifact_exact.rs"
 [[test]]
 name = "external_provider_exact"
 path = "tests/external_provider_exact.rs"
+
+[[test]]
+name = "suite_03"
+path = "tests/suite_03.rs"

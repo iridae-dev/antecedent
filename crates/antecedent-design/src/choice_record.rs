@@ -1,0 +1,929 @@
+//! Recorded past choices and the expected linear-form terms of every option.
+//!
+//! A [`ChoiceRecord`] states which alternatives a decision-maker had, what was expected of each
+//! (a [`OptionBelief`]: attribute means or aligned joint draws), which one was chosen, where the
+//! expectations came from ([`BeliefSource`]) and which evidence-ledger observation rows the record
+//! rests on. Realized outcomes are never read as what the decision-maker expected unless that
+//! assumption is named, and pooling the choices of several decision-makers into one set of
+//! preferences is itself a named assumption ([`Pooling::Pooled`]).
+//!
+//! The same observation row under two records would count one piece of evidence twice, so it is
+//! refused. Rows are compared as evidence-ledger row identities are: by their exact spelling,
+//! after surrounding whitespace is trimmed (no other normalisation is applied).
+//!
+//! [`choice_features`] reads a [`ValueModel`] whose value is `fixed + sum_j theta_j * terms[j]`
+//! and gives, for every option of every record, the expectation of the fixed part and of each
+//! term under the option's belief. Every fixed parameter (`lower == upper`) is substituted by its
+//! value before the linear form is taken, so its column of [`ChoiceSetFeatures::terms`] is zero
+//! and its contribution is folded into [`ChoiceSetFeatures::fixed`]; the nonzero columns are
+//! exactly the free parameters. A term's expectation from attribute means is its value at the
+//! means, which is exact only for a term affine in the attributes; any other term needs draws.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+
+use antecedent_core::{CanonicalWriter, is_blank};
+
+use crate::preference_model::{
+    Attribute, LinearForm, PreferenceExpr, PreferenceModelError, ValueModel,
+};
+
+/// Where the expected outcomes of an option came from. Realized outcomes are never assumed to be
+/// what the decision-maker expected unless that assumption is named.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BeliefSource {
+    /// A forecast recorded before the choice.
+    RecordedForecast {
+        /// Identity of the recorded forecast; non-blank.
+        source_id: String,
+    },
+    /// The result of an analysis as it stood at a date.
+    AnalysisAsOf {
+        /// Identity of the analysis result; non-blank.
+        result_identity: String,
+        /// The date the result is read as of; non-blank.
+        as_of: String,
+    },
+    /// The outcomes that were later realized, read as the expectations under a named assumption.
+    RealizedOutcome {
+        /// Identity of the assumption that realized outcomes stand for expectations; non-blank.
+        assumption_id: String,
+    },
+}
+
+/// What was expected of one option.
+#[derive(Clone, Debug, PartialEq)]
+pub enum OptionBelief {
+    /// Expected value of each attribute, one per attribute in attribute order.
+    Means(Vec<f64>),
+    /// Aligned joint draws of the attributes.
+    Draws {
+        /// Row-major `n x attributes` table, one row per joint draw; `n >= 1`.
+        rows: Vec<f64>,
+        /// Optional non-negative weight per row with a positive sum; uniform when absent.
+        weights: Option<Vec<f64>>,
+    },
+}
+
+/// One alternative that was available at a recorded choice.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceOption {
+    /// Identity of the option within its record; non-blank and distinct.
+    pub id: String,
+    /// What was expected of the option.
+    pub belief: OptionBelief,
+}
+
+/// One recorded choice.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceRecord {
+    /// Identity of the record; non-blank and distinct within a set.
+    pub id: String,
+    /// Who chose; non-blank.
+    pub decider: String,
+    /// The alternatives that were available; at least two.
+    pub options: Vec<ChoiceOption>,
+    /// Identity of the chosen option.
+    pub chosen: String,
+    /// Where the beliefs came from.
+    pub belief_source: BeliefSource,
+    /// Evidence-ledger row identities this record rests on; non-empty, non-blank, distinct.
+    pub observation_rows: Vec<String>,
+}
+
+/// How the choices of several decision-makers are read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Pooling {
+    /// Each decision-maker's choices are read separately.
+    PerDecider,
+    /// All choices are read as coming from one set of preferences; the assumption is named.
+    Pooled {
+        /// Identity of the pooling assumption; non-blank.
+        assumption_id: String,
+    },
+}
+
+/// A set of recorded choices over declared attributes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceRecordSet {
+    /// Outcome attributes every belief is stated over; must equal the value model's attributes
+    /// (ids and units, in order).
+    pub attributes: Vec<Attribute>,
+    /// Population the decision-makers belong to; non-blank.
+    pub population: String,
+    /// The recorded choices; at least one.
+    pub records: Vec<ChoiceRecord>,
+    /// How the decision-makers' choices are read.
+    pub pooling: Pooling,
+}
+
+/// Why a choice record set or a feature extraction is refused.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ChoiceRecordError {
+    /// The value model is invalid.
+    Model(PreferenceModelError),
+    /// No attributes are declared.
+    AttributesMissing,
+    /// An attribute identity is blank.
+    AttributeIdBlank {
+        /// Position of the attribute.
+        index: usize,
+    },
+    /// An attribute's units are blank.
+    AttributeUnitsBlank {
+        /// Identity of the attribute.
+        attribute: String,
+    },
+    /// Two attributes share an identity.
+    AttributeDuplicate {
+        /// The repeated identity.
+        attribute: String,
+    },
+    /// The population is blank.
+    PopulationBlank,
+    /// Pooling is declared without naming its assumption.
+    PoolingAssumptionBlank,
+    /// The set holds no records.
+    RecordsMissing,
+    /// A record identity is blank.
+    RecordIdBlank {
+        /// Position of the record.
+        index: usize,
+    },
+    /// Two records share an identity.
+    RecordDuplicate {
+        /// The repeated identity.
+        record: String,
+    },
+    /// A record's decider is blank.
+    DeciderBlank {
+        /// The record.
+        record: String,
+    },
+    /// A record offers fewer than two options.
+    OptionsTooFew {
+        /// The record.
+        record: String,
+        /// Number of options declared.
+        options: usize,
+    },
+    /// An option identity is blank.
+    OptionIdBlank {
+        /// The record.
+        record: String,
+        /// Position of the option.
+        index: usize,
+    },
+    /// Two options of a record share an identity.
+    OptionDuplicate {
+        /// The record.
+        record: String,
+        /// The repeated identity.
+        option: String,
+    },
+    /// The chosen identity is not among the record's options.
+    ChosenUnknown {
+        /// The record.
+        record: String,
+        /// The chosen identity as declared.
+        chosen: String,
+    },
+    /// A recorded forecast does not name its source.
+    ForecastSourceBlank {
+        /// The record.
+        record: String,
+    },
+    /// An analysis belief does not name its result identity.
+    AnalysisIdentityBlank {
+        /// The record.
+        record: String,
+    },
+    /// An analysis belief does not name its as-of date.
+    AnalysisDateBlank {
+        /// The record.
+        record: String,
+    },
+    /// A realized-outcome belief does not name its assumption.
+    RealizedAssumptionBlank {
+        /// The record.
+        record: String,
+    },
+    /// A belief of means does not hold one value per attribute.
+    MeansWidthMismatch {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// Number of attributes.
+        attributes: usize,
+        /// Number of means given.
+        means: usize,
+    },
+    /// A belief of draws holds no rows.
+    DrawsEmpty {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+    },
+    /// A belief of draws is not a whole number of attribute rows.
+    DrawsWidthMismatch {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// Number of attributes.
+        attributes: usize,
+        /// Number of values given.
+        values: usize,
+    },
+    /// A belief value is not finite.
+    BeliefNotFinite {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+    },
+    /// Draw weights are not one per row.
+    WeightsLengthMismatch {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// Number of draw rows.
+        rows: usize,
+        /// Number of weights given.
+        weights: usize,
+    },
+    /// A draw weight is not finite.
+    WeightNotFinite {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// The draw row.
+        row: usize,
+    },
+    /// A draw weight is negative.
+    WeightNegative {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// The draw row.
+        row: usize,
+    },
+    /// The draw weights do not have a positive, finite sum.
+    WeightsSumInvalid {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+    },
+    /// A record names no observation rows.
+    ObservationRowsMissing {
+        /// The record.
+        record: String,
+    },
+    /// An observation row identity is blank.
+    ObservationRowBlank {
+        /// The record.
+        record: String,
+        /// Position of the row.
+        index: usize,
+    },
+    /// A record names the same observation row twice.
+    ObservationRowRepeated {
+        /// The record.
+        record: String,
+        /// The row identity, trimmed.
+        row: String,
+    },
+    /// Two records rest on the same observation row, which would count it twice.
+    ObservationRowDoubleCounted {
+        /// The row identity, trimmed.
+        row: String,
+        /// The earlier record in declaration order.
+        first_record: String,
+        /// The later record.
+        second_record: String,
+    },
+    /// The records' attributes differ from the value model's.
+    AttributesDiffer {
+        /// Position of the first difference.
+        index: usize,
+        /// The model's attribute there, if it has one.
+        model: Option<Attribute>,
+        /// The records' attribute there, if they have one.
+        records: Option<Attribute>,
+    },
+    /// The value is not affine in parameters whose range is not a single value.
+    ShapeParametersNotFixed {
+        /// Identities of those parameters, in parameter order.
+        parameters: Vec<String>,
+    },
+    /// A term that is not affine in the attributes has no expectation from attribute means.
+    BeliefLawRequired {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+        /// The term: `None` for the fixed part, `Some(j)` for parameter `j`'s term.
+        term: Option<usize>,
+    },
+    /// A term's value or expectation is not finite.
+    TermNotFinite {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+    },
+}
+
+impl ChoiceRecordError {
+    /// Stable detail identity of the refusal.
+    #[must_use]
+    pub fn detail(&self) -> &'static str {
+        match self {
+            Self::Model(_) => "choice_record.model_invalid",
+            Self::AttributesMissing => "choice_record.attributes_missing",
+            Self::AttributeIdBlank { .. } => "choice_record.attribute_id_blank",
+            Self::AttributeUnitsBlank { .. } => "choice_record.attribute_units_blank",
+            Self::AttributeDuplicate { .. } => "choice_record.attribute_duplicate",
+            Self::PopulationBlank => "choice_record.population_blank",
+            Self::PoolingAssumptionBlank => "choice_record.pooling_assumption_blank",
+            Self::RecordsMissing => "choice_record.records_missing",
+            Self::RecordIdBlank { .. } => "choice_record.record_id_blank",
+            Self::RecordDuplicate { .. } => "choice_record.record_duplicate",
+            Self::DeciderBlank { .. } => "choice_record.decider_blank",
+            Self::OptionsTooFew { .. } => "choice_record.options_too_few",
+            Self::OptionIdBlank { .. } => "choice_record.option_id_blank",
+            Self::OptionDuplicate { .. } => "choice_record.option_duplicate",
+            Self::ChosenUnknown { .. } => "choice_record.chosen_unknown",
+            Self::ForecastSourceBlank { .. } => "choice_record.forecast_source_blank",
+            Self::AnalysisIdentityBlank { .. } => "choice_record.analysis_identity_blank",
+            Self::AnalysisDateBlank { .. } => "choice_record.analysis_date_blank",
+            Self::RealizedAssumptionBlank { .. } => "choice_record.realized_assumption_blank",
+            Self::MeansWidthMismatch { .. } => "choice_record.means_width_mismatch",
+            Self::DrawsEmpty { .. } => "choice_record.draws_empty",
+            Self::DrawsWidthMismatch { .. } => "choice_record.draws_width_mismatch",
+            Self::BeliefNotFinite { .. } => "choice_record.belief_not_finite",
+            Self::WeightsLengthMismatch { .. } => "choice_record.weights_length_mismatch",
+            Self::WeightNotFinite { .. } => "choice_record.weight_not_finite",
+            Self::WeightNegative { .. } => "choice_record.weight_negative",
+            Self::WeightsSumInvalid { .. } => "choice_record.weights_sum_invalid",
+            Self::ObservationRowsMissing { .. } => "choice_record.observation_rows_missing",
+            Self::ObservationRowBlank { .. } => "choice_record.observation_row_blank",
+            Self::ObservationRowRepeated { .. } => "choice_record.observation_row_repeated",
+            Self::ObservationRowDoubleCounted { .. } => {
+                "choice_record.observation_row_double_counted"
+            }
+            Self::AttributesDiffer { .. } => "choice_record.attributes_differ",
+            Self::ShapeParametersNotFixed { .. } => "choice_record.shape_parameters_not_fixed",
+            Self::BeliefLawRequired { .. } => "choice_record.belief_law_required",
+            Self::TermNotFinite { .. } => "choice_record.term_not_finite",
+        }
+    }
+}
+
+impl fmt::Display for ChoiceRecordError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Model(error) => write!(f, "invalid value model ({})", error.detail()),
+            Self::ObservationRowDoubleCounted { row, first_record, second_record } => write!(
+                f,
+                "observation row `{row}` is used by records `{first_record}` and `{second_record}`"
+            ),
+            Self::BeliefLawRequired { record, option, term } => match term {
+                Some(j) => write!(
+                    f,
+                    "record `{record}` option `{option}`: term {j} is not affine in the attributes; draws are required"
+                ),
+                None => write!(
+                    f,
+                    "record `{record}` option `{option}`: the fixed part is not affine in the attributes; draws are required"
+                ),
+            },
+            other => write!(f, "choice records refused ({}): {other:?}", other.detail()),
+        }
+    }
+}
+
+impl std::error::Error for ChoiceRecordError {}
+
+impl ChoiceRecordSet {
+    /// Check the set: attributes, population, pooling, every record, and that no observation row
+    /// is used by two records.
+    ///
+    /// # Errors
+    /// The first [`ChoiceRecordError`] found, in declaration order.
+    pub fn validate(&self) -> Result<(), ChoiceRecordError> {
+        self.validate_attributes()?;
+        if is_blank(&self.population) {
+            return Err(ChoiceRecordError::PopulationBlank);
+        }
+        if let Pooling::Pooled { assumption_id } = &self.pooling
+            && is_blank(assumption_id)
+        {
+            return Err(ChoiceRecordError::PoolingAssumptionBlank);
+        }
+        if self.records.is_empty() {
+            return Err(ChoiceRecordError::RecordsMissing);
+        }
+        let width = self.attributes.len();
+        let mut ids = BTreeSet::new();
+        let mut row_owner: BTreeMap<&str, &str> = BTreeMap::new();
+        for (index, record) in self.records.iter().enumerate() {
+            if is_blank(&record.id) {
+                return Err(ChoiceRecordError::RecordIdBlank { index });
+            }
+            if !ids.insert(record.id.as_str()) {
+                return Err(ChoiceRecordError::RecordDuplicate { record: record.id.clone() });
+            }
+            validate_record(record, width)?;
+            let mut own = BTreeSet::new();
+            for row in &record.observation_rows {
+                let row = row.trim();
+                if !own.insert(row) {
+                    return Err(ChoiceRecordError::ObservationRowRepeated {
+                        record: record.id.clone(),
+                        row: row.to_owned(),
+                    });
+                }
+                if let Some(first) = row_owner.insert(row, record.id.as_str()) {
+                    return Err(ChoiceRecordError::ObservationRowDoubleCounted {
+                        row: row.to_owned(),
+                        first_record: first.to_owned(),
+                        second_record: record.id.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_attributes(&self) -> Result<(), ChoiceRecordError> {
+        if self.attributes.is_empty() {
+            return Err(ChoiceRecordError::AttributesMissing);
+        }
+        let mut seen = BTreeSet::new();
+        for (index, attribute) in self.attributes.iter().enumerate() {
+            if is_blank(&attribute.id) {
+                return Err(ChoiceRecordError::AttributeIdBlank { index });
+            }
+            if is_blank(&attribute.units) {
+                return Err(ChoiceRecordError::AttributeUnitsBlank {
+                    attribute: attribute.id.clone(),
+                });
+            }
+            if !seen.insert(attribute.id.as_str()) {
+                return Err(ChoiceRecordError::AttributeDuplicate {
+                    attribute: attribute.id.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Canonical digest of the set (domain `antecedent.choice_records.v1`): attributes in order,
+    /// population, pooling, and the records sorted by identity. Within a record: decider, options
+    /// in declared order with their beliefs, the chosen identity, the belief source, and the
+    /// trimmed observation rows sorted. Independent of record order; changes with any value.
+    ///
+    /// # Errors
+    /// The set is invalid ([`Self::validate`]).
+    pub fn digest(&self) -> Result<String, ChoiceRecordError> {
+        self.validate()?;
+        let mut out = CanonicalWriter::new("antecedent.choice_records.v1");
+        out.word(self.attributes.len() as u64);
+        for attribute in &self.attributes {
+            out.text(&attribute.id).text(&attribute.units);
+        }
+        out.text(&self.population);
+        match &self.pooling {
+            Pooling::PerDecider => out.word(1),
+            Pooling::Pooled { assumption_id } => out.word(2).text(assumption_id),
+        };
+        let mut records: Vec<&ChoiceRecord> = self.records.iter().collect();
+        records.sort_by(|a, b| a.id.cmp(&b.id));
+        out.word(records.len() as u64);
+        for record in records {
+            out.bytes(&encode_record(record));
+        }
+        Ok(out.finish_hex())
+    }
+
+    /// Decision-makers named by the records, sorted and distinct.
+    #[must_use]
+    pub fn deciders(&self) -> Vec<String> {
+        let set: BTreeSet<&str> = self.records.iter().map(|r| r.decider.as_str()).collect();
+        set.into_iter().map(str::to_owned).collect()
+    }
+
+    /// Assumptions the set stands on, sorted and distinct: the pooling assumption and every
+    /// assumption that realized outcomes stand for expectations.
+    #[must_use]
+    pub fn assumptions(&self) -> Vec<String> {
+        let mut set: BTreeSet<&str> = BTreeSet::new();
+        if let Pooling::Pooled { assumption_id } = &self.pooling {
+            set.insert(assumption_id.as_str());
+        }
+        for record in &self.records {
+            if let BeliefSource::RealizedOutcome { assumption_id } = &record.belief_source {
+                set.insert(assumption_id.as_str());
+            }
+        }
+        set.into_iter().map(str::to_owned).collect()
+    }
+}
+
+fn validate_record(record: &ChoiceRecord, width: usize) -> Result<(), ChoiceRecordError> {
+    let id = || record.id.clone();
+    if is_blank(&record.decider) {
+        return Err(ChoiceRecordError::DeciderBlank { record: id() });
+    }
+    if record.options.len() < 2 {
+        return Err(ChoiceRecordError::OptionsTooFew {
+            record: id(),
+            options: record.options.len(),
+        });
+    }
+    let mut options = BTreeSet::new();
+    for (index, option) in record.options.iter().enumerate() {
+        if is_blank(&option.id) {
+            return Err(ChoiceRecordError::OptionIdBlank { record: id(), index });
+        }
+        if !options.insert(option.id.as_str()) {
+            return Err(ChoiceRecordError::OptionDuplicate {
+                record: id(),
+                option: option.id.clone(),
+            });
+        }
+        validate_belief(&record.id, option, width)?;
+    }
+    if !options.contains(record.chosen.as_str()) {
+        return Err(ChoiceRecordError::ChosenUnknown {
+            record: id(),
+            chosen: record.chosen.clone(),
+        });
+    }
+    match &record.belief_source {
+        BeliefSource::RecordedForecast { source_id } if is_blank(source_id) => {
+            return Err(ChoiceRecordError::ForecastSourceBlank { record: id() });
+        }
+        BeliefSource::AnalysisAsOf { result_identity, .. } if is_blank(result_identity) => {
+            return Err(ChoiceRecordError::AnalysisIdentityBlank { record: id() });
+        }
+        BeliefSource::AnalysisAsOf { as_of, .. } if is_blank(as_of) => {
+            return Err(ChoiceRecordError::AnalysisDateBlank { record: id() });
+        }
+        BeliefSource::RealizedOutcome { assumption_id } if is_blank(assumption_id) => {
+            return Err(ChoiceRecordError::RealizedAssumptionBlank { record: id() });
+        }
+        _ => {}
+    }
+    if record.observation_rows.is_empty() {
+        return Err(ChoiceRecordError::ObservationRowsMissing { record: id() });
+    }
+    if let Some(index) = record.observation_rows.iter().position(|row| is_blank(row)) {
+        return Err(ChoiceRecordError::ObservationRowBlank { record: id(), index });
+    }
+    Ok(())
+}
+
+fn validate_belief(
+    record: &str,
+    option: &ChoiceOption,
+    width: usize,
+) -> Result<(), ChoiceRecordError> {
+    let names = || (record.to_owned(), option.id.clone());
+    match &option.belief {
+        OptionBelief::Means(means) => {
+            if means.len() != width {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::MeansWidthMismatch {
+                    record,
+                    option,
+                    attributes: width,
+                    means: means.len(),
+                });
+            }
+            if !means.iter().all(|v| v.is_finite()) {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::BeliefNotFinite { record, option });
+            }
+        }
+        OptionBelief::Draws { rows, weights } => {
+            if rows.is_empty() {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::DrawsEmpty { record, option });
+            }
+            if rows.len() % width != 0 {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::DrawsWidthMismatch {
+                    record,
+                    option,
+                    attributes: width,
+                    values: rows.len(),
+                });
+            }
+            if !rows.iter().all(|v| v.is_finite()) {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::BeliefNotFinite { record, option });
+            }
+            if let Some(weights) = weights {
+                let n_rows = rows.len() / width;
+                if weights.len() != n_rows {
+                    let (record, option) = names();
+                    return Err(ChoiceRecordError::WeightsLengthMismatch {
+                        record,
+                        option,
+                        rows: n_rows,
+                        weights: weights.len(),
+                    });
+                }
+                for (row, weight) in weights.iter().enumerate() {
+                    if !weight.is_finite() {
+                        let (record, option) = names();
+                        return Err(ChoiceRecordError::WeightNotFinite { record, option, row });
+                    }
+                    if *weight < 0.0 {
+                        let (record, option) = names();
+                        return Err(ChoiceRecordError::WeightNegative { record, option, row });
+                    }
+                }
+                let total: f64 = weights.iter().sum();
+                if !(total.is_finite() && total > 0.0) {
+                    let (record, option) = names();
+                    return Err(ChoiceRecordError::WeightsSumInvalid { record, option });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn encode_record(record: &ChoiceRecord) -> [u8; 32] {
+    let mut out = CanonicalWriter::new("antecedent.choice_records.record.v1");
+    out.text(&record.id).text(&record.decider).word(record.options.len() as u64);
+    for option in &record.options {
+        out.text(&option.id);
+        match &option.belief {
+            OptionBelief::Means(means) => {
+                out.word(1).reals(means);
+            }
+            OptionBelief::Draws { rows, weights } => {
+                out.word(2).reals(rows);
+                match weights {
+                    Some(weights) => out.word(1).reals(weights),
+                    None => out.word(0),
+                };
+            }
+        }
+    }
+    out.text(&record.chosen);
+    match &record.belief_source {
+        BeliefSource::RecordedForecast { source_id } => out.word(1).text(source_id),
+        BeliefSource::AnalysisAsOf { result_identity, as_of } => {
+            out.word(2).text(result_identity).text(as_of)
+        }
+        BeliefSource::RealizedOutcome { assumption_id } => out.word(3).text(assumption_id),
+    };
+    let mut rows: Vec<&str> =
+        record.observation_rows.iter().map(String::as_str).map(str::trim).collect();
+    rows.sort_unstable();
+    out.texts(&rows);
+    out.finish()
+}
+
+/// Expected value of every linear-form term for every option of every record.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceFeatures {
+    /// The value model's full parameter count (columns of [`ChoiceSetFeatures::terms`]).
+    pub n_parameters: usize,
+    /// One entry per record, in record order.
+    pub sets: Vec<ChoiceSetFeatures>,
+}
+
+/// Expected linear-form terms of the options of one record.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceSetFeatures {
+    /// The record.
+    pub record_id: String,
+    /// Who chose.
+    pub decider: String,
+    /// Option identities in declared order.
+    pub option_ids: Vec<String>,
+    /// Position of the chosen option in `option_ids`.
+    pub chosen: usize,
+    /// Expected fixed part per option, including the contribution of every fixed parameter.
+    pub fixed: Vec<f64>,
+    /// Row-major `options x n_parameters`: the expected term of parameter `j` per option. The
+    /// column of a fixed parameter (`lower == upper`) is zero; its contribution is in `fixed`.
+    pub terms: Vec<f64>,
+}
+
+/// Expected value of the fixed part and of every linear-form term for every option of every
+/// record, under each option's belief.
+///
+/// Every fixed parameter (`lower == upper`) is substituted by its value first, so its column is
+/// zero and its contribution is folded into the fixed part. From attribute means a part's
+/// expectation is its value at the means, allowed only for a part affine in the attributes; from
+/// draws it is the weighted mean of its per-row values (weights normalised to sum one, uniform
+/// when absent).
+///
+/// # Errors
+/// - [`ChoiceRecordError::Model`] when the model is invalid, or any [`ChoiceRecordSet::validate`]
+///   refusal;
+/// - [`ChoiceRecordError::AttributesDiffer`] naming the first attribute that differs;
+/// - [`ChoiceRecordError::ShapeParametersNotFixed`] when the value is not affine in parameters
+///   whose range is not a single value;
+/// - [`ChoiceRecordError::BeliefLawRequired`] for a means belief and a part not affine in the
+///   attributes;
+/// - [`ChoiceRecordError::TermNotFinite`] when a part's value or expectation is not finite.
+pub fn choice_features(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+) -> Result<ChoiceFeatures, ChoiceRecordError> {
+    model.validate().map_err(ChoiceRecordError::Model)?;
+    records.validate()?;
+    compare_attributes(&model.attributes, &records.attributes)?;
+    let form = fixed_linear_form(model)?;
+    let n_parameters = form.terms.len();
+    let fixed_columns = fixed_values(model);
+    let mut sets = Vec::with_capacity(records.records.len());
+    for record in &records.records {
+        let mut fixed = Vec::with_capacity(record.options.len());
+        let mut terms = Vec::with_capacity(record.options.len() * n_parameters);
+        for option in &record.options {
+            fixed.push(expectation(&form.fixed, None, record, option, records.attributes.len())?);
+            for (j, term) in form.terms.iter().enumerate() {
+                let value = if fixed_columns.get(j).copied().flatten().is_some() {
+                    0.0
+                } else {
+                    expectation(term, Some(j), record, option, records.attributes.len())?
+                };
+                terms.push(value);
+            }
+        }
+        let chosen = record.options.iter().position(|o| o.id == record.chosen).unwrap_or(0);
+        sets.push(ChoiceSetFeatures {
+            record_id: record.id.clone(),
+            decider: record.decider.clone(),
+            option_ids: record.options.iter().map(|o| o.id.clone()).collect(),
+            chosen,
+            fixed,
+            terms,
+        });
+    }
+    Ok(ChoiceFeatures { n_parameters, sets })
+}
+
+fn compare_attributes(model: &[Attribute], records: &[Attribute]) -> Result<(), ChoiceRecordError> {
+    let longest = model.len().max(records.len());
+    for index in 0..longest {
+        let (m, r) = (model.get(index), records.get(index));
+        if m != r {
+            return Err(ChoiceRecordError::AttributesDiffer {
+                index,
+                model: m.cloned(),
+                records: r.cloned(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The value of each parameter whose declared range is a single value, `None` for the others.
+fn fixed_values(model: &ValueModel) -> Vec<Option<f64>> {
+    model
+        .preferences
+        .parameters
+        .iter()
+        .map(|p| p.lower.total_cmp(&p.upper).is_eq().then_some(p.lower))
+        .collect()
+}
+
+/// The linear form of the value after every fixed parameter is substituted. A parameter the
+/// substituted value is still not affine in is a free shape parameter and is refused by name.
+fn fixed_linear_form(model: &ValueModel) -> Result<LinearForm, ChoiceRecordError> {
+    let substituted = ValueModel {
+        attributes: model.attributes.clone(),
+        preferences: model.preferences.clone(),
+        value: substitute_parameters(&model.value, &fixed_values(model)),
+        utility_units: model.utility_units.clone(),
+    };
+    let named = |indices: Vec<usize>| -> Vec<String> {
+        indices
+            .into_iter()
+            .filter_map(|j| model.preferences.parameters.get(j).map(|p| p.id.clone()))
+            .collect()
+    };
+    let free_shape = substituted.shape_parameters();
+    if !free_shape.is_empty() {
+        return Err(ChoiceRecordError::ShapeParametersNotFixed { parameters: named(free_shape) });
+    }
+    substituted
+        .linear_form()
+        .ok_or_else(|| ChoiceRecordError::ShapeParametersNotFixed { parameters: Vec::new() })
+}
+
+/// Replace `Parameter(j)` by `Const(values[j])` where a value is given; leave the rest.
+fn substitute_parameters(expr: &PreferenceExpr, values: &[Option<f64>]) -> PreferenceExpr {
+    use PreferenceExpr as E;
+    let sub = |e: &PreferenceExpr| Box::new(substitute_parameters(e, values));
+    match expr {
+        E::Const(c) => E::Const(*c),
+        E::Attribute(k) => E::Attribute(*k),
+        E::Parameter(j) => match values.get(*j).copied().flatten() {
+            Some(value) => E::Const(value),
+            None => E::Parameter(*j),
+        },
+        E::Neg(a) => E::Neg(sub(a)),
+        E::Add(a, b) => E::Add(sub(a), sub(b)),
+        E::Sub(a, b) => E::Sub(sub(a), sub(b)),
+        E::Mul(a, b) => E::Mul(sub(a), sub(b)),
+        E::Min(a, b) => E::Min(sub(a), sub(b)),
+        E::Max(a, b) => E::Max(sub(a), sub(b)),
+        E::Exp(a) => E::Exp(sub(a)),
+        E::Ln(a) => E::Ln(sub(a)),
+    }
+}
+
+/// Expectation of a parameter-free part under one option's belief.
+fn expectation(
+    part: &PreferenceExpr,
+    term: Option<usize>,
+    record: &ChoiceRecord,
+    option: &ChoiceOption,
+    width: usize,
+) -> Result<f64, ChoiceRecordError> {
+    let not_finite = || ChoiceRecordError::TermNotFinite {
+        record: record.id.clone(),
+        option: option.id.clone(),
+    };
+    let at = |attributes: &[f64]| -> Result<f64, ChoiceRecordError> {
+        let value = part.evaluate(attributes, &[]).map_err(|_| not_finite())?;
+        if value.is_finite() { Ok(value) } else { Err(not_finite()) }
+    };
+    let value = match &option.belief {
+        OptionBelief::Means(means) => {
+            if !part.is_affine_in_attributes() {
+                return Err(ChoiceRecordError::BeliefLawRequired {
+                    record: record.id.clone(),
+                    option: option.id.clone(),
+                    term,
+                });
+            }
+            at(means)?
+        }
+        OptionBelief::Draws { rows, weights } => {
+            let mut weighted = 0.0;
+            let mut total = 0.0;
+            for (i, row) in rows.chunks_exact(width).enumerate() {
+                let weight = weights.as_ref().and_then(|w| w.get(i)).copied().unwrap_or(1.0);
+                weighted += weight * at(row)?;
+                total += weight;
+            }
+            weighted / total
+        }
+    };
+    if value.is_finite() { Ok(value) } else { Err(not_finite()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn substitution_replaces_only_given_parameters() {
+        let expr = PreferenceExpr::Add(
+            Box::new(PreferenceExpr::Mul(
+                Box::new(PreferenceExpr::Parameter(0)),
+                Box::new(PreferenceExpr::Attribute(0)),
+            )),
+            Box::new(PreferenceExpr::Exp(Box::new(PreferenceExpr::Parameter(1)))),
+        );
+        let got = substitute_parameters(&expr, &[None, Some(2.0)]);
+        let want = PreferenceExpr::Add(
+            Box::new(PreferenceExpr::Mul(
+                Box::new(PreferenceExpr::Parameter(0)),
+                Box::new(PreferenceExpr::Attribute(0)),
+            )),
+            Box::new(PreferenceExpr::Exp(Box::new(PreferenceExpr::Const(2.0)))),
+        );
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn attribute_comparison_names_the_first_difference() {
+        let a = |id: &str| Attribute { id: id.to_owned(), units: "u".to_owned() };
+        let err = compare_attributes(&[a("x"), a("y")], &[a("x")]).unwrap_err();
+        assert_eq!(
+            err,
+            ChoiceRecordError::AttributesDiffer { index: 1, model: Some(a("y")), records: None }
+        );
+    }
+}
