@@ -32,6 +32,7 @@ from ..._native import (
 from ..._native import (
     roundtrip_expr_arena as _roundtrip_expr_arena,
 )
+from ... import _deprecation
 from ...errors import CausalTypeError, CausalValueError
 from ...execution import Execution
 from ...graph import Admg
@@ -696,8 +697,19 @@ def estimate_trial_effect(
     estimate carries delta-method standard errors, the weighted target's overlap diagnostics
     and the overlap of the trial rows with it; a target with no overlap is refused with
     ``transport_target_overlap_failed`` and a next attempt.
+
+    The IPW-only call (no ``mu0``/``mu1`` and no ``target``) is deprecated: the compiled study
+    computes the identical point estimate and standard error. The AIPW call with caller-supplied
+    outcome regressions and the weighted-target call have no compiled query form yet and do not
+    warn.
     """
 
+    if mu0 is None and mu1 is None and target is None:
+        _deprecation.direct_path_deprecated(
+            "antecedent.transport.estimate_trial_effect",
+            "antecedent.analyze(data, graph=Admg, query=TransportQuery(..., trial=, "
+            "selection_probability=, treatment_probability=))",
+        )
     if not isinstance(identification, TransportIdentification):
         raise CausalTypeError(
             "estimate_trial_effect requires identification=transport.identify(...)"
