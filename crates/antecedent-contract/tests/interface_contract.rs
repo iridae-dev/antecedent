@@ -889,3 +889,47 @@ fn inherited_calibration_uses_the_actual_source_and_preserves_forwarding() {
         assert_eq!(composed.order.len(), 2);
     }
 }
+
+#[test]
+fn repeated_port_names_do_not_make_identity_order_dependent() {
+    let first = produced(&[ContractOperation::Mean]);
+    let mut second = first.clone();
+    second.quantity.units = "lb".into();
+    let make = |ports: Vec<ProducedPort>| InterfaceContract {
+        component: "c".into(),
+        produces: ports,
+        consumes: vec![],
+    };
+    let forward = make(vec![first.clone(), second.clone()]);
+    let reversed = make(vec![second, first]);
+    assert_eq!(forward.canonical_identity(), reversed.canonical_identity());
+
+    let (a, mut b) = (consumed(&[ContractOperation::Mean]), consumed(&[ContractOperation::Mean]));
+    b.quantity.units = "lb".into();
+    let consume = |ports: Vec<ConsumedPort>| InterfaceContract {
+        component: "c".into(),
+        produces: vec![],
+        consumes: ports,
+    };
+    assert_eq!(
+        consume(vec![a.clone(), b.clone()]).canonical_identity(),
+        consume(vec![b, a]).canonical_identity()
+    );
+}
+
+#[test]
+fn distinct_port_names_keep_the_order_by_name_identity() {
+    let a = produced(&[ContractOperation::Mean]);
+    let mut b = a.clone();
+    b.name = "zeta".into();
+    let make = |ports: Vec<ProducedPort>| InterfaceContract {
+        component: "c".into(),
+        produces: ports,
+        consumes: vec![],
+    };
+    // Name order ("effect" < "zeta") is the order the identity encodes.
+    assert_eq!(
+        make(vec![b.clone(), a.clone()]).canonical_identity(),
+        make(vec![a, b]).canonical_identity()
+    );
+}

@@ -53,7 +53,7 @@ use antecedent_identify::{
     verify_classical_transport,
 };
 
-use crate::obligation_adapters::{assumption_obligations, transport_result_obligations};
+use crate::obligation_adapters::{transport_result_obligations, try_assumption_obligations};
 use crate::plan_common::valid_intervention_values;
 use crate::study_candidate::DurableStudyCandidate;
 
@@ -1187,7 +1187,7 @@ impl BackdoorRepairFamily {
                 );
             }
         }
-        out.extend(assumption_obligations(assumptions));
+        out.extend(try_assumption_obligations(assumptions)?);
         Ok(out)
     }
 

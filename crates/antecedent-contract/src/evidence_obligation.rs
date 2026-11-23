@@ -463,12 +463,18 @@ impl EvidenceObligation {
 
     /// The `EstablishAssumption` obligation of an unresolved assumption record,
     /// or `None` when the record no longer blocks a claim.
-    #[must_use]
-    fn from_unresolved_record(record: &ObligationRecord) -> Option<Self> {
+    ///
+    /// # Errors
+    /// An unresolved record whose id or check cannot form an obligation (for
+    /// example an id containing a reserved identity separator) is refused,
+    /// never dropped.
+    fn from_unresolved_record(
+        record: &ObligationRecord,
+    ) -> Option<Result<Self, EvidenceObligationError>> {
         if !record.is_unresolved() {
             return None;
         }
-        Self::try_new(EvidenceObligationSpec {
+        Some(Self::try_new(EvidenceObligationSpec {
             quantities: std::collections::BTreeMap::new(),
             kind: EvidenceObligationKind::EstablishAssumption,
             scope: record.scope,
@@ -483,8 +489,7 @@ impl EvidenceObligation {
                 source: Arc::clone(&record.id),
                 proof_step: record.required_check.clone(),
             },
-        })
-        .ok()
+        }))
     }
 }
 
@@ -630,8 +635,28 @@ fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
 }
 
 /// The `EstablishAssumption` obligations of every unresolved assumption record.
+///
+/// This skips an unresolved record that cannot form an obligation (an id with a
+/// reserved identity separator); prefer [`try_unresolved_assumption_obligations`],
+/// which refuses instead.
 #[must_use]
 pub fn unresolved_assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceObligation> {
+    records
+        .iter()
+        .filter_map(EvidenceObligation::from_unresolved_record)
+        .filter_map(Result::ok)
+        .collect()
+}
+
+/// The `EstablishAssumption` obligations of every unresolved assumption record,
+/// refusing when any unresolved record cannot form an obligation, so an
+/// unresolved assumption never disappears from the evidence owed.
+///
+/// # Errors
+/// `evidence_obligations.invalid_obligation` for the first such record.
+pub fn try_unresolved_assumption_obligations(
+    records: &[ObligationRecord],
+) -> Result<Vec<EvidenceObligation>, EvidenceObligationError> {
     records.iter().filter_map(EvidenceObligation::from_unresolved_record).collect()
 }
 
@@ -688,6 +713,19 @@ mod tests {
         let mut step = spec(EvidenceObligationKind::ProvideJointLaw);
         step.provenance.proof_step = Some(Arc::from("s;quantity:0:x"));
         assert!(EvidenceObligation::try_new(step).is_err());
+    }
+
+    #[test]
+    fn unresolved_record_with_a_separator_is_refused_not_dropped() {
+        let record = ObligationRecord::new(
+            "a|b",
+            ObligationScope::Program,
+            antecedent_core::assumption::AssumptionSource::UserDeclared,
+            crate::ObligationKind::CheckNotRun,
+            antecedent_core::assumption::AssumptionStatus::Declared,
+            "owed",
+        );
+        assert!(try_unresolved_assumption_obligations(std::slice::from_ref(&record)).is_err());
     }
 
     #[test]
