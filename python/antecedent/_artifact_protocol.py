@@ -571,6 +571,29 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
 }
 
 
+# Consumers without an ``expected_identity`` parameter bind identity through these named
+# parameters instead. Every other consumer binds through ``expected_identity``. A parameter
+# that is not listed here (a limit, a source or a dataset) is never an identity, so a
+# mapping that names only such parameters binds nothing. The period artifact kinds bind the
+# encoding digest and are handled separately.
+_IDENTITY_PARAMETERS: dict[str, frozenset[str]] = {
+    "causal_posterior": frozenset({"expected_encoding_sha256"}),
+    "compiled_robust_decision_v1": frozenset({"expected_program_identity"}),
+    "joint_sensitivity_interval_v1": frozenset(),
+    "sequential_evaluation_v1": frozenset({"model", "policy", "evaluation"}),
+    "decision_reliability_v1": frozenset(
+        {
+            "draws_digest",
+            "candidate_set_digest",
+            "selection_stream",
+            "validation_stream",
+            "utility_unit",
+            "decided_id",
+        }
+    ),
+}
+
+
 def acceptance_from_consumer(result: Any, *, identity_bound: bool = False) -> ArtifactAcceptance:
     """Read explicit semantic acceptance; parsing or a family name proves no replay."""
     receipt = getattr(result, "acceptance", None)
@@ -629,6 +652,7 @@ def load_scientific(
         consumer = getattr(consumer, name)
     parameters = inspect.signature(consumer).parameters
     kwargs: dict[str, Any] = {}
+    identity_compared = False
     if "execution" in parameters and policy is not None:
         kwargs["execution"] = policy
     if "expected_identity" in parameters:
@@ -641,6 +665,7 @@ def load_scientific(
             if hasattr(expected, "to_json") or hasattr(expected, "_wire")
             else thaw(expected)
         )
+        identity_compared = expected is not None
     elif expected is not None:
         if not isinstance(expected, Mapping):
             raise CausalTypeError(f"{view.kind} requires named expected identity fields")
@@ -660,11 +685,19 @@ def load_scientific(
                 )
             if sha256(data).hexdigest() != digest:
                 raise CausalValueError("artifact encoding differs from expected_encoding_sha256")
+            identity_compared = True
         else:
             unknown = set(expected) - set(parameters)
             if unknown:
                 raise CausalValueError(f"unknown expectation fields: {sorted(unknown)}")
+            identity_fields = _IDENTITY_PARAMETERS.get(view.kind, frozenset())
+            if not any(expected.get(name) is not None for name in identity_fields):
+                raise CausalValueError(
+                    f"{view.kind} expected must name at least one identity field: "
+                    f"{sorted(identity_fields)}"
+                )
             kwargs.update(expected)
+            identity_compared = True
     if view.kind == "compiled_robust_decision_v1":
         if context is None or context.robust_source is None:
             raise CausalValueError(
@@ -696,7 +729,7 @@ def load_scientific(
     if isinstance(consumed, Outcome) and consumed.refusal is not None:
         return consumed
     result = require_success(consumed)
-    acceptance = acceptance_from_consumer(result, identity_bound=expected is not None)
+    acceptance = acceptance_from_consumer(result, identity_bound=identity_compared)
     # Python read models own their forwarding bytes, never a restored callable or live study.
     if isinstance(result, ScientificResult) or not isinstance(result, Mapping):
         object.__setattr__(result, "_artifact_bytes", data)
