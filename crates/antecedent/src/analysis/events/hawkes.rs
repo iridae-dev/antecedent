@@ -31,6 +31,31 @@ pub struct HawkesFitSpec {
     pub iterations: usize,
 }
 
+/// Conditional-intensity offspring of one event. Not an intervention effect.
+///
+/// `direct` is the expected number of direct children on `[0, horizon)`.
+/// For an exponential kernel that is `α (1 - exp(-β horizon))`, which is the
+/// lifetime mass `α` only as the horizon grows without bound.
+/// `lifetime_descendants` is the corresponding column of `(I - A)^{-1} - I`:
+/// the resolvent counts the initiating event, and subtracting `I` removes it.
+/// `horizon_descendants` integrates the linear filter ODE on `[0, horizon)`.
+/// It is not the resolvent of the horizon-discounted branching matrix.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExcitationOffspring {
+    /// Source type that initiates the cluster.
+    pub source: usize,
+    /// Horizon in the history's time unit.
+    pub horizon: f64,
+    /// Direct children of each target type on `[0, horizon)`.
+    pub direct: Vec<f64>,
+    /// Lifetime direct children of each target type.
+    pub lifetime_direct: Vec<f64>,
+    /// All-generation descendants of each target type on `[0, horizon)`.
+    pub horizon_descendants: Vec<f64>,
+    /// Lifetime descendants of each target type, excluding the initiator.
+    pub lifetime_descendants: Vec<f64>,
+}
+
 /// Diagnostics for a converged fit.
 #[derive(Clone, Debug, Serialize)]
 pub struct HawkesFit {
@@ -105,9 +130,43 @@ impl HawkesParameters {
         }
         Ok(())
     }
+
+    /// Offspring functionals of this conditional intensity.
+    ///
+    /// # Errors
+    /// The parameters are not a stable catalog model, or the horizon is not a
+    /// positive finite duration the filter ODE can resolve.
+    pub fn excitation_offspring(
+        &self,
+        source: usize,
+        horizon: f64,
+    ) -> Result<ExcitationOffspring, EventError> {
+        let n = self.baseline.len();
+        self.validate(n)?;
+        if source >= n || !horizon.is_finite() || horizon <= 0.0 {
+            return Err(EventError::invalid(
+                "offspring query needs a catalog type and a positive finite horizon",
+            ));
+        }
+        let direct = (0..n)
+            .map(|target| {
+                let edge = target * n + source;
+                self.branching[edge] * horizon_factor(self.decay[edge], horizon)
+            })
+            .collect();
+        let lifetime_direct = (0..n).map(|target| self.branching[target * n + source]).collect();
+        Ok(ExcitationOffspring {
+            source,
+            horizon,
+            direct,
+            lifetime_direct,
+            horizon_descendants: filter_descendants(self, source, horizon)?,
+            lifetime_descendants: lifetime_descendants(self, source)?,
+        })
+    }
 }
 
-fn solve(mut matrix: Vec<f64>, mut rhs: Vec<f64>, tolerance: f64) -> Option<Vec<f64>> {
+pub(super) fn solve(mut matrix: Vec<f64>, mut rhs: Vec<f64>, tolerance: f64) -> Option<Vec<f64>> {
     let n = rhs.len();
     for i in 0..n {
         let pivot =
@@ -490,4 +549,153 @@ pub(super) fn rescaled_gaps(
         state.arrive(arrival.kind);
     }
     Ok(gaps)
+}
+
+/// `1 - exp(-β horizon)`, accurate for both short and long horizons.
+pub(super) fn horizon_factor(decay: f64, horizon: f64) -> f64 {
+    -(-decay * horizon).exp_m1()
+}
+
+fn lifetime_descendants(
+    parameters: &HawkesParameters,
+    source: usize,
+) -> Result<Vec<f64>, EventError> {
+    let n = parameters.baseline.len();
+    let mut system = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            system[i * n + j] = f64::from(u8::from(i == j)) - parameters.branching[i * n + j];
+        }
+    }
+    let mut rhs = vec![0.0; n];
+    rhs[source] = 1.0;
+    let mut total = solve(system, rhs, 1e-13).ok_or(EventError::Unstable)?;
+    total[source] -= 1.0;
+    for value in &mut total {
+        if !value.is_finite() || *value < -1e-8 {
+            return Err(EventError::Numerical("nonfinite lifetime descendants"));
+        }
+        if *value < 0.0 {
+            *value = 0.0;
+        }
+    }
+    Ok(total)
+}
+
+fn filter_descendants(
+    parameters: &HawkesParameters,
+    source: usize,
+    horizon: f64,
+) -> Result<Vec<f64>, EventError> {
+    let n = parameters.baseline.len();
+    let max_decay = parameters.decay.iter().copied().fold(0.0_f64, f64::max);
+    let step = (1.0 / (64.0 * max_decay)).min(horizon);
+    if !step.is_finite() || step <= 0.0 {
+        return Err(EventError::Numerical("nonfinite offspring step"));
+    }
+    let steps = (horizon / step).ceil() as usize;
+    if steps > 200_000 {
+        return Err(EventError::Numerical("offspring horizon is too long for the decay"));
+    }
+    let dt = horizon / steps as f64;
+    let mut filters = vec![0.0; n * n];
+    for target in 0..n {
+        filters[target * n + source] = parameters.decay[target * n + source];
+    }
+    let mut counts = vec![0.0; n];
+    for _ in 0..steps {
+        let (k1_f, k1_c) = filter_derivative(parameters, &filters);
+        let filters_2 = axpy(&filters, &k1_f, dt * 0.5);
+        let (k2_f, k2_c) = filter_derivative(parameters, &filters_2);
+        let filters_3 = axpy(&filters, &k2_f, dt * 0.5);
+        let (k3_f, k3_c) = filter_derivative(parameters, &filters_3);
+        let filters_4 = axpy(&filters, &k3_f, dt);
+        let (k4_f, k4_c) = filter_derivative(parameters, &filters_4);
+        filters = rk4(&filters, &k1_f, &k2_f, &k3_f, &k4_f, dt);
+        counts = rk4(&counts, &k1_c, &k2_c, &k3_c, &k4_c, dt);
+    }
+    if counts.iter().any(|value| !value.is_finite() || *value < -1e-8) {
+        return Err(EventError::Numerical("nonfinite horizon descendants"));
+    }
+    Ok(counts)
+}
+
+fn filter_derivative(parameters: &HawkesParameters, filters: &[f64]) -> (Vec<f64>, Vec<f64>) {
+    let n = parameters.baseline.len();
+    let mut intensity = vec![0.0; n];
+    for target in 0..n {
+        let start = target * n;
+        intensity[target] = parameters.branching[start..start + n]
+            .iter()
+            .zip(&filters[start..start + n])
+            .map(|(weight, state)| weight * state)
+            .sum();
+    }
+    let mut slope = vec![0.0; n * n];
+    for target in 0..n {
+        for source in 0..n {
+            let edge = target * n + source;
+            let decay = parameters.decay[edge];
+            slope[edge] = decay * (intensity[source] - filters[edge]);
+        }
+    }
+    (slope, intensity)
+}
+
+fn axpy(state: &[f64], slope: &[f64], scale: f64) -> Vec<f64> {
+    state.iter().zip(slope).map(|(value, slope)| value + scale * slope).collect()
+}
+
+fn rk4(state: &[f64], k1: &[f64], k2: &[f64], k3: &[f64], k4: &[f64], dt: f64) -> Vec<f64> {
+    let scale = dt / 6.0;
+    state
+        .iter()
+        .zip(k1)
+        .zip(k2)
+        .zip(k3)
+        .zip(k4)
+        .map(|((((value, a), b), c), d)| value + scale * (a + 2.0 * b + 2.0 * c + d))
+        .collect()
+}
+
+#[cfg(test)]
+mod offspring_tests {
+    use super::HawkesParameters;
+
+    #[test]
+    fn univariate_horizon_is_the_closed_form_and_not_the_discounted_resolvent() {
+        let parameters =
+            HawkesParameters { baseline: vec![0.5], branching: vec![0.4], decay: vec![1.0] };
+        let horizon = 2.0;
+        let offspring = parameters.excitation_offspring(0, horizon).unwrap();
+        let alpha = 0.4;
+        let direct = alpha * (1.0 - (-horizon).exp());
+        assert!((offspring.direct[0] - direct).abs() < 1e-12);
+        assert!((offspring.lifetime_direct[0] - alpha).abs() < 1e-12);
+        let lifetime = alpha / (1.0 - alpha);
+        assert!((offspring.lifetime_descendants[0] - lifetime).abs() < 1e-9);
+        assert!((offspring.horizon_descendants[0] - exact_horizon(alpha, horizon)).abs() < 1e-6);
+        let discounted = direct / (1.0 - direct);
+        assert!((offspring.horizon_descendants[0] - discounted).abs() > 1e-3);
+    }
+
+    #[test]
+    fn resolvent_descendants_exclude_the_initiating_event() {
+        let parameters = HawkesParameters {
+            baseline: vec![0.2, 0.3],
+            branching: vec![0.1, 0.2, 0.3, 0.05],
+            decay: vec![1.0, 2.0, 1.5, 0.5],
+        };
+        let offspring = parameters.excitation_offspring(0, 1.0).unwrap();
+        let determinant = 0.9 * 0.95 - 0.2 * 0.3;
+        assert!((offspring.lifetime_descendants[0] - (0.95 / determinant - 1.0)).abs() < 1e-9);
+        assert!((offspring.lifetime_descendants[1] - 0.3 / determinant).abs() < 1e-9);
+        // Row is the receiving type, column is the source: edge 1 <- 0 is branching[2].
+        assert!((offspring.direct[0] - 0.1 * (1.0 - (-1.0_f64).exp())).abs() < 1e-12);
+        assert!((offspring.direct[1] - 0.3 * (1.0 - (-1.5_f64).exp())).abs() < 1e-12);
+    }
+
+    fn exact_horizon(alpha: f64, horizon: f64) -> f64 {
+        alpha / (1.0 - alpha) * (1.0 - (-(1.0 - alpha) * horizon).exp())
+    }
 }

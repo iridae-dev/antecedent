@@ -24,7 +24,7 @@ pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
     PreparedEventWorlds,
 };
-pub use hawkes::{HawkesFit, HawkesFitSpec, HawkesParameters};
+pub use hawkes::{ExcitationOffspring, HawkesFit, HawkesFitSpec, HawkesParameters};
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
     PreparedEventStudy, PreparedEventUpdate,

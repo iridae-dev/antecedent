@@ -14,6 +14,7 @@ implementation_deviations = [
   "The recursive-refit forecast refits each simulated complete training window. It conditions each future draw on the actual history. A refit failure refuses the aggregate. This is neither a posterior draw nor evidence of real-world forecast accuracy.",
   "A conditional world response is driven by exogenous, paired arrivals through drift inputs. A separate half-step recorder preserves the established SDE execution lane and its item fingerprints. Grid maxima and indicators have discrete observation semantics.",
   "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff.",
+  "Finite-horizon direct offspring is α(1 - exp(-β H)). Lifetime descendants are the column of (I - A)^{-1} - I, which removes the initiating event counted by the resolvent. Horizon descendants integrate the linear filter ODE and are not the resolvent of the horizon-discounted branching matrix.",
 ]
 upstream_implementations_observed = []
 test_sources = [

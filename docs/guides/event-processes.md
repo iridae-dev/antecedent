@@ -6,6 +6,14 @@ Choose the observation window and record the complete history from an explicit e
 
 A dense catalog is limited by the likelihood build. One build charges `(events + 1) * types²` against the operation budget, and the catalog cap is the largest type count for which a build at the event cap uses at most half that budget. A forecast can still be refused when its fit or simulation exceeds the budget. The composer accepts as many intervention worlds as the SDE retains, 63 plus the baseline, and refuses when the grid's cell product exceeds its execution budget.
 
+## Horizon and lifetime offspring
+
+The branching entry `α` is the expected number of direct children over the whole future. On a finite horizon `H` the direct contribution of an exponential kernel is `α (1 - exp(-β H))`. A release at time `t` scored through a window that ends at `T` uses the remaining horizon `T - t`, so a later release excites less of that window.
+
+Lifetime descendants, excluding the initiating event, are the matching column of `(I - A)^{-1} - I`. The resolvent itself counts the initiator. Descendants inside a finite horizon come from the linear filter ODE. They are not the resolvent of the horizon-discounted matrix `α (1 - exp(-β H))`, which would give every generation the full horizon.
+
+`HawkesParameters::excitation_offspring` reports all four quantities as functionals of the conditional intensity.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow
