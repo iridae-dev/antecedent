@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _native
+from ._deprecation import direct_path_deprecated
 from ._native import GcmIteResult
 from .errors import CausalTypeError
 from .execution import Execution, native_controls
@@ -190,6 +191,18 @@ class FittedGcm:
         *,
         execution: Execution | None = None,
     ) -> Any:
+        """Unit-level contrasts of every outcome between two worlds of hard interventions.
+
+        Deprecated direct path: ``antecedent.analyze`` answers the same contrast through the
+        compiler for a ``Counterfactual`` query, with a contract and a claim. The compiled route
+        requires both worlds to intervene on the same variables, fits the heterogeneity-capable
+        mechanism candidates and takes its seed from the study.
+        """
+        direct_path_deprecated(
+            "antecedent.counterfactual.FittedGcm.counterfactual_contrasts",
+            "antecedent.analyze(data, graph=edges, query=Counterfactual(treatment, outcome, "
+            "also_outcomes=..., active_interventions=..., control_interventions=...))",
+        )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(
             execution, self._native.counterfactual_contrasts, outcomes, active, control, **ctl
