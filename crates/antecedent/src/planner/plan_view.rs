@@ -57,8 +57,8 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::planner::fact::{Fact, fact};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, IdentificationLayer,
-    LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ProgramCell,
-    ScientificProblem, UncertaintyReading, WidthSource,
+    LoweredProgram, LoweringDepth, NonGraphicalIdentification, ProblemTarget, ScientificProblem,
+    UncertaintyReading, WidthSource,
 };
 use crate::planner::statistical::{PosteriorPlan, Realization, ResamplingPlan, StatisticalProgram};
 use crate::support::CellStatus;
@@ -1670,7 +1670,7 @@ impl PlanView {
     pub(crate) fn build(source: ViewSource<'_>) -> Self {
         let ViewSource { program, stage, record, study, kernel_policy, operation, backend, memory } =
             source;
-        let route = plan_route(program.cell());
+        let route = program.cell().plan_route();
         let installed = match (stage, study) {
             (PlanStage::Prepared, Some(study)) => installed_caches(study),
             _ => Vec::new(),
@@ -1984,135 +1984,6 @@ impl crate::Study {
     }
 }
 
-/// The plan route of a program cell.
-#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
-const fn plan_route(cell: ProgramCell) -> PlanRoute {
-    match cell {
-        ProgramCell::Route(cell) => cell.plan_route(),
-        ProgramCell::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
-        ProgramCell::Planning(design) => PlanRoute::Planning(design),
-        ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
-        ProgramCell::ObservationalPolicy => PlanRoute::ObservationalPolicy,
-        ProgramCell::JointMeasuredObservation => PlanRoute::JointMeasuredObservation,
-        ProgramCell::DependentMeasuredObservation => PlanRoute::DependentMeasuredObservation,
-        ProgramCell::FittedDependentMeasuredObservation => {
-            PlanRoute::FittedDependentMeasuredObservation
-        }
-        ProgramCell::CyclicActionWorldDecision => PlanRoute::CyclicActionWorldDecision,
-        ProgramCell::CyclicPosteriorActionDecision => PlanRoute::CyclicPosteriorActionDecision,
-        ProgramCell::CyclicTargetFeedbackDecision => PlanRoute::CyclicTargetFeedbackDecision,
-        ProgramCell::BridgeTransportDecision => PlanRoute::BridgeTransportDecision,
-        ProgramCell::BridgeTransportPremiseAssessment => {
-            PlanRoute::BridgeTransportPremiseAssessment
-        }
-        ProgramCell::AssessedBridgeTransportDecision => PlanRoute::AssessedBridgeTransportDecision,
-        ProgramCell::JointTransportEffectDecision => PlanRoute::JointTransportEffectDecision,
-        ProgramCell::TrialIpwTransportDecision => PlanRoute::TrialIpwTransportDecision,
-        ProgramCell::TrialIpwPredictiveDecision => PlanRoute::TrialIpwPredictiveDecision,
-        ProgramCell::JointTransportPredictiveDecision => {
-            PlanRoute::JointTransportPredictiveDecision
-        }
-        ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
-        ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
-        ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
-        ProgramCell::ClusterSamplingAssumptionUnion => PlanRoute::ClusterSamplingAssumptionUnion,
-        ProgramCell::MovingBlockSamplingAssumptionUnion => {
-            PlanRoute::MovingBlockSamplingAssumptionUnion
-        }
-        ProgramCell::PolicySubsampling => PlanRoute::PolicySubsampling,
-        ProgramCell::SequentialPolicyReliability => PlanRoute::SequentialPolicyReliability,
-        ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
-        ProgramCell::BridgeBundleRecomputation => PlanRoute::BridgeBundleRecomputation,
-        ProgramCell::CyclicPosteriorBundleRecomputation => {
-            PlanRoute::CyclicPosteriorBundleRecomputation
-        }
-        ProgramCell::CyclicPosteriorNodeBundleRecomputation => {
-            PlanRoute::CyclicPosteriorNodeBundleRecomputation
-        }
-        ProgramCell::TrialIpwNodeBundleRecomputation => PlanRoute::TrialIpwNodeBundleRecomputation,
-        ProgramCell::GraphImputationTransportNodeBundleRecomputation => {
-            PlanRoute::GraphImputationTransportNodeBundleRecomputation
-        }
-        ProgramCell::JointTransportEffectNodeBundleRecomputation => {
-            PlanRoute::JointTransportEffectNodeBundleRecomputation
-        }
-        ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation => {
-            PlanRoute::JointTransportPredictiveNodeDecisionBundleRecomputation
-        }
-        ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
-            PlanRoute::TrialIpwPredictiveNodeDecisionBundleRecomputation
-        }
-        ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
-            PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation
-        }
-        ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
-            PlanRoute::GraphImputationPredictiveNodeDecisionBundleRecomputation
-        }
-        ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
-            PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation
-        }
-        ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation => {
-            PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation
-        }
-        ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
-        ProgramCell::BoundedComponentPosteriorDecision => {
-            PlanRoute::BoundedComponentPosteriorDecision
-        }
-        ProgramCell::PosteriorDecisionBundleRecomputation => {
-            PlanRoute::PosteriorDecisionBundleRecomputation
-        }
-        ProgramCell::GraphImputation => PlanRoute::GraphImputation,
-        ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
-        ProgramCell::GraphImputationBernoulliPredictiveWorldDecision => {
-            PlanRoute::GraphImputationBernoulliPredictiveWorldDecision
-        }
-        ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision => {
-            PlanRoute::GraphImputationGaussianTargetPredictiveWorldDecision
-        }
-        ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
-            PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
-            PlanRoute::GraphImputationGaussianPredictiveClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationTransportDecision => {
-            PlanRoute::GraphImputationTransportDecision
-        }
-        ProgramCell::GraphImputationTransportClusterBootstrapDecision => {
-            PlanRoute::GraphImputationTransportClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationConfoundedTransportDecision => {
-            PlanRoute::GraphImputationConfoundedTransportDecision
-        }
-        ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision => {
-            PlanRoute::GraphImputationConfoundedTransportClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationKernelTransportDecision => {
-            PlanRoute::GraphImputationKernelTransportDecision
-        }
-        ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision => {
-            PlanRoute::GraphImputationKernelTransportClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
-            PlanRoute::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
-        }
-        ProgramCell::GraphImputationMarTransportDecision => {
-            PlanRoute::GraphImputationMarTransportDecision
-        }
-        ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
-        ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
-        ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,
-        ProgramCell::EventProcess => PlanRoute::EventProcess,
-        ProgramCell::JointPanelResponse => PlanRoute::JointPanelResponse,
-        ProgramCell::JointPanelTimeVarying => PlanRoute::JointPanelTimeVarying,
-        ProgramCell::JointPanelImputation => PlanRoute::JointPanelImputation,
-        ProgramCell::JointPanelProgramSearch => PlanRoute::JointPanelProgramSearch,
-        ProgramCell::JointPanelProgramSelection => PlanRoute::JointPanelProgramSelection,
-        ProgramCell::JointPanelExperiment => PlanRoute::JointPanelExperiment,
-        ProgramCell::JointDesign => PlanRoute::JointDesign,
-    }
-}
-
 /// The identification product preparation installed into `study`.
 fn installed_caches(study: &crate::Study) -> Vec<IdentificationCache> {
     study.identification.iter().cloned().collect()
@@ -2379,7 +2250,7 @@ mod tests {
         let mut names = BTreeSet::new();
         for route in crate::planner::lowered::JointPanelRoute::ALL {
             let cell = route.cell();
-            let plan = super::plan_route(cell);
+            let plan = cell.plan_route();
             assert_eq!(plan.as_str(), cell.as_str(), "the view names the cell it lowers");
             assert_eq!(plan.family(), RouteFamily::JointPanel, "{}", cell.as_str());
             assert!(names.insert(plan.as_str()), "{} has one plan route", cell.as_str());
