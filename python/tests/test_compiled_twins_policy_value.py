@@ -51,7 +51,6 @@ def test_doubly_robust_direct_path_warns_and_the_compiled_query_matches_bit_for_
         "policy_value",
         "reference_value",
         "incremental_value",
-        "relative_value_gap",
         "treatment_rate",
         "policy_value_standard_error",
         "reference_value_standard_error",
@@ -60,6 +59,11 @@ def test_doubly_robust_direct_path_warns_and_the_compiled_query_matches_bit_for_
         "propensity_max",
     ):
         assert getattr(compiled, name) == getattr(direct, name), name
+    # The direct path reports the gap as the negated paired increment; the compiled path
+    # as reference minus policy value. They are equal in exact arithmetic and round apart.
+    assert compiled.relative_value_gap == pytest.approx(direct.relative_value_gap, rel=1e-12)
+    assert compiled.relative_value_gap == compiled.reference_value - compiled.policy_value
+    assert direct.relative_value_gap == -direct.incremental_value
     assert compiled.total_treatment_cost == direct.total_treatment_cost
 
 

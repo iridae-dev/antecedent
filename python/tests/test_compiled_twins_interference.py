@@ -11,26 +11,29 @@ from antecedent.execution import Execution
 from antecedent.outcomes import require_success
 
 
-def _complete_randomization():
+def _bernoulli_neighbor_count():
+    # A four-unit ring under Bernoulli(1/2): treated units with no treated neighbour
+    # against control units with two.
     data = {"y": np.array([1.0, 3.0, 2.0, 4.0])}
     assignment = [False, True, False, True]
+    network = [(0, 1), (1, 0), (1, 2), (2, 1), (2, 3), (3, 2), (3, 0), (0, 3)]
     query = interference.InterferenceQuery(
-        interference.CompleteRandomization(2),
-        interference.NeighborFraction(),
+        interference.BernoulliAssignment(0.5),
+        interference.NeighborCount(),
         interference.ExposureContrast(
-            "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+            "y", interference.ExposureLevel(1.0, 0.0), interference.ExposureLevel(0.0, 2.0)
         ),
-        network=[],
+        network=network,
         realized_assignment=assignment,
     )
-    return data, assignment, query
+    return data, assignment, network, query
 
 
 def test_estimate_warns_and_matches_the_compiled_route() -> None:
-    data, assignment, query = _complete_randomization()
+    data, assignment, network, query = _bernoulli_neighbor_count()
     with pytest.warns(AntecedentDeprecationWarning, match="antecedent.interference.estimate"):
         direct = interference.estimate(
-            data, assignment=assignment, edges=[], query=query, execution=Execution(seed=9)
+            data, assignment=assignment, edges=network, query=query, execution=Execution(seed=9)
         )
     compiled = require_success(ant.analyze(data, graph=[], query=query)).interference
     # The exposure probabilities are exact here, so the seed (the caller's for the direct
@@ -52,9 +55,7 @@ def _saturation():
         for t in range(start, start + 3)
         if s != t
     ]
-    fractions = [
-        sum(assignment[s] for s, t in edges if t == row) / 2.0 for row in range(12)
-    ]
+    fractions = [sum(assignment[s] for s, t in edges if t == row) / 2.0 for row in range(12)]
     y = np.array(
         [
             1.0 + 2.0 * own + 3.0 * f + 4.0 * own * f

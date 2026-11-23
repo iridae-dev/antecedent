@@ -510,8 +510,8 @@ def estimate(
     contrasts, a conservative variance and the exposure-probability diagnostics) and carries
     no study, contract, export, interval or calibration slot; the only things it checks are
     the input shapes, the design and the work limit. ``antecedent.analyze`` runs the same
-    estimator through the compiler for every assignment design and exposure mapping accepted
-    here; the one difference is the seed of Monte Carlo exposure probabilities, which the
+    estimator through the compiler for Bernoulli assignment with neighbour-count exposure, and
+    only that design is deprecated here; the one difference is the seed of Monte Carlo exposure probabilities, which the
     compiled route derives from its execution context instead of taking ``execution.seed``.
     ``execution`` supplies that seed and the cancellation and memory policy.
 
@@ -523,11 +523,18 @@ def estimate(
     construction, and the one to use for a claim.
     """
 
-    direct_path_deprecated(
-        "antecedent.interference.estimate",
-        "antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=, "
-        "realized_assignment=))",
-    )
+    # The compiled Python route serves Bernoulli assignment with neighbour-count exposure;
+    # other designs keep this path, undeprecated, until analyze accepts them.
+    if (
+        isinstance(query, InterferenceQuery)
+        and isinstance(query.assignment, BernoulliAssignment)
+        and isinstance(query.exposure, NeighborCount)
+    ):
+        direct_path_deprecated(
+            "antecedent.interference.estimate",
+            "antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=, "
+            "realized_assignment=))",
+        )
     if not isinstance(query, InterferenceQuery):
         raise CausalTypeError("query must be an InterferenceQuery")
     if isinstance(query.assignment, ObservedExposureDesign):
