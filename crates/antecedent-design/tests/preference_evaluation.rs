@@ -32,7 +32,9 @@ use antecedent_design::preference_choice_model::ChoiceModelOptions;
 use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferencePolicy,
 };
-use antecedent_design::preference_decision::{MeasureOrigin, PreferenceVerdict};
+use antecedent_design::preference_decision::{
+    MeasureOrigin, PreferenceDecisionError, PreferenceVerdict,
+};
 use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError as E, PreferenceEvaluationOptions,
     PreferenceRoute, ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE,
@@ -907,9 +909,15 @@ fn fixed_preferences_decide_as_the_ordinary_contract_on_means() {
                 Ok(ordinary) => {
                     assert_same_as_ordinary(&label, &evaluation.unwrap(), &ordinary, &at, criterion)
                 }
-                // A criterion a mean source cannot answer is refused by both.
-                Err(_) => {
-                    assert!(evaluation.is_err(), "{label}: only the ordinary contract refused")
+                // A criterion a mean source cannot answer is refused by both, identically.
+                Err(refusal) => {
+                    assert_eq!(criterion, DecisionCriterion::ExpectedRegret, "{label}");
+                    match evaluation.unwrap_err() {
+                        E::Exact(PreferenceDecisionError::Eval(error)) => {
+                            assert_eq!(error, refusal, "{label}")
+                        }
+                        other => panic!("{label}: {other:?}"),
+                    }
                 }
             }
         }

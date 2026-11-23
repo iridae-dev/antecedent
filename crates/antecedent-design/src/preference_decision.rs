@@ -46,7 +46,9 @@ use antecedent_stats::linear_program::{
     LpSolution,
 };
 
-use crate::decision_contract::{DecisionContract, DecisionCriterion, StructuralPolicy};
+use crate::decision_contract::{
+    DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,
+};
 use crate::decision_eval::{
     ConstraintExclusion, DecisionEvalError, DecisionResult, MeanSource, SourceReceipt,
     evaluate_contract, evaluate_contract_on_means, utility_draws,
@@ -988,7 +990,8 @@ pub fn evaluate_preference_contract(
 /// Evaluate a preference contract across its preference set on a mean-only source.
 ///
 /// Exact only when every part of the linear form is affine in the attributes; otherwise the
-/// mean evaluator's refusal is surfaced. A contract with hard constraints refuses as the mean
+/// mean evaluator's refusal is surfaced. Expected regret needs aligned draws and is refused as
+/// the ordinary contract refuses it on a mean source. A contract with hard constraints refuses as the mean
 /// evaluator does, since a mean cannot answer a constraint probability.
 ///
 /// # Errors
@@ -1957,6 +1960,16 @@ impl<'a> Prepared<'a> {
     }
 
     fn mean_facts(&self, source: &MeanSource) -> Result<SourceFacts, E> {
+        if self.regret {
+            // Expected regret compares actions draw by draw, so a mean cannot answer it: the
+            // ordinary evaluator's refusal is surfaced.
+            let mut ordinary = self.terms.clone();
+            ordinary.criterion = DecisionCriterion::ExpectedRegret;
+            evaluate_contract_on_means(&ordinary, source).map_err(E::Eval)?;
+            return Err(E::Eval(DecisionEvalError::Contract(
+                DecisionContractError::InvalidDeclaration("expected regret needs aligned draws"),
+            )));
+        }
         let result = evaluate_contract_on_means(&self.terms, source).map_err(E::Eval)?;
         let k = self.parts();
         let mut coefficients = Vec::with_capacity(self.contract.actions.len());

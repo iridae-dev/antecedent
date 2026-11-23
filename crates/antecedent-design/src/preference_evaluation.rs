@@ -372,7 +372,8 @@ pub fn decide_preferences(
 }
 
 /// Decide `contract` across its preference set on a mean-only source. Only the exact route
-/// can answer.
+/// can answer, and expected regret needs aligned draws, so a mean source refuses it as the
+/// ordinary contract does.
 ///
 /// # Errors
 /// An invalid contract; a contract that needs the certified route

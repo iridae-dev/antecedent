@@ -574,7 +574,7 @@ fn an_unavailable_option_teaches_nothing() {
     range_is(&excluded, 0, -4.0, 4.0);
     assert!(!excluded.ranges[0].narrowed);
     assert!(excluded.binding.iter().all(|c| c.rejected_option != "b"));
-    assert!(excluded.set.relations.iter().all(|r| !r.id.ends_with(".b")));
+    assert!(excluded.set.relations.iter().all(|r| r.id.rsplit('.').next() != Some("b")));
 
     let mut removed = three_options();
     removed.options.remove(1);
