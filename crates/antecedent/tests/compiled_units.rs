@@ -37,8 +37,11 @@ fn the_generated_table_names_every_bound_route_and_unit() {
     let units: BTreeSet<String> = values(&compiled, "unit").into_iter().collect();
     assert!(!routes.is_empty(), "no bound routes");
     assert_eq!(routes.len(), values(&compiled, "unit").len(), "a row lacks a unit");
+    // The routes are the quoted patterns of `unit_of`, grouped by unit.
+    let body = generated.split("fn unit_of").nth(1).expect("the generated file defines unit_of");
+    let quoted: BTreeSet<&str> = body.split('"').skip(1).step_by(2).collect();
     for route in &routes {
-        assert!(generated.contains(&format!("\"{route}\" => Some(")), "{route} is not generated");
+        assert!(quoted.contains(route.as_str()), "{route} is not generated");
     }
     for unit in &units {
         assert!(generated.contains(&format!("UnitId::new(\"{unit}\")")), "{unit} is not generated");
@@ -48,11 +51,7 @@ fn the_generated_table_names_every_bound_route_and_unit() {
         units.len(),
         "the generated file holds a unit no row binds"
     );
-    assert_eq!(
-        generated.matches("\" => Some(").count(),
-        routes.len(),
-        "the generated file binds a route no row lists"
-    );
+    assert_eq!(quoted.len(), routes.len(), "the generated file binds a route no row lists");
 }
 
 #[test]

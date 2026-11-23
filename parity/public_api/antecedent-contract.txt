@@ -6715,6 +6715,7 @@ pub fn <antecedent_contract::EvidenceObligation>::fn addressed_by(&self, offer: 
 pub fn <antecedent_contract::EvidenceObligation>::fn canonical(&self) -> alloc::string::String
 pub fn <antecedent_contract::EvidenceObligation>::fn from_unmet_factor(catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, factor_id: &str, need: &antecedent_core::query::transport_catalog::FactorNeed<'_>, provenance: antecedent_contract::ObligationProvenance) -> core::result::Result<Self, antecedent_contract::EvidenceObligationError>
 pub fn <antecedent_contract::EvidenceObligation>::fn try_new(spec: antecedent_contract::EvidenceObligationSpec) -> core::result::Result<Self, antecedent_contract::EvidenceObligationError>
+pub fn <antecedent_contract::EvidenceObligation>::fn validate(&self) -> core::result::Result<(), antecedent_contract::EvidenceObligationError>
 pub fn <antecedent_contract::EvidenceObligation>::fn with_quantities(self, quantities: alloc::collections::btree::map::BTreeMap<antecedent_core::ids::VariableId, antecedent_contract::ScientificQuantity>) -> core::result::Result<Self, antecedent_contract::EvidenceObligationError>
 pub fn <antecedent_contract::EvidenceObligationError>::fn wrong_contract(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_contract::EvidenceObligationKind>::const fn as_str(self) -> &'static str
@@ -7553,6 +7554,7 @@ pub fn antecedent_contract::composition_verification::revalidate(previous: &ante
 pub fn antecedent_contract::composition_verification::shared_data_relations(graph: &antecedent_contract::composition_verification::CompositionGraph, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger, cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<alloc::vec::Vec<antecedent_contract::composition_verification::SharedDataRelation>, antecedent_contract::composition_verification::ViewError>
 pub fn antecedent_contract::dose_label(value: f64) -> alloc::string::String
 pub fn antecedent_contract::evidence_ledger::parse_digest_hex(text: &str) -> core::option::Option<antecedent_core::identity::SemanticDigest>
+pub fn antecedent_contract::evidence_obligation::try_unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> core::result::Result<alloc::vec::Vec<antecedent_contract::EvidenceObligation>, antecedent_contract::EvidenceObligationError>
 pub fn antecedent_contract::evidence_obligation::unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> alloc::vec::Vec<antecedent_contract::EvidenceObligation>
 pub fn antecedent_contract::external_binding::external_values_digest(values: &[f64]) -> alloc::string::String
 pub fn antecedent_contract::external_refusal::probe_from_name(name: &str) -> core::option::Option<antecedent_contract::VerificationProbeKind>
@@ -8202,6 +8204,7 @@ pub use antecedent_contract::transform::TransformIntent = antecedent_contract::T
 pub use antecedent_contract::transform::TransformationReport = antecedent_contract::TransformationReport
 pub use antecedent_contract::transform::intent_effects = antecedent_contract::intent_effects
 pub use antecedent_contract::transport_result::TransportGridFailure = antecedent_contract::TransportGridFailure
+pub use antecedent_contract::try_unresolved_assumption_obligations = antecedent_contract::evidence_obligation::try_unresolved_assumption_obligations
 pub use antecedent_contract::unresolved_assumption_obligations = antecedent_contract::evidence_obligation::unresolved_assumption_obligations
 pub use antecedent_contract::verify_external_object = antecedent_contract::provider_verification::verify_external_object
 pub use antecedent_contract::verify_provider_requests = antecedent_contract::provider_verification::verify_provider_requests

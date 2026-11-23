@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[deprecated(since = "3.1.0")] pub fn antecedent_io_core::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::IoError>
 #[doc(hidden)] pub const antecedent_io_core::graphless_support::UNIT_STATUS: &str
 #[doc(hidden)] pub const fn antecedent_io_core::error::lossless_u64(value: usize) -> u64
 #[doc(hidden)] pub fn <antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact>::fn decode_unchecked(bytes: &[u8]) -> core::result::Result<antecedent_io_core::adaptive_monitoring_contract_artifact::MonitoringContractMeta, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
@@ -15285,6 +15286,7 @@ pub fn <antecedent_io_core::CheckedLearnerWire>::fn from_spec(spec: antecedent_l
 pub fn <antecedent_io_core::CheckedLearnerWire>::fn to_spec(&self) -> core::option::Option<antecedent_learn::spec::LearnerSpec>
 pub fn <antecedent_io_core::CitationWire>::fn reference(&self) -> alloc::string::String
 pub fn <antecedent_io_core::ClaimIdentityWire>::fn new(seal: [u8; 32], claim: &antecedent_io_core::ClaimSectionWire, result: [u8; 32]) -> Self
+pub fn <antecedent_io_core::ClassPriorIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::CodecError>::fn into_check(self) -> antecedent_io_core::ArtifactCheckError
 pub fn <antecedent_io_core::CodecError>::fn into_io(self, layout: &'static str) -> antecedent_io_core::IoError
 pub fn <antecedent_io_core::CompatibilityReport>::const fn is_usable(&self) -> bool
@@ -15319,11 +15321,14 @@ pub fn <antecedent_io_core::EnvelopeQuantityWire>::const fn lower_name(self) -> 
 pub fn <antecedent_io_core::EnvelopeQuantityWire>::const fn upper_name(self) -> &'static str
 pub fn <antecedent_io_core::EstimandFingerprint>::fn new(query_kind: impl core::convert::Into<alloc::string::String>, treatment: impl core::convert::Into<alloc::string::String>, outcome: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::EstimandFingerprint>::fn with_temporal(self, temporal: antecedent_io_core::TemporalCoordinates) -> Self
+pub fn <antecedent_io_core::GraphIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::GraphIdentityWire>::fn premises(&self) -> Self
 pub fn <antecedent_io_core::GraphPosteriorProgramsWire>::fn compute_chain(mixing: &str, atoms: &[antecedent_io_core::GraphPosteriorAtomProgramWire]) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
 pub fn <antecedent_io_core::GraphPosteriorProgramsWire>::fn seal(atoms: alloc::vec::Vec<antecedent_io_core::GraphPosteriorAtomProgramWire>) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::IdentificationIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::IdentifiedSetIntervalMethodWire>::const fn method(self) -> antecedent_stats::identified_set::IdentifiedSetIntervalMethod
 pub fn <antecedent_io_core::IdentifiedSetIntervalMethodWire>::fn try_from_method(method: antecedent_stats::identified_set::IdentifiedSetIntervalMethod) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::InferenceBindingWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::InterventionWire>::fn from_domain(iv: &antecedent_core::intervention::Intervention) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::InterventionWire>::fn from_domain_recoverable(iv: &antecedent_core::intervention::Intervention) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::InterventionWire>::fn to_domain(&self) -> antecedent_core::intervention::Intervention
@@ -15369,6 +15374,7 @@ pub fn <antecedent_io_core::MechanismCompositionPremisesWire>::fn to_spec(&self)
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn citations(&self) -> alloc::vec::Vec<antecedent_io_core::CitationWire>
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn is_empty(&self) -> bool
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn record(&self, id: &str) -> core::option::Option<&antecedent_io_core::ProvenanceRecordWire>
+pub fn <antecedent_io_core::ObservationIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn consume(&self, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::ConsumedObservationQuery, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn distribution(&self) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent_io_core::ObservationQueryArtifactError>
@@ -15388,6 +15394,7 @@ pub fn <antecedent_io_core::PayloadDigestWire>::fn i64s(kind: &str, values: &[i6
 pub fn <antecedent_io_core::PayloadDigestWire>::fn u32_groups(kind: &str, groups: &[alloc::vec::Vec<u32>]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn u32s(kind: &str, values: &[u32]) -> Self
 pub fn <antecedent_io_core::PayloadDigestWire>::fn u64s(kind: &str, values: &[u64]) -> Self
+pub fn <antecedent_io_core::PosteriorAtomGraphWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::PosteriorRowWire>::fn all_finite(&self) -> bool
 pub fn <antecedent_io_core::PosteriorRowWire>::fn new(estimator: &str, target: alloc::string::String, coordinates: alloc::vec::Vec<alloc::string::String>, draws: usize) -> Self
 pub fn <antecedent_io_core::PosteriorRowWire>::fn validate(&self) -> core::result::Result<(), antecedent_io_core::IoError>
@@ -15400,6 +15407,7 @@ pub fn <antecedent_io_core::PriorCatalog>::fn rank(&self, reports: &[antecedent_
 pub fn <antecedent_io_core::PriorCatalog>::fn require_compatible(&self, target: &antecedent_io_core::TargetDesign) -> core::result::Result<&antecedent_io_core::PriorSourceRef, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::PriorCatalog>::fn require_usable(&self, target: &antecedent_io_core::TargetDesign) -> core::result::Result<&antecedent_io_core::PriorSourceRef, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::PriorMappingIdentityWire>::fn from_mapping(mapping: &antecedent_io_core::PriorMapping) -> Self
+pub fn <antecedent_io_core::PriorMappingIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::PriorSourceMeta>::fn new(artifact_id: impl core::convert::Into<alloc::string::String>, estimand: antecedent_io_core::EstimandFingerprint, identification: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::PriorSourceMeta>::fn with_design(self, design: alloc::vec::Vec<antecedent_io_core::DesignVariableSummary>) -> Self
 pub fn <antecedent_io_core::PriorSourceMeta>::fn with_mapping(self, mapping: antecedent_io_core::PriorMapping) -> Self
@@ -15461,6 +15469,7 @@ pub fn <antecedent_io_core::TargetPopulationWire>::fn from_domain_with_registry(
 pub fn <antecedent_io_core::TargetPopulationWire>::fn to_domain(&self) -> core::result::Result<antecedent_core::query::target::TargetPopulation, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::TargetPopulationWire>::fn to_domain_with_registry(&self, registry: &antecedent_core::query::population::PopulationRegistry) -> core::result::Result<antecedent_core::query::target::TargetPopulation, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::TargetWeightsIdentityWire>::fn new(weights: &[f64], data_snapshot: antecedent_core::identity::SemanticDigest, score_reuse: antecedent_core::identity::SemanticDigest, depends_on: &[antecedent_core::ids::VariableId]) -> Self
+pub fn <antecedent_io_core::TemporalClassIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::TemporalCoordinates>::fn new(treatment_lags: impl core::iter::traits::collect::IntoIterator<Item = u32>, horizon: u32) -> Self
 pub fn <antecedent_io_core::TemporalCoordinates>::fn with_coefficient_names(self, names: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> Self
 pub fn <antecedent_io_core::TemporalDesignQueryWire>::fn design_name(&self) -> &'static str
@@ -15469,6 +15478,7 @@ pub fn <antecedent_io_core::TemporalDesignQueryWire>::fn to_domain(&self) -> cor
 pub fn <antecedent_io_core::TemporalDesignQueryWire>::fn variable_ids(&self) -> alloc::vec::Vec<u32>
 pub fn <antecedent_io_core::TemporalPolicyWire>::fn from_domain(p: &antecedent_core::intervention::TemporalPolicy) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::TemporalPolicyWire>::fn to_domain(&self) -> antecedent_core::intervention::TemporalPolicy
+pub fn <antecedent_io_core::TransportIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::ValueWire>::fn from_value(v: &antecedent_core::value::Value) -> Self
 pub fn <antecedent_io_core::ValueWire>::fn to_value(&self) -> antecedent_core::value::Value
 pub fn <antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractArtifact>::const fn boundaries(&self) -> core::option::Option<&antecedent_stats::adaptive_inference::group_sequential::Boundaries>
@@ -15831,6 +15841,7 @@ pub fn <antecedent_io_core::frozen_scores_artifact::FrozenScoreTable>::fn snapsh
 pub fn <antecedent_io_core::frozen_scores_artifact::FrozenScoreTable>::fn table_wire(&self) -> antecedent_io_core::score_wire::ScoreTableWire
 pub fn <antecedent_io_core::frozen_scores_artifact::FrozenScoreTable>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError>
 pub fn <antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, &'static str, alloc::string::String)>
+pub fn <antecedent_io_core::identity::TemporalAdmgIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::interface_contract_artifact::InterfaceContractArtifact>::const fn contract(&self) -> &antecedent_contract::interface_contract::declaration::InterfaceContract
 pub fn <antecedent_io_core::interface_contract_artifact::InterfaceContractArtifact>::fn contract_identity(&self) -> &str
 pub fn <antecedent_io_core::interface_contract_artifact::InterfaceContractArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<Self, antecedent_io_core::interface_contract_artifact::InterfaceContractArtifactError>
@@ -16045,7 +16056,6 @@ pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCoun
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError>
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::fn to_bytes_within(&self, artifact_id: &str, max_bytes: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError>
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError>::fn refusal(&self) -> core::option::Option<antecedent_io_core::transported_counterfactual_artifact::RefusalWire>
-pub fn antecedent_io_core::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::IoError>
 pub fn antecedent_io_core::accept_claim_expecting(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile, expected: &antecedent_io_core::RetainedClaimIdentity) -> core::result::Result<(antecedent_io_core::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::IoError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::contract_boundaries(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract) -> core::result::Result<core::option::Option<antecedent_stats::adaptive_inference::group_sequential::Boundaries>, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_from_wire(wire: &antecedent_io_core::adaptive_monitoring_contract_artifact::DeclarationWire) -> core::result::Result<antecedent_contract::adaptive_design::declaration::AdaptiveDesignDeclaration, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
