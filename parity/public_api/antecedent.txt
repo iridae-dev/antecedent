@@ -1326,6 +1326,7 @@ impl core::clone::Clone for antecedent::planner::plan_view::RetainedProductView
 impl core::clone::Clone for antecedent::planner::plan_view::ReuseView
 impl core::clone::Clone for antecedent::planner::plan_view::SupportView
 impl core::clone::Clone for antecedent::planner::plan_view::UncertaintyDemand
+impl core::clone::Clone for antecedent::planner::plan_view::UnitSupportView
 impl core::clone::Clone for antecedent::planner::statistical::FoldPlan
 impl core::clone::Clone for antecedent::planner::statistical::ModelRole
 impl core::clone::Clone for antecedent::planner::statistical::ModelSlot
@@ -1589,6 +1590,7 @@ impl core::cmp::Eq for antecedent::planner::plan_view::OperationLayer
 impl core::cmp::Eq for antecedent::planner::plan_view::OperationView
 impl core::cmp::Eq for antecedent::planner::plan_view::ReuseView
 impl core::cmp::Eq for antecedent::planner::plan_view::SupportView
+impl core::cmp::Eq for antecedent::planner::plan_view::UnitSupportView
 impl core::cmp::Eq for antecedent::planner::statistical::FoldPlan
 impl core::cmp::Eq for antecedent::planner::statistical::ModelRole
 impl core::cmp::Eq for antecedent::planner::statistical::ModelSlot
@@ -2208,6 +2210,7 @@ impl core::cmp::PartialEq for antecedent::planner::plan_view::RetainedProductVie
 impl core::cmp::PartialEq for antecedent::planner::plan_view::ReuseView
 impl core::cmp::PartialEq for antecedent::planner::plan_view::SupportView
 impl core::cmp::PartialEq for antecedent::planner::plan_view::UncertaintyDemand
+impl core::cmp::PartialEq for antecedent::planner::plan_view::UnitSupportView
 impl core::cmp::PartialEq for antecedent::planner::statistical::FoldPlan
 impl core::cmp::PartialEq for antecedent::planner::statistical::ModelRole
 impl core::cmp::PartialEq for antecedent::planner::statistical::ModelSlot
@@ -3714,6 +3717,7 @@ impl core::fmt::Debug for antecedent::planner::plan_view::RetainedProductView
 impl core::fmt::Debug for antecedent::planner::plan_view::ReuseView
 impl core::fmt::Debug for antecedent::planner::plan_view::SupportView
 impl core::fmt::Debug for antecedent::planner::plan_view::UncertaintyDemand
+impl core::fmt::Debug for antecedent::planner::plan_view::UnitSupportView
 impl core::fmt::Debug for antecedent::planner::statistical::FoldPlan
 impl core::fmt::Debug for antecedent::planner::statistical::ModelRole
 impl core::fmt::Debug for antecedent::planner::statistical::ModelSlot
@@ -5255,6 +5259,7 @@ impl core::marker::Freeze for antecedent::planner::plan_view::RetainedProductVie
 impl core::marker::Freeze for antecedent::planner::plan_view::ReuseView [auto]
 impl core::marker::Freeze for antecedent::planner::plan_view::SupportView [auto]
 impl core::marker::Freeze for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::marker::Freeze for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::FoldPlan [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::ModelRole [auto]
 impl core::marker::Freeze for antecedent::planner::statistical::ModelSlot [auto]
@@ -6485,6 +6490,7 @@ impl core::marker::Send for antecedent::planner::plan_view::RetainedProductView 
 impl core::marker::Send for antecedent::planner::plan_view::ReuseView [auto]
 impl core::marker::Send for antecedent::planner::plan_view::SupportView [auto]
 impl core::marker::Send for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::marker::Send for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::marker::Send for antecedent::planner::statistical::FoldPlan [auto]
 impl core::marker::Send for antecedent::planner::statistical::ModelRole [auto]
 impl core::marker::Send for antecedent::planner::statistical::ModelSlot [auto]
@@ -7121,6 +7127,7 @@ impl core::marker::StructuralPartialEq for antecedent::planner::plan_view::Retai
 impl core::marker::StructuralPartialEq for antecedent::planner::plan_view::ReuseView
 impl core::marker::StructuralPartialEq for antecedent::planner::plan_view::SupportView
 impl core::marker::StructuralPartialEq for antecedent::planner::plan_view::UncertaintyDemand
+impl core::marker::StructuralPartialEq for antecedent::planner::plan_view::UnitSupportView
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::FoldPlan
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ModelRole
 impl core::marker::StructuralPartialEq for antecedent::planner::statistical::ModelSlot
@@ -8336,6 +8343,7 @@ impl core::marker::Sync for antecedent::planner::plan_view::RetainedProductView 
 impl core::marker::Sync for antecedent::planner::plan_view::ReuseView [auto]
 impl core::marker::Sync for antecedent::planner::plan_view::SupportView [auto]
 impl core::marker::Sync for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::marker::Sync for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::marker::Sync for antecedent::planner::statistical::FoldPlan [auto]
 impl core::marker::Sync for antecedent::planner::statistical::ModelRole [auto]
 impl core::marker::Sync for antecedent::planner::statistical::ModelSlot [auto]
@@ -9566,6 +9574,7 @@ impl core::marker::Unpin for antecedent::planner::plan_view::RetainedProductView
 impl core::marker::Unpin for antecedent::planner::plan_view::ReuseView [auto]
 impl core::marker::Unpin for antecedent::planner::plan_view::SupportView [auto]
 impl core::marker::Unpin for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::marker::Unpin for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::FoldPlan [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::ModelRole [auto]
 impl core::marker::Unpin for antecedent::planner::statistical::ModelSlot [auto]
@@ -10743,6 +10752,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::plan_view:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::plan_view::ReuseView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::plan_view::SupportView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::FoldPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ModelRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::statistical::ModelSlot [auto]
@@ -11910,6 +11920,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::plan_view::Re
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::plan_view::ReuseView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::plan_view::SupportView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::plan_view::UncertaintyDemand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::plan_view::UnitSupportView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::FoldPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ModelRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::statistical::ModelSlot [auto]
@@ -19542,6 +19553,7 @@ pub fn <antecedent::planner::PlanView>::fn scientific(&self) -> &antecedent::pla
 pub fn <antecedent::planner::PlanView>::fn semantic_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent::planner::PlanView>::fn statistical(&self) -> &antecedent::planner::statistical::StatisticalProgram
 pub fn <antecedent::planner::PlanView>::fn to_json(&self) -> serde_json::value::Value
+pub fn <antecedent::planner::PlanView>::fn unit_support(&self) -> core::option::Option<antecedent::planner::plan_view::UnitSupportView>
 pub fn <antecedent::planner::RouteFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::CarrierDemand>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::CarrierDemand>::const fn evidence_request(self) -> core::option::Option<antecedent_contract::evidence_ports::DecisionRequest>
@@ -19720,6 +19732,10 @@ pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn posterior(&
 pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn reading(&self) -> antecedent::planner::lowered::UncertaintyReading
 pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn realization(&self) -> &'static str
 pub fn <antecedent::planner::plan_view::UncertaintyDemand>::const fn resampling(&self) -> core::option::Option<antecedent::planner::statistical::ResamplingPlan>
+pub fn <antecedent::planner::plan_view::UnitSupportView>::const fn status(&self) -> antecedent::CellStatus
+pub fn <antecedent::planner::plan_view::UnitSupportView>::const fn supported(&self) -> bool
+pub fn <antecedent::planner::plan_view::UnitSupportView>::fn missing_evidence(&self) -> &[&'static str]
+pub fn <antecedent::planner::plan_view::UnitSupportView>::fn unit(&self) -> &str
 pub fn <antecedent::planner::statistical::FoldPlan>::const fn embargo(&self) -> core::option::Option<usize>
 pub fn <antecedent::planner::statistical::FoldPlan>::const fn folds(&self) -> usize
 pub fn <antecedent::planner::statistical::FoldPlan>::const fn unit(&self) -> antecedent::planner::statistical::ResampleUnit
@@ -22095,6 +22111,8 @@ pub struct antecedent::planner::plan_view::SupportView
 pub struct antecedent::planner::plan_view::SupportView has private fields
 pub struct antecedent::planner::plan_view::UncertaintyDemand
 pub struct antecedent::planner::plan_view::UncertaintyDemand has private fields
+pub struct antecedent::planner::plan_view::UnitSupportView
+pub struct antecedent::planner::plan_view::UnitSupportView has private fields
 pub struct antecedent::planner::statistical::FoldPlan
 pub struct antecedent::planner::statistical::FoldPlan has private fields
 pub struct antecedent::planner::statistical::ModelSlot

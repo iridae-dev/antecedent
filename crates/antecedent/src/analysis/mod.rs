@@ -241,6 +241,7 @@ pub mod planning;
 pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
+pub(crate) mod program_handle;
 pub mod propagation_chain;
 pub mod propagation_chain_decision;
 pub mod propagation_chain_robust_decision;

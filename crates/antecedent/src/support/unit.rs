@@ -146,6 +146,14 @@ pub fn decide(key: &SupportKey<'_>) -> UnitDecision {
     }
 }
 
+/// The support decision of the unit `parity/compiled_units.toml` binds the compiled route
+/// `route` (its `PlanRoute::as_str` name) to; `None` for a support-matrix route and for a
+/// route no unit is bound to yet.
+#[must_use]
+pub(crate) fn route_decision(route: &str) -> Option<UnitDecision> {
+    super::units_generated::unit_of(route).map(|unit| decide(&SupportKey::Unit(unit)))
+}
+
 /// Pass the support gate of the program entry point `entry`, which runs under the unit `key`
 /// names, with the dispatch-scoped context.
 ///
@@ -217,14 +225,19 @@ mod tests {
             .map(|unit| unit["status"].as_str().expect("status text").to_owned())
     }
 
-    fn bound_units() -> [UnitId; 6] {
+    fn bound_units() -> [UnitId; 11] {
         [
+            units_generated::CATEGORICAL_TREATMENT_COMPILED_CANDIDATE,
             units_generated::COMPOSITION_BUNDLE,
+            units_generated::CYCLIC_GENERAL_SYSTEMS,
+            units_generated::DECISION_RELIABILITY_SAMPLED_DECISION,
             units_generated::ESTIMATE_LATENT_SOFT_INTERVENTION,
             units_generated::ESTIMATE_OBSERVATIONAL_POLICY_VALUE,
             units_generated::FORECAST_EVENT_PROCESS,
+            units_generated::GRAPH_IMPUTATION_COMPILED_CANDIDATE,
             units_generated::JOINT_RESPONSE_INTERVAL_READINGS,
             units_generated::MNAR_FIXED_SHIFT_COMPILED_CANDIDATE,
+            units_generated::OBSERVATION_QUERY_FINITE_LAW_CONDITIONING,
         ]
     }
 

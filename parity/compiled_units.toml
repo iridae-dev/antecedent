@@ -7,6 +7,12 @@
 # Rust source and the Python module that expose the route.
 # crates/antecedent/src/support/units_generated.rs is generated from this file by
 # scripts/generate_compiled_units.py.
+#
+# unbound: every program family and every string-carrying route (CyclicFamily,
+# ExperimentPlanning, PropagationChain) is bound by a [[route]] row or listed in an [[unbound]]
+# row. An [[unbound]] row names a route no capability record owns: `reason` states what was
+# found. scripts/gate_support.py fails on a route that is neither bound nor listed, and on a
+# listed route that is bound.
 
 schema = 1
 
@@ -159,3 +165,177 @@ lowering = "LatentSoftIntervention"
 unit_kind = "capability"
 unit = "estimate.latent_soft_intervention"
 entry = { rust = "crates/antecedent/src/analysis/latent_soft_intervention.rs", python = "python/antecedent/latent_soft_intervention.py" }
+
+[[route]]
+lowering = "ObservationalPolicy"
+unit_kind = "capability"
+unit = "estimate.observational_policy_value"
+entry = { rust = "crates/antecedent/src/analysis/observational_policy.rs", python = "python/antecedent/observational_policy.py" }
+
+[[route]]
+lowering = "JointMeasuredObservation"
+unit_kind = "capability"
+unit = "observation_query.finite_law_conditioning"
+entry = { rust = "crates/antecedent/src/analysis/observation_query.rs", python = "python/antecedent/observation_query.py" }
+
+[[route]]
+lowering = "DependentMeasuredObservation"
+unit_kind = "capability"
+unit = "observation_query.finite_law_conditioning"
+entry = { rust = "crates/antecedent/src/analysis/observation_query.rs", python = "python/antecedent/observation_query.py" }
+
+[[route]]
+lowering = "SequentialPolicyReliability"
+unit_kind = "capability"
+unit = "decision_reliability.sampled_decision"
+entry = { rust = "crates/antecedent/src/analysis/sequential_policy_reliability.rs", python = "python/antecedent/decision_reliability.py" }
+
+[[route]]
+lowering = "GraphImputation"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_candidate"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation.rs", python = "python/antecedent/missing.py" }
+
+[[route]]
+lowering = "CategoricalPosteriorCandidate"
+unit_kind = "capability"
+unit = "categorical_treatment.compiled_candidate"
+entry = { rust = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", python = "python/antecedent/categorical_treatment.py" }
+
+[[route]]
+lowering = "CyclicFamily"
+unit_kind = "capability"
+unit = "cyclic.general_systems"
+entry = { rust = "crates/antecedent/src/analysis/cyclic.rs", python = "python/antecedent/cyclic.py" }
+
+[[unbound]]
+lowering = "FittedDependentMeasuredObservation"
+reason = "observation_query.finite_law_conditioning owns declared dependent-error tables only; the Dirichlet fit of a labelled joint-error table has no record and fitted_joint_error_table_propagates_labelled_count_uncertainty is cited by no claim"
+
+[[unbound]]
+lowering = "CyclicActionWorldDecision"
+reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not the paired action-world decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "CyclicPosteriorActionDecision"
+reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not the posterior predictive action decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "CyclicTargetFeedbackDecision"
+reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not target-frame standardization and its decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "JointComponentPosteriorDecision"
+reason = "no record owns feedback composed across components (interface_contract.cyclic_composition is a closed record that refuses component cycles and has no unit status); its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "BoundedComponentPosteriorDecision"
+reason = "no record owns feedback composed across components (interface_contract.cyclic_composition is a closed record that refuses component cycles and has no unit status); its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "BridgeTransportDecision"
+reason = "scientific_bridge.distribution_bridges owns the bridge draws and transport.surrogate_bridge_premise the premise derivation; no record owns the compiled bridge-transport decision and no capability record cites its tests"
+
+[[unbound]]
+lowering = "BridgeTransportPremiseAssessment"
+reason = "transport.surrogate_bridge_premise owns the premise derivation, not the source-target discrepancy assessment; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "AssessedBridgeTransportDecision"
+reason = "no record owns the matched bridge validation and conditional decision and no capability record cites its tests"
+
+[[unbound]]
+lowering = "JointTransportEffectDecision"
+reason = "transport.joint_bayesian owns the effect posterior kernel, not the compiled decision over it; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "JointTransportPredictiveDecision"
+reason = "transport.joint_bayesian owns the effect posterior, not the shared-baseline outcome prediction and decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "TrialIpwTransportDecision"
+reason = "no record owns the trial-to-target IPW Bayesian-bootstrap effect decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "TrialIpwPredictiveDecision"
+reason = "no record owns the trial-to-target IPW Bayesian-bootstrap predictive decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "TemporalPathTransport"
+reason = "counterfactual.transported_path_specific is closed and covers static paths only; no record owns the time-ordered path-specific transport and whose scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "SamplingAssumptionUnion"
+reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "IidSamplingAssumptionUnion"
+reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "ClusterSamplingAssumptionUnion"
+reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "MovingBlockSamplingAssumptionUnion"
+reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+
+[[unbound]]
+lowering = "PropagationChain"
+reason = "no record owns compile_propagation_chain: the joint_law records own the joint_law_propagation module, and composition.bundle only replays an embedded chain"
+
+[[unbound]]
+lowering = "ExperimentPlanning"
+reason = "no record owns compile_planning (antecedent_design::planning): design.study_planning owns identification-repair study planning, not power or assurance planning of a declared trial"
+
+[[unbound]]
+lowering = "GraphImputationEffectDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationBernoulliPredictiveWorldDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationGaussianTargetPredictiveWorldDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationGaussianPredictiveClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationTransportDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationTransportClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationConfoundedTransportDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationConfoundedTransportClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationKernelTransportDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationKernelTransportClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationConfoundedKernelTransportClusterBootstrapDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+
+[[unbound]]
+lowering = "GraphImputationMarTransportDecision"
+reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
