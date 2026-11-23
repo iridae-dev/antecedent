@@ -489,15 +489,10 @@ impl DesignLowering for RandomizedEffectQuery {
     fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
         let query = self;
         let (identification, _) = randomized_identification(query);
-        let (_, _, method, assignment_unit, _) = antecedent_core::randomized_graphless_coordinate(
-            &query.design,
-            query.estimand,
-            query.received_treatment.is_some(),
-            query.fixed_cuped.is_some(),
-            !query.ancova_covariates.is_empty(),
-        );
+        let (_, _, method, assignment_unit, _) = query.graphless_coordinate();
         let mut covariates: Vec<VariableId> = query.ancova_covariates.to_vec();
         covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
+        covariates.extend(query.estimated_cuped);
         let ancova = !query.ancova_covariates.is_empty();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::AssignmentContrast, query.outcome),

@@ -111,6 +111,9 @@ pub(super) fn query_variables(query: &CausalQuery) -> Vec<VariableId> {
             if let Some((covariate, _)) = q.fixed_cuped {
                 add(&mut ids, covariate);
             }
+            if let Some(covariate) = q.estimated_cuped {
+                add(&mut ids, covariate);
+            }
             q.ancova_covariates.iter().for_each(|&id| add(&mut ids, id));
         }
         CausalQuery::TemporalEffect(q) => {

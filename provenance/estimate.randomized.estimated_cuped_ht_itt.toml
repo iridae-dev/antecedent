@@ -1,0 +1,33 @@
+feature_id = "estimate.randomized.estimated_cuped_ht_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/randomized_scores.rs"]
+
+# Strategy-table implementation id: estimate.randomized.estimated_cuped_ht_itt
+# (EstimatorId::RandomizedEstimatedCupedHt, public name randomized.estimated_cuped_ht_itt).
+#
+# Bernoulli intention-to-treat contrast of outcomes residualized by the pooled outcome-on-covariate
+# slope of one pre-assignment covariate, estimated from the same rows. The kernel is
+# randomized_scores::cuped_ht_effect, the function the direct Python entry runs; the route adds
+# only the arm-support gate of the independent Bernoulli interval and the normal interval of the
+# kernel's standard error.
+papers = [
+ { title = "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data", doi = "10.1145/2433396.2433413", sections = ["CUPED: subtract a multiple of a pre-experiment covariate, with the multiple estimated as the covariance over the covariate variance, from the outcome before estimating the average treatment effect"] },
+]
+
+implementation_deviations = [
+ "The slope is the pooled outcome-on-covariate covariance over the covariate's second moment across both arms, estimated from the rows being analysed. The score standard error treats that slope as fixed, so the uncertainty of its estimation is not propagated; the adjustment is asymptotically harmless and the interval is not claimed to have measured coverage beyond the support row.",
+ "The covariate is centred on its sample mean before the adjustment, so the adjusted contrast of a realized assignment differs from the fixed-coefficient route's uncentred adjustment by the realized Horvitz-Thompson contrast of a constant.",
+ "The interval is published only where the unadjusted independent Bernoulli interval would be: 30 observed and 40 expected rows per arm and probabilities of at least 0.2.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_scores.rs",
+ "crates/antecedent/tests/compiled_twins_randomized.rs",
+]

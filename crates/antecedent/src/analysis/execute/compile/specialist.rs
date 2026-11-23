@@ -37,6 +37,8 @@ impl super::super::Study {
                             "randomized.wald_cace_late"
                         } else if q.fixed_cuped.is_some() {
                             "randomized.fixed_cuped_ht_itt"
+                        } else if q.estimated_cuped.is_some() {
+                            "randomized.estimated_cuped_ht_itt"
                         } else if !q.ancova_covariates.is_empty() {
                             "randomized.ancova_itt"
                         } else {

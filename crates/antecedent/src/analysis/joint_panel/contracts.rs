@@ -491,6 +491,7 @@ fn experiment(
     if query.outcome != request.columns.outcome
         || query.estimand != RandomizedEstimand::IntentionToTreat
         || query.fixed_cuped.is_some()
+        || query.estimated_cuped.is_some()
         || !query.ancova_covariates.is_empty()
         || query.received_treatment.is_some()
     {

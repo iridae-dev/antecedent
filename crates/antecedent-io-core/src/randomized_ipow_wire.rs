@@ -124,6 +124,7 @@ impl RandomizedIpowWire {
             || query.estimand != RandomizedEstimandWire::Itt
             || query.received_treatment.is_some()
             || query.fixed_cuped.is_some()
+            || query.estimated_cuped.is_some()
             || !query.ancova_covariates.is_empty()
             || query.exact_randomization_test
             || query.realized_assignment.len() != n

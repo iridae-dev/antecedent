@@ -130,6 +130,11 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "bernoulli_fixed_cuped_ht_conservative_variance_no_interval",
             Some("bernoulli_fixed_cuped_ht_score_normal_interval"),
         ),
+        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped.is_some() => (
+            "bernoulli",
+            "bernoulli_estimated_cuped_ht_standard_error_no_interval",
+            Some("bernoulli_estimated_cuped_ht_score_normal_interval"),
+        ),
         crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => (
             "bernoulli",
             "bernoulli_ancova_hc0_variance_no_interval",
@@ -227,7 +232,12 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
     let expected_allocations = if query.exact_randomization_test {
         let n = crate::error::fit_u64(query.realized_assignment.len())?;
         let k = crate::error::fit_u64(treated)?;
-        combination_count(n, k)
+        if matches!(query.design, crate::RandomizationDesignWire::Bernoulli) {
+            // Every assignment of the declared Bernoulli design is enumerated.
+            1_u64.checked_shl(u32::try_from(n).unwrap_or(u32::MAX))
+        } else {
+            combination_count(n, k)
+        }
     } else {
         None
     };
@@ -284,6 +294,13 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "randomized_effect",
             "bernoulli",
             "fixed_cuped_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped.is_some() => Some((
+            "randomized_effect",
+            "bernoulli",
+            "estimated_cuped_ht_score",
             "unit",
             "pointwise_95_normal_interval",
         )),
@@ -631,7 +648,14 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 let Some(allocations) = expected_allocations.filter(|count| *count > 0) else {
                     return true;
                 };
-                !p.is_finite() || p < 1.0 / allocations as f64 || p > 1.0
+                // A Bernoulli p-value is a probability-weighted tail, bounded below by the
+                // probability of the observed assignment, not by one over the count.
+                let floor = if matches!(query.design, crate::RandomizationDesignWire::Bernoulli) {
+                    0.0
+                } else {
+                    1.0 / allocations as f64
+                };
+                !p.is_finite() || p < floor || p <= 0.0 || p > 1.0
             }))
         || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
         || (query.estimand != crate::RandomizedEstimandWire::Itt

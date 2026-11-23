@@ -83,6 +83,7 @@ fn check_declaration_for_design(
                 | RandomizedMethod::TreatmentOnTreated
                 | RandomizedMethod::ComplierEffect
                 | RandomizedMethod::FixedCuped
+                | RandomizedMethod::EstimatedCuped
                 | RandomizedMethod::ClusterFixedCuped
         )
     {
@@ -146,6 +147,9 @@ impl CheckedRandomizedOperation {
         }
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         if let Some((covariate, _)) = query.fixed_cuped {
+            data.schema().get(covariate).map_err(CausalError::rejected)?;
+        }
+        if let Some(covariate) = query.estimated_cuped {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
         for &covariate in query.ancova_covariates.iter() {
@@ -511,14 +515,7 @@ impl CheckedRandomizedOperation {
         small_arm: bool,
     ) -> Option<crate::support::CellStatus> {
         let fit = result.randomized_effect().expect("randomized result was just set");
-        let (family, design, method_id, assignment_unit, claim) =
-            antecedent_core::randomized_graphless_coordinate(
-                &self.query.design,
-                self.query.estimand,
-                self.query.received_treatment.is_some(),
-                self.query.fixed_cuped.is_some(),
-                !self.query.ancova_covariates.is_empty(),
-            );
+        let (family, design, method_id, assignment_unit, claim) = self.query.graphless_coordinate();
         let switchback = method == RandomizedMethod::Switchback;
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
         let support_blocks = if switchback { &self.query.assignment_units } else { &fit.blocks };
@@ -1282,7 +1279,12 @@ fn push_randomized_core_assumptions(
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("fisher_sharp_null_two_sided"),
-                description: Arc::from(if randomization_test_is_exhaustive(query) {
+                description: Arc::from(if matches!(
+                    query.design,
+                    antecedent_core::RandomizationDesign::Bernoulli
+                ) {
+                    "the reported exact p-value tests the sharp null of no unit-level assignment effect using the absolute Horvitz-Thompson contrast over every Bernoulli assignment, each weighted by its known assignment probability"
+                } else if randomization_test_is_exhaustive(query) {
                     "the reported exact p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over every fixed-count assignment"
                 } else {
                     "the reported p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over uniformly sampled fixed-count assignments (a Monte Carlo permutation p-value with a fixed stream, valid and never zero, not an exact one)"
@@ -1362,6 +1364,17 @@ fn push_randomized_covariate_assumptions(
     query: &antecedent_core::RandomizedEffectQuery,
     assumptions: &mut antecedent_core::AssumptionSet,
 ) {
+    if query.estimated_cuped.is_some() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("estimated_pre_assignment_cuped"),
+                description: Arc::from("the CUPED covariate was measured before randomization; its pooled slope is estimated from these outcomes and the independent-row score variance does not propagate that estimation"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
+    }
     if query.fixed_cuped.is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
