@@ -60,8 +60,8 @@ from .policy import (
     MultiActionPolicy,
     MultiActionPolicyValue,
     PolicyValue,
-    evaluate_multi_action_policy,
-    evaluate_policy,
+    _evaluate_multi_action_policy_direct,
+    _evaluate_policy_direct,
 )
 from .quasi import (
     AugmentedPanelDiD,
@@ -1342,7 +1342,7 @@ class _PrepareRoute:
         if isinstance(query, MultiActionPolicyValue):
             labels = tuple(query.policy.action_labels)
             n = len(query.assignment)
-            evaluate_multi_action_policy(
+            _evaluate_multi_action_policy_direct(
                 dict(zip(self.names, self.columns, strict=True)),
                 outcome=query.outcome,
                 assignment=query.assignment,
@@ -1381,7 +1381,7 @@ class _PrepareRoute:
             return native, "average"
         # The direct randomized evaluator owns the constraint checks. Apply
         # that same contract before freezing the retained doubly robust study.
-        evaluate_policy(
+        _evaluate_policy_direct(
             dict(zip(self.names, self.columns, strict=True)),
             outcome=query.outcome,
             assignment=resolved(query.assignment),
