@@ -17,8 +17,13 @@ use antecedent_design::accepted_preferences::{
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceOption, ChoiceRecord, ChoiceRecordSet, OptionBelief, Pooling,
 };
-use antecedent_design::decision_contract::{ActionKind, DecisionCriterion, StructuralPolicy};
-use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
+use antecedent_design::decision_contract::{
+    ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy, UtilityExpr,
+};
+use antecedent_design::decision_eval::{
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract,
+    evaluate_contract_on_means,
+};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
 use antecedent_design::preference_certified::{
     CertifiedOptions, CertifiedVerdict, RegionStatus, evaluate_preference_certified,
@@ -412,8 +417,13 @@ fn each_route_answers_on_joint_draws_with_shared_accessors() {
         &PreferenceVerdict::PreferenceDependent { possibly_best: vec!["A".into(), "B".into()] }
     );
     assert_eq!(exact.chosen_action(), None);
-    assert!(!exact.is_necessarily_best());
+    assert!(!exact.is_necessarily_best() && !exact.is_never_beaten());
     assert_eq!(exact.undecided_fraction(), None);
+    assert_eq!(
+        exact.statement(),
+        "The preferred action depends on the declared trade-offs: A leads when w is below 1.5 \
+         and B leads above it; the admissible range of w is 0 to 3."
+    );
     assert_eq!(exact.contract_identity(), c.identity().unwrap());
     assert_eq!(exact.assumptions(), &["w-judgment".to_owned()]);
     assert!(exact.certified().is_none());
@@ -433,8 +443,18 @@ fn each_route_answers_on_joint_draws_with_shared_accessors() {
         matches!(direct.verdict, CertifiedVerdict::NecessarilyBest(_))
     );
     // `v_A - v_B = 4.5 - 3 w^2` changes sign inside `[0, 3]`, so no action is best everywhere.
-    assert!(!certified.is_necessarily_best());
+    assert!(!certified.is_necessarily_best() && !certified.is_never_beaten());
     assert_eq!(certified.chosen_action(), None);
+    let statement = certified.statement();
+    assert!(
+        statement.starts_with("The preferred action depends on the declared trade-offs")
+            || statement.starts_with("The certified subdivision does not settle the choice"),
+        "{statement}"
+    );
+    if fraction > 0.0 {
+        assert!(statement.contains("volume fraction"), "{statement}");
+    }
+    assert!(!statement.to_lowercase().contains("probab"), "{statement}");
 }
 
 #[test]
@@ -555,7 +575,14 @@ fn accepted_preferences_of_every_basis_are_decided_end_to_end() {
     .unwrap();
     let settled = decide_with_accepted(&learned, invariant(), &source, options()).unwrap();
     assert_eq!(settled.route(), PreferenceRoute::Exact);
-    assert!(settled.is_necessarily_best());
+    assert!(settled.is_necessarily_best() && settled.is_never_beaten());
+    assert_eq!(
+        settled.statement(),
+        "Action A is preferred for every admissible value of the declared trade-offs."
+    );
+    assert_eq!(settled.exact().unwrap().parameter_ranges.len(), 1);
+    let (low, high) = settled.exact().unwrap().parameter_ranges[0];
+    assert!((low - 0.5).abs() < 1e-9 && (high - 1.0).abs() < 1e-9, "the learned range");
     assert_eq!(settled.chosen_action(), Some("A"));
     assert_eq!(
         settled.contract_identity(),
@@ -674,7 +701,11 @@ fn the_certified_route_never_contradicts_the_exact_route_on_affine_problems() {
         let index = |id: &str| c.actions.iter().position(|a| a.id == id).unwrap();
         for region in &certified.regions {
             let RegionStatus::Best(best) = &region.status else { continue };
-            if let PreferenceVerdict::NecessarilyBest(exact_best) = &exact.verdict {
+            // A never-beaten action, unique or tied somewhere, is never strictly behind a
+            // rival, so no box can be certified for that rival.
+            if let PreferenceVerdict::NecessarilyBest(exact_best)
+            | PreferenceVerdict::NeverBeaten { action: exact_best, .. } = &exact.verdict
+            {
                 assert_eq!(best, exact_best, "case {case}: a certified box names a rival");
             }
             let a = index(best);
@@ -696,16 +727,24 @@ fn the_certified_route_never_contradicts_the_exact_route_on_affine_problems() {
         // A switch between two rivals does not stop a third action from leading everywhere,
         // so the routes are compared on the verdict, not on the presence of a switch.
         if let CertifiedVerdict::NecessarilyBest(best) = &certified.verdict {
+            // A certified unique winner is the exact route's unique winner, not merely an
+            // action that is never beaten.
             assert_eq!(
                 exact.verdict,
                 PreferenceVerdict::NecessarilyBest(best.clone()),
                 "case {case}: only the certified route finds a necessarily best action"
             );
+            assert!(exact.actions[index(best)].uniquely_best, "case {case}: {best} not unique");
             assert!(
                 exact.switches.iter().all(|s| &s.first != best && &s.second != best),
                 "case {case}: the exact route reports a switch involving {best}"
             );
         }
+        assert_eq!(
+            evaluation.is_never_beaten(),
+            exact.actions.iter().filter(|a| a.necessarily_best).count() == 1,
+            "case {case}"
+        );
         if matches!(exact.verdict, PreferenceVerdict::PreferenceDependent { .. }) {
             switch_cases += 1;
             assert!(
@@ -716,4 +755,202 @@ fn the_certified_route_never_contradicts_the_exact_route_on_affine_problems() {
     }
     // Both kinds of problem occur, so neither check is vacuous.
     assert!(necessarily_best_cases > 0 && switch_cases > 0);
+}
+
+/// `u * benefit - w * cost` with `u = 0.9` and `w = 1.2` fixed by declaration.
+fn fixed_model() -> ValueModel {
+    ValueModel {
+        attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
+        preferences: PreferenceSet {
+            parameters: vec![parameter("u", 0.9, 0.9), parameter("w", 1.2, 1.2)],
+            relations: vec![],
+        },
+        value: P::difference(
+            P::product(P::Parameter(0), P::Attribute(0)),
+            P::product(P::Parameter(1), P::Attribute(1)),
+        ),
+        utility_units: "events".to_owned(),
+    }
+}
+
+/// `benefit - cost`, with no preference parameter.
+fn parameter_free_model() -> ValueModel {
+    ValueModel {
+        attributes: vec![attribute("benefit", "events"), attribute("cost", "usd")],
+        preferences: PreferenceSet { parameters: vec![], relations: vec![] },
+        value: P::difference(P::Attribute(0), P::Attribute(1)),
+        utility_units: "events".to_owned(),
+    }
+}
+
+/// `A`, `B` and `C` under a budget that excludes `A` (it costs 5 on a draw of weight 1/4).
+fn budgeted(model: ValueModel, criterion: DecisionCriterion) -> PreferenceContract {
+    let parts =
+        parts(&model, &["A", "B", "C"], criterion, PreferencePolicy::RequireInvariantBestAction);
+    PreferenceContract {
+        model,
+        actions: parts.actions,
+        criterion,
+        constraints: vec![HardConstraint {
+            id: "budget".into(),
+            expr: UtilityExpr::Input(1),
+            bound: 4.5,
+            min_probability: 1.0,
+            units: "usd".into(),
+            applies_to: vec![],
+        }],
+        target_population: parts.target_population,
+        horizon: 0,
+        structural_policy: StructuralPolicy::ReportOnly,
+        preference_policy: PreferencePolicy::RequireInvariantBestAction,
+    }
+}
+
+/// The standard law with a third action `C` at `(benefit, cost) = (4, 2)`.
+fn three_action_law(model: &ValueModel) -> DistributionArtifact {
+    let arms = vec![
+        vec![vec![8.0, 12.0, 10.0], vec![3.0, 5.0, 4.0]],
+        vec![vec![9.0, 5.0, 4.0], vec![1.0, 1.0, 1.0]],
+        vec![vec![4.0, 4.0, 4.0], vec![2.0, 2.0, 2.0]],
+    ];
+    law(model, &arms, Some(vec![1.0, 1.0, 2.0]))
+}
+
+fn expectation_criteria() -> [DecisionCriterion; 3] {
+    [
+        DecisionCriterion::PosteriorExpectedUtility,
+        DecisionCriterion::PosteriorExpectedLoss,
+        DecisionCriterion::ExpectedRegret,
+    ]
+}
+
+/// The evaluation across the set agrees with the ordinary evaluation at the point `at`: the
+/// same chosen action, the same expected utility of every admissible action (within 1e-12,
+/// relative), and the same exclusions.
+fn assert_same_as_ordinary(
+    label: &str,
+    evaluation: &PreferenceEvaluation,
+    ordinary: &DecisionResult,
+    at: &[f64],
+    criterion: DecisionCriterion,
+) {
+    let chosen = match &ordinary.verdict {
+        Verdict::UniquelyOptimal(action) => Some(action.as_str()),
+        Verdict::Indistinguishable(_) | Verdict::NoAdmissibleAction => None,
+    };
+    assert_eq!(evaluation.chosen_action(), chosen, "{label}");
+    assert_eq!(evaluation.is_necessarily_best(), chosen.is_some(), "{label}");
+    let exact = evaluation.exact().expect("the exact route answers");
+    let sign =
+        if matches!(criterion, DecisionCriterion::PosteriorExpectedLoss) { -1.0 } else { 1.0 };
+    assert_eq!(exact.actions.len(), ordinary.actions.len(), "{label}");
+    for (ours, theirs) in exact.actions.iter().zip(&ordinary.actions) {
+        assert_eq!(ours.id, theirs.id, "{label}");
+        assert_eq!(ours.admissible, theirs.admissible, "{label} {}", ours.id);
+        assert_eq!(ours.exclusions, theirs.exclusions, "{label} {}", ours.id);
+        if !theirs.admissible {
+            assert!(ours.coefficients.is_none(), "{label} {}", ours.id);
+            continue;
+        }
+        let expected = sign * affine_value(ours.coefficients.as_ref().unwrap(), at);
+        let tolerance = 1e-12 * (1.0 + theirs.expected_utility.abs());
+        assert!(
+            (expected - theirs.expected_utility).abs() <= tolerance,
+            "{label} {}: {expected} vs {}",
+            ours.id,
+            theirs.expected_utility
+        );
+        if let Some((low, high)) = ours.value_range {
+            assert!((low - theirs.expected_utility).abs() <= tolerance, "{label} {}", ours.id);
+            assert!((high - theirs.expected_utility).abs() <= tolerance, "{label} {}", ours.id);
+        }
+    }
+}
+
+#[test]
+fn fixed_preferences_decide_as_the_ordinary_contract_on_draws() {
+    for (name, model, at) in [
+        ("fixed", fixed_model(), vec![0.9, 1.2]),
+        ("parameter-free", parameter_free_model(), vec![]),
+    ] {
+        let source = three_action_law(&model);
+        for criterion in expectation_criteria() {
+            let label = format!("{name} {criterion:?}");
+            let c = budgeted(model.clone(), criterion);
+            let evaluation = decide_preferences(&c, &source, None, options()).unwrap();
+            assert_eq!(evaluation.route(), PreferenceRoute::Exact, "{label}");
+            let ordinary = evaluate_contract(&c.bind(&at).unwrap(), &source).unwrap();
+            assert_same_as_ordinary(&label, &evaluation, &ordinary, &at, criterion);
+            // The budget excludes A whatever the criterion.
+            assert!(!evaluation.exact().unwrap().actions[0].admissible, "{label}");
+        }
+    }
+}
+
+#[test]
+fn fixed_preferences_decide_as_the_ordinary_contract_on_means() {
+    for (name, model, at) in [
+        ("fixed", fixed_model(), vec![0.9, 1.2]),
+        ("parameter-free", parameter_free_model(), vec![]),
+    ] {
+        let means = mean_source(&model);
+        for criterion in expectation_criteria() {
+            let label = format!("{name} {criterion:?}");
+            let c = reading_means(contract(
+                model.clone(),
+                criterion,
+                PreferencePolicy::RequireInvariantBestAction,
+            ));
+            let ordinary = evaluate_contract_on_means(&c.bind(&at).unwrap(), &means);
+            let evaluation = decide_preferences_on_means(&c, &means, None, options());
+            match ordinary {
+                Ok(ordinary) => {
+                    assert_same_as_ordinary(&label, &evaluation.unwrap(), &ordinary, &at, criterion)
+                }
+                // A criterion a mean source cannot answer is refused by both.
+                Err(_) => {
+                    assert!(evaluation.is_err(), "{label}: only the ordinary contract refused")
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn declared_ranges_decide_without_records_accepted_preferences_or_a_measure() {
+    // `v_A - v_B = 4.5 - 3w` over the declared `w` in `[0, 3]`.
+    let model = cost_model(0.0, 3.0);
+    let source = standard_law(&model);
+    let decide = |policy| {
+        decide_preferences(&contract(model.clone(), eu(), policy), &source, None, options())
+    };
+
+    let invariant = decide(PreferencePolicy::RequireInvariantBestAction).unwrap();
+    assert_eq!(
+        exact_verdict(&invariant),
+        &PreferenceVerdict::PreferenceDependent { possibly_best: vec!["A".into(), "B".into()] }
+    );
+    assert_eq!(invariant.assumptions(), &["w-judgment".to_owned()]);
+
+    // A in [-2, 10], B in [2.5, 5.5]: B has the better worst case.
+    let maximin = decide(PreferencePolicy::Maximin).unwrap();
+    assert_eq!(exact_verdict(&maximin), &PreferenceVerdict::WorstCaseChoice("B".into()));
+    assert_eq!(maximin.chosen_action(), Some("B"));
+
+    // Worst-case regret is 4.5 for both: A at w = 3, B at w = 0.
+    let regret = decide(PreferencePolicy::MinimaxRegret).unwrap();
+    assert_eq!(exact_verdict(&regret), &PreferenceVerdict::Tied(vec!["A".into(), "B".into()]));
+    assert_eq!(
+        regret.statement(),
+        "Actions A and B share the smallest worst-case regret over the admissible values of the \
+         declared trade-offs; no single action is chosen."
+    );
+
+    let report = decide(PreferencePolicy::ReportOnly).unwrap();
+    assert_eq!(exact_verdict(&report), &PreferenceVerdict::ReportOnly);
+    assert_eq!(report.exact().unwrap().switches.len(), 1);
+
+    // Only the weighted policy needs a measure, and says so.
+    let error = decide(PreferencePolicy::Weighted).unwrap_err();
+    assert_eq!(error.detail(), reason_details::preference_decision::MEASURE_REQUIRED);
 }

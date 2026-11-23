@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::accepted_preferences::{
     AcceptedPreferences, AcceptedPreferencesError, LearningOptions, PendingReview, PreferenceBasis,
-    select_estimate, select_learned,
+    select_estimate, select_learned, stated_in_scope,
 };
 use crate::choice_record::ChoiceRecordSet;
 use crate::decision_artifact::{decode_section, encode_section, source_digest};
@@ -52,7 +52,7 @@ use crate::preference_contract::{
 };
 use crate::preference_decision::{
     MeasureOrigin, PreferenceActionOutcome, PreferenceDecisionOptions, PreferenceDecisionResult,
-    PreferenceMeasure, PreferenceSwitch, PreferenceVerdict,
+    PreferenceMeasure, PreferenceSwitch, PreferenceVerdict, SwitchThreshold,
 };
 use crate::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, PreferenceRoute,
@@ -814,6 +814,7 @@ enum PendingWire {
     ParameterNotLearnable { parameter_id: String },
     EstimateOutsideDeclared { parameter_id: String },
     DrawsOutsideDeclared { share: f64 },
+    StatedComparisonsUsed { count: usize },
 }
 
 fn pending_wire(item: &PendingReview) -> PendingWire {
@@ -835,6 +836,9 @@ fn pending_wire(item: &PendingReview) -> PendingWire {
         }
         PendingReview::DrawsOutsideDeclared { share } => {
             PendingWire::DrawsOutsideDeclared { share: *share }
+        }
+        PendingReview::StatedComparisonsUsed { count } => {
+            PendingWire::StatedComparisonsUsed { count: *count }
         }
     }
 }
@@ -859,15 +863,20 @@ fn pending_from(wire: PendingWire) -> PendingReview {
         PendingWire::DrawsOutsideDeclared { share } => {
             PendingReview::DrawsOutsideDeclared { share }
         }
+        PendingWire::StatedComparisonsUsed { count } => {
+            PendingReview::StatedComparisonsUsed { count }
+        }
     }
 }
 
 /// Canonical identity of accepted preferences: the declared model identity, then the CBOR wire
-/// of the basis, of the learning options and of the acknowledged items, and the version.
+/// of the basis and of the learning options, the number of stated comparisons, the version and
+/// the CBOR wire of the acknowledged items.
 pub(crate) fn accepted_identity(
     declared_identity: &str,
     basis: &PreferenceBasis,
     learning: Option<&LearningOptions>,
+    stated_comparisons: usize,
     version: u32,
     acknowledged: &[PendingReview],
 ) -> String {
@@ -876,6 +885,7 @@ pub(crate) fn accepted_identity(
     out.text(declared_identity)
         .bytes(&to_cbor(&basis_wire(basis)).unwrap_or_default())
         .bytes(&to_cbor(&learning.map(learning_wire)).unwrap_or_default())
+        .word(u64::try_from(stated_comparisons).unwrap_or(u64::MAX))
         .word(u64::from(version))
         .bytes(&to_cbor(&acknowledged).unwrap_or_default());
     out.finish_hex()
@@ -893,6 +903,7 @@ struct AcceptedBody {
     declared: ModelWire,
     basis: BasisWire,
     learning: Option<LearningWire>,
+    stated_comparisons: usize,
     accepted_version: u32,
     acknowledged: Vec<PendingWire>,
 }
@@ -904,6 +915,7 @@ fn accepted_body(accepted: &AcceptedPreferences) -> AcceptedBody {
         declared: model_wire(accepted.declared_model()),
         basis: basis_wire(accepted.basis()),
         learning: accepted.learning_options().as_ref().map(learning_wire),
+        stated_comparisons: accepted.stated_comparisons(),
         accepted_version: accepted.version(),
         acknowledged: accepted.acknowledged().iter().map(pending_wire).collect(),
     }
@@ -916,6 +928,7 @@ fn accepted_from_body(body: AcceptedBody) -> Result<AcceptedPreferences, Prefere
         model_from(body.declared),
         basis_from(body.basis),
         body.learning.map(learning_from),
+        body.stated_comparisons,
         body.accepted_version,
         &acknowledged,
     )
@@ -996,9 +1009,9 @@ impl AcceptedPreferencesArtifact {
     }
 
     /// Relearn from `records` with the stored options and decider selection and require the
-    /// stored basis to be reproduced: the records digest and every label, count and identity
-    /// exactly, and every real within [`REPLAY_RELATIVE_TOLERANCE`]. A declared basis replays
-    /// without reading the records.
+    /// stored basis to be reproduced: the records digest, the number of stated comparisons in
+    /// the selected scope and every label, count and identity exactly, and every real within
+    /// [`REPLAY_RELATIVE_TOLERANCE`]. A declared basis replays without reading the records.
     ///
     /// # Errors
     /// Records other than the ones the basis was learned from; a refused relearning; any
@@ -1006,15 +1019,23 @@ impl AcceptedPreferencesArtifact {
     pub fn replay(&self, records: &ChoiceRecordSet) -> Result<(), PreferenceArtifactError> {
         let model = self.accepted.declared_model();
         let decider = self.accepted.decider();
+        let stated = || {
+            ensure(
+                stated_in_scope(records, decider) == self.accepted.stated_comparisons(),
+                "stated_comparisons",
+            )
+        };
         match (self.accepted.basis(), self.accepted.learning_options()) {
             (PreferenceBasis::Declared, _) => Ok(()),
             (PreferenceBasis::CompatibleSet(stored), Some(LearningOptions::CompatibleSet(o))) => {
                 let fresh = select_learned(model, records, decider, o).map_err(E::Accepted)?;
-                compare_learned(stored, &fresh)
+                compare_learned(stored, &fresh)?;
+                stated()
             }
             (PreferenceBasis::ChoiceEstimate(stored), Some(LearningOptions::ChoiceEstimate(o))) => {
                 let fresh = select_estimate(model, records, decider, o).map_err(E::Accepted)?;
-                compare_estimate(stored, &fresh)
+                compare_estimate(stored, &fresh)?;
+                stated()
             }
             _ => Err(E::Accepted(AcceptedPreferencesError::OptionsMismatch { option: "basis" })),
         }
@@ -1408,10 +1429,20 @@ struct ExactOutcomeWire {
     coefficients: Option<Vec<f64>>,
     value_range: Option<(f64, f64)>,
     necessarily_best: bool,
+    uniquely_best: bool,
+    dominated_by: Vec<String>,
     possibly_best: Option<bool>,
     worst_case_regret: Option<f64>,
     measure_share: Option<f64>,
     measure_value: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThresholdWire {
+    parameter_id: String,
+    value: f64,
+    first_leads_above: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1423,12 +1454,14 @@ struct SwitchWire {
     margin_range: (f64, f64),
     favours_first_at: Vec<f64>,
     favours_second_at: Vec<f64>,
+    threshold: Option<ThresholdWire>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum ExactVerdictWire {
     NecessarilyBest(String),
+    NeverBeaten { action: String, ties_with: Vec<String> },
     PreferenceDependent { possibly_best: Vec<String> },
     WorstCaseChoice(String),
     MinimaxRegretChoice(String),
@@ -1444,6 +1477,7 @@ struct ExactWire {
     contract_identity: String,
     policy: String,
     parameter_ids: Vec<String>,
+    parameter_ranges: Vec<(f64, f64)>,
     actions: Vec<ExactOutcomeWire>,
     switches: Vec<SwitchWire>,
     verdict: ExactVerdictWire,
@@ -1459,6 +1493,7 @@ fn exact_wire(result: &PreferenceDecisionResult) -> ExactWire {
         contract_identity: result.contract_identity.clone(),
         policy: preference_policy_name(result.policy).to_owned(),
         parameter_ids: result.parameter_ids.clone(),
+        parameter_ranges: result.parameter_ranges.clone(),
         actions: result
             .actions
             .iter()
@@ -1469,6 +1504,8 @@ fn exact_wire(result: &PreferenceDecisionResult) -> ExactWire {
                 coefficients: a.coefficients.clone(),
                 value_range: a.value_range,
                 necessarily_best: a.necessarily_best,
+                uniquely_best: a.uniquely_best,
+                dominated_by: a.dominated_by.clone(),
                 possibly_best: a.possibly_best,
                 worst_case_regret: a.worst_case_regret,
                 measure_share: a.measure_share,
@@ -1485,10 +1522,19 @@ fn exact_wire(result: &PreferenceDecisionResult) -> ExactWire {
                 margin_range: s.margin_range,
                 favours_first_at: s.favours_first_at.clone(),
                 favours_second_at: s.favours_second_at.clone(),
+                threshold: s.threshold.as_ref().map(|t| ThresholdWire {
+                    parameter_id: t.parameter_id.clone(),
+                    value: t.value,
+                    first_leads_above: t.first_leads_above,
+                }),
             })
             .collect(),
         verdict: match &result.verdict {
             PreferenceVerdict::NecessarilyBest(a) => ExactVerdictWire::NecessarilyBest(a.clone()),
+            PreferenceVerdict::NeverBeaten { action, ties_with } => ExactVerdictWire::NeverBeaten {
+                action: action.clone(),
+                ties_with: ties_with.clone(),
+            },
             PreferenceVerdict::PreferenceDependent { possibly_best } => {
                 ExactVerdictWire::PreferenceDependent { possibly_best: possibly_best.clone() }
             }
@@ -1516,6 +1562,7 @@ fn exact_from(wire: ExactWire) -> Result<PreferenceDecisionResult, PreferenceArt
         contract_identity: wire.contract_identity,
         policy: preference_policy_from(&wire.policy)?,
         parameter_ids: wire.parameter_ids,
+        parameter_ranges: wire.parameter_ranges,
         actions: wire
             .actions
             .into_iter()
@@ -1526,6 +1573,8 @@ fn exact_from(wire: ExactWire) -> Result<PreferenceDecisionResult, PreferenceArt
                 coefficients: a.coefficients,
                 value_range: a.value_range,
                 necessarily_best: a.necessarily_best,
+                uniquely_best: a.uniquely_best,
+                dominated_by: a.dominated_by,
                 possibly_best: a.possibly_best,
                 worst_case_regret: a.worst_case_regret,
                 measure_share: a.measure_share,
@@ -1542,10 +1591,18 @@ fn exact_from(wire: ExactWire) -> Result<PreferenceDecisionResult, PreferenceArt
                 margin_range: s.margin_range,
                 favours_first_at: s.favours_first_at,
                 favours_second_at: s.favours_second_at,
+                threshold: s.threshold.map(|t| SwitchThreshold {
+                    parameter_id: t.parameter_id,
+                    value: t.value,
+                    first_leads_above: t.first_leads_above,
+                }),
             })
             .collect(),
         verdict: match wire.verdict {
             ExactVerdictWire::NecessarilyBest(a) => PreferenceVerdict::NecessarilyBest(a),
+            ExactVerdictWire::NeverBeaten { action, ties_with } => {
+                PreferenceVerdict::NeverBeaten { action, ties_with }
+            }
             ExactVerdictWire::PreferenceDependent { possibly_best } => {
                 PreferenceVerdict::PreferenceDependent { possibly_best }
             }
@@ -2034,11 +2091,22 @@ fn compare_exact(
     ensure(stored.contract_identity == fresh.contract_identity, "contract_identity")?;
     ensure(stored.policy == fresh.policy, "policy")?;
     ensure(stored.parameter_ids == fresh.parameter_ids, "parameter_ids")?;
+    ensure(
+        stored.parameter_ranges.len() == fresh.parameter_ranges.len()
+            && stored
+                .parameter_ranges
+                .iter()
+                .zip(&fresh.parameter_ranges)
+                .all(|(s, f)| close_pair(*s, *f)),
+        "parameter_ranges",
+    )?;
     ensure(stored.verdict == fresh.verdict, "verdict")?;
     ensure(stored.actions.len() == fresh.actions.len(), "actions")?;
     for (s, f) in stored.actions.iter().zip(&fresh.actions) {
         ensure(s.id == f.id && s.admissible == f.admissible, "actions")?;
         ensure(s.necessarily_best == f.necessarily_best, "necessarily_best")?;
+        ensure(s.uniquely_best == f.uniquely_best, "uniquely_best")?;
+        ensure(s.dominated_by == f.dominated_by, "dominated_by")?;
         ensure(s.possibly_best == f.possibly_best, "possibly_best")?;
         ensure(close_exclusions(&s.exclusions, &f.exclusions), "exclusions")?;
         let coefficients = match (&s.coefficients, &f.coefficients) {
@@ -2059,6 +2127,16 @@ fn compare_exact(
         ensure(close_pair(s.margin_range, f.margin_range), "margin_range")?;
         ensure(close_all(&s.favours_first_at, &f.favours_first_at), "favours_first_at")?;
         ensure(close_all(&s.favours_second_at, &f.favours_second_at), "favours_second_at")?;
+        let threshold = match (&s.threshold, &f.threshold) {
+            (None, None) => true,
+            (Some(x), Some(y)) => {
+                x.parameter_id == y.parameter_id
+                    && x.first_leads_above == y.first_leads_above
+                    && close(x.value, y.value)
+            }
+            _ => false,
+        };
+        ensure(threshold, "threshold")?;
     }
     ensure(
         close_opt(stored.draw_share_best_everywhere, fresh.draw_share_best_everywhere),

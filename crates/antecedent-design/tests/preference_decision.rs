@@ -239,6 +239,9 @@ fn left_of_the_switch_point_the_first_action_is_necessarily_best() {
     assert!(close_pair(a.value_range, (6.0, 10.0)), "{:?}", a.value_range);
     assert!(close_pair(b.value_range, (4.5, 5.5)), "{:?}", b.value_range);
     assert!(a.necessarily_best && !b.necessarily_best);
+    assert!(a.uniquely_best && !b.uniquely_best);
+    assert_eq!(b.dominated_by, vec!["A".to_string()]);
+    assert!(a.dominated_by.is_empty());
     assert_eq!((a.possibly_best, b.possibly_best), (Some(true), Some(false)));
     // Regret of B is the largest margin of A over it: 4.5 - 3w at w = 0.
     assert!(close(a.worst_case_regret.unwrap(), 0.0));
@@ -281,7 +284,20 @@ fn around_the_switch_point_the_choice_depends_on_the_preference() {
     assert!(switch.favours_first_at[0] < 1.5 && close(switch.favours_first_at[0], 0.0));
     assert!(switch.favours_second_at[0] > 1.5 && close(switch.favours_second_at[0], 3.0));
     assert!(result.actions.iter().all(|o| !o.necessarily_best));
+    assert!(result.actions.iter().all(|o| o.dominated_by.is_empty()));
     assert_eq!(result.draw_share_best_everywhere, None);
+    // The margin 4.5 - 3w depends on w alone and is zero at w = 1.5; A leads below it.
+    let threshold = switch.threshold.as_ref().unwrap();
+    assert_eq!(threshold.parameter_id, "w");
+    assert!(close(threshold.value, 1.5));
+    assert!(!threshold.first_leads_above);
+    assert_eq!(result.parameter_ranges.len(), 1);
+    assert!(close_pair(Some(result.parameter_ranges[0]), (0.0, 3.0)));
+    assert_eq!(
+        result.statement(),
+        "The preferred action depends on the declared trade-offs: A leads when w is below 1.5 \
+         and B leads above it; the admissible range of w is 0 to 3."
+    );
 }
 
 #[test]
@@ -320,6 +336,8 @@ fn a_relation_that_cuts_the_range_removes_the_switch() {
     let result = evaluate(&c, &two_arms(), None).unwrap();
     assert_eq!(result.verdict, PreferenceVerdict::NecessarilyBest("A".into()));
     assert!(result.switches.is_empty());
+    assert_eq!(result.parameter_ranges.len(), 1);
+    assert!(close_pair(Some(result.parameter_ranges[0]), (0.0, 1.0)));
     assert!(close_pair(result.actions[0].value_range, (6.0, 10.0)));
     assert_eq!(
         result.assumptions,
@@ -357,8 +375,22 @@ fn maximin_and_minimax_regret_match_hand_values() {
     assert_eq!(regret.verdict, PreferenceVerdict::MinimaxRegretChoice("A".into()));
     assert!(close(regret.actions[0].worst_case_regret.unwrap(), 1.5));
     assert!(close(regret.actions[1].worst_case_regret.unwrap(), 4.5));
+    assert_eq!(
+        maximin.statement(),
+        "Action B has the best worst-case value over the admissible values of the declared \
+         trade-offs."
+    );
+    assert_eq!(
+        regret.statement(),
+        "Action A has the smallest worst-case regret over the admissible values of the declared \
+         trade-offs."
+    );
     let report = run(0.0, 2.0, PreferencePolicy::ReportOnly);
     assert_eq!(report.verdict, PreferenceVerdict::ReportOnly);
+    assert_eq!(
+        report.statement(),
+        "No action is chosen: the comparison across the declared trade-offs is reported only."
+    );
     assert_eq!(report.switches, regret.switches);
     assert_eq!(report.actions, regret.actions);
 }
@@ -373,6 +405,11 @@ fn a_weighted_policy_chooses_by_a_three_point_measure() {
     // A leads at w = 0.5 and 1 (weight 1/2), B at w = 2.5 (weight 1/2).
     // A: (8 + 6) / 4 + 0 = 3.5; B: (5 + 4.5) / 4 + 3 / 2 = 3.875.
     assert_eq!(result.verdict, PreferenceVerdict::MeasureChoice { action: "B".into(), share: 0.5 });
+    assert_eq!(
+        result.statement(),
+        "Action B has the best value weighted by the supplied measure over the declared \
+         trade-offs; it leads at measure points carrying a weight of 0.5."
+    );
     assert!(close(result.actions[0].measure_share.unwrap(), 0.5));
     assert!(close(result.actions[1].measure_share.unwrap(), 0.5));
     assert!(close(result.actions[0].measure_value.unwrap(), 3.5));
@@ -417,6 +454,15 @@ fn a_point_counts_only_where_its_leader_holds_over_the_unresolved_parameters() {
     let mut measure = declared_measure(vec![vec![1.0, 0.0], vec![0.5, 0.0], vec![1.5, 0.0]], None);
     measure.unresolved = vec![1];
     let result = evaluate(&c, &two_arms(), Some(&measure)).unwrap();
+    // The margin 4.5u - 3w moves with both parameters: no single threshold.
+    assert_eq!(result.switches.len(), 1);
+    assert_eq!(result.switches[0].threshold, None);
+    assert_eq!(
+        result.statement(),
+        "The preferred action depends on the declared trade-offs: A and B are each preferred \
+         somewhere in the admissible set, and the boundary between them depends on more than one \
+         trade-off."
+    );
     assert!(close(result.actions[0].measure_share.unwrap(), 2.0 / 3.0));
     assert!(close(result.actions[1].measure_share.unwrap(), 0.0));
     assert!(close(result.unresolved_measure_share.unwrap(), 1.0 / 3.0));
@@ -452,9 +498,16 @@ fn a_hard_constraint_excludes_an_action_from_every_comparison() {
     assert!(result.switches.is_empty());
     assert!(close(result.draw_share_best_everywhere.unwrap(), 1.0));
 
+    assert!(result.actions[1].uniquely_best);
+    assert!(!a.necessarily_best && !a.uniquely_best && a.dominated_by.is_empty());
+
     c.constraints = vec![budget(0.5)];
     let result = evaluate(&c, &two_arms(), None).unwrap();
     assert_eq!(result.verdict, PreferenceVerdict::NoAdmissibleAction);
+    assert_eq!(
+        result.statement(),
+        "No action is admissible: every action fails a hard constraint."
+    );
 }
 
 #[test]
@@ -463,7 +516,8 @@ fn a_model_without_parameters_gives_the_ordinary_verdict() {
     let c = contract_for(m, &["A", "B"], "outcome", PreferencePolicy::RequireInvariantBestAction);
     let result = evaluate(&c, &two_arms(), None).unwrap();
     assert_eq!(result.verdict, PreferenceVerdict::NecessarilyBest("A".into()));
-    assert!(result.parameter_ids.is_empty());
+    assert!(result.parameter_ids.is_empty() && result.parameter_ranges.is_empty());
+    assert_eq!(result.statement(), "Action A is preferred under the declared value model.");
     assert!(close_pair(result.actions[0].value_range, (6.0, 6.0)));
     assert!(close_pair(result.actions[1].value_range, (4.5, 4.5)));
     assert_eq!(result.actions[0].coefficients.as_ref().map(Vec::len), Some(1));
@@ -647,9 +701,19 @@ fn actions_equal_everywhere_are_tied() {
     );
     let result = evaluate(&c, &arms, None).unwrap();
     assert_eq!(result.verdict, PreferenceVerdict::Tied(vec!["A".into(), "B".into()]));
-    assert!(result.actions.iter().all(|o| !o.necessarily_best));
+    // A and B are each never beaten (each ties the other everywhere); none is unique.
+    let never: Vec<bool> = result.actions.iter().map(|o| o.necessarily_best).collect();
+    assert_eq!(never, vec![true, true, false]);
+    assert!(result.actions.iter().all(|o| !o.uniquely_best));
+    // A - C = 6 - 2w and B - C likewise lie in [4, 6]: C is dominated by both.
+    assert_eq!(result.actions[2].dominated_by, vec!["A".to_string(), "B".to_string()]);
     assert!(result.switches.is_empty());
     assert_eq!(result.draw_share_best_everywhere, None);
+    assert_eq!(
+        result.statement(),
+        "Actions A and B are equal for every admissible value of the declared trade-offs; no \
+         single action is chosen."
+    );
 }
 
 #[test]
@@ -670,6 +734,10 @@ fn the_result_does_not_depend_on_declaration_order() {
         let other = two.actions.iter().find(|o| o.id == outcome.id).unwrap();
         assert_eq!(outcome.possibly_best, other.possibly_best);
         assert_eq!(outcome.necessarily_best, other.necessarily_best);
+        assert_eq!(outcome.uniquely_best, other.uniquely_best);
+        let mut dominated = other.dominated_by.clone();
+        dominated.reverse();
+        assert_eq!(outcome.dominated_by, dominated, "declaration order of the dominating rivals");
         let (a, b) = (outcome.value_range.unwrap(), other.value_range.unwrap());
         assert!(close(a.0, b.0) && close(a.1, b.1));
         assert!(close(outcome.worst_case_regret.unwrap(), other.worst_case_regret.unwrap()));
@@ -681,6 +749,12 @@ fn the_result_does_not_depend_on_declaration_order() {
     let switch = &two.switches[0];
     assert_eq!((switch.first.as_str(), switch.second.as_str()), ("B", "A"));
     assert!(close(switch.margin_range.0, -4.5) && close(switch.favours_first_at[0], 3.0));
+    // Swapping the pair flips which action leads above the threshold, not where it lies.
+    let (ahead, behind) =
+        (one.switches[0].threshold.as_ref().unwrap(), switch.threshold.as_ref().unwrap());
+    assert!(close(ahead.value, behind.value));
+    assert_ne!(ahead.first_leads_above, behind.first_leads_above);
+    assert_eq!(one.statement(), two.statement());
     // Repeated evaluation is identical.
     assert_eq!(evaluate_preference_contract(&forward, &source, None, options()).unwrap(), one);
 }
@@ -764,4 +838,139 @@ fn invalid_options_and_contracts_refuse() {
     let other = law(&c.model, &two_arms()[..1], Some(weights()));
     let refused = evaluate_preference_contract(&c, &other, None, options()).unwrap_err();
     assert!(matches!(refused, E::Eval(_)), "{refused:?}");
+}
+
+#[test]
+fn an_action_tied_at_the_edge_of_the_set_is_never_beaten_but_not_unique() {
+    // On [0, 1.5] the margin of A over B, 4.5 - 3w, lies in [0, 4.5]: zero at w = 1.5 only.
+    let c = contract_for(
+        model(0.0, 1.5),
+        &["A", "B", "C"],
+        "outcome",
+        PreferencePolicy::RequireInvariantBestAction,
+    );
+    let result = evaluate(&c, &three_arms(), None).unwrap();
+    assert_eq!(
+        result.verdict,
+        PreferenceVerdict::NeverBeaten { action: "A".into(), ties_with: vec!["B".into()] }
+    );
+    let (a, b, c_outcome) = (&result.actions[0], &result.actions[1], &result.actions[2]);
+    assert!(a.necessarily_best && !a.uniquely_best);
+    assert!(!b.necessarily_best && !b.uniquely_best);
+    // A ties B at w = 1.5, so it does not dominate B; C trails both everywhere
+    // (A - C = 6 - 2w in [3, 6], B - C = 1.5 + w in [1.5, 3]).
+    assert!(b.dominated_by.is_empty());
+    assert_eq!(c_outcome.dominated_by, vec!["A".to_string(), "B".to_string()]);
+    assert_eq!(b.possibly_best, Some(true));
+    // A margin range that only touches zero is not a switch.
+    assert!(result.switches.is_empty());
+    // At the vertices w = 0 and w = 1.5 the first draw (weight 1/4) has A = 8 < B = 9 at
+    // w = 0; the other draws keep A at least as good at both vertices.
+    assert!(close(result.draw_share_best_everywhere.unwrap(), 0.75));
+    assert_eq!(
+        result.statement(),
+        "Action A is never beaten for any admissible value of the declared trade-offs, and ties \
+         with B at the edge of the admissible set."
+    );
+}
+
+#[test]
+fn an_action_best_nowhere_need_not_be_dominated_by_any_single_rival() {
+    // v_C = 7 - 2.5w on [0, 3]: A - C = 3 - 1.5w and B - C = 1.5w - 1.5 each change sign, but
+    // C would need w >= 2 to reach A and w <= 1 to reach B, so it is best nowhere.
+    let mut arms = two_arms();
+    arms.push(vec![vec![7.0, 7.0, 7.0], vec![2.5, 2.5, 2.5]]);
+    let c = contract_for(
+        model(0.0, 3.0),
+        &["A", "B", "C"],
+        "outcome",
+        PreferencePolicy::RequireInvariantBestAction,
+    );
+    let result = evaluate(&c, &arms, None).unwrap();
+    let c_outcome = &result.actions[2];
+    assert_eq!(c_outcome.possibly_best, Some(false));
+    assert!(c_outcome.dominated_by.is_empty());
+    assert!(!c_outcome.necessarily_best);
+    assert_eq!(
+        result.verdict,
+        PreferenceVerdict::PreferenceDependent { possibly_best: vec!["A".into(), "B".into()] }
+    );
+    let pairs: Vec<(&str, &str)> =
+        result.switches.iter().map(|s| (s.first.as_str(), s.second.as_str())).collect();
+    assert_eq!(pairs, vec![("A", "B"), ("A", "C"), ("B", "C")]);
+    let thresholds: Vec<f64> =
+        result.switches.iter().map(|s| s.threshold.as_ref().unwrap().value).collect();
+    assert!(close(thresholds[0], 1.5) && close(thresholds[1], 2.0) && close(thresholds[2], 1.0));
+    // Only the switch between the possibly-best actions describes the choice.
+    assert_eq!(
+        result.statement(),
+        "The preferred action depends on the declared trade-offs: A leads when w is below 1.5 \
+         and B leads above it; the admissible range of w is 0 to 3."
+    );
+}
+
+#[test]
+fn a_fixed_parameter_does_not_stop_a_single_threshold() {
+    // `u * benefit - w * cost` with u fixed at 1: the margin 4.5u - 3w depends on w alone.
+    let m = model_with(
+        vec![parameter("u", 1.0, 1.0), parameter("w", 0.0, 3.0)],
+        P::difference(
+            P::product(P::Parameter(0), shape::rate(0)),
+            P::product(P::Parameter(1), shape::rate(1)),
+        ),
+    );
+    let c = contract_for(m, &["A", "B"], "outcome", PreferencePolicy::RequireInvariantBestAction);
+    let result = evaluate(&c, &two_arms(), None).unwrap();
+    let threshold = result.switches[0].threshold.as_ref().unwrap();
+    assert_eq!(threshold.parameter_id, "w");
+    assert!(close(threshold.value, 1.5) && !threshold.first_leads_above);
+    assert!(close_pair(Some(result.parameter_ranges[0]), (1.0, 1.0)));
+    assert!(close_pair(Some(result.parameter_ranges[1]), (0.0, 3.0)));
+}
+
+#[test]
+fn the_statement_quotes_the_range_the_relations_leave() {
+    // A relation `w <= 2` cuts the declared [0, 3]; the switch at 1.5 remains.
+    let mut m = model(0.0, 3.0);
+    m.preferences.relations.push(LinearRelation {
+        id: "cap".into(),
+        terms: vec![(0, 1.0)],
+        sense: RelationSense::AtMost,
+        bound: 2.0,
+        origin: RelationOrigin::Choice { record_id: "r1".into(), rejected_option: "b".into() },
+    });
+    let c = contract_for(m, &["A", "B"], "outcome", PreferencePolicy::RequireInvariantBestAction);
+    let result = evaluate(&c, &two_arms(), None).unwrap();
+    assert!(close_pair(Some(result.parameter_ranges[0]), (0.0, 2.0)));
+    assert_eq!(
+        result.statement(),
+        "The preferred action depends on the declared trade-offs: A leads when w is below 1.5 \
+         and B leads above it; the admissible range of w is 0 to 2."
+    );
+}
+
+#[test]
+fn statements_never_call_a_range_or_share_a_probability() {
+    for (lower, upper) in [(0.0, 1.0), (0.0, 1.5), (0.0, 3.0), (2.0, 3.0)] {
+        for policy in [
+            PreferencePolicy::RequireInvariantBestAction,
+            PreferencePolicy::Maximin,
+            PreferencePolicy::MinimaxRegret,
+            PreferencePolicy::Weighted,
+            PreferencePolicy::ReportOnly,
+        ] {
+            let c = contract_for(model(lower, upper), &["A", "B", "C"], "outcome", policy);
+            let inside =
+                declared_measure(vec![vec![lower], vec![0.5 * (lower + upper)], vec![upper]], None);
+            let result = evaluate(&c, &three_arms(), Some(&inside)).unwrap();
+            let statement = result.statement();
+            let lowered = statement.to_lowercase();
+            for word in ["probab", "optimal", "robust", "likely", "confiden"] {
+                assert!(!lowered.contains(word), "{statement}");
+            }
+            assert!(statement.ends_with('.'), "{statement}");
+            let again = evaluate(&c, &three_arms(), Some(&inside)).unwrap();
+            assert_eq!(statement, again.statement(), "deterministic");
+        }
+    }
 }

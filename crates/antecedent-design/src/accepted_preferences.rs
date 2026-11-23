@@ -16,7 +16,9 @@
 //! parameter records varied whose range did not narrow, then a positive tolerance. For an
 //! estimate: each parameter that is not learnable or whose point estimate lies outside its
 //! declared range, then a positive share of measure draws dropped outside the declared set.
-//! Parameter items come in model parameter order and the set-wide item last.
+//! For either learned basis, when the records it was learned from include stated comparisons
+//! (what someone said they would choose, not what they chose), their count comes last.
+//! Parameter items come in model parameter order and the set-wide items after them.
 //!
 //! The handle retains everything needed to replay the learning (the declared model, the learning
 //! options and the decision-maker selected), so a stored handle can be relearned from the same
@@ -86,6 +88,12 @@ pub enum PendingReview {
         /// The dropped share.
         share: f64,
     },
+    /// The records the preferences were learned from include stated comparisons: evidence of
+    /// what someone said they would choose rather than of what they chose.
+    StatedComparisonsUsed {
+        /// Number of stated comparisons among the records in the selected scope.
+        count: usize,
+    },
 }
 
 /// Options a learned basis was produced with, retained for replay.
@@ -125,6 +133,7 @@ pub struct AcceptedPreferences {
     model: ValueModel,
     basis: PreferenceBasis,
     learning: Option<LearningOptions>,
+    stated_comparisons: usize,
     version: u32,
     acknowledged: Vec<PendingReview>,
     identity: String,
@@ -234,10 +243,22 @@ impl AcceptedPreferences {
     /// An invalid model.
     pub fn declared(model: ValueModel) -> Result<Self, AcceptedPreferencesError> {
         let declared_identity = model.identity().map_err(E::Model)?;
-        Ok(Self::build(model, declared_identity, PreferenceBasis::Declared, None, 1, Vec::new()))
+        Ok(Self::build(
+            model,
+            declared_identity,
+            PreferenceBasis::Declared,
+            Learning::none(),
+            1,
+            Vec::new(),
+        ))
     }
 
     /// Accept a compatible set learned from `model` with `options`. Version 1.
+    ///
+    /// The learned set does not carry its records, so `stated_comparisons` states how many of
+    /// the records it was learned from (in the selected scope) are stated comparisons; a
+    /// positive count is a pending review item. [`learn_compatible_set_accepted`] counts them
+    /// from the records.
     ///
     /// # Errors
     /// An invalid model; a learned set whose model identity is not `model`'s; options whose
@@ -246,17 +267,23 @@ impl AcceptedPreferences {
         model: &ValueModel,
         learned: LearnedPreferenceSet,
         options: SetLearningOptions,
+        stated_comparisons: usize,
     ) -> Result<Self, AcceptedPreferencesError> {
         Self::from_parts(
             model.clone(),
             PreferenceBasis::CompatibleSet(Box::new(learned)),
             Some(LearningOptions::CompatibleSet(options)),
+            stated_comparisons,
             1,
             &[],
         )
     }
 
     /// Accept an estimate made from `model` with `options`. Version 1.
+    ///
+    /// The estimate does not carry its records, so `stated_comparisons` states how many of the
+    /// records it was made from (in the selected scope) are stated comparisons; a positive
+    /// count is a pending review item. [`estimate_accepted`] counts them from the records.
     ///
     /// # Errors
     /// An invalid model; an estimate whose model identity is not `model`'s; options whose
@@ -265,32 +292,40 @@ impl AcceptedPreferences {
         model: &ValueModel,
         estimate: ChoiceModelEstimate,
         options: ChoiceModelOptions,
+        stated_comparisons: usize,
     ) -> Result<Self, AcceptedPreferencesError> {
         Self::from_parts(
             model.clone(),
             PreferenceBasis::ChoiceEstimate(Box::new(estimate)),
             Some(LearningOptions::ChoiceEstimate(options)),
+            stated_comparisons,
             1,
             &[],
         )
     }
 
     /// Rebuild a handle from its retained parts, checking that they belong together: the basis
-    /// belongs to the model, the options match the basis, the version is at least one and
-    /// every acknowledged item arises from the basis, once.
+    /// belongs to the model, the options match the basis, a declared basis counts no stated
+    /// comparisons, the version is at least one and every acknowledged item arises from the
+    /// basis, once.
     pub(crate) fn from_parts(
         declared: ValueModel,
         basis: PreferenceBasis,
         learning: Option<LearningOptions>,
+        stated_comparisons: usize,
         version: u32,
         acknowledged: &[PendingReview],
     ) -> Result<Self, AcceptedPreferencesError> {
         let declared_identity = declared.identity().map_err(E::Model)?;
         check_basis(&declared_identity, &basis, learning.as_ref())?;
+        if matches!(basis, PreferenceBasis::Declared) && stated_comparisons > 0 {
+            return Err(E::OptionsMismatch { option: "stated_comparisons" });
+        }
         if version == 0 {
             return Err(E::VersionInvalid { version });
         }
-        let all = review_items(&declared, &basis);
+        let learning = Learning { options: learning, stated_comparisons };
+        let all = review_items(&declared, &basis, stated_comparisons);
         let acknowledged = canonical_acknowledged(&all, &[], acknowledged)?;
         Ok(Self::build(declared, declared_identity, basis, learning, version, acknowledged))
     }
@@ -299,7 +334,7 @@ impl AcceptedPreferences {
         declared: ValueModel,
         declared_identity: String,
         basis: PreferenceBasis,
-        learning: Option<LearningOptions>,
+        learning: Learning,
         version: u32,
         acknowledged: Vec<PendingReview>,
     ) -> Self {
@@ -312,7 +347,8 @@ impl AcceptedPreferences {
         let identity = crate::preference_artifact::accepted_identity(
             &declared_identity,
             &basis,
-            learning.as_ref(),
+            learning.options.as_ref(),
+            learning.stated_comparisons,
             version,
             &acknowledged,
         );
@@ -321,11 +357,16 @@ impl AcceptedPreferences {
             declared_identity,
             model,
             basis,
-            learning,
+            learning: learning.options,
+            stated_comparisons: learning.stated_comparisons,
             version,
             acknowledged,
             identity,
         }
+    }
+
+    fn retained_learning(&self) -> Learning {
+        Learning { options: self.learning, stated_comparisons: self.stated_comparisons }
     }
 
     /// The value model as declared.
@@ -368,6 +409,13 @@ impl AcceptedPreferences {
         self.learning
     }
 
+    /// Number of stated comparisons among the records the preferences were learned from, in
+    /// the selected scope; zero for a declared basis.
+    #[must_use]
+    pub fn stated_comparisons(&self) -> usize {
+        self.stated_comparisons
+    }
+
     /// The decider whose records were selected; `None` for a declared basis or pooled records.
     #[must_use]
     pub fn decider(&self) -> Option<&str> {
@@ -394,7 +442,7 @@ impl AcceptedPreferences {
     /// Review items not yet acknowledged, in the order the module documentation states.
     #[must_use]
     pub fn pending(&self) -> Vec<PendingReview> {
-        review_items(&self.declared, &self.basis)
+        review_items(&self.declared, &self.basis, self.stated_comparisons)
             .into_iter()
             .filter(|item| !self.acknowledged.contains(item))
             .collect()
@@ -415,14 +463,14 @@ impl AcceptedPreferences {
         if items.is_empty() {
             return Err(E::NoItems);
         }
-        let all = review_items(&self.declared, &self.basis);
+        let all = review_items(&self.declared, &self.basis, self.stated_comparisons);
         let acknowledged = canonical_acknowledged(&all, &self.acknowledged, items)?;
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
         Ok(Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             self.basis.clone(),
-            self.learning,
+            self.retained_learning(),
             version,
             acknowledged,
         ))
@@ -441,11 +489,15 @@ impl AcceptedPreferences {
     ) -> Result<Self, AcceptedPreferencesError> {
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
         let learned = select_learned(&self.declared, records, decider, options)?;
+        let learning = Learning {
+            options: Some(LearningOptions::CompatibleSet(options)),
+            stated_comparisons: stated_in_scope(records, decider),
+        };
         Ok(Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             PreferenceBasis::CompatibleSet(Box::new(learned)),
-            Some(LearningOptions::CompatibleSet(options)),
+            learning,
             version,
             Vec::new(),
         ))
@@ -464,11 +516,15 @@ impl AcceptedPreferences {
     ) -> Result<Self, AcceptedPreferencesError> {
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
         let estimate = select_estimate(&self.declared, records, decider, options)?;
+        let learning = Learning {
+            options: Some(LearningOptions::ChoiceEstimate(options)),
+            stated_comparisons: stated_in_scope(records, decider),
+        };
         Ok(Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             PreferenceBasis::ChoiceEstimate(Box::new(estimate)),
-            Some(LearningOptions::ChoiceEstimate(options)),
+            learning,
             version,
             Vec::new(),
         ))
@@ -518,7 +574,12 @@ pub fn learn_compatible_set_accepted(
     options: SetLearningOptions,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let learned = select_learned(model, records, decider, options)?;
-    AcceptedPreferences::from_compatible_set(model, learned, options)
+    AcceptedPreferences::from_compatible_set(
+        model,
+        learned,
+        options,
+        stated_in_scope(records, decider),
+    )
 }
 
 /// Estimate from `model` and `records` and accept the estimate. `decider: None` selects the
@@ -534,7 +595,32 @@ pub fn estimate_accepted(
     options: ChoiceModelOptions,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let estimate = select_estimate(model, records, decider, options)?;
-    AcceptedPreferences::from_estimate(model, estimate, options)
+    AcceptedPreferences::from_estimate(model, estimate, options, stated_in_scope(records, decider))
+}
+
+/// How a basis was learned: the options, and the number of stated comparisons among the
+/// records in the selected scope.
+#[derive(Clone, Copy, Debug)]
+struct Learning {
+    options: Option<LearningOptions>,
+    stated_comparisons: usize,
+}
+
+impl Learning {
+    const fn none() -> Self {
+        Self { options: None, stated_comparisons: 0 }
+    }
+}
+
+/// Stated comparisons among the records a learner reads for `decider`: every record for the
+/// pooled scope, that decider's records otherwise.
+pub(crate) fn stated_in_scope(records: &ChoiceRecordSet, decider: Option<&str>) -> usize {
+    records
+        .records
+        .iter()
+        .filter(|r| r.belief_source.is_stated())
+        .filter(|r| decider.is_none_or(|name| r.decider == name))
+        .count()
 }
 
 pub(crate) fn select_learned(
@@ -626,7 +712,11 @@ fn check_basis(
 }
 
 /// Every review item the basis raises, before acknowledgements, in the documented order.
-fn review_items(declared: &ValueModel, basis: &PreferenceBasis) -> Vec<PendingReview> {
+fn review_items(
+    declared: &ValueModel,
+    basis: &PreferenceBasis,
+    stated_comparisons: usize,
+) -> Vec<PendingReview> {
     let mut items = Vec::new();
     match basis {
         PreferenceBasis::Declared => {}
@@ -665,6 +755,9 @@ fn review_items(declared: &ValueModel, basis: &PreferenceBasis) -> Vec<PendingRe
                 });
             }
         }
+    }
+    if stated_comparisons > 0 && !matches!(basis, PreferenceBasis::Declared) {
+        items.push(PendingReview::StatedComparisonsUsed { count: stated_comparisons });
     }
     items
 }
@@ -716,7 +809,7 @@ mod tests {
     #[test]
     fn a_version_below_one_is_refused() {
         let error =
-            AcceptedPreferences::from_parts(model(), PreferenceBasis::Declared, None, 0, &[])
+            AcceptedPreferences::from_parts(model(), PreferenceBasis::Declared, None, 0, 0, &[])
                 .unwrap_err();
         assert_eq!(error, E::VersionInvalid { version: 0 });
         assert_eq!(
@@ -731,6 +824,7 @@ mod tests {
             model(),
             PreferenceBasis::Declared,
             None,
+            0,
             u32::MAX,
             &[],
         )
@@ -777,10 +871,19 @@ mod tests {
             model(),
             PreferenceBasis::Declared,
             Some(LearningOptions::CompatibleSet(SetLearningOptions::default())),
+            0,
             1,
             &[],
         )
         .unwrap_err();
         assert_eq!(error, E::OptionsMismatch { option: "basis" });
+    }
+
+    #[test]
+    fn a_declared_basis_with_stated_comparisons_is_refused() {
+        let error =
+            AcceptedPreferences::from_parts(model(), PreferenceBasis::Declared, None, 2, 1, &[])
+                .unwrap_err();
+        assert_eq!(error, E::OptionsMismatch { option: "stated_comparisons" });
     }
 }

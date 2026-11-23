@@ -354,7 +354,7 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
     let mut edited = (**set).clone();
     edited.ranges[0].learned.1 += 0.5;
-    let edited = AcceptedPreferences::from_compatible_set(&model, edited, tolerant()).unwrap();
+    let edited = AcceptedPreferences::from_compatible_set(&model, edited, tolerant(), 0).unwrap();
     let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
     assert_eq!(error, E::ReplayMismatch { field: "ranges" });
     assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_MISMATCH);
@@ -370,9 +370,35 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
     let mut edited = (**estimate).clone();
     edited.consistency *= 1.01;
-    let edited = AcceptedPreferences::from_estimate(&model, edited, quick()).unwrap();
+    let edited = AcceptedPreferences::from_estimate(&model, edited, quick(), 0).unwrap();
     let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
     assert_eq!(error, E::ReplayMismatch { field: "consistency" });
+
+    // A stated count the records do not reproduce.
+    let miscounted =
+        AcceptedPreferences::from_estimate(&model, (**estimate).clone(), quick(), 3).unwrap();
+    let error = AcceptedPreferencesArtifact::new(miscounted).replay(&records).unwrap_err();
+    assert_eq!(error, E::ReplayMismatch { field: "stated_comparisons" });
+}
+
+#[test]
+fn stated_comparisons_survive_the_wire_and_replay() {
+    let model = cost_model();
+    let mut records = settling_records();
+    records.records[0].belief_source = BeliefSource::Stated {
+        elicitation_id: "elicitation-1".to_owned(),
+        assumption_id: "assumption.statements_reflect_preferences".to_owned(),
+    };
+    let learned = learn_compatible_set_accepted(&model, &records, None, tolerant()).unwrap();
+    let used = PendingReview::StatedComparisonsUsed { count: 1 };
+    assert!(learned.pending().contains(&used));
+    let reviewed = learned.acknowledge(&[used.clone()]).unwrap();
+    let loaded = round_trip(&reviewed);
+    assert_eq!(loaded.accepted().stated_comparisons(), 1);
+    assert_eq!(loaded.accepted().acknowledged().last(), Some(&used));
+    loaded.replay(&records).unwrap();
+    // The same records read as recorded forecasts are other records.
+    assert_eq!(loaded.replay(&settling_records()), Err(E::ReplayRecordsDiffer));
 }
 
 /// Write, check the identity bindings and corruption refusals, and read back.
@@ -427,6 +453,33 @@ fn decisions_of_both_routes_round_trip_and_replay() {
     assert_eq!(exact.options(), options);
     let loaded = decision_round_trip(&exact, &source);
     loaded.replay(&source).unwrap();
+    let switch = &loaded.evaluation().exact().unwrap().switches[0];
+    let threshold = switch.threshold.as_ref().unwrap();
+    assert_eq!((threshold.parameter_id.as_str(), threshold.first_leads_above), ("w", false));
+    let ranges = &loaded.evaluation().exact().unwrap().parameter_ranges;
+    assert!(ranges.len() == 1 && ranges[0].0.abs() < 1e-9 && (ranges[0].1 - 3.0).abs() < 1e-9);
+    assert_eq!(loaded.evaluation().statement(), exact.evaluation().statement());
+
+    // Exact route, a never-beaten action: on `w` in `[0, 1.5]` A ties B at `w = 1.5`.
+    let mut edge = cost_model();
+    edge.preferences.parameters[0].upper = 1.5;
+    let source_edge = standard_law(&edge, 0.0);
+    let never = PreferenceDecisionArtifact::evaluate(
+        contract(edge, PreferencePolicy::RequireInvariantBestAction),
+        &source_edge,
+        None,
+        options,
+    )
+    .unwrap();
+    let verdict = &never.evaluation().exact().unwrap().verdict;
+    assert_eq!(
+        verdict,
+        &PreferenceVerdict::NeverBeaten { action: "A".into(), ties_with: vec!["B".into()] }
+    );
+    let loaded = decision_round_trip(&never, &source_edge);
+    let actions = &loaded.evaluation().exact().unwrap().actions;
+    assert!(actions[0].necessarily_best && !actions[0].uniquely_best);
+    loaded.replay(&source_edge).unwrap();
 
     // Exact route, the measure of an accepted estimate under the weighted policy.
     let model = cost_model();
@@ -470,6 +523,7 @@ fn decisions_of_both_routes_round_trip_and_replay() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one table of replay refusals")]
 fn a_decision_replay_refuses_other_draws_and_any_changed_result() {
     let options = PreferenceEvaluationOptions::default();
     let source = standard_law(&cost_model(), 0.0);
@@ -506,6 +560,54 @@ fn a_decision_replay_refuses_other_draws_and_any_changed_result() {
     )
     .unwrap();
     assert_eq!(moved.replay(&source), Err(E::ReplayMismatch { field: "value_range" }));
+
+    // A unique-winner flag, a dominating rival or a threshold the evaluation does not give.
+    let mut unique = (**result).clone();
+    unique.actions[0].uniquely_best = true;
+    let unique = PreferenceDecisionArtifact::new(
+        c.clone(),
+        None,
+        options,
+        PreferenceEvaluation::Exact(Box::new(unique)),
+        &source,
+    )
+    .unwrap();
+    assert_eq!(unique.replay(&source), Err(E::ReplayMismatch { field: "uniquely_best" }));
+    let mut dominated = (**result).clone();
+    dominated.actions[1].dominated_by = vec!["A".into()];
+    let dominated = PreferenceDecisionArtifact::new(
+        c.clone(),
+        None,
+        options,
+        PreferenceEvaluation::Exact(Box::new(dominated)),
+        &source,
+    )
+    .unwrap();
+    assert_eq!(dominated.replay(&source), Err(E::ReplayMismatch { field: "dominated_by" }));
+    let mut shifted = (**result).clone();
+    if let Some(threshold) = shifted.switches[0].threshold.as_mut() {
+        threshold.value += 0.25;
+    }
+    let shifted = PreferenceDecisionArtifact::new(
+        c.clone(),
+        None,
+        options,
+        PreferenceEvaluation::Exact(Box::new(shifted)),
+        &source,
+    )
+    .unwrap();
+    assert_eq!(shifted.replay(&source), Err(E::ReplayMismatch { field: "threshold" }));
+    let mut narrowed = (**result).clone();
+    narrowed.parameter_ranges[0].1 = 2.0;
+    let narrowed = PreferenceDecisionArtifact::new(
+        c.clone(),
+        None,
+        options,
+        PreferenceEvaluation::Exact(Box::new(narrowed)),
+        &source,
+    )
+    .unwrap();
+    assert_eq!(narrowed.replay(&source), Err(E::ReplayMismatch { field: "parameter_ranges" }));
 
     // A difference far below the replay tolerance is accepted.
     let mut nudged = (**result).clone();

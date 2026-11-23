@@ -28,10 +28,12 @@ use crate::preference_certified::{
 };
 use crate::preference_contract::{PreferenceContract, PreferenceContractError};
 use crate::preference_decision::{
-    CertifiedRouteReason, PreferenceDecisionError, PreferenceDecisionOptions,
-    PreferenceDecisionResult, PreferenceMeasure, PreferenceVerdict, StructuralPreferenceResult,
-    evaluate_preference_contract, evaluate_preference_contract_on_means,
-    evaluate_preference_structural,
+    CertifiedRouteReason, NO_ADMISSIBLE_SENTENCE, PreferenceDecisionError,
+    PreferenceDecisionOptions, PreferenceDecisionResult, PreferenceMeasure, PreferenceVerdict,
+    REPORT_ONLY_SENTENCE, StructuralPreferenceResult, evaluate_preference_contract,
+    evaluate_preference_contract_on_means, evaluate_preference_structural, join_ids,
+    measure_choice_sentence, minimax_regret_sentence, plain_number, preferred_everywhere,
+    worst_case_sentence,
 };
 
 /// Route label: the value is affine in the parameters and the criterion is an expectation.
@@ -110,13 +112,14 @@ impl PreferenceEvaluation {
         }
     }
 
-    /// The action the verdict chooses, when it chooses one: necessarily best, the worst-case
-    /// choice, the minimax-regret choice or the measure choice.
+    /// The action the verdict chooses, when it chooses one: the unique winner, the one action
+    /// never beaten, the worst-case choice, the minimax-regret choice or the measure choice.
     #[must_use]
     pub fn chosen_action(&self) -> Option<&str> {
         match self {
             Self::Exact(result) => match &result.verdict {
                 PreferenceVerdict::NecessarilyBest(a)
+                | PreferenceVerdict::NeverBeaten { action: a, .. }
                 | PreferenceVerdict::WorstCaseChoice(a)
                 | PreferenceVerdict::MinimaxRegretChoice(a)
                 | PreferenceVerdict::MeasureChoice { action: a, .. } => Some(a.as_str()),
@@ -138,7 +141,8 @@ impl PreferenceEvaluation {
         }
     }
 
-    /// Whether the verdict is that one action is best at every admissible parameter value.
+    /// Whether the verdict is a unique winner: one action strictly ahead of every rival at every
+    /// admissible parameter value.
     #[must_use]
     pub fn is_necessarily_best(&self) -> bool {
         match self {
@@ -146,6 +150,35 @@ impl PreferenceEvaluation {
             Self::Certified(result) => {
                 matches!(result.verdict, CertifiedVerdict::NecessarilyBest(_))
             }
+        }
+    }
+
+    /// Whether the verdict is that one action is never beaten at any admissible parameter
+    /// value: a unique winner, or (on the exact route) one action that ties some rivals
+    /// somewhere and leads them elsewhere. A certified box is decided only when one action is
+    /// strictly ahead, so on the certified route this is the unique winner.
+    #[must_use]
+    pub fn is_never_beaten(&self) -> bool {
+        match self {
+            Self::Exact(result) => matches!(
+                result.verdict,
+                PreferenceVerdict::NecessarilyBest(_) | PreferenceVerdict::NeverBeaten { .. }
+            ),
+            Self::Certified(result) => {
+                matches!(result.verdict, CertifiedVerdict::NecessarilyBest(_))
+            }
+        }
+    }
+
+    /// The verdict in one or two plain sentences, built only from the result's own facts. The
+    /// exact route states [`PreferenceDecisionResult::statement`]; the certified route states its
+    /// verdict and, when part of the set is left undecided, the undecided volume fraction (a
+    /// share of the set's volume, not a probability), with numbers written by the same rule.
+    #[must_use]
+    pub fn statement(&self) -> String {
+        match self {
+            Self::Exact(result) => result.statement(),
+            Self::Certified(result) => certified_statement(result),
         }
     }
 
@@ -184,6 +217,45 @@ impl PreferenceEvaluation {
             Self::Exact(_) => None,
             Self::Certified(result) => Some(result.as_ref()),
         }
+    }
+}
+
+/// The plain statement of a certified result.
+fn certified_statement(result: &CertifiedPreferenceResult) -> String {
+    let has_parameters = !result.parameter_ids.is_empty();
+    let fraction = plain_number(result.undecided_fraction);
+    let undecided = if result.undecided_fraction > 0.0 {
+        format!(" A volume fraction of {fraction} of the admissible set is left undecided.")
+    } else {
+        String::new()
+    };
+    match &result.verdict {
+        CertifiedVerdict::NecessarilyBest(action) => {
+            format!("{}{undecided}", preferred_everywhere(action, has_parameters, ""))
+        }
+        CertifiedVerdict::PreferenceDependent { certified_somewhere } => format!(
+            "The preferred action depends on the declared trade-offs: {} {} certified preferred \
+             on part of the admissible set.{undecided}",
+            join_ids(certified_somewhere),
+            if certified_somewhere.len() == 1 { "is" } else { "are each" }
+        ),
+        CertifiedVerdict::WorstCaseChoice(action) => {
+            format!("{}{undecided}", worst_case_sentence(action, ""))
+        }
+        CertifiedVerdict::MinimaxRegretChoice(action) => {
+            format!("{}{undecided}", minimax_regret_sentence(action, ""))
+        }
+        CertifiedVerdict::MeasureChoice { action, share } => {
+            measure_choice_sentence(action, *share)
+        }
+        CertifiedVerdict::Undetermined { candidates, undecided_fraction } => format!(
+            "The certified subdivision does not settle the choice among {}; a volume fraction of \
+             {} of the admissible set is left undecided.",
+            join_ids(candidates),
+            plain_number(*undecided_fraction)
+        ),
+        CertifiedVerdict::ReportOnly => format!("{REPORT_ONLY_SENTENCE}{undecided}"),
+        CertifiedVerdict::NoAdmissibleAction => NO_ADMISSIBLE_SENTENCE.to_owned(),
     }
 }
 

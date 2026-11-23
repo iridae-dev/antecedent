@@ -8,7 +8,16 @@
 //! program: the range of each action's value, the range of each pairwise margin, whether an
 //! action is best at every admissible point (*necessarily best*) or at some admissible point
 //! (*possibly best*), each action's worst-case regret, and the pairs whose order changes inside
-//! the set (*switches*), with one admissible point on each side.
+//! the set (*switches*), with one admissible point on each side and, when the order depends on a
+//! single parameter, the value where it changes.
+//!
+//! Three situations are kept apart. An action strictly ahead of every rival everywhere is the
+//! unique winner ([`PreferenceVerdict::NecessarilyBest`]). An action never beaten but tying some
+//! rival somewhere, usually at the edge of the set, is reported as
+//! [`PreferenceVerdict::NeverBeaten`] with the rivals it ties. An action strictly behind one
+//! rival everywhere is dominated by it ([`PreferenceActionOutcome::dominated_by`]).
+//!
+//! Every result states its verdict in plain words ([`PreferenceDecisionResult::statement`]).
 //!
 //! A range over the set is a range over declared assumptions. It is not a confidence interval
 //! and carries no probability. A share is reported only for a supplied [`PreferenceMeasure`],
@@ -128,8 +137,19 @@ pub struct PreferenceActionOutcome {
     /// range over declared assumptions, not a confidence interval. `None` when excluded and for
     /// expected regret.
     pub value_range: Option<(f64, f64)>,
-    /// Best by more than the tie tolerance at every admissible parameter point.
+    /// Never beaten: its margin over every admissible rival is at least minus the tie tolerance
+    /// at every admissible parameter point. Ties are allowed, so an action can be necessarily
+    /// best without being the unique winner. `false` when excluded.
     pub necessarily_best: bool,
+    /// Strictly ahead everywhere: its margin over every admissible rival exceeds the tie
+    /// tolerance at every admissible parameter point. Implies `necessarily_best`; at most one
+    /// action has it. `false` when excluded.
+    pub uniquely_best: bool,
+    /// Admissible rivals strictly ahead of this action at every admissible parameter point
+    /// (their margin over it exceeds the tie tolerance everywhere), in declaration order. An
+    /// action can be best at no admissible point without being dominated by any single rival:
+    /// different rivals can lead it in different parts of the set. Empty when excluded.
+    pub dominated_by: Vec<String>,
     /// Best (ties allowed) at some admissible parameter point. `Some(false)` when excluded;
     /// `None` when the worst case over structures has too many rival-structure choices to
     /// enumerate.
@@ -163,13 +183,44 @@ pub struct PreferenceSwitch {
     pub favours_first_at: Vec<f64>,
     /// An admissible point where `second` leads (where the margin is lowest).
     pub favours_second_at: Vec<f64>,
+    /// Where the order changes, when the margin depends on a single parameter; `None` when it
+    /// depends on several (the boundary is then the hyperplane where the affine function with
+    /// `margin_coefficients` is zero) and for structural combinations without coefficients.
+    pub threshold: Option<SwitchThreshold>,
+}
+
+/// The value of a single parameter at which a switching pair changes order.
+///
+/// A margin depends on a single parameter when every other parameter's coefficient, times the
+/// width of that parameter's declared range, is within the tie tolerance (a fixed parameter,
+/// with a range of zero width, never counts). The other parameters are then held at the
+/// midpoints of their declared ranges, which moves the margin by no more than the tie
+/// tolerance.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SwitchThreshold {
+    /// The parameter the margin depends on.
+    pub parameter_id: String,
+    /// The parameter value at which the margin is zero.
+    pub value: f64,
+    /// Whether the first action of the switch leads above the value (and the second below it).
+    pub first_leads_above: bool,
 }
 
 /// What can be claimed about the choice across the preference set.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PreferenceVerdict {
-    /// One admissible action is best at every admissible parameter point.
+    /// One admissible action is strictly ahead of every admissible rival, by more than the tie
+    /// tolerance, at every admissible parameter point: the unique winner.
     NecessarilyBest(String),
+    /// One admissible action is never beaten anywhere in the set but is not strictly ahead
+    /// everywhere: it ties some rivals somewhere and leads them elsewhere.
+    NeverBeaten {
+        /// The action that is never beaten.
+        action: String,
+        /// Rivals whose margin range against it touches zero (within the tie tolerance), in
+        /// declaration order.
+        ties_with: Vec<String>,
+    },
     /// No action is best everywhere; the actions best at some admissible point, in
     /// declaration order.
     PreferenceDependent {
@@ -187,8 +238,9 @@ pub enum PreferenceVerdict {
         /// Weight of the measure points at which it leads.
         share: f64,
     },
-    /// Several actions share the best score within the tie tolerance, or are equal at every
-    /// admissible point; declaration order is not a choice.
+    /// Several actions share the best score within the tie tolerance, or (under the invariant
+    /// policy) several actions are never beaten, which makes them equal within the tie tolerance
+    /// at every admissible point; declaration order is not a choice.
     Tied(Vec<String>),
     /// Everything was computed; no choice is made.
     ReportOnly,
@@ -205,16 +257,20 @@ pub struct PreferenceDecisionResult {
     pub policy: PreferencePolicy,
     /// Parameter ids, in index order; the coordinates of every point reported.
     pub parameter_ids: Vec<String>,
+    /// Lowest and highest admissible value of each parameter, in index order: the declared
+    /// range cut by the relations (for a learned set, the range the recorded choices leave).
+    pub parameter_ranges: Vec<(f64, f64)>,
     /// Per-action outcomes, in declaration order.
     pub actions: Vec<PreferenceActionOutcome>,
     /// Switches, ordered by the declaration index of `(first, second)`.
     pub switches: Vec<PreferenceSwitch>,
     /// The verdict.
     pub verdict: PreferenceVerdict,
-    /// Weight of draws in which the necessarily-best action also has the highest per-draw
-    /// utility at every vertex of the set. A point diagnostic of the supplied law, not a
-    /// calibrated probability. `None` for a mean source, when no action is necessarily best,
-    /// when vertex enumeration exceeds its cap, and for structural combinations.
+    /// Weight of draws in which the only never-beaten action (the unique winner, or the one
+    /// action never beaten) also has a per-draw utility at least every rival's at every vertex
+    /// of the set. A point diagnostic of the supplied law, not a calibrated probability. `None`
+    /// for a mean source, unless exactly one admissible action is never beaten, when vertex
+    /// enumeration exceeds its cap, and for structural combinations.
     pub draw_share_best_everywhere: Option<f64>,
     /// Weight of measure points whose leader changes over the unresolved parameters; `None`
     /// without a measure.
@@ -315,6 +371,305 @@ pub struct StructuralPreferenceResult {
     pub evaluated_mass: Option<f64>,
     /// The verdict.
     pub verdict: StructuralPreferenceVerdict,
+}
+
+// ---------------------------------------------------------------------------------------------
+// Plain statements
+// ---------------------------------------------------------------------------------------------
+
+impl PreferenceDecisionResult {
+    /// The verdict in one or two plain sentences, built only from this result's own facts.
+    ///
+    /// Numbers are rounded to four significant digits (more when the integer part is longer),
+    /// written in fixed notation for magnitudes from 0.0001 up to but excluding one million and
+    /// in scientific notation (`1.5e7`) otherwise, with trailing zeros dropped. A range over the
+    /// set is stated as a range and a measure share as a weight; neither is called a
+    /// probability. The same result always gives the same statement.
+    #[must_use]
+    pub fn statement(&self) -> String {
+        verdict_statement(&self.verdict, self.policy, Some(self), "")
+    }
+}
+
+impl StructuralPreferenceResult {
+    /// The verdict across structures in one or two plain sentences, built only from this
+    /// result's own facts, with the same conventions as [`PreferenceDecisionResult::statement`].
+    #[must_use]
+    pub fn statement(&self) -> String {
+        match &self.verdict {
+            StructuralPreferenceVerdict::Combined(verdict) => {
+                let scope = match self.structural_policy {
+                    StructuralPolicy::BayesOverStructures => {
+                        ", with the evaluated structures weighted by their probabilities"
+                    }
+                    StructuralPolicy::Maximin => {
+                        ", scoring each action by its worst value over the evaluated structures"
+                    }
+                    StructuralPolicy::RequireInvariantBestAction | StructuralPolicy::ReportOnly => {
+                        " and every evaluated structure"
+                    }
+                };
+                verdict_statement(verdict, self.preference_policy, self.combined.as_ref(), scope)
+            }
+            StructuralPreferenceVerdict::StructuresDisagree(choices) => {
+                let atoms: Vec<String> = choices.iter().map(|c| c.atom.clone()).collect();
+                format!(
+                    "The evaluated structures {} give different verdicts, so no action is \
+                     preferred across structures.",
+                    join_ids(&atoms)
+                )
+            }
+            StructuralPreferenceVerdict::InsufficientScience(reason) => {
+                format!("No action is chosen across structures: {reason}.")
+            }
+            StructuralPreferenceVerdict::ReportOnly => {
+                "No action is chosen: the result of each structure is reported only.".to_owned()
+            }
+        }
+    }
+}
+
+/// Write a number for a plain statement: rounded to four significant digits (more when the
+/// integer part is longer), in fixed notation for magnitudes from 0.0001 up to but excluding
+/// one million and in scientific notation (`1.5e7`) otherwise, with trailing zeros dropped.
+/// Zero is written `0` whatever its sign; a non-finite value is written as Rust displays it.
+pub(crate) fn plain_number(value: f64) -> String {
+    fn trimmed(text: &str) -> String {
+        let text = if text.contains('.') {
+            text.trim_end_matches('0').trim_end_matches('.')
+        } else {
+            text
+        };
+        if text == "-0" { "0".to_owned() } else { text.to_owned() }
+    }
+    if !value.is_finite() {
+        return format!("{value}");
+    }
+    let magnitude = value.abs();
+    if magnitude < f64::MIN_POSITIVE {
+        return "0".to_owned();
+    }
+    if !(1e-4..1e6).contains(&magnitude) {
+        let text = format!("{value:.3e}");
+        return match text.split_once('e') {
+            Some((mantissa, power)) => format!("{}e{power}", trimmed(mantissa)),
+            None => text,
+        };
+    }
+    let decimals = [1e3, 1e2, 1e1, 1.0, 1e-1, 1e-2, 1e-3]
+        .iter()
+        .position(|&bound| magnitude >= bound)
+        .unwrap_or(7);
+    trimmed(&format!("{value:.decimals$}"))
+}
+
+/// `a`, `a and b`, `a, b and c`.
+pub(crate) fn join_ids(ids: &[String]) -> String {
+    match ids {
+        [] => String::new(),
+        [only] => only.clone(),
+        [init @ .., last] => format!("{} and {last}", init.join(", ")),
+    }
+}
+
+/// Where a claim over the whole set holds: every admissible parameter value, or the declared
+/// value model alone when it has no parameter.
+fn over_the_set(has_parameters: bool, quantifier: &str) -> String {
+    if has_parameters {
+        format!("for {quantifier} admissible value of the declared trade-offs")
+    } else {
+        "under the declared value model".to_owned()
+    }
+}
+
+/// The unique-winner sentence shared with the certified route.
+pub(crate) fn preferred_everywhere(action: &str, has_parameters: bool, scope: &str) -> String {
+    format!("Action {action} is preferred {}{scope}.", over_the_set(has_parameters, "every"))
+}
+
+/// The worst-case choice sentence shared with the certified route.
+pub(crate) fn worst_case_sentence(action: &str, scope: &str) -> String {
+    format!(
+        "Action {action} has the best worst-case value over the admissible values of the \
+         declared trade-offs{scope}."
+    )
+}
+
+/// The minimax-regret sentence shared with the certified route.
+pub(crate) fn minimax_regret_sentence(action: &str, scope: &str) -> String {
+    format!(
+        "Action {action} has the smallest worst-case regret over the admissible values of the \
+         declared trade-offs{scope}."
+    )
+}
+
+/// The measure-choice sentence shared with the certified route.
+pub(crate) fn measure_choice_sentence(action: &str, share: f64) -> String {
+    format!(
+        "Action {action} has the best value weighted by the supplied measure over the declared \
+         trade-offs; it leads at measure points carrying a weight of {}.",
+        plain_number(share)
+    )
+}
+
+/// The report-only sentence shared with the certified route.
+pub(crate) const REPORT_ONLY_SENTENCE: &str =
+    "No action is chosen: the comparison across the declared trade-offs is reported only.";
+
+/// The no-admissible-action sentence shared with the certified route.
+pub(crate) const NO_ADMISSIBLE_SENTENCE: &str =
+    "No action is admissible: every action fails a hard constraint.";
+
+fn verdict_statement(
+    verdict: &PreferenceVerdict,
+    policy: PreferencePolicy,
+    result: Option<&PreferenceDecisionResult>,
+    scope: &str,
+) -> String {
+    let has_parameters = result.is_none_or(|r| !r.parameter_ids.is_empty());
+    match verdict {
+        PreferenceVerdict::NecessarilyBest(action) => {
+            preferred_everywhere(action, has_parameters, scope)
+        }
+        PreferenceVerdict::NeverBeaten { action, ties_with } => {
+            never_beaten_sentence(action, ties_with, has_parameters, result, scope)
+        }
+        PreferenceVerdict::PreferenceDependent { possibly_best } => {
+            dependent_sentence(possibly_best, result)
+        }
+        PreferenceVerdict::WorstCaseChoice(action) => worst_case_sentence(action, scope),
+        PreferenceVerdict::MinimaxRegretChoice(action) => minimax_regret_sentence(action, scope),
+        PreferenceVerdict::MeasureChoice { action, share } => {
+            measure_choice_sentence(action, *share)
+        }
+        PreferenceVerdict::Tied(ids) => {
+            let subject = match ids.as_slice() {
+                [only] => format!("Action {only}"),
+                _ => format!("Actions {}", join_ids(ids)),
+            };
+            let (verb, plural) = match ids.as_slice() {
+                [_] => ("shares", "is"),
+                _ => ("share", "are"),
+            };
+            let shared = match policy {
+                PreferencePolicy::Maximin => format!(
+                    "{verb} the best worst-case value over the admissible values of the \
+                     declared trade-offs{scope}"
+                ),
+                PreferencePolicy::MinimaxRegret => format!(
+                    "{verb} the smallest worst-case regret over the admissible values of the \
+                     declared trade-offs{scope}"
+                ),
+                PreferencePolicy::Weighted => {
+                    format!("{verb} the best value weighted by the supplied measure")
+                }
+                PreferencePolicy::RequireInvariantBestAction | PreferencePolicy::ReportOnly => {
+                    format!("{plural} equal {}{scope}", over_the_set(has_parameters, "every"))
+                }
+            };
+            format!("{subject} {shared}; no single action is chosen.")
+        }
+        PreferenceVerdict::ReportOnly => REPORT_ONLY_SENTENCE.to_owned(),
+        PreferenceVerdict::NoAdmissibleAction => NO_ADMISSIBLE_SENTENCE.to_owned(),
+    }
+}
+
+fn never_beaten_sentence(
+    action: &str,
+    ties_with: &[String],
+    has_parameters: bool,
+    result: Option<&PreferenceDecisionResult>,
+    scope: &str,
+) -> String {
+    // An affine margin that is never negative and not zero everywhere is zero only on the
+    // boundary of the set, so with one affine score per action the ties lie on its edge.
+    let affine = |id: &str| {
+        result.is_some_and(|r| r.actions.iter().any(|o| o.id == id && o.coefficients.is_some()))
+    };
+    let place = if !has_parameters {
+        ""
+    } else if affine(action) && ties_with.iter().all(|b| affine(b)) {
+        " at the edge of the admissible set"
+    } else {
+        " at some admissible values"
+    };
+    format!(
+        "Action {action} is never beaten {}{scope}, and ties with {}{place}.",
+        over_the_set(has_parameters, "any"),
+        join_ids(ties_with)
+    )
+}
+
+fn dependent_sentence(
+    possibly_best: &[String],
+    result: Option<&PreferenceDecisionResult>,
+) -> String {
+    const OPENING: &str = "The preferred action depends on the declared trade-offs";
+    let each = match possibly_best {
+        [] => return format!("{OPENING}."),
+        [only] => format!("{only} is preferred somewhere in the admissible set"),
+        _ => format!(
+            "{} are each preferred somewhere in the admissible set",
+            join_ids(possibly_best)
+        ),
+    };
+    let Some(result) = result else {
+        return format!("{OPENING}: {each}.");
+    };
+    let relevant: Vec<&PreferenceSwitch> = result
+        .switches
+        .iter()
+        .filter(|s| {
+            !s.margin_coefficients.is_empty()
+                && possibly_best.contains(&s.first)
+                && possibly_best.contains(&s.second)
+        })
+        .collect();
+    if relevant.is_empty() {
+        return format!("{OPENING}: {each}.");
+    }
+    let thresholds: Option<Vec<&SwitchThreshold>> =
+        relevant.iter().map(|s| s.threshold.as_ref()).collect();
+    let single = thresholds.as_ref().and_then(|list| {
+        let first = list.first()?;
+        list.iter().all(|t| t.parameter_id == first.parameter_id).then_some(first)
+    });
+    let Some(threshold) = single else {
+        return format!(
+            "{OPENING}: {each}, and the boundary between them depends on more than one trade-off."
+        );
+    };
+    let parameter = &threshold.parameter_id;
+    let range = result
+        .parameter_ids
+        .iter()
+        .position(|id| id == parameter)
+        .and_then(|j| result.parameter_ranges.get(j))
+        .map(|(low, high)| {
+            format!(
+                "the admissible range of {parameter} is {} to {}",
+                plain_number(*low),
+                plain_number(*high)
+            )
+        });
+    match (relevant.as_slice(), possibly_best.len(), range) {
+        ([switch], 2, Some(range)) => {
+            let (below, above) = if threshold.first_leads_above {
+                (&switch.second, &switch.first)
+            } else {
+                (&switch.first, &switch.second)
+            };
+            format!(
+                "{OPENING}: {below} leads when {parameter} is below {} and {above} leads above \
+                 it; {range}.",
+                plain_number(threshold.value)
+            )
+        }
+        (_, _, Some(range)) => {
+            format!("{OPENING}: {each}, changing order as {parameter} varies; {range}.")
+        }
+        (_, _, None) => format!("{OPENING}: {each}."),
+    }
 }
 
 /// Why the exact route cannot answer and the certified route is needed.
@@ -1053,6 +1408,20 @@ impl Region {
         Ok(Extreme { value, point })
     }
 
+    /// Lowest and highest value of each coordinate over the region: two linear programs per
+    /// coordinate.
+    fn parameter_ranges(&self, lp: LpOptions) -> Result<Vec<(f64, f64)>, E> {
+        let n = self.dimension();
+        (0..n)
+            .map(|j| {
+                let mut coordinate = vec![0.0; n + 1];
+                coordinate[j + 1] = 1.0;
+                let pieces = std::slice::from_ref(&coordinate);
+                Ok((self.min_of_max(pieces, lp)?.value, self.max_of_min(pieces, lp)?.value))
+            })
+            .collect()
+    }
+
     /// `max over the region of min_k f_k(theta)` and a maximising point.
     fn max_of_min(&self, pieces: &[Vec<f64>], lp: LpOptions) -> Result<Extreme, E> {
         let flipped: Vec<Vec<f64>> = pieces.iter().map(|f| negated(f)).collect();
@@ -1139,12 +1508,66 @@ impl MarginTable {
 struct Analysis {
     value: Vec<Option<(f64, f64)>>,
     margins: MarginTable,
-    necessarily: Vec<bool>,
+    standing: Standing,
     possibly: Vec<Option<bool>>,
     regret: Vec<Option<f64>>,
     share: Vec<Option<f64>>,
     measure_value: Vec<Option<f64>>,
     unresolved_share: Option<f64>,
+}
+
+/// How each admissible action stands against its rivals over the whole region, read from the
+/// margin ranges.
+#[derive(Clone, Debug)]
+struct Standing {
+    /// Margin over every rival at least `-tolerance` everywhere.
+    never_beaten: Vec<bool>,
+    /// Margin over every rival above `tolerance` everywhere.
+    uniquely: Vec<bool>,
+    /// Rivals whose margin over the action exceeds `tolerance` everywhere.
+    dominated_by: Vec<Vec<usize>>,
+    /// Rivals whose margin range against the action touches zero within `tolerance`.
+    touching: Vec<Vec<usize>>,
+}
+
+impl Standing {
+    /// Read from the margin table over the active actions. With no rival an action is
+    /// vacuously never beaten and uniquely best.
+    fn of(margins: &MarginTable, active: &[usize], n: usize, tolerance: f64) -> Self {
+        let mut standing = Self {
+            never_beaten: vec![false; n],
+            uniquely: vec![false; n],
+            dominated_by: vec![Vec::new(); n],
+            touching: vec![Vec::new(); n],
+        };
+        for &a in active {
+            let mut never_beaten = true;
+            let mut uniquely = true;
+            for &b in active.iter().filter(|&&b| b != a) {
+                let Some(margin) = margins.get(a, b) else { continue };
+                never_beaten &= margin.min >= -tolerance;
+                uniquely &= margin.min > tolerance;
+                if margin.max < -tolerance {
+                    standing.dominated_by[a].push(b);
+                }
+                if margin.min <= tolerance && margin.max >= -tolerance {
+                    standing.touching[a].push(b);
+                }
+            }
+            standing.never_beaten[a] = never_beaten;
+            standing.uniquely[a] = uniquely;
+        }
+        standing
+    }
+
+    fn empty(n: usize) -> Self {
+        Self {
+            never_beaten: vec![false; n],
+            uniquely: vec![false; n],
+            dominated_by: vec![Vec::new(); n],
+            touching: vec![Vec::new(); n],
+        }
+    }
 }
 
 /// The unique best index by `score`, or every index within `tolerance` of the best.
@@ -1245,11 +1668,33 @@ fn merged_exclusions(evaluated: &[Evaluated<'_>], n: usize) -> Vec<Vec<Constrain
 }
 
 /// The verdict shared by every structure, if they agree. Measure choices of one action agree
-/// with the smallest share.
-fn agreed(evaluated: &[Evaluated<'_>]) -> Option<PreferenceVerdict> {
+/// with the smallest share. A unique winner in some structures that is never beaten (with ties)
+/// in the others is never beaten across structures, tying with every rival it ties anywhere,
+/// listed in the declaration order `order`.
+fn agreed(evaluated: &[Evaluated<'_>], order: &[String]) -> Option<PreferenceVerdict> {
     let first = &evaluated.first()?.verdict;
     if evaluated.iter().all(|atom| &atom.verdict == first) {
         return Some(first.clone());
+    }
+    let unbeaten = |verdict: &PreferenceVerdict| match verdict {
+        PreferenceVerdict::NecessarilyBest(action) => Some((action.clone(), Vec::new())),
+        PreferenceVerdict::NeverBeaten { action, ties_with } => {
+            Some((action.clone(), ties_with.clone()))
+        }
+        _ => None,
+    };
+    if let Some((action, _)) = unbeaten(first) {
+        let mut ties: Vec<String> = Vec::new();
+        for atom in evaluated {
+            let (other, with) = unbeaten(&atom.verdict)?;
+            if other != action {
+                return None;
+            }
+            ties.extend(with);
+        }
+        let ties_with: Vec<String> =
+            order.iter().filter(|id| ties.contains(*id)).cloned().collect();
+        return Some(PreferenceVerdict::NeverBeaten { action, ties_with });
     }
     if let PreferenceVerdict::MeasureChoice { action, .. } = first {
         let mut smallest = f64::INFINITY;
@@ -1266,11 +1711,13 @@ fn agreed(evaluated: &[Evaluated<'_>]) -> Option<PreferenceVerdict> {
     None
 }
 
-/// Ranges over structures: lowest of the lows and highest of the highs.
-fn combine_invariant(analyses: &[&Analysis], n: usize) -> Analysis {
+/// Ranges over structures: lowest of the lows and highest of the highs. The standing of each
+/// action is read from the combined margins, so an action is never beaten (uniquely best,
+/// dominated by a rival) across structures exactly when it is in every structure.
+fn combine_invariant(analyses: &[&Analysis], admissible: &[bool], tolerance: f64) -> Analysis {
+    let n = admissible.len();
     let mut value = vec![None; n];
     let mut margins = MarginTable::new(n);
-    let mut necessarily = vec![true; n];
     let mut possibly = vec![Some(false); n];
     let mut regret: Vec<Option<f64>> = vec![None; n];
     for analysis in analyses {
@@ -1280,7 +1727,6 @@ fn combine_invariant(analyses: &[&Analysis], n: usize) -> Analysis {
                 (current, None) => current,
                 (Some((lo, hi)), Some((l, h))) => Some((lo.min(l), hi.max(h))),
             };
-            necessarily[a] &= analysis.necessarily[a];
             possibly[a] = match (possibly[a], analysis.possibly[a]) {
                 (Some(true), _) | (_, Some(true)) => Some(true),
                 (None, _) | (_, None) => None,
@@ -1311,13 +1757,16 @@ fn combine_invariant(analyses: &[&Analysis], n: usize) -> Analysis {
             }
         }
     }
-    if analyses.is_empty() {
-        necessarily = vec![false; n];
-    }
+    let standing = if analyses.is_empty() {
+        Standing::empty(n)
+    } else {
+        let active: Vec<usize> = (0..n).filter(|&a| admissible[a]).collect();
+        Standing::of(&margins, &active, n, tolerance)
+    };
     Analysis {
         value,
         margins,
-        necessarily,
+        standing,
         possibly,
         regret,
         share: vec![None; n],
@@ -1340,6 +1789,7 @@ struct Prepared<'a> {
     measure: Option<PreparedMeasure>,
     assumptions: Vec<String>,
     parameter_ids: Vec<String>,
+    parameter_ranges: Vec<(f64, f64)>,
     sign: f64,
     regret: bool,
     loss: bool,
@@ -1440,6 +1890,7 @@ impl<'a> Prepared<'a> {
         }
         assumptions.sort();
         assumptions.dedup();
+        let parameter_ranges = region.parameter_ranges(lp)?;
         Ok(Self {
             contract,
             identity,
@@ -1449,6 +1900,7 @@ impl<'a> Prepared<'a> {
             measure: measure_prepared,
             assumptions,
             parameter_ids: set.parameters.iter().map(|p| p.id.clone()).collect(),
+            parameter_ranges,
             sign,
             regret,
             loss,
@@ -1599,19 +2051,16 @@ impl<'a> Prepared<'a> {
                 });
             }
         }
-        let mut necessarily = vec![false; n];
+        let standing = Standing::of(&margins, &active, n, tolerance);
         let mut regret = vec![None; n];
         let mut possibly = vec![Some(false); n];
         for &a in &active {
             let mut worst = 0.0_f64;
-            let mut best_everywhere = true;
             for &b in active.iter().filter(|&&b| b != a) {
                 if let Some(margin) = margins.get(a, b) {
-                    best_everywhere &= margin.min > tolerance;
                     worst = worst.max(-margin.min);
                 }
             }
-            necessarily[a] = best_everywhere;
             regret[a] = Some(worst);
             possibly[a] = self.possibly_best(pieces, &active, a)?;
         }
@@ -1622,7 +2071,7 @@ impl<'a> Prepared<'a> {
         Ok(Analysis {
             value,
             margins,
-            necessarily,
+            standing,
             possibly,
             regret,
             share,
@@ -1734,9 +2183,9 @@ impl<'a> Prepared<'a> {
         Ok((shares, values, Some(unresolved)))
     }
 
-    /// Weight of draws where the necessarily-best action has the highest per-draw utility at
-    /// every vertex of the set. Per-draw utility is affine in the parameters, so the vertices
-    /// decide the whole set.
+    /// Weight of draws where the only never-beaten action has a per-draw utility at least every
+    /// rival's at every vertex of the set. Per-draw utility is affine in the parameters, so the
+    /// vertices decide the whole set.
     fn draw_share(
         &self,
         facts: &SourceFacts,
@@ -1747,9 +2196,12 @@ impl<'a> Prepared<'a> {
             return Ok(None);
         };
         let n = admissible.len();
-        let Some(best) = (0..n).find(|&a| admissible[a] && analysis.necessarily[a]) else {
+        let unbeaten: Vec<usize> =
+            (0..n).filter(|&a| admissible[a] && analysis.standing.never_beaten[a]).collect();
+        let [best] = unbeaten.as_slice() else {
             return Ok(None);
         };
+        let best = *best;
         let vertices = if self.region.dimension() == 0 {
             vec![Vec::new()]
         } else {
@@ -1826,37 +2278,35 @@ impl<'a> Prepared<'a> {
         }
     }
 
-    /// `NecessarilyBest` for an action that beats every rival everywhere by more than the
-    /// tolerance; `Tied` for actions equal everywhere (margin within the tolerance) that beat
-    /// every other rival; otherwise the possibly-best actions (an action whose status could not
-    /// be enumerated is listed).
+    /// `NecessarilyBest` for the action that is uniquely best (ahead of every rival by more
+    /// than the tolerance everywhere); `NeverBeaten` when exactly one action is never beaten
+    /// but it is not uniquely best, naming the rivals whose margin touches zero; `Tied` when
+    /// several actions are never beaten; otherwise the possibly-best actions (an action whose
+    /// status could not be enumerated is listed).
+    ///
+    /// Several never-beaten actions are always equal everywhere, so no further case exists:
+    /// when `a` and `b` are both never beaten, the margin of `a` over `b` is at least
+    /// `-tolerance` everywhere (`a` is never beaten) and at most `tolerance` everywhere (`b` is
+    /// never beaten, and its margin over `a` is the negation), so it lies within the tolerance of
+    /// zero at every admissible point. A uniquely best action excludes every other never-beaten
+    /// action, since its margin over each rival exceeds the tolerance somewhere.
     fn invariant_verdict(&self, analysis: &Analysis, active: &[usize]) -> PreferenceVerdict {
-        let tolerance = self.options.tie_tolerance;
-        for &a in active {
-            let mut equal = Vec::new();
-            let mut candidate = true;
-            for &b in active.iter().filter(|&&b| b != a) {
-                let Some(margin) = analysis.margins.get(a, b) else { continue };
-                if margin.min > tolerance {
-                    continue;
-                }
-                if margin.min >= -tolerance && margin.max <= tolerance {
-                    equal.push(b);
-                    continue;
-                }
-                candidate = false;
-                break;
+        let id = |a: usize| self.contract.actions[a].id.clone();
+        let standing = &analysis.standing;
+        if let Some(&a) = active.iter().find(|&&a| standing.uniquely[a]) {
+            return PreferenceVerdict::NecessarilyBest(id(a));
+        }
+        let unbeaten: Vec<usize> =
+            active.iter().copied().filter(|&a| standing.never_beaten[a]).collect();
+        match unbeaten.as_slice() {
+            [] => {}
+            [a] => {
+                return PreferenceVerdict::NeverBeaten {
+                    action: id(*a),
+                    ties_with: standing.touching[*a].iter().map(|&b| id(b)).collect(),
+                };
             }
-            if candidate {
-                if equal.is_empty() {
-                    return PreferenceVerdict::NecessarilyBest(self.contract.actions[a].id.clone());
-                }
-                equal.push(a);
-                equal.sort_unstable();
-                return PreferenceVerdict::Tied(
-                    equal.into_iter().map(|b| self.contract.actions[b].id.clone()).collect(),
-                );
-            }
+            several => return PreferenceVerdict::Tied(several.iter().map(|&a| id(a)).collect()),
         }
         PreferenceVerdict::PreferenceDependent {
             possibly_best: active
@@ -1875,6 +2325,36 @@ impl<'a> Prepared<'a> {
         } else {
             Some(range)
         }
+    }
+
+    /// The single parameter a margin `(constant, per parameter)` depends on and where it is
+    /// zero, as [`SwitchThreshold`] documents; `None` for an empty margin, a margin that
+    /// depends on several parameters or on none.
+    fn threshold(&self, margin: &[f64]) -> Option<SwitchThreshold> {
+        let n = self.region.dimension();
+        if margin.len() != n + 1 {
+            return None;
+        }
+        let (lower, upper) = (&self.region.lower, &self.region.upper);
+        let tolerance = self.options.tie_tolerance;
+        let varying: Vec<usize> =
+            (0..n).filter(|&j| margin[j + 1].abs() * (upper[j] - lower[j]) > tolerance).collect();
+        let [p] = varying.as_slice() else {
+            return None;
+        };
+        let p = *p;
+        let rest: f64 = margin[0]
+            + (0..n)
+                .filter(|&j| j != p)
+                .map(|j| margin[j + 1] * 0.5 * (lower[j] + upper[j]))
+                .sum::<f64>();
+        let slope = margin[p + 1];
+        let value = -rest / slope;
+        value.is_finite().then(|| SwitchThreshold {
+            parameter_id: self.parameter_ids[p].clone(),
+            value,
+            first_leads_above: slope > 0.0,
+        })
     }
 
     fn assemble(&self, parts: Assembly<'_>) -> PreferenceDecisionResult {
@@ -1897,7 +2377,16 @@ impl<'a> Prepared<'a> {
                     exclusions,
                     coefficients: coefficients.filter(|_| admitted),
                     value_range: analysis.value[a].and_then(|range| self.criterion_range(range)),
-                    necessarily_best: admitted && analysis.necessarily[a],
+                    necessarily_best: admitted && analysis.standing.never_beaten[a],
+                    uniquely_best: admitted && analysis.standing.uniquely[a],
+                    dominated_by: if admitted {
+                        analysis.standing.dominated_by[a]
+                            .iter()
+                            .map(|&b| self.contract.actions[b].id.clone())
+                            .collect()
+                    } else {
+                        Vec::new()
+                    },
                     possibly_best: if admitted { analysis.possibly[a] } else { Some(false) },
                     worst_case_regret: analysis.regret[a],
                     measure_share: analysis.share[a],
@@ -1919,6 +2408,7 @@ impl<'a> Prepared<'a> {
                         },
                         None => Vec::new(),
                     };
+                    let threshold = self.threshold(&margin_coefficients);
                     switches.push(PreferenceSwitch {
                         first: self.contract.actions[a].id.clone(),
                         second: self.contract.actions[b].id.clone(),
@@ -1926,6 +2416,7 @@ impl<'a> Prepared<'a> {
                         margin_range: (margin.min, margin.max),
                         favours_first_at: margin.max_at,
                         favours_second_at: margin.min_at,
+                        threshold,
                     });
                 }
             }
@@ -1934,6 +2425,7 @@ impl<'a> Prepared<'a> {
             contract_identity: self.identity.clone(),
             policy: self.contract.preference_policy,
             parameter_ids: self.parameter_ids.clone(),
+            parameter_ranges: self.parameter_ranges.clone(),
             actions,
             switches,
             verdict: self.decide(analysis, admissible),
@@ -2054,7 +2546,7 @@ impl<'a> Prepared<'a> {
     ) -> (PreferenceDecisionResult, StructuralPreferenceVerdict) {
         let n = admissible.len();
         let analyses: Vec<&Analysis> = evaluated.iter().map(|e| &e.analysis).collect();
-        let analysis = combine_invariant(&analyses, n);
+        let analysis = combine_invariant(&analyses, admissible, self.options.tie_tolerance);
         let mut result = self.assemble(Assembly {
             analysis: &analysis,
             admissible,
@@ -2064,7 +2556,8 @@ impl<'a> Prepared<'a> {
             source,
             n_draws,
         });
-        let agreement = agreed(evaluated);
+        let order: Vec<String> = self.contract.actions.iter().map(|a| a.id.clone()).collect();
+        let agreement = agreed(evaluated, &order);
         result.verdict = agreement.clone().unwrap_or_else(|| {
             if admissible.iter().any(|a| *a) {
                 PreferenceVerdict::PreferenceDependent {
@@ -2142,6 +2635,50 @@ mod tests {
         let lp = LpOptions::default();
         assert!(region.feasible(&[vec![0.0, 0.0, 0.0]], lp).unwrap().is_some());
         assert!(region.feasible(&[vec![1.0, 0.0, 0.0]], lp).unwrap().is_none());
+    }
+
+    #[test]
+    fn statement_numbers_have_four_significant_digits() {
+        assert_eq!(plain_number(6300.0), "6300");
+        assert_eq!(plain_number(6300.000_000_1), "6300");
+        assert_eq!(plain_number(123_456.0), "123456");
+        assert_eq!(plain_number(1.5), "1.5");
+        assert_eq!(plain_number(-0.123_456), "-0.1235");
+        assert_eq!(plain_number(0.000_123_456), "0.0001235");
+        assert_eq!(plain_number(0.0), "0");
+        assert_eq!(plain_number(-0.0), "0");
+        assert_eq!(plain_number(-1e-300), "-1e-300");
+        assert_eq!(plain_number(15_000_000.0), "1.5e7");
+        assert_eq!(plain_number(2.0e-5), "2e-5");
+        assert_eq!(plain_number(f64::INFINITY), "inf");
+    }
+
+    #[test]
+    fn identifiers_are_joined_as_a_list() {
+        let ids = |list: &[&str]| -> Vec<String> { list.iter().map(|s| (*s).to_owned()).collect() };
+        assert_eq!(join_ids(&ids(&[])), "");
+        assert_eq!(join_ids(&ids(&["a"])), "a");
+        assert_eq!(join_ids(&ids(&["a", "b"])), "a and b");
+        assert_eq!(join_ids(&ids(&["a", "b", "c"])), "a, b and c");
+    }
+
+    #[test]
+    fn standing_separates_unique_tied_and_dominated_actions() {
+        // a - b in [0, 2] (a never beaten, ties b at an edge); a - c in [1, 3] (c dominated by
+        // a); b - c in [-1, 1] (b and c switch).
+        let mut table = MarginTable::new(3);
+        let margin = |min: f64, max: f64| Margin { min, min_at: vec![], max, max_at: vec![] };
+        table.entries[1] = Some(margin(0.0, 2.0));
+        table.entries[2] = Some(margin(1.0, 3.0));
+        table.entries[5] = Some(margin(-1.0, 1.0));
+        let standing = Standing::of(&table, &[0, 1, 2], 3, 1e-9);
+        assert_eq!(standing.never_beaten, vec![true, false, false]);
+        assert_eq!(standing.uniquely, vec![false, false, false]);
+        assert_eq!(standing.dominated_by, vec![vec![], vec![], vec![0]]);
+        assert_eq!(standing.touching[0], vec![1]);
+        // Alone, an action is vacuously uniquely best.
+        let alone = Standing::of(&MarginTable::new(1), &[0], 1, 1e-9);
+        assert_eq!((alone.never_beaten[0], alone.uniquely[0]), (true, true));
     }
 
     #[test]

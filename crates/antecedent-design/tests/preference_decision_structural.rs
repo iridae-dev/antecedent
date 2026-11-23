@@ -19,8 +19,8 @@ use antecedent_design::preference_contract::{
 use antecedent_design::preference_decision::{
     AtomChoice, CertifiedRouteReason, MeasureOrigin, PreferenceAtomStatus,
     PreferenceDecisionError as E, PreferenceDecisionOptions, PreferenceDecisionResult,
-    PreferenceMeasure, PreferenceVerdict, StructuralPreferenceResult, StructuralPreferenceVerdict,
-    evaluate_preference_structural,
+    PreferenceMeasure, PreferenceSwitch, PreferenceVerdict, StructuralPreferenceResult,
+    StructuralPreferenceVerdict, evaluate_preference_structural,
 };
 use antecedent_design::preference_model::{
     Attribute, LinearRelation, PreferenceExpr as P, PreferenceParameter, PreferenceSet,
@@ -269,6 +269,71 @@ fn invariance_needs_every_structure_to_agree() {
     assert_eq!(
         result.verdict,
         StructuralPreferenceVerdict::Combined(PreferenceVerdict::ReportOnly)
+    );
+}
+
+/// A never beaten on [0, 1] but tied with B at w = 1: margin 3 - 3w.
+const S6: [(f64, f64); 2] = [(10.0, 4.0), (7.0, 1.0)];
+
+#[test]
+fn an_action_unbeaten_in_every_structure_but_tied_in_one_is_never_beaten() {
+    let invariant = StructuralPolicy::RequireInvariantBestAction;
+    let policy = PreferencePolicy::RequireInvariantBestAction;
+    let result = run(0.0, 1.0, invariant, policy, &[evaluated("s6", None, &S6)]);
+    let tied = PreferenceVerdict::NeverBeaten { action: "A".into(), ties_with: vec!["B".into()] };
+    assert_eq!(atom_verdict(&result, 0), tied);
+
+    // Unique in s1, tied at an edge in s6: never beaten across structures, not unique.
+    let result =
+        run(0.0, 1.0, invariant, policy, &[evaluated("s1", None, &S1), evaluated("s6", None, &S6)]);
+    assert_eq!(result.verdict, StructuralPreferenceVerdict::Combined(tied.clone()));
+    let combined = result.combined.as_ref().unwrap();
+    assert_eq!(combined.verdict, tied);
+    let (a, b) = (&combined.actions[0], &combined.actions[1]);
+    assert!(a.necessarily_best && !a.uniquely_best);
+    assert!(!b.necessarily_best && b.dominated_by.is_empty());
+    assert_eq!(
+        result.statement(),
+        "Action A is never beaten for any admissible value of the declared trade-offs and every \
+         evaluated structure, and ties with B at some admissible values."
+    );
+
+    // Two structures where A is unique keep the unique winner across structures.
+    let result =
+        run(0.0, 1.0, invariant, policy, &[evaluated("s1", None, &S1), evaluated("s2", None, &S2)]);
+    let combined = result.combined.as_ref().unwrap();
+    assert!(combined.actions[0].uniquely_best);
+    assert_eq!(combined.actions[1].dominated_by, vec!["A".to_string()]);
+    assert_eq!(
+        result.statement(),
+        "Action A is preferred for every admissible value of the declared trade-offs and every \
+         evaluated structure."
+    );
+
+    // Weighting the structures mixes the coefficients: A - B = 3.75 - 3w on [0, 1], unique.
+    let bayes = run(
+        0.0,
+        1.0,
+        StructuralPolicy::BayesOverStructures,
+        policy,
+        &[evaluated("s1", Some(0.5), &S1), evaluated("s6", Some(0.5), &S6)],
+    );
+    assert_eq!(
+        bayes.verdict,
+        StructuralPreferenceVerdict::Combined(PreferenceVerdict::NecessarilyBest("A".into()))
+    );
+    assert_eq!(
+        bayes.statement(),
+        "Action A is preferred for every admissible value of the declared trade-offs, with the \
+         evaluated structures weighted by their probabilities."
+    );
+    // Disagreeing structures are named.
+    let disagree =
+        run(0.0, 1.0, invariant, policy, &[evaluated("s1", None, &S1), evaluated("s3", None, &S3)]);
+    assert_eq!(
+        disagree.statement(),
+        "The evaluated structures s1 and s3 give different verdicts, so no action is preferred \
+         across structures."
     );
 }
 
@@ -782,6 +847,28 @@ fn check_table(
                 "{label} {id}: necessarily best but beaten at a grid point"
             );
         }
+        if outcome.uniquely_best {
+            assert!(outcome.necessarily_best, "{label} {id}: uniquely best implies never beaten");
+            assert!(outcome.dominated_by.is_empty(), "{label} {id}: uniquely best and dominated");
+        }
+        for rival in &outcome.dominated_by {
+            let b = result.actions.iter().position(|o| &o.id == rival).unwrap();
+            assert!(
+                rows.iter().all(|r| r[b] - r[a] >= -1e-7),
+                "{label} {id}: dominated by {rival} but ahead of it at a grid point"
+            );
+        }
+    }
+    if let PreferenceVerdict::NeverBeaten { action, ties_with } = &result.verdict {
+        let a = result.actions.iter().position(|o| &o.id == action).unwrap();
+        for rival in ties_with {
+            let b = result.actions.iter().position(|o| &o.id == rival).unwrap();
+            let low = rows.iter().map(|r| r[a] - r[b]).fold(f64::INFINITY, f64::min);
+            assert!(
+                low <= slack[a] + slack[b] + near(low),
+                "{label}: {action} ties {rival} but leads it by {low} on the grid"
+            );
+        }
     }
     for a in 0..m {
         for b in (a + 1)..m {
@@ -809,6 +896,7 @@ fn check_table(
             );
             assert!(set.contains(&switch.favours_first_at, 1e-7), "{label}: witness outside");
             assert!(set.contains(&switch.favours_second_at, 1e-7), "{label}: witness outside");
+            check_threshold(label, switch, set);
             if let [member] = family {
                 let at = |t: &[f64]| score(&member[a], t) - score(&member[b], t);
                 assert!(
@@ -821,6 +909,35 @@ fn check_table(
                 );
             }
         }
+    }
+}
+
+/// A threshold is reported exactly when the margin varies with one parameter alone, and the
+/// margin vanishes there with the other parameters at their midpoints.
+fn check_threshold(label: &str, switch: &PreferenceSwitch, set: &PreferenceSet) {
+    let c = &switch.margin_coefficients;
+    if c.is_empty() {
+        assert_eq!(switch.threshold, None, "{label}: threshold without coefficients");
+        return;
+    }
+    let varying: Vec<usize> = (0..set.dimension())
+        .filter(|&j| c[j + 1].abs() * (set.parameters[j].upper - set.parameters[j].lower) > 1e-9)
+        .collect();
+    match (varying.as_slice(), &switch.threshold) {
+        ([p], Some(threshold)) => {
+            assert_eq!(threshold.parameter_id, set.parameters[*p].id, "{label}");
+            assert_eq!(threshold.first_leads_above, c[p + 1] > 0.0, "{label}");
+            let point: Vec<f64> = set
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(j, q)| if j == *p { threshold.value } else { 0.5 * (q.lower + q.upper) })
+                .collect();
+            let at = affine(c, &point);
+            assert!(at.abs() <= near(c[0]), "{label}: margin {at} at the threshold");
+        }
+        ([_], None) => panic!("{label}: a one-parameter margin has no threshold"),
+        (_, threshold) => assert_eq!(threshold, &None, "{label}: several parameters"),
     }
 }
 
@@ -899,15 +1016,28 @@ fn expected_verdict(
             Err(tied) => PreferenceVerdict::Tied(ids(tied)),
         },
         PreferencePolicy::RequireInvariantBestAction => {
-            match actions.iter().find(|o| o.necessarily_best) {
-                Some(best) => PreferenceVerdict::NecessarilyBest(best.id.clone()),
-                None => PreferenceVerdict::PreferenceDependent {
+            if let Some(best) = actions.iter().find(|o| o.uniquely_best) {
+                return PreferenceVerdict::NecessarilyBest(best.id.clone());
+            }
+            let unbeaten: Vec<usize> =
+                all.iter().copied().filter(|a| actions[*a].necessarily_best).collect();
+            match unbeaten.as_slice() {
+                [] => PreferenceVerdict::PreferenceDependent {
                     possibly_best: actions
                         .iter()
                         .filter(|o| o.possibly_best != Some(false))
                         .map(|o| o.id.clone())
                         .collect(),
                 },
+                // The rivals it ties are checked against the grid in `check_table`.
+                [a] => PreferenceVerdict::NeverBeaten {
+                    action: actions[*a].id.clone(),
+                    ties_with: match &result.verdict {
+                        PreferenceVerdict::NeverBeaten { ties_with, .. } => ties_with.clone(),
+                        _ => Vec::new(),
+                    },
+                },
+                several => PreferenceVerdict::Tied(ids(several.to_vec())),
             }
         }
     }
@@ -920,6 +1050,11 @@ fn check_coefficients(label: &str, result: &PreferenceDecisionResult, expected: 
     }
 }
 
+/// Action ids in declaration order, read from the combined table.
+fn combined_ids(result: &StructuralPreferenceResult) -> Option<Vec<String>> {
+    result.combined.as_ref().map(|c| c.actions.iter().map(|o| o.id.clone()).collect())
+}
+
 /// The verdict of evaluated structures that agree, or each structure's verdict.
 fn agreement(result: &StructuralPreferenceResult) -> StructuralPreferenceVerdict {
     let verdicts: Vec<AtomChoice> = (0..result.atoms.len())
@@ -928,6 +1063,30 @@ fn agreement(result: &StructuralPreferenceResult) -> StructuralPreferenceVerdict
     let first = verdicts[0].verdict.clone();
     if verdicts.iter().all(|v| v.verdict == first) {
         return StructuralPreferenceVerdict::Combined(first);
+    }
+    // One action unbeaten in every structure is never beaten across them.
+    let unbeaten: Option<Vec<(&String, &[String])>> = verdicts
+        .iter()
+        .map(|v| match &v.verdict {
+            PreferenceVerdict::NecessarilyBest(a) => Some((a, &[][..])),
+            PreferenceVerdict::NeverBeaten { action, ties_with } => {
+                Some((action, ties_with.as_slice()))
+            }
+            _ => None,
+        })
+        .collect();
+    if let Some(list) = unbeaten
+        && list.iter().all(|(a, _)| *a == list[0].0)
+    {
+        let ties_with = combined_ids(result)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|id| list.iter().any(|(_, ties)| ties.contains(id)))
+            .collect();
+        return StructuralPreferenceVerdict::Combined(PreferenceVerdict::NeverBeaten {
+            action: list[0].0.clone(),
+            ties_with,
+        });
     }
     if let PreferenceVerdict::MeasureChoice { action, .. } = &first {
         let shares: Option<Vec<f64>> = verdicts
