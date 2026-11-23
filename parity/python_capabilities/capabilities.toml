@@ -18057,3 +18057,115 @@ test = "python/tests/test_sampling_weights.py::test_an_estimator_that_reads_no_w
 assertion_scopes = ["test_an_estimator_that_reads_no_weights_refuses_them"]
 dimensions = ["refusal"]
 assertion_contract = "Weights given to an estimator that does not read them are refused as unsupported, and ridge fits refuse weights as non-ordinary least squares."
+
+[[capability]]
+id = "preferences.decide_exact"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Decide across a declared preference set by linear programs when the value is affine in the parameters and the criterion is an expectation."
+python = "antecedent.preferences.Contract.evaluate"
+required_dimensions = ["success", "inspection", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_range_that_crosses_the_switch_reports_where_the_choice_changes"
+assertion_scopes = ["test_a_range_that_crosses_the_switch_reports_where_the_choice_changes"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A range of the harm weight that crosses the switch is preference dependent with the switch pair, margin range (-1, 0.75), witnesses on each side of 2 and a threshold."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_maximin_and_minimax_regret_choose_across_the_range"
+assertion_scopes = ["test_maximin_and_minimax_regret_choose_across_the_range"]
+dimensions = ["success", "branch"]
+assertion_contract = "Maximin and minimax regret both choose wait, with worst-case regrets 1 for treat and 0.75 for wait."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_mean_source_answers_the_exact_route"
+assertion_scopes = ["test_a_mean_source_answers_the_exact_route"]
+dimensions = ["success"]
+assertion_contract = "A mean source answers the exact route and treat is necessarily best."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_invalid_declarations_refuse_with_their_detail"
+assertion_scopes = ["test_invalid_declarations_refuse_with_their_detail"]
+dimensions = ["refusal"]
+assertion_contract = "An empty parameter range and too few actions refuse with their registered preference_model and preference_contract details."
+
+[[capability]]
+id = "preferences.decide_certified"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Decide across a preference set by certified subdivision when the value has a shape parameter."
+python = "antecedent.preferences.Contract.evaluate"
+required_dimensions = ["success", "branch"]
+supports = ["capability:preference_decision.certified"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_shape_parameter_is_answered_by_certified_subdivision"
+assertion_scopes = ["test_a_shape_parameter_is_answered_by_certified_subdivision"]
+dimensions = ["success", "branch"]
+assertion_contract = "A model with a shape parameter routes to the certified route, which proves treat necessarily best with no undecided volume."
+
+[[capability]]
+id = "preferences.decision_artifact"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Export a decision across a preference set and replay it by recomputation on the same joint draws."
+python = "antecedent.preferences.replay"
+required_dimensions = ["artifact", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_export_and_replay_recompute_the_decision"
+assertion_scopes = ["test_export_and_replay_recompute_the_decision"]
+dimensions = ["artifact", "refusal"]
+assertion_contract = "The replayed decision has the stored kind, contract identity and switch margins, and a replay that does not match is refused."
+
+[[capability]]
+id = "preference_learning.compatible_set"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Learn the preference parameters compatible with recorded or stated choices."
+python = "antecedent.preference_learning.CompatibleSet.learn"
+required_dimensions = ["success", "inspection"]
+supports = ["capability:preference_learning.compatible_set"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_records_narrow_the_set_then_the_accepted_preferences_decide"
+assertion_scopes = ["test_records_narrow_the_set_then_the_accepted_preferences_decide"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "Records narrow the harm weight from (0, 4) to (0, 1) with no conflicts, and the accepted preferences export, load under the retained identity and decide."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_contradictory_records_are_reported_with_the_tolerance_needed"
+assertion_scopes = ["test_contradictory_records_are_reported_with_the_tolerance_needed"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Contradictory records are the smallest conflict {r1, r3} with tolerance needed 1, per decider and pooled."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_stated_comparison_narrows_a_range_under_its_named_assumption"
+assertion_scopes = ["test_a_stated_comparison_narrows_a_range_under_its_named_assumption"]
+dimensions = ["success"]
+assertion_contract = "A stated comparison narrows the harm weight to (3, 4) and adds its named assumption."
+
+[[capability]]
+id = "preference_learning.choice_model"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Estimate preference parameters from recorded choices read as noisy, with an interval reported as not measured."
+python = "antecedent.preference_learning.ChoiceModel.learn"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_learning.choice_model"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_estimates_the_trade_off_and_carries_its_measure"
+assertion_scopes = ["test_the_choice_model_estimates_the_trade_off_and_carries_its_measure"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The harm weight is estimated near 1.5 with the estimate inside its interval, the interval calibration is not_measured, and nothing is unlearnable."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices"
+assertion_scopes = ["test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices"]
+dimensions = ["refusal"]
+assertion_contract = "A fit mixing stated and recorded choices refuses with preference_choice_model.stated_and_recorded_mixed."
+
+[[capability]]
+id = "preference_learning.accepted_preferences"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Accept learned preferences, export them and load them under a retained identity, relearning from the records."
+python = "antecedent.preference_learning.load"
+required_dimensions = ["artifact"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_records_narrow_the_set_then_the_accepted_preferences_decide"
+assertion_scopes = ["test_records_narrow_the_set_then_the_accepted_preferences_decide"]
+dimensions = ["artifact", "lifecycle"]
+assertion_contract = "Reviewed accepted preferences export and load under the retained identity with the records they were learned from, and then decide."

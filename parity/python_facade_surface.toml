@@ -4152,3 +4152,135 @@ rust = "antecedent::analysis::trial_ipw_transport_decision::consume_trial_ipw_tr
 kind = "fn"
 status = "bound"
 python = "antecedent.transport.decisions.consume_transport_decision"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::source_requirement"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_claim"
+kind = "fn"
+status = "unverified"
+reason = "Python decides on joint draws or a mean source through antecedent.preferences.Contract.evaluate; whether it reads a native response claim directly has not been confirmed by reading the wrappers."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_accepted"
+kind = "fn"
+status = "unverified"
+reason = "Python builds a contract over accepted preferences in antecedent.preference_learning and decides through antecedent.preferences.Contract.evaluate; the facade entry itself has not been confirmed in the wrappers."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::structure_claims"
+kind = "fn"
+status = "unverified"
+reason = "Python passes structures through antecedent.preferences.Structures; reading a study's structural response mixture has not been confirmed in the wrappers."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_across_structures"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::analysis_options"
+kind = "fn"
+status = "bound"
+python = "antecedent.preference_learning.Option.from_result"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::analysis_result_identity"
+kind = "fn"
+status = "unverified"
+reason = "No Python counterpart was confirmed; antecedent.preference_learning.AnalysisAsOf names the belief source."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::analysis_belief_source"
+kind = "fn"
+status = "unverified"
+reason = "No Python counterpart was confirmed; antecedent.preference_learning.AnalysisAsOf names the belief source."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::export_accepted"
+kind = "fn"
+status = "bound"
+python = "antecedent.preference_learning.AcceptedPreferences.export"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::consume_accepted"
+kind = "fn"
+status = "bound"
+python = "antecedent.preference_learning.load"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::record_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.PreferenceDecision.export"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::export_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.PreferenceDecision.export"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::consume_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.replay"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::experiment_arm_quantity"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.experiment_quantity"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::experiment_mean_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.experiment_means"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::chain_joint_law"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.chain_law"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::joint_law_of"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.joint_law"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_across_structures_with_context"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_with_context"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.Contract.evaluate"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_claim_with_context"
+kind = "fn"
+status = "unverified"
+reason = "Python decides on joint draws or a mean source through antecedent.preferences.Contract.evaluate; whether it reads a native response claim directly has not been confirmed by reading the wrappers."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_accepted_with_context"
+kind = "fn"
+status = "unverified"
+reason = "Python builds a contract over accepted preferences in antecedent.preference_learning and decides through antecedent.preferences.Contract.evaluate; the facade entry itself has not been confirmed in the wrappers."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::record_decision_with_context"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.PreferenceDecision.export"

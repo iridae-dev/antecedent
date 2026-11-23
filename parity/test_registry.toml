@@ -1708,7 +1708,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/mediation_mixed_graph.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 
 [[test]]
 id = "class-attribution-route"
@@ -1716,7 +1716,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/class_attribution_route.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 
 [[test]]
 id = "latent-block-witness-and-block-games"
@@ -2238,6 +2238,13 @@ id = "decision-reliability-interval-calibration"
 crate = "antecedent-design"
 cargo_target = "decision_reliability_interval_calibration"
 path = "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "preference-choice-model-calibration"
+crate = "antecedent-design"
+cargo_target = "preference_choice_model_calibration"
+path = "crates/antecedent-design/tests/preference_choice_model_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
@@ -5564,7 +5571,7 @@ id = "counterfactual-class-route"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/counterfactual_class_route.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6576,7 +6583,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/predictive_score_interval_facade.rs"
 calibration_acceptance_assertions = ["an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", "the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"]
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6862,7 +6869,7 @@ id = "released-surface"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/released_surface.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6878,7 +6885,7 @@ id = "resampling-accuracy"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/resampling_accuracy.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6915,7 +6922,7 @@ id = "route-diagnostics"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/route_diagnostics.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6992,7 +6999,7 @@ id = "sampling-design-declaration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/sampling_design_declaration.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7730,7 +7737,7 @@ id = "z-transport-repair"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_repair.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7738,7 +7745,7 @@ id = "z-transport-surrogate-calibration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_surrogate_calibration.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory"]
 
 [[test]]
@@ -10700,7 +10707,7 @@ id = "typed-transported-mechanism-facade"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/typed_transported_mechanism_facade.rs"
-suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -24872,3 +24879,289 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_graph_reliability_report.py"
 gates = ["inventory"]
+
+[[test]]
+id = "stats-linear-program"
+crate = "antecedent-stats"
+cargo_target = "linear_program"
+path = "crates/antecedent-stats/tests/linear_program.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-linear-program-reference"
+crate = "antecedent-stats"
+cargo_target = "linear_program_reference"
+path = "crates/antecedent-stats/tests/linear_program_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit"
+crate = "antecedent-stats"
+cargo_target = "conditional_logit"
+path = "crates/antecedent-stats/tests/conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit-reference"
+crate = "antecedent-stats"
+cargo_target = "conditional_logit_reference"
+path = "crates/antecedent-stats/tests/conditional_logit_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_model.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model-reference"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_model_reference.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-contract"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_contract.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/choice_record.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record-reference"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/choice_record_reference.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_decision.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision-structural"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_decision_structural.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-certified"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_certified.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_set_learning.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning-reference"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_set_learning_reference.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-choice-model"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_choice_model.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-accepted-preferences"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/accepted_preferences.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-evaluation"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_evaluation.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-artifact"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_artifact.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-cancellation"
+crate = "antecedent-design"
+cargo_target = "suite_03"
+path = "crates/antecedent-design/tests/preference_cancellation.rs"
+suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-accepted-preferences-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/accepted_preferences.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/choice_record.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-artifact-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-certified-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_certified.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-choice-model-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_choice_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-contract-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-refusal-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_refusal.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_set_learning.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-linear-program-unit"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/linear_program.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit-unit"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/glm/conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-preferences"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_preferences.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-preference-learning"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_preference_learning.py"
+gates = ["inventory"]
+
+[[test]]
+id = "facade-preference-decision-end-to-end"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_end_to_end.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-several-outcomes"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_several_outcomes.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-structures"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_structures.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-outcomes"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_outcomes.rs"
+suite_map_line = "suite_09: class_attribution_route, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes"
+gates = ["inventory", "named"]

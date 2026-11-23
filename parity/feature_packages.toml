@@ -729,3 +729,45 @@ purpose = "Do a corrected measured exposure, composed mechanisms, pooled shared 
 depends_on = ["measurement.binary_misclassification", "mechanism_composition.acyclic_joint_model", "evidence_ledger.statistical_pooling", "evidence_ledger.revision", "joint_law.linear_moment_propagation", "interface_contract.scientific_interface", "composition_verification.claim_revalidation", "decision.contract"]
 record = "composition.release_boundary_fixture"
 record_state = "frozen"
+
+[[feature]]
+id = "preference_decision.exact"
+purpose = "exact decision across a declared preference set by linear programming"
+depends_on = ["decision.contract", "decision.structural_policy"]
+record = "preference_decision.exact"
+record_state = "frozen"
+
+[[feature]]
+id = "preference_decision.certified"
+purpose = "certified decision across a preference set by interval subdivision"
+depends_on = ["decision.contract", "decision.structural_policy"]
+record = "preference_decision.certified"
+record_state = "frozen"
+
+[[feature]]
+id = "preference_decision.artifact"
+purpose = "durable record of a decision across a preference set, replayed by recomputation"
+depends_on = ["preference_decision.exact", "preference_decision.certified"]
+record = "preference_decision.artifact"
+record_state = "frozen"
+
+[[feature]]
+id = "preference_learning.compatible_set"
+purpose = "preference parameters compatible with recorded or stated choices"
+depends_on = ["preference_decision.exact"]
+record = "preference_learning.compatible_set"
+record_state = "frozen"
+
+[[feature]]
+id = "preference_learning.choice_model"
+purpose = "conditional logit estimate of preference parameters from noisy recorded choices"
+depends_on = ["preference_decision.exact", "preference_learning.compatible_set"]
+record = "preference_learning.choice_model"
+record_state = "frozen"
+
+[[feature]]
+id = "preference_learning.accepted_preferences"
+purpose = "reviewed, versioned preferences reused across decisions, with a recomputing artifact"
+depends_on = ["preference_learning.compatible_set", "preference_learning.choice_model", "preference_decision.exact"]
+record = "preference_learning.accepted_preferences"
+record_state = "frozen"
