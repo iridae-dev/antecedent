@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod accepted_preferences;
 pub mod adaptive_policy;
 pub mod adaptive_policy_search;
 pub mod candidate;
@@ -45,10 +46,12 @@ pub mod objective;
 pub mod obligation_adapters;
 mod plan_common;
 pub mod planning;
+pub mod preference_artifact;
 pub mod preference_certified;
 pub mod preference_choice_model;
 pub mod preference_contract;
 pub mod preference_decision;
+pub mod preference_evaluation;
 pub mod preference_model;
 pub mod preference_refusal;
 pub mod preference_set_learning;

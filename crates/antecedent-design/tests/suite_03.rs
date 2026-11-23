@@ -25,3 +25,9 @@ mod preference_decision;
 mod preference_decision_structural;
 #[path = "preference_certified.rs"]
 mod preference_certified;
+#[path = "accepted_preferences.rs"]
+mod accepted_preferences;
+#[path = "preference_evaluation.rs"]
+mod preference_evaluation;
+#[path = "preference_artifact.rs"]
+mod preference_artifact;
