@@ -1,10 +1,14 @@
-//! Decide whether a Hawkes excitation mass can be read as a structural effect.
+//! Compare a constant-baseline Hawkes fit with a declared immigrant alternative.
 //!
-//! The fit reports a conditional intensity. A second fit adds a declared
-//! immigrant feature. The structural reading is retained only when the
-//! horizon-specific direct mass agrees within a declared tolerance and neither
-//! fit is weakly identified or pinned to its stability cap. Otherwise the mass
-//! stays a conditional-intensity functional.
+//! Both fits are conditional intensities. The diagnostic agrees when the
+//! horizon-specific direct masses differ by at most a caller-supplied tolerance
+//! and neither fit is weakly identified or pinned to its stability cap.
+//! Agreement is not identification. A shared latent trend can survive both
+//! models, and the tolerance is not a derived uncertainty test. A causal
+//! reading still needs an identification strategy, or explicit structural
+//! assumptions, and the evidence for them. Release-time offspring are a
+//! conditional scenario under an agreed diagnostic, not an identified market
+//! response.
 
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
@@ -15,22 +19,27 @@ use super::{
     AdmissionLease, EventError, EventHistory, PreparedKernel, admit, digest, history_bytes,
 };
 
-/// Whether the horizon-specific direct mass survived the immigrant challenge.
+/// Outcome of the declared immigrant diagnostic.
+///
+/// [`DiagnosticStatus::Agreed`] means the horizon masses moved by at most the
+/// caller's tolerance and neither fit was weakly identified or on its stability
+/// cap. That checks two conditional intensities. It does not identify a causal
+/// effect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum StructuralStatus {
-    /// The two fits agree on an interior mass. It may be read as a direct effect.
-    Retained,
-    /// The mass is a conditional-intensity functional.
-    Refused,
+pub enum DiagnosticStatus {
+    /// The caller's tolerance and the interior-fit checks both hold.
+    Agreed,
+    /// The diagnostic does not support a conditional scenario.
+    Withheld,
 }
 
 /// Result of challenging one excitation edge.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ExcitationReading {
-    /// Retained only under the declared tolerance and interior fits.
-    pub status: StructuralStatus,
-    /// Why a structural reading was refused.
+    /// [`DiagnosticStatus::Agreed`] only under the declared tolerance and interior fits.
+    pub status: DiagnosticStatus,
+    /// Why the diagnostic withheld a conditional scenario.
     pub reason: Option<&'static str>,
     /// Queried source index.
     pub source: usize,
@@ -51,21 +60,28 @@ pub struct ExcitationReading {
 }
 
 impl ExcitationReading {
-    /// Direct effect on the challenged horizon.
+    /// Horizon mass of the constant-baseline fit when the diagnostic agrees.
+    ///
+    /// The number is that conditional-intensity functional. Agreement does not
+    /// turn it into an identified causal effect.
     ///
     /// # Errors
-    /// The immigrant challenge refused a structural reading.
-    pub fn structural_direct(&self) -> Result<f64, EventError> {
+    /// The diagnostic was withheld.
+    pub fn agreed_direct(&self) -> Result<f64, EventError> {
         match self.status {
-            StructuralStatus::Retained => Ok(self.conditional_direct),
-            StructuralStatus::Refused => Err(EventError::Fit(
-                "excitation mass is a conditional intensity, not a structural effect",
+            DiagnosticStatus::Agreed => Ok(self.conditional_direct),
+            DiagnosticStatus::Withheld => Err(EventError::Fit(
+                "immigrant diagnostic did not agree; the mass stays a conditional intensity",
             )),
         }
     }
 }
 
-/// In-window offspring of releasing at two times, under a retained reading.
+/// In-window offspring of one added event at two times.
+///
+/// Computed from the constant-baseline kernel after the immigrant diagnostic
+/// agrees. This is a conditional scenario under that kernel and those
+/// diagnostics, not an identified market response.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ReleaseChoice {
     /// Earlier release time.
@@ -87,6 +103,11 @@ pub struct ReleaseChoice {
     pub greater_descendant_release: Option<u8>,
 }
 
+pub(super) struct FitFlags {
+    pub weak: bool,
+    pub capped: bool,
+}
+
 pub(super) struct EdgeFacts {
     pub source: usize,
     pub target: usize,
@@ -94,16 +115,14 @@ pub(super) struct EdgeFacts {
     pub tolerance: f64,
     pub conditional_direct: f64,
     pub alternative_direct: f64,
-    pub weak_constant: bool,
-    pub weak_alternative: bool,
-    pub capped_constant: bool,
-    pub capped_alternative: bool,
+    pub constant: FitFlags,
+    pub alternative: FitFlags,
     pub lifetime_direct: f64,
     pub lifetime_descendants: f64,
     pub horizon_descendants: f64,
 }
 
-pub(super) fn judge(facts: EdgeFacts) -> Result<ExcitationReading, EventError> {
+pub(super) fn judge(facts: &EdgeFacts) -> Result<ExcitationReading, EventError> {
     if !facts.horizon.is_finite()
         || facts.horizon <= 0.0
         || !facts.tolerance.is_finite()
@@ -115,13 +134,13 @@ pub(super) fn judge(facts: EdgeFacts) -> Result<ExcitationReading, EventError> {
             "excitation challenge needs a positive horizon and a nonnegative tolerance",
         ));
     }
-    let reason = if facts.weak_constant {
+    let reason = if facts.constant.weak {
         Some("constant-baseline fit is weakly identified")
-    } else if facts.weak_alternative {
+    } else if facts.alternative.weak {
         Some("immigrant-alternative fit is weakly identified")
-    } else if facts.capped_constant {
+    } else if facts.constant.capped {
         Some("constant-baseline fit is on its stability cap")
-    } else if facts.capped_alternative {
+    } else if facts.alternative.capped {
         Some("immigrant-alternative fit is on its stability cap")
     } else if (facts.conditional_direct - facts.alternative_direct).abs() > facts.tolerance {
         Some("immigrant alternative moved the horizon mass")
@@ -130,9 +149,9 @@ pub(super) fn judge(facts: EdgeFacts) -> Result<ExcitationReading, EventError> {
     };
     Ok(ExcitationReading {
         status: if reason.is_none() {
-            StructuralStatus::Retained
+            DiagnosticStatus::Agreed
         } else {
-            StructuralStatus::Refused
+            DiagnosticStatus::Withheld
         },
         reason,
         source: facts.source,
@@ -239,30 +258,38 @@ fn catalog_reading(
 ) -> Result<ExcitationReading, EventError> {
     let offspring = constant.parameters.excitation_offspring(source, horizon)?;
     let other = alternative.parameters.excitation_offspring(source, horizon)?;
-    judge(EdgeFacts {
+    judge(&EdgeFacts {
         source,
         target,
         horizon,
         tolerance,
         conditional_direct: offspring.direct[target],
         alternative_direct: other.direct[target],
-        weak_constant: constant.weak_identification,
-        weak_alternative: alternative.weak_identification,
-        capped_constant: constant.active_columns.contains(&source),
-        capped_alternative: alternative.active_columns.contains(&source),
+        constant: FitFlags {
+            weak: constant.weak_identification,
+            capped: constant.active_columns.contains(&source),
+        },
+        alternative: FitFlags {
+            weak: alternative.weak_identification,
+            capped: alternative.active_columns.contains(&source),
+        },
         lifetime_direct: offspring.lifetime_direct[target],
         lifetime_descendants: offspring.lifetime_descendants[target],
         horizon_descendants: offspring.horizon_descendants[target],
     })
 }
 
-/// Compare two release times inside a fixed window, under a retained catalog reading.
+/// Compare two release times under a kernel whose diagnostic agreed.
 ///
-/// A release at time `t` contributes over the remaining horizon `window_end - t`.
+/// A time `t` is scored on the remaining horizon `window_end - t`, as offspring
+/// of one added event in the constant-baseline kernel. The comparison is
+/// available only when [`ExcitationReading::agreed_direct`] succeeds. It does
+/// not identify the effect of releasing. A utility over path outcomes is a
+/// decision contract on the event worlds.
 ///
 /// # Errors
-/// The reading was refused, the times are unordered, or the parameters are not
-/// the kernel the reading was computed from.
+/// The diagnostic was withheld, the times are unordered, or the parameters are
+/// not the kernel the reading was computed from.
 pub fn compare_release_times(
     parameters: &HawkesParameters,
     reading: &ExcitationReading,
@@ -270,8 +297,8 @@ pub fn compare_release_times(
     later: f64,
     window_end: f64,
 ) -> Result<ReleaseChoice, EventError> {
-    reading.structural_direct()?;
-    if !(earlier < later && later <= window_end) || !window_end.is_finite() {
+    reading.agreed_direct()?;
+    if !(earlier < later && later <= window_end && window_end.is_finite()) {
         return Err(EventError::invalid(
             "release times must be ordered and fall at or before the window end",
         ));
@@ -404,27 +431,32 @@ fn marked_reading(
         constant.parameters.excitation_offspring(&constant.prototypes, source, horizon)?;
     let other =
         alternative.parameters.excitation_offspring(&alternative.prototypes, source, horizon)?;
-    judge(EdgeFacts {
+    judge(&EdgeFacts {
         source,
         target,
         horizon,
         tolerance,
         conditional_direct: offspring.direct[target],
         alternative_direct: other.direct[target],
-        weak_constant: constant.weak_identification,
-        weak_alternative: alternative.weak_identification,
-        capped_constant: constant.cap_active,
-        capped_alternative: alternative.cap_active,
+        constant: FitFlags { weak: constant.weak_identification, capped: constant.cap_active },
+        alternative: FitFlags {
+            weak: alternative.weak_identification,
+            capped: alternative.cap_active,
+        },
         lifetime_direct: offspring.lifetime_direct[target],
         lifetime_descendants: offspring.lifetime_descendants[target],
         horizon_descendants: offspring.horizon_descendants[target],
     })
 }
 
-/// Compare two release times for a marked kernel under a retained reading.
+/// Compare two release times for a marked kernel whose diagnostic agreed.
+///
+/// The comparison uses the same conditional scenario as
+/// [`compare_release_times`]: offspring of one added event, not an identified
+/// market response.
 ///
 /// # Errors
-/// The reading was refused, the times are unordered, or the kernel does not
+/// The diagnostic was withheld, the times are unordered, or the kernel does not
 /// match the reading.
 pub fn compare_marked_release_times(
     parameters: &super::marked::MarkedParameters,
@@ -434,8 +466,8 @@ pub fn compare_marked_release_times(
     later: f64,
     window_end: f64,
 ) -> Result<ReleaseChoice, EventError> {
-    reading.structural_direct()?;
-    if !(earlier < later && later <= window_end) || !window_end.is_finite() {
+    reading.agreed_direct()?;
+    if !(earlier < later && later <= window_end && window_end.is_finite()) {
         return Err(EventError::invalid(
             "release times must be ordered and fall at or before the window end",
         ));
@@ -466,58 +498,6 @@ pub fn compare_marked_release_times(
     ))
 }
 
-#[cfg(test)]
-mod reading_tests {
-    use super::{StructuralStatus, catalog_reading, compare_release_times};
-    use crate::analysis::events::hawkes::{HawkesFit, HawkesParameters};
-
-    fn shell(alpha: f64, weak: bool, active: bool) -> HawkesFit {
-        HawkesFit {
-            parameters: HawkesParameters {
-                baseline: vec![0.5],
-                branching: vec![alpha],
-                decay: vec![1.0],
-            },
-            log_likelihood: 0.0,
-            iterations: 1,
-            projected_residual: 0.0,
-            active_columns: if active { vec![0] } else { vec![] },
-            zero_edges: vec![],
-            weak_identification: weak,
-        }
-    }
-
-    #[test]
-    fn agreement_retains_the_horizon_mass_and_a_shift_refuses_it() {
-        let constant = shell(0.4, false, false);
-        let reading =
-            catalog_reading(&constant, &shell(0.1, false, false), 0, 0, 1.0, 0.05).unwrap();
-        assert_eq!(reading.status, StructuralStatus::Refused);
-        assert_eq!(reading.reason, Some("immigrant alternative moved the horizon mass"));
-        assert!(reading.structural_direct().is_err());
-        let retained =
-            catalog_reading(&constant, &shell(0.4, false, false), 0, 0, 1.0, 0.0).unwrap();
-        let direct = 0.4 * (1.0 - (-1.0_f64).exp());
-        assert!((retained.structural_direct().unwrap() - direct).abs() < 1e-12);
-        assert_eq!(
-            catalog_reading(&shell(0.4, true, false), &constant, 0, 0, 1.0, 1.0).unwrap().reason,
-            Some("constant-baseline fit is weakly identified")
-        );
-        assert_eq!(
-            catalog_reading(&constant, &shell(0.4, false, true), 0, 0, 1.0, 1.0).unwrap().reason,
-            Some("immigrant-alternative fit is on its stability cap")
-        );
-        let choice =
-            compare_release_times(&constant.parameters, &retained, 0.0, 7.0, 10.0).unwrap();
-        let early = 0.4 * (1.0 - (-10.0_f64).exp());
-        let late = 0.4 * (1.0 - (-3.0_f64).exp());
-        assert!((choice.earlier_direct - early).abs() < 1e-12);
-        assert!((choice.later_direct - late).abs() < 1e-12);
-        assert_eq!(choice.greater_descendant_release, Some(0));
-        assert!(compare_release_times(&constant.parameters, &reading, 0.0, 1.0, 2.0).is_err());
-    }
-}
-
 fn choice(
     earlier: f64,
     later: f64,
@@ -545,5 +525,55 @@ fn choice(
         earlier_descendants,
         later_descendants,
         greater_descendant_release,
+    }
+}
+
+#[cfg(test)]
+mod reading_tests {
+    use super::{DiagnosticStatus, catalog_reading, compare_release_times};
+    use crate::analysis::events::hawkes::{HawkesFit, HawkesParameters};
+
+    fn shell(alpha: f64, weak: bool, active: bool) -> HawkesFit {
+        HawkesFit {
+            parameters: HawkesParameters {
+                baseline: vec![0.5],
+                branching: vec![alpha],
+                decay: vec![1.0],
+            },
+            log_likelihood: 0.0,
+            iterations: 1,
+            projected_residual: 0.0,
+            active_columns: if active { vec![0] } else { vec![] },
+            zero_edges: vec![],
+            weak_identification: weak,
+        }
+    }
+
+    #[test]
+    fn agreement_returns_the_horizon_mass_and_a_shift_withholds_it() {
+        let constant = shell(0.4, false, false);
+        let reading =
+            catalog_reading(&constant, &shell(0.1, false, false), 0, 0, 1.0, 0.05).unwrap();
+        assert_eq!(reading.status, DiagnosticStatus::Withheld);
+        assert_eq!(reading.reason, Some("immigrant alternative moved the horizon mass"));
+        assert!(reading.agreed_direct().is_err());
+        let agreed = catalog_reading(&constant, &shell(0.4, false, false), 0, 0, 1.0, 0.0).unwrap();
+        let direct = 0.4 * (1.0 - (-1.0_f64).exp());
+        assert!((agreed.agreed_direct().unwrap() - direct).abs() < 1e-12);
+        assert_eq!(
+            catalog_reading(&shell(0.4, true, false), &constant, 0, 0, 1.0, 1.0).unwrap().reason,
+            Some("constant-baseline fit is weakly identified")
+        );
+        assert_eq!(
+            catalog_reading(&constant, &shell(0.4, false, true), 0, 0, 1.0, 1.0).unwrap().reason,
+            Some("immigrant-alternative fit is on its stability cap")
+        );
+        let choice = compare_release_times(&constant.parameters, &agreed, 0.0, 7.0, 10.0).unwrap();
+        let early = 0.4 * (1.0 - (-10.0_f64).exp());
+        let late = 0.4 * (1.0 - (-3.0_f64).exp());
+        assert!((choice.earlier_direct - early).abs() < 1e-12);
+        assert!((choice.later_direct - late).abs() < 1e-12);
+        assert_eq!(choice.greater_descendant_release, Some(0));
+        assert!(compare_release_times(&constant.parameters, &reading, 0.0, 1.0, 2.0).is_err());
     }
 }

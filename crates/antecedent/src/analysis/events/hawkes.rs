@@ -593,10 +593,16 @@ fn filter_descendants(
     if !step.is_finite() || step <= 0.0 {
         return Err(EventError::Numerical("nonfinite offspring step"));
     }
-    let steps = (horizon / step).ceil() as usize;
-    if steps > 200_000 {
+    let steps_f = (horizon / step).ceil();
+    if !steps_f.is_finite() || !(1.0..=200_000.0).contains(&steps_f) {
         return Err(EventError::Numerical("offspring horizon is too long for the decay"));
     }
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the step count was checked to lie in 1..=200_000"
+    )]
+    let steps = steps_f as usize;
     let dt = horizon / steps as f64;
     let mut filters = vec![0.0; n * n];
     for target in 0..n {
@@ -677,7 +683,10 @@ impl BaselineFeature {
         if !aligned
             || self.knots.len() != self.values.len()
             || self.knots.len() > 4096
-            || self.knots.windows(2).any(|pair| !(pair[1] > pair[0]))
+            || self
+                .knots
+                .windows(2)
+                .any(|pair| pair[1].partial_cmp(&pair[0]) != Some(std::cmp::Ordering::Greater))
             || self.knots.last().is_some_and(|knot| *knot >= window.end)
             || self.values.iter().any(|value| !value.is_finite() || *value < 0.0)
             || !varies

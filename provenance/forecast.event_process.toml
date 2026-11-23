@@ -16,7 +16,7 @@ implementation_deviations = [
   "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff.",
   "Finite-horizon direct offspring is α(1 - exp(-β H)). Lifetime descendants are the column of (I - A)^{-1} - I, which removes the initiating event counted by the resolvent. Horizon descendants integrate the linear filter ODE and are not the resolvent of the horizon-discounted branching matrix.",
   "The marked kernel is finite-rank on declared prototype features. Its fit projects onto a uniform reproduction cap, a convex sufficient condition for spectral radius below one and generally stricter. Declared marked parameters are checked with the prototype branching matrix.",
-  "A structural reading of one excitation edge is retained only when a declared immigrant alternative moves the horizon-specific direct mass by at most a declared tolerance and neither fit is weakly identified or on its stability cap. Otherwise the mass remains a conditional-intensity functional.",
+  "The immigrant diagnostic agrees only when a declared alternative moves the horizon-specific direct mass by at most a caller-supplied tolerance and neither fit is weakly identified or on its stability cap. Agreement is a robustness check on two conditional intensities, not an identification result. Release-time offspring are a conditional scenario under an agreed diagnostic.",
 ]
 upstream_implementations_observed = []
 test_sources = [

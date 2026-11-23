@@ -23,9 +23,9 @@ pub use assessment::{
     ForecastScore, PreparedForecastAssessment, PublishedCountInterval, ReliabilityBin,
 };
 pub use challenge::{
-    ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge, PreparedExcitationChallenge,
-    PreparedMarkedChallenge, ReleaseChoice, StructuralStatus, compare_marked_release_times,
-    compare_release_times,
+    DiagnosticStatus, ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge,
+    PreparedExcitationChallenge, PreparedMarkedChallenge, ReleaseChoice,
+    compare_marked_release_times, compare_release_times,
 };
 pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
@@ -63,6 +63,7 @@ const MAX_PATHS: usize = 4096;
 pub const MAX_EVENT_TYPES: usize = max_dense_types(MAX_EVENTS, OPERATION_BUDGET);
 
 /// Largest `n` with `(max_events + 1) * n² <= budget / 2`.
+#[must_use]
 pub const fn max_dense_types(max_events: usize, budget: usize) -> usize {
     let allowance = budget / 2;
     let rows = max_events.saturating_add(1);

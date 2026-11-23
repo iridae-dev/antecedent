@@ -426,14 +426,13 @@ impl MarkedLikelihood {
         let mut events = Vec::with_capacity(history.events.len());
         for event in &history.events {
             state.advance(event.time, &mut integral);
-            let level = immigrant.map(|feature| feature.value(event.time)).unwrap_or(0.0);
+            let level = immigrant.map_or(0.0, |feature| feature.value(event.time));
             events.push((event.prototype, level, state.values.clone()));
             state.jump(&history.prototypes[event.prototype]);
         }
         state.advance(history.window.end, &mut integral);
         let immigrant_integral = immigrant
-            .map(|feature| feature.integral(history.window.start, history.window.end))
-            .unwrap_or(0.0);
+            .map_or(0.0, |feature| feature.integral(history.window.start, history.window.end));
         Ok(Self {
             rank,
             basis,
@@ -598,7 +597,7 @@ fn excitation_weights(prototypes: &[MarkPrototype]) -> Vec<f64> {
 
 impl MarkedFitSpec {
     pub(super) fn validate(&self, history: &MarkedHistory) -> Result<(), EventError> {
-        let rank = history.prototypes.first().map(|prototype| prototype.source.len()).unwrap_or(0);
+        let rank = history.prototypes.first().map_or(0, |prototype| prototype.source.len());
         if !(0.0..1.0).contains(&self.reproduction_cap)
             || self.reproduction_cap == 0.0
             || !(1..=2000).contains(&self.iterations)
@@ -611,15 +610,19 @@ impl MarkedFitSpec {
     }
 }
 
+struct FitTrace {
+    loss: f64,
+    iteration: usize,
+    residual: f64,
+    cap: f64,
+}
+
 fn finish(
     history: &MarkedHistory,
     decay: &[f64],
     coefficients: &[f64],
     immigrant: bool,
-    loss: f64,
-    iteration: usize,
-    residual: f64,
-    cap: f64,
+    trace: &FitTrace,
     likelihood: &MarkedLikelihood,
     work: &mut hawkes::Work<'_>,
 ) -> Result<MarkedFit, EventError> {
@@ -642,11 +645,11 @@ fn finish(
     Ok(MarkedFit {
         parameters,
         prototypes: history.prototypes.clone(),
-        log_likelihood: -loss,
-        iterations: iteration,
-        projected_residual: residual,
+        log_likelihood: -trace.loss,
+        iterations: trace.iteration,
+        projected_residual: trace.residual,
         reproduction,
-        cap_active: reproduction >= cap - 1e-7,
+        cap_active: reproduction >= trace.cap - 1e-7,
         zero_coefficients,
         weak_identification: weak_marked(likelihood, &history.prototypes, immigrant, work)?,
     })
@@ -754,10 +757,7 @@ fn fit_coefficients(
                 &spec.decay,
                 &coefficients,
                 immigrant_on,
-                loss,
-                iteration,
-                residual,
-                spec.reproduction_cap,
+                &FitTrace { loss, iteration, residual, cap: spec.reproduction_cap },
                 &likelihood,
                 work,
             );
@@ -863,10 +863,19 @@ fn marked_filter_descendants(
     let count = prototypes.len();
     let max_decay = parameters.decay.iter().copied().fold(0.0_f64, f64::max);
     let step = (1.0 / (64.0 * max_decay)).min(horizon);
-    let steps = (horizon / step).ceil() as usize;
-    if steps > 200_000 || !step.is_finite() {
+    if !step.is_finite() || step <= 0.0 {
+        return Err(EventError::Numerical("nonfinite offspring step"));
+    }
+    let steps_f = (horizon / step).ceil();
+    if !steps_f.is_finite() || !(1.0..=200_000.0).contains(&steps_f) {
         return Err(EventError::Numerical("offspring horizon is too long for the decay"));
     }
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the step count was checked to lie in 1..=200_000"
+    )]
+    let steps = steps_f as usize;
     let dt = horizon / steps as f64;
     let mut filters = vec![0.0; rank];
     for component in 0..rank {
@@ -1262,7 +1271,7 @@ mod marked_tests {
     fn regular_arrivals_fit_a_near_zero_excitation() {
         let ctx = ExecutionContext::for_tests(0);
         let events =
-            (0..20).map(|i| MarkedArrival { time: i as f64 + 0.5, prototype: 0 }).collect();
+            (0..20).map(|i| MarkedArrival { time: f64::from(i) + 0.5, prototype: 0 }).collect();
         let observed = history(events, 20.0);
         let spec = MarkedFitSpec { decay: vec![1.0], reproduction_cap: 0.9, iterations: 200 };
         let fitted = fit(&observed, &spec, &mut hawkes::Work::new(&ctx)).unwrap();
@@ -1289,6 +1298,6 @@ mod marked_tests {
         .unwrap()
         .execute(&ctx)
         .unwrap();
-        assert!(drawn == vec![Vec::new()]);
+        assert_eq!(drawn, vec![Vec::new()]);
     }
 }

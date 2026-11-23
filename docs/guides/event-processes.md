@@ -20,11 +20,13 @@ A marked history replaces the catalog with prototypes. Each prototype carries no
 
 The rank and the basis are capped by the same dense-feature allowance as the catalog. The prototype count is capped by the cost of that spectral witness.
 
-## From an excitation mass to an effect
+## Immigrant diagnostic
 
-An excitation mass is not an effect. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The structural reading is retained only when the horizon-specific direct masses agree within a declared tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `structural_direct` refuses.
+An excitation mass is a conditional intensity. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The diagnostic agrees when the horizon-specific direct masses differ by at most the caller's tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `agreed_direct` withholds the mass.
 
-`compare_release_times` uses a retained reading. It compares the in-window direct children and descendants of an earlier and a later release. The comparison is the offspring of one intervened event under that reading. A utility over path outcomes is still a decision contract on the event worlds.
+Agreement is not an identification result. A latent trend can enter both fits, and the tolerance is declared rather than derived from an uncertainty test. A causal reading still needs an identification strategy, or explicit structural assumptions, and the evidence that supports them.
+
+`compare_release_times` runs only after the diagnostic agrees. It scores the constant-baseline kernel's offspring of one added event over each remaining horizon. That is a conditional scenario under the agreed diagnostic, not an identified response to the release. A utility over path outcomes is still a decision contract on the event worlds.
 
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 

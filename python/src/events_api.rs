@@ -182,11 +182,11 @@ impl NativePreparedEventProgram {
                 Prepared::Release(parameters, challenge, earlier, later, end) => {
                     let reading = challenge.execute(&ctx).map_err(error)?;
                     let comparison = match reading.status {
-                        antecedent::analysis::events::StructuralStatus::Retained => Some(
+                        antecedent::analysis::events::DiagnosticStatus::Agreed => Some(
                             compare_release_times(parameters, &reading, *earlier, *later, *end)
                                 .map_err(error)?,
                         ),
-                        antecedent::analysis::events::StructuralStatus::Refused => None,
+                        antecedent::analysis::events::DiagnosticStatus::Withheld => None,
                     };
                     Ok((None, json!({"reading": reading, "comparison": comparison}), None))
                 }
@@ -200,7 +200,7 @@ impl NativePreparedEventProgram {
                 Prepared::MarkedRelease(parameters, prototypes, challenge, earlier, later, end) => {
                     let reading = challenge.execute(&ctx).map_err(error)?;
                     let comparison = match reading.status {
-                        antecedent::analysis::events::StructuralStatus::Retained => Some(
+                        antecedent::analysis::events::DiagnosticStatus::Agreed => Some(
                             compare_marked_release_times(
                                 parameters,
                                 prototypes,
@@ -211,7 +211,7 @@ impl NativePreparedEventProgram {
                             )
                             .map_err(error)?,
                         ),
-                        antecedent::analysis::events::StructuralStatus::Refused => None,
+                        antecedent::analysis::events::DiagnosticStatus::Withheld => None,
                     };
                     Ok((None, json!({"reading": reading, "comparison": comparison}), None))
                 }
