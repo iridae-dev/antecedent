@@ -40,6 +40,7 @@ use antecedent_model::nonlinear_equilibrium::{
 use antecedent_prob::metropolis::MetropolisOptions;
 use serde::{Deserialize, Serialize};
 
+use super::cyclic::gate_decision;
 use super::cyclic_action_world_decision::CyclicDecisionOutput;
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
@@ -400,7 +401,16 @@ fn compile_cyclic_posterior_action_decision_checked(
         }
         .finish(),
     );
-    Ok(CompiledCyclicPosteriorDecision { request, outputs, contract, seed, lowered })
+    let plan = CompiledCyclicPosteriorDecision { request, outputs, contract, seed, lowered };
+    gate_decision(ctx, &plan)
+        .map_err(|refusal| CyclicPosteriorDecisionError::Invalid(refusal.message()))?;
+    Ok(plan)
+}
+
+impl super::program_handle::CompiledProgramHandle for CompiledCyclicPosteriorDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl CompiledCyclicPosteriorDecision {
@@ -475,6 +485,8 @@ impl CompiledCyclicPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicPosteriorDecisionResult, CyclicPosteriorDecisionError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| CyclicPosteriorDecisionError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(CyclicPosteriorDecisionError::Invalid("posterior execution seed changed"));
         }
@@ -986,9 +998,42 @@ mod tests {
         let plan = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx)
             .expect("posterior action compiler");
         assert_eq!(plan.plan_view().route().as_str(), "CyclicPosteriorActionDecision");
+        // The program reports the decision of the unit its route is bound to, and the plan view
+        // reads the same decision.
+        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let decision = handle.support();
+        assert_eq!(
+            plan.plan_view().unit_support().map(|unit| unit.status()),
+            decision.as_ref().map(|decision| decision.status)
+        );
+        // The decision gate is inert until it is switched on; once on, it consults the same
+        // decision, so a development build records the would-refuse of an unsupported unit.
+        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        }
         let result = plan.execute(&ctx).expect("joint fitted predictive worlds");
         assert!(result.posterior.diagnostics_pass);
         assert_eq!(result.decision.decision.n_draws, 6000);
+        // Independent closed form: with the advertising clamp moved from 0 to 1 the shared
+        // disturbances cancel and the wishlists change is 0.2 / (1 - 0.2 b) for the sampled
+        // feedback weight b of that draw. The planted weight is 0.3.
+        let columns = &result.decision.chain.record().sources;
+        assert_eq!(columns.len(), 2);
+        let mut mean_weight = 0.0;
+        for ((left, right), parameters) in
+            columns[0].values.iter().zip(&columns[1].values).zip(&result.posterior.samples)
+        {
+            let effect = f64::from_bits(*right) - f64::from_bits(*left);
+            assert!((effect - 0.2 / (1.0 - 0.2 * parameters[0])).abs() < 1e-7);
+            mean_weight += parameters[0];
+        }
+        mean_weight /= result.posterior.samples.len() as f64;
+        assert!((mean_weight - 0.3).abs() < 0.15, "posterior mean weight {mean_weight}");
+        assert!(matches!(
+            &result.decision.decision.verdict,
+            antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)
+                if action == "promoted"
+        ));
         let bytes =
             plan.export(&result, "cyclic-fitted-worlds", &ctx).expect("portable fitted decision");
         let replay =

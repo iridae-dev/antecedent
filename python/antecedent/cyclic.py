@@ -104,6 +104,7 @@ from .cyclic_decisions import (
     consume_bundle_refitting,
     consume_decision,
     prepare_component_feedback,
+    read_unit_support,
 )
 from .errors import CausalError, CausalValueError, StructuredRefusal
 from .execution import Execution
@@ -653,6 +654,14 @@ class PreparedCyclicSystem:
             object.__setattr__(self, name, value)
         return value
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the capability unit this program runs under.
+
+        ``{"unit", "status", "supported", "missing_evidence"}``, or ``None`` while no unit is
+        bound to its route. Reading it never changes the program identity.
+        """
+        return read_unit_support(self._handle)
+
     def inspect(self) -> dict[str, Any]:
         """Inspect the common native prepared handle's fit count and SCC schedules."""
         result: dict[str, Any] = json.loads(self._handle.inspect())
@@ -925,6 +934,14 @@ class PreparedCyclicFamily:
             object.__setattr__(result, name, value)
         result._cache_inspection_facts()
         return result
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the capability unit this program runs under.
+
+        ``{"unit", "status", "supported", "missing_evidence"}``, or ``None`` while no unit is
+        bound to its route, or when preparation was refused and no program was compiled.
+        """
+        return read_unit_support(self._handle)
 
     def inspect(self) -> dict[str, Any]:
         """Inspect retained work; this preflight never fits or executes a model.

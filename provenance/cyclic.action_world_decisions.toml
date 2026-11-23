@@ -1,0 +1,60 @@
+feature_id = "cyclic.action_world_decisions"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Compiled decisions between hard-clamp action worlds of a cyclic feedback model: a specified
+# model on shared disturbance rows, a jointly fitted posterior, and a posterior standardized over a
+# target baseline frame. papers = [] is an explicit judgment: the routes compose the solver and
+# likelihood of cyclic.general_systems, the random-walk Metropolis sampler and its diagnostics, and
+# the decision evaluator, and add no estimator of their own. The cyclic-model theory the solver
+# rests on is cited in cyclic.general_systems; nothing here claims to implement a published
+# decision procedure for cyclic models.
+papers = []
+
+implementation_deviations = [
+ "The fitted routes sample the feedback coordinates by random-walk Metropolis with warmup-tuned proposals and publish only when R-hat, effective sample size and chain movement pass; no gradient sampler and no model-specification diagnostic is involved.",
+ "Predictive disturbances are drawn from the fixed, supplied covariance through its Cholesky factor; the covariance is not fitted, so predictive uncertainty is conditional on it.",
+ "A world's equilibrium is the certified solve of cyclic.general_systems under hard clamps; a draw whose solve is not certified is refused rather than dropped.",
+ "The target-frame route standardizes the paired worlds over the declared baseline rows and refuses rows outside the training support; it is not a transport of the effect to another population.",
+ "No coverage or frequentist reliability is claimed: every result labels its calibration not_measured, and the prospective selection grid test keeps ties, wrong choices and refusals as observations.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/src/analysis/cyclic_action_world_decision.rs (inline tests with hand-solved clamped equilibria)",
+ "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs (inline tests, closed-form paired effect per posterior draw)",
+ "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs (inline tests, closed-form target effect per posterior draw)",
+ "python/tests/test_cyclic_decisions.py",
+ "python/tests/test_cyclic_unit_support.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Decision wrapper over the cyclic equilibrium solver, the equilibrium likelihood, the random-walk Metropolis posterior and the decision evaluator. The modules bind output coordinates to worlds, derive the aligned joint law of the paired worlds, hand it to the decision compiler and seal an artifact an independent consumer replays."
+no_independent_algorithm = "The only numerics added are the Cholesky factor of the supplied disturbance covariance and standard-normal draws through the repository kernels, and a row-wise average over the declared target baseline rows; the equilibrium solve, the posterior and the utility evaluation are those of the covered records."
+covered_by = ["cyclic.general_systems", "prob.mcmc_diagnostics", "decision.contract", "decision.functionals"]
+inline_tests = true
+record_sha256 = "75ccbf53c9ddda7b293345d3a1f46c8a2443af2d4dbab4fb7cf01db4ce8964da"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+items = ["module"]
+sha256 = "0a14128857e090b571157a334a779ce71fececeb883d557bd120414864cb6c3a"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
+items = ["module"]
+sha256 = "4014b4c63d5e3d7c7316255d0fb58b0ff3040cd6f1c642c25f625b44ccfdb45f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
+items = ["module"]
+sha256 = "3c7e45f47abb1293c3bb31a6115577303cc4bd49f7bf42e4c01ae8bdf8a0952d"

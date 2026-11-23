@@ -93,6 +93,20 @@ __all__ = [
 # --------------------------------------------------------------------------- helpers
 
 
+def read_unit_support(handle: Any) -> dict[str, Any] | None:
+    """The support decision of the unit a compiled cyclic program runs under.
+
+    Returns ``{"unit", "status", "supported", "missing_evidence"}``: ``unit`` is the capability
+    record id, ``supported`` whether that unit is supported and ``missing_evidence`` what an
+    unsupported unit still lacks. ``None`` while no unit is bound to the program's route, or
+    while the handle holds no compiled program. Reading it changes no program identity.
+    """
+    if handle is None:
+        return None
+    raw = handle.unit_support()
+    return None if raw is None else dict(json.loads(raw))
+
+
 def _dumps(value: Any) -> str:
     return json.dumps(value, allow_nan=False)
 
@@ -681,6 +695,14 @@ class CompiledCyclicDecision:
     def route(self) -> str:
         """The compiled route name, for example ``CyclicPosteriorActionDecision``."""
         return str(self._native.route())
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the capability unit this route runs under.
+
+        ``{"unit", "status", "supported", "missing_evidence"}``, or ``None`` while no unit is
+        bound to the route. Reading it never changes the program identity.
+        """
+        return read_unit_support(self._native)
 
     @property
     def kind(self) -> str:
