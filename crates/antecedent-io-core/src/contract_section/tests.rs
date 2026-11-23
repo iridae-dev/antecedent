@@ -898,7 +898,7 @@ fn unchecked_program_without_claim_is_not_an_accepted_claim() {
 }
 
 #[test]
-fn accept_claim_expecting_unknown_feature_is_storage_not_acceptance() {
+fn accept_claim_unknown_feature_is_storage_not_acceptance() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     // A posterior-weighted mixture: the kind follows from the weight basis.
