@@ -41,12 +41,13 @@ impl UnitId {
 }
 
 /// What a support decision is about, in the vocabulary of the three sources.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum SupportKey<'a> {
     /// A support-matrix cell.
     Matrix(SupportCell),
-    /// A graphless design row, with the assignment support observed for it.
-    Graphless(GraphlessSupportKey<'a>, GraphlessAssignmentSupport),
+    /// A graphless design row, with the assignment support observed for it, boxed so that
+    /// the key stays the size of the smaller variants.
+    Graphless(Box<(GraphlessSupportKey<'a>, GraphlessAssignmentSupport)>),
     /// A capability unit by its record id.
     Unit(UnitId),
 }
@@ -110,9 +111,10 @@ pub fn decide(key: &SupportKey<'_>) -> UnitDecision {
             unit: UnitRef::Matrix(*cell),
             missing_evidence: Vec::new(),
         },
-        SupportKey::Graphless(row, observed) => {
+        SupportKey::Graphless(graphless) => {
+            let (row, observed) = **graphless;
             let supported = matches!(
-                classify_graphless(*row, *observed),
+                classify_graphless(row, observed),
                 GraphlessSupportStatus::Supported { .. }
             );
             UnitDecision {
@@ -277,7 +279,7 @@ mod tests {
             inference_claim: "no_such_claim",
         };
         let observed = GraphlessAssignmentSupport::default();
-        let decision = decide(&SupportKey::Graphless(key, observed));
+        let decision = decide(&SupportKey::Graphless(Box::new((key, observed))));
         assert_eq!(decision.status, CellStatus::NotSupported);
         assert!(matches!(classify_graphless(key, observed), GraphlessSupportStatus::Refused));
         assert_eq!(

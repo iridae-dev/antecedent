@@ -26,31 +26,31 @@ pub(crate) const MNAR_FIXED_SHIFT_COMPILED_CANDIDATE: UnitId =
 #[must_use]
 pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
     match route {
-        "AssessedBridgePosteriorNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "BridgeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "BundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "CyclicPosteriorBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "CyclicPosteriorNodeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "CyclicTargetFeedbackNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "EventProcess" => Some(FORECAST_EVENT_PROCESS),
-        "GraphImputationPredictiveNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "GraphImputationTransportNodeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "JointDesign" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelExperiment" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelImputation" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelProgramSearch" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelProgramSelection" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelResponse" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointPanelTimeVarying" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
-        "JointTransportEffectNodeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "JointTransportPredictiveNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
+        "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
+        | "BridgeBundleRecomputation"
+        | "BundleRecomputation"
+        | "CyclicPosteriorBundleRecomputation"
+        | "CyclicPosteriorNodeBundleRecomputation"
+        | "CyclicTargetFeedbackNodeDecisionBundleRecomputation"
+        | "GraphImputationPredictiveNodeDecisionBundleRecomputation"
+        | "GraphImputationTransportNodeBundleRecomputation"
+        | "JointTransportEffectNodeBundleRecomputation"
+        | "JointTransportPredictiveNodeDecisionBundleRecomputation"
+        | "PosteriorDecisionBundleRecomputation"
+        | "SequentialPolicyReliabilityNodeBundleRecomputation"
+        | "TrialIpwNodeBundleRecomputation"
+        | "TrialIpwPredictiveNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
         "LatentSoftIntervention" => Some(ESTIMATE_LATENT_SOFT_INTERVENTION),
-        "MnarFixedShift" => Some(MNAR_FIXED_SHIFT_COMPILED_CANDIDATE),
         "PolicySubsampling" => Some(ESTIMATE_OBSERVATIONAL_POLICY_VALUE),
-        "PosteriorDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "SequentialPolicyReliabilityNodeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "TrialIpwNodeBundleRecomputation" => Some(COMPOSITION_BUNDLE),
-        "TrialIpwPredictiveNodeDecisionBundleRecomputation" => Some(COMPOSITION_BUNDLE),
+        "EventProcess" => Some(FORECAST_EVENT_PROCESS),
+        "JointDesign"
+        | "JointPanelExperiment"
+        | "JointPanelImputation"
+        | "JointPanelProgramSearch"
+        | "JointPanelProgramSelection"
+        | "JointPanelResponse"
+        | "JointPanelTimeVarying" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
+        "MnarFixedShift" => Some(MNAR_FIXED_SHIFT_COMPILED_CANDIDATE),
         _ => None,
     }
 }

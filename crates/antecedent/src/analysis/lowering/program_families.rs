@@ -62,44 +62,44 @@ macro_rules! program_families {
             /// Whole-chain resampling union with moving-block resampling.
             MovingBlockSamplingAssumptionUnion => PropagationChain, unit "";
             /// An observational policy value under m-out-of-n full-refit subsampling.
-            PolicySubsampling => DesignBased, unit "";
+            PolicySubsampling => DesignBased, unit "estimate.observational_policy_value";
             /// Sequential policy evaluation with a reliability diagnostic.
             SequentialPolicyReliability => DesignBased, unit "";
             /// Replay a bundle with a compiler-executed terminal.
-            BundleRecomputation => PropagationChain, unit "";
+            BundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a live scientific bridge terminal.
-            BridgeBundleRecomputation => PropagationChain, unit "";
+            BridgeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a refitted cyclic posterior producer.
-            CyclicPosteriorBundleRecomputation => PropagationChain, unit "";
+            CyclicPosteriorBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded cyclic posterior fit node.
-            CyclicPosteriorNodeBundleRecomputation => PropagationChain, unit "";
+            CyclicPosteriorNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded trial-IPW fit node.
-            TrialIpwNodeBundleRecomputation => PropagationChain, unit "";
+            TrialIpwNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a graph-imputation transport fit.
-            GraphImputationTransportNodeBundleRecomputation => PropagationChain, unit "";
+            GraphImputationTransportNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a joint source-target effect fit.
-            JointTransportEffectNodeBundleRecomputation => PropagationChain, unit "";
+            JointTransportEffectNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded joint predictive transport fit and decision.
-            JointTransportPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "";
+            JointTransportPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded trial-IPW predictive fit and decision.
-            TrialIpwPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "";
+            TrialIpwPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Fit the cyclic posterior, standardize over the target frame and score the decision.
             ///
             /// # Errors
             /// A changed execution seed, a source or model refusal, or an invalid target frame.
-            CyclicTargetFeedbackNodeDecisionBundleRecomputation => PropagationChain, unit "";
+            CyclicTargetFeedbackNodeDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded graph-imputation predictive fit and decision.
-            GraphImputationPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "";
+            GraphImputationPredictiveNodeDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded assessed-bridge posterior fit and decision.
-            AssessedBridgePosteriorNodeDecisionBundleRecomputation => PropagationChain, unit "";
+            AssessedBridgePosteriorNodeDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with an embedded sequential policy reliability fit.
-            SequentialPolicyReliabilityNodeBundleRecomputation => PropagationChain, unit "";
+            SequentialPolicyReliabilityNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Checked connected components and a joint posterior decision.
             JointComponentPosteriorDecision => PropagationChain, unit "";
             /// Checked connected components with a bounded-component posterior decision.
             BoundedComponentPosteriorDecision => PropagationChain, unit "";
             /// Bundle replay with a parameter-posterior decision terminal.
-            PosteriorDecisionBundleRecomputation => PropagationChain, unit "";
+            PosteriorDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// A graph-selection imputation composite.
             GraphImputation => GraphImputation, unit "";
             /// Graph-imputation effect posterior and downstream utility.
@@ -131,26 +131,26 @@ macro_rules! program_families {
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate => CategoricalPosteriorCandidate, unit "";
             /// A bounded fixed-shift MNAR operation.
-            MnarFixedShift => DesignBased, unit "";
+            MnarFixedShift => DesignBased, unit "mnar_fixed_shift.compiled_candidate";
             /// Latent additive soft-intervention discovery and prediction.
-            LatentSoftIntervention => Structural, unit "";
+            LatentSoftIntervention => Structural, unit "estimate.latent_soft_intervention";
             /// Forecasts of timestamped events and their composed world responses.
-            EventProcess => Structural, unit "";
+            EventProcess => Structural, unit "forecast.event_process";
             /// A fitted joint multi-channel panel response over its declared program worlds.
-            JointPanelResponse => JointPanel, unit "";
+            JointPanelResponse => JointPanel, unit "joint_response.interval_readings";
             /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
-            JointPanelTimeVarying => JointPanel, unit "";
+            JointPanelTimeVarying => JointPanel, unit "joint_response.interval_readings";
             /// A joint panel response pooled over multiply imputed completed panels.
-            JointPanelImputation => JointPanel, unit "";
+            JointPanelImputation => JointPanel, unit "joint_response.interval_readings";
             /// A search for the best program over a fitted joint panel response.
-            JointPanelProgramSearch => JointPanel, unit "";
+            JointPanelProgramSearch => JointPanel, unit "joint_response.interval_readings";
             /// Held-out selection of a program from randomized or instrumented candidates.
-            JointPanelProgramSelection => JointPanel, unit "";
+            JointPanelProgramSelection => JointPanel, unit "joint_response.interval_readings";
             /// An independent experiment conditioning a joint panel or design law, and the
             /// decision and next-study value read from the conditioned law.
-            JointPanelExperiment => JointPanel, unit "";
+            JointPanelExperiment => JointPanel, unit "joint_response.interval_readings";
             /// A design-native joint functional with its retained design proof.
-            JointDesign => JointPanel, unit "";
+            JointDesign => JointPanel, unit "joint_response.interval_readings";
         }
     };
 }

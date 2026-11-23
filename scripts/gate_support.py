@@ -792,15 +792,33 @@ MATRIX_EVIDENCE_KINDS = ALL_EVIDENCE_KINDS - {"process_attested"}
 COMPILED_UNITS = "parity/compiled_units.toml"
 UNIT_STATUS = "crates/antecedent-io-core/data/unit_support_status.json"
 PLAN_ROUTE_SOURCE = "crates/antecedent/src/analysis/lowering/registry.rs"
+PROGRAM_FAMILIES_SOURCE = "crates/antecedent/src/analysis/lowering/program_families.rs"
+# The `PlanRoute` variants that carry a string and so stay written out in the registry.
+STRING_ROUTE_VARIANTS = {"CyclicFamily", "Planning", "PropagationChain"}
 
 
-def plan_route_variants(registry_text: str) -> set[str]:
-    """The named variants of `pub enum PlanRoute` that are written out in the registry source.
-    The route cells the table macro generates are not listed there."""
-    body = re.search(r"pub enum PlanRoute \{(.*?)\n        \}", registry_text, re.S)
-    if body is None:
+def program_family_rows(families_text: str) -> dict[str, str]:
+    """Each program-family variant of `program_families.rs` with its `unit "..."` key."""
+    return {
+        name: unit
+        for name, unit in re.findall(
+            r'^\s+([A-Z][A-Za-z0-9]*) => [A-Za-z0-9]+, unit "([^"]*)";', families_text, re.M
+        )
+    }
+
+
+def plan_route_variants(registry_text: str, families_text: str) -> set[str]:
+    """Every named variant of `PlanRoute`: the matrix cells of the `route_lowerings!` table in the
+    registry, the program families of `program_families.rs`, and the string-carrying variants."""
+    start = registry_text.find("route_lowerings! {")
+    cells = re.findall(
+        r"^\s+([A-Z][A-Za-z0-9]*) => [a-z_0-9]+ as [A-Za-z0-9]+,",
+        registry_text[start:] if start >= 0 else "",
+        re.M,
+    )
+    if not cells:
         return set()
-    return set(re.findall(r"^\s+([A-Z][A-Za-z0-9]*)\s*[,(]", body.group(1), re.M))
+    return set(cells) | set(program_family_rows(families_text)) | STRING_ROUTE_VARIANTS
 
 
 def compiled_unit_problems(
@@ -809,6 +827,7 @@ def compiled_unit_problems(
     status: dict | None = None,
     rows: list[dict] | None = None,
     registry_text: str | None = None,
+    families_text: str | None = None,
     check_files: bool = True,
 ) -> list[str]:
     """Every compiled route bound to a support unit names a unit that exists, and the record of
@@ -824,7 +843,10 @@ def compiled_unit_problems(
     rows = rows if rows is not None else _load(GRAPHLESS).get("support") or []
     if registry_text is None:
         registry_text = (ROOT / PLAN_ROUTE_SOURCE).read_text(encoding="utf-8")
-    variants = plan_route_variants(registry_text)
+    if families_text is None:
+        families_text = (ROOT / PROGRAM_FAMILIES_SOURCE).read_text(encoding="utf-8")
+    variants = plan_route_variants(registry_text, families_text)
+    family_units = program_family_rows(families_text)
 
     record_ids: dict[str, dict] = {}
     for record in records:
@@ -844,6 +866,11 @@ def compiled_unit_problems(
         seen.add(route)
         if variants and route not in variants:
             found.append(f"{where}: not a PlanRoute variant")
+        if route in family_units and family_units[route] != unit:
+            found.append(
+                f"{where}: unit {unit} but the {PROGRAM_FAMILIES_SOURCE} row says "
+                f"{family_units[route] or 'no unit'}"
+            )
         if kind == "capability":
             if unit not in record_ids:
                 found.append(f"{where}: unit {unit} is not a record in {RECORDS}")
@@ -863,6 +890,9 @@ def compiled_unit_problems(
             elif check_files and not (ROOT / path).is_file():
                 found.append(f"{where}: entry {lang} path {path} does not exist")
 
+    for name, unit in sorted(family_units.items()):
+        if unit and name not in seen:
+            found.append(f"{PROGRAM_FAMILIES_SOURCE}: {name} names unit {unit} but {COMPILED_UNITS} binds no such route")
     for unit, routes in sorted(bound.items()):
         declared = (record_ids.get(unit) or {}).get("compiled_routes")
         if declared is not None and set(declared) != routes:
@@ -896,7 +926,11 @@ def compiled_units_self_test() -> None:
     if compiled_unit_problems():
         sys.exit(f"compiled units self-test: the shipped bindings fail: {compiled_unit_problems()}")
     print("ok  shipped compiled units pass")
-    registry = "pub enum PlanRoute {\n            $(\n                $cell,\n            )+\n            ObservationalPolicy,\n            MnarFixedShift,\n        }"
+    registry = "route_lowerings! {\n    StaticAteDag => static_effect as StaticEffect,\n}"
+    families = (
+        '            ObservationalPolicy => DesignBased, unit "";\n'
+        '            MnarFixedShift => DesignBased, unit "estimate.demo";\n'
+    )
     records = [{"id": "estimate.demo", "capability": "estimate.demo"}]
     status = {"capabilities": [{"id": "estimate.demo", "status": "supported", "missing_evidence": []}]}
     route = {"lowering": "MnarFixedShift", "unit_kind": "capability", "unit": "estimate.demo",
@@ -904,7 +938,7 @@ def compiled_units_self_test() -> None:
 
     def run(name: str, want: str | None, **overrides) -> None:
         args = {"compiled": {"route": [route]}, "records": records, "status": status, "rows": [],
-                "registry_text": registry, "check_files": False}
+                "registry_text": registry, "families_text": families, "check_files": False}
         args.update(overrides)
         got = compiled_unit_problems(**args)
         if want is None and got:
@@ -918,6 +952,10 @@ def compiled_units_self_test() -> None:
     run("a unit with no derived status fails", "no derived status", status={"capabilities": []})
     run("a route that is not a PlanRoute fails", "not a PlanRoute variant",
         compiled={"route": [dict(route, lowering="NoSuchRoute")]})
+    run("a family row naming another unit fails", "row says",
+        families_text=families.replace("estimate.demo", "estimate.other"))
+    run("a family row naming a unit nothing binds fails", "binds no such route",
+        families_text=families.replace('ObservationalPolicy => DesignBased, unit ""', 'ObservationalPolicy => DesignBased, unit "x.y"'))
     run("a route bound twice fails", "bound twice", compiled={"route": [route, route]})
     run("an unknown unit kind fails", "neither capability nor graphless",
         compiled={"route": [dict(route, unit_kind="matrix")]})

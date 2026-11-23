@@ -79,8 +79,16 @@ def render(routes: list[dict]) -> str:
         "pub(crate) fn unit_of(route: &str) -> Option<UnitId> {",
         "    match route {",
     ]
-    for row in sorted(routes, key=lambda r: r["lowering"]):
-        lines.append(f'        "{row["lowering"]}" => Some({names[row["unit"]]}),')
+    for unit in units:
+        bound = sorted(row["lowering"] for row in routes if row["unit"] == unit)
+        patterns = [f'"{route}"' for route in bound]
+        one = f"        {' | '.join(patterns)} => Some({names[unit]}),"
+        if len(one) <= 100:  # the width rustfmt leaves on one line
+            lines.append(one)
+            continue
+        lines.append(f"        {patterns[0]}")
+        lines += [f"        | {pattern}" for pattern in patterns[1:]]
+        lines[-1] += f" => Some({names[unit]}),"
     lines += ["        _ => None,", "    }", "}", ""]
     return "\n".join(lines)
 
