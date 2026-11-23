@@ -15,7 +15,7 @@
 
 use std::collections::HashSet;
 
-use antecedent_contract::ScientificQuantity;
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, is_blank};
 
 use crate::decision_contract::{
@@ -23,6 +23,8 @@ use crate::decision_contract::{
     HardConstraint, StructuralPolicy, UtilityExpr,
 };
 use crate::preference_model::{PreferenceExpr, PreferenceModelError, ValueModel};
+use crate::preference_refusal::{CERTIFIED_ROUTE, DECLARE, at, refusal};
+use crate::signal::at_stage;
 
 /// What an action supplies for one model attribute.
 #[derive(Clone, Debug, PartialEq)]
@@ -807,13 +809,14 @@ pub enum PreferenceContractError {
 
 impl PreferenceContractError {
     /// Stable detail id, prefixed `preference_contract.`; a model refusal keeps its own
-    /// `preference_model.` detail.
+    /// `preference_model.` detail and an ordinary-contract refusal its `decision_contract.`
+    /// detail, the detail the returned refusal carries.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
         match self {
             Self::Model(inner) => inner.detail(),
-            Self::Contract(_) => reason_details::preference_contract::DECISION_CONTRACT_REFUSED,
+            Self::Contract(inner) => inner.detail(),
             Self::BlankTargetPopulation => {
                 reason_details::preference_contract::TARGET_POPULATION_BLANK
             }
@@ -866,6 +869,130 @@ impl PreferenceContractError {
                 reason_details::preference_contract::PARAMETER_NON_FINITE
             }
             Self::NotLowerable { .. } => reason_details::preference_contract::NOT_LOWERABLE,
+        }
+    }
+}
+
+impl PreferenceContractError {
+    /// Structured refusal for a preference-contract declaration or binding failure.
+    ///
+    /// A value-model or derived decision-contract refusal keeps its own refusal.
+    #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per contract declaration failure")]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), DECLARE, self.detail())
+                .remedy(remedy)
+        };
+        let quantity = |action: &str, attribute: &str, remedy| {
+            refusal(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                DECLARE,
+                self.detail(),
+            )
+            .offending(at(action, attribute))
+            .remedy(remedy)
+            .build()
+        };
+        match self {
+            Self::Model(error) => at_stage(error.to_refusal(), DECLARE),
+            Self::Contract(error) => at_stage(error.to_refusal(), DECLARE),
+            Self::BlankTargetPopulation => {
+                invalid("name the population the decision is for").build()
+            }
+            Self::InvalidCriterion => {
+                invalid("supply a finite criterion threshold and a level inside its range").build()
+            }
+            Self::TooFewActions { count } => invalid("declare at least two actions")
+                .expected("2")
+                .supplied(count.to_string())
+                .build(),
+            Self::BlankActionId { position } => {
+                invalid("give every action a non-blank id").offending(position.to_string()).build()
+            }
+            Self::DuplicateAction { id } => {
+                invalid("give every action a distinct id").offending(id.clone()).build()
+            }
+            Self::InputCount { action, expected, found } => {
+                invalid("supply one input per attribute of the value model")
+                    .offending(action.clone())
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::NoQuantityInput { action } => {
+                invalid("read at least one attribute from a scientific quantity")
+                    .offending(action.clone())
+                    .build()
+            }
+            Self::NonFiniteFixedInput { action, attribute } => {
+                invalid("supply a finite fixed value").offending(at(action, attribute)).build()
+            }
+            Self::FixedUnitsMismatch { action, attribute } => {
+                quantity(action, attribute, "state the fixed value in the attribute's units")
+            }
+            Self::InvalidQuantity { action, attribute } => quantity(
+                action,
+                attribute,
+                "declare a complete scientific quantity for this attribute",
+            ),
+            Self::QuantityUnitsMismatch { action, attribute } => {
+                quantity(action, attribute, "read a quantity in the attribute's units")
+            }
+            Self::OutsideScope { action, attribute } => quantity(
+                action,
+                attribute,
+                "read quantities for the decision's target population and horizon",
+            ),
+            Self::BlankConstraintId { position } => invalid("give every constraint a non-blank id")
+                .offending(position.to_string())
+                .build(),
+            Self::DuplicateConstraint { id } => {
+                invalid("give every constraint a distinct id").offending(id.clone()).build()
+            }
+            Self::BlankConstraintUnits { constraint } => {
+                invalid("state the units of the constraint bound")
+                    .offending(constraint.clone())
+                    .build()
+            }
+            Self::ConstraintNonFinite { constraint } => {
+                invalid("supply a finite bound and finite constants")
+                    .offending(constraint.clone())
+                    .build()
+            }
+            Self::ConstraintProbability { constraint } => {
+                invalid("supply a constraint probability in (0, 1]")
+                    .offending(constraint.clone())
+                    .expected("(0, 1]")
+                    .build()
+            }
+            Self::ConstraintUnknownAttribute { constraint, index } => {
+                invalid("read only attributes the value model declares")
+                    .offending(at(constraint, index))
+                    .build()
+            }
+            Self::ConstraintUnknownAction { constraint, action } => {
+                invalid("name only actions the contract declares")
+                    .offending(at(constraint, action))
+                    .build()
+            }
+            Self::ParameterCount { expected, found } => {
+                invalid("supply one value per preference parameter")
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::NonFiniteParameter { index } => {
+                invalid("supply finite parameter values").offending(index.to_string()).build()
+            }
+            Self::NotLowerable { action } => refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                DECLARE,
+                self.detail(),
+            )
+            .offending(action.clone())
+            .remedy(CERTIFIED_ROUTE)
+            .build(),
         }
     }
 }

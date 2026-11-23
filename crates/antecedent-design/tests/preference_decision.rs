@@ -573,8 +573,8 @@ fn a_mean_source_answers_an_affine_value() {
     );
     let c = contract_for(kinked, &["A", "B"], "mean", PreferencePolicy::ReportOnly);
     let refused = evaluate_preference_contract_on_means(&c, &mean_source(), None, options());
-    assert!(matches!(refused, Err(E::Eval(_))), "{refused:?}");
-    assert_eq!(refused.unwrap_err().detail(), reason_details::preference_decision::SOURCE_REFUSED);
+    let Err(E::Eval(inner)) = &refused else { panic!("{refused:?}") };
+    assert_eq!(refused.as_ref().unwrap_err().detail(), inner.to_refusal().detail);
 
     // A hard constraint is refused as the mean evaluator refuses it.
     let mut c = contract_for(model(0.0, 3.0), &["A", "B"], "mean", PreferencePolicy::ReportOnly);

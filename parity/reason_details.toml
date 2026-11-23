@@ -10740,9 +10740,15 @@ codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (observations, predictor laws, validation design, configuration) differs."
 
 [[detail]]
+id = "preference_artifact.cancelled"
+family = "preference_artifact"
+codes = ["cancelled_no_claim"]
+meaning = "Replaying a preference artifact was cancelled; nothing is verified and the stop is not a verdict on the artifact."
+
+[[detail]]
 id = "preference_artifact.container_refused"
 family = "preference_artifact"
-codes = ["invalid_argument", "schema_mismatch"]
+codes = ["invalid_argument"]
 meaning = "The artifact container or body is corrupt, of another kind or an unsupported version; supply bytes written by this library."
 
 [[detail]]
@@ -10822,6 +10828,12 @@ id = "preference_certified.atoms_invalid"
 family = "preference_certified"
 codes = ["invalid_argument"]
 meaning = "No structure is supplied, or a structure id is blank or repeated; supply distinct, non-blank structure ids."
+
+[[detail]]
+id = "preference_certified.cancelled"
+family = "preference_certified"
+codes = ["cancelled_no_claim"]
+meaning = "The certified evaluation across a preference set was cancelled between boxes or measure points; no result is returned and the stop is not a verdict."
 
 [[detail]]
 id = "preference_certified.enclosure_non_finite"
@@ -10924,6 +10936,12 @@ id = "preference_certified.structure_inputs_required"
 family = "preference_certified"
 codes = ["route_not_supported"]
 meaning = "The criterion needs identified-set or structure inputs, not one draw source; evaluate across structures."
+
+[[detail]]
+id = "preference_choice_model.cancelled"
+family = "preference_choice_model"
+codes = ["cancelled_no_claim"]
+meaning = "Estimating the choice model was cancelled between Newton steps or measure draws; no estimate is returned and the stop is not a verdict on the records."
 
 [[detail]]
 id = "preference_choice_model.consistency_not_positive"
@@ -11152,6 +11170,12 @@ id = "preference_contract.too_few_actions"
 family = "preference_contract"
 codes = ["invalid_argument"]
 meaning = "The preference contract compares fewer than two actions; declare at least two."
+
+[[detail]]
+id = "preference_decision.cancelled"
+family = "preference_decision"
+codes = ["cancelled_no_claim"]
+meaning = "The exact evaluation across a preference set was cancelled between linear programs, vertex bases or draws; no result is returned and the stop is not a verdict."
 
 [[detail]]
 id = "preference_decision.coefficient_non_finite"
@@ -11554,6 +11578,12 @@ id = "preference_model.value_non_finite"
 family = "preference_model"
 codes = ["invalid_argument"]
 meaning = "The value is not finite at the evaluated attribute and parameter point, for example a logarithm of a non-positive argument; narrow the ranges or change the value."
+
+[[detail]]
+id = "preference_set_learning.cancelled"
+family = "preference_set_learning"
+codes = ["cancelled_no_claim"]
+meaning = "Learning the compatible preference set was cancelled between linear programs of the range or conflict search; no set is returned and the stop is not a verdict on the records."
 
 [[detail]]
 id = "preference_set_learning.declared_set_empty"

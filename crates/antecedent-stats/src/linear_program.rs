@@ -27,12 +27,15 @@
 //! [`vertices`] enumerates every choice of `n` hyperplanes among the constraints and finite
 //! bounds, solves each square system and keeps the feasible distinct points.
 //! [`irreducible_infeasible_groups`] runs a deletion filter over groups of constraints and
-//! [`smallest_infeasible_groups`] searches group subsets by increasing size.
+//! [`smallest_infeasible_groups`] searches group subsets by increasing size. Their
+//! `_with_context` forms read the context's cancellation token before every candidate basis and
+//! every feasibility program and return [`LpError::Cancelled`] once it is set.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 
+use antecedent_core::{CancellationToken, ExecutionContext};
 use thiserror::Error;
 
 /// Rows whose slope along a move is at most this (unit-scaled row, unit-scaled move) never block
@@ -279,6 +282,10 @@ pub enum LpError {
         /// The cap given.
         cap: usize,
     },
+    /// The context's cancellation token was set between candidate bases or feasibility
+    /// programs; no partial answer is returned.
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl LpError {
@@ -302,6 +309,7 @@ impl LpError {
             Self::VerificationFailed { .. } => "linear_program.verification_failed",
             Self::UnboundedRegion { .. } => "linear_program.unbounded_region",
             Self::VertexCapExceeded { .. } => "linear_program.vertex_cap_exceeded",
+            Self::Cancelled => "linear_program.cancelled",
         }
     }
 }
@@ -1341,6 +1349,42 @@ pub fn vertices(
     cap: usize,
     options: LpOptions,
 ) -> Result<Vec<Vec<f64>>, LpError> {
+    enumerate_vertices(constraints, lower, upper, cap, options, None)
+}
+
+/// [`vertices`] under an execution context: the context's cancellation token is read before
+/// every candidate basis.
+///
+/// # Errors
+///
+/// As [`vertices`]; [`LpError::Cancelled`] once the token is set.
+pub fn vertices_with_context(
+    constraints: &[LinearConstraint],
+    lower: &[f64],
+    upper: &[f64],
+    cap: usize,
+    options: LpOptions,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Vec<f64>>, LpError> {
+    enumerate_vertices(constraints, lower, upper, cap, options, Some(&ctx.cancellation))
+}
+
+/// `Err(Cancelled)` when a token is given and set.
+fn observe(cancellation: Option<&CancellationToken>) -> Result<(), LpError> {
+    if cancellation.is_some_and(CancellationToken::is_cancelled) {
+        return Err(LpError::Cancelled);
+    }
+    Ok(())
+}
+
+fn enumerate_vertices(
+    constraints: &[LinearConstraint],
+    lower: &[f64],
+    upper: &[f64],
+    cap: usize,
+    options: LpOptions,
+    cancellation: Option<&CancellationToken>,
+) -> Result<Vec<Vec<f64>>, LpError> {
     validate_options(options)?;
     let n = lower.len();
     validate_region(n, constraints, lower, upper)?;
@@ -1402,6 +1446,7 @@ pub fn vertices(
     let tolerance = options.feasibility_tolerance;
     let mut basis: Vec<usize> = (0..n).collect();
     loop {
+        observe(cancellation)?;
         let mut matrix = Vec::with_capacity(n * n);
         let mut rhs = Vec::with_capacity(n);
         for &k in &basis {
@@ -1445,6 +1490,8 @@ struct GroupFeasibility<'a> {
     options: LpOptions,
     /// Distinct group labels, ascending.
     groups: Vec<usize>,
+    /// Read before every feasibility program.
+    cancellation: Option<&'a CancellationToken>,
 }
 
 impl<'a> GroupFeasibility<'a> {
@@ -1454,6 +1501,7 @@ impl<'a> GroupFeasibility<'a> {
         lower: &'a [f64],
         upper: &'a [f64],
         options: LpOptions,
+        cancellation: Option<&'a CancellationToken>,
     ) -> Result<Self, LpError> {
         validate_options(options)?;
         validate_region(lower.len(), constraints, lower, upper)?;
@@ -1466,11 +1514,12 @@ impl<'a> GroupFeasibility<'a> {
         let mut groups = group.to_vec();
         groups.sort_unstable();
         groups.dedup();
-        Ok(Self { constraints, group, lower, upper, options, groups })
+        Ok(Self { constraints, group, lower, upper, options, groups, cancellation })
     }
 
     /// Whether the constraints of the groups in `selected` (ascending) have a common point.
     fn feasible(&self, selected: &[usize]) -> Result<bool, LpError> {
+        observe(self.cancellation)?;
         let program = LinearProgram {
             objective: vec![0.0; self.lower.len()],
             constraints: self
@@ -1505,7 +1554,35 @@ pub fn irreducible_infeasible_groups(
     upper: &[f64],
     options: LpOptions,
 ) -> Result<Option<Vec<usize>>, LpError> {
-    let search = GroupFeasibility::new(constraints, group, lower, upper, options)?;
+    deletion_filter(&GroupFeasibility::new(constraints, group, lower, upper, options, None)?)
+}
+
+/// [`irreducible_infeasible_groups`] under an execution context: the context's cancellation
+/// token is read before every feasibility program.
+///
+/// # Errors
+///
+/// As [`irreducible_infeasible_groups`]; [`LpError::Cancelled`] once the token is set.
+pub fn irreducible_infeasible_groups_with_context(
+    constraints: &[LinearConstraint],
+    group: &[usize],
+    lower: &[f64],
+    upper: &[f64],
+    options: LpOptions,
+    ctx: &ExecutionContext,
+) -> Result<Option<Vec<usize>>, LpError> {
+    let cancellation = Some(&ctx.cancellation);
+    deletion_filter(&GroupFeasibility::new(
+        constraints,
+        group,
+        lower,
+        upper,
+        options,
+        cancellation,
+    )?)
+}
+
+fn deletion_filter(search: &GroupFeasibility<'_>) -> Result<Option<Vec<usize>>, LpError> {
     let mut kept = search.groups.clone();
     if search.feasible(&kept)? {
         return Ok(None);
@@ -1534,7 +1611,34 @@ pub fn smallest_infeasible_groups(
     max_size: usize,
     options: LpOptions,
 ) -> Result<Option<Vec<usize>>, LpError> {
-    let search = GroupFeasibility::new(constraints, group, lower, upper, options)?;
+    let search = GroupFeasibility::new(constraints, group, lower, upper, options, None)?;
+    smallest_subset(&search, max_size)
+}
+
+/// [`smallest_infeasible_groups`] under an execution context: the context's cancellation token
+/// is read before every feasibility program.
+///
+/// # Errors
+///
+/// As [`smallest_infeasible_groups`]; [`LpError::Cancelled`] once the token is set.
+pub fn smallest_infeasible_groups_with_context(
+    constraints: &[LinearConstraint],
+    group: &[usize],
+    lower: &[f64],
+    upper: &[f64],
+    max_size: usize,
+    options: LpOptions,
+    ctx: &ExecutionContext,
+) -> Result<Option<Vec<usize>>, LpError> {
+    let cancellation = Some(&ctx.cancellation);
+    let search = GroupFeasibility::new(constraints, group, lower, upper, options, cancellation)?;
+    smallest_subset(&search, max_size)
+}
+
+fn smallest_subset(
+    search: &GroupFeasibility<'_>,
+    max_size: usize,
+) -> Result<Option<Vec<usize>>, LpError> {
     if search.feasible(&search.groups)? {
         return Ok(None);
     }

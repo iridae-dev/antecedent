@@ -30,19 +30,22 @@
 
 use std::collections::BTreeSet;
 
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::ExecutionContext;
+
 use crate::choice_record::ChoiceRecordSet;
 use crate::decision_contract::{DecisionCriterion, HardConstraint, StructuralPolicy};
 use crate::preference_choice_model::{
-    ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, EstimateOutcome,
-    estimate_choice_model,
+    ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, EstimateOutcome, estimate_all,
 };
 use crate::preference_contract::{PreferenceAction, PreferenceContract, PreferencePolicy};
 use crate::preference_decision::PreferenceMeasure;
 use crate::preference_model::{PreferenceModelError, ValueModel};
+use crate::preference_refusal::{ACCEPT, refusal};
 use crate::preference_set_learning::{
-    ChoiceConflict, LearnedPreferenceSet, SetLearningError, SetLearningOptions, SetOutcome,
-    learn_compatible_set,
+    ChoiceConflict, LearnedPreferenceSet, SetLearningError, SetLearningOptions, SetOutcome, learn,
 };
+use crate::signal::at_stage;
 
 /// What the accepted preference set rests on.
 #[derive(Clone, Debug, PartialEq)]
@@ -58,12 +61,14 @@ pub enum PreferenceBasis {
 /// Something a reviewer should look at before relying on the accepted preferences.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PendingReview {
-    /// No record varied the parameter: it stays at its declared range.
+    /// No record varied the parameter: it stays at its declared range. A parameter the
+    /// declaration fixes (`lower == upper`) never raises this item.
     ParameterNotVaried {
         /// Parameter id.
         parameter_id: String,
     },
-    /// Records varied the parameter but its range did not narrow.
+    /// Records varied the parameter but its range did not narrow. A parameter the declaration
+    /// fixes never raises this item.
     ParameterNotNarrowed {
         /// Parameter id.
         parameter_id: String,
@@ -487,8 +492,33 @@ impl AcceptedPreferences {
         decider: Option<&str>,
         options: SetLearningOptions,
     ) -> Result<Self, AcceptedPreferencesError> {
+        self.relearn_set(records, decider, options, None)
+    }
+
+    /// [`Self::relearn_compatible_set`] under an execution context, read as
+    /// [`crate::preference_set_learning::learn_compatible_set_with_context`] reads it.
+    ///
+    /// # Errors
+    /// As [`Self::relearn_compatible_set`]; a cancelled run is the learner's `Cancelled` refusal.
+    pub fn relearn_compatible_set_with_context(
+        &self,
+        records: &ChoiceRecordSet,
+        decider: Option<&str>,
+        options: SetLearningOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, AcceptedPreferencesError> {
+        self.relearn_set(records, decider, options, Some(ctx))
+    }
+
+    fn relearn_set(
+        &self,
+        records: &ChoiceRecordSet,
+        decider: Option<&str>,
+        options: SetLearningOptions,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<Self, AcceptedPreferencesError> {
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
-        let learned = select_learned(&self.declared, records, decider, options)?;
+        let learned = select_learned(&self.declared, records, decider, options, ctx)?;
         let learning = Learning {
             options: Some(LearningOptions::CompatibleSet(options)),
             stated_comparisons: stated_in_scope(records, decider),
@@ -514,8 +544,33 @@ impl AcceptedPreferences {
         decider: Option<&str>,
         options: ChoiceModelOptions,
     ) -> Result<Self, AcceptedPreferencesError> {
+        self.reestimate(records, decider, options, None)
+    }
+
+    /// [`Self::relearn_estimate`] under an execution context, read as
+    /// [`crate::preference_choice_model::estimate_choice_model_with_context`] reads it.
+    ///
+    /// # Errors
+    /// As [`Self::relearn_estimate`]; a cancelled run is the estimator's `Cancelled` refusal.
+    pub fn relearn_estimate_with_context(
+        &self,
+        records: &ChoiceRecordSet,
+        decider: Option<&str>,
+        options: ChoiceModelOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, AcceptedPreferencesError> {
+        self.reestimate(records, decider, options, Some(ctx))
+    }
+
+    fn reestimate(
+        &self,
+        records: &ChoiceRecordSet,
+        decider: Option<&str>,
+        options: ChoiceModelOptions,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<Self, AcceptedPreferencesError> {
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
-        let estimate = select_estimate(&self.declared, records, decider, options)?;
+        let estimate = select_estimate(&self.declared, records, decider, options, ctx)?;
         let learning = Learning {
             options: Some(LearningOptions::ChoiceEstimate(options)),
             stated_comparisons: stated_in_scope(records, decider),
@@ -573,7 +628,32 @@ pub fn learn_compatible_set_accepted(
     decider: Option<&str>,
     options: SetLearningOptions,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
-    let learned = select_learned(model, records, decider, options)?;
+    accept_learned(model, records, decider, options, None)
+}
+
+/// [`learn_compatible_set_accepted`] under an execution context, read as
+/// [`crate::preference_set_learning::learn_compatible_set_with_context`] reads it.
+///
+/// # Errors
+/// As [`learn_compatible_set_accepted`]; a cancelled run is the learner's `Cancelled` refusal.
+pub fn learn_compatible_set_accepted_with_context(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    decider: Option<&str>,
+    options: SetLearningOptions,
+    ctx: &ExecutionContext,
+) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
+    accept_learned(model, records, decider, options, Some(ctx))
+}
+
+fn accept_learned(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    decider: Option<&str>,
+    options: SetLearningOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
+    let learned = select_learned(model, records, decider, options, ctx)?;
     AcceptedPreferences::from_compatible_set(
         model,
         learned,
@@ -594,7 +674,32 @@ pub fn estimate_accepted(
     decider: Option<&str>,
     options: ChoiceModelOptions,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
-    let estimate = select_estimate(model, records, decider, options)?;
+    accept_estimate(model, records, decider, options, None)
+}
+
+/// [`estimate_accepted`] under an execution context, read as
+/// [`crate::preference_choice_model::estimate_choice_model_with_context`] reads it.
+///
+/// # Errors
+/// As [`estimate_accepted`]; a cancelled run is the estimator's `Cancelled` refusal.
+pub fn estimate_accepted_with_context(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    decider: Option<&str>,
+    options: ChoiceModelOptions,
+    ctx: &ExecutionContext,
+) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
+    accept_estimate(model, records, decider, options, Some(ctx))
+}
+
+fn accept_estimate(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    decider: Option<&str>,
+    options: ChoiceModelOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
+    let estimate = select_estimate(model, records, decider, options, ctx)?;
     AcceptedPreferences::from_estimate(model, estimate, options, stated_in_scope(records, decider))
 }
 
@@ -628,8 +733,9 @@ pub(crate) fn select_learned(
     records: &ChoiceRecordSet,
     decider: Option<&str>,
     options: SetLearningOptions,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<LearnedPreferenceSet, AcceptedPreferencesError> {
-    let result = learn_compatible_set(model, records, options).map_err(E::SetLearning)?;
+    let result = learn(model, records, options, ctx).map_err(E::SetLearning)?;
     let outcome = match decider {
         None => result.pooled.ok_or(E::PooledNotAvailable)?,
         Some(name) => result
@@ -652,8 +758,9 @@ pub(crate) fn select_estimate(
     records: &ChoiceRecordSet,
     decider: Option<&str>,
     options: ChoiceModelOptions,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<ChoiceModelEstimate, AcceptedPreferencesError> {
-    let result = estimate_choice_model(model, records, options).map_err(E::ChoiceModel)?;
+    let result = estimate_all(model, records, options, ctx).map_err(E::ChoiceModel)?;
     match decider {
         None => result.pooled.map(|estimate| *estimate).ok_or(E::PooledNotAvailable),
         Some(name) => {
@@ -712,16 +819,29 @@ fn check_basis(
 }
 
 /// Every review item the basis raises, before acknowledgements, in the documented order.
+///
+/// A parameter the declaration fixes (`lower == upper`) is a value stated outright: it raises
+/// no item for not being varied or narrowed by the records.
 fn review_items(
     declared: &ValueModel,
     basis: &PreferenceBasis,
     stated_comparisons: usize,
 ) -> Vec<PendingReview> {
+    let fixed = |id: &str| {
+        declared
+            .preferences
+            .parameters
+            .iter()
+            .any(|p| p.id == id && p.lower.total_cmp(&p.upper).is_eq())
+    };
     let mut items = Vec::new();
     match basis {
         PreferenceBasis::Declared => {}
         PreferenceBasis::CompatibleSet(learned) => {
             for range in &learned.ranges {
+                if fixed(&range.parameter_id) {
+                    continue;
+                }
                 if !range.varied_in_records {
                     items.push(PendingReview::ParameterNotVaried {
                         parameter_id: range.parameter_id.clone(),
@@ -778,6 +898,72 @@ fn canonical_acknowledged(
         }
     }
     Ok(all.iter().filter(|item| existing.contains(item) || added.contains(item)).cloned().collect())
+}
+
+impl AcceptedPreferencesError {
+    /// Structured refusal for a failure to accept, acknowledge or version preferences.
+    ///
+    /// A value-model, set-learning or choice-model refusal keeps its own refusal. A
+    /// contradiction states the tolerance needed as `expected` and the conflicting records as
+    /// `supplied`.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), ACCEPT, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                ACCEPT,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        match self {
+            Self::Model(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::SetLearning(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::ChoiceModel(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::ModelMismatch { expected, found } => {
+                unsatisfied("accept the learned preferences under the model they were learned from")
+                    .expected(expected.clone())
+                    .supplied(found.clone())
+                    .build()
+            }
+            Self::OptionsMismatch { option } => unsatisfied(
+                "accept the learned preferences with the options they were learned with",
+            )
+            .offending(*option)
+            .build(),
+            Self::PooledNotAvailable => {
+                invalid("name the decider whose preferences to accept").build()
+            }
+            Self::DeciderUnknown { decider } => {
+                invalid("name a decider the records hold").offending(decider.clone()).build()
+            }
+            Self::Contradictory { decider, conflict } => unsatisfied(
+                "raise the tolerance to the stated value or remove one of the named records",
+            )
+            .offending_opt(decider.clone())
+            .expected(format!("tolerance >= {}", conflict.tolerance_needed))
+            .supplied(conflict.records.join(","))
+            .build(),
+            Self::NoItems => invalid("name at least one pending review item").build(),
+            Self::RepeatedItem { item } => {
+                invalid("name each review item once").offending(format!("{item:?}")).build()
+            }
+            Self::NotPending { item } => invalid("name only review items that are pending")
+                .offending(format!("{item:?}"))
+                .build(),
+            Self::VersionInvalid { version } => invalid("supply a version of at least one")
+                .expected("1")
+                .supplied(version.to_string())
+                .build(),
+            Self::VersionExhausted => {
+                invalid("accept the preferences anew instead of revising them").build()
+            }
+        }
+    }
 }
 
 #[cfg(test)]

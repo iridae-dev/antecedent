@@ -501,7 +501,7 @@ fn every_refusal_names_its_cause() {
     let mut empty = records.clone();
     empty.records.clear();
     let missing = refusal(&model, &empty, with(0.0));
-    assert_eq!(missing.detail(), reason_details::preference_set_learning::RECORDS_INVALID);
+    assert_eq!(missing.detail(), reason_details::choice_record::RECORDS_MISSING);
     assert_eq!(inner_detail(&missing), reason_details::choice_record::RECORDS_MISSING);
 
     // `x0 + t * t * x1` has no linear form in the free parameter t.
@@ -511,7 +511,7 @@ fn every_refusal_names_its_cause() {
         E::product(E::product(E::Parameter(0), E::Parameter(0)), E::Attribute(1)),
     );
     let no_form = refusal(&squared, &records, with(0.0));
-    assert_eq!(no_form.detail(), reason_details::preference_set_learning::RECORDS_INVALID);
+    assert_eq!(no_form.detail(), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
     assert_eq!(inner_detail(&no_form), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
 
     let declared = |id: &str, bound: f64| LinearRelation {

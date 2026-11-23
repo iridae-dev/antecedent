@@ -20,8 +20,8 @@
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ScientificQuantity;
-use antecedent_core::CanonicalWriter;
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionCalibration};
 use antecedent_io_core::error::IoError;
@@ -42,38 +42,41 @@ use crate::decision_contract::{
 use crate::decision_eval::{ConstraintExclusion, SourceReceipt};
 use crate::preference_certified::{
     CertifiedActionOutcome, CertifiedOptions, CertifiedPreferenceResult, CertifiedRegion,
-    CertifiedVerdict, RegionStatus,
+    CertifiedVerdict, PreferenceCertifiedError, RegionStatus,
 };
 use crate::preference_choice_model::{
-    ChoiceModelEstimate, ChoiceModelOptions, CovarianceKind, ParameterEstimate,
+    ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, CovarianceKind, ParameterEstimate,
 };
 use crate::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
 };
 use crate::preference_decision::{
-    MeasureOrigin, PreferenceActionOutcome, PreferenceDecisionOptions, PreferenceDecisionResult,
-    PreferenceMeasure, PreferenceSwitch, PreferenceVerdict, SwitchThreshold,
+    MeasureOrigin, PreferenceActionOutcome, PreferenceDecisionError, PreferenceDecisionOptions,
+    PreferenceDecisionResult, PreferenceMeasure, PreferenceSwitch, PreferenceVerdict,
+    SwitchThreshold,
 };
 use crate::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, PreferenceRoute,
-    decide_preferences,
+    decide_on_draws, decide_preferences,
 };
 use crate::preference_model::{
     Attribute, LinearRelation, PreferenceExpr, PreferenceParameter, PreferenceSet, RelationOrigin,
     RelationSense, ValueModel,
 };
+use crate::preference_refusal::{CONSUME, EXPORT, refusal};
 use crate::preference_set_learning::{
-    BindingChoice, LearnedPreferenceSet, ParameterRange, SetLearningOptions,
+    BindingChoice, LearnedPreferenceSet, ParameterRange, SetLearningError, SetLearningOptions,
 };
+use crate::signal::at_stage;
 
 /// Relative tolerance of every real a replay compares: `|stored - fresh|` may be at most this
 /// times the larger of one, `|stored|` and `|fresh|`.
 pub const REPLAY_RELATIVE_TOLERANCE: f64 = 1e-9;
 
 const ACCEPTED_KIND: &str = "accepted_preferences_v1";
-const ACCEPTED_SECTION: &str = "accepted_preferences.body";
+const ACCEPTED_SECTION: &str = "accepted_preferences_body";
 const DECISION_KIND: &str = "preference_decision_v1";
-const DECISION_SECTION: &str = "preference_decision.body";
+const DECISION_SECTION: &str = "preference_decision_body";
 /// Version word of every body this reader decodes; the shared decoder refuses any other.
 const BODY_VERSION: u16 = 1;
 
@@ -128,6 +131,9 @@ pub enum PreferenceArtifactError {
         /// The first stored field that differs.
         field: &'static str,
     },
+    /// The execution context was cancelled during a replay; nothing was verified.
+    #[error("the replay was cancelled")]
+    Cancelled,
 }
 
 impl PreferenceArtifactError {
@@ -153,6 +159,7 @@ impl PreferenceArtifactError {
             Self::ReplaySourceDiffers => reason_details::preference_artifact::REPLAY_SOURCE_DIFFERS,
             Self::ReplayRecordsDiffer => reason_details::preference_artifact::REPLAY_RECORDS_DIFFER,
             Self::ReplayMismatch { .. } => reason_details::preference_artifact::REPLAY_MISMATCH,
+            Self::Cancelled => reason_details::preference_artifact::CANCELLED,
         }
     }
 }
@@ -177,6 +184,32 @@ impl From<PreferenceArtifactError> for IoError {
 }
 
 use PreferenceArtifactError as E;
+
+/// `Err(Cancelled)` when a context is given and its token is set.
+fn observe(ctx: Option<&ExecutionContext>) -> Result<(), PreferenceArtifactError> {
+    if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+        return Err(E::Cancelled);
+    }
+    Ok(())
+}
+
+/// A refused relearning, with the learner's cancellation reported as the replay's.
+fn relearn_error(error: AcceptedPreferencesError) -> PreferenceArtifactError {
+    match error {
+        AcceptedPreferencesError::SetLearning(SetLearningError::Cancelled)
+        | AcceptedPreferencesError::ChoiceModel(ChoiceModelError::Cancelled) => E::Cancelled,
+        other => E::Accepted(other),
+    }
+}
+
+/// A refused re-evaluation, with the route's cancellation reported as the replay's.
+fn reevaluation_error(error: PreferenceEvaluationError) -> PreferenceArtifactError {
+    match error {
+        PreferenceEvaluationError::Exact(PreferenceDecisionError::Cancelled)
+        | PreferenceEvaluationError::Certified(PreferenceCertifiedError::Cancelled) => E::Cancelled,
+        other => E::Evaluation(other),
+    }
+}
 
 fn malformed(what: impl Into<String>) -> PreferenceArtifactError {
     E::Malformed { what: what.into() }
@@ -1017,6 +1050,28 @@ impl AcceptedPreferencesArtifact {
     /// Records other than the ones the basis was learned from; a refused relearning; any
     /// differing field.
     pub fn replay(&self, records: &ChoiceRecordSet) -> Result<(), PreferenceArtifactError> {
+        self.replay_in(records, None)
+    }
+
+    /// [`Self::replay`] under an execution context: the relearning reads the context's
+    /// cancellation token as the learner or the estimator does.
+    ///
+    /// # Errors
+    /// As [`Self::replay`]; [`PreferenceArtifactError::Cancelled`] once the token is set.
+    pub fn replay_with_context(
+        &self,
+        records: &ChoiceRecordSet,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PreferenceArtifactError> {
+        self.replay_in(records, Some(ctx))
+    }
+
+    fn replay_in(
+        &self,
+        records: &ChoiceRecordSet,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<(), PreferenceArtifactError> {
+        observe(ctx)?;
         let model = self.accepted.declared_model();
         let decider = self.accepted.decider();
         let stated = || {
@@ -1028,12 +1083,14 @@ impl AcceptedPreferencesArtifact {
         match (self.accepted.basis(), self.accepted.learning_options()) {
             (PreferenceBasis::Declared, _) => Ok(()),
             (PreferenceBasis::CompatibleSet(stored), Some(LearningOptions::CompatibleSet(o))) => {
-                let fresh = select_learned(model, records, decider, o).map_err(E::Accepted)?;
+                let fresh =
+                    select_learned(model, records, decider, o, ctx).map_err(relearn_error)?;
                 compare_learned(stored, &fresh)?;
                 stated()
             }
             (PreferenceBasis::ChoiceEstimate(stored), Some(LearningOptions::ChoiceEstimate(o))) => {
-                let fresh = select_estimate(model, records, decider, o).map_err(E::Accepted)?;
+                let fresh =
+                    select_estimate(model, records, decider, o, ctx).map_err(relearn_error)?;
                 compare_estimate(stored, &fresh)?;
                 stated()
             }
@@ -1911,6 +1968,23 @@ impl PreferenceDecisionArtifact {
         Self::new(contract, measure, options, evaluation, source)
     }
 
+    /// [`Self::evaluate`] under an execution context: the answering route reads the context's
+    /// cancellation token at its work boundaries.
+    ///
+    /// # Errors
+    /// As [`Self::evaluate`]; a cancelled run is the answering route's `Cancelled` refusal.
+    pub fn evaluate_with_context(
+        contract: PreferenceContract,
+        source: &DistributionArtifact,
+        measure: Option<PreferenceMeasure>,
+        options: PreferenceEvaluationOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, PreferenceArtifactError> {
+        let evaluation = decide_on_draws(&contract, source, measure.as_ref(), options, Some(ctx))
+            .map_err(E::Evaluation)?;
+        Self::new(contract, measure, options, evaluation, source)
+    }
+
     /// The preference contract.
     #[must_use]
     pub fn contract(&self) -> &PreferenceContract {
@@ -2021,11 +2095,34 @@ impl PreferenceDecisionArtifact {
     /// Draws other than the ones the result was computed from; a refused evaluation; any
     /// differing field.
     pub fn replay(&self, source: &DistributionArtifact) -> Result<(), PreferenceArtifactError> {
+        self.replay_in(source, None)
+    }
+
+    /// [`Self::replay`] under an execution context: the re-evaluation reads the context's
+    /// cancellation token as the answering route does.
+    ///
+    /// # Errors
+    /// As [`Self::replay`]; [`PreferenceArtifactError::Cancelled`] once the token is set.
+    pub fn replay_with_context(
+        &self,
+        source: &DistributionArtifact,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PreferenceArtifactError> {
+        self.replay_in(source, Some(ctx))
+    }
+
+    fn replay_in(
+        &self,
+        source: &DistributionArtifact,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<(), PreferenceArtifactError> {
         if source_digest(source) != self.source_digest {
             return Err(E::ReplaySourceDiffers);
         }
-        let fresh = decide_preferences(&self.contract, source, self.measure.as_ref(), self.options)
-            .map_err(E::Evaluation)?;
+        observe(ctx)?;
+        let measure = self.measure.as_ref();
+        let fresh = decide_on_draws(&self.contract, source, measure, self.options, ctx)
+            .map_err(reevaluation_error)?;
         match (&self.evaluation, &fresh) {
             (PreferenceEvaluation::Exact(stored), PreferenceEvaluation::Exact(fresh)) => {
                 compare_exact(stored, fresh)
@@ -2280,6 +2377,74 @@ fn compare_estimate(
         "share_outside_declared",
     )?;
     ensure(stored.assumptions == fresh.assumptions, "assumptions")
+}
+
+impl PreferenceArtifactError {
+    /// Structured refusal for a failure to write, read, check or replay a preference artifact.
+    ///
+    /// An accepted-preferences, contract or evaluation refusal keeps its own refusal; an
+    /// encoding or container failure carries the container's message as the supplied text.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |stage, remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), stage, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                CONSUME,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        match self {
+            Self::Encode(error) => {
+                refusal(antecedent_core::reason_code!("invalid_argument"), EXPORT, self.detail())
+                    .supplied(error.to_string())
+                    .build()
+            }
+            Self::Container(error) => invalid(CONSUME, "supply bytes written by this library")
+                .supplied(error.to_string())
+                .build(),
+            Self::Malformed { what } => invalid(CONSUME, "supply bytes written by this library")
+                .offending(what.clone())
+                .build(),
+            Self::Accepted(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::Contract(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::Evaluation(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::StoredIdentityMismatch => {
+                invalid(CONSUME, "re-export from the producer instead of editing the bytes").build()
+            }
+            Self::IdentityExpected => {
+                unsatisfied("supply the artifact whose identity was retained").build()
+            }
+            Self::ContractExpected => {
+                unsatisfied("supply the result of the retained preference contract").build()
+            }
+            Self::SourceExpected => {
+                unsatisfied("supply the result computed from the retained draws").build()
+            }
+            Self::ResultContractMismatch => {
+                unsatisfied("re-export the result from the producer").build()
+            }
+            Self::ReplaySourceDiffers => {
+                unsatisfied("replay with the draws the result was computed from").build()
+            }
+            Self::ReplayRecordsDiffer => {
+                unsatisfied("replay with the records the preferences were learned from").build()
+            }
+            Self::ReplayMismatch { field } => {
+                unsatisfied("re-export from the producer and replay again")
+                    .offending(*field)
+                    .build()
+            }
+            Self::Cancelled => {
+                refusal(antecedent_core::reason_code!("cancelled_no_claim"), CONSUME, self.detail())
+                    .build()
+            }
+        }
+    }
 }
 
 #[cfg(test)]

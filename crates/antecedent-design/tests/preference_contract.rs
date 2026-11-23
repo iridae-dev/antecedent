@@ -513,7 +513,7 @@ fn a_refusal_of_the_derived_ordinary_contract_is_reported() {
     assert_eq!(c.validate(), Ok(()));
     let refused = c.bind(&[2.0, 0.75]).unwrap_err();
     assert_eq!(refused, E::Contract(DecisionContractError::InvalidParameter("constraint")));
-    assert_eq!(refused.detail(), reason_details::preference_contract::DECISION_CONTRACT_REFUSED);
+    assert_eq!(refused.detail(), reason_details::decision_contract::INVALID_PARAMETER);
     for other in [
         E::ParameterCount { expected: 2, found: 1 },
         E::NonFiniteParameter { index: 0 },

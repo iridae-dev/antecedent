@@ -41,6 +41,8 @@
 
 use std::collections::BTreeSet;
 
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::ExecutionContext;
 use antecedent_stats::linear_program::{
     self, ConstraintSense, LinearConstraint, LinearProgram, LpError, LpOptions, LpOutcome,
     LpSolution,
@@ -53,6 +55,8 @@ use crate::preference_model::{
     LinearRelation, PreferenceModelError, PreferenceParameter, PreferenceRows, PreferenceSet,
     RelationOrigin, RelationSense, ValueModel,
 };
+use crate::preference_refusal::{LEARN, refusal};
+use crate::signal::at_stage;
 
 /// Identity of the assumption every learned set stands on: each recorded choice was at least as
 /// good as every rejected option, within the declared tolerance, under the declared value model
@@ -239,16 +243,20 @@ pub enum SetLearningError {
         /// Where the disagreement was found.
         stage: &'static str,
     },
+    /// The execution context was cancelled between linear programs.
+    #[error("learning the compatible set was cancelled")]
+    Cancelled,
 }
 
 impl SetLearningError {
-    /// Stable detail id, prefixed `preference_set_learning.`.
+    /// Stable detail id, prefixed `preference_set_learning.`; a record refusal keeps its own
+    /// `choice_record.` detail, the detail the returned refusal carries.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
         match self {
             Self::Model(_) => reason_details::preference_set_learning::MODEL_INVALID,
-            Self::Records(_) => reason_details::preference_set_learning::RECORDS_INVALID,
+            Self::Records(inner) => inner.detail(),
             Self::Lp(_) => reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED,
             Self::ToleranceNegative { .. } => {
                 reason_details::preference_set_learning::TOLERANCE_NEGATIVE
@@ -263,6 +271,7 @@ impl SetLearningError {
             Self::ProgramInconsistent { .. } => {
                 reason_details::preference_set_learning::PROGRAM_INCONSISTENT
             }
+            Self::Cancelled => reason_details::preference_set_learning::CANCELLED,
         }
     }
 }
@@ -287,6 +296,30 @@ pub fn learn_compatible_set(
     records: &ChoiceRecordSet,
     options: SetLearningOptions,
 ) -> Result<SetLearningResult, SetLearningError> {
+    learn(model, records, options, None)
+}
+
+/// [`learn_compatible_set`] under an execution context: the context's cancellation token is read
+/// before every linear program of the parameter ranges, the tolerance and the conflict search
+/// (the smallest-conflict search can solve up to [`SMALLEST_CONFLICT_SUBSET_BUDGET`] programs).
+///
+/// # Errors
+/// As [`learn_compatible_set`]; [`SetLearningError::Cancelled`] once the token is set.
+pub fn learn_compatible_set_with_context(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    options: SetLearningOptions,
+    ctx: &ExecutionContext,
+) -> Result<SetLearningResult, SetLearningError> {
+    learn(model, records, options, Some(ctx))
+}
+
+pub(crate) fn learn(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    options: SetLearningOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<SetLearningResult, SetLearningError> {
     if !options.tolerance.is_finite() {
         return Err(SetLearningError::ToleranceNonFinite);
     }
@@ -301,12 +334,13 @@ pub fn learn_compatible_set(
 
     let declared = &model.preferences;
     let declared_region = Region::of(declared);
-    if declared.dimension() > 0 && !feasible(&declared_region, options.lp)? {
+    if declared.dimension() > 0 && !feasible(&declared_region, options.lp, ctx)? {
         return Err(SetLearningError::DeclaredSetEmpty);
     }
-    let baseline = extremes(&declared_region, &declared.parameters, options.lp)?
+    let baseline = extremes(&declared_region, &declared.parameters, options.lp, ctx)?
         .ok_or(SetLearningError::DeclaredSetEmpty)?;
-    let learner = Learner { model, model_identity, choices, baseline: baseline.ranges, options };
+    let learner =
+        Learner { model, model_identity, choices, baseline: baseline.ranges, options, ctx };
 
     let all: Vec<usize> = (0..learner.choices.len()).collect();
     let mut per_decider = Vec::new();
@@ -499,8 +533,29 @@ fn program(region: &Region, objective: Vec<f64>) -> LinearProgram {
     }
 }
 
+/// `Err(Cancelled)` when a context is given and its token is set.
+fn observe(ctx: Option<&ExecutionContext>) -> Result<(), SetLearningError> {
+    if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+        return Err(SetLearningError::Cancelled);
+    }
+    Ok(())
+}
+
+/// A linear-program refusal, with cancellation kept as cancellation.
+fn lp_error(error: LpError) -> SetLearningError {
+    match error {
+        LpError::Cancelled => SetLearningError::Cancelled,
+        other => SetLearningError::Lp(other),
+    }
+}
+
 /// Whether the region has a point. Only for a region with at least one variable.
-fn feasible(region: &Region, lp: LpOptions) -> Result<bool, SetLearningError> {
+fn feasible(
+    region: &Region,
+    lp: LpOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<bool, SetLearningError> {
+    observe(ctx)?;
     let outcome = linear_program::solve(&program(region, vec![0.0; region.lower.len()]), lp)
         .map_err(SetLearningError::Lp)?;
     Ok(!matches!(outcome, LpOutcome::Infeasible(_)))
@@ -512,7 +567,9 @@ fn extreme(
     k: usize,
     maximise: bool,
     lp: LpOptions,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<Option<LpSolution>, SetLearningError> {
+    observe(ctx)?;
     let mut objective = vec![0.0; region.lower.len()];
     if let Some(slot) = objective.get_mut(k) {
         *slot = 1.0;
@@ -545,6 +602,7 @@ fn extremes(
     region: &Region,
     parameters: &[PreferenceParameter],
     lp: LpOptions,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<Option<Extremes>, SetLearningError> {
     let mut ranges = Vec::with_capacity(parameters.len());
     let mut active = BTreeSet::new();
@@ -554,7 +612,7 @@ fn extremes(
             continue;
         }
         let (Some(low), Some(high)) =
-            (extreme(region, k, false, lp)?, extreme(region, k, true, lp)?)
+            (extreme(region, k, false, lp, ctx)?, extreme(region, k, true, lp, ctx)?)
         else {
             return Ok(None);
         };
@@ -589,6 +647,8 @@ struct Learner<'a> {
     /// Range of each parameter over the declared set.
     baseline: Vec<(f64, f64)>,
     options: SetLearningOptions,
+    /// The caller's execution context, when the run is cancellable.
+    ctx: Option<&'a ExecutionContext>,
 }
 
 impl Learner<'_> {
@@ -620,10 +680,10 @@ impl Learner<'_> {
         let set = PreferenceSet { parameters: declared.parameters.clone(), relations };
         set.validate().map_err(SetLearningError::Model)?;
         let region = Region::of(&set);
-        if set.dimension() > 0 && !feasible(&region, self.options.lp)? {
+        if set.dimension() > 0 && !feasible(&region, self.options.lp, self.ctx)? {
             return Ok(SetOutcome::Contradictory(self.conflict(&by_id, members)?));
         }
-        let found = extremes(&region, &set.parameters, self.options.lp)?
+        let found = extremes(&region, &set.parameters, self.options.lp, self.ctx)?
             .ok_or(SetLearningError::ProgramInconsistent { stage: "parameter_range" })?;
         let mut binding = BTreeSet::new();
         for row in &found.active {
@@ -734,31 +794,31 @@ impl Learner<'_> {
         let upper: Vec<f64> = declared_set.parameters.iter().map(|p| p.upper).collect();
         let lp = self.options.lp;
         let size = self.options.conflict_search_size;
+        let (rows, labels, low, high) = (&constraints, &group, &lower, &upper);
         let smallest =
             if size == 0 || subsets_exceed(by_id.len(), size, SMALLEST_CONFLICT_SUBSET_BUDGET) {
                 None
             } else {
-                linear_program::smallest_infeasible_groups(
-                    &constraints,
-                    &group,
-                    &lower,
-                    &upper,
-                    size,
-                    lp,
-                )
-                .map_err(SetLearningError::Lp)?
+                let searched = match self.ctx {
+                    Some(ctx) => linear_program::smallest_infeasible_groups_with_context(
+                        rows, labels, low, high, size, lp, ctx,
+                    ),
+                    None => linear_program::smallest_infeasible_groups(
+                        rows, labels, low, high, size, lp,
+                    ),
+                };
+                searched.map_err(lp_error)?
             };
         let (groups, kind) = if let Some(groups) = smallest {
             (groups, ConflictKind::Smallest)
         } else {
-            let groups = linear_program::irreducible_infeasible_groups(
-                &constraints,
-                &group,
-                &lower,
-                &upper,
-                lp,
-            )
-            .map_err(SetLearningError::Lp)?
+            let groups = match self.ctx {
+                Some(ctx) => linear_program::irreducible_infeasible_groups_with_context(
+                    rows, labels, low, high, lp, ctx,
+                ),
+                None => linear_program::irreducible_infeasible_groups(rows, labels, low, high, lp),
+            }
+            .map_err(lp_error)?
             .ok_or(SetLearningError::ProgramInconsistent { stage: "conflict_search" })?;
             (groups, ConflictKind::Irreducible)
         };
@@ -796,10 +856,59 @@ impl Learner<'_> {
         let mut objective = vec![0.0; dimension];
         objective.push(1.0);
         let program = LinearProgram { objective, constraints, lower, upper };
+        observe(self.ctx)?;
         match linear_program::solve(&program, self.options.lp).map_err(SetLearningError::Lp)? {
             LpOutcome::Optimal(solution) => Ok(tolerance + solution.objective.max(0.0)),
             LpOutcome::Infeasible(_) | LpOutcome::Unbounded { .. } => {
                 Err(SetLearningError::ProgramInconsistent { stage: "tolerance_needed" })
+            }
+        }
+    }
+}
+
+impl SetLearningError {
+    /// Structured refusal for a failure to learn the preference set compatible with recorded
+    /// choices.
+    ///
+    /// A value-model or choice-record refusal keeps its own refusal; a linear-program refusal
+    /// is reported under `preference_set_learning.linear_program_refused` with the linear
+    /// program's detail and message as the supplied text. Contradictory records are an
+    /// outcome, not a refusal.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), LEARN, self.detail())
+                .remedy(remedy)
+        };
+        let tolerance = "supply a finite, non-negative tolerance in utility units";
+        match self {
+            Self::Model(error) => at_stage(error.to_refusal(), LEARN),
+            Self::Records(error) => at_stage(error.to_refusal(), LEARN),
+            Self::Lp(error) => invalid(
+                "relax SetLearningOptions::lp, or rescale the declared ranges and relations",
+            )
+            .supplied(format!("{}: {error}", error.detail()))
+            .build(),
+            Self::ToleranceNegative { tolerance: value } => {
+                invalid(tolerance).supplied(value.to_string()).build()
+            }
+            Self::ToleranceNonFinite => invalid(tolerance).build(),
+            Self::DeclaredSetEmpty => {
+                invalid("widen the declared ranges or remove a declared relation").build()
+            }
+            Self::RelationIdCollision { id } => {
+                invalid("rename the declared relation or the record whose choice relation collides")
+                    .offending(id.clone())
+                    .build()
+            }
+            Self::ProgramInconsistent { stage } => {
+                invalid("tighten the feasibility tolerance in SetLearningOptions::lp")
+                    .supplied(*stage)
+                    .build()
+            }
+            Self::Cancelled => {
+                refusal(antecedent_core::reason_code!("cancelled_no_claim"), LEARN, self.detail())
+                    .build()
             }
         }
     }

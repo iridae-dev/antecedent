@@ -27,7 +27,7 @@ pub use binomial::{
 };
 pub use conditional_logit::{
     ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
-    conditional_logit_log_likelihood, fit_conditional_logit,
+    conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
 };
 pub use multinomial::{
     MultinomialDesignRef, MultinomialFit, fit_multinomial_logit, fit_multinomial_logit_weighted,

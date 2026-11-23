@@ -1812,6 +1812,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "preference_artifact.cancelled",
     "preference_artifact.container_refused",
     "preference_artifact.contract_expected",
     "preference_artifact.encode_failed",
@@ -1826,6 +1827,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_certified.atom_probabilities_invalid",
     "preference_certified.atom_probabilities_required",
     "preference_certified.atoms_invalid",
+    "preference_certified.cancelled",
     "preference_certified.enclosure_non_finite",
     "preference_certified.logarithm_domain",
     "preference_certified.measure_empty",
@@ -1843,6 +1845,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_certified.preference_set_empty",
     "preference_certified.source_refused",
     "preference_certified.structure_inputs_required",
+    "preference_choice_model.cancelled",
     "preference_choice_model.consistency_not_positive",
     "preference_choice_model.covariance_not_positive_definite",
     "preference_choice_model.draws_missing",
@@ -1881,6 +1884,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_contract.quantity_units_mismatch",
     "preference_contract.target_population_blank",
     "preference_contract.too_few_actions",
+    "preference_decision.cancelled",
     "preference_decision.coefficient_non_finite",
     "preference_decision.criterion_needs_certified_route",
     "preference_decision.linear_program_infeasible",
@@ -1948,6 +1952,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_model.unknown_parameter",
     "preference_model.utility_units_blank",
     "preference_model.value_non_finite",
+    "preference_set_learning.cancelled",
     "preference_set_learning.declared_set_empty",
     "preference_set_learning.linear_program_refused",
     "preference_set_learning.model_invalid",
@@ -4759,7 +4764,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("predictive_assessment.too_few_clusters", &["too_few_clusters"]),
     ("predictive_assessment.unknown_source", &["invalid_argument"]),
     ("predictive_assessment.wrong_contract", &["route_not_supported"]),
-    ("preference_artifact.container_refused", &["invalid_argument", "schema_mismatch"]),
+    ("preference_artifact.cancelled", &["cancelled_no_claim"]),
+    ("preference_artifact.container_refused", &["invalid_argument"]),
     ("preference_artifact.contract_expected", &["decision_contract_unsatisfied"]),
     ("preference_artifact.encode_failed", &["invalid_argument"]),
     ("preference_artifact.identity_expected", &["decision_contract_unsatisfied"]),
@@ -4773,6 +4779,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_certified.atom_probabilities_invalid", &["decision_contract_unsatisfied"]),
     ("preference_certified.atom_probabilities_required", &["decision_contract_unsatisfied"]),
     ("preference_certified.atoms_invalid", &["invalid_argument"]),
+    ("preference_certified.cancelled", &["cancelled_no_claim"]),
     ("preference_certified.enclosure_non_finite", &["invalid_argument"]),
     ("preference_certified.logarithm_domain", &["invalid_argument"]),
     ("preference_certified.measure_empty", &["invalid_argument"]),
@@ -4790,6 +4797,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_certified.preference_set_empty", &["invalid_argument"]),
     ("preference_certified.source_refused", &["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied", "joint_law_required", "distribution_meaning_mismatch", "route_not_supported"]),
     ("preference_certified.structure_inputs_required", &["route_not_supported"]),
+    ("preference_choice_model.cancelled", &["cancelled_no_claim"]),
     ("preference_choice_model.consistency_not_positive", &["glm_fit_refused"]),
     ("preference_choice_model.covariance_not_positive_definite", &["glm_fit_refused"]),
     ("preference_choice_model.draws_missing", &["invalid_argument"]),
@@ -4828,6 +4836,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_contract.quantity_units_mismatch", &["quantity_semantics_mismatch"]),
     ("preference_contract.target_population_blank", &["invalid_argument"]),
     ("preference_contract.too_few_actions", &["invalid_argument"]),
+    ("preference_decision.cancelled", &["cancelled_no_claim"]),
     ("preference_decision.coefficient_non_finite", &["decision_contract_unsatisfied"]),
     ("preference_decision.criterion_needs_certified_route", &["route_not_supported"]),
     ("preference_decision.linear_program_infeasible", &["invalid_argument"]),
@@ -4895,6 +4904,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_model.unknown_parameter", &["invalid_argument"]),
     ("preference_model.utility_units_blank", &["invalid_argument"]),
     ("preference_model.value_non_finite", &["invalid_argument"]),
+    ("preference_set_learning.cancelled", &["cancelled_no_claim"]),
     ("preference_set_learning.declared_set_empty", &["invalid_argument"]),
     ("preference_set_learning.linear_program_refused", &["invalid_argument"]),
     ("preference_set_learning.model_invalid", &["invalid_argument"]),
@@ -10041,6 +10051,8 @@ pub mod predictive_assessment {
 
 /// Details in the `preference_artifact` family.
 pub mod preference_artifact {
+    /// Detail `preference_artifact.cancelled`.
+    pub const CANCELLED: &str = "preference_artifact.cancelled";
     /// Detail `preference_artifact.container_refused`.
     pub const CONTAINER_REFUSED: &str = "preference_artifact.container_refused";
     /// Detail `preference_artifact.contract_expected`.
@@ -10073,6 +10085,8 @@ pub mod preference_certified {
     pub const ATOM_PROBABILITIES_REQUIRED: &str = "preference_certified.atom_probabilities_required";
     /// Detail `preference_certified.atoms_invalid`.
     pub const ATOMS_INVALID: &str = "preference_certified.atoms_invalid";
+    /// Detail `preference_certified.cancelled`.
+    pub const CANCELLED: &str = "preference_certified.cancelled";
     /// Detail `preference_certified.enclosure_non_finite`.
     pub const ENCLOSURE_NON_FINITE: &str = "preference_certified.enclosure_non_finite";
     /// Detail `preference_certified.logarithm_domain`.
@@ -10111,6 +10125,8 @@ pub mod preference_certified {
 
 /// Details in the `preference_choice_model` family.
 pub mod preference_choice_model {
+    /// Detail `preference_choice_model.cancelled`.
+    pub const CANCELLED: &str = "preference_choice_model.cancelled";
     /// Detail `preference_choice_model.consistency_not_positive`.
     pub const CONSISTENCY_NOT_POSITIVE: &str = "preference_choice_model.consistency_not_positive";
     /// Detail `preference_choice_model.covariance_not_positive_definite`.
@@ -10195,6 +10211,8 @@ pub mod preference_contract {
 
 /// Details in the `preference_decision` family.
 pub mod preference_decision {
+    /// Detail `preference_decision.cancelled`.
+    pub const CANCELLED: &str = "preference_decision.cancelled";
     /// Detail `preference_decision.coefficient_non_finite`.
     pub const COEFFICIENT_NON_FINITE: &str = "preference_decision.coefficient_non_finite";
     /// Detail `preference_decision.criterion_needs_certified_route`.
@@ -10341,6 +10359,8 @@ pub mod preference_model {
 
 /// Details in the `preference_set_learning` family.
 pub mod preference_set_learning {
+    /// Detail `preference_set_learning.cancelled`.
+    pub const CANCELLED: &str = "preference_set_learning.cancelled";
     /// Detail `preference_set_learning.declared_set_empty`.
     pub const DECLARED_SET_EMPTY: &str = "preference_set_learning.declared_set_empty";
     /// Detail `preference_set_learning.linear_program_refused`.

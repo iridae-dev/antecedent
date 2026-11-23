@@ -57,6 +57,8 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::ExecutionContext;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::decision_contract::{DecisionCriterion, HardConstraint, StructuralPolicy};
@@ -72,6 +74,8 @@ use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use crate::preference_model::{
     LinearForm, PreferenceExpr, PreferenceModelError, PreferenceSet, RelationSense,
 };
+use crate::preference_refusal::{EVALUATE, STRUCTURAL, refusal};
+use crate::signal::at_stage;
 use crate::structure_aggregator::{
     INVARIANCE_UNCHECKED, NO_EVALUATED_POSITIVE_PROBABILITY, NO_STRUCTURE_EVALUATED,
     UNRESOLVED_MASS_CAN_CHANGE_BAYES, WORST_CASE_NEEDS_EVERY_STRUCTURE, probability_sum,
@@ -419,18 +423,21 @@ pub enum PreferenceCertifiedError {
         /// The criterion.
         criterion: &'static str,
     },
+    /// The execution context was cancelled between boxes, measure points or structures.
+    #[error("the certified evaluation was cancelled")]
+    Cancelled,
 }
 
 impl PreferenceCertifiedError {
-    /// Stable detail id, prefixed `preference_certified.`; a contract or model refusal keeps its
-    /// own detail.
+    /// Stable detail id, prefixed `preference_certified.`; a contract, model or source refusal
+    /// keeps its own detail, the detail the returned refusal carries.
     #[must_use]
     pub fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
         match self {
             Self::Contract(inner) => inner.detail(),
             Self::Model(inner) => inner.detail(),
-            Self::Eval(_) => reason_details::preference_certified::SOURCE_REFUSED,
+            Self::Eval(inner) => inner.detail(),
             Self::StructureInputsRequired => {
                 reason_details::preference_certified::STRUCTURE_INPUTS_REQUIRED
             }
@@ -476,6 +483,7 @@ impl PreferenceCertifiedError {
             Self::MixtureCriterionUnsupported { .. } => {
                 reason_details::preference_certified::MIXTURE_CRITERION_UNSUPPORTED
             }
+            Self::Cancelled => reason_details::preference_certified::CANCELLED,
         }
     }
 }
@@ -1075,9 +1083,16 @@ struct Engine<'a> {
     options: CertifiedOptions,
     /// Declared `(lower, upper)` per parameter.
     declared: Vec<(f64, f64)>,
+    /// The caller's execution context, when the run is cancellable.
+    ctx: Option<&'a ExecutionContext>,
 }
 
 impl Engine<'_> {
+    /// `Err(Cancelled)` once the caller's token is set.
+    fn observe(&self) -> Result<(), PreferenceCertifiedError> {
+        observe(self.ctx)
+    }
+
     fn criterion(&self) -> DecisionCriterion {
         self.contract.criterion
     }
@@ -1467,10 +1482,12 @@ impl Engine<'_> {
         let mut slots = Vec::new();
         let mut queue = BinaryHeap::new();
         let mut examined = 1;
+        self.observe()?;
         if let Some(root) = self.examine(lower, upper)? {
             self.place(root, &mut kept, &mut slots, &mut queue);
         }
         while let Some(entry) = queue.pop() {
+            self.observe()?;
             let Some(item) = slots[entry.slot].take() else {
                 continue;
             };
@@ -1779,6 +1796,7 @@ fn weighted_policy(
     let mut value: Vec<Option<f64>> = (0..n).map(|a| engine.admissible[a].then_some(0.0)).collect();
     let mut share = value.clone();
     for (point, weight) in measure.points.iter().zip(measure_weights(measure)) {
+        engine.observe()?;
         let scores = engine.point_scores(point)?;
         for &a in &admissible {
             if let (Some(total), Some(score)) = (value[a].as_mut(), scores[a]) {
@@ -1868,6 +1886,15 @@ struct Setup<'c> {
     identity: String,
     measure: Option<&'c PreferenceMeasure>,
     options: CertifiedOptions,
+    ctx: Option<&'c ExecutionContext>,
+}
+
+/// `Err(Cancelled)` when a context is given and its token is set.
+fn observe(ctx: Option<&ExecutionContext>) -> Result<(), PreferenceCertifiedError> {
+    if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+        return Err(PreferenceCertifiedError::Cancelled);
+    }
+    Ok(())
 }
 
 fn validate_options(options: CertifiedOptions) -> Result<(), PreferenceCertifiedError> {
@@ -1941,6 +1968,7 @@ impl<'c> Setup<'c> {
         contract: &'c PreferenceContract,
         measure: Option<&'c PreferenceMeasure>,
         options: CertifiedOptions,
+        ctx: Option<&'c ExecutionContext>,
     ) -> Result<Self, PreferenceCertifiedError> {
         use PreferenceCertifiedError as E;
         contract.validate().map_err(E::Contract)?;
@@ -1964,7 +1992,7 @@ impl<'c> Setup<'c> {
             None
         };
         let identity = contract.identity().map_err(E::Contract)?;
-        Ok(Self { contract, identity, measure, options })
+        Ok(Self { contract, identity, measure, options, ctx })
     }
 
     fn assumptions(&self) -> Vec<String> {
@@ -2020,6 +2048,7 @@ impl<'c> Setup<'c> {
             admissible,
             options: self.options,
             declared: contract.model.preferences.bounds(),
+            ctx: self.ctx,
         };
         let sign = orientation(contract.criterion);
         let any_admissible = engine.admissible.iter().any(|a| *a);
@@ -2109,7 +2138,33 @@ pub fn evaluate_preference_certified(
     measure: Option<&PreferenceMeasure>,
     options: CertifiedOptions,
 ) -> Result<CertifiedPreferenceResult, PreferenceCertifiedError> {
-    let setup = Setup::new(contract, measure, options)?;
+    certified(contract, source, measure, options, None)
+}
+
+/// [`evaluate_preference_certified`] under an execution context: the context's cancellation
+/// token is read before every examined box and every measure point.
+///
+/// # Errors
+/// As [`evaluate_preference_certified`]; [`PreferenceCertifiedError::Cancelled`] once the token
+/// is set.
+pub fn evaluate_preference_certified_with_context(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: CertifiedOptions,
+    ctx: &ExecutionContext,
+) -> Result<CertifiedPreferenceResult, PreferenceCertifiedError> {
+    certified(contract, source, measure, options, Some(ctx))
+}
+
+pub(crate) fn certified(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: CertifiedOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<CertifiedPreferenceResult, PreferenceCertifiedError> {
+    let setup = Setup::new(contract, measure, options, ctx)?;
     let data = prepare_source(contract, source)?;
     setup.run(std::slice::from_ref(&data), Combination::Single)
 }
@@ -2185,6 +2240,7 @@ fn evaluate_atoms<'s>(
     let mut sources = Vec::new();
     let mut probabilities = Vec::new();
     for atom in atoms {
+        observe(setup.ctx)?;
         let status = match &atom.evidence {
             AtomEvidence::Unidentified => CertifiedAtomStatus::Unidentified,
             AtomEvidence::Unevaluated(reason) => CertifiedAtomStatus::Unevaluated(reason.clone()),
@@ -2240,8 +2296,35 @@ pub fn evaluate_preference_certified_structural(
     measure: Option<&PreferenceMeasure>,
     options: CertifiedOptions,
 ) -> Result<StructuralCertifiedResult, PreferenceCertifiedError> {
+    certified_structural(contract, atoms, measure, options, None)
+}
+
+/// [`evaluate_preference_certified_structural`] under an execution context: the context's
+/// cancellation token is read before every structure, every examined box and every measure
+/// point.
+///
+/// # Errors
+/// As [`evaluate_preference_certified_structural`]; [`PreferenceCertifiedError::Cancelled`]
+/// once the token is set.
+pub fn evaluate_preference_certified_structural_with_context(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: CertifiedOptions,
+    ctx: &ExecutionContext,
+) -> Result<StructuralCertifiedResult, PreferenceCertifiedError> {
+    certified_structural(contract, atoms, measure, options, Some(ctx))
+}
+
+pub(crate) fn certified_structural(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: CertifiedOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<StructuralCertifiedResult, PreferenceCertifiedError> {
     use PreferenceCertifiedError as E;
-    let setup = Setup::new(contract, measure, options)?;
+    let setup = Setup::new(contract, measure, options, ctx)?;
     let has_probabilities = validate_atoms(atoms)?;
     let policy = contract.structural_policy;
     if policy == StructuralPolicy::BayesOverStructures {
@@ -2316,6 +2399,137 @@ pub fn evaluate_preference_certified_structural(
         evaluated_mass,
         verdict,
     })
+}
+
+impl PreferenceCertifiedError {
+    /// Structured refusal for a failure of the certified evaluation across a preference set.
+    ///
+    /// A contract, value-model or source refusal keeps its own refusal.
+    #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per certified-evaluation failure")]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |stage, remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), stage, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |stage, remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                stage,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        let unsupported = |stage, remedy| {
+            refusal(antecedent_core::reason_code!("route_not_supported"), stage, self.detail())
+                .remedy(remedy)
+        };
+        let corners = |lower: &[f64], upper: &[f64]| format!("{lower:?}..{upper:?}");
+        match self {
+            Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Model(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Eval(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::StructureInputsRequired => unsupported(
+                EVALUATE,
+                "evaluate across structures with evaluate_preference_certified_structural",
+            )
+            .build(),
+            Self::InvalidOptions { option } => {
+                invalid(EVALUATE, "supply the named option inside its documented range")
+                    .offending(*option)
+                    .build()
+            }
+            Self::MinimaxRegretNeedsExpectation => unsupported(
+                EVALUATE,
+                "use an expectation criterion, or choose another preference policy",
+            )
+            .build(),
+            Self::MeasureRequired => unsatisfied(
+                EVALUATE,
+                "supply a measure over the preference set, or choose another preference policy",
+            )
+            .build(),
+            Self::MeasureEmpty => invalid(EVALUATE, "supply at least one measure point").build(),
+            Self::MeasureUnknownParameter { index } => {
+                invalid(EVALUATE, "name only declared parameter positions as unresolved")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureIncomplete { parameters } => {
+                unsatisfied(EVALUATE, "supply a measure that resolves every parameter")
+                    .offending(parameters.join(","))
+                    .build()
+            }
+            Self::MeasurePointDimension { index, expected, found } => {
+                invalid(EVALUATE, "supply one value per preference parameter")
+                    .offending(index.to_string())
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::MeasureNonFinitePoint { index } => {
+                invalid(EVALUATE, "supply finite measure points")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasurePointOutsideSet { index } => {
+                invalid(EVALUATE, "supply measure points inside the declared ranges and relations")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureWeightsInvalid => invalid(
+                EVALUATE,
+                "supply one finite, non-negative weight per measure point with a positive total",
+            )
+            .build(),
+            Self::MeasureLabelsInvalid => {
+                invalid(EVALUATE, "supply one label per measure point").build()
+            }
+            Self::EmptyPreferenceSet => {
+                invalid(EVALUATE, "widen the declared ranges or remove a relation").build()
+            }
+            Self::LogarithmDomain { action, lower, upper } => invalid(
+                EVALUATE,
+                "keep the logarithm's argument positive: narrow the ranges or change the value",
+            )
+            .offending(action.clone())
+            .supplied(corners(lower, upper))
+            .build(),
+            Self::NonFiniteEnclosure { subject, lower, upper } => invalid(
+                EVALUATE,
+                "narrow the parameter ranges, or change the value so it stays finite",
+            )
+            .offending(subject.clone())
+            .supplied(corners(lower, upper))
+            .build(),
+            Self::InvalidAtoms => {
+                invalid(STRUCTURAL, "supply at least one structure with a distinct, non-blank id")
+                    .build()
+            }
+            Self::InvalidProbabilities => unsatisfied(
+                STRUCTURAL,
+                "give each structure a finite, non-negative probability summing to at most one",
+            )
+            .build(),
+            Self::ProbabilitiesRequired => unsatisfied(
+                STRUCTURAL,
+                "supply genuine structure probabilities, or choose another structural policy",
+            )
+            .build(),
+            Self::MixtureCriterionUnsupported { criterion } => unsupported(
+                STRUCTURAL,
+                "use an expectation criterion, or choose another structural policy",
+            )
+            .offending(*criterion)
+            .build(),
+            Self::Cancelled => refusal(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                EVALUATE,
+                self.detail(),
+            )
+            .build(),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -15,6 +15,8 @@
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::ExecutionContext;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::accepted_preferences::{AcceptedPreferences, PreferenceContractParts};
@@ -23,18 +25,18 @@ use crate::decision_eval::MeanSource;
 use crate::decision_structural::StructuralAtom;
 use crate::preference_certified::{
     CertifiedOptions, CertifiedPreferenceResult, CertifiedVerdict, PreferenceCertifiedError,
-    StructuralCertifiedResult, evaluate_preference_certified,
-    evaluate_preference_certified_structural,
+    StructuralCertifiedResult, certified, certified_structural,
 };
 use crate::preference_contract::{PreferenceContract, PreferenceContractError};
 use crate::preference_decision::{
     CertifiedRouteReason, NO_ADMISSIBLE_SENTENCE, PreferenceDecisionError,
     PreferenceDecisionOptions, PreferenceDecisionResult, PreferenceMeasure, PreferenceVerdict,
-    REPORT_ONLY_SENTENCE, StructuralPreferenceResult, evaluate_preference_contract,
-    evaluate_preference_contract_on_means, evaluate_preference_structural, join_ids,
-    measure_choice_sentence, minimax_regret_sentence, plain_number, preferred_everywhere,
-    worst_case_sentence,
+    REPORT_ONLY_SENTENCE, StructuralPreferenceResult, across_structures, join_ids,
+    measure_choice_sentence, minimax_regret_sentence, on_draws, on_means, plain_number,
+    preferred_everywhere, worst_case_sentence,
 };
+use crate::preference_refusal::{EVALUATE, refusal};
+use crate::signal::at_stage;
 
 /// Route label: the value is affine in the parameters and the criterion is an expectation.
 pub const ROUTE_AFFINE_EXPECTATION: &str = "preference_route.affine_expectation";
@@ -359,14 +361,40 @@ pub fn decide_preferences(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
 ) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    decide_on_draws(contract, source, measure, options, None)
+}
+
+/// [`decide_preferences`] under an execution context: the route that answers reads the
+/// context's cancellation token at its work boundaries (linear programs, vertex bases and draws
+/// on the exact route, boxes and measure points on the certified route).
+///
+/// # Errors
+/// As [`decide_preferences`]; a cancelled run is the answering route's `Cancelled` refusal.
+pub fn decide_preferences_with_context(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    decide_on_draws(contract, source, measure, options, Some(ctx))
+}
+
+pub(crate) fn decide_on_draws(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
     if preference_route(contract)?.route == PreferenceRoute::Exact {
-        match evaluate_preference_contract(contract, source, measure, options.exact) {
+        match on_draws(contract, source, measure, options.exact, ctx) {
             Ok(result) => return Ok(PreferenceEvaluation::Exact(Box::new(result))),
             Err(error) if fall_through(&error).is_some() => {}
             Err(error) => return Err(E::Exact(error)),
         }
     }
-    evaluate_preference_certified(contract, source, measure, options.certified)
+    certified(contract, source, measure, options.certified, ctx)
         .map(|result| PreferenceEvaluation::Certified(Box::new(result)))
         .map_err(E::Certified)
 }
@@ -384,11 +412,37 @@ pub fn decide_preferences_on_means(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
 ) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    decide_on_means(contract, source, measure, options, None)
+}
+
+/// [`decide_preferences_on_means`] under an execution context: the exact route reads the
+/// context's cancellation token before every linear program.
+///
+/// # Errors
+/// As [`decide_preferences_on_means`]; a cancelled run is the exact route's `Cancelled`
+/// refusal.
+pub fn decide_preferences_on_means_with_context(
+    contract: &PreferenceContract,
+    source: &MeanSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    decide_on_means(contract, source, measure, options, Some(ctx))
+}
+
+fn decide_on_means(
+    contract: &PreferenceContract,
+    source: &MeanSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
     let choice = preference_route(contract)?;
     if choice.route == PreferenceRoute::Certified {
         return Err(E::JointDrawsRequired { reason: choice.reason });
     }
-    evaluate_preference_contract_on_means(contract, source, measure, options.exact)
+    on_means(contract, source, measure, options.exact, ctx)
         .map(|result| PreferenceEvaluation::Exact(Box::new(result)))
         .map_err(|error| match fall_through(&error) {
             Some(reason) => E::JointDrawsRequired { reason },
@@ -406,14 +460,40 @@ pub fn decide_preferences_structural(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
 ) -> Result<StructuralPreferenceEvaluation, PreferenceEvaluationError> {
+    decide_structural(contract, atoms, measure, options, None)
+}
+
+/// [`decide_preferences_structural`] under an execution context: the route that answers reads
+/// the context's cancellation token before every structure and at its work boundaries.
+///
+/// # Errors
+/// As [`decide_preferences_structural`]; a cancelled run is the answering route's `Cancelled`
+/// refusal.
+pub fn decide_preferences_structural_with_context(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<StructuralPreferenceEvaluation, PreferenceEvaluationError> {
+    decide_structural(contract, atoms, measure, options, Some(ctx))
+}
+
+fn decide_structural(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<StructuralPreferenceEvaluation, PreferenceEvaluationError> {
     if preference_route(contract)?.route == PreferenceRoute::Exact {
-        match evaluate_preference_structural(contract, atoms, measure, options.exact) {
+        match across_structures(contract, atoms, measure, options.exact, ctx) {
             Ok(result) => return Ok(StructuralPreferenceEvaluation::Exact(Box::new(result))),
             Err(error) if fall_through(&error).is_some() => {}
             Err(error) => return Err(E::Exact(error)),
         }
     }
-    evaluate_preference_certified_structural(contract, atoms, measure, options.certified)
+    certified_structural(contract, atoms, measure, options.certified, ctx)
         .map(|result| StructuralPreferenceEvaluation::Certified(Box::new(result)))
         .map_err(E::Certified)
 }
@@ -431,4 +511,44 @@ pub fn decide_with_accepted(
 ) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
     let contract = accepted.contract(parts);
     decide_preferences(&contract, source, accepted.measure(), options)
+}
+
+/// [`decide_with_accepted`] under an execution context, as [`decide_preferences_with_context`].
+///
+/// # Errors
+/// As [`decide_preferences_with_context`].
+pub fn decide_with_accepted_with_context(
+    accepted: &AcceptedPreferences,
+    parts: PreferenceContractParts,
+    source: &DistributionArtifact,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    let contract = accepted.contract(parts);
+    decide_on_draws(&contract, source, accepted.measure(), options, Some(ctx))
+}
+
+impl PreferenceEvaluationError {
+    /// Structured refusal for a failure of the route-choosing evaluation across a preference
+    /// set.
+    ///
+    /// A contract, exact-route or certified-route refusal keeps its own refusal.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        match self {
+            Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Exact(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Certified(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::JointDrawsRequired { reason } => refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                EVALUATE,
+                self.detail(),
+            )
+            .offending(*reason)
+            .expected("joint_draws")
+            .supplied("mean")
+            .remedy("supply aligned joint draws so the certified route can answer")
+            .build(),
+        }
+    }
 }

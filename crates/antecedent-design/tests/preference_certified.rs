@@ -1006,8 +1006,8 @@ fn every_contract_option_and_measure_refusal_is_typed() {
 
     let missing = law_missing_b();
     let error = evaluate_preference_certified(&plain, &missing, None, budget(4)).unwrap_err();
-    assert!(matches!(error, E::Eval(_)));
-    assert_eq!(error.detail(), reason_details::preference_certified::SOURCE_REFUSED);
+    let E::Eval(inner) = &error else { panic!("{error:?}") };
+    assert_eq!(error.detail(), inner.to_refusal().detail);
 }
 
 fn law_missing_b() -> DistributionArtifact {

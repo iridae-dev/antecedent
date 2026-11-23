@@ -24,9 +24,12 @@
 //!
 //! What the estimate is: the trade-offs the recorded decision-makers acted on, under the stated
 //! choice model and the recorded expectations of each option. What it is not: it is not what the
-//! trade-offs should be; the interval's coverage is not measured (it is reported with
-//! [`DistributionCalibration::NotMeasured`]); and the measure over parameter values is the normal
-//! approximation to the sampling distribution of the estimate, not a posterior.
+//! trade-offs should be; the interval's calibration status is resolved from the shipped coverage
+//! table under [`calibration_basis`] ([`DistributionCalibration::Measured`] only when a current,
+//! attesting record measured this construction at this size, level and covariance, otherwise
+//! [`DistributionCalibration::NotMeasured`]), never supplied by a caller; and the measure over
+//! parameter values is the normal approximation to the sampling distribution of the estimate,
+//! not a posterior.
 //!
 //! Design. Column 0 is the fixed part `F` and carries the unit of account: unless it differs
 //! between the options of at least one record, the scale of `theta` is not determined and the
@@ -58,11 +61,15 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use antecedent_core::{CanonicalWriter, CausalRng};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::{CalibrationBasis, CanonicalWriter, CausalRng, ExecutionContext};
+use antecedent_io_core::calibration::{CalibrationBasisWire, calibration_slot};
+use antecedent_io_core::contract_section::CalibrationStatus;
 use antecedent_io_core::distribution_artifact::DistributionCalibration;
 use antecedent_kernels::{cholesky_spd_into, gauss_jordan_solve, norm_inv, standard_normal};
 use antecedent_stats::{
     ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitOptions, fit_conditional_logit,
+    fit_conditional_logit_with_context,
 };
 
 use crate::choice_record::{
@@ -70,6 +77,8 @@ use crate::choice_record::{
 };
 use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use crate::preference_model::{PreferenceModelError, RelationSense, ValueModel};
+use crate::preference_refusal::{COMPATIBLE_SET, ESTIMATE, refusal};
+use crate::signal::at_stage;
 
 /// Identity of the choice-noise assumption every estimate stands on: the probability of choosing
 /// an option is proportional to `exp(lambda * V)` in its declared value `V`, with `lambda > 0`.
@@ -82,6 +91,66 @@ pub const DIFFERENCE_RELATIVE_TOLERANCE: f64 = 1e-9;
 /// Absolute tolerance on declared ranges and relations when a measure draw is checked against
 /// the declared set.
 pub const SET_TOLERANCE: f64 = 1e-9;
+
+/// Query axis of every coverage record of the choice-model parameter intervals.
+pub const CALIBRATION_QUERY: &str = "PreferenceTradeOffFromChoices";
+/// Estimator of the parameter intervals: the conditional logit ratio `beta_k / beta_0`.
+pub const CALIBRATION_ESTIMATOR: &str = "preference.conditional_logit.parameter_ratio";
+/// Interval method of the parameter intervals: `theta_hat +- z se` with the delta-method
+/// standard error.
+pub const CALIBRATION_INTERVAL_METHOD: &str = "wald_delta_method";
+
+/// The calibration key of the parameter intervals of one estimate: the covariance kind, the
+/// number of learnable parameters, the records in the fit and the nominal level. The key
+/// carries no authority: an interval reads as measured only when the key resolves to a current,
+/// attesting coverage record in the shipped table.
+#[must_use]
+pub fn calibration_basis(
+    kind: CovarianceKind,
+    learnable: usize,
+    records: u64,
+    level: f64,
+) -> CalibrationBasis {
+    let a = |text: &str| std::sync::Arc::<str>::from(text);
+    let (se_kind, dependence) = match kind {
+        CovarianceKind::Model => ("observed_information", "independent_records"),
+        CovarianceKind::ClusteredByDecider => {
+            ("clustered_by_decider", "records_clustered_by_decider")
+        }
+    };
+    CalibrationBasis::new(
+        [
+            a(CALIBRATION_QUERY),
+            a("NotApplicable"),
+            a("fixed"),
+            a("recorded_choices"),
+            a("Frequentist"),
+            a(CALIBRATION_ESTIMATOR),
+            a(CALIBRATION_INTERVAL_METHOD),
+            a(se_kind),
+            a(dependence),
+            a(""),
+            std::sync::Arc::from(format!("trade_off_ratio.learnable_{learnable}")),
+        ],
+        level,
+        a("point"),
+        records,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("not_applicable")
+}
+
+/// The calibration status of the intervals under `basis`, resolved from the shipped coverage
+/// table: measured only when the slot is calibrated, not measured otherwise (no record, a stale
+/// record, or an execution outside what the record measured).
+fn interval_calibration(basis: &CalibrationBasis) -> DistributionCalibration {
+    match calibration_slot(&CalibrationBasisWire::from(basis)).status {
+        CalibrationStatus::Calibrated => DistributionCalibration::Measured,
+        _ => DistributionCalibration::NotMeasured,
+    }
+}
 
 /// An earlier column takes part in a dependency when its share of the dependent column, after
 /// least-squares projection, exceeds this fraction of the dependent column's norm.
@@ -182,7 +251,9 @@ pub struct ChoiceModelEstimate {
     pub coefficient_covariance: Vec<f64>,
     /// Level of the parameter intervals.
     pub level: f64,
-    /// Calibration status of the intervals: always
+    /// Calibration status of the intervals, resolved from the shipped coverage table under
+    /// [`calibration_basis`]: [`DistributionCalibration::Measured`] when a current, attesting
+    /// record measured this construction at this size and level, otherwise
     /// [`DistributionCalibration::NotMeasured`].
     pub interval_calibration: DistributionCalibration,
     /// Draws from the normal approximation to the sampling distribution of the estimate, mapped
@@ -307,10 +378,13 @@ pub enum ChoiceModelError {
         /// Number of draws made.
         drawn: usize,
     },
+    /// The execution context was cancelled between Newton steps, fits or measure draws.
+    Cancelled,
 }
 
 impl ChoiceModelError {
-    /// Stable detail identity of the refusal.
+    /// Stable detail identity of the refusal; a record refusal keeps its own `choice_record.`
+    /// detail, the detail the returned refusal carries.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
@@ -319,7 +393,7 @@ impl ChoiceModelError {
             Self::DrawsMissing => reason_details::preference_choice_model::DRAWS_MISSING,
             Self::FitOptionsInvalid => reason_details::preference_choice_model::FIT_OPTIONS_INVALID,
             Self::Model(_) => reason_details::preference_choice_model::MODEL_INVALID,
-            Self::Records(_) => reason_details::preference_choice_model::RECORDS_INVALID,
+            Self::Records(inner) => inner.detail(),
             Self::StatedAndRecordedMixed { .. } => {
                 reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED
             }
@@ -342,6 +416,7 @@ impl ChoiceModelError {
             Self::NoDrawInsideSet { .. } => {
                 reason_details::preference_choice_model::NO_DRAW_INSIDE_SET
             }
+            Self::Cancelled => reason_details::preference_choice_model::CANCELLED,
         }
     }
 }
@@ -411,6 +486,7 @@ impl fmt::Display for ChoiceModelError {
                 "{}: none of {drawn} draws has positive consistency inside the declared set",
                 who(decider.as_deref())
             ),
+            Self::Cancelled => write!(f, "estimating the choice model was cancelled"),
         }
     }
 }
@@ -439,6 +515,30 @@ pub fn estimate_choice_model(
     model: &ValueModel,
     records: &ChoiceRecordSet,
     options: ChoiceModelOptions,
+) -> Result<ChoiceModelResult, ChoiceModelError> {
+    estimate_all(model, records, options, None)
+}
+
+/// [`estimate_choice_model`] under an execution context: the context's cancellation token is
+/// read before every fit, every Newton step and every 1024 measure draws. A cancelled run
+/// returns [`ChoiceModelError::Cancelled`], never a per-decider refusal.
+///
+/// # Errors
+/// As [`estimate_choice_model`]; [`ChoiceModelError::Cancelled`] once the token is set.
+pub fn estimate_choice_model_with_context(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    options: ChoiceModelOptions,
+    ctx: &ExecutionContext,
+) -> Result<ChoiceModelResult, ChoiceModelError> {
+    estimate_all(model, records, options, Some(ctx))
+}
+
+pub(crate) fn estimate_all(
+    model: &ValueModel,
+    records: &ChoiceRecordSet,
+    options: ChoiceModelOptions,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<ChoiceModelResult, ChoiceModelError> {
     if !(options.level.is_finite() && options.level > 0.0 && options.level < 1.0) {
         return Err(ChoiceModelError::LevelInvalid { level: options.level });
@@ -469,6 +569,7 @@ pub fn estimate_choice_model(
         n_parameters: features.n_parameters,
         assumptions: assumptions.into_iter().collect(),
         stated: records.stated_records().into_iter().collect(),
+        ctx,
     };
     match &records.pooling {
         Pooling::Pooled { .. } => {
@@ -478,22 +579,20 @@ pub fn estimate_choice_model(
             Ok(ChoiceModelResult { pooled: Some(Box::new(estimate)), per_decider: Vec::new() })
         }
         Pooling::PerDecider => {
-            let per_decider = records
-                .deciders()
-                .into_iter()
-                .map(|decider| {
-                    let sets: Vec<&ChoiceSetFeatures> = features
-                        .sets
-                        .iter()
-                        .filter(|s| s.decider == decider && informative(s))
-                        .collect();
-                    let outcome = match context.estimate(&sets, Some(decider.as_str())) {
-                        Ok(estimate) => EstimateOutcome::Estimated(Box::new(estimate)),
-                        Err(error) => EstimateOutcome::Refused(error),
-                    };
-                    (decider, outcome)
-                })
-                .collect();
+            let mut per_decider = Vec::new();
+            for decider in records.deciders() {
+                let sets: Vec<&ChoiceSetFeatures> = features
+                    .sets
+                    .iter()
+                    .filter(|s| s.decider == decider && informative(s))
+                    .collect();
+                let outcome = match context.estimate(&sets, Some(decider.as_str())) {
+                    Ok(estimate) => EstimateOutcome::Estimated(Box::new(estimate)),
+                    Err(ChoiceModelError::Cancelled) => return Err(ChoiceModelError::Cancelled),
+                    Err(error) => EstimateOutcome::Refused(error),
+                };
+                per_decider.push((decider, outcome));
+            }
             Ok(ChoiceModelResult { pooled: None, per_decider })
         }
     }
@@ -514,6 +613,8 @@ struct Context<'a> {
     assumptions: Vec<String>,
     /// Identities of the stated comparisons among the records.
     stated: BTreeSet<String>,
+    /// The caller's execution context, when the run is cancellable.
+    ctx: Option<&'a ExecutionContext>,
 }
 
 /// The conditional logit design of one fit.
@@ -542,6 +643,7 @@ impl Context<'_> {
         sets: &[&ChoiceSetFeatures],
         decider: Option<&str>,
     ) -> Result<ChoiceModelEstimate, ChoiceModelError> {
+        self.observe()?;
         let owned = || decider.map(str::to_owned);
         let stated = sets.iter().filter(|set| self.stated.contains(&set.record_id)).count();
         if stated > 0 && stated < sets.len() {
@@ -563,16 +665,17 @@ impl Context<'_> {
         let (learnable, not_learnable) = (columns.learnable, columns.not_learnable);
         let design = build_design(sets, &learnable, self.n_parameters);
         let p = design.p;
-        let fit = fit_conditional_logit(
-            &ConditionalLogitDesign {
-                features: &design.features,
-                n_features: p,
-                set_starts: &design.set_starts,
-                chosen: &design.chosen,
-                clusters: design.clusters.as_deref(),
-            },
-            self.options.fit,
-        )
+        let logit = ConditionalLogitDesign {
+            features: &design.features,
+            n_features: p,
+            set_starts: &design.set_starts,
+            chosen: &design.chosen,
+            clusters: design.clusters.as_deref(),
+        };
+        let fit = match self.ctx {
+            Some(ctx) => fit_conditional_logit_with_context(&logit, self.options.fit, ctx),
+            None => fit_conditional_logit(&logit, self.options.fit),
+        }
         .map_err(|error| self.fit_refusal(error, &design, &learnable, decider))?;
         let beta = fit.coefficients;
         let consistency = beta.first().copied().unwrap_or(f64::NAN);
@@ -591,7 +694,7 @@ impl Context<'_> {
         }
         let estimates = self.parameter_estimates(&beta, &covariance, &learnable);
         let identity = self.identity(decider, kind);
-        let draws = self.draw_measure(&beta, &chol, &learnable, &not_learnable);
+        let draws = self.draw_measure(&beta, &chol, &learnable, &not_learnable)?;
         if draws.points.is_empty() {
             return Err(ChoiceModelError::NoDrawInsideSet {
                 decider: owned(),
@@ -617,7 +720,12 @@ impl Context<'_> {
             covariance_kind: kind,
             coefficient_covariance: covariance,
             level: self.options.level,
-            interval_calibration: DistributionCalibration::NotMeasured,
+            interval_calibration: interval_calibration(&calibration_basis(
+                kind,
+                learnable.len(),
+                u64::try_from(sets.len()).unwrap_or(u64::MAX),
+                self.options.level,
+            )),
             measure: PreferenceMeasure {
                 points: draws.points,
                 weights: None,
@@ -680,6 +788,7 @@ impl Context<'_> {
             ConditionalLogitError::NotConverged { iterations, gradient_norm } => {
                 ChoiceModelError::NotConverged { decider, iterations, gradient_norm }
             }
+            ConditionalLogitError::Cancelled => ChoiceModelError::Cancelled,
             error => ChoiceModelError::Fit { decider, error },
         }
     }
@@ -729,15 +838,23 @@ impl Context<'_> {
         out.finish_hex()
     }
 
+    /// `Err(Cancelled)` once the caller's token is set.
+    fn observe(&self) -> Result<(), ChoiceModelError> {
+        if self.ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(ChoiceModelError::Cancelled);
+        }
+        Ok(())
+    }
+
     /// Draws of `beta` from `N(beta_hat, L L')` mapped to parameter points; see the module
-    /// documentation for which draws are kept.
+    /// documentation for which draws are kept. The caller's token is read every 1024 draws.
     fn draw_measure(
         &self,
         beta: &[f64],
         chol: &[f64],
         learnable: &[usize],
         unresolved: &[usize],
-    ) -> MeasureDraws {
+    ) -> Result<MeasureDraws, ChoiceModelError> {
         let set = &self.model.preferences;
         let p = beta.len();
         let mut base = set.midpoint();
@@ -758,7 +875,10 @@ impl Context<'_> {
         let mut draw = vec![0.0; p];
         let mut points = Vec::new();
         let mut dropped = 0;
-        for _ in 0..self.options.n_draws {
+        for index in 0..self.options.n_draws {
+            if index % DRAWS_PER_CHECK == 0 {
+                self.observe()?;
+            }
             for value in &mut normal {
                 *value = standard_normal(&mut rng);
             }
@@ -802,9 +922,12 @@ impl Context<'_> {
                 dropped += 1;
             }
         }
-        MeasureDraws { points, dropped }
+        Ok(MeasureDraws { points, dropped })
     }
 }
+
+/// Measure draws made between two reads of the cancellation token.
+const DRAWS_PER_CHECK: usize = 1024;
 
 struct MeasureDraws {
     points: Vec<Vec<f64>>,
@@ -932,6 +1055,116 @@ fn ratio_variance(covariance: &[f64], beta: &[f64], k: usize) -> f64 {
     let theta = beta[k] / beta[0];
     (covariance[k * p + k] - 2.0 * theta * covariance[k * p] + theta * theta * covariance[0])
         / (beta[0] * beta[0])
+}
+
+impl ChoiceModelError {
+    /// Structured refusal for a failure to estimate preference parameters from recorded
+    /// choices.
+    ///
+    /// A value-model or choice-record refusal keeps its own refusal; a conditional-logit
+    /// refusal is reported under `preference_choice_model.fit_refused` with the fit's detail
+    /// and message as the supplied text.
+    #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per estimation failure")]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), ESTIMATE, self.detail())
+                .remedy(remedy)
+        };
+        let design = |decider: Option<String>, remedy| {
+            refusal(antecedent_core::reason_code!("design_rank_deficient"), ESTIMATE, self.detail())
+                .offending_opt(decider)
+                .remedy(remedy)
+        };
+        let fit = |decider: Option<String>, remedy| {
+            refusal(antecedent_core::reason_code!("glm_fit_refused"), ESTIMATE, self.detail())
+                .offending_opt(decider)
+                .remedy(remedy)
+        };
+        match self {
+            Self::LevelInvalid { level } => invalid("supply a level strictly between 0 and 1")
+                .expected("(0, 1)")
+                .supplied(level.to_string())
+                .build(),
+            Self::DrawsMissing => invalid("request at least one measure draw").build(),
+            Self::FitOptionsInvalid => {
+                invalid("supply a finite, positive gradient tolerance and separation bound").build()
+            }
+            Self::Model(error) => at_stage(error.to_refusal(), ESTIMATE),
+            Self::Records(error) => at_stage(error.to_refusal(), ESTIMATE),
+            Self::StatedAndRecordedMixed { decider, stated, recorded } => refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .offending_opt(decider.clone())
+            .expected("stated comparisons only, or recorded choices only")
+            .supplied(format!("{stated} stated, {recorded} recorded"))
+            .remedy(
+                "fit stated comparisons and recorded choices separately, or use the \
+                 compatible-set method, which does not depend on a noise scale",
+            )
+            .build(),
+            Self::NoUnitOfAccount { decider } => design(
+                decider.clone(),
+                "record choices whose options differ in the fixed part of the value",
+            )
+            .build(),
+            Self::NothingIdentified { decider } => design(
+                decider.clone(),
+                "record choices whose options differ in the terms of the value",
+            )
+            .build(),
+            Self::RankDeficient { decider, unit_of_account, parameters } => {
+                let mut columns = parameters.clone();
+                if *unit_of_account {
+                    columns.insert(0, "unit_of_account".to_owned());
+                }
+                design(
+                    decider.clone(),
+                    "record choices that vary the named parameters apart, or fix one of them",
+                )
+                .supplied(columns.join(","))
+                .build()
+            }
+            Self::Separated { decider } => fit(decider.clone(), COMPATIBLE_SET).build(),
+            Self::ConsistencyNotPositive { decider, consistency } => fit(
+                decider.clone(),
+                "check the sign of the fixed part of the value, or use the compatible-set method",
+            )
+            .supplied(consistency.to_string())
+            .build(),
+            Self::NotConverged { decider, iterations, gradient_norm } => fit(
+                decider.clone(),
+                "raise the fit's iteration limit, or use the compatible-set method",
+            )
+            .supplied(format!("{iterations} iterations, gradient norm {gradient_norm}"))
+            .build(),
+            Self::Fit { decider, error } => fit(decider.clone(), COMPATIBLE_SET)
+                .supplied(format!("{}: {error}", error.detail()))
+                .build(),
+            Self::CovarianceNotPositiveDefinite { decider, kind } => {
+                fit(decider.clone(), "record more choices, or use the compatible-set method")
+                    .supplied(format!("{kind:?}"))
+                    .build()
+            }
+            Self::NoDrawInsideSet { decider, drawn } => refusal(
+                antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .offending_opt(decider.clone())
+            .supplied(drawn.to_string())
+            .remedy("draw more, record more choices, or use the compatible-set method")
+            .build(),
+            Self::Cancelled => refusal(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .build(),
+        }
+    }
 }
 
 #[cfg(test)]

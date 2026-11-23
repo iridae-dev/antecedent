@@ -3,10 +3,12 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_stats::linear_program::{
     ConstraintSense, InfeasibilityCertificate, LinearConstraint, LinearProgram, LpError, LpOptions,
-    LpOutcome, LpSolution, irreducible_infeasible_groups, maximize, smallest_infeasible_groups,
-    solve, verify, vertices,
+    LpOutcome, LpSolution, irreducible_infeasible_groups,
+    irreducible_infeasible_groups_with_context, maximize, smallest_infeasible_groups,
+    smallest_infeasible_groups_with_context, solve, verify, vertices, vertices_with_context,
 };
 
 const INF: f64 = f64::INFINITY;
@@ -583,4 +585,79 @@ fn detail_ids_are_distinct_and_namespaced() {
     ids.sort_unstable();
     ids.dedup();
     assert_eq!(ids.len(), errors.len());
+}
+
+#[test]
+fn cancellation_stops_vertex_enumeration_and_the_conflict_searches() {
+    let (constraints, group) = group_example();
+    let bounds = ([0.0, 0.0], [10.0, 10.0]);
+    let mut ctx = ExecutionContext::production(0, 1);
+    ctx.cancellation.cancel();
+    assert_eq!(
+        vertices_with_context(&[], &[0.0; 3], &[1.0; 3], 100, options(), &ctx),
+        Err(LpError::Cancelled)
+    );
+    assert_eq!(
+        irreducible_infeasible_groups_with_context(
+            &constraints,
+            &group,
+            &bounds.0,
+            &bounds.1,
+            options(),
+            &ctx
+        ),
+        Err(LpError::Cancelled)
+    );
+    assert_eq!(
+        smallest_infeasible_groups_with_context(
+            &constraints,
+            &group,
+            &bounds.0,
+            &bounds.1,
+            3,
+            options(),
+            &ctx
+        ),
+        Err(LpError::Cancelled)
+    );
+    // Mid-run: the cube has 20 candidate bases and the smallest-conflict search solves more
+    // than three feasibility programs before it finds {10, 20}.
+    ctx.cancellation = CancellationToken::cancel_after_checks(5);
+    assert_eq!(
+        vertices_with_context(&[], &[0.0; 3], &[1.0; 3], 100, options(), &ctx),
+        Err(LpError::Cancelled)
+    );
+    ctx.cancellation = CancellationToken::cancel_after_checks(3);
+    assert_eq!(
+        smallest_infeasible_groups_with_context(
+            &constraints,
+            &group,
+            &bounds.0,
+            &bounds.1,
+            3,
+            options(),
+            &ctx
+        ),
+        Err(LpError::Cancelled)
+    );
+    // An uncancelled context gives the context-free answers.
+    ctx.cancellation = CancellationToken::new();
+    assert_eq!(
+        vertices_with_context(&[], &[0.0; 3], &[1.0; 3], 100, options(), &ctx).unwrap(),
+        vertices(&[], &[0.0; 3], &[1.0; 3], 100, options()).unwrap()
+    );
+    assert_eq!(
+        smallest_infeasible_groups_with_context(
+            &constraints,
+            &group,
+            &bounds.0,
+            &bounds.1,
+            3,
+            options(),
+            &ctx
+        )
+        .unwrap(),
+        Some(vec![10, 20])
+    );
+    assert_eq!(LpError::Cancelled.detail(), "linear_program.cancelled");
 }

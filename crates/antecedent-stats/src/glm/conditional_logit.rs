@@ -14,6 +14,8 @@
 
 use std::collections::BTreeMap;
 
+use antecedent_core::{CancellationToken, ExecutionContext};
+
 use crate::gram::{invert_square, solve_spd};
 use thiserror::Error;
 
@@ -190,6 +192,9 @@ pub enum ConditionalLogitError {
         /// Largest absolute gradient entry at the last iterate.
         gradient_norm: f64,
     },
+    /// The context's cancellation token was set before a Newton step; no fit is returned.
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl ConditionalLogitError {
@@ -214,6 +219,7 @@ impl ConditionalLogitError {
             Self::Separated { .. } => "conditional_logit.separated",
             Self::SingularInformation => "conditional_logit.singular_information",
             Self::NotConverged { .. } => "conditional_logit.not_converged",
+            Self::Cancelled => "conditional_logit.cancelled",
         }
     }
 }
@@ -583,6 +589,32 @@ pub fn fit_conditional_logit(
     design: &ConditionalLogitDesign<'_>,
     options: ConditionalLogitOptions,
 ) -> Result<ConditionalLogitFit, ConditionalLogitError> {
+    fit(design, options, None)
+}
+
+/// [`fit_conditional_logit`] under an execution context: the context's cancellation token is
+/// read before the fit and before every Newton step.
+///
+/// # Errors
+///
+/// As [`fit_conditional_logit`]; [`ConditionalLogitError::Cancelled`] once the token is set.
+pub fn fit_conditional_logit_with_context(
+    design: &ConditionalLogitDesign<'_>,
+    options: ConditionalLogitOptions,
+    ctx: &ExecutionContext,
+) -> Result<ConditionalLogitFit, ConditionalLogitError> {
+    fit(design, options, Some(&ctx.cancellation))
+}
+
+fn fit(
+    design: &ConditionalLogitDesign<'_>,
+    options: ConditionalLogitOptions,
+    cancellation: Option<&CancellationToken>,
+) -> Result<ConditionalLogitFit, ConditionalLogitError> {
+    let cancelled = || cancellation.is_some_and(CancellationToken::is_cancelled);
+    if cancelled() {
+        return Err(ConditionalLogitError::Cancelled);
+    }
     if !(options.gradient_tolerance.is_finite()
         && options.gradient_tolerance > 0.0
         && options.separation_bound.is_finite()
@@ -605,6 +637,9 @@ pub fn fit_conditional_logit(
         let gradient_norm = max_abs(&current.gradient);
         if gradient_norm <= threshold {
             break;
+        }
+        if cancelled() {
+            return Err(ConditionalLogitError::Cancelled);
         }
         if iterations >= options.max_iterations {
             return Err(ConditionalLogitError::NotConverged { iterations, gradient_norm });

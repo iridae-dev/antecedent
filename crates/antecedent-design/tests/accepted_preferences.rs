@@ -336,6 +336,41 @@ fn a_set_learned_without_tolerance_and_narrowing_every_parameter_has_nothing_pen
 }
 
 #[test]
+fn a_parameter_fixed_by_declaration_raises_no_review_item() {
+    // `w` narrows to `[1/2, 1]`; no record varies `harm`. A fixed harm weight is a value stated
+    // outright and needs no review; the same parameter given a range is flagged.
+    let options = |model: &ValueModel| {
+        record_set(
+            model,
+            vec![
+                record("r1", "panel", &[("a", vec![1.0, 1.0, 0.0]), ("b", vec![0.0; 3])], "a"),
+                record("r2", "panel", &[("a", vec![1.0, 2.0, 0.0]), ("b", vec![0.0; 3])], "b"),
+            ],
+            pooled(),
+        )
+    };
+    let fixed = cost_model((0.0, 3.0), Some((0.5, 0.5)));
+    let accepted = learn_compatible_set_accepted(
+        &fixed,
+        &options(&fixed),
+        None,
+        SetLearningOptions::default(),
+    )
+    .unwrap();
+    assert!(accepted.pending().is_empty(), "{:?}", accepted.pending());
+
+    let ranged = cost_model((0.0, 3.0), Some((0.0, 1.0)));
+    let accepted = learn_compatible_set_accepted(
+        &ranged,
+        &options(&ranged),
+        None,
+        SetLearningOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(accepted.pending(), vec![not_varied("h")]);
+}
+
+#[test]
 fn estimate_review_items_follow_parameter_order() {
     // Harm is one in every option, so `h` is not learnable.
     let model = cost_model((0.0, 1.1), Some((0.0, 2.0)));

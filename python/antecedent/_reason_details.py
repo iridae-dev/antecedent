@@ -2323,6 +2323,7 @@ class predictive_assessment:  # noqa: N801
 
 
 class preference_artifact:  # noqa: N801
+    CANCELLED: Final = "preference_artifact.cancelled"
     CONTAINER_REFUSED: Final = "preference_artifact.container_refused"
     CONTRACT_EXPECTED: Final = "preference_artifact.contract_expected"
     ENCODE_FAILED: Final = "preference_artifact.encode_failed"
@@ -2340,6 +2341,7 @@ class preference_certified:  # noqa: N801
     ATOM_PROBABILITIES_INVALID: Final = "preference_certified.atom_probabilities_invalid"
     ATOM_PROBABILITIES_REQUIRED: Final = "preference_certified.atom_probabilities_required"
     ATOMS_INVALID: Final = "preference_certified.atoms_invalid"
+    CANCELLED: Final = "preference_certified.cancelled"
     ENCLOSURE_NON_FINITE: Final = "preference_certified.enclosure_non_finite"
     LOGARITHM_DOMAIN: Final = "preference_certified.logarithm_domain"
     MEASURE_EMPTY: Final = "preference_certified.measure_empty"
@@ -2362,6 +2364,7 @@ class preference_certified:  # noqa: N801
 
 
 class preference_choice_model:  # noqa: N801
+    CANCELLED: Final = "preference_choice_model.cancelled"
     CONSISTENCY_NOT_POSITIVE: Final = "preference_choice_model.consistency_not_positive"
     COVARIANCE_NOT_POSITIVE_DEFINITE: Final = (
         "preference_choice_model.covariance_not_positive_definite"
@@ -2408,6 +2411,7 @@ class preference_contract:  # noqa: N801
 
 
 class preference_decision:  # noqa: N801
+    CANCELLED: Final = "preference_decision.cancelled"
     COEFFICIENT_NON_FINITE: Final = "preference_decision.coefficient_non_finite"
     CRITERION_NEEDS_CERTIFIED_ROUTE: Final = "preference_decision.criterion_needs_certified_route"
     LINEAR_PROGRAM_INFEASIBLE: Final = "preference_decision.linear_program_infeasible"
@@ -2488,6 +2492,7 @@ class preference_model:  # noqa: N801
 
 
 class preference_set_learning:  # noqa: N801
+    CANCELLED: Final = "preference_set_learning.cancelled"
     DECLARED_SET_EMPTY: Final = "preference_set_learning.declared_set_empty"
     LINEAR_PROGRAM_REFUSED: Final = "preference_set_learning.linear_program_refused"
     MODEL_INVALID: Final = "preference_set_learning.model_invalid"
@@ -5528,6 +5533,7 @@ ALL: Final[tuple[str, ...]] = (
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "preference_artifact.cancelled",
     "preference_artifact.container_refused",
     "preference_artifact.contract_expected",
     "preference_artifact.encode_failed",
@@ -5542,6 +5548,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_certified.atom_probabilities_invalid",
     "preference_certified.atom_probabilities_required",
     "preference_certified.atoms_invalid",
+    "preference_certified.cancelled",
     "preference_certified.enclosure_non_finite",
     "preference_certified.logarithm_domain",
     "preference_certified.measure_empty",
@@ -5559,6 +5566,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_certified.preference_set_empty",
     "preference_certified.source_refused",
     "preference_certified.structure_inputs_required",
+    "preference_choice_model.cancelled",
     "preference_choice_model.consistency_not_positive",
     "preference_choice_model.covariance_not_positive_definite",
     "preference_choice_model.draws_missing",
@@ -5597,6 +5605,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_contract.quantity_units_mismatch",
     "preference_contract.target_population_blank",
     "preference_contract.too_few_actions",
+    "preference_decision.cancelled",
     "preference_decision.coefficient_non_finite",
     "preference_decision.criterion_needs_certified_route",
     "preference_decision.linear_program_infeasible",
@@ -5664,6 +5673,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_model.unknown_parameter",
     "preference_model.utility_units_blank",
     "preference_model.value_non_finite",
+    "preference_set_learning.cancelled",
     "preference_set_learning.declared_set_empty",
     "preference_set_learning.linear_program_refused",
     "preference_set_learning.model_invalid",
@@ -8524,7 +8534,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "predictive_assessment.too_few_clusters": ("too_few_clusters",),
     "predictive_assessment.unknown_source": ("invalid_argument",),
     "predictive_assessment.wrong_contract": ("route_not_supported",),
-    "preference_artifact.container_refused": ("invalid_argument", "schema_mismatch"),
+    "preference_artifact.cancelled": ("cancelled_no_claim",),
+    "preference_artifact.container_refused": ("invalid_argument",),
     "preference_artifact.contract_expected": ("decision_contract_unsatisfied",),
     "preference_artifact.encode_failed": ("invalid_argument",),
     "preference_artifact.identity_expected": ("decision_contract_unsatisfied",),
@@ -8538,6 +8549,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_certified.atom_probabilities_invalid": ("decision_contract_unsatisfied",),
     "preference_certified.atom_probabilities_required": ("decision_contract_unsatisfied",),
     "preference_certified.atoms_invalid": ("invalid_argument",),
+    "preference_certified.cancelled": ("cancelled_no_claim",),
     "preference_certified.enclosure_non_finite": ("invalid_argument",),
     "preference_certified.logarithm_domain": ("invalid_argument",),
     "preference_certified.measure_empty": ("invalid_argument",),
@@ -8562,6 +8574,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "route_not_supported",
     ),
     "preference_certified.structure_inputs_required": ("route_not_supported",),
+    "preference_choice_model.cancelled": ("cancelled_no_claim",),
     "preference_choice_model.consistency_not_positive": ("glm_fit_refused",),
     "preference_choice_model.covariance_not_positive_definite": ("glm_fit_refused",),
     "preference_choice_model.draws_missing": ("invalid_argument",),
@@ -8610,6 +8623,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_contract.quantity_units_mismatch": ("quantity_semantics_mismatch",),
     "preference_contract.target_population_blank": ("invalid_argument",),
     "preference_contract.too_few_actions": ("invalid_argument",),
+    "preference_decision.cancelled": ("cancelled_no_claim",),
     "preference_decision.coefficient_non_finite": ("decision_contract_unsatisfied",),
     "preference_decision.criterion_needs_certified_route": ("route_not_supported",),
     "preference_decision.linear_program_infeasible": ("invalid_argument",),
@@ -8684,6 +8698,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_model.unknown_parameter": ("invalid_argument",),
     "preference_model.utility_units_blank": ("invalid_argument",),
     "preference_model.value_non_finite": ("invalid_argument",),
+    "preference_set_learning.cancelled": ("cancelled_no_claim",),
     "preference_set_learning.declared_set_empty": ("invalid_argument",),
     "preference_set_learning.linear_program_refused": ("invalid_argument",),
     "preference_set_learning.model_invalid": ("invalid_argument",),

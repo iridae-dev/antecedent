@@ -100,7 +100,7 @@ pub use gam::{
 };
 pub use glm::{
     ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
-    conditional_logit_log_likelihood, fit_conditional_logit,
+    conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,

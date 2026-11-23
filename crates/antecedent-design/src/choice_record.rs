@@ -39,11 +39,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, is_blank};
 
 use crate::preference_model::{
     Attribute, LinearForm, PreferenceExpr, PreferenceModelError, ValueModel,
 };
+use crate::preference_refusal::{DECLARE, at, refusal};
+use crate::signal::at_stage;
 
 /// Where the expected outcomes of an option came from. Realized outcomes are never assumed to be
 /// what the decision-maker expected unless that assumption is named.
@@ -426,7 +429,7 @@ pub enum ChoiceRecordError {
 impl ChoiceRecordError {
     /// Stable detail identity of the refusal.
     #[must_use]
-    pub fn detail(&self) -> &'static str {
+    pub const fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
         match self {
             Self::Model(_) => reason_details::choice_record::MODEL_INVALID,
@@ -1104,6 +1107,217 @@ fn expectation(
         OptionBelief::Unavailable { .. } => return Err(not_finite()),
     };
     if value.is_finite() { Ok(value) } else { Err(not_finite()) }
+}
+
+impl ChoiceRecordError {
+    /// Structured refusal for a choice-record declaration or feature-extraction failure.
+    ///
+    /// A value-model refusal keeps its own refusal.
+    #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per choice-record declaration failure")]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), DECLARE, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                DECLARE,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        let describe = |attribute: Option<&crate::preference_model::Attribute>| {
+            attribute.map_or_else(|| "none".to_owned(), |a| format!("{} [{}]", a.id, a.units))
+        };
+        match self {
+            Self::Model(error) => at_stage(error.to_refusal(), DECLARE),
+            Self::AttributesMissing => {
+                invalid("declare the attributes the recorded options are described by").build()
+            }
+            Self::AttributeIdBlank { index } => {
+                invalid("give every attribute a non-blank id").offending(index.to_string()).build()
+            }
+            Self::AttributeUnitsBlank { attribute } => {
+                invalid("state the units of every attribute").offending(attribute.clone()).build()
+            }
+            Self::AttributeDuplicate { attribute } => {
+                invalid("give every attribute a distinct id").offending(attribute.clone()).build()
+            }
+            Self::PopulationBlank => {
+                invalid("name the population whose choices were recorded").build()
+            }
+            Self::PoolingAssumptionBlank => {
+                invalid("name the assumption that the deciders share one set of preferences")
+                    .build()
+            }
+            Self::RecordsMissing => invalid("supply at least one recorded choice").build(),
+            Self::RecordIdBlank { index } => {
+                invalid("give every record a non-blank id").offending(index.to_string()).build()
+            }
+            Self::RecordDuplicate { record } => {
+                invalid("give every record a distinct id").offending(record.clone()).build()
+            }
+            Self::DeciderBlank { record } => {
+                invalid("name who made the choice").offending(record.clone()).build()
+            }
+            Self::OptionsTooFew { record, options } => {
+                invalid("record every option that was available, at least two")
+                    .offending(record.clone())
+                    .expected("2")
+                    .supplied(options.to_string())
+                    .build()
+            }
+            Self::OptionIdBlank { record, index } => {
+                invalid("give every option a non-blank id").offending(at(record, index)).build()
+            }
+            Self::OptionDuplicate { record, option } => {
+                invalid("give every option a distinct id").offending(at(record, option)).build()
+            }
+            Self::ChosenUnknown { record, chosen } => {
+                invalid("name one of the recorded options as chosen")
+                    .offending(record.clone())
+                    .supplied(chosen.clone())
+                    .build()
+            }
+            Self::UnavailableConstraintBlank { record, option } => {
+                invalid("name the constraint that made the option unavailable")
+                    .offending(at(record, option))
+                    .build()
+            }
+            Self::ChosenUnavailable { record, option } => {
+                invalid("correct the chosen option or its availability")
+                    .offending(at(record, option))
+                    .build()
+            }
+            Self::ForecastSourceBlank { record } => {
+                invalid("name where the forecast came from").offending(record.clone()).build()
+            }
+            Self::StatedElicitationBlank { record } => {
+                invalid("name the elicitation the stated comparison came from")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::StatedAssumptionBlank { record } => invalid(
+                "name the assumption that a stated comparison reflects the preferences acted on",
+            )
+            .offending(record.clone())
+            .build(),
+            Self::StatedBeliefNotExact { record, option } => {
+                invalid("give every bundle of a stated comparison as exact attribute values")
+                    .offending(at(record, option))
+                    .build()
+            }
+            Self::AnalysisIdentityBlank { record } => {
+                invalid("name the identity of the result the decider read")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::AnalysisDateBlank { record } => {
+                invalid("name the date the decider read the result")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::RealizedAssumptionBlank { record } => {
+                invalid("name the assumption that the decider expected the realized outcome")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::MeansWidthMismatch { record, option, attributes, means } => {
+                invalid("supply one mean per attribute")
+                    .offending(at(record, option))
+                    .expected(attributes.to_string())
+                    .supplied(means.to_string())
+                    .build()
+            }
+            Self::DrawsEmpty { record, option } => {
+                invalid("supply at least one draw row").offending(at(record, option)).build()
+            }
+            Self::DrawsWidthMismatch { record, option, attributes, values } => {
+                invalid("supply one value per attribute in every draw row")
+                    .offending(at(record, option))
+                    .expected(format!("a multiple of {attributes}"))
+                    .supplied(values.to_string())
+                    .build()
+            }
+            Self::BeliefNotFinite { record, option } => {
+                invalid("supply finite means or draws").offending(at(record, option)).build()
+            }
+            Self::WeightsLengthMismatch { record, option, rows, weights } => {
+                invalid("supply one weight per draw row")
+                    .offending(at(record, option))
+                    .expected(rows.to_string())
+                    .supplied(weights.to_string())
+                    .build()
+            }
+            Self::WeightNotFinite { record, option, row } => invalid("supply finite draw weights")
+                .offending(format!("{}[{row}]", at(record, option)))
+                .build(),
+            Self::WeightNegative { record, option, row } => {
+                invalid("supply non-negative draw weights")
+                    .offending(format!("{}[{row}]", at(record, option)))
+                    .build()
+            }
+            Self::WeightsSumInvalid { record, option } => {
+                invalid("supply draw weights with a positive, finite total")
+                    .offending(at(record, option))
+                    .build()
+            }
+            Self::ObservationRowsMissing { record } => {
+                invalid("name the observation rows the record rests on")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::ObservationRowBlank { record, index } => {
+                invalid("give every observation row a non-blank id")
+                    .offending(at(record, index))
+                    .build()
+            }
+            Self::ObservationRowRepeated { record, row } => {
+                invalid("name each observation row once").offending(at(record, row)).build()
+            }
+            Self::ObservationRowDoubleCounted { row, first_record, second_record } => refusal(
+                antecedent_core::reason_code!("evidence_double_counted"),
+                DECLARE,
+                self.detail(),
+            )
+            .offending(row.clone())
+            .supplied(format!("{first_record},{second_record}"))
+            .remedy("keep the observation row in one record only")
+            .build(),
+            Self::AttributesDiffer { index, model, records } => refusal(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                DECLARE,
+                self.detail(),
+            )
+            .offending(index.to_string())
+            .expected(describe(model.as_ref()))
+            .supplied(describe(records.as_ref()))
+            .remedy("describe the recorded options in the value model's attributes and units")
+            .build(),
+            Self::ShapeParametersNotFixed { parameters } => refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                DECLARE,
+                self.detail(),
+            )
+            .offending(parameters.join(","))
+            .remedy("fix these parameters to a single value, or evaluate on the certified route")
+            .build(),
+            Self::BeliefLawRequired { record, option, .. } => {
+                unsatisfied("record the belief as draws")
+                    .offending(at(record, option))
+                    .expected("draws")
+                    .supplied("means")
+                    .build()
+            }
+            Self::TermNotFinite { record, option } => {
+                unsatisfied("check the recorded belief and the domain of the value")
+                    .offending(at(record, option))
+                    .build()
+            }
+        }
+    }
 }
 
 #[cfg(test)]

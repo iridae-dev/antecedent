@@ -39,7 +39,8 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::is_blank;
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::{CancellationToken, ExecutionContext, is_blank};
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 use antecedent_stats::linear_program::{
     self, ConstraintSense, LinearConstraint, LinearProgram, LpError, LpOptions, LpOutcome,
@@ -56,6 +57,8 @@ use crate::decision_eval::{
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 use crate::preference_contract::{PreferenceContract, PreferenceContractError, PreferencePolicy};
 use crate::preference_model::{PreferenceSet, RelationOrigin};
+use crate::preference_refusal::{CERTIFIED_ROUTE, EVALUATE, STRUCTURAL, refusal};
+use crate::signal::at_stage;
 use crate::structure_aggregator::{
     INVARIANCE_UNCHECKED, NO_EVALUATED_POSITIVE_PROBABILITY, NO_STRUCTURE_EVALUATED,
     UNRESOLVED_MASS_CAN_CHANGE_BAYES, WORST_CASE_NEEDS_EVERY_STRUCTURE, probability_sum,
@@ -65,6 +68,8 @@ use crate::structure_aggregator::{
 /// Largest number of rival-structure choices enumerated to decide whether an action is
 /// possibly best under the worst case over structures.
 const MAX_STRUCTURE_CHOICES: usize = 4096;
+/// Draws of the draw share examined between two reads of the cancellation token.
+const DRAWS_PER_CHECK: usize = 1024;
 
 /// A weighted set of parameter points: a measure over the preference set.
 #[derive(Clone, Debug, PartialEq)]
@@ -866,18 +871,22 @@ pub enum PreferenceDecisionError {
     /// A linear program over a region already shown non-empty reported no feasible point.
     #[error("a linear program over a non-empty region was infeasible")]
     UnexpectedInfeasible,
+    /// The execution context was cancelled between linear programs, vertex bases or draws.
+    #[error("the evaluation across the preference set was cancelled")]
+    Cancelled,
 }
 
 impl PreferenceDecisionError {
     /// Stable detail id, prefixed `preference_decision.`; a contract refusal keeps its own
-    /// `preference_contract.` or `preference_model.` detail and a linear-program refusal its
-    /// `linear_program.` detail.
+    /// `preference_contract.`, `preference_model.` or `decision_contract.` detail and a source
+    /// refusal its `decision_evaluation.` or `decision_contract.` detail, the detail the
+    /// returned refusal carries.
     #[must_use]
     pub fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
         match self {
             Self::Contract(inner) => PreferenceContractError::detail(inner),
-            Self::Eval(_) => reason_details::preference_decision::SOURCE_REFUSED,
+            Self::Eval(inner) => inner.detail(),
             Self::Lp(_) => reason_details::preference_decision::LINEAR_PROGRAM_REFUSED,
             Self::CertifiedRouteRequired { reason } => match reason {
                 CertifiedRouteReason::Criterion(_) => {
@@ -960,6 +969,7 @@ impl PreferenceDecisionError {
             Self::UnexpectedInfeasible => {
                 reason_details::preference_decision::LINEAR_PROGRAM_INFEASIBLE
             }
+            Self::Cancelled => reason_details::preference_decision::CANCELLED,
         }
     }
 }
@@ -982,7 +992,34 @@ pub fn evaluate_preference_contract(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceDecisionOptions,
 ) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
-    let prepared = Prepared::new(contract, measure, options)?;
+    on_draws(contract, source, measure, options, None)
+}
+
+/// [`evaluate_preference_contract`] under an execution context: the context's cancellation
+/// token is read before every linear program, every candidate vertex basis and every 1024 draws
+/// of the draw share.
+///
+/// # Errors
+/// As [`evaluate_preference_contract`]; [`PreferenceDecisionError::Cancelled`] once the token
+/// is set.
+pub fn evaluate_preference_contract_with_context(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
+    on_draws(contract, source, measure, options, Some(ctx))
+}
+
+pub(crate) fn on_draws(
+    contract: &PreferenceContract,
+    source: &DistributionArtifact,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
+    let prepared = Prepared::new(contract, measure, options, ctx)?;
     let facts = prepared.draw_facts(source)?;
     prepared.single(&facts, &facts.admissible).map(|(result, _)| result)
 }
@@ -1002,7 +1039,33 @@ pub fn evaluate_preference_contract_on_means(
     measure: Option<&PreferenceMeasure>,
     options: PreferenceDecisionOptions,
 ) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
-    let prepared = Prepared::new(contract, measure, options)?;
+    on_means(contract, source, measure, options, None)
+}
+
+/// [`evaluate_preference_contract_on_means`] under an execution context: the context's
+/// cancellation token is read before every linear program.
+///
+/// # Errors
+/// As [`evaluate_preference_contract_on_means`]; [`PreferenceDecisionError::Cancelled`] once
+/// the token is set.
+pub fn evaluate_preference_contract_on_means_with_context(
+    contract: &PreferenceContract,
+    source: &MeanSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
+    on_means(contract, source, measure, options, Some(ctx))
+}
+
+pub(crate) fn on_means(
+    contract: &PreferenceContract,
+    source: &MeanSource,
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<PreferenceDecisionResult, PreferenceDecisionError> {
+    let prepared = Prepared::new(contract, measure, options, ctx)?;
     let facts = prepared.mean_facts(source)?;
     prepared.single(&facts, &facts.admissible).map(|(result, _)| result)
 }
@@ -1029,17 +1092,44 @@ pub fn evaluate_preference_contract_on_means(
 /// As [`evaluate_preference_contract`]; no structures, blank or repeated ids, probabilities
 /// for some structures only, invalid probabilities or probabilities above one in total, Bayes
 /// weighting without probabilities, and the worst case over structures of expected regret.
-#[allow(
-    clippy::too_many_lines,
-    reason = "validate, analyse each structure, keep the masses, combine"
-)]
 pub fn evaluate_preference_structural(
     contract: &PreferenceContract,
     atoms: &[StructuralAtom],
     measure: Option<&PreferenceMeasure>,
     options: PreferenceDecisionOptions,
 ) -> Result<StructuralPreferenceResult, PreferenceDecisionError> {
-    let prepared = Prepared::new(contract, measure, options)?;
+    across_structures(contract, atoms, measure, options, None)
+}
+
+/// [`evaluate_preference_structural`] under an execution context: the context's cancellation
+/// token is read before every structure, every linear program, every candidate vertex basis and
+/// every 1024 draws of a draw share.
+///
+/// # Errors
+/// As [`evaluate_preference_structural`]; [`PreferenceDecisionError::Cancelled`] once the token
+/// is set.
+pub fn evaluate_preference_structural_with_context(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: &ExecutionContext,
+) -> Result<StructuralPreferenceResult, PreferenceDecisionError> {
+    across_structures(contract, atoms, measure, options, Some(ctx))
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate, analyse each structure, keep the masses, combine"
+)]
+pub(crate) fn across_structures(
+    contract: &PreferenceContract,
+    atoms: &[StructuralAtom],
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceDecisionOptions,
+    ctx: Option<&ExecutionContext>,
+) -> Result<StructuralPreferenceResult, PreferenceDecisionError> {
+    let prepared = Prepared::new(contract, measure, options, ctx)?;
     let policy = contract.structural_policy;
     if policy == StructuralPolicy::Maximin && prepared.regret {
         return Err(E::CertifiedRouteRequired {
@@ -1064,6 +1154,7 @@ pub fn evaluate_preference_structural(
     let mut summaries = Vec::with_capacity(atoms.len());
     let mut evaluated: Vec<Evaluated<'_>> = Vec::new();
     for (atom, fact) in atoms.iter().zip(&facts) {
+        prepared.observe()?;
         let status = match fact {
             AtomFacts::Evaluated(f) => {
                 let (result, analysis) = prepared.single(f, &admissible)?;
@@ -1258,7 +1349,12 @@ fn prepare_measure(
             lower[j] = fixed;
             upper[j] = fixed;
         }
-        let slice = Region { rows: region.rows.clone(), lower, upper };
+        let slice = Region {
+            rows: region.rows.clone(),
+            lower,
+            upper,
+            cancellation: region.cancellation.clone(),
+        };
         if slice.feasible(&[], lp)?.is_none() {
             return Err(E::MeasurePointOutsideSet { index });
         }
@@ -1277,6 +1373,8 @@ struct Region {
     rows: Vec<LinearConstraint>,
     lower: Vec<f64>,
     upper: Vec<f64>,
+    /// Read before every linear program over the region.
+    cancellation: Option<CancellationToken>,
 }
 
 /// An optimum of a function over a region and a point attaining it.
@@ -1319,14 +1417,17 @@ impl Region {
             })
             .collect();
         let (lower, upper) = set.bounds().into_iter().unzip();
-        Self { rows, lower, upper }
+        Self { rows, lower, upper, cancellation: None }
     }
 
     fn dimension(&self) -> usize {
         self.lower.len()
     }
 
-    fn outcome(program: &LinearProgram, lp: LpOptions) -> Result<Option<LpSolution>, E> {
+    fn outcome(&self, program: &LinearProgram, lp: LpOptions) -> Result<Option<LpSolution>, E> {
+        if self.cancellation.as_ref().is_some_and(CancellationToken::is_cancelled) {
+            return Err(E::Cancelled);
+        }
         match linear_program::solve(program, lp).map_err(E::Lp)? {
             LpOutcome::Optimal(solution) => Ok(Some(solution)),
             LpOutcome::Infeasible(_) => Ok(None),
@@ -1360,7 +1461,7 @@ impl Region {
             lower: self.lower.clone(),
             upper: self.upper.clone(),
         };
-        Ok(Self::outcome(&program, lp)?.map(|solution| solution.x))
+        Ok(self.outcome(&program, lp)?.map(|solution| solution.x))
     }
 
     /// `min over the region of max_k f_k(theta)` and a minimising point.
@@ -1375,7 +1476,7 @@ impl Region {
                 lower: self.lower.clone(),
                 upper: self.upper.clone(),
             };
-            Self::outcome(&program, lp)?.ok_or(E::UnexpectedInfeasible)?.x
+            self.outcome(&program, lp)?.ok_or(E::UnexpectedInfeasible)?.x
         } else {
             // Epigraph form: minimise t subject to f_k(theta) <= t.
             let mut constraints: Vec<LinearConstraint> = self
@@ -1403,7 +1504,7 @@ impl Region {
             let mut upper = self.upper.clone();
             upper.push(f64::INFINITY);
             let program = LinearProgram { objective, constraints, lower, upper };
-            let mut x = Self::outcome(&program, lp)?.ok_or(E::UnexpectedInfeasible)?.x;
+            let mut x = self.outcome(&program, lp)?.ok_or(E::UnexpectedInfeasible)?.x;
             x.truncate(n);
             x
         };
@@ -1797,6 +1898,8 @@ struct Prepared<'a> {
     regret: bool,
     loss: bool,
     options: PreferenceDecisionOptions,
+    /// The caller's execution context, when the run is cancellable.
+    ctx: Option<&'a ExecutionContext>,
 }
 
 /// The parts of a result that differ between a single source and a combination.
@@ -1816,6 +1919,7 @@ impl<'a> Prepared<'a> {
         contract: &'a PreferenceContract,
         measure: Option<&PreferenceMeasure>,
         options: PreferenceDecisionOptions,
+        ctx: Option<&'a ExecutionContext>,
     ) -> Result<Self, E> {
         if !options.tie_tolerance.is_finite() || options.tie_tolerance < 0.0 {
             return Err(E::InvalidOptions { option: "tie_tolerance" });
@@ -1848,7 +1952,8 @@ impl<'a> Prepared<'a> {
             .map_err(E::Contract)?
             .ok_or(E::CertifiedRouteRequired { reason: CertifiedRouteReason::PartNotLowerable })?;
         let lp = options.lp;
-        let region = Region::of(set);
+        let mut region = Region::of(set);
+        region.cancellation = ctx.map(|c| c.cancellation.clone());
         let interior = region.feasible(&[], lp)?.ok_or(E::EmptyPreferenceSet)?;
         let measure_prepared = measure.map(|m| prepare_measure(m, set, &region, lp)).transpose()?;
         match contract.preference_policy {
@@ -1908,7 +2013,16 @@ impl<'a> Prepared<'a> {
             regret,
             loss,
             options,
+            ctx,
         })
+    }
+
+    /// `Err(Cancelled)` once the caller's token is set.
+    fn observe(&self) -> Result<(), E> {
+        if self.ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(E::Cancelled);
+        }
+        Ok(())
     }
 
     fn parts(&self) -> usize {
@@ -2218,21 +2332,27 @@ impl<'a> Prepared<'a> {
         let vertices = if self.region.dimension() == 0 {
             vec![Vec::new()]
         } else {
-            match linear_program::vertices(
-                &self.region.rows,
-                &self.region.lower,
-                &self.region.upper,
-                self.options.vertex_cap,
-                self.options.lp,
-            ) {
+            let (rows, lower, upper) = (&self.region.rows, &self.region.lower, &self.region.upper);
+            let (cap, lp) = (self.options.vertex_cap, self.options.lp);
+            let enumerated = match self.ctx {
+                Some(ctx) => {
+                    linear_program::vertices_with_context(rows, lower, upper, cap, lp, ctx)
+                }
+                None => linear_program::vertices(rows, lower, upper, cap, lp),
+            };
+            match enumerated {
                 Ok(vertices) => vertices,
                 Err(LpError::VertexCapExceeded { .. }) => return Ok(None),
+                Err(LpError::Cancelled) => return Err(E::Cancelled),
                 Err(error) => return Err(E::Lp(error)),
             }
         };
         let rivals: Vec<usize> = (0..n).filter(|&b| admissible[b] && b != best).collect();
         let mut share = 0.0;
         for (i, weight) in per_draw.weights.iter().enumerate() {
+            if i % DRAWS_PER_CHECK == 0 {
+                self.observe()?;
+            }
             let utility = |a: usize, theta: &[f64]| -> f64 {
                 let parts = &per_draw.terms[a];
                 parts[0][i]
@@ -2601,12 +2721,193 @@ impl<'a> Prepared<'a> {
     }
 }
 
+impl PreferenceDecisionError {
+    /// Structured refusal for a failure of the exact evaluation across a preference set.
+    ///
+    /// A contract or source refusal keeps its own refusal; a linear-program refusal is
+    /// reported under `preference_decision.linear_program_refused` with the linear program's
+    /// detail and message as the supplied text.
+    #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one arm per exact-evaluation failure")]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), EVALUATE, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |stage, remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                stage,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        let structural = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), STRUCTURAL, self.detail())
+                .remedy(remedy)
+        };
+        match self {
+            Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Eval(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Lp(error) => refusal(
+                antecedent_core::reason_code!("invalid_argument"),
+                EVALUATE,
+                antecedent_core::reason_details::preference_decision::LINEAR_PROGRAM_REFUSED,
+            )
+            .supplied(format!("{}: {error}", error.detail()))
+            .remedy(
+                "relax the linear-program options, or rescale the declared ranges and relations",
+            )
+            .build(),
+            Self::CertifiedRouteRequired { reason } => {
+                let builder = refusal(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    EVALUATE,
+                    self.detail(),
+                )
+                .remedy(CERTIFIED_ROUTE);
+                match reason {
+                    CertifiedRouteReason::Criterion(criterion) => {
+                        builder.offending(format!("{criterion:?}")).build()
+                    }
+                    CertifiedRouteReason::ShapeParameters { parameters } => {
+                        builder.offending(parameters.join(",")).build()
+                    }
+                    CertifiedRouteReason::PartNotLowerable
+                    | CertifiedRouteReason::WorstCaseOfExpectedRegret => builder.build(),
+                }
+            }
+            Self::InvalidOptions { option } => {
+                invalid("supply the named option inside its documented range")
+                    .offending(*option)
+                    .build()
+            }
+            Self::EmptyPreferenceSet => {
+                invalid("widen the declared ranges or remove a relation").build()
+            }
+            Self::MeasureRequired => unsatisfied(
+                EVALUATE,
+                "supply a measure over the preference set, or choose another preference policy",
+            )
+            .build(),
+            Self::MeasureIncomplete { parameters } => {
+                unsatisfied(EVALUATE, "supply a measure that resolves every parameter")
+                    .offending(parameters.join(","))
+                    .build()
+            }
+            Self::MeasureEmpty => invalid("supply at least one measure point").build(),
+            Self::MeasurePointDimension { index, expected, found } => {
+                invalid("supply one value per preference parameter")
+                    .offending(index.to_string())
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::MeasurePointNonFinite { index } => {
+                invalid("supply finite measure points").offending(index.to_string()).build()
+            }
+            Self::MeasurePointOutsideSet { index } => {
+                invalid("supply measure points inside the declared ranges and relations")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureWeightCount { expected, found } => {
+                invalid("supply one weight per measure point")
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::MeasureWeightInvalid { index } => {
+                invalid("supply finite, non-negative measure weights")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureWeightTotalZero => {
+                invalid("give at least one measure point a positive weight").build()
+            }
+            Self::MeasureLabelCount { expected, found } => {
+                invalid("supply one label per measure point")
+                    .expected(expected.to_string())
+                    .supplied(found.to_string())
+                    .build()
+            }
+            Self::MeasureLabelBlank { index } => {
+                invalid("give every measure point a non-blank label")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureLabelDuplicate { label } => {
+                invalid("give every measure point a distinct label")
+                    .offending(label.clone())
+                    .build()
+            }
+            Self::MeasureOriginBlank => {
+                invalid("name the assumption or estimate the measure comes from").build()
+            }
+            Self::MeasureUnresolvedUnknown { index } => {
+                invalid("name only declared parameter positions as unresolved")
+                    .offending(index.to_string())
+                    .build()
+            }
+            Self::MeasureUnresolvedRepeated { index } => {
+                invalid("name each unresolved parameter once").offending(index.to_string()).build()
+            }
+            Self::NoStructures => structural("supply at least one structure").build(),
+            Self::StructureIdBlank { position } => {
+                structural("give every structure a non-blank id")
+                    .offending(position.to_string())
+                    .build()
+            }
+            Self::StructureDuplicate { id } => {
+                structural("give every structure a distinct id").offending(id.clone()).build()
+            }
+            Self::StructureProbabilitiesPartial => {
+                unsatisfied(STRUCTURAL, "give every structure a probability, or none").build()
+            }
+            Self::StructureProbabilityInvalid { structure } => {
+                unsatisfied(STRUCTURAL, "supply finite, non-negative structure probabilities")
+                    .offending(structure.clone())
+                    .build()
+            }
+            Self::StructureProbabilitiesExceedOne => {
+                unsatisfied(STRUCTURAL, "supply structure probabilities whose total is at most one")
+                    .build()
+            }
+            Self::StructureProbabilitiesRequired => unsatisfied(
+                STRUCTURAL,
+                "supply genuine structure probabilities, or choose another structural policy",
+            )
+            .build(),
+            Self::NonFiniteCoefficient { action } => {
+                unsatisfied(EVALUATE, "check the source draws and the domain of the value")
+                    .offending(action.clone())
+                    .build()
+            }
+            Self::UnboundedProgram | Self::UnexpectedInfeasible => {
+                refusal(antecedent_core::reason_code!("invalid_argument"), EVALUATE, self.detail())
+                    .build()
+            }
+            Self::Cancelled => refusal(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                EVALUATE,
+                self.detail(),
+            )
+            .build(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn unit_square() -> Region {
-        Region { rows: Vec::new(), lower: vec![0.0, 0.0], upper: vec![1.0, 1.0] }
+        Region {
+            rows: Vec::new(),
+            lower: vec![0.0, 0.0],
+            upper: vec![1.0, 1.0],
+            cancellation: None,
+        }
     }
 
     #[test]

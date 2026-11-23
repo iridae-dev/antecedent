@@ -18,9 +18,11 @@
 use std::collections::{BTreeSet, HashSet};
 use std::convert::Infallible;
 
+use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, is_blank};
 
 use crate::decision_contract::UtilityExpr;
+use crate::preference_refusal::{DECLARE, at, refusal};
 
 /// Largest expression depth a value model accepts, the same bound as a decision utility.
 pub const MAX_PREFERENCE_DEPTH: usize = 64;
@@ -1352,6 +1354,123 @@ impl PreferenceModelError {
             }
             Self::CurveBreakpointsNotIncreasing { .. } => {
                 reason_details::preference_model::CURVE_BREAKPOINTS_NOT_INCREASING
+            }
+        }
+    }
+}
+
+impl PreferenceModelError {
+    /// Structured refusal for a value-model, preference-set or curve failure.
+    ///
+    /// Every cause is a malformed declaration or point, refused as `invalid_argument` at the
+    /// `declare` stage.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let (offending, remedy) = self.offending_and_remedy();
+        refusal(antecedent_core::reason_code!("invalid_argument"), DECLARE, self.detail())
+            .offending_opt(offending)
+            .remedy(remedy)
+            .build()
+    }
+
+    #[allow(clippy::too_many_lines, reason = "one arm per declaration failure of the value model")]
+    fn offending_and_remedy(&self) -> (Option<String>, &'static str) {
+        match self {
+            Self::NoAttributes => (None, "declare at least one attribute the value reads"),
+            Self::BlankAttributeId { position } => {
+                (Some(position.to_string()), "give every attribute a non-blank id")
+            }
+            Self::DuplicateAttribute { id } => {
+                (Some(id.clone()), "give every attribute a distinct id")
+            }
+            Self::BlankAttributeUnits { attribute } => {
+                (Some(attribute.clone()), "state the units of every attribute")
+            }
+            Self::BlankParameterId { position } => {
+                (Some(position.to_string()), "give every parameter a non-blank id")
+            }
+            Self::DuplicateParameter { id } => {
+                (Some(id.clone()), "give every parameter a distinct id")
+            }
+            Self::BlankParameterUnits { parameter } => {
+                (Some(parameter.clone()), "state the units of every parameter")
+            }
+            Self::NonFiniteRange { parameter } => {
+                (Some(parameter.clone()), "declare finite lower and upper values for the range")
+            }
+            Self::ReversedRange { parameter } => {
+                (Some(parameter.clone()), "declare a range whose lower value is at most its upper")
+            }
+            Self::BlankAssumption { parameter } => {
+                (Some(parameter.clone()), "name the assumption the parameter's range stands on")
+            }
+            Self::BlankRelationId { position } => {
+                (Some(position.to_string()), "give every relation a non-blank id")
+            }
+            Self::DuplicateRelation { id } => {
+                (Some(id.clone()), "give every relation a distinct id")
+            }
+            Self::BlankRelationOrigin { relation } => (
+                Some(relation.clone()),
+                "name the record and the rejected option the relation comes from",
+            ),
+            Self::EmptyRelation { relation } => {
+                (Some(relation.clone()), "give the relation at least one parameter coefficient")
+            }
+            Self::RelationUnknownParameter { relation, index } => {
+                (Some(at(relation, index)), "read only parameters the preference set declares")
+            }
+            Self::RelationRepeatedParameter { relation, index } => (
+                Some(at(relation, index)),
+                "combine the coefficients of the parameter into one term",
+            ),
+            Self::RelationNonFiniteCoefficient { relation } => {
+                (Some(relation.clone()), "supply finite relation coefficients")
+            }
+            Self::RelationNonFiniteBound { relation } => {
+                (Some(relation.clone()), "supply a finite relation bound")
+            }
+            Self::NonFiniteConstant => (None, "supply finite constants in the value expression"),
+            Self::ExpressionTooDeep { depth } => {
+                (Some(depth.to_string()), "flatten the value expression")
+            }
+            Self::UnknownAttribute { index } => {
+                (Some(index.to_string()), "read only attributes the value model declares")
+            }
+            Self::UnknownParameter { index } => {
+                (Some(index.to_string()), "read only parameters the value model declares")
+            }
+            Self::UnusedParameter { parameter } => {
+                (Some(parameter.clone()), "remove the parameter or read it in the value")
+            }
+            Self::UnusedAttribute { attribute } => {
+                (Some(attribute.clone()), "remove the attribute or read it in the value")
+            }
+            Self::BlankUtilityUnits => (None, "state the units the value is measured in"),
+            Self::NonFiniteValue => (
+                None,
+                "narrow the ranges or change the value so it is finite at every evaluated point",
+            ),
+            Self::AttributeCount { found, .. } => {
+                (Some(found.to_string()), "supply one value per declared attribute")
+            }
+            Self::ParameterCount { found, .. } => {
+                (Some(found.to_string()), "supply one value per declared parameter")
+            }
+            Self::NonFiniteParameterValue { index } => {
+                (Some(index.to_string()), "supply finite parameter values")
+            }
+            Self::CurveTooShort { breakpoints } => {
+                (Some(breakpoints.to_string()), "supply at least two curve breakpoints")
+            }
+            Self::CurveSlopeCount { slopes, .. } => {
+                (Some(slopes.to_string()), "supply one slope fewer than the number of breakpoints")
+            }
+            Self::CurveBreakpointNonFinite { position } => {
+                (Some(position.to_string()), "supply finite curve breakpoints")
+            }
+            Self::CurveBreakpointsNotIncreasing { position } => {
+                (Some(position.to_string()), "order the curve breakpoints and remove repeats")
             }
         }
     }

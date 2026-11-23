@@ -3,9 +3,10 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_stats::{
     ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
-    conditional_logit_log_likelihood, fit_conditional_logit,
+    conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
 };
 
 /// Owned choice data: row-major features, set boundaries, chosen indices and cluster labels.
@@ -566,10 +567,33 @@ fn detail_ids_are_distinct_and_in_the_family() {
         ConditionalLogitError::Separated { direction: vec![] },
         ConditionalLogitError::SingularInformation,
         ConditionalLogitError::NotConverged { iterations: 0, gradient_norm: 0.0 },
+        ConditionalLogitError::Cancelled,
     ];
     let mut ids: Vec<&str> = all.iter().map(ConditionalLogitError::detail).collect();
     assert!(ids.iter().all(|id| id.starts_with("conditional_logit.")));
     ids.sort_unstable();
     ids.dedup();
     assert_eq!(ids.len(), all.len());
+}
+
+#[test]
+fn a_cancelled_context_stops_the_fit_before_or_between_newton_steps() {
+    let data = generate(0x4242_4242_4242_4242, 60, &[0.8, -0.3], None);
+    let options = ConditionalLogitOptions::default();
+    let mut ctx = ExecutionContext::production(0, 1);
+    ctx.cancellation.cancel();
+    assert_eq!(
+        fit_conditional_logit_with_context(&data.design(), options, &ctx).unwrap_err(),
+        ConditionalLogitError::Cancelled
+    );
+    // The first observation passes, so the fit starts and stops before its second step.
+    ctx.cancellation = CancellationToken::cancel_after_checks(2);
+    assert_eq!(
+        fit_conditional_logit_with_context(&data.design(), options, &ctx).unwrap_err(),
+        ConditionalLogitError::Cancelled
+    );
+    // An uncancelled context gives the context-free fit exactly.
+    ctx.cancellation = CancellationToken::new();
+    let within = fit_conditional_logit_with_context(&data.design(), options, &ctx).unwrap();
+    assert_eq!(within.coefficients, fit(&data).coefficients);
 }
