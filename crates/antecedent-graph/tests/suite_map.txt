@@ -1,1 +1,1 @@
-suite_01: dsep_exhaustive, oracle_closure
+suite_01: dsep_exhaustive, oracle_closure, mec_uniform_sampling
