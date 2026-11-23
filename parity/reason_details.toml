@@ -54,6 +54,12 @@ codes = ["invalid_argument"]
 meaning = "No decider is named but the records are read per decider; name the decider whose preferences to accept."
 
 [[detail]]
+id = "accepted_preferences.set_undetermined"
+family = "accepted_preferences"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Neither compatibility of the selected records with the declared set nor their contradiction could be certified before the shape subdivision stopped; raise the box budget, lower the minimum width, or narrow the shape ranges."
+
+[[detail]]
 id = "accepted_preferences.version_exhausted"
 family = "accepted_preferences"
 codes = ["invalid_argument"]
@@ -11004,6 +11010,12 @@ codes = ["design_rank_deficient"]
 meaning = "Neither the fixed part nor any parameter term differs between the options of any record; record choices whose options differ."
 
 [[detail]]
+id = "preference_choice_model.profile_multimodal"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The profile of a shape parameter has two maxima close to the overall maximum separated by a deeper dip, so the likelihood-ratio set is not an interval; narrow the declared range to one mode, or use the compatible-set method."
+
+[[detail]]
 id = "preference_choice_model.rank_deficient"
 family = "preference_choice_model"
 codes = ["design_rank_deficient"]
@@ -11019,7 +11031,25 @@ meaning = "The choice records are refused or do not fit the value model; the ref
 id = "preference_choice_model.separated"
 family = "preference_choice_model"
 codes = ["glm_fit_refused"]
-meaning = "The choices are perfectly consistent with a value in the family, so the likelihood has no finite maximum; use the compatible-set method."
+meaning = "The choices are perfectly consistent with a value in the family (at some value of the shape parameters, when there are any), so the likelihood has no finite maximum; use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.shape_estimate_at_bound"
+family = "preference_choice_model"
+codes = ["uncertainty_representation_insufficient"]
+meaning = "The estimate of a shape parameter lies on a declared bound, where the normal approximation does not hold; the profile likelihood-ratio interval truncated at the bound is reported. Widen the range if the bound is not a limit of the preference, or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.shape_not_identified"
+family = "preference_choice_model"
+codes = ["design_rank_deficient"]
+meaning = "The profile log-likelihood of a shape parameter varies by less than half the chi-square(1) quantile at the level over its declared range, so the linear estimates would rest on an arbitrary shape value; fix the shape parameter, record choices that tell its values apart, or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.shape_search_budget"
+family = "preference_choice_model"
+codes = ["invalid_argument"]
+meaning = "More shape parameters must be fitted than the shape search covers; fix some to single values or raise the search limit."
 
 [[detail]]
 id = "preference_choice_model.stated_and_recorded_mixed"
@@ -11370,6 +11400,12 @@ codes = ["invalid_argument"]
 meaning = "No structure is supplied to the evaluation across structures; supply at least one."
 
 [[detail]]
+id = "preference_decision.value_relations_need_certified_route"
+family = "preference_decision"
+codes = ["route_not_supported"]
+meaning = "The preference set holds value relations (recorded choices under a value with shape parameters), which are not linear in the parameters; decide on the certified route."
+
+[[detail]]
 id = "preference_decision.worst_case_of_expected_regret"
 family = "preference_decision"
 codes = ["route_not_supported"]
@@ -11580,6 +11616,18 @@ codes = ["invalid_argument"]
 meaning = "The value is not finite at the evaluated attribute and parameter point, for example a logarithm of a non-positive argument; narrow the ranges or change the value."
 
 [[detail]]
+id = "preference_model.value_relation_rows_invalid"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The rows of a value relation are not a non-empty weighted table of finite attribute values with one value per model attribute, non-negative weights and a positive sum; give both options finite rows and weights with a positive sum."
+
+[[detail]]
+id = "preference_model.value_relation_tolerance_invalid"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The tolerance of a value relation is negative or not finite; supply a finite, non-negative tolerance."
+
+[[detail]]
 id = "preference_compile.atom_kind_not_compiled"
 family = "preference_compile"
 codes = ["route_not_supported"]
@@ -11589,7 +11637,25 @@ meaning = "A graph posterior's atoms are of a kind the single-graph compiler can
 id = "preference_compile.class_completions_truncated"
 family = "preference_compile"
 codes = ["route_not_supported"]
-meaning = "Enumerating the completions of an equivalence-class atom stopped at its cap or budget, so the class mass cannot be accounted completion by completion; orient edges or declare the structure."
+meaning = "An equivalence-class atom has more members than the declared exact limit (32 unless declared), or its member search stopped at its budget, and no uniform declared class prior draws a sample (an atom that is not the essential graph of a class, or whose PAG marks are not one certified class, cannot be sampled); declare a uniform class prior with a sample, raise the limit, orient edges or declare the structure."
+
+[[detail]]
+id = "preference_compile.class_prior_keys_mismatch"
+family = "preference_compile"
+codes = ["invalid_argument"]
+meaning = "A class prior over graph-posterior class atoms lacks a mass for some member fingerprint, names a fingerprint that is no member of any class atom, sums to zero over one class, or is given as ordered masses, which name no member; key the masses by the member fingerprints the compile reports or declare a uniform measure."
+
+[[detail]]
+id = "preference_compile.class_prior_sampling_needs_uniform"
+family = "preference_compile"
+codes = ["invalid_argument"]
+meaning = "A keyed or ordered class prior declares a sample; keyed masses need every member's key, so only a uniform measure is sampled."
+
+[[detail]]
+id = "preference_compile.class_sampling_budget"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "Drawing the declared number of uniform members of a class atom does not fit the search budget: a PAG's acceptance rate is too low for the draws, one m-separation model of the PAG does not fit, the exact member count exceeds 128 bits, or the count stopped at its bound. A computational limit, not a statistical one; draw fewer members, orient edges or declare the structure."
 
 [[detail]]
 id = "preference_compile.cross_study_covariance_invalid"
@@ -11628,6 +11694,12 @@ codes = ["evidence_double_counted"]
 meaning = "Two studies share observations, so they are not independent evidence; declare their cross-study covariance or estimate the outcomes jointly in one design."
 
 [[detail]]
+id = "preference_compile.unit_key_invalid"
+family = "preference_compile"
+codes = ["invalid_argument"]
+meaning = "A study's unit key column is its treatment or its outcome; a key names the units the rows observe, so name a column that identifies them."
+
+[[detail]]
 id = "preference_set_learning.cancelled"
 family = "preference_set_learning"
 codes = ["cancelled_no_claim"]
@@ -11662,6 +11734,12 @@ id = "preference_set_learning.records_invalid"
 family = "preference_set_learning"
 codes = ["invalid_argument", "quantity_semantics_mismatch", "evidence_double_counted", "route_not_supported", "decision_contract_unsatisfied"]
 meaning = "The choice records are refused or give no linear relation under the value model; the refusal carries the records' own detail."
+
+[[detail]]
+id = "preference_set_learning.region_budget_invalid"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "The shape-box budget is below one or the minimum width fraction is outside [0, 1]; supply a box budget of at least one and a width fraction in [0, 1]."
 
 [[detail]]
 id = "preference_set_learning.relation_id_collision"
@@ -11908,6 +11986,12 @@ id = "program_binding.treatment_outcome_substitution"
 family = "program_binding"
 codes = ["external_binding_mismatch"]
 meaning = "The claim intervenes on another treatment, asks for another outcome, or a coordinate names another variable or another treatment in its regime."
+
+[[detail]]
+id = "propagation_chain.deferred_source_unbound"
+family = "propagation_chain"
+codes = ["invalid_argument"]
+meaning = "A chain whose family table is deferred has no draws until its moments are bound; it is never sealed, exported, consumed or executed as it is. Bind the moments and execute the bound table."
 
 [[detail]]
 id = "proposal_arrival.assignment_mismatch"
@@ -17681,6 +17765,12 @@ id = "mechanism_selection.family_outcome_mismatch"
 family = "mechanism_selection"
 codes = ["invalid_argument"]
 meaning = "A node's required family models an outcome of a different type than the node's typing."
+
+[[detail]]
+id = "structure_posterior.class_prior_not_read"
+family = "structure_posterior"
+codes = ["option_not_applicable"]
+meaning = "A class prior beside a graph posterior of CPDAG or PAG atoms weighs class members, which only a preference decision compiled across the posterior's structures reads; the graph-posterior mixture estimates each class atom as a whole, so it refuses the prior rather than ignore it. Compile the decision, or drop the class prior for this estimate."
 
 [[detail]]
 id = "structure_posterior.edge_prior_probability"

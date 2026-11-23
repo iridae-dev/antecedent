@@ -17,6 +17,7 @@ class accepted_preferences:  # noqa: N801
     NOT_PENDING: Final = "accepted_preferences.not_pending"
     OPTIONS_MISMATCH: Final = "accepted_preferences.options_mismatch"
     POOLED_NOT_AVAILABLE: Final = "accepted_preferences.pooled_not_available"
+    SET_UNDETERMINED: Final = "accepted_preferences.set_undetermined"
     VERSION_EXHAUSTED: Final = "accepted_preferences.version_exhausted"
     VERSION_INVALID: Final = "accepted_preferences.version_invalid"
 
@@ -2377,9 +2378,13 @@ class preference_choice_model:  # noqa: N801
     NO_DRAW_INSIDE_SET: Final = "preference_choice_model.no_draw_inside_set"
     NOT_CONVERGED: Final = "preference_choice_model.not_converged"
     NOTHING_IDENTIFIED: Final = "preference_choice_model.nothing_identified"
+    PROFILE_MULTIMODAL: Final = "preference_choice_model.profile_multimodal"
     RANK_DEFICIENT: Final = "preference_choice_model.rank_deficient"
     RECORDS_INVALID: Final = "preference_choice_model.records_invalid"
     SEPARATED: Final = "preference_choice_model.separated"
+    SHAPE_ESTIMATE_AT_BOUND: Final = "preference_choice_model.shape_estimate_at_bound"
+    SHAPE_NOT_IDENTIFIED: Final = "preference_choice_model.shape_not_identified"
+    SHAPE_SEARCH_BUDGET: Final = "preference_choice_model.shape_search_budget"
     STATED_AND_RECORDED_MIXED: Final = "preference_choice_model.stated_and_recorded_mixed"
     UNIT_OF_ACCOUNT_MISSING: Final = "preference_choice_model.unit_of_account_missing"
 
@@ -2387,12 +2392,18 @@ class preference_choice_model:  # noqa: N801
 class preference_compile:  # noqa: N801
     ATOM_KIND_NOT_COMPILED: Final = "preference_compile.atom_kind_not_compiled"
     CLASS_COMPLETIONS_TRUNCATED: Final = "preference_compile.class_completions_truncated"
+    CLASS_PRIOR_KEYS_MISMATCH: Final = "preference_compile.class_prior_keys_mismatch"
+    CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: Final = (
+        "preference_compile.class_prior_sampling_needs_uniform"
+    )
+    CLASS_SAMPLING_BUDGET: Final = "preference_compile.class_sampling_budget"
     CROSS_STUDY_COVARIANCE_INVALID: Final = "preference_compile.cross_study_covariance_invalid"
     DESIGN_EXPOSURE_BOUNDED: Final = "preference_compile.design_exposure_bounded"
     DESIGN_LAW_NOT_ALIGNED: Final = "preference_compile.design_law_not_aligned"
     DESIGN_NOT_SUPPORTED: Final = "preference_compile.design_not_supported"
     PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
     STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
+    UNIT_KEY_INVALID: Final = "preference_compile.unit_key_invalid"
 
 
 class preference_contract:  # noqa: N801
@@ -2459,6 +2470,9 @@ class preference_decision:  # noqa: N801
     STRUCTURE_PROBABILITIES_REQUIRED: Final = "preference_decision.structure_probabilities_required"
     STRUCTURE_PROBABILITY_INVALID: Final = "preference_decision.structure_probability_invalid"
     STRUCTURES_EMPTY: Final = "preference_decision.structures_empty"
+    VALUE_RELATIONS_NEED_CERTIFIED_ROUTE: Final = (
+        "preference_decision.value_relations_need_certified_route"
+    )
     WORST_CASE_OF_EXPECTED_REGRET: Final = "preference_decision.worst_case_of_expected_regret"
 
 
@@ -2500,6 +2514,8 @@ class preference_model:  # noqa: N801
     UNKNOWN_PARAMETER: Final = "preference_model.unknown_parameter"
     UTILITY_UNITS_BLANK: Final = "preference_model.utility_units_blank"
     VALUE_NON_FINITE: Final = "preference_model.value_non_finite"
+    VALUE_RELATION_ROWS_INVALID: Final = "preference_model.value_relation_rows_invalid"
+    VALUE_RELATION_TOLERANCE_INVALID: Final = "preference_model.value_relation_tolerance_invalid"
 
 
 class preference_set_learning:  # noqa: N801
@@ -2509,6 +2525,7 @@ class preference_set_learning:  # noqa: N801
     MODEL_INVALID: Final = "preference_set_learning.model_invalid"
     PROGRAM_INCONSISTENT: Final = "preference_set_learning.program_inconsistent"
     RECORDS_INVALID: Final = "preference_set_learning.records_invalid"
+    REGION_BUDGET_INVALID: Final = "preference_set_learning.region_budget_invalid"
     RELATION_ID_COLLISION: Final = "preference_set_learning.relation_id_collision"
     TOLERANCE_NEGATIVE: Final = "preference_set_learning.tolerance_negative"
     TOLERANCE_NON_FINITE: Final = "preference_set_learning.tolerance_non_finite"
@@ -2556,6 +2573,10 @@ class program_binding:  # noqa: N801
     POPULATION_MISMATCH: Final = "program_binding.population_mismatch"
     QUANTITIES_OVERRIDE_MISMATCH: Final = "program_binding.quantities_override_mismatch"
     TREATMENT_OUTCOME_SUBSTITUTION: Final = "program_binding.treatment_outcome_substitution"
+
+
+class propagation_chain:  # noqa: N801
+    DEFERRED_SOURCE_UNBOUND: Final = "propagation_chain.deferred_source_unbound"
 
 
 class proposal_arrival:  # noqa: N801
@@ -3335,6 +3356,7 @@ class split_effect:  # noqa: N801
 
 
 class structure_posterior:  # noqa: N801
+    CLASS_PRIOR_NOT_READ: Final = "structure_posterior.class_prior_not_read"
     EDGE_PRIOR_PROBABILITY: Final = "structure_posterior.edge_prior_probability"
 
 
@@ -3746,6 +3768,7 @@ ALL: Final[tuple[str, ...]] = (
     "accepted_preferences.not_pending",
     "accepted_preferences.options_mismatch",
     "accepted_preferences.pooled_not_available",
+    "accepted_preferences.set_undetermined",
     "accepted_preferences.version_exhausted",
     "accepted_preferences.version_invalid",
     "adaptive_inference.analysis_invalid",
@@ -5588,19 +5611,27 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.no_draw_inside_set",
     "preference_choice_model.not_converged",
     "preference_choice_model.nothing_identified",
+    "preference_choice_model.profile_multimodal",
     "preference_choice_model.rank_deficient",
     "preference_choice_model.records_invalid",
     "preference_choice_model.separated",
+    "preference_choice_model.shape_estimate_at_bound",
+    "preference_choice_model.shape_not_identified",
+    "preference_choice_model.shape_search_budget",
     "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.unit_of_account_missing",
     "preference_compile.atom_kind_not_compiled",
     "preference_compile.class_completions_truncated",
+    "preference_compile.class_prior_keys_mismatch",
+    "preference_compile.class_prior_sampling_needs_uniform",
+    "preference_compile.class_sampling_budget",
     "preference_compile.cross_study_covariance_invalid",
     "preference_compile.design_exposure_bounded",
     "preference_compile.design_law_not_aligned",
     "preference_compile.design_not_supported",
     "preference_compile.program_carries_decision",
     "preference_compile.studies_share_evidence",
+    "preference_compile.unit_key_invalid",
     "preference_contract.action_duplicate",
     "preference_contract.action_id_blank",
     "preference_contract.action_without_quantity",
@@ -5657,6 +5688,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_decision.structure_probabilities_required",
     "preference_decision.structure_probability_invalid",
     "preference_decision.structures_empty",
+    "preference_decision.value_relations_need_certified_route",
     "preference_decision.worst_case_of_expected_regret",
     "preference_evaluation.joint_draws_required",
     "preference_model.attribute_count_mismatch",
@@ -5692,12 +5724,15 @@ ALL: Final[tuple[str, ...]] = (
     "preference_model.unknown_parameter",
     "preference_model.utility_units_blank",
     "preference_model.value_non_finite",
+    "preference_model.value_relation_rows_invalid",
+    "preference_model.value_relation_tolerance_invalid",
     "preference_set_learning.cancelled",
     "preference_set_learning.declared_set_empty",
     "preference_set_learning.linear_program_refused",
     "preference_set_learning.model_invalid",
     "preference_set_learning.program_inconsistent",
     "preference_set_learning.records_invalid",
+    "preference_set_learning.region_budget_invalid",
     "preference_set_learning.relation_id_collision",
     "preference_set_learning.tolerance_negative",
     "preference_set_learning.tolerance_non_finite",
@@ -5739,6 +5774,7 @@ ALL: Final[tuple[str, ...]] = (
     "program_binding.population_mismatch",
     "program_binding.quantities_override_mismatch",
     "program_binding.treatment_outcome_substitution",
+    "propagation_chain.deferred_source_unbound",
     "proposal_arrival.assignment_mismatch",
     "proposal_arrival.base_catalog_changed",
     "proposal_arrival.base_catalog_missing",
@@ -6392,6 +6428,7 @@ ALL: Final[tuple[str, ...]] = (
     "split_effect.structure_class",
     "split_effect.structure_unresolved",
     "split_effect.too_few_rows",
+    "structure_posterior.class_prior_not_read",
     "structure_posterior.edge_prior_probability",
     "structured_refusals.malformed_detail",
     "structured_refusals.missing_stage",
@@ -6705,6 +6742,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "accepted_preferences.not_pending": ("invalid_argument",),
     "accepted_preferences.options_mismatch": ("decision_contract_unsatisfied",),
     "accepted_preferences.pooled_not_available": ("invalid_argument",),
+    "accepted_preferences.set_undetermined": ("decision_contract_unsatisfied",),
     "accepted_preferences.version_exhausted": ("invalid_argument",),
     "accepted_preferences.version_invalid": ("invalid_argument",),
     "adaptive_inference.analysis_invalid": ("invalid_argument",),
@@ -8604,6 +8642,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_choice_model.no_draw_inside_set": ("uncertainty_representation_insufficient",),
     "preference_choice_model.not_converged": ("glm_fit_refused",),
     "preference_choice_model.nothing_identified": ("design_rank_deficient",),
+    "preference_choice_model.profile_multimodal": ("glm_fit_refused",),
     "preference_choice_model.rank_deficient": ("design_rank_deficient",),
     "preference_choice_model.records_invalid": (
         "invalid_argument",
@@ -8613,16 +8652,23 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "decision_contract_unsatisfied",
     ),
     "preference_choice_model.separated": ("glm_fit_refused",),
+    "preference_choice_model.shape_estimate_at_bound": ("uncertainty_representation_insufficient",),
+    "preference_choice_model.shape_not_identified": ("design_rank_deficient",),
+    "preference_choice_model.shape_search_budget": ("invalid_argument",),
     "preference_choice_model.stated_and_recorded_mixed": ("route_not_supported",),
     "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
     "preference_compile.atom_kind_not_compiled": ("route_not_supported",),
     "preference_compile.class_completions_truncated": ("route_not_supported",),
+    "preference_compile.class_prior_keys_mismatch": ("invalid_argument",),
+    "preference_compile.class_prior_sampling_needs_uniform": ("invalid_argument",),
+    "preference_compile.class_sampling_budget": ("route_not_supported",),
     "preference_compile.cross_study_covariance_invalid": ("invalid_argument",),
     "preference_compile.design_exposure_bounded": ("effect_not_identified",),
     "preference_compile.design_law_not_aligned": ("joint_law_required",),
     "preference_compile.design_not_supported": ("route_not_supported",),
     "preference_compile.program_carries_decision": ("invalid_argument",),
     "preference_compile.studies_share_evidence": ("evidence_double_counted",),
+    "preference_compile.unit_key_invalid": ("invalid_argument",),
     "preference_contract.action_duplicate": ("invalid_argument",),
     "preference_contract.action_id_blank": ("invalid_argument",),
     "preference_contract.action_without_quantity": ("invalid_argument",),
@@ -8690,6 +8736,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_decision.structure_probabilities_required": ("decision_contract_unsatisfied",),
     "preference_decision.structure_probability_invalid": ("decision_contract_unsatisfied",),
     "preference_decision.structures_empty": ("invalid_argument",),
+    "preference_decision.value_relations_need_certified_route": ("route_not_supported",),
     "preference_decision.worst_case_of_expected_regret": ("route_not_supported",),
     "preference_evaluation.joint_draws_required": ("joint_law_required",),
     "preference_model.attribute_count_mismatch": ("invalid_argument",),
@@ -8725,6 +8772,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_model.unknown_parameter": ("invalid_argument",),
     "preference_model.utility_units_blank": ("invalid_argument",),
     "preference_model.value_non_finite": ("invalid_argument",),
+    "preference_model.value_relation_rows_invalid": ("invalid_argument",),
+    "preference_model.value_relation_tolerance_invalid": ("invalid_argument",),
     "preference_set_learning.cancelled": ("cancelled_no_claim",),
     "preference_set_learning.declared_set_empty": ("invalid_argument",),
     "preference_set_learning.linear_program_refused": ("invalid_argument",),
@@ -8737,6 +8786,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "route_not_supported",
         "decision_contract_unsatisfied",
     ),
+    "preference_set_learning.region_budget_invalid": ("invalid_argument",),
     "preference_set_learning.relation_id_collision": ("invalid_argument",),
     "preference_set_learning.tolerance_negative": ("invalid_argument",),
     "preference_set_learning.tolerance_non_finite": ("invalid_argument",),
@@ -8778,6 +8828,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "program_binding.population_mismatch": ("quantity_semantics_mismatch",),
     "program_binding.quantities_override_mismatch": ("quantity_semantics_mismatch",),
     "program_binding.treatment_outcome_substitution": ("external_binding_mismatch",),
+    "propagation_chain.deferred_source_unbound": ("invalid_argument",),
     "proposal_arrival.assignment_mismatch": ("invalid_argument",),
     "proposal_arrival.base_catalog_changed": ("invalid_argument",),
     "proposal_arrival.base_catalog_missing": ("invalid_argument",),
@@ -9435,6 +9486,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "split_effect.structure_class": ("invalid_argument",),
     "split_effect.structure_unresolved": ("discovered_structure_unresolved",),
     "split_effect.too_few_rows": ("invalid_argument",),
+    "structure_posterior.class_prior_not_read": ("option_not_applicable",),
     "structure_posterior.edge_prior_probability": ("invalid_argument",),
     "structured_refusals.malformed_detail": ("invalid_argument",),
     "structured_refusals.missing_stage": ("invalid_argument",),
