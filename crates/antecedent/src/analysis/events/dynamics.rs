@@ -629,7 +629,9 @@ fn paired_standard_error(
     mean: f64,
 ) -> Result<Option<f64>, EventError> {
     let group_count = match law.meaning() {
-        EventLawMeaning::Fixed | EventLawMeaning::PlugIn => deltas.len(),
+        EventLawMeaning::Fixed | EventLawMeaning::PlugIn | EventLawMeaning::Intervened => {
+            deltas.len()
+        }
         EventLawMeaning::RecursiveRefit => {
             law.refit_parameters().map_or(0, <[super::HawkesParameters]>::len)
         }

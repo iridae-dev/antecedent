@@ -16,6 +16,7 @@ mod challenge;
 mod dynamics;
 mod hawkes;
 mod marked;
+mod question;
 mod study;
 
 pub use assessment::{
@@ -38,6 +39,9 @@ pub use marked::{
     MAX_PROTOTYPES, MarkPrototype, MarkedArrival, MarkedFit, MarkedFitSpec, MarkedHistory,
     MarkedOffspring, MarkedParameters, PreparedMarkedDraw, PreparedMarkedFit,
     PreparedMarkedLikelihood,
+};
+pub use question::{
+    AcceptedExcitation, Continuation, ExcitationSubject, PreparedExcitationQuestion, ReleaseDraw,
 };
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
@@ -481,6 +485,10 @@ pub enum EventLawMeaning {
     RecursiveRefit,
     /// Conditional on an explicitly weighted finite parameter belief.
     WeightedBelief,
+    /// Continuation after one added event, once a parameter bridge has accepted the direct mass.
+    ///
+    /// These paths are not an observational forecast.
+    Intervened,
 }
 
 /// Immutable forecast compiled by the causal compiler.

@@ -28,6 +28,12 @@ Agreement is not an identification result. A latent trend can enter both fits, a
 
 `compare_release_times` runs only after the diagnostic agrees. It scores the constant-baseline kernel's offspring of one added event over each remaining horizon. That is a conditional scenario under the agreed diagnostic, not an identified response to the release. A utility over path outcomes is still a decision contract on the event worlds.
 
+## Parameter bridge and an intervened law
+
+An agreed direct mass can be offered to the parameter-intervention bridge. The source and target functionals must be `direct_offspring`, the map must be an identity or an affine map, and the structural reading must name its evidence. The fitted regime stays `observational` and the response names a different regime. `derive_bridged_claim` then carries that one mean. Horizon and lifetime descendants are reported beside it and are not the bridged value. A withheld diagnostic, a descendant functional, or a reading without evidence refuses, and no law is produced.
+
+`AcceptedExcitation::intervened_law` draws continuations after one added event for either kernel. A marked history becomes a catalog with one name per prototype, so the existing paired worlds and decision contract can read the paths. Those paths are the offspring of the added event under the accepted kernel. They are not, by themselves, the utility of releasing.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow

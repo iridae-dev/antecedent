@@ -450,6 +450,7 @@ pub(super) const FORECAST: StreamDomain = StreamDomain::external(0x4556_4e54_464
 pub(super) const REFIT: StreamDomain = StreamDomain::external(0x4556_4e54_5246_4954);
 pub(super) const UPDATE: StreamDomain = StreamDomain::external(0x4556_4e54_5550_4454);
 pub(super) const STUDY: StreamDomain = StreamDomain::external(0x4556_4e54_5354_5544);
+pub(super) const INTERVENE: StreamDomain = StreamDomain::external(0x4556_4e54_494e_5456);
 
 pub(super) fn sample(
     history: &EventHistory,
