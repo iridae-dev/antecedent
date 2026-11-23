@@ -13,8 +13,11 @@ with the discount (0, 10 or 20 percent) assigned to store-weeks at random. The n
 is the same set of equally spaced normal quantiles, so each arm mean equals its true mean and
 every number below can be checked by hand.
 
-The example estimates the arm means, decides across the declared range, reads where the choice
-switches, then (optionally) narrows the range from three past decisions and decides again.
+The example estimates each outcome's mean response to the discount with a prepared study,
+compiles the decision with those studies (the plan shows the decision's quantities, the source it
+needs and the declared range before anything is fitted), executes it, reads where the choice
+switches, then (optionally) narrows the range from three past decisions and decides again. The
+same decision evaluated on the arm means directly is the lower layer the compiled route calls.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from __future__ import annotations
 # %%
 from statistics import NormalDist
 
+import antecedent as ant
 import numpy as np
 from antecedent import preference_learning as pl
 from antecedent import preferences as pf
@@ -37,7 +41,11 @@ from antecedent.results.sources import MeanSource
 
 # %%
 LEVELS = {"none": 0.0, "ten": 10.0, "twenty": 20.0}
-DISCOUNT_COST = {"none": 0.0, "ten": 1_500.0, "twenty": 3_600.0}  # usd per store-week, known
+DISCOUNT_COST = {
+    "none": 0.0,
+    "ten": 1_500.0,
+    "twenty": 3_600.0,
+}  # usd per store-week, known
 PER_ARM = 200
 
 quantiles = np.array([NormalDist().inv_cdf((k + 0.5) / PER_ARM) for k in range(PER_ARM)])
@@ -49,12 +57,35 @@ for name, level in LEVELS.items():
         "returns": 50 + 3 * level + 8 * rng.permutation(quantiles),
     }
 
+table = {
+    "discount": np.concatenate([np.full(PER_ARM, level) for level in LEVELS.values()]),
+    "orders": np.concatenate([arms[name]["orders"] for name in LEVELS]),
+    "returns": np.concatenate([arms[name]["returns"] for name in LEVELS]),
+}
+
 # %% [markdown]
 # ## Estimate the two outcomes
 #
-# Assignment was randomized, so the mean of each arm estimates the mean outcome under that
-# discount. Each estimate is declared as a coordinate: the outcome, its units, the population,
-# the regime (the discount put in place) and the functional (the mean).
+# Assignment was randomized, so the mean response of each outcome to the discount is identified
+# with the graph `discount -> orders` and `discount -> returns`. One prepared study per outcome
+# estimates its mean response curve at the three discount levels. Each quantity a decision reads
+# is declared as a coordinate: the outcome, its units, the population, the regime (the discount
+# put in place) and the functional (the mean).
+
+
+# %%
+def prepared_study(outcome: str):
+    return ant.prepare(
+        table,
+        graph=[("discount", outcome)],
+        query=ant.ResponseCurve("discount", outcome, grid=list(LEVELS.values())),
+        inference=ant.Bayesian(backend="conjugate", n_draws=256, prior_scale=1_000_000.0),
+        refute="none",
+        execution=ant.Execution(seed=11),
+    )
+
+
+studies = [prepared_study("orders"), prepared_study("returns")]
 
 
 # %%
@@ -99,13 +130,22 @@ discount_cost = pf.attribute("discount_cost", units="usd")
 
 margin = pf.fixed("margin", units="usd/order", value=20.0)
 return_cost = pf.strength(
-    "return_cost", units="usd/return", lower=10.0, upper=60.0, assumption="ops.return_cost_band"
+    "return_cost",
+    units="usd/return",
+    lower=10.0,
+    upper=60.0,
+    assumption="ops.return_cost_band",
 )
 model = pf.ValueModel(margin * orders - return_cost * returns - discount_cost, utility_units="usd")
 assert model.shape_parameters == ()  # affine in the trade-offs: the exact route answers
 
 # %% [markdown]
-# ## Bind the three actions and decide
+# ## Bind the three actions, compile with the studies and decide
+#
+# `compile` binds every quantity to a coordinate the studies target and lowers the decision into
+# each study's plan. `inspect` reads the plan before anything is fitted: the quantities, the
+# source the contract needs (means: the value is affine and the criterion an expectation), the
+# carrier each plan demands and the declared range. `execute` then fits each study once.
 
 
 # %%
@@ -129,11 +169,29 @@ def contract_for(preferences, policy=None) -> pf.Contract:
     )
 
 
+compiled = require_success(contract_for(model).compile(studies))
+plan = compiled.inspect()
+assert plan["demand"]["representation"] == "mean"
+assert plan["demand"]["carrier"] == "mean"
+assert len(plan["plans"]) == 2  # one plan per study, each carrying the decision
+stated = plan["plans"][0]["evidence"]["decision"]["preference"]
+assert {p["id"] for p in stated["parameters"]} == {"margin", "return_cost"}
+print("reads:", [q["regime"] for q in stated["quantities"]])
+
+decided = require_success(compiled.execute())
+print(decided.statement)
+assert decided.route == "exact"
+assert decided.kind == "preference_dependent"
+assert decided.selected is None
+
+# %% [markdown]
+# The lower layer: the same contract evaluated on the arm means directly. The compiled route
+# calls it on the means the studies estimated, so the verdicts agree.
+
+# %%
 declared = require_success(contract_for(model).evaluate(source))
-print(declared.statement)
+assert declared.kind == decided.kind
 assert declared.route == "exact"
-assert declared.kind == "preference_dependent"
-assert declared.selected is None
 
 by_id = {a.id: a for a in declared.actions}
 assert np.allclose(by_id["none"].value_range, (17_000, 19_500))
@@ -151,15 +209,16 @@ assert np.allclose([regret["none"], regret["ten"], regret["twenty"]], [1_800, 60
 
 # %%
 thresholds = {}
-for switch in declared.switches:
+for switch in decided.switches:
     assert switch.threshold is not None and switch.threshold.parameter == "return_cost"
     thresholds[(switch.first, switch.second)] = switch.threshold.value
     print(
         f"{switch.first} and {switch.second} are equal at {switch.threshold.value:.1f} usd per return"
     )
-assert np.isclose(thresholds[("none", "ten")], 50.0)
-assert np.isclose(thresholds[("none", "twenty")], 40.0)
-assert np.isclose(thresholds[("ten", "twenty")], 30.0)
+# The studies' estimated means sit on the arm means, so the thresholds are those of the arms.
+assert np.isclose(thresholds[("none", "ten")], 50.0, atol=0.5)
+assert np.isclose(thresholds[("none", "twenty")], 40.0, atol=0.5)
+assert np.isclose(thresholds[("ten", "twenty")], 30.0, atol=0.5)
 
 # A choice today without settling the cost is a policy you pick, not a fact.
 regret_choice = require_success(contract_for(model, pf.Policy.minimax_regret()).evaluate(source))
@@ -179,7 +238,11 @@ assert worst_case.selected == "none"
 def option(name: str, expected_orders: float, expected_returns: float, cost: float) -> pl.Option:
     return pl.Option(
         name,
-        means={"orders": expected_orders, "returns": expected_returns, "discount_cost": cost},
+        means={
+            "orders": expected_orders,
+            "returns": expected_returns,
+            "discount_cost": cost,
+        },
     )
 
 
@@ -222,7 +285,7 @@ assert np.allclose(accepted.ranges["return_cost"], (32.0, 45.0))
 print("pending review items:", accepted.pending)
 assert accepted.pending == ()
 
-narrowed = require_success(contract_for(accepted).evaluate(source))
+narrowed = require_success(require_success(contract_for(accepted).compile(studies)).execute())
 print(narrowed.statement)
 assert narrowed.kind == "necessarily_best"
 assert narrowed.selected == "ten"
