@@ -22,7 +22,7 @@ use antecedent_model::nonlinear_equilibrium::{
     Activation, Clamp, Equation, EquilibriumModel, SolvePolicy,
 };
 
-use super::cyclic::CyclicPreparedState;
+use super::cyclic::{CyclicPreparedState, gate_decision};
 use super::{PreparedStudy, Study};
 use crate::planner::lowered::{
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -957,14 +957,23 @@ pub fn compile_joint_component_posterior_decision(
         }
         .finish(),
     );
-    Ok(CompiledJointComponentPosteriorDecision {
+    let plan = CompiledJointComponentPosteriorDecision {
         component_wire: wire,
         schedule,
         outputs,
         contract,
         posterior,
         lowered,
-    })
+    };
+    gate_decision(ctx, &plan)
+        .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
+    Ok(plan)
+}
+
+impl super::program_handle::CompiledProgramHandle for CompiledJointComponentPosteriorDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl CompiledJointComponentPosteriorDecision {
@@ -989,6 +998,8 @@ impl CompiledJointComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         // The child compiles its fitted chain, which a lowered dispatch refuses as reentry, so
         // it runs under the caller's context.
         let child = self.posterior.execute(ctx)?;
@@ -1401,14 +1412,25 @@ pub fn compile_joint_vector_component_posterior_decision(
         }
         .finish(),
     );
-    Ok(CompiledJointVectorComponentPosteriorDecision {
+    let plan = CompiledJointVectorComponentPosteriorDecision {
         component_wire: wire,
         schedule,
         outputs,
         contract,
         posterior,
         lowered,
-    })
+    };
+    gate_decision(ctx, &plan)
+        .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
+    Ok(plan)
+}
+
+impl super::program_handle::CompiledProgramHandle
+    for CompiledJointVectorComponentPosteriorDecision
+{
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl CompiledJointVectorComponentPosteriorDecision {
@@ -1433,6 +1455,8 @@ impl CompiledJointVectorComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         let child = self.posterior.execute(ctx)?;
         Ok(JointComponentPosteriorDecisionResult {
             child,
@@ -1680,6 +1704,12 @@ pub fn compile_bounded_component_posterior_decision(
     Ok(CompiledBoundedComponentPosteriorDecision { inner, quantities, contract, lowered })
 }
 
+impl super::program_handle::CompiledProgramHandle for CompiledBoundedComponentPosteriorDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledBoundedComponentPosteriorDecision {
     /// Full component, fit, transform and decision compiler program.
     #[must_use]
@@ -1764,6 +1794,8 @@ impl CompiledBoundedComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BoundedComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| JointComponentPosteriorError::Invalid(refusal.message()))?;
         let inner = self.inner.execute(ctx)?;
         let decision = self
             .chain(&inner, ctx)?
@@ -2066,6 +2098,30 @@ mod tests {
         }
     }
 
+    /// Independent closed form for the connected feedback fixtures: with traffic clamped at 0 and
+    /// at 1 the shared disturbances cancel and the wishlists change is b / 0.8 for the sampled
+    /// coupling b of that draw (wishlists = 1 + b traffic + 0.2 wishlists + e). The planted
+    /// coupling is 0.3.
+    fn assert_planted_component_effect(result: &JointComponentPosteriorDecisionResult) {
+        let columns = &result.child.decision.chain.record().sources;
+        assert_eq!(columns.len(), 2);
+        let mut mean_weight = 0.0;
+        for ((left, right), parameters) in
+            columns[0].values.iter().zip(&columns[1].values).zip(&result.child.posterior.samples)
+        {
+            let effect = f64::from_bits(*right) - f64::from_bits(*left);
+            assert!((effect - parameters[0] / 0.8).abs() < 1e-7);
+            mean_weight += parameters[0];
+        }
+        mean_weight /= result.child.posterior.samples.len() as f64;
+        assert!((mean_weight - 0.3).abs() < 0.1, "posterior mean coupling {mean_weight}");
+        assert!(matches!(
+            &result.child.decision.decision.verdict,
+            antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)
+                if action == "promoted"
+        ));
+    }
+
     #[test]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn common_training_rows_refit_and_replay_the_connected_action_decision() {
@@ -2145,6 +2201,7 @@ mod tests {
         )
         .expect("compile checked components and common fit");
         let result = plan.execute(&ctx).expect("joint posterior and action worlds");
+        assert_planted_component_effect(&result);
         let bytes = plan.export(&result, &ctx).expect("portable handoff");
         let replay =
             consume_joint_component_posterior_decision(&bytes, plan.lowered().identity(), &ctx)
@@ -2474,6 +2531,7 @@ mod tests {
         )
         .unwrap();
         let result = plan.execute(&ctx).unwrap();
+        assert_planted_component_effect(&result);
         let artifact = plan.export(&result, &ctx).unwrap();
         let replay = consume_joint_vector_component_posterior_decision(
             &artifact,
@@ -2710,6 +2768,17 @@ mod tests {
         let mut result = bounded.execute(&ctx).unwrap();
         let (columns, _) = result.decision.chain.joint_output_law().unwrap();
         assert!(columns.iter().flatten().all(|bits| (0.0..=1.0).contains(&f64::from_bits(*bits))));
+        // Each bounded draw is the logistic of the real-valued fitted draw in the same row.
+        let raw = &result.inner.child.decision.chain.record().sources;
+        assert_eq!(columns.len(), raw.len());
+        for (bounded_column, raw_column) in columns.iter().zip(raw) {
+            assert_eq!(bounded_column.len(), raw_column.values.len());
+            for (bounded, real) in bounded_column.iter().zip(&raw_column.values) {
+                let truth = 1.0 / (1.0 + (-f64::from_bits(*real)).exp());
+                assert!((f64::from_bits(*bounded) - truth).abs() < 1e-12);
+            }
+        }
+        assert_planted_component_effect(&result.inner);
         assert_eq!(result.calibration, "not_measured");
         let artifact = bounded.export(&result, &ctx).unwrap();
         let replay = consume_bounded_component_posterior_decision(

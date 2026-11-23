@@ -1,0 +1,42 @@
+feature_id = "cyclic.component_posterior_decisions"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Feedback declared between components with explicit coupling coefficients, lowered to one
+# specified cyclic system, fitted jointly from common training rows and decided between hard-clamp
+# action worlds, with an optional logistic bounded transform of the fitted draws. papers = [] is an
+# explicit judgment: the routes compose the component checks, the posterior action-world decision
+# of cyclic.action_world_decisions and the decision evaluator, and add no estimator of their own.
+papers = []
+
+implementation_deviations = [
+ "A cycle among components is accepted only when the coupling coefficients are declared and the lowered system satisfies the global contraction condition; interface_contract.cyclic_composition keeps refusing every other component cycle.",
+ "Component interfaces are checked port by port before lowering, but a checked interface does not make the lowered fit identified: the fitted couplings are conditional on the declared equations and fixed disturbance covariance.",
+ "The bounded route applies the logistic transform to each real-valued fitted predictive draw after fitting; it does not change the structural ports or the Gaussian disturbances, which stay real-valued, and it is not a bounded-outcome model.",
+ "Reliability is not measured: results label calibration not_measured, and the reliability scope depends on the design but not on the training replicate.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/src/analysis/cyclic_component_composition.rs (inline tests with a closed-form coupling effect and a logistic check per draw)",
+ "python/tests/test_cyclic_decisions.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Component wrapper over the posterior action-world decision of cyclic.action_world_decisions: it checks declared ports and coefficients, lowers the connected components to one cyclic system, supplies the common training schedule and output coordinates, and for the bounded route transforms the fitted draws before the decision."
+no_independent_algorithm = "The only numerics added are the assembly of the dense coefficient rows and covariance from declared coefficients and the elementwise logistic 1 / (1 + exp(-x)) of each fitted draw; the fit, the equilibrium solve and the decision are those of the covered records."
+covered_by = ["cyclic.general_systems", "cyclic.action_world_decisions", "prob.mcmc_diagnostics", "decision.contract"]
+inline_tests = true
+record_sha256 = "1a2281d77e31662a950389634321ed4b73d22f2a5780131a7d18856de1de3ed1"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+items = ["module"]
+sha256 = "f82d59fc071642f48c5c45b7dc86e8f17e35ccd5beb037405bddd9354285380d"

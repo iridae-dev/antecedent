@@ -24,6 +24,7 @@ use antecedent_model::nonlinear_equilibrium::{Clamp, EquilibriumError};
 use antecedent_prob::metropolis::MetropolisOptions;
 use serde::{Deserialize, Serialize};
 
+use super::cyclic::gate_decision;
 use super::cyclic_action_world_decision::CyclicDecisionOutput;
 use super::cyclic_posterior_action_decision::{
     CompiledCyclicPosteriorDecision, CyclicPosteriorDecisionError, CyclicPosteriorDecisionRequest,
@@ -320,13 +321,22 @@ pub fn compile_cyclic_target_feedback_decision(
         }
         .finish(),
     );
-    Ok(CompiledCyclicTargetFeedbackDecision {
+    let plan = CompiledCyclicTargetFeedbackDecision {
         request,
         contract,
         child,
         seed: ctx.rng.master_seed(),
         lowered,
-    })
+    };
+    gate_decision(ctx, &plan)
+        .map_err(|refusal| CyclicTargetFeedbackError::Invalid(refusal.message()))?;
+    Ok(plan)
+}
+
+impl super::program_handle::CompiledProgramHandle for CompiledCyclicTargetFeedbackDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl CompiledCyclicTargetFeedbackDecision {
@@ -355,6 +365,8 @@ impl CompiledCyclicTargetFeedbackDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicTargetFeedbackResult, CyclicTargetFeedbackError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| CyclicTargetFeedbackError::Invalid(refusal.message()))?;
         if ctx.rng.master_seed() != self.seed {
             return Err(CyclicTargetFeedbackError::Invalid("execution seed changed"));
         }
@@ -732,6 +744,19 @@ pub(crate) mod tests {
         let plan = compile_cyclic_target_feedback_decision(request.clone(), contract.clone(), &ctx)
             .unwrap();
         assert_eq!(plan.plan_view().route().as_str(), "CyclicTargetFeedbackDecision");
+        // The program reports the decision of the unit its route is bound to, and the plan view
+        // reads the same decision.
+        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let decision = handle.support();
+        assert_eq!(
+            plan.plan_view().unit_support().map(|unit| unit.status()),
+            decision.as_ref().map(|decision| decision.status)
+        );
+        // The decision gate is inert until it is switched on; once on, it consults the same
+        // decision, so a development build records the would-refuse of an unsupported unit.
+        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        }
         let scope = plan.decision_reliability_scope().unwrap();
         let mut replicate = request.clone();
         for row in &mut replicate.source.training {
@@ -772,6 +797,21 @@ pub(crate) mod tests {
             let expected = 0.2 / (1.0 - 0.2 * parameters[0]);
             assert!((effect - expected).abs() < 1e-7);
         }
+        // The planted feedback weight is 0.3, so the planted action effect is 0.2 / 0.94; the
+        // posterior mean of the paired effect recovers it.
+        let mean_effect = columns[0]
+            .values
+            .iter()
+            .zip(&columns[1].values)
+            .map(|(left, right)| f64::from_bits(*right) - f64::from_bits(*left))
+            .sum::<f64>()
+            / columns[0].values.len() as f64;
+        assert!((mean_effect - 0.2 / 0.94).abs() < 0.02, "mean effect {mean_effect}");
+        assert!(matches!(
+            &result.decision.decision.verdict,
+            antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)
+                if action == "promoted"
+        ));
         let bytes = plan.export(&result, "target-feedback", &ctx).unwrap();
         let replay =
             consume_cyclic_target_feedback_decision(&bytes, plan.lowered().identity(), &ctx)

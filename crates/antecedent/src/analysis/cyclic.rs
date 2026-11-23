@@ -8,15 +8,72 @@ use std::sync::Arc;
 use crate::analysis::lowering::cyclic::{
     lower_cyclic_family_with_contract, lower_cyclic_system_with_contract,
 };
+use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::{PreparedStudy, Study};
 use crate::planner::lowered::LoweredProgram;
-use antecedent_core::{ContractIdentities, ExecutionContext, SemanticDigest};
+use antecedent_core::{ContractIdentities, ExecutionContext, NotSupported, SemanticDigest};
 use antecedent_io::contract_section::cyclic::CyclicContractWire;
 use antecedent_io::cyclic_family_artifact::{CompiledCyclicFamilyProgram, CyclicFamilyRequest};
 use antecedent_io::cyclic_system_artifact::{
     CyclicArtifactError, CyclicExecutionReport, CyclicExecutionRequest, PreparedCyclicExecution,
 };
 use antecedent_model::nonlinear_equilibrium::Clamp;
+
+/// A release build refuses a cyclic program whose route has no supported unit, and a development
+/// build records what it would refuse. A refusal keeps the registered `not_supported` code.
+fn unsupported(refusal: NotSupported) -> CyclicArtifactError {
+    CyclicArtifactError::ScientificRefusal {
+        code: refusal.code(),
+        detail: refusal.detail,
+        message: refusal.to_string(),
+        next_attempt: "run the route in a development build, which records the missing evidence, \
+                       or use a supported route"
+            .into(),
+    }
+}
+
+/// A lowered program held before its handle exists, so a route is gated before any fit runs.
+struct StagedProgram(Arc<LoweredProgram>);
+
+impl CompiledProgramHandle for StagedProgram {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.0
+    }
+}
+
+impl CompiledProgramHandle for CyclicPreparedState {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl CompiledProgramHandle for CyclicFamilyPreparedState {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+/// Whether the compiled cyclic decision routes (`CyclicActionWorldDecision`,
+/// `CyclicPosteriorActionDecision`, `CyclicTargetFeedbackDecision`,
+/// `JointComponentPosteriorDecision`, `BoundedComponentPosteriorDecision`) pass the support gate
+/// of the unit each is bound to. It is `false` until those units are earned and bound; flipping
+/// it makes a release build refuse an unsupported decision route and a development build record
+/// the would-refuse. No valid use refuses before then.
+pub(crate) const COMPILED_DECISION_GATE_LIVE: bool = false;
+
+/// The support gate of a compiled cyclic decision route, behind
+/// [`COMPILED_DECISION_GATE_LIVE`].
+///
+/// # Errors
+///
+/// [`NotSupported`] in a release build once the gate is live and the route's unit is not
+/// supported or not bound.
+pub(crate) fn gate_decision<H>(ctx: &ExecutionContext, handle: &H) -> Result<(), NotSupported>
+where
+    H: CompiledProgramHandle + ?Sized,
+{
+    if COMPILED_DECISION_GATE_LIVE { gate_program(ctx, handle) } else { Ok(()) }
+}
 
 /// Frozen native state of a cyclic specialization of `PreparedStudy`.
 #[derive(Clone, Debug)]
@@ -167,6 +224,7 @@ impl Study {
         let (lowered, section) = lower_cyclic_system_with_contract(&request, ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
         let lowered = Arc::new(lowered);
+        gate_program(ctx, &StagedProgram(Arc::clone(&lowered))).map_err(unsupported)?;
         let product = PreparedCyclicExecution::prepare(request, ctx)?;
         Ok(PreparedStudy { state: CyclicPreparedState { product, lowered, contract } })
     }
@@ -200,6 +258,7 @@ impl PreparedStudy<CyclicPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
+        gate_program(ctx, &self.state).map_err(unsupported)?;
         let identity = self.state.lowered.identity();
         self.state
             .product
@@ -289,7 +348,9 @@ impl PreparedStudy<CyclicPreparedState> {
         let product = self.state.product.rebind(request, ctx)?;
         let (lowered, section) = lower_cyclic_system_with_contract(product.request(), ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
-        Ok(Self { state: CyclicPreparedState { product, lowered: Arc::new(lowered), contract } })
+        let state = CyclicPreparedState { product, lowered: Arc::new(lowered), contract };
+        gate_program(ctx, &state).map_err(unsupported)?;
+        Ok(Self { state })
     }
     /// Export a result without refitting; the consumer independently refits/replays.
     ///
@@ -321,7 +382,9 @@ impl PreparedStudy<CyclicPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::from_system(self.state.product.clone(), ctx)?;
-        Ok(PreparedStudy { state: CyclicFamilyPreparedState::lower(program)? })
+        let state = CyclicFamilyPreparedState::lower(program)?;
+        gate_program(ctx, &state).map_err(unsupported)?;
+        Ok(PreparedStudy { state })
     }
 }
 
@@ -616,7 +679,9 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
-        Ok(PreparedStudy { state: CyclicFamilyPreparedState::lower(program)? })
+        let state = CyclicFamilyPreparedState::lower(program)?;
+        gate_program(ctx, &state).map_err(unsupported)?;
+        Ok(PreparedStudy { state })
     }
 
     /// Compile a recovered linear family. Any other family is refused.
@@ -777,6 +842,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
     {
+        gate_program(ctx, &self.state).map_err(unsupported)?;
         let identity = self.state.lowered.identity();
         #[cfg(test)]
         CYCLIC_FAMILY_EXECUTIONS.with(|count| count.set(count.get() + 1));
@@ -814,9 +880,9 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest,
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
-        Ok(Self {
-            state: CyclicFamilyPreparedState::lower(self.state.program.rebind(request, ctx)?)?,
-        })
+        let state = CyclicFamilyPreparedState::lower(self.state.program.rebind(request, ctx)?)?;
+        gate_program(ctx, &state).map_err(unsupported)?;
+        Ok(Self { state })
     }
     /// Execute and encode as separate steps through the same retained owner.
     ///
@@ -961,6 +1027,37 @@ mod recovered_linear {
         body: impl FnOnce() -> Result<T, E>,
     ) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E> {
         antecedent_core::execution_attempt::observe_with_context(ctx, body)
+    }
+}
+
+#[cfg(test)]
+mod support_tests {
+    use super::*;
+    use crate::support::CellStatus;
+
+    #[test]
+    fn the_family_handle_reports_its_unit_decision_and_every_entry_consults_it() {
+        let ctx = ExecutionContext::for_tests(17);
+        let request = CyclicFamilyRequest::OuStationary {
+            model: antecedent_model::continuous_cyclic::OrnsteinUhlenbeck {
+                drift: vec![-2.0],
+                center: vec![3.0],
+                diffusion: vec![4.0],
+            },
+        };
+        let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
+        let decision = prepared.state.support().expect("the family route is bound to a unit");
+        assert_eq!(decision.unit.label(), "cyclic.general_systems");
+        assert_eq!(
+            prepared.plan_view().unit_support().map(|unit| unit.status()),
+            Some(decision.status)
+        );
+        // The unit is supported, so every entry passes its gate and runs.
+        assert_eq!(decision.status, CellStatus::Supported);
+        assert!(gate_program(&ctx, &prepared.state).is_ok());
+        assert!(prepared.estimate(&ctx).is_ok());
+        assert!(prepared.execute_retained(&ctx).is_ok());
+        assert!(prepared.rebind(&request, &ctx).is_ok());
     }
 }
 

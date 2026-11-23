@@ -31,7 +31,7 @@ use antecedent_io::propagation_chain_record::{
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
-use super::cyclic::CyclicPreparedState;
+use super::cyclic::{CyclicPreparedState, gate_decision};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
@@ -245,7 +245,16 @@ pub fn compile_cyclic_action_world_decision(
         }
         .finish(),
     );
-    Ok(CompiledCyclicActionDecision { source, outputs, contract, lowered })
+    let plan = CompiledCyclicActionDecision { source, outputs, contract, lowered };
+    gate_decision(ctx, &plan)
+        .map_err(|refusal| CyclicActionDecisionError::Invalid(refusal.message()))?;
+    Ok(plan)
+}
+
+impl super::program_handle::CompiledProgramHandle for CompiledCyclicActionDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl CompiledCyclicActionDecision {
@@ -330,6 +339,8 @@ impl CompiledCyclicActionDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicActionDecisionResult, CyclicActionDecisionError> {
+        gate_decision(ctx, self)
+            .map_err(|refusal| CyclicActionDecisionError::Invalid(refusal.message()))?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let cyclic = self.source.estimate(&scoped)?;
         let draft = self.joint_chain(&cyclic)?;
@@ -546,6 +557,19 @@ mod tests {
         let plan = compile_cyclic_action_world_decision(request(), outputs(), contract(), &ctx)
             .expect("model and decision compiler");
         assert_eq!(plan.plan_view().route().as_str(), "CyclicActionWorldDecision");
+        // The program reports the decision of the unit its route is bound to, and the plan view
+        // reads the same decision.
+        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let decision = handle.support();
+        assert_eq!(
+            plan.plan_view().unit_support().map(|unit| unit.status()),
+            decision.as_ref().map(|decision| decision.status)
+        );
+        // The decision gate is inert until it is switched on; once on, it consults the same
+        // decision, so a development build records the would-refuse of an unsupported unit.
+        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        }
         let result = plan.execute(&ctx).expect("paired model-derived worlds");
         assert_eq!(result.decision.decision.n_draws, 4);
         assert_eq!(result.cyclic.worlds.len(), 2);
@@ -555,6 +579,24 @@ mod tests {
                 .zip(&result.cyclic.worlds[0])
                 .all(|(promoted, ordinary)| promoted.values[0] > ordinary.values[0])
         );
+        // Independent hand solution: with traffic clamped at c the wishlists equation
+        // w = 0.1 w + 0.3 c + e gives w = (0.3 c + e) / 0.9 on every disturbance row, and the
+        // clamped coordinate equals c exactly.
+        let noise = request().noise;
+        for (world, clamp) in [1.0_f64, 2.0].into_iter().enumerate() {
+            assert_eq!(result.cyclic.worlds[world].len(), noise.len());
+            for (draw, row) in result.cyclic.worlds[world].iter().zip(&noise) {
+                let truth = (0.3 * clamp + row[0]) / 0.9;
+                assert!((draw.values[0] - truth).abs() < 1e-7, "world {world}");
+                assert!((draw.values[1] - clamp).abs() < 1e-12);
+            }
+        }
+        // The promotion effect (0.3 / 0.9 per draw) is positive on every draw.
+        assert!(matches!(
+            &result.decision.decision.verdict,
+            antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)
+                if action == "promoted"
+        ));
         let bytes = plan.export(&result, "cyclic-paired-worlds", &ctx).expect("combined artifact");
         let replay = consume_cyclic_action_world_decision(&bytes, plan.lowered().identity(), &ctx)
             .expect("independent model and decision replay");

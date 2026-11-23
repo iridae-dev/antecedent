@@ -482,15 +482,19 @@ impl Compiled {
         }
     }
 
-    fn route(&self) -> &'static str {
+    fn plan_view(&self) -> antecedent::planner::PlanView {
         match self {
-            Self::ActionWorld(plan) => plan.plan_view().route().as_str(),
-            Self::Posterior(plan) => plan.plan_view().route().as_str(),
-            Self::TargetFeedback(plan) => plan.plan_view().route().as_str(),
-            Self::Component(plan) => plan.plan_view().route().as_str(),
-            Self::VectorComponent(plan) => plan.plan_view().route().as_str(),
-            Self::Bounded(plan) => plan.plan_view().route().as_str(),
+            Self::ActionWorld(plan) => plan.plan_view(),
+            Self::Posterior(plan) => plan.plan_view(),
+            Self::TargetFeedback(plan) => plan.plan_view(),
+            Self::Component(plan) => plan.plan_view(),
+            Self::VectorComponent(plan) => plan.plan_view(),
+            Self::Bounded(plan) => plan.plan_view(),
         }
+    }
+
+    fn route(&self) -> &'static str {
+        self.plan_view().route().as_str()
     }
 
     const fn feature(&self) -> &'static str {
@@ -708,6 +712,12 @@ impl PyCompiledCyclicDecision {
     /// The compiled route name of the program.
     fn route(&self) -> &'static str {
         self.compiled.route()
+    }
+
+    /// The support decision of the unit the program runs under, as JSON, or `None` while no
+    /// unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::cyclic_system_api::unit_support_json(&self.compiled.plan_view())
     }
 
     /// The feature its portable artifact declares.
