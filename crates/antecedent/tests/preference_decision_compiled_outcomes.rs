@@ -87,16 +87,16 @@ fn traded(lower: f64, upper: f64) -> ValueModel {
             Attribute { id: "benefit".into(), units: "points".into() },
             Attribute { id: "harm".into(), units: "events".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![PreferenceParameter {
+        preferences: PreferenceSet::new(
+            vec![PreferenceParameter {
                 id: "harm_rate".into(),
                 units: "points/events".into(),
                 lower,
                 upper,
                 assumption_id: "assumption.price_of_harm".into(),
             }],
-            relations: vec![],
-        },
+            vec![],
+        ),
         value: PreferenceExpr::difference(
             PreferenceExpr::Attribute(0),
             PreferenceExpr::product(PreferenceExpr::Parameter(0), PreferenceExpr::Attribute(1)),

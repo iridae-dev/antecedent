@@ -104,7 +104,7 @@ fn model(range: (f64, f64), kink: Option<f64>) -> ValueModel {
             Attribute { id: "benefit".into(), units: "points".into() },
             Attribute { id: "harm".into(), units: "events".into() },
         ],
-        preferences: PreferenceSet { parameters, relations: vec![] },
+        preferences: PreferenceSet::new(parameters, vec![]),
         value,
         utility_units: "points".into(),
     }

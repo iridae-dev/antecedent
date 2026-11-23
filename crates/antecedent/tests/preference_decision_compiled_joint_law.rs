@@ -80,8 +80,8 @@ fn kinked(cap: f64) -> ValueModel {
             Attribute { id: "benefit".into(), units: "points".into() },
             Attribute { id: "harm".into(), units: "events".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![
+        preferences: PreferenceSet::new(
+            vec![
                 PreferenceParameter {
                     id: "harm_rate".into(),
                     units: "points/events".into(),
@@ -97,8 +97,8 @@ fn kinked(cap: f64) -> ValueModel {
                     assumption_id: "assumption.weight_of_excess_harm".into(),
                 },
             ],
-            relations: vec![],
-        },
+            vec![],
+        ),
         value: PreferenceExpr::difference(
             PreferenceExpr::difference(
                 PreferenceExpr::Attribute(0),

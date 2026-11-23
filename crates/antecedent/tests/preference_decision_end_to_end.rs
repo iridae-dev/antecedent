@@ -187,7 +187,7 @@ fn price(lower: f64, upper: f64) -> PreferenceParameter {
 fn priced(lower: f64, upper: f64) -> ValueModel {
     ValueModel {
         attributes: attributes(),
-        preferences: PreferenceSet { parameters: vec![price(lower, upper)], relations: vec![] },
+        preferences: PreferenceSet::new(vec![price(lower, upper)], vec![]),
         value: PreferenceExpr::difference(
             PreferenceExpr::Attribute(0),
             PreferenceExpr::product(PreferenceExpr::Parameter(0), PreferenceExpr::Attribute(1)),

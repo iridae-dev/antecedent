@@ -99,16 +99,16 @@ fn priced(lower: f64, upper: f64) -> ValueModel {
             Attribute { id: "benefit".into(), units: "points".into() },
             Attribute { id: "cost".into(), units: "usd".into() },
         ],
-        preferences: PreferenceSet {
-            parameters: vec![PreferenceParameter {
+        preferences: PreferenceSet::new(
+            vec![PreferenceParameter {
                 id: "price".into(),
                 units: "points/usd".into(),
                 lower,
                 upper,
                 assumption_id: "assumption.price_of_benefit".into(),
             }],
-            relations: vec![],
-        },
+            vec![],
+        ),
         value: PreferenceExpr::difference(
             PreferenceExpr::Attribute(0),
             PreferenceExpr::product(PreferenceExpr::Parameter(0), PreferenceExpr::Attribute(1)),
