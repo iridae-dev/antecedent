@@ -28,7 +28,10 @@ any test binary starts, when:
 * a raw entry that runs without a lowered program or a contract is re-exported from the
   facade, is public where it must be crate-internal, loses its `#[doc(hidden)]`, keeps a
   row in the Python facade registry, or is imported by a Python module other than its
-  staged wrapper (`compiler_bypass_problems`).
+  staged wrapper (`compiler_bypass_problems`);
+* a scientific computation the facade re-exports or returns (a `_with_context` variant, a module
+  namespace, a method of a re-exported estimator) or a Python wrapper reaches is not classified
+  in parity/compiled_path.toml, or a row is stale (`gate_compiled_path`).
 
 * the route set derived from the route manifest, the `route_lowerings!` registry and the
   supported routes (`gate_retained_routes.retained_route_problems`) has a route with no
@@ -50,6 +53,7 @@ from pathlib import Path
 
 from _repo import load_toml
 from _rust_source import rust_mask
+from gate_compiled_path import compiled_path_problems
 from gate_recipe_obligations import matrix_alignment_problems
 from gate_retained_routes import retained_route_problems
 from generate_supported_route_tests import named as supported_route_tests
@@ -380,8 +384,14 @@ def identify_entry_points(root: Path = ROOT) -> set[str]:
 
 
 def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
-    """Raw estimate, identification and ranking entries stay behind the compiled path."""
+    """Raw estimate, identification and ranking entries stay behind the compiled path.
+
+    The named-entry checks below stay; the classification of every scientific computation the
+    facade and the Python package reach (`gate_compiled_path`) is added for the repository itself.
+    """
     problems: list[str] = []
+    if root == ROOT:
+        problems += compiled_path_problems(root)
     entries = identify_entry_points(root)
     reexported = tuple(sorted({*BYPASS_REEXPORTS, *entries}))
     for surface in BYPASS_FACADE_SURFACES:
