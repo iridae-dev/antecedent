@@ -99,6 +99,11 @@ pub use gam::{
     fit_gam_weighted_design, predict_gam,
 };
 pub use glm::{
+    ChoiceUtility, NonlinearChoiceError, NonlinearConditionalLogitFit,
+    NonlinearConditionalLogitOptions, SOBOL_DIMENSIONS, ShapeProfile, ShapeSearchOptions,
+    UtilityNotEvaluable, fit_nonlinear_conditional_logit,
+};
+pub use glm::{
     ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
     conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
 };

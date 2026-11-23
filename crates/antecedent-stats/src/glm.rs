@@ -20,6 +20,7 @@ mod conditional_logit;
 mod count;
 mod gaussian;
 mod multinomial;
+mod nonlinear_conditional_logit;
 
 pub use binomial::{
     GlmLaplaceFit, fit_glm_ridge, fit_glm_ridge_weighted, fit_logistic_weighted, fit_logit_laplace,
@@ -31,6 +32,11 @@ pub use conditional_logit::{
 };
 pub use multinomial::{
     MultinomialDesignRef, MultinomialFit, fit_multinomial_logit, fit_multinomial_logit_weighted,
+};
+pub use nonlinear_conditional_logit::{
+    ChoiceUtility, NonlinearChoiceError, NonlinearConditionalLogitFit,
+    NonlinearConditionalLogitOptions, SOBOL_DIMENSIONS, ShapeProfile, ShapeSearchOptions,
+    UtilityNotEvaluable, fit_nonlinear_conditional_logit,
 };
 
 #[cfg(test)]
