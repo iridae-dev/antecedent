@@ -264,6 +264,7 @@ struct StudyQuery {
     causal_target: String,
     causal_identification: String,
     snapshot: String,
+    observations: String,
     rows: usize,
 }
 
@@ -276,6 +277,10 @@ struct BoundStudy {
     causal_target: String,
     causal_identification: String,
     snapshot: String,
+    /// Content identity of the study's stored table (its columns, rows, mask and weights,
+    /// not its schema roles or the analysis compiled over it): studies of one table share
+    /// it whatever outcome they target.
+    observations: String,
     /// Rows of the study's table: the observations its analysis reads.
     rows: usize,
 }
@@ -340,6 +345,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
         causal_target: causal.identities.target.to_hex(),
         causal_identification: causal.identities.identification.to_hex(),
         snapshot: causal.identities.data_snapshot.to_hex(),
+        observations: SemanticDigest::from_bytes(data.storage().content_digest()).to_hex(),
         rows: data.row_count(),
     })
 }
@@ -502,6 +508,7 @@ fn bind_studies(
                 causal_target: study.causal_target,
                 causal_identification: study.causal_identification,
                 snapshot: study.snapshot,
+                observations: study.observations,
                 rows: study.rows,
             }
         })

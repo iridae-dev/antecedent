@@ -2,8 +2,8 @@
 //!
 //! When a decision across several studies needs one aligned law of their outcomes, the
 //! propagation chain draws it from a family table matched to each study's posterior moments:
-//! one draw source per coordinate of each study's response, each carrying its study's data
-//! snapshot as its row factor, and one derived stage per source whose outputs are the joint
+//! one draw source per coordinate of each study's response, each carrying the content
+//! identity of its study's table as its row factor, and one derived stage per source whose outputs are the joint
 //! outputs the decision reads. Everything about that chain except the numbers is known before
 //! anything is fitted: its sources, stages, factors, alignment, reading and the declared
 //! dependence (each study's covariance kept within it, plus any declared cross-study block).
@@ -75,8 +75,8 @@ fn chain_refusal(
 }
 
 /// The chain declaration of `studies` with `alignment` as its draw table: one draw source
-/// per coordinate of each study, read as a posterior with the study's snapshot as its row
-/// factor, and one derived stage per source.
+/// per coordinate of each study, read as a posterior with the content identity of the
+/// study's table as its row factor, and one derived stage per source.
 fn declaration(
     studies: &[BoundStudy],
     alignment: &str,
@@ -96,7 +96,7 @@ fn declaration(
                 complete_disclosure: true,
                 factors: vec![FactorDecl {
                     kind: SharedFactorKind::Row,
-                    id: bound.snapshot.clone(),
+                    id: bound.observations.clone(),
                 }],
             });
             stages.push(ChainStageDecl {
@@ -111,7 +111,7 @@ fn declaration(
                 stage: Arc::from(stage),
                 study,
                 quantity: Arc::from(quantity.canonical_identity()),
-                factor: Arc::from(bound.snapshot.as_str()),
+                factor: Arc::from(bound.observations.as_str()),
             });
         }
     }

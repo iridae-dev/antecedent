@@ -78,7 +78,7 @@ pub enum OutcomeDependence {
     /// expectation of a value affine in the outcomes; a contract that needs a joint law is
     /// refused at compile.
     Undeclared,
-    /// The studies rest on distinct evidence (their data snapshots differ): each study's
+    /// The studies rest on distinct evidence (their tables share no rows): each study's
     /// posterior covariance is kept within it and nothing is shared between studies. The
     /// joint law is the propagation chain's family table matched to those moments, with
     /// `draws` aligned rows drawn under `seed`.
@@ -148,8 +148,8 @@ pub(super) fn check_dependence(
 /// # Errors
 /// Every refusal of [`Study::compile_for_preference_decision`] for each study; two studies
 /// of the same outcome; a graph posterior among the studies; a contract that needs a joint
-/// law with no declared dependence, or with distinct evidence declared for studies of the
-/// same data snapshot (`joint_law_required`).
+/// law with no declared dependence (`joint_law_required`); distinct evidence declared for
+/// studies whose tables share rows (`evidence_double_counted`).
 pub fn compile_preference_decision_across_studies(
     studies: &[&Study],
     contract: &PreferenceContract,
@@ -260,7 +260,7 @@ pub(super) fn join_studies(
                 study.binding.outcome_id
             )));
         }
-        laws.push((law.as_ref(), study.snapshot.as_str()));
+        laws.push((law.as_ref(), study.observations.as_str()));
     }
     let (law, program) = chain_law(&laws, (draws, seed, shared), alignment, ctx)?;
     Ok((NativeDecisionSource::JointLaw(Box::new(law)), Some(program)))

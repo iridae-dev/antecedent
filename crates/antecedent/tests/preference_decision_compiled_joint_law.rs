@@ -7,13 +7,15 @@
 //!
 //! * The chain is declared and checked by the chain rule at compile: the compiled decision
 //!   and every study's plan state its inputs (one draw source per coordinate of each study,
-//!   with the study's data snapshot as its row factor), the declared dependence and the joint
-//!   outputs, before anything is fitted. Its refusals (no declared dependence, a study whose
-//!   law the chain cannot read as a posterior) arise at compile.
+//!   with the content identity of the study's table as its row factor), the declared
+//!   dependence and the joint outputs, before anything is fitted. Its refusals (no declared
+//!   dependence, a study whose law the chain cannot read as a posterior) arise at compile.
 //! * Two outcomes of one table share every row. The evidence ledger finds the overlap at
-//!   compile: under distinct evidence the studies are refused; under shared evidence the
-//!   declared cross-study covariance is required for the pair and is the cross block of the
-//!   chain's declared covariance, which the drawn law then carries exactly.
+//!   compile, whether the studies are compiled as built or as prepared (whose data snapshots
+//!   bind the analysis compiled over the table): under distinct evidence the studies are
+//!   refused; under shared evidence the declared cross-study covariance is required for the
+//!   pair and is the cross block of the chain's declared covariance, which the drawn law then
+//!   carries exactly.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -25,6 +27,7 @@ use antecedent::analysis::preference_decision::{
     DecisionCriterion, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
     PreferencePolicy, PreferenceSet, SharedEvidence, StructuralPolicy, ValueModel,
+    compile_preference_decision_across_prepared_studies,
     compile_preference_decision_across_studies, compile_preference_decision_with_shared_evidence,
     shape,
 };
@@ -217,7 +220,7 @@ fn the_chain_that_joins_separate_studies_is_declared_and_checked_at_compile() {
     .collect();
     assert_eq!(declared, expected);
     assert_eq!(fact.inputs()[2].study(), 1);
-    assert_ne!(fact.inputs()[0].factor(), fact.inputs()[2].factor(), "distinct snapshots");
+    assert_ne!(fact.inputs()[0].factor(), fact.inputs()[2].factor(), "distinct tables");
     assert_eq!(joint.plan().stages.len(), 4);
     assert!(joint.plan().stages.iter().all(|stage| stage.kind == StageKind::DerivedQuantity));
     for view in compiled.plan_views() {
@@ -297,6 +300,17 @@ fn studies_that_share_observations_need_a_declared_cross_study_covariance() {
     let refusal = refused.refusal().expect("a compile refusal");
     assert_eq!((refusal.code, refusal.stage), ("evidence_double_counted", "compile"));
     assert_eq!(refusal.detail, preference_compile::STUDIES_SHARE_EVIDENCE);
+    assert_eq!(refusal.supplied.as_deref(), Some("200 shared observations"));
+    let prepared = [benefit.prepare(&ctx).unwrap(), harm.prepare(&ctx).unwrap()];
+    let refused = compile_preference_decision_across_prepared_studies(
+        &[&prepared[0], &prepared[1]],
+        &contract(1.2),
+        (OutcomeDependence::DistinctEvidence { draws: 2000, seed: 7 }, &[]),
+        &ctx,
+    )
+    .unwrap_err();
+    let refusal = refused.refusal().expect("a compile refusal");
+    assert_eq!((refusal.code, refusal.stage), ("evidence_double_counted", "compile"));
     assert_eq!(refusal.supplied.as_deref(), Some("200 shared observations"));
 
     // Shared evidence with the block missing, misshapen, or zero.
@@ -381,7 +395,7 @@ fn studies_that_share_observations_need_a_declared_cross_study_covariance() {
     let fact = compiled.joint_law().unwrap().fact();
     assert_eq!(fact.dependence(), "shared_evidence");
     assert_eq!(fact.cross_blocks(), &[(0, 1)]);
-    assert_eq!(fact.inputs()[0].factor(), fact.inputs()[2].factor(), "one snapshot");
+    assert_eq!(fact.inputs()[0].factor(), fact.inputs()[2].factor(), "one table");
     let executed = compiled.execute(None, options(), &ctx).unwrap();
     let Some(NativeDecisionSource::JointLaw(law)) = &executed.source else {
         panic!("one aligned law");

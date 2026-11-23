@@ -2,8 +2,10 @@
 //!
 //! Studies whose outcomes are joined into one law are judged by the evidence ledger, the same
 //! overlap judgment choice inference and the composition bundle use: each study is a source
-//! whose observations are its rows, identified by the study's data snapshot digest and the
-//! row index ([`ObservationId::from_key`]). Two studies of one table share every row; studies
+//! whose observations are its rows, identified by the content identity of the study's stored
+//! table and the row index ([`ObservationId::from_key`]). The content identity binds the
+//! table's columns and rows, not its schema roles or the analysis compiled over it, so two
+//! studies of one table share every row whatever outcome each targets. Two studies of one table share every row; studies
 //! of different tables share none. A study's rows are what its analysis read, so the overlap
 //! is known, never assumed.
 //!
@@ -130,10 +132,10 @@ fn ledger_of(
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
         }
-        let snapshot = study.snapshot.as_bytes();
+        let table = study.observations.as_bytes();
         let rows = (0..study.rows as u64).map(|row| {
-            let mut key = Vec::with_capacity(snapshot.len() + 8);
-            key.extend_from_slice(snapshot);
+            let mut key = Vec::with_capacity(table.len() + 8);
+            key.extend_from_slice(table);
             key.extend_from_slice(&row.to_le_bytes());
             ObservationId::from_key(ROW_DOMAIN, &key)
         });
