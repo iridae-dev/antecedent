@@ -8,6 +8,7 @@ use antecedent_core::execution::{AdmissionError, AdmissionLease, RngFactory};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::Study;
 use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
 
@@ -148,24 +149,7 @@ pub(super) fn digest(tag: &str, value: &impl Serialize) -> Result<SemanticDigest
 }
 
 pub(super) fn release_supported(id: &str) -> bool {
-    #[derive(Deserialize)]
-    struct Unit {
-        id: String,
-        status: String,
-    }
-    #[derive(Deserialize)]
-    struct Snapshot {
-        capabilities: Vec<Unit>,
-    }
-    static SNAPSHOT: std::sync::OnceLock<Option<Snapshot>> = std::sync::OnceLock::new();
-    SNAPSHOT
-        .get_or_init(|| {
-            serde_json::from_str(antecedent_io_core::graphless_support::UNIT_STATUS).ok()
-        })
-        .as_ref()
-        .is_some_and(|snapshot| {
-            snapshot.capabilities.iter().any(|unit| unit.id == id && unit.status == "supported")
-        })
+    crate::support::capability_supported(id)
 }
 
 /// A closed-open timestamp interval `[start, end)`.
@@ -556,7 +540,7 @@ impl PreparedEventForecast {
     /// # Errors
     /// Resource exhaustion, failed fit/refit, cancellation, or numerical failure.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventLaw, EventError> {
-        let scoped = scoped_execution(ctx, self.program.identity(), CAPABILITY)?;
+        let scoped = scoped_execution(ctx, self)?;
         let ctx = &scoped;
         self.sample_retained(ctx)
     }
@@ -795,24 +779,29 @@ impl PreparedKernel {
     }
 }
 
+impl CompiledProgramHandle for PreparedKernel {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.0
+    }
+}
+
+impl CompiledProgramHandle for PreparedEventForecast {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+}
+
+/// Enter the dispatch of `handle`'s program and pass the support gate of the unit its route
+/// runs under: a release build refuses a route whose unit is not supported, a development
+/// build records what a release build refuses and runs the route.
 fn scoped_execution(
     ctx: &ExecutionContext,
-    identity: SemanticDigest,
-    capability: &'static str,
+    handle: &impl CompiledProgramHandle,
 ) -> Result<ExecutionContext, EventError> {
     super::lowering::refuse_reentry(ctx)?;
-    let scoped = ctx.enter_lowered_dispatch(identity);
+    let scoped = ctx.enter_lowered_dispatch(handle.program().identity());
     poll(&scoped)?;
-    if !release_supported(capability) {
-        let evidence =
-            if capability == COUNT_INTERVAL { &[COUNT_INTERVAL][..] } else { &[CAPABILITY][..] };
-        antecedent_core::support_gate::require_supported(
-            &scoped,
-            "event process awaits release evidence",
-            evidence,
-        )
-        .map_err(crate::error::CausalError::from)?;
-    }
+    gate_program(&scoped, handle).map_err(crate::error::CausalError::from)?;
     Ok(scoped)
 }
 
@@ -855,7 +844,7 @@ impl PreparedEventLikelihood {
     /// # Errors
     /// Resource, cancellation or unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<f64, EventError> {
-        let scoped = scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
+        let scoped = scoped_execution(ctx, &self.plan)?;
         let _scratch = admit(&scoped, history_bytes(&self.history) * 12, 0)?;
         hawkes::log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
     }

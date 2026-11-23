@@ -320,7 +320,7 @@ impl PreparedForecastAssessment {
         reason = "threshold probabilities lie in [0, 1], so the reliability bin index is at most 5"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ForecastAssessment, EventError> {
-        let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
+        let scoped = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let r = &self.request;
         let bytes = history_bytes(&r.history);

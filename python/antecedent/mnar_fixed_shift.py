@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +27,12 @@ class PreparedMnarFixedShift:
     """
 
     _native: Any
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this program's route runs under: ``unit``, ``status``,
+        ``supported`` and ``missing_evidence``. ``None`` when no unit is bound to the route."""
+        wire = self._native.unit_support()
+        return None if wire is None else json.loads(wire)
 
     def measured_interval(self, *, execution: Any = None) -> Any:
         """Request the measured treated-minus-control interval; uncovered scope refuses."""

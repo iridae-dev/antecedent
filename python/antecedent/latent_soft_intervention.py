@@ -201,6 +201,12 @@ class PreparedLatentSoftIntervention:
         """Read the native compiler's plan view."""
         return json.loads(self._native.inspect())
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this plan's route runs under: ``unit``, ``status``,
+        ``supported`` and ``missing_evidence``. ``None`` when no unit is bound to the route."""
+        wire = self._native.unit_support()
+        return None if wire is None else json.loads(wire)
+
     def execute(self, *, execution: Execution | None = None) -> FittedLatentSoftIntervention:
         """Execute the retained plan and keep its fitted mechanisms for forecast requests."""
         native = self._native.execute(

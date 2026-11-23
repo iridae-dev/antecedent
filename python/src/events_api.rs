@@ -50,6 +50,17 @@ enum Prepared {
     Study(PreparedEventStudy),
 }
 
+fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
+    match prepared {
+        Prepared::Forecast(p) => p.plan_view(),
+        Prepared::Likelihood(p) => p.plan_view(),
+        Prepared::Worlds(p) => p.plan_view(),
+        Prepared::Assessment(p) => p.plan_view(),
+        Prepared::Update(p) => p.plan_view(),
+        Prepared::Study(p) => p.plan_view(),
+    }
+}
+
 #[pymethods]
 impl NativePreparedEventProgram {
     fn replay_identity(&self) -> PyResult<String> {
@@ -60,16 +71,12 @@ impl NativePreparedEventProgram {
         }
     }
 
+    fn unit_support(&self) -> Option<String> {
+        crate::latent_soft_intervention_api::unit_support_json(&plan_view_of(&self.inner))
+    }
+
     fn inspect(&self) -> String {
-        let view = match &self.inner {
-            Prepared::Forecast(p) => p.plan_view(),
-            Prepared::Likelihood(p) => p.plan_view(),
-            Prepared::Worlds(p) => p.plan_view(),
-            Prepared::Assessment(p) => p.plan_view(),
-            Prepared::Update(p) => p.plan_view(),
-            Prepared::Study(p) => p.plan_view(),
-        };
-        view.to_json().to_string()
+        plan_view_of(&self.inner).to_json().to_string()
     }
 
     #[pyo3(signature = (memory_bytes=None, cancel=None))]
