@@ -207,6 +207,7 @@ impl From<TrialIpwTransportDecisionError> for Failure {
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
+            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -221,6 +222,7 @@ impl From<TrialIpwPredictiveDecisionError> for Failure {
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
+            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -235,6 +237,7 @@ impl From<JointTransportEffectDecisionError> for Failure {
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
+            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -249,6 +252,7 @@ impl From<JointTransportPredictiveDecisionError> for Failure {
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
+            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -263,6 +267,7 @@ impl From<TemporalPathTransportError> for Failure {
             E::Io(io) => Self::Io(io),
             E::Estimate(estimate) => Self::Estimate(estimate),
             E::ProvenNonTransportable => Self::NonTransportable(message),
+            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -456,7 +461,29 @@ struct TransportDecisionResultNative {
     inner: DecisionOutcome,
 }
 
+/// The support decision of the unit a compiled route is bound to, as JSON: `null` while the
+/// route is bound to no unit. Reading it changes no program identity.
+fn unit_support_of(view: &antecedent::planner::PlanView) -> Json {
+    view.unit_support().map_or(Json::Null, |support| {
+        serde_json::json!({
+            "unit": support.unit(),
+            "status": support.status().as_str(),
+            "supported": support.supported(),
+            "missing_evidence": support.missing_evidence(),
+        })
+    })
+}
+
 impl CompiledDecision {
+    fn unit_support(&self) -> Json {
+        match self {
+            Self::TrialEffect(plan) => unit_support_of(&plan.plan_view()),
+            Self::TrialPredictive(plan) => unit_support_of(&plan.plan_view()),
+            Self::JointEffect(plan) => unit_support_of(&plan.plan_view()),
+            Self::JointPredictive(plan) => unit_support_of(&plan.plan_view()),
+        }
+    }
+
     const fn route(&self) -> &'static str {
         match self {
             Self::TrialEffect(_) => TRIAL_EFFECT,
@@ -671,6 +698,11 @@ impl CompiledTransportDecisionNative {
     /// Every compiler layer of the program, as JSON, without fitting.
     fn plan_json(&self) -> String {
         self.inner.plan().to_string()
+    }
+
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        self.inner.unit_support().to_string()
     }
 
     /// Fit the raw evidence under the program and evaluate the decision.
@@ -1461,6 +1493,14 @@ impl PathOutcome {
 }
 
 impl CompiledPath {
+    fn unit_support(&self) -> Json {
+        match self {
+            Self::Exact(plan) => unit_support_of(&plan.plan_view()),
+            Self::Sampled(plan) => unit_support_of(&plan.plan_view()),
+            Self::Continuous(plan) => unit_support_of(&plan.plan_view()),
+        }
+    }
+
     const fn kind(&self) -> &'static str {
         match self {
             Self::Exact(_) => PATH_EXACT,
@@ -1503,6 +1543,11 @@ impl CompiledTemporalPathNative {
     /// Every compiler layer of the program, as JSON, without evaluating a law.
     fn plan_json(&self) -> String {
         self.inner.plan().to_string()
+    }
+
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        self.inner.unit_support().to_string()
     }
 
     /// Evaluate both path worlds and their contrast.

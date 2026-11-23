@@ -22,6 +22,8 @@ use antecedent_io::IoError;
 use antecedent_kernels::norm_inv;
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
+
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -33,6 +35,12 @@ use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "bridge_transport_premise_assessment_v1";
 const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
+
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Independent source and target validation trials of a proposed bridge
 /// invariance premise. Grid points must lie in both observed surrogate ranges.
@@ -106,6 +114,9 @@ pub enum BridgeTransportPremiseAssessmentError {
     /// Artifact encoding or decoding failed.
     #[error("bridge transport premise artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("bridge transport premise assessment: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -452,6 +463,12 @@ fn fingerprint(result: &BridgeTransportPremiseAssessmentResult) -> [u8; 32] {
     writer.finish()
 }
 
+impl CompiledProgramHandle for CompiledBridgeTransportPremiseAssessment {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledBridgeTransportPremiseAssessment {
     /// Six-layer program for the two trial fits and prespecified grid.
     #[must_use]
@@ -486,6 +503,9 @@ impl CompiledBridgeTransportPremiseAssessment {
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)?;
+        }
         if scoped.cancellation.is_cancelled() {
             return Err(invalid("bridge premise assessment was cancelled"));
         }

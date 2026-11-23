@@ -174,6 +174,10 @@ fn bridge_refusal(error: &BridgeTransportDecisionError) -> PyResult<String> {
         }
         BridgeTransportDecisionError::Chain(inner) => chain_refusal(inner),
         BridgeTransportDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
+        BridgeTransportDecisionError::NotSupported(inner) => {
+            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
+                .json())
+        }
     }
 }
 
@@ -186,6 +190,10 @@ fn assessment_refusal(
             Ok(RefusalJson::new(invalid_code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
         }
         BridgeTransportPremiseAssessmentError::Io(inner) => io_refusal(inner, ASSESSMENT_STAGE),
+        BridgeTransportPremiseAssessmentError::NotSupported(inner) => {
+            Ok(RefusalJson::new(inner.code(), ASSESSMENT_STAGE, inner.detail, &inner.to_string())
+                .json())
+        }
     }
 }
 
@@ -202,6 +210,10 @@ fn assessed_refusal(error: &AssessedBridgeTransportDecisionError) -> PyResult<St
         }
         AssessedBridgeTransportDecisionError::Bridge(inner) => bridge_refusal(inner),
         AssessedBridgeTransportDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
+        AssessedBridgeTransportDecisionError::NotSupported(inner) => {
+            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
+                .json())
+        }
     }
 }
 
@@ -216,6 +228,10 @@ fn robust_refusal(error: &AssessedBridgeRobustDecisionError) -> PyResult<String>
         }
         AssessedBridgeRobustDecisionError::Chain(inner) => chain_refusal(inner),
         AssessedBridgeRobustDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
+        AssessedBridgeRobustDecisionError::NotSupported(inner) => {
+            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
+                .json())
+        }
     }
 }
 
@@ -548,6 +564,11 @@ impl BridgePremiseAssessmentHandle {
         self.inner.plan_view().to_json().to_string()
     }
 
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        unit_support_of(&self.inner.plan_view()).to_string()
+    }
+
     /// Fit both trial relations and form the discrepancy bands, or the refusal.
     #[pyo3(signature = (seed=1, threads=None, cancel=None))]
     fn execute(
@@ -659,7 +680,29 @@ enum RouteResult {
     TargetPosterior(AssessedBridgePosteriorDecisionResult),
 }
 
+/// The support decision of the unit a compiled route is bound to, as JSON: `null` while the
+/// route is bound to no unit. Reading it changes no program identity.
+fn unit_support_of(view: &antecedent::planner::PlanView) -> Json {
+    view.unit_support().map_or(Json::Null, |support| {
+        json!({
+            "unit": support.unit(),
+            "status": support.status().as_str(),
+            "supported": support.supported(),
+            "missing_evidence": support.missing_evidence(),
+        })
+    })
+}
+
 impl CompiledRoute {
+    fn unit_support(&self) -> Json {
+        match self {
+            Self::Conditional(plan) => unit_support_of(&plan.plan_view()),
+            Self::Assessed(plan) => unit_support_of(&plan.plan_view()),
+            Self::Robust(plan) => unit_support_of(&plan.plan_view()),
+            Self::TargetPosterior(plan) => unit_support_of(&plan.plan_view()),
+        }
+    }
+
     const fn variant(&self) -> &'static str {
         match self {
             Self::Conditional(_) => "conditional",
@@ -827,6 +870,11 @@ impl BridgeTransportDecisionHandle {
     /// Every layer of the compiled program as JSON; nothing is mapped or scored.
     fn plan_view_json(&self) -> String {
         self.inner.plan_view().to_string()
+    }
+
+    /// The support decision of the unit this route runs under, as JSON (`null` while unbound).
+    fn unit_support_json(&self) -> String {
+        self.inner.unit_support().to_string()
     }
 
     /// Execute the retained program, or the refusal.

@@ -1,0 +1,35 @@
+feature_id = "transport.trial_ipw_decision"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled trial-to-target IPW Bayesian-bootstrap decisions
+# (crates/antecedent/src/analysis/trial_ipw_transport_decision.rs and
+# trial_ipw_predictive_decision.rs). The effect route lowers the draws of
+# estimate.transport.trial_bayesian_bootstrap (provenance/estimate.transport.trial_bayesian_bootstrap.toml,
+# whose draw law is checked against exact Dirichlet distribution functions) through the chain
+# decision compiler. The predictive route is an in-repo construction on the same Dirichlet mass.
+papers = [
+  { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.2: identification for a target population of nonparticipants", "Section 5.2, equation (2): inverse-odds weighting"] },
+  { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+]
+
+implementation_deviations = [
+  "Selection and treatment probabilities are supplied and held fixed, as are the trial and target sample sizes: uncertainty from estimating either probability model or from sampling the target is not propagated, so the posterior is a model-conditional pushforward of the trial rows only.",
+  "The effect route scores the target average treatment effect, never a future outcome; the inverse-odds estimator only, with the structural certificate re-derived on replay.",
+  "The predictive route is the repository's own construction: one Dirichlet mass over the trial rows induces two normalized inverse-odds empirical outcome laws, and a predictive draw is a row of the arm selected in proportion to its weight. Selection and treatment exchangeability for the outcome distributions and positivity are premises the mean-query certificate does not certify.",
+  "The two potential outcomes of a predictive draw are independent given the Dirichlet mass by explicit declaration (compilation refuses without it); the trial does not identify that cross-world law.",
+  "No interval coverage and no decision reliability is measured (calibration is reported as not_measured).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/trial_ipw_decision_reference.rs (the exact Dirichlet mean and variance of the inverse-odds score sum, and the arm-empirical predictive law with its frequencies and zero covariance, derived by hand)",
+  "crates/antecedent-estimate/tests/trial_bayesian_bootstrap_reference.rs",
+  "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs",
+  "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs",
+  "crates/antecedent/tests/trial_ipw_predictive_calibration.rs",
+]

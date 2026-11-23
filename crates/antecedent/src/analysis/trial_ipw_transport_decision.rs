@@ -32,6 +32,7 @@ use antecedent_io::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
@@ -47,6 +48,11 @@ use crate::planner::statistical::{
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "trial_ipw_transport_effect_decision_v1";
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 const MAX_BYTES: usize = 80 * 1024 * 1024;
 
 /// Independent source-trial and target units with supplied design probabilities.
@@ -106,6 +112,9 @@ pub enum TrialIpwTransportDecisionError {
     /// Artifact encoding refusal.
     #[error("trial IPW transport artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("trial IPW transport decision: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 type Error = TrialIpwTransportDecisionError;
 
@@ -399,6 +408,12 @@ fn effect_chain(
     .with_output_quantity(ScientificQuantityWire::from(quantity))
 }
 
+impl CompiledProgramHandle for CompiledTrialIpwTransportDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledTrialIpwTransportDecision {
     /// Inspect all six compiler layers.
     #[must_use]
@@ -420,6 +435,9 @@ impl CompiledTrialIpwTransportDecision {
     ) -> Result<TrialIpwTransportDecisionResult, Error> {
         let rows = &self.request.rows;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)?;
+        }
         let _lease = scoped
             .acquire_admission(
                 0,

@@ -1,0 +1,33 @@
+feature_id = "transport.bridge_premise_assessment"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Source-versus-target discrepancy of a trial-level surrogate-to-endpoint line
+# (crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs). The two lines are
+# ordinary least squares fits (antecedent_contract::bridge::fit_trial_level_linear); the
+# discrepancy at a surrogate grid point is the target line minus the source line, with the
+# textbook prediction variance rss / (n - 2) * (1 / n + (x - xbar)^2 / Sxx) of each line, and
+# the bands are Gaussian Wald bands at the Bonferroni level 0.05 / (2 k) over the k grid points.
+# papers = [] is an explicit judgment: ordinary least squares prediction variance and the
+# Bonferroni correction are textbook material, no paper introduces this assessment, and no
+# publication was retrieved in this review.
+papers = []
+
+implementation_deviations = [
+  "The bands are model-conditional diagnostics under independent Gaussian trial residuals: a Wald band with the normal quantile, not a t band, so they are anti-conservative for few validation trials, and the Bonferroni split is conservative across the grid; nothing here is an earned equivalence test with error control.",
+  "The equivalence screen is the prespecified rule that every band lies strictly inside the margin; it is a screen, not proof that the transportability premise holds, and the premise stays a declared assumption of any decision that retains the assessment.",
+  "The grid is prespecified and must lie in the observed surrogate range of both trial sets; the fit thresholds (minimum trials, minimum R squared) are the bridge contract's own.",
+  "Independence of the source and target validation trials from each other and from the study whose draws the bridge transports is declared by the caller and bound into the identity, not checked.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/src/analysis/bridge_transport_decision.rs (in-module reference test: the bands against hand-written ordinary least squares, the prediction variance formula, the Bonferroni normal quantile and a planted target shift)",
+  "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs (in-module test: independent target trials with a planted 0.05 shift)",
+  "python/tests/test_bridge_transport_decision_reference.py",
+  "python/tests/test_bridge_transport_decision.py",
+]

@@ -36,6 +36,7 @@ use super::bridge_transport_premise_assessment::{
     BridgeTransportPremiseAssessmentError, BridgeTransportPremiseAssessmentResult,
     CompiledBridgeTransportPremiseAssessment, recompile_bridge_transport_premise_assessment,
 };
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain::PropagationChain;
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
@@ -64,6 +65,12 @@ const FEATURE: &str = "bridge_transport_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 const ASSESSED_FEATURE: &str = "assessed_bridge_transport_decision_v1";
 
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
+
 /// Refusal of a bridge, coordinate, decision or independent artifact replay.
 #[derive(Debug, thiserror::Error)]
 pub enum BridgeTransportDecisionError {
@@ -82,6 +89,9 @@ pub enum BridgeTransportDecisionError {
     /// Artifact encoding or decoding refused.
     #[error("bridge transport decision artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("bridge transport decision: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Checked declaration, aligned source law and retained six-layer program.
@@ -267,6 +277,12 @@ pub fn compile_bridge_transport_decision(
     Ok(CompiledBridgeTransportDecision { bridge, source, seed, decision, lowered })
 }
 
+impl CompiledProgramHandle for CompiledBridgeTransportDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledBridgeTransportDecision {
     /// All compiler layers of the bridge, premise and utility.
     #[must_use]
@@ -306,6 +322,9 @@ impl CompiledBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(ctx, self)?;
+        }
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = Self::chain_draft(&bridge)?;
         let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?.execute(ctx)?;
@@ -461,6 +480,9 @@ pub enum AssessedBridgeTransportDecisionError {
     /// Artifact encoding or decoding refused.
     #[error("assessed bridge decision artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("assessed bridge decision: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -599,6 +621,12 @@ pub fn compile_assessed_bridge_transport_decision(
     Ok(CompiledAssessedBridgeTransportDecision { assessment, bridge, lowered })
 }
 
+impl CompiledProgramHandle for CompiledAssessedBridgeTransportDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledAssessedBridgeTransportDecision {
     /// All compiler layers of the matched validation and decision schedule.
     #[must_use]
@@ -622,6 +650,9 @@ impl CompiledAssessedBridgeTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(ctx, self)?;
+        }
         let assessment = self.assessment.execute(ctx)?;
         let bridge = self.bridge.execute(ctx)?;
         Ok(AssessedBridgeTransportDecisionResult {
@@ -768,6 +799,9 @@ pub enum AssessedBridgeRobustDecisionError {
     /// Artifact encoding or independent replay refused.
     #[error("assessed bridge robust artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("assessed bridge robust decision: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -988,6 +1022,12 @@ fn discrepancy_robust_plan(
     Ok(compile_chain_robust_decision(draft, contract.clone(), ctx)?)
 }
 
+impl CompiledProgramHandle for CompiledAssessedBridgeRobustDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledAssessedBridgeRobustDecision {
     /// Complete compiler program of the assessed discrepancy decision.
     #[must_use]
@@ -1010,6 +1050,9 @@ impl CompiledAssessedBridgeRobustDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(ctx, self)?;
+        }
         // The children compile their data-dependent chains, which a lowered dispatch refuses as
         // reentry, so they run under the caller's context.
         let assessed = self.assessed.execute(ctx)?;
@@ -1304,6 +1347,12 @@ pub fn compile_assessed_bridge_posterior_decision(
     Ok(CompiledAssessedBridgePosteriorDecision { assessed, premises, seed, lowered })
 }
 
+impl CompiledProgramHandle for CompiledAssessedBridgePosteriorDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledAssessedBridgePosteriorDecision {
     /// Outer compiler identity, including posterior prior and dependence premises.
     #[must_use]
@@ -1454,6 +1503,9 @@ impl CompiledAssessedBridgePosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(ctx, self)?;
+        }
         if ctx.rng.master_seed() != self.seed {
             return Err(AssessedBridgeRobustDecisionError::Invalid(
                 "target posterior seed changed",
@@ -1647,5 +1699,424 @@ impl CompiledAssessedBridgePosteriorDecision {
         )
         .with_validation("none");
         Ok(AssessedBridgePosteriorCalibrationCandidate { result, basis })
+    }
+}
+
+#[cfg(test)]
+mod reference_tests {
+    //! The bridge transport decisions against numbers written from the definitions: the known
+    //! map of the source draws, the least-squares lines and Wald bands of the validation trials
+    //! (hand-written ordinary least squares, never the route's fit), and a planted shift.
+    use super::*;
+    use antecedent_contract::bridge::{
+        AssumptionKind, BridgeAssumption, BridgeEndpoint, BridgeKind, BridgeMapping, BridgeScope,
+        QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
+        TrialLevelValidation,
+    };
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_design::decision_contract::{
+        ActionKind, DecisionAction, StructuralPolicy, UtilityExpr,
+    };
+    use antecedent_design::decision_eval::Verdict;
+    use antecedent_io::distribution_artifact::{
+        DistributionCalibration, DistributionIdentity, DistributionMetadata,
+        DistributionProvenance, DistributionTrust, DrawAlignment,
+    };
+    use antecedent_stats::normal_ppf;
+
+    use super::super::bridge_transport_premise_assessment::{
+        BridgeTransportPremiseAssessmentRequest, compile_bridge_transport_premise_assessment,
+    };
+
+    const ROWS: usize = 64;
+
+    fn quantity(variable: &str, units: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: QuantityRole::Outcome,
+            units: units.into(),
+            population_id: "adults".into(),
+            regime_id: "do(t=1)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        }
+    }
+
+    /// Aligned predictive draws of a biomarker (returned as well, as the oracle's input) and a
+    /// cost.
+    fn draws(mean: f64, sd: f64) -> (DistributionArtifact, Vec<f64>) {
+        let quantities = [quantity("trial:biomarker", "mmol_per_l"), quantity("trial:cost", "usd")];
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::PosteriorPredictive,
+            &quantities,
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "study-1".into(),
+                provider_id: "posterior.provider".into(),
+                rng_id: "seed:11".into(),
+                snapshot_id: "snapshot-1".into(),
+                causal_contract_id: "contract-1".into(),
+            },
+        )
+        .unwrap();
+        let source: Vec<f64> =
+            (0..ROWS).map(|i| mean + sd * normal_ppf((i as f64 + 0.5) / ROWS as f64)).collect();
+        let mut table = Vec::with_capacity(2 * ROWS);
+        for (i, x) in source.iter().enumerate() {
+            table.push(*x);
+            table.push(
+                0.2 + 0.3 * normal_ppf(((i * 487) % ROWS) as f64 / ROWS as f64 + 0.5 / ROWS as f64),
+            );
+        }
+        let artifact = DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [ROWS, 2],
+                weights: None,
+                supported: None,
+                calibration: DistributionCalibration::NotMeasured,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            table,
+        )
+        .unwrap();
+        (artifact, source)
+    }
+
+    fn premise() -> TransportabilityPremise {
+        TransportabilityPremise {
+            id: "validation-to-target".into(),
+            statement: "the trial-level surrogate relation holds in the target population".into(),
+            established_in: BridgeScope {
+                population_id: "validation-adults".into(),
+                regime_id: "do(t=1)".into(),
+            },
+            applies_to: BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
+            evidence: Some("independent-target-validation".into()),
+        }
+    }
+
+    fn bridge(
+        mapping: BridgeMapping,
+        dependence: Option<SourceMappingDependence>,
+        transport: Option<TransportabilityPremise>,
+    ) -> BridgeContract {
+        let scope = transport.as_ref().map_or_else(
+            || BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
+            |declared| declared.established_in.clone(),
+        );
+        BridgeContract {
+            kind: BridgeKind::SurrogateTerminalOutcome,
+            source: BridgeEndpoint {
+                quantity: quantity("trial:biomarker", "mmol_per_l"),
+                class: QuantityClass::SurrogateEndpoint,
+            },
+            target: BridgeEndpoint {
+                quantity: quantity("trial:survival", "log_hazard"),
+                class: QuantityClass::TerminalOutcome,
+            },
+            source_value: ValueKind::PredictiveLaw,
+            target_value: ValueKind::PredictiveLaw,
+            evidence_scope: scope,
+            mapping,
+            assumptions: vec![BridgeAssumption {
+                id: "validation".into(),
+                kind: AssumptionKind::SurrogateValidation,
+                statement: "the surrogate is validated at the trial level".into(),
+                evidence: Some("meta-analysis:ckd-2024".into()),
+            }],
+            transport,
+            mapping_uncertainty: None,
+            source_dependence: dependence,
+            estimand_bridge: None,
+        }
+    }
+
+    fn choice(criterion: DecisionCriterion) -> DecisionContract {
+        let outcome = quantity("trial:survival", "log_hazard");
+        DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "use-bridge".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![outcome.clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "risk-sensitive".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![outcome],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion,
+            constraints: Vec::new(),
+            target_population: "adults".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        }
+    }
+
+    fn trial_pairs(offset: f64) -> Vec<(f64, f64)> {
+        (0..20)
+            .map(|i| {
+                let x = -1.0 + 2.0 * f64::from(i) / 19.0;
+                (x, 0.5 + 2.0 * x + offset + if i % 2 == 0 { 0.01 } else { -0.01 })
+            })
+            .collect()
+    }
+
+    fn validation(offset: f64) -> TrialLevelValidation {
+        TrialLevelValidation {
+            trials: trial_pairs(offset)
+                .into_iter()
+                .map(|(surrogate_effect, terminal_effect)| TrialEffectPair {
+                    surrogate_effect,
+                    terminal_effect,
+                })
+                .collect(),
+            min_trials: 3,
+            min_r_squared: 0.0,
+        }
+    }
+
+    /// Ordinary least squares by the textbook formulas: intercept, slope, mean of x, `Sxx` and
+    /// the residual variance `rss / (n - 2)`.
+    fn ols(pairs: &[(f64, f64)]) -> (f64, f64, f64, f64, f64) {
+        let n = pairs.len() as f64;
+        let mx = pairs.iter().map(|p| p.0).sum::<f64>() / n;
+        let my = pairs.iter().map(|p| p.1).sum::<f64>() / n;
+        let sxx = pairs.iter().map(|p| (p.0 - mx).powi(2)).sum::<f64>();
+        let sxy = pairs.iter().map(|p| (p.0 - mx) * (p.1 - my)).sum::<f64>();
+        let slope = sxy / sxx;
+        let intercept = my - slope * mx;
+        let rss = pairs.iter().map(|p| (p.1 - intercept - slope * p.0).powi(2)).sum::<f64>();
+        (intercept, slope, mx, sxx, rss / (n - 2.0))
+    }
+
+    /// `(x, difference, standard error, lower, upper)` of the Bonferroni Wald bands of the
+    /// target line minus the source line at each grid point.
+    fn bands(source: f64, target: f64, grid: &[f64]) -> Vec<(f64, f64, f64, f64, f64)> {
+        let (source, target) = (ols(&trial_pairs(source)), ols(&trial_pairs(target)));
+        let z = normal_ppf(1.0 - 0.05 / (2.0 * grid.len() as f64));
+        let variance = |fit: &(f64, f64, f64, f64, f64), x: f64| {
+            fit.4 * (1.0 / 20.0 + (x - fit.2).powi(2) / fit.3)
+        };
+        grid.iter()
+            .map(|&x| {
+                let difference = (target.0 + target.1 * x) - (source.0 + source.1 * x);
+                let se = (variance(&source, x) + variance(&target, x)).sqrt();
+                (x, difference, se, difference - z * se, difference + z * se)
+            })
+            .collect()
+    }
+
+    fn assessment_request(
+        source_offset: f64,
+        target_offset: f64,
+    ) -> BridgeTransportPremiseAssessmentRequest {
+        BridgeTransportPremiseAssessmentRequest {
+            premise: premise(),
+            source: validation(source_offset),
+            target: validation(target_offset),
+            source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
+            target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
+            surrogate_grid: vec![-0.8, 0.0, 0.8],
+            equivalence_margin: 0.2,
+        }
+    }
+
+    fn mean(values: &[f64]) -> f64 {
+        values.iter().sum::<f64>() / values.len() as f64
+    }
+
+    #[test]
+    fn an_affine_bridge_decision_scores_the_known_map_of_the_source_draws() {
+        let (source, x) = draws(1.0, 0.3);
+        let mapped: Vec<f64> = x.iter().map(|v| 0.5 + 2.0 * v).collect();
+        let declaration =
+            bridge(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, Some(premise()));
+        let ctx = ExecutionContext::for_tests(31);
+        let plan = compile_bridge_transport_decision(
+            declaration,
+            source,
+            9,
+            choice(DecisionCriterion::PosteriorExpectedUtility),
+        )
+        .unwrap();
+        let result = plan.execute(&ctx).unwrap();
+        let actions = &result.decision.decision.actions;
+        let utility = |id: &str| actions.iter().find(|a| a.id == id).unwrap().expected_utility;
+        // A linear utility scores the mean of the mapped draws, a squared utility their second
+        // moment (never the square of the mean); both follow from the declared map alone.
+        let second_moment = mapped.iter().map(|m| m * m).sum::<f64>() / ROWS as f64;
+        assert!((utility("use-bridge") - mean(&mapped)).abs() < 1e-9);
+        assert!((utility("risk-sensitive") - second_moment).abs() < 1e-9);
+        let spread = x.iter().map(|v| (v - mean(&x)).powi(2)).sum::<f64>() / ROWS as f64;
+        assert!((second_moment - mean(&mapped).powi(2) - 4.0 * spread).abs() < 1e-9);
+        assert_eq!(
+            result.decision.decision.verdict,
+            Verdict::UniquelyOptimal("risk-sensitive".into())
+        );
+        assert!((result.bridge.inspect().mean - mean(&mapped)).abs() < 1e-9);
+        // The independent consumer reproduces the decision from the sealed bytes.
+        let bytes = plan.export(&result, "bridge-reference", &ctx).unwrap();
+        let replay =
+            consume_bridge_transport_decision(&bytes, plan.lowered().identity(), &ctx).unwrap();
+        assert_eq!(replay.decision.decision, result.decision.decision);
+    }
+
+    #[test]
+    fn a_bridge_without_a_declared_premise_does_not_compile() {
+        let (source, _) = draws(1.0, 0.3);
+        let declaration = bridge(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None);
+        assert!(
+            compile_bridge_transport_decision(
+                declaration,
+                source,
+                9,
+                choice(DecisionCriterion::PosteriorExpectedUtility)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn an_assessment_of_another_mapping_is_not_the_assessment_of_the_bridge() {
+        let independent = SourceMappingDependence::Independent {
+            evidence: "study-1 is not among the source validation trials".into(),
+        };
+        let (source, _) = draws(0.4, 0.2);
+        let declaration = bridge(
+            BridgeMapping::TrialLevelLinear(validation(0.0)),
+            Some(independent),
+            Some(premise()),
+        );
+        let decision = compile_bridge_transport_decision(
+            declaration,
+            source,
+            11,
+            choice(DecisionCriterion::PosteriorExpectedUtility),
+        )
+        .unwrap();
+        let other =
+            compile_bridge_transport_premise_assessment(assessment_request(0.3, 0.35)).unwrap();
+        assert!(compile_assessed_bridge_transport_decision(other, decision).is_err());
+    }
+
+    #[test]
+    fn the_premise_assessment_bands_equal_the_hand_written_wald_construction() {
+        let ctx = ExecutionContext::for_tests(73);
+        for shift in [0.05, 0.5] {
+            let plan = compile_bridge_transport_premise_assessment(assessment_request(0.0, shift))
+                .unwrap();
+            let result = plan.execute(&ctx).unwrap();
+            let (intercept, slope, ..) = ols(&trial_pairs(0.0));
+            assert!((result.source_fit.intercept - intercept).abs() < 1e-9);
+            assert!((result.source_fit.slope - slope).abs() < 1e-9);
+            let expected = bands(0.0, shift, &[-0.8, 0.0, 0.8]);
+            assert_eq!(result.grid.len(), expected.len());
+            for (point, (x, difference, se, lower, upper)) in result.grid.iter().zip(&expected) {
+                assert!((point.surrogate_effect - x).abs() < 1e-12);
+                // The planted shift is the known discrepancy at every grid point.
+                assert!((point.difference - shift).abs() < 1e-9);
+                assert!((point.difference - difference).abs() < 1e-9);
+                assert!((point.standard_error - se).abs() < 1e-9 * se.max(1.0));
+                assert!((point.lower - lower).abs() < 1e-9);
+                assert!((point.upper - upper).abs() < 1e-9);
+            }
+            // The 0.2 equivalence screen passes the 0.05 shift and fails the 0.5 shift.
+            assert_eq!(result.equivalence_screen_passed, shift < 0.2);
+            assert_eq!(result.calibration, "not_measured");
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    fn the_robust_bounds_shift_the_fitted_line_mean_by_the_hand_written_bands() {
+        let independent = SourceMappingDependence::Independent {
+            evidence: "study-1 is not among the source validation trials".into(),
+        };
+        let (source, x) = draws(0.0, 0.1);
+        let declaration = bridge(
+            BridgeMapping::TrialLevelLinear(validation(0.0)),
+            Some(independent),
+            Some(premise()),
+        );
+        let bridge_plan = compile_bridge_transport_decision(
+            declaration,
+            source,
+            11,
+            choice(DecisionCriterion::PosteriorExpectedUtility),
+        )
+        .unwrap();
+        let assessment =
+            compile_bridge_transport_premise_assessment(assessment_request(0.0, 0.05)).unwrap();
+        let assessed = compile_assessed_bridge_transport_decision(assessment, bridge_plan).unwrap();
+        let robust = compile_assessed_bridge_robust_decision(
+            assessed,
+            choice(DecisionCriterion::MaximinOverStructures),
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(43);
+        let bounds = robust.execute(&ctx).unwrap();
+        assert_eq!(bounds.calibration, "not_measured");
+
+        // The trial-level bridge maps each draw through the fitted line, with coefficient
+        // draws that average out over the rows: the bridged mean is the line at the draws.
+        let (intercept, slope, ..) = ols(&trial_pairs(0.0));
+        let line_mean = mean(&x.iter().map(|v| intercept + slope * v).collect::<Vec<_>>());
+        let bridged = bounds.assessed.bridge.bridge.inspect().mean;
+        assert!((bridged - line_mean).abs() < 0.01, "{bridged} vs {line_mean}");
+
+        // The linear action's bounds are that mean shifted by the widest hand-written band.
+        let expected = bands(0.0, 0.05, &[-0.8, 0.0, 0.8]);
+        let lowest = expected.iter().map(|b| b.3).fold(f64::MAX, f64::min);
+        let highest = expected.iter().map(|b| b.4).fold(f64::MIN, f64::max);
+        let linear = bounds.robust.actions.iter().find(|a| a.id == "use-bridge").unwrap();
+        assert!((linear.utility_lower - (bridged + lowest)).abs() < 1e-9);
+        assert!((linear.utility_upper - (bridged + highest)).abs() < 1e-9);
+        let portable = robust.export(&bounds, "bridge-reference-robust", &ctx).unwrap();
+        let replayed =
+            consume_assessed_bridge_robust_decision(&portable, robust.lowered().identity(), &ctx)
+                .unwrap();
+        assert_eq!(replayed.robust, bounds.robust);
+    }
+
+    #[test]
+    fn the_routes_report_and_consult_the_support_unit_of_their_records() {
+        let (source, _) = draws(1.0, 0.3);
+        let plan = compile_bridge_transport_decision(
+            bridge(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, Some(premise())),
+            source,
+            9,
+            choice(DecisionCriterion::PosteriorExpectedUtility),
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(31);
+        plan.execute(&ctx).unwrap();
+        let view = plan.plan_view().unit_support().expect("bound to its capability record");
+        assert_eq!(view.unit(), "transport.bridge_decision");
+        assert_eq!(view.supported(), view.missing_evidence().is_empty());
+        let refused = ctx.would_refuse();
+        assert!(refused.iter().all(|entry| entry.code == "not_supported"));
+        assert!(!view.supported() || refused.is_empty());
+
+        let assessment =
+            compile_bridge_transport_premise_assessment(assessment_request(0.0, 0.05)).unwrap();
+        let ctx = ExecutionContext::for_tests(73);
+        assessment.execute(&ctx).unwrap();
+        let view = assessment.plan_view().unit_support().expect("bound to its capability record");
+        assert_eq!(view.unit(), "transport.bridge_premise_assessment");
+        assert_eq!(view.supported(), view.missing_evidence().is_empty());
+        assert!(!view.supported() || ctx.would_refuse().is_empty());
     }
 }

@@ -1,0 +1,37 @@
+feature_id = "transport.bridge_decision"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled bridge-transport decision (crates/antecedent/src/analysis/bridge_transport_decision.rs).
+# It composes four existing pieces under one compiler program: the bridge of draws
+# (provenance/scientific_bridge.distribution_bridges.toml), the declared transportability premise
+# (provenance/transport.surrogate_bridge_premise.toml), the chain decision compiler, and, for the
+# assessed, robust and target-posterior variants, the premise assessment
+# (provenance/transport.bridge_premise_assessment.toml). It adds no estimator of its own.
+# papers = [] is an explicit judgment: the surrogate-endpoint literature (Prentice 1989;
+# Buyse et al. 2000) and the selection-diagram transportability rule (Pearl and Bareinboim 2014)
+# motivate the declared premise but supply no procedure this module follows, and none was
+# retrieved in this review.
+papers = []
+
+implementation_deviations = [
+  "The decision is conditional on the declared transport premise: the premise is stated, bound to the program identity and reported, never estimated or discharged by this route, and no population outcome risk or decision reliability is measured (calibration is reported as not_measured).",
+  "The transported law is the source draws with the bridged column replaced row for row by the declared mapping; a trial-level line adds the Student-t coefficient draws of its least-squares fit and an affine map adds only the spread it declares, so the spread of the result is an uncalibrated spread, never an interval.",
+  "The assessed variant requires the premise assessment to match the bridge's own trial mapping and premise exactly; a failed equivalence screen stays visible and does not change the premise the decision uses.",
+  "The robust variant shifts every mapped row across the simultaneous discrepancy envelope of the assessment and scores a maximin decision on the enclosed rows; the envelope is an unmeasured Gaussian Wald band, so the bounds carry no coverage claim.",
+  "The target-posterior variant draws an independent normal target-line posterior under a declared reference-variance prior from the independent target trials, and transfers the source innovation; its cross-trial independence and positivity premises are declared inputs, and reliability of the action choice is not measured.",
+  "A predictive terminal bridge only: mean, posterior and identified-set values are refused here, and the support of the mapping is the validated surrogate range of the trial-level fit.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/src/analysis/bridge_transport_decision.rs (in-module reference tests: the affine map of known source draws scored against its hand-computed mean and second moment; the robust bounds against hand-written ordinary least squares bands)",
+  "python/tests/test_bridge_transport_decision_reference.py (numpy and standard-library oracles for the same routes)",
+  "python/tests/test_bridge_transport_decision.py",
+  "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs",
+  "crates/antecedent/tests/bridge_transport_premise_calibration.rs",
+]

@@ -286,6 +286,15 @@ class CompiledPremiseAssessment:
         """Every layer of the compiled program (route ``BridgeTransportPremiseAssessment``)."""
         return dict(json.loads(self._handle.plan_view_json()))
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this route runs under, or ``None`` while unbound.
+
+        A dictionary with ``unit`` (the capability record), ``status``, ``supported`` and the
+        ``missing_evidence`` a not supported unit still lacks. Reading it changes no identity.
+        """
+        decision = json.loads(self._handle.unit_support_json())
+        return None if decision is None else dict(decision)
+
     def execute(self, *, execution: Execution | None = None) -> PremiseAssessment:
         """Fit both trial relations, form the simultaneous bands and screen them.
 
@@ -712,6 +721,15 @@ class CompiledBridgeTransportDecision:
     def plan_view(self) -> dict[str, Any]:
         """Every layer of the compiled program, with its route and identity."""
         return dict(json.loads(self._handle.plan_view_json()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this route runs under, or ``None`` while unbound.
+
+        A dictionary with ``unit`` (the capability record), ``status``, ``supported`` and the
+        ``missing_evidence`` a not supported unit still lacks. Reading it changes no identity.
+        """
+        decision = json.loads(self._handle.unit_support_json())
+        return None if decision is None else dict(decision)
 
     def execute(self, *, execution: Execution | None = None) -> BridgeTransportDecision:
         """Derive the transported law and score the decision on its rows.

@@ -39,6 +39,7 @@ use antecedent_io::{
 use antecedent_kernels::bayesian_bootstrap_weights;
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
@@ -56,6 +57,12 @@ use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "trial_ipw_transport_predictive_decision_v1";
 const MAX_BYTES: usize = 80 * 1024 * 1024;
+
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then; turning it on makes a release build refuse the route
+/// while the unit is unsupported and a development build record what it would refuse.
+const GATE_ON_UNIT_SUPPORT: bool = false;
 
 /// Independent source-trial and target units with supplied design probabilities.
 /// Target outcomes and assignments are ignored by the producer, but all rows
@@ -116,6 +123,9 @@ pub enum TrialIpwPredictiveDecisionError {
     /// Artifact encoding refusal.
     #[error("trial IPW transport artifact: {0}")]
     Io(#[from] IoError),
+    /// A release build refuses the route while its support unit is not supported.
+    #[error("trial IPW predictive decision: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 type Error = TrialIpwPredictiveDecisionError;
 
@@ -498,6 +508,12 @@ fn predictive_draws(rows: &TrialIpwRows) -> Result<[Vec<f64>; 2], Error> {
     Ok(result)
 }
 
+impl CompiledProgramHandle for CompiledTrialIpwPredictiveDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledTrialIpwPredictiveDecision {
     /// Inspect all six compiler layers.
     #[must_use]
@@ -519,6 +535,9 @@ impl CompiledTrialIpwPredictiveDecision {
     ) -> Result<TrialIpwPredictiveDecisionResult, Error> {
         let rows = &self.request.rows;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)?;
+        }
         let _lease = scoped
             .acquire_admission(
                 0,
