@@ -319,7 +319,7 @@ impl PreparedEventUpdate {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(EventLaw, EventBelief), EventError> {
-        let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
+        let scoped = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let mut work = hawkes::Work::new(ctx);
         let original = &self.prior.history;
@@ -419,7 +419,7 @@ impl PreparedEventStudy {
         reason = "one linear sequence of steps that reads top to bottom"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventStudyValue, EventError> {
-        let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
+        let scoped = super::scoped_execution(ctx, &self.plan)?;
         let ctx = &scoped;
         let r = &self.request;
         let history = &self.prior.history;

@@ -4,6 +4,7 @@
 //! released only by the measured consumer, under an attesting coverage record, and
 //! it is not an external model plugin.
 use crate::analysis::Study;
+use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::LoweredProgram;
 use antecedent_core::ExecutionContext;
@@ -76,16 +77,34 @@ impl Study {
                 message: "mnar fixed-shift shared compiler identity mismatch".into(),
             });
         }
-        Ok(PreparedMnarFixedShift {
+        let prepared = PreparedMnarFixedShift {
             source: Arc::new(source),
             program,
             lowered: Arc::new(lowered),
             _lease: Arc::new(lease),
-        })
+        };
+        gate_program(ctx, &prepared)?;
+        Ok(prepared)
+    }
+}
+
+impl CompiledProgramHandle for PreparedMnarFixedShift {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
     }
 }
 
 impl PreparedMnarFixedShift {
+    /// Inspect the compiled program, including the support decision of the unit its route runs
+    /// under, without executing anything.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.lowered),
+            crate::planner::PlanStage::Compiled,
+        )
+    }
+
     /// The exact checked six-layer native program; inspection executes nothing.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
@@ -123,6 +142,7 @@ impl PreparedMnarFixedShift {
         }
         let actual = self.estimate_candidate(ctx)?;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        gate_program(&scoped, self)?;
         let expected_point = declared_point(&actual, self.source.treated_shift())
             .ok_or_else(|| CausalError::Compile {
                 message: "mnar declared point is absent".into(),
@@ -165,6 +185,7 @@ impl PreparedMnarFixedShift {
             });
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        gate_program(&scoped, self)?;
         if scoped.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "mnar fixed-shift execution" });
         }
@@ -403,6 +424,15 @@ impl PreparedMnarFixedShift {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io::IoError> {
+        gate_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self).map_err(
+            |refusal| antecedent_io::IoError::Refused {
+                code: refusal.code(),
+                message: format!(
+                    "{}: {refusal}",
+                    antecedent_core::reason_details::mnar_fixed_shift::INTERVAL_NOT_SUPPORTED
+                ),
+            },
+        )?;
         let encoded = antecedent_io::mnar_candidate_source::encode(&self.source, ctx)?;
         antecedent_io::measured_inference::mnar_candidate::measure_source(encoded.bytes(), ctx)
     }

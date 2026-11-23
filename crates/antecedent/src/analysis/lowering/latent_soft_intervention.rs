@@ -1,6 +1,6 @@
 //! Lower an independently declared, bounded latent soft-intervention study.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
@@ -20,25 +20,11 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::support::CellStatus;
 
+/// Whether the unit the route runs under is supported in this build's derived status.
 pub(crate) fn release_supported() -> bool {
-    #[derive(serde::Deserialize)]
-    struct Unit {
-        id: String,
-        status: String,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct Snapshot {
-        capabilities: Vec<Unit>,
-    }
-
-    static APPROVED: OnceLock<bool> = OnceLock::new();
-    let snapshot = antecedent_io_core::graphless_support::UNIT_STATUS;
-    *APPROVED.get_or_init(|| {
-        serde_json::from_str::<Snapshot>(snapshot).is_ok_and(|snapshot| {
-            snapshot.capabilities.iter().any(|unit| unit.id == METHOD && unit.status == "supported")
-        })
-    })
+    crate::support::capability_supported(
+        crate::support::units_generated::ESTIMATE_LATENT_SOFT_INTERVENTION.as_str(),
+    )
 }
 
 #[allow(clippy::too_many_lines, reason = "one lowering that assembles every program section")]

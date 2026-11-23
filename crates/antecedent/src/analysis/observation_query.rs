@@ -108,6 +108,7 @@ use super::PreparedMechanismComposition;
 use super::joint_law_composed_basis::{Resolution, composed_basis, resolve};
 use super::mechanism_exports::model_crate::compose::MechanismFamily;
 use super::mechanism_exports::model_crate::observation_uncertainty::GaussianSufficient;
+use super::program_handle::{CompiledProgramHandle, gate_program};
 
 /// The refusals of an observation query: each with a registered reason code, a
 /// namespaced `observation_query.*` detail, the offending subject, expected
@@ -882,6 +883,34 @@ pub struct JointMeasuredObservationPlan {
     lowered: Arc<LoweredProgram>,
 }
 
+impl CompiledProgramHandle for JointMeasuredObservationPlan {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+/// The refusal a release build returns when the unit an observation program runs under is not
+/// supported.
+pub(crate) fn unsupported_refusal(
+    refusal: &antecedent_core::NotSupported,
+) -> ObservationQueryRefusal {
+    ObservationQueryRefusal::of(
+        antecedent_core::reason_code!("not_supported"),
+        "observe",
+        antecedent_core::reason_details::observation_query::REQUEST_UNSUPPORTED,
+        refusal.to_string(),
+    )
+}
+
+/// Pass the support gate of the unit the plan's route runs under with the dispatch-scoped
+/// context: a release build refuses a route whose unit is not supported.
+pub(crate) fn gate_observation_program(
+    ctx: &ExecutionContext,
+    plan: &JointMeasuredObservationPlan,
+) -> Result<(), ObservationQueryRefusal> {
+    gate_program(ctx, plan).map_err(|refusal| unsupported_refusal(&refusal))
+}
+
 impl JointMeasuredObservationPlan {
     /// Every layer of the compiled measurement and observation program.
     #[must_use]
@@ -905,6 +934,7 @@ impl JointMeasuredObservationPlan {
         ctx: &ExecutionContext,
     ) -> Result<ObservationClaim, ObservationQueryRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        gate_observation_program(&scoped, self)?;
         seal(
             Some(self.composition.spec()),
             self.query.clone(),
@@ -924,6 +954,7 @@ impl JointMeasuredObservationPlan {
         expected_program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        gate_observation_program(&ctx.enter_lowered_dispatch(self.lowered.identity()), self)?;
         if expected_program != self.lowered.identity() {
             return Err(ObservationQueryRefusal::of(
                 antecedent_core::reason_code!("invalid_argument"),

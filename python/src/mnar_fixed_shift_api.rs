@@ -16,6 +16,11 @@ pub(crate) struct NativePreparedMnarFixedShift {
 
 #[pymethods]
 impl NativePreparedMnarFixedShift {
+    /// The support decision of the unit this program's route runs under, as JSON.
+    fn unit_support(&self) -> Option<String> {
+        crate::latent_soft_intervention_api::unit_support_json(&self.inner.plan_view())
+    }
+
     /// Request the measured scalar; absent or inapplicable coverage refuses.
     #[pyo3(signature = (memory_bytes=None, cancel=None))]
     fn measured_interval(

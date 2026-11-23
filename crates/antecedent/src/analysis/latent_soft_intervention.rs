@@ -9,6 +9,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::Study;
 use crate::error::CausalError;
 use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
@@ -19,8 +20,6 @@ mod fit;
 pub use artifact::{LatentSoftInterventionExport, ReplayedLatentSoftIntervention, replay_forecast};
 
 pub(crate) const METHOD: &str = "estimate.latent_soft_intervention";
-const SUPPORT_DETAIL: &str = "latent soft-intervention discovery awaits release evidence";
-const SUPPORT_EVIDENCE: &[&str] = &[METHOD];
 
 const MAX_NODES: usize = 16;
 const MAX_ROWS: usize = 100_000;
@@ -219,6 +218,12 @@ impl Study {
     }
 }
 
+impl CompiledProgramHandle for PreparedLatentSoftIntervention {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+}
+
 impl PreparedLatentSoftIntervention {
     /// Inspect the native compiled plan without executing it.
     #[must_use]
@@ -413,13 +418,7 @@ impl PreparedLatentSoftIntervention {
         let scoped = ctx.enter_lowered_dispatch(self.program.identity());
         cancelled(&scoped, "latent soft intervention execution")?;
         let release_supported = super::lowering::latent_soft_intervention::release_supported();
-        if !release_supported {
-            antecedent_core::support_gate::require_supported(
-                &scoped,
-                SUPPORT_DETAIL,
-                SUPPORT_EVIDENCE,
-            )?;
-        }
+        gate_program(&scoped, self)?;
         let rows = (self.request.baseline.len() + self.request.action.len()) as u64;
         let width = self.request.variables.len() as u64;
         let _workspace = scoped
@@ -469,7 +468,7 @@ impl PreparedLatentSoftIntervention {
             would_refuse: scoped
                 .would_refuse()
                 .into_iter()
-                .find(|entry| entry.detail == SUPPORT_DETAIL)
+                .find(|entry| entry.detail == self.program.route())
                 .map(|entry| entry.to_string()),
             log_evidence: fit.log_evidence.is_finite().then_some(fit.log_evidence),
             forecast_admissible: fit.forecast_admissible,

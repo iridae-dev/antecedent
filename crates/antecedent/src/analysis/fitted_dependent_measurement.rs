@@ -25,7 +25,9 @@ use serde::{Deserialize, Serialize};
 use super::PreparedMechanismComposition;
 use super::observation_query::{
     DependentMeasuredObservationRequest, JointMeasuredObservationPlan, ObservationQueryRefusal,
+    unsupported_refusal,
 };
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::planner::lowered::{
     ClaimDemand, Composition, EvidenceRole, EvidenceSourceRef, FunctionalKind, LoweredProgram,
     ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts, UncertaintyReading,
@@ -309,7 +311,28 @@ impl PreparedMechanismComposition {
     }
 }
 
+impl CompiledProgramHandle for CompiledFittedDependentMeasurement {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+/// Whether `parity/compiled_units.toml` binds the fitted route to a support unit. The route's
+/// execution is gated on that unit from the build that binds it; until then no unit decides
+/// the route and it runs as it did.
+fn route_is_bound(route: &str) -> bool {
+    crate::support::units_generated::unit_of(route).is_some()
+}
+
 impl CompiledFittedDependentMeasurement {
+    /// Pass the support gate of the unit the route runs under with the dispatch-scoped context.
+    fn gate(&self, ctx: &ExecutionContext) -> Result<(), FittedDependentMeasurementError> {
+        if !route_is_bound(self.lowered.route()) {
+            return Ok(());
+        }
+        gate_program(ctx, self).map_err(|refusal| unsupported_refusal(&refusal).into())
+    }
+
     /// Every layer of the fitted measurement and observation program.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
@@ -444,6 +467,7 @@ impl CompiledFittedDependentMeasurement {
         ctx: &ExecutionContext,
     ) -> Result<FittedDependentMeasurementReport, FittedDependentMeasurementError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        self.gate(&scoped)?;
         let point = self.plug_in.execute(&scoped)?;
         let levels = point.conditional_levels().ok_or(FittedDependentMeasurementError::Invalid(
             "fitted measurement query did not return conditional levels",

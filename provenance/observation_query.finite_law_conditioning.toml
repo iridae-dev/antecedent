@@ -16,6 +16,7 @@ implementation_deviations = [
   "A recorded indicator used as the construct, an assigned value smuggled into a conditioning-only slot, and a variable both observed and intervened on are refused with typed details. Explicit observation-after-intervention requests now compute the bounded finite or linear-Gaussian mixed conditional law; this supersedes the original no-mixed-query restriction.",
   "A threshold-crossing query lists, for each observed level of one signal, the exact conditional probability and the probability of observing that level; a threshold no observed level reaches is refused with the most extreme conditional probability attained.",
   "Values are exact given the declared finite tables or linear-Gaussian coefficients. Fitted mechanisms give labelled point values. Retained counts and regression data now permit Dirichlet/Normal-Inverse-Gamma parameter redraw with explicitly uncalibrated spread; this is distinct from a measured probability interval. Calibration-dependent parameter intervals remain closed without attesting records.",
+  "A labelled joint-error table of dependent indicators can be fitted from validation counts: each construct row has a symmetric Dirichlet prior and a multinomial likelihood, so its posterior is Dirichlet(count + prior) (standard conjugacy, sampled through independent gamma variates and normalised). Every posterior table draw is answered by the same exact dependent-error conditioning as a declared table, and the plug-in answer is the answer at the posterior-mean table. The draws are a posterior conditional on the composed model and the labelled validation design; the report states calibration as not measured and the interval route reports its status through the calibration registry, so no coverage claim is inherited from the exact or declared-table routes.",
 ]
 
 upstream_implementations_observed = []
@@ -29,6 +30,7 @@ test_sources = [
   "crates/antecedent/tests/observation_query_facade.rs",
   "conformance/composition/dirichlet_conditioning/expected.json (independent Beta quadrature for posterior-functional moments; no sampling-coverage claim)",
   "crates/antecedent-model/tests/finite_law_conditioning_reference.rs (exact rational enumeration of condition, intervene, observation after intervention, measured-indicator and threshold queries)",
+  "crates/antecedent/tests/observation_structural_support.rs (posterior draws of the fitted joint-error table against an independent two-dimensional Beta quadrature of the Dirichlet posterior, whose marginals are the Beta laws of the joint positive cell of each construct row)",
 ]
 
 [method_review]
