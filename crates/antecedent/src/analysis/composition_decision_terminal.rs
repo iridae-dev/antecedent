@@ -38,6 +38,7 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::units_generated;
 use crate::support::{require_capability_route, require_capability_route_unscoped};
 
 const FEATURE: &str = "decision_bundle_recomputation_portable_v1";
@@ -48,7 +49,7 @@ const MAX_BYTES: usize = 32 * 1024 * 1024;
 // support status of its own: while the unit is not supported, a release build refuses each entry
 // point by its route id (`parity/capability_records.toml`) and a development build runs it and
 // records the refusal.
-const BUNDLE_CAPABILITY: &str = "composition.bundle";
+const BUNDLE_CAPABILITY: &str = units_generated::COMPOSITION_BUNDLE.as_str();
 const PREDICTIVE_COMPILE_ROUTE: &str =
     "antecedent.composition.compile_decision_bundle_recomputation";
 const PREDICTIVE_CONSUME_ROUTE: &str =

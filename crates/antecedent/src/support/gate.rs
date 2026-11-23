@@ -57,6 +57,14 @@ pub(crate) fn capability_supported(capability: &str) -> bool {
     })
 }
 
+/// The derived status of the capability unit `capability`: whether it is supported and the
+/// missing evidence it lists. `None` when the snapshot does not decode or names no such unit.
+#[must_use]
+pub(super) fn capability_status(capability: &str) -> Option<(bool, Vec<&'static str>)> {
+    let unit = capability_units()?.iter().find(|unit| unit.id == capability)?;
+    Some((unit.status == "supported", unit.missing_evidence.iter().map(String::as_str).collect()))
+}
+
 /// Refuse the entry point `route` of the capability unit `capability` when that unit is not
 /// supported.
 ///

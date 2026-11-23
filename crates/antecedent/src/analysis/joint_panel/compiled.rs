@@ -53,7 +53,8 @@ use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
 use crate::support::CellStatus;
 
 /// Capability unit that owns the joint-panel module and its earned evidence.
-pub(crate) const JOINT_RESPONSE_CAPABILITY: &str = "joint_response.interval_readings";
+pub(crate) const JOINT_RESPONSE_CAPABILITY: &str =
+    crate::support::units_generated::JOINT_RESPONSE_INTERVAL_READINGS.as_str();
 
 /// The capability unit whose supported status gates `route` in a release build.
 pub(crate) const fn capability(route: JointPanelRoute) -> &'static str {

@@ -30,7 +30,8 @@ pub use study::{
     PreparedEventStudy, PreparedEventUpdate,
 };
 
-pub(crate) const CAPABILITY: &str = "forecast.event_process";
+pub(crate) const CAPABILITY: &str =
+    crate::support::units_generated::FORECAST_EVENT_PROCESS.as_str();
 pub(crate) const COUNT_INTERVAL: &str = "forecast.event_count_interval";
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_TYPES: usize = 16;
