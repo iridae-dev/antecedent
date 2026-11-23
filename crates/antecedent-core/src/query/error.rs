@@ -30,8 +30,10 @@ pub enum RandomizedEffectFault {
     /// Refused: multi-arm positivity failure: every declared arm needs observed support.
     #[error("multi-arm positivity failure: every declared arm needs observed support")]
     MultiArmPositivity,
-    /// Refused: randomization inference requires an unadjusted complete two-arm design.
-    #[error("randomization inference requires an unadjusted complete two-arm design")]
+    /// Refused: randomization inference requires an unadjusted complete two-arm design, or an unadjusted Bernoulli design of at most twenty rows.
+    #[error(
+        "randomization inference requires an unadjusted complete two-arm design, or an unadjusted Bernoulli design of at most twenty rows"
+    )]
     ExactTestDesign,
     /// Refused: CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment.
     #[error(
@@ -51,6 +53,11 @@ pub enum RandomizedEffectFault {
         "fixed CUPED requires Bernoulli or cluster assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient"
     )]
     FixedCupedDesign,
+    /// Refused: estimated-slope CUPED requires independent Bernoulli assignment, a distinct pre-assignment covariate, and no other adjustment or exact test.
+    #[error(
+        "estimated-slope CUPED requires independent Bernoulli assignment, a distinct pre-assignment covariate, and no other adjustment or exact test"
+    )]
+    EstimatedCupedDesign,
     /// Refused: ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom.
     #[error(
         "ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom"

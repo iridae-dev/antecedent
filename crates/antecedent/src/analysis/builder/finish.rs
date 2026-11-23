@@ -757,6 +757,7 @@ fn apply_design_contract(
                 id,
                 EstimatorId::RandomizedHt
                     | EstimatorId::RandomizedFixedCupedHt
+                    | EstimatorId::RandomizedEstimatedCupedHt
                     | EstimatorId::RandomizedClusterFixedCuped
                     | EstimatorId::RandomizedAncova
                     | EstimatorId::RandomizedWaldCace

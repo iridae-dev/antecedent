@@ -256,14 +256,7 @@ fn graphless_coordinate(
         // own graphless family; a Bernoulli assignment design does not fold
         // it into ITT.
         let CausalQuery::RandomizedEffect(query) = query else { return Err(MISMATCH) };
-        let (family, design, method, _assignment_unit, claim) =
-            antecedent_core::randomized_graphless_coordinate(
-                &query.design,
-                query.estimand,
-                query.received_treatment.is_some(),
-                query.fixed_cuped.is_some(),
-                !query.ancova_covariates.is_empty(),
-            );
+        let (family, design, method, _assignment_unit, claim) = query.graphless_coordinate();
         coordinate = Some(format!("graphless:{family}/{design}/{method}/{claim}"));
     }
     if result.longitudinal_regime().is_some() {

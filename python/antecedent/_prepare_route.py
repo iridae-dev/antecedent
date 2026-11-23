@@ -1636,6 +1636,7 @@ class _PrepareRoute:
             treated_per_row,
             treated_clusters=treated_clusters,
             fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
+            estimated_cuped=query.estimated_cuped.covariate if query.estimated_cuped else None,
             ancova_covariates=list(query.ancova_covariates),
             exact_randomization_test=query.exact_randomization_test,
             second_factor_assignment=list(resolved(assignment.second_factor_assignment))

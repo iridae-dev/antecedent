@@ -591,7 +591,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, treatment_on_treated=false, exact_randomization_test=false,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, estimated_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, treatment_on_treated=false, exact_randomization_test=false,
         second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None,
         multi_arm_labels=None, multi_arm_assignment=None, multi_arm_probabilities=None,
         accepted=false, seed=1, threads=None,
@@ -613,6 +613,7 @@ impl PyPreparedAnalysis {
         treated_per_row: Option<Vec<usize>>,
         treated_clusters: Option<usize>,
         fixed_cuped: Option<(String, f64)>,
+        estimated_cuped: Option<String>,
         ancova_covariates: Option<Vec<String>>,
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
@@ -733,6 +734,10 @@ impl PyPreparedAnalysis {
             if let Some((covariate, coefficient)) = fixed_cuped {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
+            }
+            if let Some(covariate) = estimated_cuped {
+                let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
+                query = query.with_estimated_cuped(covariate_id);
             }
             if let Some(covariates) = ancova_covariates
                 && !covariates.is_empty() {

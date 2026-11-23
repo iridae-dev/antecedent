@@ -67,6 +67,9 @@ pub enum RandomizedShape {
     BernoulliCace,
     /// Independent Bernoulli assignment with a fixed pre-assignment covariate adjustment.
     BernoulliCuped,
+    /// Independent Bernoulli assignment with a pre-assignment covariate whose slope is estimated
+    /// from the rows (same-sample CUPED).
+    BernoulliEstimatedCuped,
     /// Independent Bernoulli assignment with fitted ANCOVA covariates.
     BernoulliAncova,
     /// Complete randomization.
@@ -622,6 +625,9 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
         EstimatorId::RandomizedFixedCupedHt => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::BernoulliCuped]))
         }
+        EstimatorId::RandomizedEstimatedCupedHt => {
+            frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::BernoulliEstimatedCuped]))
+        }
         EstimatorId::RandomizedClusterFixedCuped => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::ClusterCuped]))
         }
@@ -1012,6 +1018,8 @@ fn randomized_shape(query: &antecedent_core::RandomizedEffectQuery) -> Randomize
                 R::BernoulliCace
             } else if query.fixed_cuped.is_some() {
                 R::BernoulliCuped
+            } else if query.estimated_cuped.is_some() {
+                R::BernoulliEstimatedCuped
             } else if !query.ancova_covariates.is_empty() {
                 R::BernoulliAncova
             } else {

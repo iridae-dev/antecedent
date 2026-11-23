@@ -25,6 +25,7 @@ pub(super) enum RandomizedMethod {
     TreatmentOnTreated,
     ComplierEffect,
     FixedCuped,
+    EstimatedCuped,
     Bernoulli,
     Complete,
     Cluster,
@@ -39,6 +40,10 @@ impl RandomizedMethod {
     pub(super) fn of(query: &RandomizedEffectQuery) -> Self {
         if !query.ancova_covariates.is_empty() {
             Self::Ancova
+        } else if query.estimated_cuped.is_some()
+            && matches!(query.design, RandomizationDesign::Bernoulli)
+        {
+            Self::EstimatedCuped
         } else if query.received_treatment.is_some() {
             if query.estimand == RandomizedEstimand::TreatmentOnTreated {
                 Self::TreatmentOnTreated
@@ -69,6 +74,7 @@ impl RandomizedMethod {
             | Self::TreatmentOnTreated
             | Self::ComplierEffect
             | Self::FixedCuped
+            | Self::EstimatedCuped
             | Self::Bernoulli => "bernoulli",
             Self::Complete => "complete",
             Self::Cluster | Self::ClusterFixedCuped => "cluster",
@@ -83,6 +89,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => EstimatorId::RandomizedWaldCace,
             Self::FixedCuped => EstimatorId::RandomizedFixedCupedHt,
+            Self::EstimatedCuped => EstimatorId::RandomizedEstimatedCupedHt,
             Self::ClusterFixedCuped => EstimatorId::RandomizedClusterFixedCuped,
             Self::Ancova => EstimatorId::RandomizedAncova,
             Self::Bernoulli | Self::MultiArm => EstimatorId::RandomizedHt,
@@ -107,6 +114,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => "estimate.randomized.wald_cace_late",
             Self::FixedCuped => "estimate.randomized.fixed_cuped_ht_itt",
+            Self::EstimatedCuped => "estimate.randomized.estimated_cuped_ht_itt",
             Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",
@@ -133,6 +141,9 @@ impl RandomizedMethod {
             (Self::FixedCuped, false) => {
                 "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
             }
+            (Self::EstimatedCuped, false) => {
+                "bernoulli_estimated_cuped_ht_standard_error_no_interval"
+            }
             (Self::Bernoulli, false) => "bernoulli_ht_conservative_variance_no_interval",
             (Self::Complete, false) => "complete_neyman_variance_upper_bound_no_interval",
             (Self::Cluster, false) => "cluster_neyman_variance_upper_bound_no_interval",
@@ -146,6 +157,7 @@ impl RandomizedMethod {
                 "switchback_independent_sequence_sandwich_variance_no_interval"
             }
             (Self::FixedCuped, true) => "bernoulli_fixed_cuped_ht_score_normal_interval",
+            (Self::EstimatedCuped, true) => "bernoulli_estimated_cuped_ht_score_normal_interval",
             (Self::Ancova, true) => "bernoulli_ancova_hc0_normal_interval",
             (Self::TreatmentOnTreated, true) => "bernoulli_one_sided_tot_influence_normal_interval",
             (Self::ComplierEffect, true) => "bernoulli_wald_cace_influence_normal_interval",
@@ -189,6 +201,9 @@ impl RandomizedMethod {
             (Self::FixedCuped, false) => {
                 "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation; no interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
+            (Self::EstimatedCuped, false) => {
+                "Horvitz-Thompson ITT on outcomes residualized by the pooled outcome-on-covariate slope of a declared pre-assignment covariate, with the independent-row score standard error; no interval: the score interval needs 30 observed and 40 expected rows in each arm, assignment probabilities from 0.2 through 0.8 and a positive standard error"
+            }
             (Self::Bernoulli, false) => {
                 "Horvitz-Thompson ITT with an observed-arm variance estimator conservative in randomization expectation; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
@@ -215,6 +230,9 @@ impl RandomizedMethod {
             }
             (Self::FixedCuped, true) => {
                 "Bernoulli ITT with an externally fixed pre-assignment CUPED coefficient and independent-unit score-sandwich pointwise 95% interval"
+            }
+            (Self::EstimatedCuped, true) => {
+                "Bernoulli ITT residualized by the pooled outcome-on-covariate slope of a pre-assignment covariate, with the independent-unit score standard error and a pointwise 95% normal interval; the slope is estimated from these rows and its estimation is not propagated into the standard error"
             }
             (Self::Ancova, true) => {
                 "Bernoulli ANCOVA with pre-assignment covariates and independent-unit HC0 pointwise 95% interval"
@@ -350,6 +368,7 @@ pub(super) fn fit_randomized(
     }
     match RandomizedMethod::of(query) {
         RandomizedMethod::Ancova => fit_ancova(query, data, outcomes),
+        RandomizedMethod::EstimatedCuped => fit_estimated_cuped(query, data, outcomes),
         RandomizedMethod::TreatmentOnTreated | RandomizedMethod::ComplierEffect => {
             fit_complier(query, outcomes)
         }
@@ -561,6 +580,45 @@ fn fit_ancova(
         return Ok(out.with_small_arm_interval(small));
     }
     Ok(out.with_interval(interval, fit.hc0_variance.sqrt()))
+}
+
+/// Same-sample CUPED: the pooled slope, the residualized contrast and its score standard error
+/// come from the one kernel the direct Python entry runs, on the raw outcomes.
+fn fit_estimated_cuped(
+    query: &RandomizedEffectQuery,
+    data: &TabularData,
+    outcomes: &[f64],
+) -> Result<TrialFit, CausalError> {
+    let covariate = query.estimated_cuped.ok_or(CausalError::Unsupported {
+        message: "estimated-slope CUPED requires a declared pre-assignment covariate",
+    })?;
+    let values = match data.column(covariate).map_err(CausalError::from)? {
+        antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "estimated-slope CUPED pre-assignment covariate must be continuous",
+            });
+        }
+    };
+    if values.len() != outcomes.len() || values.iter().any(|x| !x.is_finite()) {
+        return Err(CausalError::Unsupported {
+            message: "estimated-slope CUPED requires a complete finite pre-assignment covariate",
+        });
+    }
+    let fit = antecedent_estimate::randomized_scores::estimated_cuped_contrast(
+        outcomes,
+        values,
+        &query.realized_assignment,
+        &query.assignment_probabilities,
+    )
+    .map_err(|message| CausalError::Unsupported { message })?;
+    Ok(TrialFit::point(
+        fit.effect,
+        fit.standard_error * fit.standard_error,
+        fit.control_support,
+        fit.treated_support,
+    )
+    .with_interval(fit.interval_95, fit.standard_error))
 }
 
 fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
@@ -882,16 +940,17 @@ fn binomial_within(n: usize, k: usize, limit: u128) -> Option<u128> {
 /// Whether the Fisher test of `query` enumerates every fixed-count allocation, so its p-value is
 /// exact, rather than sampling them (a Monte Carlo permutation p-value).
 pub(super) fn randomization_test_is_exhaustive(query: &RandomizedEffectQuery) -> bool {
-    matches!(
-        &query.design,
-        RandomizationDesign::Complete { treated_units }
-            if binomial_within(
-                query.realized_assignment.len(),
-                *treated_units,
-                EXHAUSTIVE_ALLOCATION_LIMIT,
-            )
-            .is_some()
-    )
+    match &query.design {
+        RandomizationDesign::Complete { treated_units } => binomial_within(
+            query.realized_assignment.len(),
+            *treated_units,
+            EXHAUSTIVE_ALLOCATION_LIMIT,
+        )
+        .is_some(),
+        // A Bernoulli design is only tested when every assignment can be enumerated.
+        RandomizationDesign::Bernoulli => true,
+        _ => false,
+    }
 }
 
 /// Two-sided Fisher sharp-null p-value of the complete design and the number of allocations it
@@ -909,8 +968,19 @@ pub(super) fn exact_randomization_test(
     outcomes: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<(f64, u64), CausalError> {
+    if matches!(query.design, RandomizationDesign::Bernoulli) {
+        // Probability-weighted enumeration of every Bernoulli assignment: the kernel the
+        // direct Python test runs, on the declared per-row probabilities.
+        let test = antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(
+            outcomes,
+            &query.realized_assignment,
+            &query.assignment_probabilities,
+        )
+        .map_err(|message| CausalError::Unsupported { message })?;
+        return Ok((test.p_value, u64::try_from(test.allocations).unwrap_or(u64::MAX)));
+    }
     let RandomizationDesign::Complete { treated_units } = &query.design else {
-        unreachable!("validated exact test requires complete randomization")
+        unreachable!("validated exact test requires complete or Bernoulli randomization")
     };
     fisher_p_value(outcomes, *treated_units, &query.realized_assignment, ctx)
 }

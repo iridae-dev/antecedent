@@ -452,6 +452,8 @@ pub enum EstimatorId {
     ContinuousDoseKernel,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
+    /// Bernoulli ITT residualized by the pooled slope of a declared pre-assignment covariate.
+    RandomizedEstimatedCupedHt,
     /// Complete cluster-randomized ITT over cluster totals adjusted by a fixed pre-assignment covariate.
     RandomizedClusterFixedCuped,
     /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
@@ -1120,6 +1122,13 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.randomized.fixed_cuped_ht_itt",
             ),
         },
+        EstimatorId::RandomizedEstimatedCupedHt => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.estimated_cuped_ht_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.estimated_cuped_ht_itt",
+            provenance: same_step("estimate.randomized.estimated_cuped_ht_itt"),
+        },
         EstimatorId::RandomizedClusterFixedCuped => EstimatorData {
             compatible: RANDOMIZED,
             name: "randomized.cluster_fixed_cuped_itt",
@@ -1765,6 +1774,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::LocalRatio => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
+        | EstimatorId::RandomizedEstimatedCupedHt
         | EstimatorId::RandomizedClusterFixedCuped
         | EstimatorId::RandomizedAncova
         | EstimatorId::RandomizedWaldCace

@@ -318,6 +318,7 @@ _EXPECTED_STAGE_ALL = {
         "ComplierEffect",
         "ComplierEffectEstimate",
         "CUPEDEstimate",
+        "EstimatedCUPED",
         "ExperimentDesign",
         "FactorialRandomization",
         "FixedCUPED",

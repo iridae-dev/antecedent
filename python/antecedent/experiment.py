@@ -23,6 +23,7 @@ from typing import Literal
 
 import numpy as np
 
+from . import _deprecation
 from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved, scalar_or_values
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
@@ -277,6 +278,10 @@ class SwitchbackEffect:
 
     def estimate(self, data: object) -> SwitchbackEstimate:
         """Estimate marginal period ITT with sequence-clustered uncertainty."""
+        _deprecation.direct_path_deprecated(
+            "antecedent.experiment.SwitchbackEffect.estimate",
+            "antecedent.analyze(data, query=SwitchbackEffect(outcome, design))",
+        )
         from ._data import as_columns
 
         names, columns = as_columns(data)
@@ -557,6 +562,24 @@ class FixedCUPED:
             raise CausalValueError("fixed CUPED coefficient must be finite")
 
 
+@dataclass(frozen=True, slots=True)
+class EstimatedCUPED:
+    """Pre-assignment covariate whose pooled outcome slope is estimated from this trial's rows.
+
+    The adjusted contrast residualizes the outcome by the slope of the outcome on the centred
+    covariate, estimated over both arms, then takes the Horvitz-Thompson contrast of the
+    residuals. The standard error treats the slope as fixed, so the uncertainty of its estimation
+    is not propagated. Bernoulli assignment only: a slope learned from the rows is not
+    exchangeable the way a coefficient fixed outside the trial is (:class:`FixedCUPED`).
+    """
+
+    covariate: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.covariate, str) or not self.covariate.strip():
+            raise CausalValueError("CUPED covariate must be a non-empty column name")
+
+
 def _check_sampling_weights_design(query: RandomizedEffect) -> None:
     """Sampling weights are read by unadjusted Bernoulli and complete randomization of units."""
     if isinstance(query.weights, str) and not query.weights.strip():
@@ -564,6 +587,7 @@ def _check_sampling_weights_design(query: RandomizedEffect) -> None:
     unsupported = (
         isinstance(query.design, MultiArmExperimentDesign)
         or query.cuped is not None
+        or query.estimated_cuped is not None
         or bool(query.ancova_covariates)
         or query.exact_randomization_test
         or not isinstance(query.design.assignment, (BernoulliAssignment, CompleteRandomization))
@@ -592,6 +616,11 @@ class RandomizedEffect:
     rows (``ancova_covariates``) is Bernoulli-only. Each adjusted route has its own graphless
     support row; neither inherits the unadjusted design's support.
 
+    ``estimated_cuped=EstimatedCUPED(...)`` adjusts a Bernoulli design by the pooled slope of a
+    pre-assignment covariate estimated from the rows themselves (same-sample CUPED). It is the
+    compiled route of :func:`estimate_cuped_effect` and returns the same effect and standard
+    error, with a pointwise 95% interval where the Bernoulli score interval is supported.
+
     ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
     unadjusted Bernoulli or completely randomized design. The estimate is then the
     intention-to-treat effect in the weighted population: the difference of the arms' Hajek
@@ -607,6 +636,7 @@ class RandomizedEffect:
     design: ExperimentDesign | MultiArmExperimentDesign
     _: KW_ONLY
     cuped: FixedCUPED | None = None
+    estimated_cuped: EstimatedCUPED | None = None
     ancova_covariates: tuple[str, ...] = ()
     exact_randomization_test: bool = False
     weights: str | Sequence[float] | None = None
@@ -624,11 +654,32 @@ class RandomizedEffect:
         # this query with the design resolved against the data.
         deferred = getattr(self.design, "_deferred_columns", False)
         if isinstance(self.design, MultiArmExperimentDesign):
-            if self.cuped is not None or self.ancova_covariates or self.exact_randomization_test:
+            if (
+                self.cuped is not None
+                or self.estimated_cuped is not None
+                or self.ancova_covariates
+                or self.exact_randomization_test
+            ):
                 raise CausalValueError(
                     "multi-arm contrasts do not combine with CUPED, ANCOVA, or exact Fisher inference"
                 )
             return
+        if self.estimated_cuped is not None:
+            if (
+                not isinstance(self.estimated_cuped, EstimatedCUPED)
+                or self.estimated_cuped.covariate == self.outcome
+            ):
+                raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
+            if (
+                self.cuped is not None
+                or self.ancova_covariates
+                or self.exact_randomization_test
+                or not isinstance(self.design.assignment, BernoulliAssignment)
+            ):
+                raise CausalValueError(
+                    "estimated-slope CUPED requires Bernoulli assignment and cannot combine with "
+                    "fixed CUPED, ANCOVA, or exact randomization inference"
+                )
         if self.cuped is not None:
             if not isinstance(self.cuped, FixedCUPED) or self.cuped.covariate == self.outcome:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
@@ -671,10 +722,11 @@ class RandomizedEffect:
             type(self.exact_randomization_test) is not bool
             or self.cuped is not None
             or self.ancova_covariates
-            or not isinstance(self.design.assignment, CompleteRandomization)
+            or not isinstance(self.design.assignment, (CompleteRandomization, BernoulliAssignment))
         ):
             raise CausalValueError(
-                "randomization inference requires an unadjusted complete two-arm design"
+                "randomization inference requires an unadjusted complete two-arm design, "
+                "or an unadjusted Bernoulli design of at most twenty rows"
             )
 
     def to_interference_query(self) -> InterferenceQuery:
@@ -725,9 +777,9 @@ class RandomizedEffect:
                 "factorial contrasts require analyze or prepare to retain all three estimands and their variance contracts",
                 reason_code="route_not_supported",
             )
-        if self.cuped is not None:
+        if self.cuped is not None or self.estimated_cuped is not None:
             raise CausalUnsupportedError(
-                "fixed CUPED is available through analyze or prepare; the direct estimator does not retain its coefficient",
+                "CUPED is available through analyze or prepare; the direct estimator does not retain its adjustment",
                 reason_code="route_not_supported",
             )
 
@@ -747,6 +799,10 @@ class RandomizedEffect:
             names, columns = as_columns(data)
             if self.outcome not in names:
                 raise CausalValueError(f"outcome column {self.outcome!r} is missing from data")
+            _deprecation.direct_path_deprecated(
+                "antecedent.experiment.RandomizedEffect.estimate (stratified design)",
+                "antecedent.analyze(data, query=RandomizedEffect(outcome, design))",
+            )
             estimated_raw = _estimate_stratified_effect(
                 np.asarray(columns[names.index(self.outcome)], dtype=np.float64),
                 list(realized),
@@ -982,6 +1038,11 @@ def estimate_cuped_effect(
     propensity: float | Sequence[float],
 ) -> CUPEDEstimate:
     """Estimate a precision-adjusted Bernoulli ITT using one CUPED covariate."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.experiment.estimate_cuped_effect",
+        "antecedent.analyze(data, query=RandomizedEffect(outcome, design, "
+        "estimated_cuped=EstimatedCUPED(covariate)))",
+    )
     y = np.asarray(outcomes, dtype=np.float64)
     x = np.asarray(covariate, dtype=np.float64)
     if y.ndim != 1 or y.size < 2 or x.shape != y.shape:
@@ -1034,6 +1095,11 @@ def estimate_ancova_effect(
     Bernoulli propensity and does not produce a confidence interval or a
     support-matrix support.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.experiment.estimate_ancova_effect",
+        "antecedent.analyze(data, query=RandomizedEffect(outcome, design, "
+        "ancova_covariates=covariates))",
+    )
     from ._data import as_columns
 
     if not isinstance(design, ExperimentDesign) or not isinstance(
@@ -1116,6 +1182,11 @@ def exact_randomization_test(
     test of the sharp no-effect null, not a confidence interval or a weak-null
     test, and it does not create a supported support coordinate.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.experiment.exact_randomization_test",
+        "antecedent.analyze(data, query=RandomizedEffect(outcome, design, "
+        "exact_randomization_test=True))",
+    )
     y = np.asarray(outcomes, dtype=np.float64)
     if y.ndim != 1 or y.size == 0 or y.size > 20 or not np.isfinite(y).all():
         raise CausalValueError("outcomes must be finite with 1 to 20 assignment units")
@@ -1172,6 +1243,7 @@ __all__ = [
     "ComplierEffectEstimate",
     "TreatmentOnTreated",
     "CUPEDEstimate",
+    "EstimatedCUPED",
     "FixedCUPED",
     "FactorialRandomization",
     "ExperimentDesign",

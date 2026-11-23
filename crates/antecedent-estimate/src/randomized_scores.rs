@@ -315,6 +315,67 @@ pub fn cuped_ht_effect(
     Ok(CupedHtEffect { effect, beta, standard_error: variance.sqrt() })
 }
 
+/// Same-sample CUPED effect with its standard error and the support-gated pointwise interval.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EstimatedCupedContrast {
+    /// Contrast of the residualized outcome, exactly [`CupedHtEffect::effect`].
+    pub effect: f64,
+    /// Pooled outcome-on-covariate slope, exactly [`CupedHtEffect::beta`].
+    pub beta: f64,
+    /// Independent-row score standard error, exactly [`CupedHtEffect::standard_error`].
+    pub standard_error: f64,
+    /// Pointwise normal interval around the effect, present when the two-action support
+    /// conditions of [`independent_action_contrast`] hold and the standard error is positive.
+    pub interval_95: Option<[f64; 2]>,
+    /// Rows assigned to the control arm.
+    pub control_support: usize,
+    /// Rows assigned to the treated arm.
+    pub treated_support: usize,
+}
+
+/// [`cuped_ht_effect`] with the arm-support gate of the independent Bernoulli interval.
+///
+/// The point estimate and standard error are the values `cuped_ht_effect` returns, bit for
+/// bit. The interval is the normal interval of that standard error, published only where the
+/// unadjusted Horvitz–Thompson contrast of the same assignment would publish one (30 observed
+/// and 40 expected rows per arm, probabilities of at least 0.2), because the support
+/// conditions concern the design and not the outcome.
+pub fn estimated_cuped_contrast(
+    outcome: &[f64],
+    covariate: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+) -> Result<EstimatedCupedContrast, &'static str> {
+    let fit = cuped_ht_effect(outcome, covariate, assignment, propensity)?;
+    let n = outcome.len();
+    let assignments = assignment.iter().map(|assigned| usize::from(*assigned)).collect::<Vec<_>>();
+    let probabilities = (0..n)
+        .map(|i| {
+            let p = propensity[if propensity.len() == 1 { 0 } else { i }];
+            vec![1.0 - p, p]
+        })
+        .collect::<Vec<_>>();
+    let gate = independent_action_contrast(outcome, &assignments, &probabilities, 0, 1);
+    let supported = gate.is_some_and(|contrast| contrast.interval_95.is_some());
+    let interval_95 = (supported
+        && fit.effect.is_finite()
+        && fit.standard_error.is_finite()
+        && fit.standard_error > 0.0)
+        .then(|| {
+            let radius = NORMAL_95 * fit.standard_error;
+            [fit.effect - radius, fit.effect + radius]
+        });
+    let treated_support = assignment.iter().filter(|assigned| **assigned).count();
+    Ok(EstimatedCupedContrast {
+        effect: fit.effect,
+        beta: fit.beta,
+        standard_error: fit.standard_error,
+        interval_95,
+        control_support: n - treated_support,
+        treated_support,
+    })
+}
+
 /// Sharp-null Bernoulli randomization test of a Horvitz–Thompson contrast.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BernoulliExactTest {
