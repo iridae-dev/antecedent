@@ -13,3 +13,7 @@ mod preference_contract;
 mod preference_model;
 #[path = "preference_model_reference.rs"]
 mod preference_model_reference;
+#[path = "preference_set_learning.rs"]
+mod preference_set_learning;
+#[path = "preference_set_learning_reference.rs"]
+mod preference_set_learning_reference;

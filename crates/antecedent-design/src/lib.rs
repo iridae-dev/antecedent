@@ -47,6 +47,7 @@ mod plan_common;
 pub mod planning;
 pub mod preference_contract;
 pub mod preference_model;
+pub mod preference_set_learning;
 pub mod preposterior;
 pub mod prior_signal;
 pub mod program_search;
