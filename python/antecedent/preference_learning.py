@@ -35,11 +35,18 @@ What each result is and is not:
 * A compatible set is an assumption range: the declared ranges cut by the relation each choice
   implies (the chosen option was valued at least as highly, within a tolerance). It is not a
   probability statement. Contradictory records are reported with the tolerance that would
-  reconcile them, never silently dropped.
+  reconcile them, never silently dropped. When the value is not linear in some trade-offs (a
+  risk attitude inside ``exp``, a breakpoint inside a kink) the set is found by subdividing those
+  shape parameters: its ranges are outer ranges (``basis="enclosure"``), the kept boxes are in
+  ``LearnedSet.region``, and when neither compatibility nor contradiction can be proven within
+  the box budget the outcome is :class:`Undetermined`.
 * A choice-model estimate reads each choice as noisy (logit). Its intervals come from a normal
   approximation whose calibration status is resolved from the shipped coverage table
   (``not_measured`` until a coverage record exists), and its measure over the trade-offs is
-  draws from that approximation, not a posterior.
+  draws from that approximation, not a posterior. Shape parameters are estimated by profiling
+  the likelihood over their declared ranges; they carry profile likelihood-ratio intervals, and
+  a shape parameter the choices barely inform, or whose estimate sits on a declared bound, is
+  refused rather than reported.
 * An option that existed but could not be chosen (``Option(..., unavailable=constraint_id)``)
   teaches nothing about preferences.
 * Pooling several decision-makers into one set of preferences is itself a named assumption
@@ -360,13 +367,66 @@ def _records(records: Records) -> Records:
 class ParameterRange:
     """One parameter's range before (``declared``) and after (``learned``) the records.
 
-    An assumption range, not a probability statement."""
+    An assumption range, not a probability statement. ``basis`` is ``linear_program`` (the exact
+    smallest and largest admissible value) or ``enclosure`` (an outer range under a value with
+    shape parameters: it holds every admissible value and possibly more)."""
 
     parameter: str
     declared: tuple[float, float]
     learned: tuple[float, float]
     varied: bool
     narrowed: bool
+    basis: Literal["linear_program", "enclosure"] = "linear_program"
+
+
+@dataclass(frozen=True, slots=True)
+class RegionCell:
+    """One kept box of shape-parameter values.
+
+    ``status`` is ``inside`` (every shape value of the box admits trade-offs compatible with every
+    record) or ``boundary`` (neither proven inside nor proven outside). ``linear`` is the outer
+    range of each remaining trade-off over the box."""
+
+    shape: Mapping[str, tuple[float, float]]
+    status: Literal["inside", "boundary"]
+    linear: Mapping[str, tuple[float, float]]
+
+
+@dataclass(frozen=True, slots=True)
+class Region:
+    """The shape-parameter boxes that cover a compatible set (or that were left undecided)."""
+
+    shape_parameters: tuple[str, ...]
+    linear_parameters: tuple[str, ...]
+    cells: tuple[RegionCell, ...]
+    boxes_used: int
+    budget_exhausted: bool
+
+
+def _region(wire: Mapping[str, Any] | None, names: Sequence[str]) -> Region | None:
+    if wire is None:
+        return None
+    shape = tuple(names[i] for i in wire["shape_parameters"])
+    linear = tuple(names[i] for i in wire["linear_parameters"])
+    cells = tuple(
+        RegionCell(
+            MappingProxyType(
+                {
+                    name: (float(lo), float(hi))
+                    for name, lo, hi in zip(shape, c["shape_lower"], c["shape_upper"], strict=True)
+                }
+            ),
+            c["status"],
+            MappingProxyType(
+                {
+                    name: (float(pair[0]), float(pair[1]))
+                    for name, pair in zip(linear, c["linear_outer"], strict=True)
+                }
+            ),
+        )
+        for c in wire["cells"]
+    )
+    return Region(shape, linear, cells, int(wire["boxes_used"]), bool(wire["budget_exhausted"]))
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +444,7 @@ class LearnedSet:
     assumptions: tuple[str, ...]
     model_identity: str
     records_digest: str
+    region: Region | None = None
 
     def range(self, parameter: str) -> tuple[float, float]:
         """The learned range of one parameter."""
@@ -396,19 +457,52 @@ class LearnedSet:
 @dataclass(frozen=True, slots=True)
 class Conflict:
     """Records that cannot all hold under the declared model: a smallest (or irreducible) set of
-    them, and the smallest tolerance at which every one becomes compatible."""
+    them, and the smallest tolerance at which every one becomes compatible.
+
+    Under a value with shape parameters the conflict is proven by subdivision; ``kind`` is
+    ``not_minimised`` when it could not be proven that fewer of these records are compatible, and
+    ``tolerance_needed`` is a tolerance at which the records are compatible at the best shape
+    value examined."""
 
     decider: str | None
     records: tuple[str, ...]
-    kind: Literal["smallest", "irreducible"]
+    kind: Literal["smallest", "irreducible", "not_minimised"]
     tolerance_needed: float
 
 
-def _set_outcome(wire: Mapping[str, Any], decider: str | None) -> LearnedSet | Conflict:
+@dataclass(frozen=True, slots=True)
+class Undetermined:
+    """Records whose compatibility with the declared model is proven neither way: no box of
+    shape values was proven compatible and not every box was proven incompatible before the
+    subdivision stopped. ``region`` holds the undecided boxes; a larger box budget or a smaller
+    minimum width may settle it."""
+
+    decider: str | None
+    n_records: int
+    tolerance: float
+    region: Region | None
+    model_identity: str
+    records_digest: str
+
+
+def _set_outcome(
+    wire: Mapping[str, Any], decider: str | None, names: Sequence[str] = ()
+) -> LearnedSet | Conflict | Undetermined:
     if wire["kind"] == "contradictory":
         c = wire["conflict"]
         return Conflict(decider, tuple(c["records"]), c["kind"], float(c["tolerance_needed"]))
+    if wire["kind"] == "undetermined":
+        u = wire["undetermined"]
+        return Undetermined(
+            decider=u.get("decider"),
+            n_records=int(u["n_records"]),
+            tolerance=float(u["tolerance"]),
+            region=_region(u["region"], names) if names else None,
+            model_identity=u["model_identity"],
+            records_digest=u["records_digest"],
+        )
     learned = wire["learned"]
+    names = [r["parameter_id"] for r in learned["ranges"]]
     return LearnedSet(
         decider=learned.get("decider"),
         ranges=tuple(
@@ -418,6 +512,7 @@ def _set_outcome(wire: Mapping[str, Any], decider: str | None) -> LearnedSet | C
                 (float(r["learned"][0]), float(r["learned"][1])),
                 bool(r["varied_in_records"]),
                 bool(r["narrowed"]),
+                r.get("basis", "linear_program"),
             )
             for r in learned["ranges"]
         ),
@@ -427,24 +522,29 @@ def _set_outcome(wire: Mapping[str, Any], decider: str | None) -> LearnedSet | C
         assumptions=tuple(learned["assumptions"]),
         model_identity=learned["model_identity"],
         records_digest=learned["records_digest"],
+        region=_region(learned.get("region"), names),
     )
 
 
 class CompatibleSetResult(ScientificResult):
     """The compatible set for the pooled records and for each decider, and every conflict."""
 
-    def __init__(self, body: Mapping[str, Any]) -> None:
+    def __init__(self, body: Mapping[str, Any], parameter_ids: Sequence[str] = ()) -> None:
         self._body = body
+        names = tuple(parameter_ids)
         pooled = body.get("pooled")
-        self.pooled: LearnedSet | Conflict | None = (
-            None if pooled is None else _set_outcome(pooled, None)
+        self.pooled: LearnedSet | Conflict | Undetermined | None = (
+            None if pooled is None else _set_outcome(pooled, None, names)
         )
-        self.per_decider: Mapping[str, LearnedSet | Conflict] = MappingProxyType(
-            {d["decider"]: _set_outcome(d["outcome"], d["decider"]) for d in body["per_decider"]}
+        self.per_decider: Mapping[str, LearnedSet | Conflict | Undetermined] = MappingProxyType(
+            {
+                d["decider"]: _set_outcome(d["outcome"], d["decider"], names)
+                for d in body["per_decider"]
+            }
         )
         overlap = body.get("overlap")
-        self.common: LearnedSet | Conflict | None = (
-            None if overlap is None else _set_outcome(overlap["common"], None)
+        self.common: LearnedSet | Conflict | Undetermined | None = (
+            None if overlap is None else _set_outcome(overlap["common"], None, names)
         )
         self.disagreeing: tuple[str, ...] = () if overlap is None else tuple(overlap["disagreeing"])
 
@@ -453,6 +553,12 @@ class CompatibleSetResult(ScientificResult):
         """Every contradictory outcome, pooled first."""
         found = [self.pooled, *self.per_decider.values(), self.common]
         return tuple(item for item in found if isinstance(item, Conflict))
+
+    @property
+    def undetermined(self) -> tuple[Undetermined, ...]:
+        """Every outcome proven neither compatible nor contradictory, pooled first."""
+        found = [self.pooled, *self.per_decider.values(), self.common]
+        return tuple(item for item in found if isinstance(item, Undetermined))
 
     def to_dict(self) -> dict[str, Any]:
         return dict(json.loads(json.dumps(self._body)))
@@ -471,15 +577,24 @@ class CompatibleSet:
     Assumption: each chosen option was valued at least as highly as every available rejected
     option, within ``tolerance`` utility units, under the declared model and the recorded
     expectations. ``conflict_search_size`` bounds the exhaustive search for a smallest conflict.
+    Under a value with shape parameters, ``max_boxes`` bounds the boxes of shape values examined
+    and ``min_width_fraction`` stops splitting a box once every shape parameter's width is at most
+    that fraction of its declared range.
     """
 
     tolerance: float = 0.0
     conflict_search_size: int | None = None
+    max_boxes: int | None = None
+    min_width_fraction: float | None = None
 
     def _options(self) -> str:
         wire: dict[str, Any] = {"tolerance": real(self.tolerance, "tolerance")}
         if self.conflict_search_size is not None:
             wire["conflict_search_size"] = int(self.conflict_search_size)
+        if self.max_boxes is not None:
+            wire["max_boxes"] = int(self.max_boxes)
+        if self.min_width_fraction is not None:
+            wire["min_width_fraction"] = real(self.min_width_fraction, "min_width_fraction")
         return json.dumps(wire)
 
     @outcome_operation
@@ -496,7 +611,7 @@ class CompatibleSet:
         )
         _raise(refusal)
         assert body is not None
-        return CompatibleSetResult(json.loads(body))
+        return CompatibleSetResult(json.loads(body), [p["id"] for p in wire["parameters"]])
 
     def accept(
         self,
@@ -529,8 +644,9 @@ class CompatibleSet:
 class ParameterEstimate:
     """One trade-off's point estimate and interval.
 
-    The interval comes from a normal approximation; its calibration status is the estimate's
-    ``interval_calibration``.
+    The interval comes from a normal approximation (``interval_method="wald"``) or, for a shape
+    parameter, from the profile likelihood ratio (``"profile_likelihood"``); its calibration
+    status is the estimate's ``interval_calibration``.
     ``inside_declared`` says whether the point estimate lies in the declared range."""
 
     parameter: str
@@ -539,6 +655,7 @@ class ParameterEstimate:
     interval: tuple[float, float]
     declared: tuple[float, float]
     inside_declared: bool
+    interval_method: Literal["wald", "profile_likelihood"] = "wald"
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -567,6 +684,7 @@ class ChoiceEstimate:
     measure: Measure
     share_outside_declared: float
     assumptions: tuple[str, ...]
+    shape_parameters: tuple[str, ...] = ()
 
 
 def _estimate(wire: Mapping[str, Any], parameter_ids: Sequence[str]) -> ChoiceEstimate:
@@ -583,6 +701,7 @@ def _estimate(wire: Mapping[str, Any], parameter_ids: Sequence[str]) -> ChoiceEs
                 (float(p["interval"][0]), float(p["interval"][1])),
                 (float(p["declared"][0]), float(p["declared"][1])),
                 bool(p["inside_declared"]),
+                p.get("interval_method", "wald"),
             )
             for p in wire["parameters"]
         ),
@@ -597,6 +716,7 @@ def _estimate(wire: Mapping[str, Any], parameter_ids: Sequence[str]) -> ChoiceEs
         measure=Measure._from_wire(wire["measure"], parameter_ids),
         share_outside_declared=float(wire["share_outside_declared"]),
         assumptions=tuple(wire["assumptions"]),
+        shape_parameters=tuple(wire.get("shape_parameters", ())),
     )
 
 
@@ -628,23 +748,50 @@ class ChoiceModelResult(ScientificResult):
 
 
 @dataclass(frozen=True, slots=True)
+class ShapeSearch:
+    """How the shape parameters of a value are searched when estimating from noisy choices.
+
+    ``grid_points`` profile evaluations seed the search (the box centre, then a Sobol sequence),
+    ``max_dimensions`` caps the number of shape parameters searched, ``profile_points`` sets the
+    grid each shape parameter's profile is checked on, and ``max_refinements`` bounds each local
+    refinement."""
+
+    grid_points: int = 64
+    max_dimensions: int = 3
+    profile_points: int = 33
+    max_refinements: int = 200
+
+
+@dataclass(frozen=True, slots=True)
 class ChoiceModel:
     """Estimate the trade-offs from choices read as noisy.
 
     ``level`` is the two-sided level of each interval (calibration from the shipped coverage
     table), ``draws`` the
     number of draws in the estimate's measure, ``seed`` their generator seed. Records holding
-    both stated comparisons and recorded choices in one fit are refused.
+    both stated comparisons and recorded choices in one fit are refused. ``shape_search``
+    controls the search over shape parameters, when the value has any.
     """
 
     level: float = 0.95
     draws: int = 2000
     seed: int = 0
+    shape_search: ShapeSearch | None = None
 
     def _options(self) -> str:
-        return json.dumps(
-            {"level": real(self.level, "level"), "n_draws": int(self.draws), "seed": int(self.seed)}
-        )
+        wire: dict[str, Any] = {
+            "level": real(self.level, "level"),
+            "n_draws": int(self.draws),
+            "seed": int(self.seed),
+        }
+        if self.shape_search is not None:
+            if not isinstance(self.shape_search, ShapeSearch):
+                raise CausalTypeError("shape_search= is a ShapeSearch")
+            wire["shape_grid_points"] = int(self.shape_search.grid_points)
+            wire["shape_max_dimensions"] = int(self.shape_search.max_dimensions)
+            wire["shape_profile_points"] = int(self.shape_search.profile_points)
+            wire["shape_max_refinements"] = int(self.shape_search.max_refinements)
+        return json.dumps(wire)
 
     @outcome_operation
     def learn(
@@ -853,9 +1000,22 @@ class AcceptedPreferences:
                     "or using=ChoiceModel(...)"
                 )
             if learning["kind"] == "compatible_set":
-                using = CompatibleSet(learning["tolerance"], learning["conflict_search_size"])
+                using = CompatibleSet(
+                    learning["tolerance"],
+                    learning["conflict_search_size"],
+                    learning.get("max_boxes"),
+                    learning.get("min_width_fraction"),
+                )
             else:
-                using = ChoiceModel(learning["level"], learning["n_draws"], learning["seed"])
+                search = ShapeSearch(
+                    learning.get("shape_grid_points", 64),
+                    learning.get("shape_max_dimensions", 3),
+                    learning.get("shape_profile_points", 33),
+                    learning.get("shape_max_refinements", 200),
+                )
+                using = ChoiceModel(
+                    learning["level"], learning["n_draws"], learning["seed"], search
+                )
         wire = _records(records)._wire(self._summary["declared_model"])
         if isinstance(using, CompatibleSet):
             native, refusal = self._native.relearn_compatible_set(
@@ -963,7 +1123,11 @@ __all__ = [
     "Realized",
     "Record",
     "Records",
+    "Region",
+    "RegionCell",
     "ReviewItem",
+    "ShapeSearch",
     "Stated",
+    "Undetermined",
     "load",
 ]

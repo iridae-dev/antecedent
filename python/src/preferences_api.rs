@@ -14,22 +14,23 @@ mod learning;
 use antecedent::analysis::inverse_query::{AtomEvidence, DistributionArtifact, MeanSource};
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
-    ActionInput, ActionKind, Attribute, CertifiedPreferenceResult, CertifiedVerdict,
+    ActionInput, ActionKind, Attribute, BeliefRows, CertifiedPreferenceResult, CertifiedVerdict,
     DecisionCriterion, HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction,
     PreferenceContract, PreferenceDecisionArtifact, PreferenceDecisionResult, PreferenceEvaluation,
     PreferenceEvaluationOptions, PreferenceExpr, PreferenceMeasure, PreferenceParameter,
     PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict, RegionStatus,
     RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
     StructuralPreferenceEvaluation, StructuralPreferenceResult, StructuralPreferenceVerdict,
-    ValueModel, analysis_options, chain_joint_law, decide_across_structures_with_context,
-    decide_preferences_on_means_with_context, decide_preferences_with_context,
-    experiment_arm_quantity, experiment_mean_source, joint_law_of, preference_route,
-    source_requirement,
+    ValueModel, ValueRelation, analysis_options, chain_joint_law,
+    decide_across_structures_with_context, decide_preferences_on_means_with_context,
+    decide_preferences_with_context, experiment_arm_quantity, experiment_mean_source, joint_law_of,
+    preference_route, source_requirement,
 };
 use antecedent::analysis::preference_decision::{
-    CompiledPreferenceDecision, CompiledPreferenceEvaluation, CompiledStructure,
-    CrossStudyCovariance, OutcomeDependence, PreferenceDecisionExecution, PreferenceJointLaw,
-    PreferenceRouteError, StructureIdentification,
+    ClassSampling, ClassSize, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
+    CompiledStructure, CrossStudyCovariance, MassEstimate, OutcomeDependence,
+    PreferenceDecisionExecution, PreferenceJointLaw, PreferenceRouteError,
+    SampledStructuralEvaluation, SampledStructuralVerdict, StructureIdentification,
     compile_preference_decision_across_prepared_studies,
 };
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
@@ -240,8 +241,73 @@ struct ModelWire {
     attributes: Vec<AttributeWire>,
     parameters: Vec<ParameterWire>,
     relations: Vec<RelationWire>,
+    /// Recorded choices under a value with shape parameters: a learned set holds them, and a
+    /// decision on it must read them rather than the declared box.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    value_relations: Vec<ValueRelationWire>,
     value: ExprWire,
     utility_units: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BeliefRowsWire {
+    rows: Vec<f64>,
+    weights: Vec<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValueRelationWire {
+    id: String,
+    origin: RelationOriginWire,
+    chosen: BeliefRowsWire,
+    rejected: BeliefRowsWire,
+    tolerance: f64,
+}
+
+fn origin_from(w: RelationOriginWire) -> RelationOrigin {
+    match w {
+        RelationOriginWire::Declared => RelationOrigin::Declared,
+        RelationOriginWire::ShapeRule => RelationOrigin::ShapeRule,
+        RelationOriginWire::Choice { record_id, rejected_option } => {
+            RelationOrigin::Choice { record_id, rejected_option }
+        }
+    }
+}
+
+fn origin_to(o: &RelationOrigin) -> RelationOriginWire {
+    match o {
+        RelationOrigin::Declared => RelationOriginWire::Declared,
+        RelationOrigin::ShapeRule => RelationOriginWire::ShapeRule,
+        RelationOrigin::Choice { record_id, rejected_option } => RelationOriginWire::Choice {
+            record_id: record_id.clone(),
+            rejected_option: rejected_option.clone(),
+        },
+    }
+}
+
+fn value_relation_from(w: ValueRelationWire) -> ValueRelation {
+    ValueRelation {
+        id: w.id,
+        origin: origin_from(w.origin),
+        chosen: BeliefRows { rows: w.chosen.rows, weights: w.chosen.weights },
+        rejected: BeliefRows { rows: w.rejected.rows, weights: w.rejected.weights },
+        tolerance: w.tolerance,
+    }
+}
+
+fn value_relation_to(r: &ValueRelation) -> ValueRelationWire {
+    ValueRelationWire {
+        id: r.id.clone(),
+        origin: origin_to(&r.origin),
+        chosen: BeliefRowsWire { rows: r.chosen.rows.clone(), weights: r.chosen.weights.clone() },
+        rejected: BeliefRowsWire {
+            rows: r.rejected.rows.clone(),
+            weights: r.rejected.weights.clone(),
+        },
+        tolerance: r.tolerance,
+    }
 }
 
 fn attribute_from(w: AttributeWire) -> Attribute {
@@ -272,13 +338,7 @@ fn relation_from(w: RelationWire) -> LinearRelation {
             SenseWire::Equal => RelationSense::Equal,
         },
         bound: w.bound,
-        origin: match w.origin {
-            RelationOriginWire::Declared => RelationOrigin::Declared,
-            RelationOriginWire::ShapeRule => RelationOrigin::ShapeRule,
-            RelationOriginWire::Choice { record_id, rejected_option } => {
-                RelationOrigin::Choice { record_id, rejected_option }
-            }
-        },
+        origin: origin_from(w.origin),
     }
 }
 
@@ -292,14 +352,7 @@ fn relation_to(r: &LinearRelation) -> RelationWire {
             RelationSense::Equal => SenseWire::Equal,
         },
         bound: r.bound,
-        origin: match &r.origin {
-            RelationOrigin::Declared => RelationOriginWire::Declared,
-            RelationOrigin::ShapeRule => RelationOriginWire::ShapeRule,
-            RelationOrigin::Choice { record_id, rejected_option } => RelationOriginWire::Choice {
-                record_id: record_id.clone(),
-                rejected_option: rejected_option.clone(),
-            },
-        },
+        origin: origin_to(&r.origin),
     }
 }
 
@@ -319,6 +372,7 @@ fn model_from(w: ModelWire) -> ValueModel {
                 })
                 .collect(),
             relations: w.relations.into_iter().map(relation_from).collect(),
+            value_relations: w.value_relations.into_iter().map(value_relation_from).collect(),
         },
         value: w.value.into(),
         utility_units: w.utility_units,
@@ -330,6 +384,7 @@ fn model_to(m: &ValueModel) -> ModelWire {
         attributes: m.attributes.iter().map(attribute_to).collect(),
         parameters: m.preferences.parameters.iter().map(parameter_to).collect(),
         relations: m.preferences.relations.iter().map(relation_to).collect(),
+        value_relations: m.preferences.value_relations.iter().map(value_relation_to).collect(),
         value: ExprWire::from(&m.value),
         utility_units: m.utility_units.clone(),
     }
@@ -1122,6 +1177,19 @@ fn structural_json(
 // ---------------------------------------------------------------------------
 
 /// Validate a value model; returns `{identity, shape_parameters, affine}` or a refusal.
+/// The content identity of a whole table, as a study of that table carries it: the identity
+/// a column projection names as the table its rows came from, so studies of different columns
+/// of one table are judged as sharing its rows.
+#[pyfunction]
+fn table_content_identity(names: Vec<String>, columns: Vec<Bound<'_, PyAny>>) -> PyResult<String> {
+    crate::catch_ffi(|| {
+        let data = crate::tabular_from_py_columns(names, columns)?;
+        Ok(antecedent::analysis::preference_decision::RowProvenance::of_table(&data)
+            .table()
+            .to_owned())
+    })
+}
+
 #[pyfunction]
 fn preference_model_describe(model_json: &str) -> PyResult<Reply> {
     crate::catch_ffi(|| {
@@ -1613,14 +1681,124 @@ fn structure_json(structure: &CompiledStructure) -> Value {
             json!({"kind": "not_identified", "reason": reason})
         }
     };
+    let member = structure.member();
     json!({
         "key": structure.key(),
         "class_key": structure.class_key(),
+        "fingerprint": structure.fingerprint(),
+        "multiplicity": member.map(|m| m.multiplicity),
+        "sampled": member.is_some_and(|m| m.sampling.is_some()),
         "weight": structure.weight(),
         "source": structure.source(),
         "identification": identification,
         "plan_identity": structure.plan_view().map(|view| view.identity().to_hex()),
     })
+}
+
+/// A class size as JSON: exact counts can exceed a JSON number, so they are decimal text.
+fn class_size_json(size: ClassSize) -> Value {
+    match size {
+        ClassSize::Exact(count) => json!({"kind": "exact", "count": count.to_string()}),
+        ClassSize::AtLeast(count) => json!({"kind": "at_least", "count": count.to_string()}),
+    }
+}
+
+fn class_sampling_json(sampling: &ClassSampling) -> Value {
+    json!({
+        "class_key": sampling.class_key,
+        "scheme": sampling.scheme.as_str(),
+        "class_size": class_size_json(sampling.class_size),
+        "drawn": sampling.drawn,
+        "distinct": sampling.distinct,
+        "seed": sampling.seed,
+        "attempts": sampling.attempts,
+        "assumption": sampling.assumption,
+    })
+}
+
+fn mass_estimate_json(estimate: MassEstimate) -> Value {
+    json!({"estimate": estimate.estimate, "lower": estimate.lower, "upper": estimate.upper})
+}
+
+fn sampled_verdict_json(verdict: &SampledStructuralVerdict) -> Value {
+    match verdict {
+        SampledStructuralVerdict::OnSampledMeasure {
+            best_on_sampled_measure: Some(action),
+            ..
+        } => json!({"kind": "best_on_sampled_measure", "action": action}),
+        SampledStructuralVerdict::OnSampledMeasure { candidates, .. } => {
+            json!({"kind": "undetermined_on_sampled_measure", "actions": candidates})
+        }
+        SampledStructuralVerdict::PerSampledMember { best_on_every_sampled_member, other_best } => {
+            let kind = if best_on_every_sampled_member.is_some() {
+                "best_on_every_sampled_member"
+            } else {
+                "per_sampled_member"
+            };
+            let bounds: Vec<Value> = other_best
+                .iter()
+                .map(|bound| {
+                    json!({
+                        "class_key": bound.class_key,
+                        "disagreeing": bound.disagreeing,
+                        "drawn": bound.drawn,
+                        "upper": bound.upper,
+                    })
+                })
+                .collect();
+            json!({"kind": kind, "action": best_on_every_sampled_member, "other_best": bounds})
+        }
+        SampledStructuralVerdict::ReportOnly => json!({"kind": "report_only"}),
+    }
+}
+
+/// A decision on sampled class members: the structural body with the verdict relabelled.
+/// The joint table on the sampled measure keeps its ranges, but no action in it is flagged
+/// best everywhere and its verdict is the sampled one.
+fn sampled_json(evaluation: &SampledStructuralEvaluation, contract: &PreferenceContract) -> Value {
+    let mut body = structural_json(&evaluation.evaluation, contract);
+    let verdict = sampled_verdict_json(&evaluation.verdict);
+    if let Some(combined) = body.get_mut("combined").and_then(Value::as_object_mut) {
+        if let Some(actions) = combined.get_mut("actions").and_then(Value::as_array_mut) {
+            for action in actions.iter_mut().filter_map(Value::as_object_mut) {
+                action.insert("necessarily_best".into(), Value::Null);
+                action.insert("uniquely_best".into(), Value::Null);
+            }
+        }
+        combined.insert("draw_share_best_everywhere".into(), Value::Null);
+        combined.insert("verdict".into(), verdict.clone());
+        combined.insert("statement".into(), json!(evaluation.statement()));
+    }
+    body["structural_verdict"] = verdict;
+    body["statement"] = json!(evaluation.statement());
+    body["sampled"] = json!({
+        "level": evaluation.level,
+        "sampling": evaluation.sampling.iter().map(class_sampling_json).collect::<Vec<_>>(),
+        "masses": evaluation
+            .masses
+            .iter()
+            .map(|mass| json!({
+                "class_key": mass.class_key,
+                "class_mass": mass.class_mass,
+                "drawn": mass.drawn,
+                "identified": mass_estimate_json(mass.identified),
+                "unidentified": mass_estimate_json(mass.unidentified),
+                "unevaluated": mass_estimate_json(mass.unevaluated),
+            }))
+            .collect::<Vec<_>>(),
+        "margins": evaluation
+            .margins
+            .iter()
+            .map(|margin| json!({
+                "first": margin.first,
+                "second": margin.second,
+                "vertex": margin.vertex,
+                "margin": margin.margin,
+                "standard_error": margin.standard_error,
+            }))
+            .collect::<Vec<_>>(),
+    });
+    body
 }
 
 /// What the compile states, before anything is fitted.
@@ -1667,6 +1845,11 @@ fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
                 .collect::<Vec<_>>(),
         },
         "structures": compiled.structures().iter().map(structure_json).collect::<Vec<_>>(),
+        "class_sampling": compiled
+            .class_sampling()
+            .iter()
+            .map(|sampling| class_sampling_json(sampling))
+            .collect::<Vec<_>>(),
         "unidentified_mass": compiled.unidentified_mass(),
         "joint_law": compiled.joint_law().map(joint_law_json),
         "plans": compiled.plan_views().iter().map(PlanView::to_json).collect::<Vec<_>>(),
@@ -1683,6 +1866,7 @@ fn executed_json(
         CompiledPreferenceEvaluation::Structures(evaluation) => {
             structural_json(evaluation, contract)
         }
+        CompiledPreferenceEvaluation::Sampled(evaluation) => sampled_json(evaluation, contract),
     };
     let receipt = &executed.receipt;
     body["compiled"] = json!({
@@ -1866,5 +2050,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decide_preferences_structures, m)?)?;
     m.add_function(wrap_pyfunction!(preference_analysis_options, m)?)?;
     m.add_function(wrap_pyfunction!(export_preference_decision, m)?)?;
-    m.add_function(wrap_pyfunction!(replay_preference_decision, m)?)
+    m.add_function(wrap_pyfunction!(replay_preference_decision, m)?)?;
+    m.add_function(wrap_pyfunction!(table_content_identity, m)?)
 }

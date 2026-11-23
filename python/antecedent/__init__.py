@@ -242,6 +242,7 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
+from ._row_evidence import UnitKey
 from ._workflow import load
 from .accepted_graph import AcceptedGraph
 from .data_diagnostics import DataDiagnostics, diagnose_data
@@ -353,6 +354,7 @@ __all__ = [
     "Frequentist",
     "Bayesian",
     "ClassPrior",
+    "UnitKey",
     "Identifier",
     "Estimator",
     "Latency",

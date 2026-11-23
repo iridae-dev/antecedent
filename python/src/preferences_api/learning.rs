@@ -153,6 +153,8 @@ fn records_from(json: &str) -> PyResult<ChoiceRecordSet> {
 struct SetOptionsWire {
     tolerance: Option<f64>,
     conflict_search_size: Option<usize>,
+    max_boxes: Option<usize>,
+    min_width_fraction: Option<f64>,
 }
 
 fn set_options_from(json: &str) -> PyResult<SetLearningOptions> {
@@ -164,6 +166,12 @@ fn set_options_from(json: &str) -> PyResult<SetLearningOptions> {
     if let Some(size) = wire.conflict_search_size {
         options.conflict_search_size = size;
     }
+    if let Some(max_boxes) = wire.max_boxes {
+        options.max_boxes = max_boxes;
+    }
+    if let Some(width) = wire.min_width_fraction {
+        options.min_width_fraction = width;
+    }
     Ok(options)
 }
 
@@ -173,6 +181,10 @@ struct ChoiceOptionsWire {
     level: Option<f64>,
     n_draws: Option<usize>,
     seed: Option<u64>,
+    shape_grid_points: Option<usize>,
+    shape_max_dimensions: Option<usize>,
+    shape_profile_points: Option<usize>,
+    shape_max_refinements: Option<usize>,
 }
 
 fn choice_options_from(json: &str) -> PyResult<ChoiceModelOptions> {
@@ -187,12 +199,69 @@ fn choice_options_from(json: &str) -> PyResult<ChoiceModelOptions> {
     if let Some(seed) = wire.seed {
         options.seed = seed;
     }
+    if let Some(points) = wire.shape_grid_points {
+        options.shape_search.grid_points = points;
+    }
+    if let Some(dimensions) = wire.shape_max_dimensions {
+        options.shape_search.max_dimensions = dimensions;
+    }
+    if let Some(points) = wire.shape_profile_points {
+        options.shape_search.profile_points = points;
+    }
+    if let Some(refinements) = wire.shape_max_refinements {
+        options.shape_search.max_refinements = refinements;
+    }
     Ok(options)
 }
 
 // ---------------------------------------------------------------------------
 // Result JSON.
 // ---------------------------------------------------------------------------
+
+/// The kept shape boxes of a compatible set under a value with shape parameters.
+fn region_json(
+    shape_parameters: &[usize],
+    linear_parameters: &[usize],
+    cells: Vec<Value>,
+    boxes_used: usize,
+    min_width_fraction: f64,
+    budget_exhausted: bool,
+) -> Value {
+    json!({
+        "shape_parameters": shape_parameters,
+        "linear_parameters": linear_parameters,
+        "cells": cells,
+        "boxes_used": boxes_used,
+        "min_width_fraction": min_width_fraction,
+        "budget_exhausted": budget_exhausted,
+    })
+}
+
+macro_rules! region_value {
+    ($region:expr) => {{
+        let region = $region;
+        let cells: Vec<Value> = region
+            .cells
+            .iter()
+            .map(|c| {
+                json!({
+                    "shape_lower": c.shape_lower,
+                    "shape_upper": c.shape_upper,
+                    "status": debug_kind(&format!("{:?}", c.status)),
+                    "linear_outer": c.linear_outer,
+                })
+            })
+            .collect();
+        region_json(
+            &region.shape_parameters,
+            &region.linear_parameters,
+            cells,
+            region.boxes_used,
+            region.min_width_fraction,
+            region.budget_exhausted,
+        )
+    }};
+}
 
 fn learned_json(l: &LearnedPreferenceSet) -> Value {
     let ranges: Vec<Value> = l
@@ -205,6 +274,20 @@ fn learned_json(l: &LearnedPreferenceSet) -> Value {
                 "learned": r.learned,
                 "varied_in_records": r.varied_in_records,
                 "narrowed": r.narrowed,
+                "basis": debug_kind(&format!("{:?}", r.basis)),
+            })
+        })
+        .collect();
+    let value_relations: Vec<Value> = l
+        .set
+        .value_relations
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "chosen": {"rows": r.chosen.rows, "weights": r.chosen.weights},
+                "rejected": {"rows": r.rejected.rows, "weights": r.rejected.weights},
+                "tolerance": r.tolerance,
             })
         })
         .collect();
@@ -219,6 +302,8 @@ fn learned_json(l: &LearnedPreferenceSet) -> Value {
         "decider": l.decider,
         "parameters": l.set.parameters.iter().map(parameter_to).collect::<Vec<_>>(),
         "relations": l.set.relations.iter().map(relation_to).collect::<Vec<_>>(),
+        "value_relations": value_relations,
+        "region": l.region.as_ref().map(|region| region_value!(region)),
         "ranges": ranges,
         "binding": binding,
         "tolerance": l.tolerance,
@@ -239,8 +324,20 @@ fn outcome_json(outcome: &SetOutcome) -> Value {
                 "kind": match conflict.kind {
                     ConflictKind::Smallest => "smallest",
                     ConflictKind::Irreducible => "irreducible",
+                    ConflictKind::NotMinimised => "not_minimised",
                 },
                 "tolerance_needed": conflict.tolerance_needed,
+            },
+        }),
+        SetOutcome::Undetermined(undetermined) => json!({
+            "kind": "undetermined",
+            "undetermined": {
+                "model_identity": undetermined.model_identity,
+                "records_digest": undetermined.records_digest,
+                "decider": undetermined.decider,
+                "n_records": undetermined.n_records,
+                "tolerance": undetermined.tolerance,
+                "region": region_value!(&undetermined.region),
             },
         }),
     }
@@ -277,6 +374,7 @@ fn estimate_json(e: &ChoiceModelEstimate) -> Value {
                 "interval": p.interval,
                 "declared": p.declared,
                 "inside_declared": p.inside_declared,
+                "interval_method": debug_kind(&format!("{:?}", p.interval_method)),
             })
         })
         .collect();
@@ -303,6 +401,7 @@ fn estimate_json(e: &ChoiceModelEstimate) -> Value {
         "measure": measure_value(&e.measure),
         "share_outside_declared": e.share_outside_declared,
         "assumptions": e.assumptions,
+        "shape_parameters": e.shape_parameters,
     })
 }
 
@@ -400,12 +499,18 @@ fn learning_json(options: Option<LearningOptions>) -> Value {
             "kind": "compatible_set",
             "tolerance": o.tolerance,
             "conflict_search_size": o.conflict_search_size,
+            "max_boxes": o.max_boxes,
+            "min_width_fraction": o.min_width_fraction,
         }),
         Some(LearningOptions::ChoiceEstimate(o)) => json!({
             "kind": "choice_model",
             "level": o.level,
             "n_draws": o.n_draws,
             "seed": o.seed,
+            "shape_grid_points": o.shape_search.grid_points,
+            "shape_max_dimensions": o.shape_search.max_dimensions,
+            "shape_profile_points": o.shape_search.profile_points,
+            "shape_max_refinements": o.shape_search.max_refinements,
         }),
     }
 }

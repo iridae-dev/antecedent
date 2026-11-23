@@ -1343,6 +1343,11 @@ class CompiledDecision(ScientificResult):
         """Share of the structural mass under which the quantities are not identified."""
         return float(self.inspect()["unidentified_mass"])
 
+    @property
+    def class_sampling(self) -> tuple[ClassSampling, ...]:
+        """The draw of every equivalence class sampled rather than enumerated (else empty)."""
+        return tuple(_class_sampling(wire) for wire in self.inspect().get("class_sampling") or ())
+
     def _summary_fields(self) -> dict[str, Any]:
         described = self.inspect()
         return {
@@ -1570,6 +1575,77 @@ class StructureOutcome:
     selected: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class ClassSampling:
+    """The draw of one equivalence class whose members were sampled rather than enumerated.
+
+    ``scheme`` is ``"clique_picking"`` (a CPDAG, exactly uniform from an exact count) or
+    ``"circle_endpoint_rejection"`` (a PAG, exactly uniform over its maximal ancestral graphs
+    within a search budget). ``class_size`` is exact when ``class_size_exact``, otherwise a
+    lower bound (the distinct members seen). Members are drawn with replacement from the
+    stream ``(seed, class_key)``.
+    """
+
+    class_key: int
+    scheme: str
+    class_size: int
+    class_size_exact: bool
+    drawn: int
+    distinct: int
+    seed: int
+    attempts: int | None
+    assumption: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SampledMass:
+    """What became of the draws of one sampled class, as masses under the declared measure.
+
+    Each of ``identified``, ``unidentified`` and ``unevaluated`` is ``(estimate, lower, upper)``:
+    the share of the draws with an exact Clopper-Pearson interval, scaled by the class mass and
+    never renormalized.
+    """
+
+    class_key: int
+    class_mass: float
+    drawn: int
+    identified: tuple[float, float, float]
+    unidentified: tuple[float, float, float]
+    unevaluated: tuple[float, float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class SampledMargin:
+    """The expected-value margin of ``first`` over ``second`` at one vertex of the admissible
+    trade-offs, on the sampled measure, with its Monte Carlo standard error (``None`` when a
+    sampled class drew a single member)."""
+
+    first: str
+    second: str
+    vertex: Mapping[str, float]
+    margin: float
+    standard_error: float | None
+
+
+def _class_sampling(wire: Mapping[str, Any]) -> ClassSampling:
+    size = wire["class_size"]
+    return ClassSampling(
+        class_key=int(wire["class_key"]),
+        scheme=str(wire["scheme"]),
+        class_size=int(size["count"]),
+        class_size_exact=size["kind"] == "exact",
+        drawn=int(wire["drawn"]),
+        distinct=int(wire["distinct"]),
+        seed=int(wire["seed"]),
+        attempts=None if wire.get("attempts") is None else int(wire["attempts"]),
+        assumption=wire.get("assumption"),
+    )
+
+
+def _triple(estimate: Mapping[str, Any]) -> tuple[float, float, float]:
+    return (float(estimate["estimate"]), float(estimate["lower"]), float(estimate["upper"]))
+
+
 def _pair(value: Any) -> tuple[float, float] | None:
     return None if value is None else (float(value[0]), float(value[1]))
 
@@ -1592,6 +1668,10 @@ _STATEMENTS = {
     "no_admissible_action": "Every action is excluded by a hard constraint.",
     "structures_disagree": "The evaluated structures give different verdicts, so no action is preferred across structures.",
     "insufficient_science": "No action is chosen across structures: {reason}.",
+    "best_on_sampled_measure": "On the sampled class members, action {action} is preferred; this is a Monte Carlo estimate, not a claim that it is best for every member.",
+    "undetermined_on_sampled_measure": "On the sampled class members no action is chosen; still in contention: {actions}.",
+    "best_on_every_sampled_member": "Action {action} is best on every sampled class member; no verdict over every member is given.",
+    "per_sampled_member": "The sampled class members do not all choose one action; no verdict over every member is given.",
 }
 
 
@@ -1605,6 +1685,14 @@ class PreferenceDecision(ScientificResult):
     ``undetermined`` (certified route only), ``report_only``, ``no_admissible_action``, and
     across structures ``structures_disagree`` or ``insufficient_science``. Every range in it is
     over declared assumptions, not a confidence interval.
+
+    When an equivalence class was sampled under a declared uniform measure (see
+    :meth:`antecedent.inference.ClassPrior.sample`) no verdict over every member is given:
+    ``best_on_sampled_measure`` or ``undetermined_on_sampled_measure`` under
+    ``bayes_over_structures`` (a Monte Carlo estimate; see :attr:`margins`), and
+    ``best_on_every_sampled_member`` or ``per_sampled_member`` under ``maximin`` and
+    ``require_invariant_best_action``. :attr:`sampling` and :attr:`sampled_masses` state the
+    draw and its masses.
     """
 
     def __init__(
@@ -1833,6 +1921,48 @@ class PreferenceDecision(ScientificResult):
             )
         return tuple(out)
 
+    def _sampled(self) -> Mapping[str, Any]:
+        sampled = self._body.get("sampled")
+        return sampled if isinstance(sampled, Mapping) else {}
+
+    @property
+    def sampling(self) -> tuple[ClassSampling, ...]:
+        """The draw of every class that was sampled rather than enumerated (else empty)."""
+        return tuple(_class_sampling(wire) for wire in self._sampled().get("sampling") or ())
+
+    @property
+    def sampled_masses(self) -> tuple[SampledMass, ...]:
+        """Identified, unidentified and unevaluated mass of every sampled class (else empty)."""
+        return tuple(
+            SampledMass(
+                class_key=int(mass["class_key"]),
+                class_mass=float(mass["class_mass"]),
+                drawn=int(mass["drawn"]),
+                identified=_triple(mass["identified"]),
+                unidentified=_triple(mass["unidentified"]),
+                unevaluated=_triple(mass["unevaluated"]),
+            )
+            for mass in self._sampled().get("masses") or ()
+        )
+
+    @property
+    def margins(self) -> tuple[SampledMargin, ...]:
+        """Pairwise expected-value margins at each vertex of the admissible trade-offs with
+        their Monte Carlo standard errors, for ``bayes_over_structures`` over sampled classes
+        on the exact route (else empty)."""
+        return tuple(
+            SampledMargin(
+                first=str(margin["first"]),
+                second=str(margin["second"]),
+                vertex=self._point(margin["vertex"]),
+                margin=float(margin["margin"]),
+                standard_error=None
+                if margin.get("standard_error") is None
+                else float(margin["standard_error"]),
+            )
+            for margin in self._sampled().get("margins") or ()
+        )
+
     def _mass(self, name: str) -> float | None:
         value = self._body.get(name)
         return None if value is None else float(value)
@@ -1978,6 +2108,7 @@ __all__ = [
     "Action",
     "ActionRecord",
     "Attribute",
+    "ClassSampling",
     "CompiledDecision",
     "Contract",
     "Criterion",
@@ -1991,6 +2122,8 @@ __all__ = [
     "PreferenceRefusal",
     "Region",
     "Relation",
+    "SampledMargin",
+    "SampledMass",
     "StructureOutcome",
     "Structures",
     "Switch",
