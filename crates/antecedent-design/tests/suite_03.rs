@@ -17,6 +17,8 @@ mod preference_model_reference;
 mod preference_set_learning;
 #[path = "preference_set_learning_reference.rs"]
 mod preference_set_learning_reference;
+#[path = "preference_choice_model.rs"]
+mod preference_choice_model;
 #[path = "preference_decision.rs"]
 mod preference_decision;
 #[path = "preference_decision_structural.rs"]
