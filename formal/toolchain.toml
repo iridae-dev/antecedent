@@ -1,0 +1,7 @@
+# Pinned tools for the assurance records (scripts/assurance.py). Every record depends
+# on this file: changing a pin makes every record stale until its checks run again.
+lean = "leanprover/lean4:v4.36.0"     # formal/lean-toolchain, formal/rust/lean-toolchain
+plausible = "v4.36.0"                 # formal/lake-manifest.json
+aeneas = "nightly-2026.11.23-2e3d448" # formal/rust/extract.sh, formal/rust/lake-manifest.json
+charon = "0.1.322"                    # shipped with that Aeneas release
+kani = "0.68.0"                       # cargo install --locked kani-verifier --version 0.68.0

@@ -60,3 +60,4 @@ AUDIT.md
 
 # Lean / Lake
 formal/**/.lake/
+formal/kani/target/

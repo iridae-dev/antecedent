@@ -1,0 +1,22 @@
+# Kani proof harnesses over the public API of the production crates. A separate
+# workspace, so the harnesses add no code, configuration or `cfg` to a published crate.
+#
+#   cargo kani        (Kani 0.68.0; see formal/README.md)
+[package]
+name = "antecedent-kani"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace]
+
+[dependencies]
+antecedent-core = { path = "../../crates/antecedent-core" }
+antecedent-io-core = { path = "../../crates/antecedent-io-core", default-features = false }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
+[package.metadata.kani.unstable]
+stubbing = true

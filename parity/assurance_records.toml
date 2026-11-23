@@ -1,0 +1,210 @@
+# Assurance records: machine-checked properties of Antecedent operations.
+#
+# Read and checked by scripts/assurance.py. Each record states one proposition, its
+# scope, what its checks trust, the operation it is about (the operation-record fields),
+# and its checks, each of one kind:
+#
+#   machine_checked_proof    a Lean theorem about a specification
+#   verified_implementation  a Lean theorem about the production Rust as Charon and Aeneas
+#                            translate it
+#   bounded_model_check      a Kani proof harness run on the production Rust
+#
+# A record is no support decision, calibration result or scientific record. It never
+# raises a result's standing; it says what was established, about which code, under
+# which trust.
+#
+# `result` is written by `python3 scripts/assurance.py run`: the digest of every input
+# (Lean and harness files, the covered Rust items by token, the pinned toolchain) when the
+# checks last passed, and the commit they ran at. A changed input makes the record stale.
+
+[[records]]
+id = "claim_standing.never_raised"
+proposition = "An accepted claim relay keeps or lowers its parent's identification and domain standing, so no finite chain of relays raises the original claim's standing or creates a positive domain status, and a checked derivation claims no stronger identification than any parent. The production relay domain rule and identification rule compute exactly the specification's rules."
+scope = "The Retarget relay of compose_claims and the identification-status rule of identification_strengthened. The relay's requirement that every other field is unchanged is modeled, not translated; masses, the other departure checks and the compositions compose_claims refuses are outside this record."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate the Rust items faithfully",
+    "the Aeneas model of the standard-library operations the items use: enum discriminant reads and u8 comparison",
+    "the relay's whole-field equality checks in compose_claims correspond to `content` being unchanged in the model",
+]
+limitations = [
+    "The order on domain statuses puts unknown below every other status and leaves distinct non-unknown statuses incomparable; it says nothing about which of two different findings is better.",
+]
+
+[records.operation]
+inputs = ["one parent claim (relay) or parent claims (checked derivation)", "the derived claim"]
+output = "acceptance of the derived claim, or a typed refusal"
+premises = ["the relay names exactly one parent", "every relayed field other than the domains is unchanged"]
+transformation = "relay: each domain axis is unchanged or a positive status becomes unknown; derivation: the derived identification status's strength rank is at most each parent's"
+justification = [
+    "Antecedent.Standing.relayChain_le",
+    "Antecedent.Standing.relayChain_no_new_assertion",
+    "Antecedent.Standing.derivation_identification_le",
+    "AntecedentRust.Standing.domain_change_allowed_spec",
+    "AntecedentRust.Standing.identification_status_kept_or_lowered_spec",
+]
+implementation = [
+    "antecedent_contract::claim::compose_claims",
+    "antecedent_contract::claim::domain_change_allowed",
+    "antecedent_contract::claim::identification_status_kept_or_lowered",
+    "antecedent_core::identification::IdentificationStatus::strength_rank",
+]
+obligations = []
+limitations = ["Identified-mass monotonicity is checked in floating point in the same function and is not covered."]
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Standing.lean"]
+theorems = [
+    "Antecedent.Standing.domainChangeAllowed_le",
+    "Antecedent.Standing.domainChangeAllowed_asserts",
+    "Antecedent.Standing.relay_le",
+    "Antecedent.Standing.relayChain_le",
+    "Antecedent.Standing.relayChain_no_new_assertion",
+    "Antecedent.Standing.derivation_identification_le",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Standing.lean",
+    "formal/rust/AntecedentRust/Extracted/Standing/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Standing/Funs.lean",
+]
+theorems = [
+    "AntecedentRust.Standing.strength_rank_spec",
+    "AntecedentRust.Standing.domain_change_allowed_spec",
+    "AntecedentRust.Standing.identification_status_kept_or_lowered_spec",
+    "AntecedentRust.Standing.rust_domain_change_never_raises",
+    "AntecedentRust.Standing.rust_identification_never_raised",
+]
+rust_items = [
+    { file = "crates/antecedent-contract/src/claim.rs", items = [
+        "enum:DomainStatus#0",
+        "impl:DomainStatus#0/fn:is_positive#0",
+        "fn:domain_change_allowed#0",
+        "fn:identification_status_kept_or_lowered#0",
+        "fn:compose_claims#0",
+        "fn:identification_strengthened#0",
+    ] },
+    { file = "crates/antecedent-core/src/identification.rs", items = [
+        "enum:IdentificationStatus#0",
+        "impl:IdentificationStatus#0/fn:strength_rank#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "5f8f39df2aadd0169219e8ef188451b3f877e9f8e7abf5908938f47c247b36b6"
+checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
+
+[[records]]
+id = "identity.order_insensitive_declarations"
+proposition = "For an order-insensitive declaration list written as its length followed by its elements sorted under a total order, reordering the list never changes the written stream, any other change (an element added, removed or replaced) always changes it, and two such lists written in sequence cannot trade elements. Under a collision-free hash, two lists have the same identity exactly when they are the same up to order."
+scope = "The canonical encoding used for evidence-ledger source lists (write_ids) and transport populations and assumptions (TransportIdentity::encode), as a model. The production encoders are not translated; the adversarial campaign exercises them."
+trusted = [
+    "the Lean 4 kernel",
+    "the identity hash is collision-free on the streams it is given (an explicit hypothesis of identity_eq_iff)",
+    "write_ids and TransportIdentity::encode write the length and the sorted elements as the model states (reviewed, not machine-checked)",
+]
+limitations = [
+    "Lists whose order the identity rules make significant (schema variables, partitions, estimands, positional priors) are outside this record.",
+]
+
+[records.operation]
+inputs = ["an order-insensitive declaration list (source ids, populations or assumptions)"]
+output = "the canonical word stream hashed into the identity"
+premises = ["the element order is total, transitive and antisymmetric"]
+transformation = "length word, then the elements sorted"
+justification = [
+    "Antecedent.Identity.encodeSet_eq_iff",
+    "Antecedent.Identity.encodeTwo_inj",
+    "Antecedent.Identity.identity_eq_iff",
+]
+implementation = [
+    "antecedent_contract::evidence_ledger::operation::write_ids",
+    "antecedent_contract::evidence_ledger::source::TransportIdentity::encode",
+]
+obligations = ["A machine check connecting write_ids to encodeSet is not yet in place; see scope."]
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Identity.lean"]
+theorems = [
+    "Antecedent.Identity.mergeSort_perm_eq",
+    "Antecedent.Identity.encodeSet_perm",
+    "Antecedent.Identity.encodeSet_inj",
+    "Antecedent.Identity.encodeSet_eq_iff",
+    "Antecedent.Identity.encodeTwo_inj",
+    "Antecedent.Identity.identity_eq_iff",
+]
+
+[records.result]
+inputs_digest = "d6f3900c6d4eacddbc22e6632cd7162cfea7cbd408ed3a984f0fa615f1dc9663"
+checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
+
+[[records]]
+id = "acceptance.retained_expected_identity"
+proposition = "bind returns Bound only when the presented slot matches the required one, the consumer passed a retained expected identity, and every facet (payload, coordinates, prior, alignment, cyclic-solution tag) equals it. Without a retained expectation nothing is bound; a self-description can only cause a refusal; a matching presentation without a false self-description is bound."
+scope = "antecedent_io_core::bound_identity::bind for every input, with the facet digest replaced by an arbitrary function. Artifact loaders that accept on self-consistency and replay without a caller-retained identity (accept_claim, accept_contract, from_bytes with no expected identity) do not route through bind and are outside this record."
+trusted = [
+    "the Lean 4 kernel",
+    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of bind",
+    "the Kani stub of facet_digest is an arbitrary value, so no property of BLAKE3 is used",
+]
+limitations = [
+    "The main artifact acceptance path does not take a caller-retained expected identity; it re-derives the digests the artifact advertises from the artifact's own payloads.",
+]
+
+[records.operation]
+inputs = ["the required slot", "the presented identity", "the consumer's retained expected identity, if any"]
+output = "Bound, NotRequired, or a typed refusal naming the first mismatch"
+premises = ["the expected identity is retained by the consumer, not read from the presented artifact"]
+transformation = "slot check, self-description check against the recomputed facet digest, then facet-by-facet comparison with the retained expectation"
+justification = [
+    "Antecedent.Acceptance.bind_bound_sound",
+    "Antecedent.Acceptance.bind_none_not_bound",
+    "Antecedent.Acceptance.bind_mismatch_never_bound",
+    "bound_only_against_the_retained_expectation",
+]
+implementation = ["antecedent_io_core::bound_identity::bind"]
+obligations = []
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Acceptance.lean"]
+theorems = [
+    "Antecedent.Acceptance.bind_eq_bound_iff",
+    "Antecedent.Acceptance.bind_none_not_bound",
+    "Antecedent.Acceptance.bind_bound_sound",
+    "Antecedent.Acceptance.bind_complete",
+    "Antecedent.Acceptance.bind_self_description_only_refuses",
+    "Antecedent.Acceptance.bind_mismatch_never_bound",
+]
+
+[[records.checks]]
+kind = "bounded_model_check"
+tool = "kani"
+harnesses = [
+    { file = "formal/kani/src/bound_identity.rs", name = "bound_only_against_the_retained_expectation" },
+    { file = "formal/kani/src/bound_identity.rs", name = "no_expectation_is_never_bound" },
+    { file = "formal/kani/src/bound_identity.rs", name = "matching_presentation_is_bound" },
+]
+rust_items = [
+    { file = "crates/antecedent-io-core/src/bound_identity.rs", items = [
+        "fn:bind#0",
+        "fn:slot_tag#0",
+        "fn:same_digest#0",
+        "fn:same_cyclic#0",
+        "fn:falsely_self_described#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "26070cb5181833fda0c2c6950b39a4ef6ee466de3d8871bc7c888a0378f781b6"
+checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
