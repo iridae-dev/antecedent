@@ -110,6 +110,9 @@ pub enum StructuralWeightBasisWire {
     CompletionEnumeration,
     /// Caller-declared mass over class members.
     CallerSuppliedClassPrior,
+    /// Graph-posterior atom probability times a declared conditional mass over the members
+    /// of each equivalence-class atom.
+    PosteriorWithDeclaredClassPrior,
 }
 
 /// One graph/completion response atom.

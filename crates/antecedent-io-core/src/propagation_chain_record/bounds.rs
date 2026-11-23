@@ -105,6 +105,30 @@ pub(super) fn check_bounds(
             text_ok(&factor.id, limits)?;
         }
     }
+    if let Some(deferred) = &record.deferred {
+        text_ok(&deferred.construction, limits)?;
+        if !usize::try_from(deferred.rows).is_ok_and(|rows| rows <= MAX_CHAIN_ROWS) {
+            return Err(Error::LimitsExceeded("rows"));
+        }
+        if deferred.slots.len() > MAX_CHAIN_NODES
+            || deferred.within_blocks.len() > MAX_CHAIN_NODES
+            || deferred.within_blocks.iter().map(Vec::len).sum::<usize>() > MAX_CHAIN_NODES
+            || deferred.declared_cross.len() > MAX_CHAIN_NODES
+        {
+            return Err(Error::LimitsExceeded("deferred table"));
+        }
+        if deferred
+            .declared_cross
+            .iter()
+            .try_fold(0_usize, |cells, block| cells.checked_add(block.terms.len()))
+            .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
+        {
+            return Err(Error::LimitsExceeded("deferred table"));
+        }
+        for slot in deferred.slots.iter().chain(deferred.within_blocks.iter().flatten()) {
+            text_ok(slot, limits)?;
+        }
+    }
     for stage in &record.stages {
         text_ok(&stage.id, limits)?;
         for factor in &stage.own_factors {

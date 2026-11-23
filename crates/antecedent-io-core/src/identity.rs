@@ -342,6 +342,19 @@ pub enum ClassPriorIdentityWire {
     Ordered(Vec<u64>),
     /// `(completion fingerprint, mass bits)` sorted by fingerprint.
     Pairs(Vec<(u64, u64)>),
+    /// Equal mass on every member of every class atom.
+    Uniform,
+    /// Masses with the declarations that annotate them.
+    Annotated {
+        /// The masses (`Ordered`, `Pairs` or `Uniform`).
+        base: Box<ClassPriorIdentityWire>,
+        /// The named assumption the masses stand on.
+        assumption: Option<String>,
+        /// The declared exact enumeration limit.
+        exact_limit: Option<u64>,
+        /// The declared draw `(members, seed)`.
+        sampling: Option<(u64, u64)>,
+    },
 }
 
 /// Transport selection diagram and trial column bindings.

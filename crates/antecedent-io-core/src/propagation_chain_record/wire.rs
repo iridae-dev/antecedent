@@ -244,6 +244,44 @@ pub struct ChainJointOutputWire {
     pub quantity: ScientificQuantityWire,
 }
 
+/// A declared covariance block between two groups of a deferred family table.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainDeclaredBlockWire {
+    /// Index of the first group in [`ChainDeferredTableWire::within_blocks`].
+    pub first: u64,
+    /// Index of the second group, after the first.
+    pub second: u64,
+    /// Row-major covariance terms, rows of the first group's slots by columns of the
+    /// second's, as bit patterns.
+    pub terms: Vec<u64>,
+}
+
+/// A family table whose columns are drawn only once the moments they match are bound.
+///
+/// Everything about the table except the means and the within-group covariance is known when
+/// the chain is declared: the construction, the rows, the seed, which sources are its columns
+/// and in what order, which groups of columns carry a covariance bound at execution, and the
+/// declared covariance between groups. A draft carrying it is compiled and lowered with draw
+/// sources whose values are empty; it is never sealed, exported or consumed as it is.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainDeferredTableWire {
+    /// The table's construction (`moment_matched_normal`).
+    pub construction: String,
+    /// Aligned rows the table will hold.
+    pub rows: u64,
+    /// Seed of the table's base draws.
+    pub seed: u64,
+    /// Identities of the draw sources that are the table's columns, in column order.
+    pub slots: Vec<String>,
+    /// Declared covariance blocks between groups.
+    pub declared_cross: Vec<ChainDeclaredBlockWire>,
+    /// Groups of slots whose covariance within the group is bound at execution; every slot
+    /// is in exactly one group.
+    pub within_blocks: Vec<Vec<String>>,
+}
+
 /// The retained propagation record.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -268,6 +306,10 @@ pub struct PropagationChainRecordWire {
     pub joint_outputs: Vec<ChainJointOutputWire>,
     /// The sources.
     pub sources: Vec<ChainSourceWire>,
+    /// A family table whose draws are bound at execution: present only on a compiled draft
+    /// whose slot sources carry no values yet. A sealed record never carries it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred: Option<ChainDeferredTableWire>,
     /// The stages.
     pub stages: Vec<ChainStageWire>,
     /// The changes, in the order they were appended.

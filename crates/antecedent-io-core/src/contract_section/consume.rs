@@ -407,6 +407,9 @@ pub const fn weight_basis_name(basis: StructuralWeightBasisWire) -> &'static str
         StructuralWeightBasisWire::PosteriorProbability => "posterior_probability",
         StructuralWeightBasisWire::CompletionEnumeration => "completion_enumeration",
         StructuralWeightBasisWire::CallerSuppliedClassPrior => "caller_supplied_class_prior",
+        StructuralWeightBasisWire::PosteriorWithDeclaredClassPrior => {
+            "posterior_with_declared_class_prior"
+        }
     }
 }
 
