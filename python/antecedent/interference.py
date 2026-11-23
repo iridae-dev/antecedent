@@ -11,6 +11,7 @@ import numpy as np
 
 from ._columns import hold_unresolved, scalar_or_values
 from ._data import as_columns
+from ._deprecation import direct_path_deprecated
 from ._native import estimate_network_interference as _estimate_network_interference
 from ._native import (
     estimate_observational_network_exposure as _estimate_observational_network_exposure,
@@ -505,13 +506,15 @@ def estimate(
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
-    Specialized interference operation outside the central compiler, kept as a documented
-    low-level exception: it accepts every assignment design and exposure mapping, which the
-    compiled path does not. It returns bare numbers (the Horvitz-Thompson and Hajek
+    Deprecated direct path. It returns bare numbers (the Horvitz-Thompson and Hajek
     contrasts, a conservative variance and the exposure-probability diagnostics) and carries
     no study, contract, export, interval or calibration slot; the only things it checks are
-    the input shapes, the design and the work limit. ``execution`` supplies the
-    exposure-probability Monte Carlo seed and the cancellation and memory policy.
+    the input shapes, the design and the work limit. ``antecedent.analyze`` runs the same
+    estimator through the compiler for every assignment design and exposure mapping accepted
+    here; the one difference is the seed of Monte Carlo exposure probabilities, which the
+    compiled route derives from its execution context instead of taking ``execution.seed``.
+    ``execution`` supplies that seed and the cancellation and memory policy.
+
     ``work_limit`` sets the total logical-operation ceiling for both exposure
     probabilities; exceeding it refuses the request without reducing the Monte Carlo draw
     count. ``antecedent.analyze(data, graph=[], query=InterferenceQuery(...,
@@ -520,6 +523,11 @@ def estimate(
     construction, and the one to use for a claim.
     """
 
+    direct_path_deprecated(
+        "antecedent.interference.estimate",
+        "antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=, "
+        "realized_assignment=))",
+    )
     if not isinstance(query, InterferenceQuery):
         raise CausalTypeError("query must be an InterferenceQuery")
     if isinstance(query.assignment, ObservedExposureDesign):
@@ -639,9 +647,16 @@ def estimate_saturation_effects(
     Spillover compares low/high neighbor exposure among untreated units. Total
     compares untreated/low with treated/high. Exact cluster allocations and
     within-cluster Bernoulli assignments provide each unit's exposure
-    probabilities. This direct utility is not supported on ``analyze``.
+    probabilities. Deprecated: ``antecedent.analyze`` runs the same exact estimator
+    through the compiler for a ``SaturationDesign`` query.
     """
 
+    direct_path_deprecated(
+        "antecedent.interference.estimate_saturation_effects",
+        "antecedent.analyze(data, graph=[], query=InterferenceQuery(SaturationDesign(...), "
+        "exposure, ExposureContrast(...), network=, realized_assignment=, "
+        "partial_interference=)) once per contrast",
+    )
     if not isinstance(design, SaturationDesign):
         raise CausalTypeError("design must be a SaturationDesign")
     if not isinstance(partial_interference, PartialInterference):
@@ -742,6 +757,12 @@ def estimate_observational_network_exposure(
     known or externally estimated probabilities for both queried exposures.
     """
 
+    direct_path_deprecated(
+        "antecedent.interference.estimate_observational_network_exposure",
+        "antecedent.analyze(data, graph=[], query=InterferenceQuery(ObservedExposureDesign(...), "
+        "exposure, ExposureContrast(...), network=, realized_assignment=, "
+        "partial_interference=))",
+    )
     if not isinstance(partial_interference, PartialInterference):
         raise CausalTypeError("partial_interference must explicitly state cluster labels")
     if not isinstance(exposure, (NeighborCount, NeighborFraction, WeightedNeighborExposure)):
