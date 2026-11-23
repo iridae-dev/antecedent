@@ -97,7 +97,7 @@ rust_items = [
 
 [records.result]
 inputs_digest = "5f8f39df2aadd0169219e8ef188451b3f877e9f8e7abf5908938f47c247b36b6"
-checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
+checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
 
 [[records]]
 id = "identity.order_insensitive_declarations"
@@ -143,8 +143,8 @@ theorems = [
 ]
 
 [records.result]
-inputs_digest = "d6f3900c6d4eacddbc22e6632cd7162cfea7cbd408ed3a984f0fa615f1dc9663"
-checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
+inputs_digest = "78158e7dd9c15620d4bc9561d0f0416a8d50f653ec2e7226e0844f88e80c7fb5"
+checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
 
 [[records]]
 id = "acceptance.retained_expected_identity"
@@ -206,5 +206,5 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "26070cb5181833fda0c2c6950b39a4ef6ee466de3d8871bc7c888a0378f781b6"
-checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
+inputs_digest = "5d31349241a57bfce9f76213ff3f00e7fd4b5140d2721b16330e3f879b3f098f"
+checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
