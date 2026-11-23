@@ -918,22 +918,42 @@ impl InterfaceContract {
     /// `spec/canonicalization-and-identity.md`. Declaration order of ports does
     /// not affect it; a display label of a quantity does.
     ///
-    /// The identity is defined for any declaration; a consumer validates the
-    /// declaration separately.
+    /// The identity is defined for any declaration, but duplicate port names are
+    /// refused by validation. Ports are ordered by name, then by their own
+    /// canonical encoding, so even an unvalidated declaration with a repeated
+    /// name has an identity that does not depend on listing order. For a
+    /// declaration with distinct names (every valid one) the order, and so the
+    /// identity, is exactly the order by name.
     #[must_use]
     pub fn canonical_identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(TAG_CONTRACT);
         writer.word(INTERFACE_CONTRACT_VERSION).text(&self.component);
-        let mut produced: Vec<&ProducedPort> = self.produces.iter().collect();
-        produced.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut produced: Vec<(&str, [u8; 32], &ProducedPort)> = self
+            .produces
+            .iter()
+            .map(|port| {
+                let mut own = CanonicalWriter::new(TAG_CONTRACT);
+                write_produced(&mut own, port);
+                (port.name.as_str(), own.finish(), port)
+            })
+            .collect();
+        produced.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
         writer.word(produced.len() as u64);
-        for port in produced {
+        for (_, _, port) in produced {
             write_produced(&mut writer, port);
         }
-        let mut consumed: Vec<&ConsumedPort> = self.consumes.iter().collect();
-        consumed.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut consumed: Vec<(&str, [u8; 32], &ConsumedPort)> = self
+            .consumes
+            .iter()
+            .map(|port| {
+                let mut own = CanonicalWriter::new(TAG_CONTRACT);
+                write_consumed(&mut own, port);
+                (port.name.as_str(), own.finish(), port)
+            })
+            .collect();
+        consumed.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
         writer.word(consumed.len() as u64);
-        for port in consumed {
+        for (_, _, port) in consumed {
             write_consumed(&mut writer, port);
         }
         SemanticDigest::from_bytes(writer.finish())

@@ -117,6 +117,12 @@ fn write_identity(stream: &mut CanonicalWriter, identity: &ProviderObjectIdentit
         .text(&identity.request_id);
 }
 
+/// Capabilities enter sorted by name, not deduplicated: the digest of a
+/// hand-built list with a repeated capability differs from the digest of the
+/// list without it. Declarations are validated by `validate_common` (which
+/// refuses a repeated capability as a duplicate declaration) before any
+/// verification digest is used; `contract_digest` itself is infallible and
+/// is only an identity of validated declarations.
 fn write_capabilities(stream: &mut CanonicalWriter, capabilities: &[ExternalCapability]) {
     let mut names: Vec<&str> = capabilities.iter().map(|c| capability_name(*c)).collect();
     names.sort_unstable();
@@ -147,6 +153,9 @@ impl ExternalScientificObject {
     ///
     /// Capabilities enter sorted, so declaration order does not move the digest;
     /// coordinate order does, because it is meaningful for joint samples.
+    /// Capabilities are sorted, not deduplicated; a repeated capability is
+    /// refused as a duplicate declaration when the object is validated, so the
+    /// digest is the identity of a set only for validated objects.
     #[must_use]
     pub fn contract_digest(&self) -> String {
         let mut stream = CanonicalWriter::new(CONTRACT_TAG);

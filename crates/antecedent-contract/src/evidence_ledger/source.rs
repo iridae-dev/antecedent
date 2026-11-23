@@ -91,7 +91,11 @@ pub enum Lineage {
     },
     /// A model or claim built from data (or results) already used elsewhere.
     DerivedFromUsedData {
-        /// The sources it was built from.
+        /// The sources it was built from. The identity sorts these but does
+        /// not deduplicate: a hand-built list with a repeated input digests
+        /// differently from the same list without it. The ledger refuses a
+        /// repeated input at registration, so every registered source has a
+        /// duplicate-free list and its identity is that of a set.
         inputs: Vec<SourceId>,
     },
 }
@@ -162,6 +166,12 @@ pub struct TransportIdentity {
 
 impl TransportIdentity {
     /// Canonical digest: populations and assumptions are order-insensitive.
+    ///
+    /// This is a multiset digest: the lists are sorted but not deduplicated, so
+    /// `["p", "p"]` and `["p"]` digest differently on a hand-built value. The
+    /// ledger registers sets (it sorts and deduplicates both lists before
+    /// deriving a source identity), so registered sources never differ by
+    /// repetition. The output is unchanged for every existing value.
     #[must_use]
     pub fn digest(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new("antecedent.evidence_ledger.transport");

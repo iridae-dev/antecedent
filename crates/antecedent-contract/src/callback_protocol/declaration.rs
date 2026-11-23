@@ -749,24 +749,23 @@ impl CallbackDeclaration {
                 writer.word(0);
             }
         }
-        let mut inputs: Vec<&CallbackInput> = self.inputs.iter().collect();
-        inputs.sort_by(|a, b| a.name.cmp(&b.name));
+        // Ordered by name, then by the input's own encoding: valid declarations
+        // have distinct names (validation refuses repeats), so their order and
+        // identity are by name alone; an unvalidated repeat is still
+        // independent of listing order.
+        let mut inputs: Vec<(&str, [u8; 32], &CallbackInput)> = self
+            .inputs
+            .iter()
+            .map(|input| {
+                let mut own = CanonicalWriter::new(TAG_DECLARATION);
+                write_input(&mut own, input);
+                (input.name.as_str(), own.finish(), input)
+            })
+            .collect();
+        inputs.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
         writer.word(inputs.len() as u64);
-        for input in inputs {
-            writer.text(&input.name);
-            input.quantity.write_canonical(&mut writer);
-            writer.text(&input.semantic_identity).word(input.operation.tag());
-            writer.opt_text(input.uncertainty.map(crate::quantity::meaning_tag));
-            write_support(&mut writer, &input.support);
-            match &input.supplier {
-                InputSupplier::External => {
-                    writer.word(0);
-                }
-                InputSupplier::Callback { identity, evidence } => {
-                    writer.word(1).text(identity);
-                    write_evidence(&mut writer, evidence);
-                }
-            }
+        for (_, _, input) in inputs {
+            write_input(&mut writer, input);
         }
         match &self.dependencies {
             DependencyDeclaration::Complete(dependencies) => {
@@ -858,6 +857,23 @@ fn write_support(writer: &mut CanonicalWriter, support: &SupportDomain) {
             for level in levels {
                 writer.text(level);
             }
+        }
+    }
+}
+
+fn write_input(writer: &mut CanonicalWriter, input: &CallbackInput) {
+    writer.text(&input.name);
+    input.quantity.write_canonical(writer);
+    writer.text(&input.semantic_identity).word(input.operation.tag());
+    writer.opt_text(input.uncertainty.map(crate::quantity::meaning_tag));
+    write_support(writer, &input.support);
+    match &input.supplier {
+        InputSupplier::External => {
+            writer.word(0);
+        }
+        InputSupplier::Callback { identity, evidence } => {
+            writer.word(1).text(identity);
+            write_evidence(writer, evidence);
         }
     }
 }
