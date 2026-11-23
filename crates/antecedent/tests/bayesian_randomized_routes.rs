@@ -938,27 +938,7 @@ fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
         let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance);
         let retained = antecedent_io::RetainedClaimIdentity::new(claim.claim_id);
-        let (accepted, receipt) = antecedent_io::accept_claim_expecting(
-            &bytes,
-            &antecedent_contract::ConsumerProfile::full(),
-            &retained,
-        )
-        .unwrap();
-        // Bound only after the IPW replay promotes the claim.
-        assert!(accepted.acceptance.accepts_as_bound_claim());
-        assert!(receipt.equivalent_claim());
-        let other = antecedent_io::RetainedClaimIdentity::new(
-            antecedent_core::SemanticDigest::from_bytes([7; 32]),
-        );
-        let (wrong, receipt) = antecedent_io::accept_claim_expecting(
-            &bytes,
-            &antecedent_contract::ConsumerProfile::full(),
-            &other,
-        )
-        .unwrap();
-        assert!(!wrong.acceptance.accepts_as_claim());
-        assert_eq!(wrong.acceptance.restriction.as_deref(), Some("claim_identity_mismatch"));
-        assert!(!receipt.equivalent_claim());
+        assert_bound_only_to_the_retained_claim(&bytes, &retained);
         let (forwarded, receipt) = antecedent_io::accept_claim_expecting(
             &bytes,
             &antecedent_contract::ConsumerProfile::forwarding(),
@@ -1080,4 +1060,32 @@ fn unsupported_multi_arm_and_factorial_ipow_are_typed_refusals() {
         .expect_err("unsupported IPW design must refuse");
         assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     }
+}
+
+/// The IPW claim is accepted as the retained claim, bound only after its own replay promotes
+/// it, and another retained claim is restricted to storage.
+fn assert_bound_only_to_the_retained_claim(
+    bytes: &[u8],
+    retained: &antecedent_io::RetainedClaimIdentity,
+) {
+    let (accepted, receipt) = antecedent_io::accept_claim_expecting(
+        bytes,
+        &antecedent_contract::ConsumerProfile::full(),
+        retained,
+    )
+    .unwrap();
+    assert!(accepted.acceptance.accepts_as_bound_claim());
+    assert!(receipt.equivalent_claim());
+    let other = antecedent_io::RetainedClaimIdentity::new(
+        antecedent_core::SemanticDigest::from_bytes([7; 32]),
+    );
+    let (wrong, receipt) = antecedent_io::accept_claim_expecting(
+        bytes,
+        &antecedent_contract::ConsumerProfile::full(),
+        &other,
+    )
+    .unwrap();
+    assert!(!wrong.acceptance.accepts_as_claim());
+    assert_eq!(wrong.acceptance.restriction.as_deref(), Some("claim_identity_mismatch"));
+    assert!(!receipt.equivalent_claim());
 }

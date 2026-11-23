@@ -289,6 +289,10 @@ impl ClaimEnvelope {
 /// Receiving-system acceptance report. Distinct from byte storage.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent acceptance facts a receiving system reads separately, not a state machine"
+)]
 pub struct AcceptanceReport {
     /// Whether required semantic features were recognized.
     pub recognized: bool,
