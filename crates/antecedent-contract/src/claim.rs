@@ -303,6 +303,9 @@ pub struct AcceptanceReport {
     /// Whether the replayed artifact carries a claim over an execution.
     /// A replayed program without a claim is not an accepted claim.
     pub claim_present: bool,
+    /// Whether the claim was bound to an identity the consumer retained independently of
+    /// the artifact. Replay alone never binds it.
+    pub claim_bound: bool,
 }
 
 impl AcceptanceReport {
@@ -322,6 +325,7 @@ impl AcceptanceReport {
             supported_operations: supported_operations.into(),
             restriction,
             claim_present: false,
+            claim_bound: false,
         }
     }
 
@@ -329,6 +333,13 @@ impl AcceptanceReport {
     #[must_use]
     pub const fn with_claim(mut self, present: bool) -> Self {
         self.claim_present = present;
+        self
+    }
+
+    /// Record that the claim was bound to the consumer's retained identity.
+    #[must_use]
+    pub const fn with_claim_bound(mut self) -> Self {
+        self.claim_bound = true;
         self
     }
 
@@ -342,16 +353,25 @@ impl AcceptanceReport {
             supported_operations: Arc::from([Arc::from("store"), Arc::from("forward")]),
             restriction: Some(Arc::from("opaque_envelope")),
             claim_present: false,
+            claim_bound: false,
         }
     }
 
     /// Whether every part of the artifact was replayed and agrees, and it carries a claim.
     ///
     /// [`Self::accepts_as_replayed_program`] with a claim present; it reports what replay
-    /// recomputed, not whether the claim may be used.
+    /// recomputed, not that the claim is the one its consumer meant. For that, see
+    /// [`Self::accepts_as_bound_claim`].
     #[must_use]
     pub fn accepts_as_claim(&self) -> bool {
         self.accepts_as_replayed_program() && self.claim_present
+    }
+
+    /// Whether the replayed claim is also the claim its consumer retained: accepted by
+    /// `accept_claim_expecting` against an identity held independently of the artifact.
+    #[must_use]
+    pub fn accepts_as_bound_claim(&self) -> bool {
+        self.accepts_as_claim() && self.claim_bound
     }
 
     /// Whether every part of the artifact was replayed and agrees, with or without a claim.

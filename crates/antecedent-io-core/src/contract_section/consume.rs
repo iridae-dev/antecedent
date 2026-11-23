@@ -887,17 +887,69 @@ pub(in crate::contract_section) fn storage_ops() -> Arc<[Arc<str>]> {
     ])
 }
 
+/// The claim identity a consumer retained independently of the artifact it accepts.
+///
+/// The consumer obtains the claim id through its own channel (the result it stored, a
+/// registry, a signed message from the producer), never from the bytes it is accepting:
+/// an artifact cannot supply the identity it is checked against.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[must_use]
+pub struct RetainedClaimIdentity {
+    /// The claim id the consumer expects.
+    pub claim_id: SemanticDigest,
+}
+
+impl RetainedClaimIdentity {
+    /// The claim id the consumer retained.
+    pub const fn new(claim_id: SemanticDigest) -> Self {
+        Self { claim_id }
+    }
+}
+
 /// Accept / verify a claim from bytes under a consumer profile.
 ///
 /// Reuses [`replay_analysis_result`] / [`super::verify::verify_contract_against_body`]. Unknown
-/// required features refuse claim acceptance; storage/forwarding remains allowed.
+/// required features refuse claim acceptance; storage/forwarding remains allowed. The claim is
+/// not bound to an identity the consumer retained, so any claim that replays is accepted;
+/// [`accept_claim_expecting`] also requires it to be the claim the consumer holds.
 ///
 /// # Errors
 ///
 /// Wrong artifact kind, missing header/body, or invalid CBOR.
+#[deprecated(
+    since = "3.1.0",
+    note = "accepts any claim that replays; use accept_claim_expecting with the claim id the consumer retained"
+)]
 pub fn accept_claim(
     bytes: &[u8],
     profile: &ConsumerProfile,
+) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
+    accept(bytes, profile, None)
+}
+
+/// Accept / verify a claim from bytes under a consumer profile, against the claim identity
+/// the consumer retained.
+///
+/// As [`accept_claim`], and a claim that replays is accepted only when its replayed claim id
+/// binds to `expected` ([`crate::bound_identity::bind`]):
+/// [`AcceptanceReport::accepts_as_bound_claim`] then holds. Another claim is restricted to
+/// storage and forwarding with the reason `claim_identity_mismatch`.
+///
+/// # Errors
+///
+/// Wrong artifact kind, missing header/body, or invalid CBOR.
+pub fn accept_claim_expecting(
+    bytes: &[u8],
+    profile: &ConsumerProfile,
+    expected: &RetainedClaimIdentity,
+) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
+    accept(bytes, profile, Some(expected))
+}
+
+fn accept(
+    bytes: &[u8],
+    profile: &ConsumerProfile,
+    expected: Option<&RetainedClaimIdentity>,
 ) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
     let mut consumed = replay_analysis_result(bytes)?;
     let claim_id = receipt_input(&consumed);
@@ -919,6 +971,9 @@ pub fn accept_claim(
             Some(Arc::from("unknown_required_feature")),
         );
         return Ok((consumed, HandoffReceipt::opaque_forward(claim_id, profile.id.clone())));
+    }
+    if let Some(expected) = expected {
+        bind_retained_claim(&mut consumed, expected);
     }
     let handoff = if consumed.acceptance.accepts_as_claim() {
         HandoffReceipt::lossless(claim_id, profile.id.clone())
@@ -950,6 +1005,43 @@ pub fn accept_claim(
         .collect();
     consumed.acceptance.supported_operations = Arc::from(allowed);
     Ok((consumed, handoff))
+}
+
+/// Bind a replayed claim to the claim identity the consumer retained.
+///
+/// Does nothing unless the artifact replayed and carries a claim. Then the replayed claim id,
+/// recomputed from the claim during replay, is bound to `expected` with
+/// [`crate::bound_identity::bind`]: on a match the acceptance records the claim as bound
+/// ([`AcceptanceReport::accepts_as_bound_claim`]); otherwise it is restricted to storage and
+/// forwarding with the reason `claim_identity_mismatch`.
+pub fn bind_retained_claim(
+    consumed: &mut AnalysisResultConsumption,
+    expected: &RetainedClaimIdentity,
+) {
+    if !(consumed.acceptance.accepts_as_replayed_program() && consumed.acceptance.claim_present) {
+        return;
+    }
+    let presented = crate::bound_identity::BoundIdentity::claim(receipt_input(consumed));
+    let retained = crate::bound_identity::ExpectedIdentity::claim(expected.claim_id);
+    match crate::bound_identity::bind(
+        crate::bound_identity::IdentitySlot::Claim,
+        &presented,
+        Some(&retained),
+    ) {
+        Ok(crate::bound_identity::BoundMatch::Bound { .. }) => {
+            consumed.acceptance = consumed.acceptance.clone().with_claim_bound();
+        }
+        Ok(crate::bound_identity::BoundMatch::NotRequired { .. }) | Err(_) => {
+            consumed.acceptance = AcceptanceReport::new(
+                true,
+                true,
+                [Arc::from("claim_identity")],
+                storage_ops(),
+                Some(Arc::from("claim_identity_mismatch")),
+            )
+            .with_claim(true);
+        }
+    }
 }
 
 pub(in crate::contract_section) fn unknown_required_features(

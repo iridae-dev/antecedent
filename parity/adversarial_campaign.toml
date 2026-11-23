@@ -157,6 +157,12 @@ runner = "aeneas"
 test = "AntecedentRust.Standing"
 
 [[cases]]
+id = "acceptance.claim_slot_binds_only_retained_id"
+kind = "bound"
+runner = "kani"
+test = "claim_binds_only_the_retained_claim_id"
+
+[[cases]]
 id = "specification.generated_cases"
 kind = "bound"
 runner = "lean"
@@ -212,3 +218,15 @@ file = "crates/antecedent-contract/src/transform.rs"
 old = "                *existing = existing.union(incoming);"
 new = "                *existing = incoming.clone();"
 caught_by = ["contract.chain_keeps_layer_effects", "contract.refused_step_refuses_chain"]
+
+[[mutations]]
+id = "claim_slot_ignores_retained_id"
+file = "crates/antecedent-io-core/src/bound_identity.rs"
+old = """    pub const fn claim(claim_id: SemanticDigest) -> Self {
+        Self {
+            payload: claim_id,"""
+new = """    pub const fn claim(claim_id: SemanticDigest) -> Self {
+        let _ = claim_id;
+        Self {
+            payload: UNUSED_FACET,"""
+caught_by = ["acceptance.claim_slot_binds_only_retained_id"]

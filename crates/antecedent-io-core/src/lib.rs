@@ -164,6 +164,8 @@ pub use container::{
     pack_section, pack_section_shared, section_descriptor, section_descriptor_with_policy,
 };
 pub use contract_section::TargetWeightsSectionWire;
+#[allow(deprecated, reason = "re-exported for 3.0 callers until 4.0")]
+pub use contract_section::accept_claim;
 pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AnalysisResultLoad, AssumptionSlotWire,
     AttestedEvidenceWire, BOOTSTRAP_LIMITED_DIAGNOSTIC, CHECKED_DR_LOWERING_FORMAT,
@@ -172,14 +174,15 @@ pub use contract_section::{
     CheckedIvLoweringWire, CheckedLearnerWire, ClaimDomainsWire, ClaimHostProjection,
     ClaimSectionWire, ContractIdentitiesWire, ContractReason, IdentificationSlotWire,
     MCMC_LIMITED_DIAGNOSTIC, OVERLAP_LIMITED_DIAGNOSTIC, ObligationSectionWire,
-    ReasoningSectionWire, ReplayOptions, ReplayReport, SlotSectionWire, SupportSlotWire,
-    UncertaintyComponentWire, UncertaintySlotWire, accept_claim, checked_aipw_rows_digest,
-    claim_domain_statuses, claim_domain_statuses_of_section, claim_domains,
-    claim_domains_of_section, claim_kind, claim_kind_name, claim_kind_name_of_section,
-    claim_kind_of_section, contract_seal, decode_analysis_result_contract,
-    identification_not_claimed, load_analysis_result, project_claim_host, project_lossy_scalar,
-    replay_analysis_result, replay_analysis_result_with_source, replay_analysis_result_within,
-    result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
+    ReasoningSectionWire, ReplayOptions, ReplayReport, RetainedClaimIdentity, SlotSectionWire,
+    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim_expecting,
+    bind_retained_claim, checked_aipw_rows_digest, claim_domain_statuses,
+    claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
+    claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, contract_seal,
+    decode_analysis_result_contract, identification_not_claimed, load_analysis_result,
+    project_claim_host, project_lossy_scalar, replay_analysis_result,
+    replay_analysis_result_with_source, replay_analysis_result_within, result_digest,
+    support_empirical, validate_contract_section, validate_mixture_masses,
     verify_checked_dr_replay, verify_contract_against_body,
     verify_contract_against_body_with_source, verify_contract_against_body_within,
     weight_basis_name,

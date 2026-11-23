@@ -55,9 +55,9 @@ use antecedent_io::query_wire::{
 };
 use antecedent_io::{
     DesignVariableRole, DesignVariableSummary, EstimandFingerprint, PriorCatalog, PriorMapping,
-    PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, accept_claim,
-    causal_query_to_wire, executed_functional_labels, project_claim_host, project_lossy_scalar,
-    replay_analysis_result,
+    PriorSourceMeta, PriorSourceRef, RetainedClaimIdentity, TargetDesign, TemporalCoordinates,
+    accept_claim_expecting, causal_query_to_wire, executed_functional_labels, project_claim_host,
+    project_lossy_scalar, replay_analysis_result,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -2459,8 +2459,10 @@ fn composition_adversarial_boundaries_refuse_stronger_claims() {
         other => panic!("shared-data contrast without alignment must refuse, got {other:?}"),
     }
     let result = claim_prepared.estimate(&data, &ctx).unwrap();
+    let (_, retained_claim) = claim_prepared.execution_contract(&result, &ctx).unwrap();
     let bytes = claim_prepared.encode_contracted_result(&result, "adv-lossy", &ctx).unwrap();
-    let (sender, _) = accept_claim(&bytes, &ConsumerProfile::full()).unwrap();
+    let retained = RetainedClaimIdentity::new(retained_claim.claim_id);
+    let (sender, _) = accept_claim_expecting(&bytes, &ConsumerProfile::full(), &retained).unwrap();
     let (scalar, lossy) = project_lossy_scalar(&sender);
     assert!(!scalar.accepts_as_claim);
     assert!(!lossy.equivalent_claim());
@@ -4753,9 +4755,12 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
     assert_eq!(HostOperation::AcceptClaim.as_str(), "accept_claim");
 
     let bytes = prepared.encode_contracted_result(&result, "claim-handoff", &ctx).unwrap();
-    let (sender, lossless) = accept_claim(&bytes, &ConsumerProfile::full()).unwrap();
+    // The consumer retained the claim id the producer handed it, apart from the bytes.
+    let retained = RetainedClaimIdentity::new(claim.claim_id);
+    let (sender, lossless) =
+        accept_claim_expecting(&bytes, &ConsumerProfile::full(), &retained).unwrap();
     assert!(
-        sender.acceptance.accepts_as_claim(),
+        sender.acceptance.accepts_as_bound_claim(),
         "the checked OLS adjustment replays from its portable moments: {:?}",
         sender.acceptance.unresolved
     );
@@ -4768,7 +4773,19 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
     assert!(host.value.is_number());
     assert_eq!(host.identification_domain, serde_json::Value::String("identified".into()));
 
-    let (forwarding, stored) = accept_claim(&bytes, &ConsumerProfile::forwarding()).unwrap();
+    // The same bytes against another retained claim are not that claim: storage only.
+    let other = RetainedClaimIdentity::new(SemanticDigest::from_bytes([7; 32]));
+    let (wrong, wrong_receipt) =
+        accept_claim_expecting(&bytes, &ConsumerProfile::full(), &other).unwrap();
+    assert!(!wrong.acceptance.accepts_as_claim());
+    assert!(!wrong.acceptance.accepts_as_bound_claim());
+    assert_eq!(wrong.acceptance.restriction.as_deref(), Some("claim_identity_mismatch"));
+    assert!(wrong.acceptance.supported_operations.iter().all(|op| &**op != "inspect_claim"));
+    assert!(!wrong_receipt.equivalent_claim());
+    assert!(!project_claim_host(&wrong).accepts_as_claim);
+
+    let (forwarding, stored) =
+        accept_claim_expecting(&bytes, &ConsumerProfile::forwarding(), &retained).unwrap();
     assert!(!forwarding.acceptance.accepts_as_claim());
     assert!(forwarding.acceptance.supported_operations.iter().any(|op| &**op == "forward"));
     assert!(!stored.equivalent_claim());
@@ -4780,13 +4797,13 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
     section.format = 99;
     let unknown = rewrite_contract_section(&body, names.clone(), "unknown", &section);
     let (restricted, unknown_receipt) =
-        accept_claim(&unknown, &ConsumerProfile::restricted()).unwrap();
+        accept_claim_expecting(&unknown, &ConsumerProfile::restricted(), &retained).unwrap();
     assert!(!restricted.acceptance.recognized);
     assert!(!restricted.acceptance.accepts_as_claim());
     assert!(restricted.acceptance.supported_operations.iter().any(|op| &**op == "forward"));
 
     let (forwarded, forward_receipt) =
-        accept_claim(&unknown, &ConsumerProfile::forwarding()).unwrap();
+        accept_claim_expecting(&unknown, &ConsumerProfile::forwarding(), &retained).unwrap();
     assert!(!forwarded.acceptance.accepts_as_claim());
     let chained = unknown_receipt.chain(&forward_receipt);
     assert!(!chained.equivalent_claim());
@@ -4802,7 +4819,7 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
     missing_contract.identification = None;
     let missing_bytes = rewrite_contract_section(&body, names, "missing", &missing_contract);
     let (missing, missing_receipt) =
-        accept_claim(&missing_bytes, &ConsumerProfile::full()).unwrap();
+        accept_claim_expecting(&missing_bytes, &ConsumerProfile::full(), &retained).unwrap();
     assert!(!missing.acceptance.accepts_as_claim());
     assert!(missing.acceptance.unresolved.iter().any(|item| item.starts_with("identities.")));
     assert!(!missing_receipt.equivalent_claim());
@@ -6860,6 +6877,9 @@ fn a_tampered_verified_artifact_is_refused() {
     assert!(original.body.refutations.is_empty());
     assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
     let section = original.contract.clone().unwrap();
+    let retained = RetainedClaimIdentity::new(SemanticDigest::from_bytes(
+        section.claim.as_ref().expect("claim").claim_id,
+    ));
     let names = original.header.variable_names.clone();
 
     let edits: [fn(&mut antecedent_io::AnalysisResultContractWire); 6] = [
@@ -6894,9 +6914,10 @@ fn a_tampered_verified_artifact_is_refused() {
             "tampered contract accepted: {:?}",
             consumed.acceptance.unresolved
         );
-        let (_, receipt) = accept_claim(
+        let (_, receipt) = accept_claim_expecting(
             &rewrite_contract_section(&original.body, names.clone(), "tampered", &tampered),
             &ConsumerProfile::full(),
+            &retained,
         )
         .unwrap();
         assert!(!receipt.equivalent_claim(), "a tampered artifact is not a lossless exchange");

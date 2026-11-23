@@ -39,6 +39,8 @@ pub use antecedent_io::graph_mixed::{
 pub use antecedent_io::graph_networkx::{
     dag_with_names_from_networkx_adjacency, dag_with_names_from_networkx_node_link,
 };
+/// Accept an exported claim only as the claim the consumer retained.
+pub use antecedent_io::{RetainedClaimIdentity, accept_claim_expecting};
 
 use crate::error::CausalError;
 

@@ -551,9 +551,11 @@ pub use antecedent_io_core::randomized_ipow_wire;
 /// Whole-procedure numerical replay of supported randomized-arm IPW results.
 pub mod randomized_ipow_artifact;
 pub use antecedent_io_core::{
-    AnalysisResultLoad, ReplayOptions, ReplayReport, load_analysis_result,
+    AnalysisResultLoad, ReplayOptions, ReplayReport, RetainedClaimIdentity, load_analysis_result,
 };
+#[allow(deprecated, reason = "re-exported for 3.0 callers until 4.0")]
+pub use randomized_ipow_artifact::accept_claim;
 pub use randomized_ipow_artifact::{
-    accept_claim, decode_analysis_result_artifact, replay_analysis_result,
+    accept_claim_expecting, decode_analysis_result_artifact, replay_analysis_result,
     replay_analysis_result_within, replay_loaded_result,
 };

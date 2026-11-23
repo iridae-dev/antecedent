@@ -148,15 +148,16 @@ checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
 
 [[records]]
 id = "acceptance.retained_expected_identity"
-proposition = "bind returns Bound only when the presented slot matches the required one, the consumer passed a retained expected identity, and every facet (payload, coordinates, prior, alignment, cyclic-solution tag) equals it. Without a retained expectation nothing is bound; a self-description can only cause a refusal; a matching presentation without a false self-description is bound."
-scope = "antecedent_io_core::bound_identity::bind for every input, with the facet digest replaced by an arbitrary function. Artifact loaders that accept on self-consistency and replay without a caller-retained identity (accept_claim, accept_contract, from_bytes with no expected identity) do not route through bind and are outside this record."
+proposition = "bind returns Bound only when the presented slot matches the required one, the consumer passed a retained expected identity, and every facet (payload, coordinates, prior, alignment, cyclic-solution tag) equals it. Without a retained expectation nothing is bound; a self-description can only cause a refusal; a matching presentation without a false self-description is bound. In the claim slot that accept_claim_expecting uses, a replayed claim binds exactly when its claim id equals the claim id the consumer retained."
+scope = "antecedent_io_core::bound_identity::bind for every input, with the facet digest replaced by an arbitrary function, and its claim slot as accept_claim_expecting and bind_retained_claim use it (io-core, and the IPW-replaying wrapper in antecedent-io). The deprecated accept_claim, which accepts any claim that replays, and loaders that take an optional expected identity and are called without one (FittedEffectModel::load, artifact from_bytes(bytes, None)) do not bind and are outside this record."
 trusted = [
     "the Lean 4 kernel",
     "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of bind",
     "the Kani stub of facet_digest is an arbitrary value, so no property of BLAKE3 is used",
 ]
 limitations = [
-    "The main artifact acceptance path does not take a caller-retained expected identity; it re-derives the digests the artifact advertises from the artifact's own payloads.",
+    "accept_claim without a retained identity stays available, deprecated, for 3.0 callers until 4.0; it accepts any claim that replays.",
+    "That bind_retained_claim and accept_claim_expecting route every replayed claim through bind is reviewed and tested (identity_contract, bayesian_randomized_routes), not machine-checked.",
 ]
 
 [records.operation]
@@ -170,7 +171,12 @@ justification = [
     "Antecedent.Acceptance.bind_mismatch_never_bound",
     "bound_only_against_the_retained_expectation",
 ]
-implementation = ["antecedent_io_core::bound_identity::bind"]
+implementation = [
+    "antecedent_io_core::bound_identity::bind",
+    "antecedent_io_core::accept_claim_expecting",
+    "antecedent_io_core::bind_retained_claim",
+    "antecedent_io::accept_claim_expecting",
+]
 obligations = []
 limitations = []
 
@@ -194,6 +200,7 @@ harnesses = [
     { file = "formal/kani/src/bound_identity.rs", name = "bound_only_against_the_retained_expectation" },
     { file = "formal/kani/src/bound_identity.rs", name = "no_expectation_is_never_bound" },
     { file = "formal/kani/src/bound_identity.rs", name = "matching_presentation_is_bound" },
+    { file = "formal/kani/src/bound_identity.rs", name = "claim_binds_only_the_retained_claim_id" },
 ]
 rust_items = [
     { file = "crates/antecedent-io-core/src/bound_identity.rs", items = [
@@ -202,6 +209,18 @@ rust_items = [
         "fn:same_digest#0",
         "fn:same_cyclic#0",
         "fn:falsely_self_described#0",
+        "const:UNUSED_FACET#0",
+        "impl:BoundIdentity#0/fn:claim#0",
+        "impl:ExpectedIdentity#0/fn:claim#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/contract_section/consume.rs", items = [
+        "fn:accept_claim_expecting#0",
+        "fn:accept#0",
+        "fn:bind_retained_claim#0",
+    ] },
+    { file = "crates/antecedent-io/src/randomized_ipow_artifact.rs", items = [
+        "fn:accept_claim_expecting#0",
+        "fn:accept#0",
     ] },
 ]
 

@@ -239,8 +239,15 @@ fn promote_replayed_ipow(consumed: &mut antecedent_io_core::AnalysisResultConsum
 
 /// Accept an IPW claim only after replay, preserving the receiver's capability restrictions.
 ///
+/// The claim is not bound to an identity the consumer retained; [`accept_claim_expecting`]
+/// also requires it to be the claim the consumer holds.
+///
 /// # Errors
 /// Invalid artifact or numerical replay disagreement.
+#[deprecated(
+    since = "3.1.0",
+    note = "accepts any claim that replays; use accept_claim_expecting with the claim id the consumer retained"
+)]
 pub fn accept_claim(
     bytes: &[u8],
     profile: &antecedent_contract::ConsumerProfile,
@@ -248,11 +255,54 @@ pub fn accept_claim(
     (antecedent_io_core::AnalysisResultConsumption, antecedent_contract::HandoffReceipt),
     IoError,
 > {
-    let (mut consumed, mut receipt) = antecedent_io_core::accept_claim(bytes, profile)?;
+    accept(bytes, profile, None)
+}
+
+/// Accept an IPW claim only after replay and only as the claim the consumer retained,
+/// preserving the receiver's capability restrictions
+/// ([`antecedent_io_core::accept_claim_expecting`]).
+///
+/// # Errors
+/// Invalid artifact or numerical replay disagreement.
+pub fn accept_claim_expecting(
+    bytes: &[u8],
+    profile: &antecedent_contract::ConsumerProfile,
+    expected: &antecedent_io_core::RetainedClaimIdentity,
+) -> Result<
+    (antecedent_io_core::AnalysisResultConsumption, antecedent_contract::HandoffReceipt),
+    IoError,
+> {
+    accept(bytes, profile, Some(expected))
+}
+
+fn accept(
+    bytes: &[u8],
+    profile: &antecedent_contract::ConsumerProfile,
+    expected: Option<&antecedent_io_core::RetainedClaimIdentity>,
+) -> Result<
+    (antecedent_io_core::AnalysisResultConsumption, antecedent_contract::HandoffReceipt),
+    IoError,
+> {
+    let (mut consumed, mut receipt) = match expected {
+        Some(expected) => antecedent_io_core::accept_claim_expecting(bytes, profile, expected)?,
+        None =>
+        {
+            #[allow(deprecated, reason = "the deprecated unbound acceptance delegates to it")]
+            antecedent_io_core::accept_claim(bytes, profile)?
+        }
+    };
     verify(&consumed.body, &ReplayLimits::default())?;
     if profile.understands("verify_contract") && profile.understands("inspect_claim") {
         promote_replayed_ipow(&mut consumed);
-        if consumed.acceptance.accepts_as_claim() {
+        if let Some(expected) = expected {
+            // The IPW replay above can be what makes the claim replay; bind it now.
+            antecedent_io_core::bind_retained_claim(&mut consumed, expected);
+        }
+        let accepted = match expected {
+            Some(_) => consumed.acceptance.accepts_as_bound_claim(),
+            None => consumed.acceptance.accepts_as_claim(),
+        };
+        if accepted {
             receipt =
                 antecedent_contract::HandoffReceipt::lossless(receipt.input, profile.id.clone());
         }

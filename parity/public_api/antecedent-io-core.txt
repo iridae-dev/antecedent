@@ -378,6 +378,7 @@ impl core::clone::Clone for antecedent_io_core::ResponseOptionsWire
 impl core::clone::Clone for antecedent_io_core::ResponseQueryWire
 impl core::clone::Clone for antecedent_io_core::ResponseUncertaintyWire
 impl core::clone::Clone for antecedent_io_core::ResponseValueWire
+impl core::clone::Clone for antecedent_io_core::RetainedClaimIdentity
 impl core::clone::Clone for antecedent_io_core::RetainedMechanismWire
 impl core::clone::Clone for antecedent_io_core::SchemaWire
 impl core::clone::Clone for antecedent_io_core::SchemaWireV01
@@ -1113,6 +1114,7 @@ impl core::cmp::Eq for antecedent_io_core::RedrawPriorWire
 impl core::cmp::Eq for antecedent_io_core::RedrawTargetWire
 impl core::cmp::Eq for antecedent_io_core::ReplayReport
 impl core::cmp::Eq for antecedent_io_core::ResponseOptionsWire
+impl core::cmp::Eq for antecedent_io_core::RetainedClaimIdentity
 impl core::cmp::Eq for antecedent_io_core::RetainedMechanismWire
 impl core::cmp::Eq for antecedent_io_core::SchemaWire
 impl core::cmp::Eq for antecedent_io_core::SchemaWireV01
@@ -1695,6 +1697,7 @@ impl core::cmp::PartialEq for antecedent_io_core::ResponseOptionsWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseQueryWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseUncertaintyWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseValueWire
+impl core::cmp::PartialEq for antecedent_io_core::RetainedClaimIdentity
 impl core::cmp::PartialEq for antecedent_io_core::RetainedMechanismWire
 impl core::cmp::PartialEq for antecedent_io_core::SchemaWire
 impl core::cmp::PartialEq for antecedent_io_core::SchemaWireV01
@@ -2679,6 +2682,7 @@ impl core::fmt::Debug for antecedent_io_core::ResponseOptionsWire
 impl core::fmt::Debug for antecedent_io_core::ResponseQueryWire
 impl core::fmt::Debug for antecedent_io_core::ResponseUncertaintyWire
 impl core::fmt::Debug for antecedent_io_core::ResponseValueWire
+impl core::fmt::Debug for antecedent_io_core::RetainedClaimIdentity
 impl core::fmt::Debug for antecedent_io_core::RetainedMechanismWire
 impl core::fmt::Debug for antecedent_io_core::SchemaWire
 impl core::fmt::Debug for antecedent_io_core::SchemaWireV01
@@ -3379,6 +3383,7 @@ impl core::marker::Copy for antecedent_io_core::ModelKindWire
 impl core::marker::Copy for antecedent_io_core::ProvenanceRole
 impl core::marker::Copy for antecedent_io_core::RandomizationContrastWire
 impl core::marker::Copy for antecedent_io_core::RandomizedEstimandWire
+impl core::marker::Copy for antecedent_io_core::RetainedClaimIdentity
 impl core::marker::Copy for antecedent_io_core::SectionLoadStats
 impl core::marker::Copy for antecedent_io_core::SourceWitnessLimits
 impl core::marker::Copy for antecedent_io_core::StructuralWeightBasisWire
@@ -3733,6 +3738,7 @@ impl core::marker::Freeze for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Freeze for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::marker::Freeze for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Freeze for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Freeze for antecedent_io_core::SchemaWireV01 [auto]
@@ -4593,6 +4599,7 @@ impl core::marker::Send for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Send for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::marker::Send for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Send for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Send for antecedent_io_core::SchemaWireV01 [auto]
@@ -5452,6 +5459,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseOptionsWi
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseQueryWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseUncertaintyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseValueWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::RetainedClaimIdentity
 impl core::marker::StructuralPartialEq for antecedent_io_core::RetainedMechanismWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::SchemaWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::SchemaWireV01
@@ -6264,6 +6272,7 @@ impl core::marker::Sync for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Sync for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::marker::Sync for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Sync for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Sync for antecedent_io_core::SchemaWireV01 [auto]
@@ -7130,6 +7139,7 @@ impl core::marker::Unpin for antecedent_io_core::ResponseOptionsWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseQueryWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseValueWire [auto]
+impl core::marker::Unpin for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::marker::Unpin for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::marker::Unpin for antecedent_io_core::SchemaWire [auto]
 impl core::marker::Unpin for antecedent_io_core::SchemaWireV01 [auto]
@@ -7997,6 +8007,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseOpt
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseQueryWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseValueWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::SchemaWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::SchemaWireV01 [auto]
@@ -8862,6 +8873,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseOption
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseQueryWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseUncertaintyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseValueWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RetainedClaimIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RetainedMechanismWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::SchemaWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::SchemaWireV01 [auto]
@@ -12644,6 +12656,7 @@ pub field antecedent_io_core::ResponseQueryWire::observation_assumptions: alloc:
 pub field antecedent_io_core::ResponseQueryWire::outcome_functional: antecedent_io_core::query_wire::OutcomeFunctionalWire
 pub field antecedent_io_core::ResponseQueryWire::target_population: antecedent_io_core::TargetPopulationWire
 pub field antecedent_io_core::ResponseQueryWire::temporal: core::option::Option<antecedent_io_core::TemporalResponseSpecWire>
+pub field antecedent_io_core::RetainedClaimIdentity::claim_id: antecedent_core::identity::SemanticDigest
 pub field antecedent_io_core::SchemaWire::variables: alloc::vec::Vec<antecedent_io_core::VariableSchemaWire>
 pub field antecedent_io_core::SchemaWireV01::variable_names: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::ScoreReuseIdentityWire::adjustment_set: alloc::vec::Vec<u32>
@@ -15421,6 +15434,7 @@ pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::o
 pub fn <antecedent_io_core::ProvenanceRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io_core::ReplayReport>::fn failed(&self) -> bool
 pub fn <antecedent_io_core::ReplayReport>::fn replayed(&self) -> bool
+pub fn <antecedent_io_core::RetainedClaimIdentity>::const fn new(claim_id: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_io_core::SchemaWire>::fn has_unspecified_value_types(&self) -> bool
 pub fn <antecedent_io_core::SchemaWire>::fn variable_names(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent_io_core::ScoreReuseIdentityWire>::fn batch_share(data_snapshot: antecedent_core::identity::SemanticDigest, fold_ids: &[u32], n_folds: u32, adjustment_set: &[antecedent_core::ids::VariableId]) -> Self
@@ -15481,6 +15495,8 @@ pub fn <antecedent_io_core::analysis_result_artifact::QuasiRolloutWire>::fn diag
 pub fn <antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a>>::fn new(result: &'a antecedent_identify::result::IdentificationResult, source: &'a antecedent_core::query::variants::CausalQuery, encoded: &'a antecedent_io_core::CausalQueryWire) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::bound_identity::BoundIdentity>::const fn claim(claim_id: antecedent_core::identity::SemanticDigest) -> Self
+pub fn <antecedent_io_core::bound_identity::ExpectedIdentity>::const fn claim(claim_id: antecedent_core::identity::SemanticDigest) -> Self
 pub fn <antecedent_io_core::bound_identity::IdentitySlot>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io_core::bridge_artifact::ContractWire>::const fn is_extended(&self) -> bool
 pub fn <antecedent_io_core::bridge_artifact::FullBridgeContractWire>::fn from_domain(contract: &antecedent_contract::bridge::contract::BridgeContract) -> core::result::Result<Self, antecedent_io_core::bridge_artifact::ScientificBridgeArtifactError>
@@ -16030,6 +16046,7 @@ pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCoun
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifact>::fn to_bytes_within(&self, artifact_id: &str, max_bytes: usize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError>
 pub fn <antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError>::fn refusal(&self) -> core::option::Option<antecedent_io_core::transported_counterfactual_artifact::RefusalWire>
 pub fn antecedent_io_core::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::IoError>
+pub fn antecedent_io_core::accept_claim_expecting(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile, expected: &antecedent_io_core::RetainedClaimIdentity) -> core::result::Result<(antecedent_io_core::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::IoError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::contract_boundaries(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract) -> core::result::Result<core::option::Option<antecedent_stats::adaptive_inference::group_sequential::Boundaries>, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_from_wire(wire: &antecedent_io_core::adaptive_monitoring_contract_artifact::DeclarationWire) -> core::result::Result<antecedent_contract::adaptive_design::declaration::AdaptiveDesignDeclaration, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_to_wire(declaration: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignDeclaration) -> antecedent_io_core::adaptive_monitoring_contract_artifact::DeclarationWire
@@ -16090,6 +16107,7 @@ pub fn antecedent_io_core::assumptions_to_wire(set: &antecedent_core::assumption
 pub fn antecedent_io_core::attach_prior_source_meta(artifact: antecedent_io_core::EncodedArtifact, meta: &antecedent_io_core::PriorSourceMeta) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::attested_external_estimate(attach: &antecedent_io_core::ExternalEstimateAttach) -> antecedent_io_core::AttestedEvidenceWire
 pub fn antecedent_io_core::bibliography<'a, I>(provenances: I) -> alloc::vec::Vec<antecedent_io_core::CitationWire> where I: core::iter::traits::collect::IntoIterator<Item = &'a antecedent_io_core::MethodProvenanceWire>
+pub fn antecedent_io_core::bind_retained_claim(consumed: &mut antecedent_io_core::AnalysisResultConsumption, expected: &antecedent_io_core::RetainedClaimIdentity)
 pub fn antecedent_io_core::bound_identity::bind(required: antecedent_io_core::bound_identity::IdentitySlot, bound: &antecedent_io_core::bound_identity::BoundIdentity, expected: core::option::Option<&antecedent_io_core::bound_identity::ExpectedIdentity>) -> core::result::Result<antecedent_io_core::bound_identity::BoundMatch, antecedent_io_core::bound_identity::BoundRefusal>
 pub fn antecedent_io_core::bound_identity::facet_digest(bound: &antecedent_io_core::bound_identity::BoundIdentity) -> antecedent_core::identity::SemanticDigest
 pub fn antecedent_io_core::bridge_distribution::bridge_draws(contract: &antecedent_contract::bridge::contract::BridgeContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, claim_kind: core::option::Option<antecedent_contract::claim::ClaimKind>, seed: u64) -> core::result::Result<antecedent_io_core::bridge_distribution::BridgedDistribution, antecedent_contract::bridge::refusal::BridgeRefusal>
@@ -16716,6 +16734,7 @@ pub struct antecedent_io_core::ReplayReport
 pub struct antecedent_io_core::ResponseEnvelopeWire
 pub struct antecedent_io_core::ResponseOptionsWire
 pub struct antecedent_io_core::ResponseQueryWire
+pub struct antecedent_io_core::RetainedClaimIdentity
 pub struct antecedent_io_core::SchemaWire
 pub struct antecedent_io_core::SchemaWireV01
 pub struct antecedent_io_core::ScoreReuseIdentityWire
@@ -17401,6 +17420,7 @@ pub use antecedent_io_core::contract_section::ObligationSectionWire = antecedent
 pub use antecedent_io_core::contract_section::ReasoningSectionWire = antecedent_io_core::ReasoningSectionWire
 pub use antecedent_io_core::contract_section::ReplayOptions = antecedent_io_core::ReplayOptions
 pub use antecedent_io_core::contract_section::ReplayReport = antecedent_io_core::ReplayReport
+pub use antecedent_io_core::contract_section::RetainedClaimIdentity = antecedent_io_core::RetainedClaimIdentity
 pub use antecedent_io_core::contract_section::SlotSectionWire = antecedent_io_core::SlotSectionWire
 pub use antecedent_io_core::contract_section::SourceReplayBounds = antecedent_io_core::SourceReplayBounds
 pub use antecedent_io_core::contract_section::SupportSlotWire = antecedent_io_core::SupportSlotWire
@@ -17408,6 +17428,8 @@ pub use antecedent_io_core::contract_section::TargetWeightsSectionWire = anteced
 pub use antecedent_io_core::contract_section::UncertaintyComponentWire = antecedent_io_core::UncertaintyComponentWire
 pub use antecedent_io_core::contract_section::UncertaintySlotWire = antecedent_io_core::UncertaintySlotWire
 pub use antecedent_io_core::contract_section::accept_claim = antecedent_io_core::accept_claim
+pub use antecedent_io_core::contract_section::accept_claim_expecting = antecedent_io_core::accept_claim_expecting
+pub use antecedent_io_core::contract_section::bind_retained_claim = antecedent_io_core::bind_retained_claim
 pub use antecedent_io_core::contract_section::checked_aipw_rows_digest = antecedent_io_core::checked_aipw_rows_digest
 pub use antecedent_io_core::contract_section::claim_domain_statuses = antecedent_io_core::claim_domain_statuses
 pub use antecedent_io_core::contract_section::claim_domain_statuses_of_section = antecedent_io_core::claim_domain_statuses_of_section

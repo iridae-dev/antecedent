@@ -115,6 +115,39 @@ pub struct BoundIdentity {
     pub self_description: Option<SelfDescribedDigest>,
 }
 
+/// The facet a claim-slot identity does not use. A claim id already covers the claim's
+/// coordinates, prior and alignment, so a claim binds by its id alone.
+const UNUSED_FACET: SemanticDigest = SemanticDigest::from_bytes([0u8; 32]);
+
+impl BoundIdentity {
+    /// The claim identity an artifact presents: its replayed claim id, with no
+    /// self-description.
+    pub const fn claim(claim_id: SemanticDigest) -> Self {
+        Self {
+            slot: IdentitySlot::Claim,
+            payload: claim_id,
+            coordinates: UNUSED_FACET,
+            prior: UNUSED_FACET,
+            alignment: UNUSED_FACET,
+            cyclic_solution: CyclicSolution::Absent,
+            self_description: None,
+        }
+    }
+}
+
+impl ExpectedIdentity {
+    /// The claim identity a consumer retained: the claim id it holds.
+    pub const fn claim(claim_id: SemanticDigest) -> Self {
+        Self {
+            payload: claim_id,
+            coordinates: UNUSED_FACET,
+            prior: UNUSED_FACET,
+            alignment: UNUSED_FACET,
+            cyclic_solution: CyclicSolution::Absent,
+        }
+    }
+}
+
 /// Expected identity retained by a consumer, independently of [`BoundIdentity`].
 ///
 /// The consumer stores this value itself. It is not read from the presented

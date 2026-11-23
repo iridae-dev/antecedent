@@ -583,6 +583,13 @@ fn contract_for_dag(
 }
 
 /// Recompute the seal and claim id after a deliberate fixture edit.
+/// The claim identity a consumer retained for `contract`: its sealed claim id, or none.
+fn retained(contract: &AnalysisResultContractWire) -> RetainedClaimIdentity {
+    RetainedClaimIdentity::new(antecedent_core::SemanticDigest::from_bytes(
+        contract.claim.as_ref().map_or([0u8; 32], |claim| claim.claim_id),
+    ))
+}
+
 fn seal_claim(contract: &mut AnalysisResultContractWire, body: &AnalysisResultWire) {
     contract.seal = contract_seal_of(contract).unwrap();
     let Some(claim) = contract.claim.clone() else {
@@ -873,8 +880,12 @@ fn unchecked_program_without_claim_is_not_an_accepted_claim() {
     assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(!consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim"));
-    let (accepted, receipt) =
-        accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
+    let (accepted, receipt) = accept_claim_expecting(
+        &bytes,
+        &antecedent_contract::ConsumerProfile::full(),
+        &retained(&contract),
+    )
+    .unwrap();
     assert!(!accepted.acceptance.accepts_as_claim());
     assert_ne!(receipt.input.as_bytes(), &[0u8; 32]);
     assert_eq!(receipt.input.as_bytes(), &payload_digest("analysis_result.bytes", &bytes));
@@ -887,7 +898,7 @@ fn unchecked_program_without_claim_is_not_an_accepted_claim() {
 }
 
 #[test]
-fn accept_claim_unknown_feature_is_storage_not_acceptance() {
+fn accept_claim_expecting_unknown_feature_is_storage_not_acceptance() {
     let (body, target, names) = fixture_body();
     let mut contract = contract_for(target, &body);
     // A posterior-weighted mixture: the kind follows from the weight basis.
@@ -900,18 +911,30 @@ fn accept_claim_unknown_feature_is_storage_not_acceptance() {
     }
     seal_claim(&mut contract, &body);
     let bytes = to_bytes(&body, names, Some(&contract));
-    let (full, lossless) =
-        accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
+    let (full, lossless) = accept_claim_expecting(
+        &bytes,
+        &antecedent_contract::ConsumerProfile::full(),
+        &retained(&contract),
+    )
+    .unwrap();
     assert!(!full.acceptance.accepts_as_claim());
     assert!(!lossless.equivalent_claim());
-    let (restricted, receipt) =
-        accept_claim(&bytes, &antecedent_contract::ConsumerProfile::restricted()).unwrap();
+    let (restricted, receipt) = accept_claim_expecting(
+        &bytes,
+        &antecedent_contract::ConsumerProfile::restricted(),
+        &retained(&contract),
+    )
+    .unwrap();
     assert!(!restricted.acceptance.accepts_as_claim());
     assert_eq!(restricted.acceptance.restriction.as_deref(), Some("unknown_required_feature"));
     assert!(restricted.acceptance.supported_operations.iter().any(|op| &**op == "forward"));
     assert!(!receipt.equivalent_claim());
-    let (_forward, forwarded) =
-        accept_claim(&bytes, &antecedent_contract::ConsumerProfile::forwarding()).unwrap();
+    let (_forward, forwarded) = accept_claim_expecting(
+        &bytes,
+        &antecedent_contract::ConsumerProfile::forwarding(),
+        &retained(&contract),
+    )
+    .unwrap();
     let chained = receipt.chain(&forwarded);
     assert!(!chained.equivalent_claim());
     assert!(chained.omitted.iter().any(|field| &**field == "required_semantics"));
@@ -983,8 +1006,12 @@ fn resealed_missing_unknown_and_conflicting_estimators_are_unverified() {
                 .iter()
                 .any(|reason| { reason.as_ref() == "dependencies.checked_estimator_operation" })
         );
-        let (accepted, _) =
-            accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full()).unwrap();
+        let (accepted, _) = accept_claim_expecting(
+            &bytes,
+            &antecedent_contract::ConsumerProfile::full(),
+            &retained(&contract),
+        )
+        .unwrap();
         assert!(!accepted.acceptance.accepts_as_claim());
     }
 }

@@ -9844,6 +9844,7 @@ pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn expecte
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::z_transport_artifact::ZTransportArtifactWire>::fn reconstruct(bytes: &[u8], limits: antecedent_io::z_transport_artifact::ZTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_graph::selection::SelectionDiagram, antecedent_identify::sid::z_transport::BoundZTransportFunctional, antecedent_expr::exact::transport::ExactTransportData, antecedent_expr::provider::Assignment, antecedent_expr::exact_plan::ExactEvaluationLimits, Self), antecedent_io_core::error::IoError>
 pub fn antecedent_io::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
+pub fn antecedent_io::accept_claim_expecting(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile, expected: &antecedent_io_core::contract_section::consume::RetainedClaimIdentity) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
 pub fn antecedent_io::adaptive_inference_result_artifact::compute_adaptive_result(contract: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignContract, spec: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResult, antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError>
 pub fn antecedent_io::analysis_wire::descriptive_scope(scope: antecedent_io_core::analysis_wire::RefutationScopeWire, produced_by: [u8; 32]) -> core::result::Result<antecedent_io_core::analysis_wire::RefutationScopeWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_owned_wire(w: antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
@@ -10735,6 +10736,7 @@ pub use antecedent_io::ResponseOptionsWire = antecedent_io_core::ResponseOptions
 pub use antecedent_io::ResponseQueryWire = antecedent_io_core::ResponseQueryWire
 pub use antecedent_io::ResponseUncertaintyWire = antecedent_io_core::ResponseUncertaintyWire
 pub use antecedent_io::ResponseValueWire = antecedent_io_core::ResponseValueWire
+pub use antecedent_io::RetainedClaimIdentity = antecedent_io_core::RetainedClaimIdentity
 pub use antecedent_io::STABLE_FORMAT = antecedent_io_core::STABLE_FORMAT
 pub use antecedent_io::SUPPORTED_SOURCE_FORMATS = antecedent_io_core::SUPPORTED_SOURCE_FORMATS
 pub use antecedent_io::SchemaWire = antecedent_io_core::SchemaWire
@@ -11086,6 +11088,7 @@ pub use antecedent_io::provider_verification_artifact = antecedent_io_core::prov
 pub use antecedent_io::quantity_wire = antecedent_io_core::quantity_wire
 pub use antecedent_io::query_wire = antecedent_io_core::query_wire
 pub use antecedent_io::randomized_ipow_artifact::accept_claim = antecedent_io::accept_claim
+pub use antecedent_io::randomized_ipow_artifact::accept_claim_expecting = antecedent_io::accept_claim_expecting
 pub use antecedent_io::randomized_ipow_artifact::decode_analysis_result_artifact = antecedent_io::decode_analysis_result_artifact
 pub use antecedent_io::randomized_ipow_wire = antecedent_io_core::randomized_ipow_wire
 pub use antecedent_io::read_and_migrate = antecedent_io_core::read_and_migrate

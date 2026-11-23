@@ -110,3 +110,19 @@ fn matching_presentation_is_bound() {
     let outcome = bind(bound.slot, &bound, Some(&expected));
     assert!(matches!(outcome, Ok(BoundMatch::Bound { slot }) if slot == bound.slot));
 }
+
+/// The claim slot `accept_claim_expecting` uses binds exactly when the replayed claim id
+/// equals the claim id the consumer retained, for every pair of ids.
+#[kani::proof]
+#[kani::stub(antecedent_io_core::bound_identity::facet_digest, facet_digest_any)]
+#[kani::unwind(33)]
+fn claim_binds_only_the_retained_claim_id() {
+    let replayed = any_digest();
+    let retained = any_digest();
+    let outcome = bind(
+        IdentitySlot::Claim,
+        &BoundIdentity::claim(replayed),
+        Some(&ExpectedIdentity::claim(retained)),
+    );
+    assert_eq!(matches!(outcome, Ok(BoundMatch::Bound { .. })), replayed == retained);
+}
