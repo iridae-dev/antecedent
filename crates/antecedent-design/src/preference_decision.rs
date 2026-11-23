@@ -517,61 +517,92 @@ impl PreferenceDecisionError {
     /// `linear_program.` detail.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
             Self::Contract(inner) => PreferenceContractError::detail(inner),
-            Self::Eval(_) => "preference_decision.source_refused",
-            Self::Lp(inner) => LpError::detail(inner),
+            Self::Eval(_) => reason_details::preference_decision::SOURCE_REFUSED,
+            Self::Lp(_) => reason_details::preference_decision::LINEAR_PROGRAM_REFUSED,
             Self::CertifiedRouteRequired { reason } => match reason {
                 CertifiedRouteReason::Criterion(_) => {
-                    "preference_decision.criterion_needs_certified_route"
+                    reason_details::preference_decision::CRITERION_NEEDS_CERTIFIED_ROUTE
                 }
                 CertifiedRouteReason::ShapeParameters { .. } => {
-                    "preference_decision.shape_parameters_need_certified_route"
+                    reason_details::preference_decision::SHAPE_PARAMETERS_NEED_CERTIFIED_ROUTE
                 }
-                CertifiedRouteReason::PartNotLowerable => "preference_decision.part_not_lowerable",
+                CertifiedRouteReason::PartNotLowerable => {
+                    reason_details::preference_decision::PART_NOT_LOWERABLE
+                }
                 CertifiedRouteReason::WorstCaseOfExpectedRegret => {
-                    "preference_decision.worst_case_of_expected_regret"
+                    reason_details::preference_decision::WORST_CASE_OF_EXPECTED_REGRET
                 }
             },
-            Self::InvalidOptions { .. } => "preference_decision.options_invalid",
-            Self::EmptyPreferenceSet => "preference_decision.preference_set_empty",
-            Self::MeasureRequired => "preference_decision.measure_required",
-            Self::MeasureIncomplete { .. } => "preference_decision.measure_incomplete",
-            Self::MeasureEmpty => "preference_decision.measure_empty",
-            Self::MeasurePointDimension { .. } => "preference_decision.measure_point_dimension",
-            Self::MeasurePointNonFinite { .. } => "preference_decision.measure_point_non_finite",
-            Self::MeasurePointOutsideSet { .. } => "preference_decision.measure_point_outside_set",
-            Self::MeasureWeightCount { .. } => "preference_decision.measure_weight_count",
-            Self::MeasureWeightInvalid { .. } => "preference_decision.measure_weight_invalid",
-            Self::MeasureWeightTotalZero => "preference_decision.measure_weight_total_zero",
-            Self::MeasureLabelCount { .. } => "preference_decision.measure_label_count",
-            Self::MeasureLabelBlank { .. } => "preference_decision.measure_label_blank",
-            Self::MeasureLabelDuplicate { .. } => "preference_decision.measure_label_duplicate",
-            Self::MeasureOriginBlank => "preference_decision.measure_origin_blank",
+            Self::InvalidOptions { .. } => reason_details::preference_decision::OPTIONS_INVALID,
+            Self::EmptyPreferenceSet => reason_details::preference_decision::PREFERENCE_SET_EMPTY,
+            Self::MeasureRequired => reason_details::preference_decision::MEASURE_REQUIRED,
+            Self::MeasureIncomplete { .. } => {
+                reason_details::preference_decision::MEASURE_INCOMPLETE
+            }
+            Self::MeasureEmpty => reason_details::preference_decision::MEASURE_EMPTY,
+            Self::MeasurePointDimension { .. } => {
+                reason_details::preference_decision::MEASURE_POINT_DIMENSION
+            }
+            Self::MeasurePointNonFinite { .. } => {
+                reason_details::preference_decision::MEASURE_POINT_NON_FINITE
+            }
+            Self::MeasurePointOutsideSet { .. } => {
+                reason_details::preference_decision::MEASURE_POINT_OUTSIDE_SET
+            }
+            Self::MeasureWeightCount { .. } => {
+                reason_details::preference_decision::MEASURE_WEIGHT_COUNT
+            }
+            Self::MeasureWeightInvalid { .. } => {
+                reason_details::preference_decision::MEASURE_WEIGHT_INVALID
+            }
+            Self::MeasureWeightTotalZero => {
+                reason_details::preference_decision::MEASURE_WEIGHT_TOTAL_ZERO
+            }
+            Self::MeasureLabelCount { .. } => {
+                reason_details::preference_decision::MEASURE_LABEL_COUNT
+            }
+            Self::MeasureLabelBlank { .. } => {
+                reason_details::preference_decision::MEASURE_LABEL_BLANK
+            }
+            Self::MeasureLabelDuplicate { .. } => {
+                reason_details::preference_decision::MEASURE_LABEL_DUPLICATE
+            }
+            Self::MeasureOriginBlank => reason_details::preference_decision::MEASURE_ORIGIN_BLANK,
             Self::MeasureUnresolvedUnknown { .. } => {
-                "preference_decision.measure_unresolved_unknown"
+                reason_details::preference_decision::MEASURE_UNRESOLVED_UNKNOWN
             }
             Self::MeasureUnresolvedRepeated { .. } => {
-                "preference_decision.measure_unresolved_repeated"
+                reason_details::preference_decision::MEASURE_UNRESOLVED_REPEATED
             }
-            Self::NoStructures => "preference_decision.structures_empty",
-            Self::StructureIdBlank { .. } => "preference_decision.structure_id_blank",
-            Self::StructureDuplicate { .. } => "preference_decision.structure_duplicate",
+            Self::NoStructures => reason_details::preference_decision::STRUCTURES_EMPTY,
+            Self::StructureIdBlank { .. } => {
+                reason_details::preference_decision::STRUCTURE_ID_BLANK
+            }
+            Self::StructureDuplicate { .. } => {
+                reason_details::preference_decision::STRUCTURE_DUPLICATE
+            }
             Self::StructureProbabilitiesPartial => {
-                "preference_decision.structure_probabilities_partial"
+                reason_details::preference_decision::STRUCTURE_PROBABILITIES_PARTIAL
             }
             Self::StructureProbabilityInvalid { .. } => {
-                "preference_decision.structure_probability_invalid"
+                reason_details::preference_decision::STRUCTURE_PROBABILITY_INVALID
             }
             Self::StructureProbabilitiesExceedOne => {
-                "preference_decision.structure_probabilities_exceed_one"
+                reason_details::preference_decision::STRUCTURE_PROBABILITIES_EXCEED_ONE
             }
             Self::StructureProbabilitiesRequired => {
-                "preference_decision.structure_probabilities_required"
+                reason_details::preference_decision::STRUCTURE_PROBABILITIES_REQUIRED
             }
-            Self::NonFiniteCoefficient { .. } => "preference_decision.coefficient_non_finite",
-            Self::UnboundedProgram => "preference_decision.linear_program_unbounded",
-            Self::UnexpectedInfeasible => "preference_decision.linear_program_infeasible",
+            Self::NonFiniteCoefficient { .. } => {
+                reason_details::preference_decision::COEFFICIENT_NON_FINITE
+            }
+            Self::UnboundedProgram => reason_details::preference_decision::LINEAR_PROGRAM_UNBOUNDED,
+            Self::UnexpectedInfeasible => {
+                reason_details::preference_decision::LINEAR_PROGRAM_INFEASIBLE
+            }
         }
     }
 }

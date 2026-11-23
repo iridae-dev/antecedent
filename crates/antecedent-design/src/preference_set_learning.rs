@@ -232,15 +232,24 @@ impl SetLearningError {
     /// Stable detail id, prefixed `preference_set_learning.`.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
-            Self::Model(_) => "preference_set_learning.model_invalid",
-            Self::Records(_) => "preference_set_learning.records_invalid",
-            Self::Lp(_) => "preference_set_learning.linear_program_refused",
-            Self::ToleranceNegative { .. } => "preference_set_learning.tolerance_negative",
-            Self::ToleranceNonFinite => "preference_set_learning.tolerance_non_finite",
-            Self::DeclaredSetEmpty => "preference_set_learning.declared_set_empty",
-            Self::RelationIdCollision { .. } => "preference_set_learning.relation_id_collision",
-            Self::ProgramInconsistent { .. } => "preference_set_learning.program_inconsistent",
+            Self::Model(_) => reason_details::preference_set_learning::MODEL_INVALID,
+            Self::Records(_) => reason_details::preference_set_learning::RECORDS_INVALID,
+            Self::Lp(_) => reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED,
+            Self::ToleranceNegative { .. } => {
+                reason_details::preference_set_learning::TOLERANCE_NEGATIVE
+            }
+            Self::ToleranceNonFinite => {
+                reason_details::preference_set_learning::TOLERANCE_NON_FINITE
+            }
+            Self::DeclaredSetEmpty => reason_details::preference_set_learning::DECLARED_SET_EMPTY,
+            Self::RelationIdCollision { .. } => {
+                reason_details::preference_set_learning::RELATION_ID_COLLISION
+            }
+            Self::ProgramInconsistent { .. } => {
+                reason_details::preference_set_learning::PROGRAM_INCONSISTENT
+            }
         }
     }
 }

@@ -426,34 +426,55 @@ impl PreferenceCertifiedError {
     /// own detail.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
             Self::Contract(inner) => inner.detail(),
             Self::Model(inner) => inner.detail(),
-            Self::Eval(_) => "preference_certified.source_refused",
-            Self::StructureInputsRequired => "preference_certified.structure_inputs_required",
-            Self::InvalidOptions { .. } => "preference_certified.options_invalid",
+            Self::Eval(_) => reason_details::preference_certified::SOURCE_REFUSED,
+            Self::StructureInputsRequired => {
+                reason_details::preference_certified::STRUCTURE_INPUTS_REQUIRED
+            }
+            Self::InvalidOptions { .. } => reason_details::preference_certified::OPTIONS_INVALID,
             Self::MinimaxRegretNeedsExpectation => {
-                "preference_certified.minimax_regret_needs_expectation"
+                reason_details::preference_certified::MINIMAX_REGRET_NEEDS_EXPECTATION
             }
-            Self::MeasureRequired => "preference_certified.measure_required",
-            Self::MeasureEmpty => "preference_certified.measure_empty",
+            Self::MeasureRequired => reason_details::preference_certified::MEASURE_REQUIRED,
+            Self::MeasureEmpty => reason_details::preference_certified::MEASURE_EMPTY,
             Self::MeasureUnknownParameter { .. } => {
-                "preference_certified.measure_unknown_parameter"
+                reason_details::preference_certified::MEASURE_UNKNOWN_PARAMETER
             }
-            Self::MeasureIncomplete { .. } => "preference_certified.measure_incomplete",
-            Self::MeasurePointDimension { .. } => "preference_certified.measure_point_dimension",
-            Self::MeasureNonFinitePoint { .. } => "preference_certified.measure_point_non_finite",
-            Self::MeasurePointOutsideSet { .. } => "preference_certified.measure_point_outside_set",
-            Self::MeasureWeightsInvalid => "preference_certified.measure_weights_invalid",
-            Self::MeasureLabelsInvalid => "preference_certified.measure_labels_invalid",
-            Self::EmptyPreferenceSet => "preference_certified.preference_set_empty",
-            Self::LogarithmDomain { .. } => "preference_certified.logarithm_domain",
-            Self::NonFiniteEnclosure { .. } => "preference_certified.enclosure_non_finite",
-            Self::InvalidAtoms => "preference_certified.atoms_invalid",
-            Self::InvalidProbabilities => "preference_certified.atom_probabilities_invalid",
-            Self::ProbabilitiesRequired => "preference_certified.atom_probabilities_required",
+            Self::MeasureIncomplete { .. } => {
+                reason_details::preference_certified::MEASURE_INCOMPLETE
+            }
+            Self::MeasurePointDimension { .. } => {
+                reason_details::preference_certified::MEASURE_POINT_DIMENSION
+            }
+            Self::MeasureNonFinitePoint { .. } => {
+                reason_details::preference_certified::MEASURE_POINT_NON_FINITE
+            }
+            Self::MeasurePointOutsideSet { .. } => {
+                reason_details::preference_certified::MEASURE_POINT_OUTSIDE_SET
+            }
+            Self::MeasureWeightsInvalid => {
+                reason_details::preference_certified::MEASURE_WEIGHTS_INVALID
+            }
+            Self::MeasureLabelsInvalid => {
+                reason_details::preference_certified::MEASURE_LABELS_INVALID
+            }
+            Self::EmptyPreferenceSet => reason_details::preference_certified::PREFERENCE_SET_EMPTY,
+            Self::LogarithmDomain { .. } => reason_details::preference_certified::LOGARITHM_DOMAIN,
+            Self::NonFiniteEnclosure { .. } => {
+                reason_details::preference_certified::ENCLOSURE_NON_FINITE
+            }
+            Self::InvalidAtoms => reason_details::preference_certified::ATOMS_INVALID,
+            Self::InvalidProbabilities => {
+                reason_details::preference_certified::ATOM_PROBABILITIES_INVALID
+            }
+            Self::ProbabilitiesRequired => {
+                reason_details::preference_certified::ATOM_PROBABILITIES_REQUIRED
+            }
             Self::MixtureCriterionUnsupported { .. } => {
-                "preference_certified.mixture_criterion_unsupported"
+                reason_details::preference_certified::MIXTURE_CRITERION_UNSUPPORTED
             }
         }
     }

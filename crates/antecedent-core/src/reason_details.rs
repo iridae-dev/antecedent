@@ -260,6 +260,41 @@ pub const REASON_DETAILS: &[&str] = &[
     "chain_recovery_posterior.external_power_prior",
     "chain_recovery_posterior.mapped_prior",
     "chain_recovery_posterior.non_positive_scale",
+    "choice_record.analysis_date_blank",
+    "choice_record.analysis_identity_blank",
+    "choice_record.attribute_duplicate",
+    "choice_record.attribute_id_blank",
+    "choice_record.attribute_units_blank",
+    "choice_record.attributes_differ",
+    "choice_record.attributes_missing",
+    "choice_record.belief_law_required",
+    "choice_record.belief_not_finite",
+    "choice_record.chosen_unknown",
+    "choice_record.decider_blank",
+    "choice_record.draws_empty",
+    "choice_record.draws_width_mismatch",
+    "choice_record.forecast_source_blank",
+    "choice_record.means_width_mismatch",
+    "choice_record.model_invalid",
+    "choice_record.observation_row_blank",
+    "choice_record.observation_row_double_counted",
+    "choice_record.observation_row_repeated",
+    "choice_record.observation_rows_missing",
+    "choice_record.option_duplicate",
+    "choice_record.option_id_blank",
+    "choice_record.options_too_few",
+    "choice_record.pooling_assumption_blank",
+    "choice_record.population_blank",
+    "choice_record.realized_assumption_blank",
+    "choice_record.record_duplicate",
+    "choice_record.record_id_blank",
+    "choice_record.records_missing",
+    "choice_record.shape_parameters_not_fixed",
+    "choice_record.term_not_finite",
+    "choice_record.weight_negative",
+    "choice_record.weight_not_finite",
+    "choice_record.weights_length_mismatch",
+    "choice_record.weights_sum_invalid",
     "cluster_dml.cancelled",
     "cluster_dml.cluster_ids_missing",
     "cluster_dml.dyadic_giant_component",
@@ -1762,6 +1797,137 @@ pub const REASON_DETAILS: &[&str] = &[
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "preference_certified.atom_probabilities_invalid",
+    "preference_certified.atom_probabilities_required",
+    "preference_certified.atoms_invalid",
+    "preference_certified.enclosure_non_finite",
+    "preference_certified.logarithm_domain",
+    "preference_certified.measure_empty",
+    "preference_certified.measure_incomplete",
+    "preference_certified.measure_labels_invalid",
+    "preference_certified.measure_point_dimension",
+    "preference_certified.measure_point_non_finite",
+    "preference_certified.measure_point_outside_set",
+    "preference_certified.measure_required",
+    "preference_certified.measure_unknown_parameter",
+    "preference_certified.measure_weights_invalid",
+    "preference_certified.minimax_regret_needs_expectation",
+    "preference_certified.mixture_criterion_unsupported",
+    "preference_certified.options_invalid",
+    "preference_certified.preference_set_empty",
+    "preference_certified.source_refused",
+    "preference_certified.structure_inputs_required",
+    "preference_choice_model.consistency_not_positive",
+    "preference_choice_model.covariance_not_positive_definite",
+    "preference_choice_model.draws_missing",
+    "preference_choice_model.fit_options_invalid",
+    "preference_choice_model.fit_refused",
+    "preference_choice_model.level_invalid",
+    "preference_choice_model.model_invalid",
+    "preference_choice_model.no_draw_inside_set",
+    "preference_choice_model.not_converged",
+    "preference_choice_model.nothing_identified",
+    "preference_choice_model.rank_deficient",
+    "preference_choice_model.records_invalid",
+    "preference_choice_model.separated",
+    "preference_choice_model.unit_of_account_missing",
+    "preference_contract.action_duplicate",
+    "preference_contract.action_id_blank",
+    "preference_contract.action_without_quantity",
+    "preference_contract.constraint_duplicate",
+    "preference_contract.constraint_id_blank",
+    "preference_contract.constraint_non_finite",
+    "preference_contract.constraint_probability",
+    "preference_contract.constraint_units_blank",
+    "preference_contract.constraint_unknown_action",
+    "preference_contract.constraint_unknown_attribute",
+    "preference_contract.criterion_invalid",
+    "preference_contract.decision_contract_refused",
+    "preference_contract.fixed_input_non_finite",
+    "preference_contract.fixed_units_mismatch",
+    "preference_contract.input_count_mismatch",
+    "preference_contract.not_lowerable",
+    "preference_contract.parameter_count_mismatch",
+    "preference_contract.parameter_non_finite",
+    "preference_contract.quantity_invalid",
+    "preference_contract.quantity_outside_scope",
+    "preference_contract.quantity_units_mismatch",
+    "preference_contract.target_population_blank",
+    "preference_contract.too_few_actions",
+    "preference_decision.coefficient_non_finite",
+    "preference_decision.criterion_needs_certified_route",
+    "preference_decision.linear_program_infeasible",
+    "preference_decision.linear_program_refused",
+    "preference_decision.linear_program_unbounded",
+    "preference_decision.measure_empty",
+    "preference_decision.measure_incomplete",
+    "preference_decision.measure_label_blank",
+    "preference_decision.measure_label_count",
+    "preference_decision.measure_label_duplicate",
+    "preference_decision.measure_origin_blank",
+    "preference_decision.measure_point_dimension",
+    "preference_decision.measure_point_non_finite",
+    "preference_decision.measure_point_outside_set",
+    "preference_decision.measure_required",
+    "preference_decision.measure_unresolved_repeated",
+    "preference_decision.measure_unresolved_unknown",
+    "preference_decision.measure_weight_count",
+    "preference_decision.measure_weight_invalid",
+    "preference_decision.measure_weight_total_zero",
+    "preference_decision.options_invalid",
+    "preference_decision.part_not_lowerable",
+    "preference_decision.preference_set_empty",
+    "preference_decision.shape_parameters_need_certified_route",
+    "preference_decision.source_refused",
+    "preference_decision.structure_duplicate",
+    "preference_decision.structure_id_blank",
+    "preference_decision.structure_probabilities_exceed_one",
+    "preference_decision.structure_probabilities_partial",
+    "preference_decision.structure_probabilities_required",
+    "preference_decision.structure_probability_invalid",
+    "preference_decision.structures_empty",
+    "preference_decision.worst_case_of_expected_regret",
+    "preference_model.attribute_count_mismatch",
+    "preference_model.attribute_duplicate",
+    "preference_model.attribute_id_blank",
+    "preference_model.attribute_units_blank",
+    "preference_model.attribute_unused",
+    "preference_model.curve_breakpoint_non_finite",
+    "preference_model.curve_breakpoints_not_increasing",
+    "preference_model.curve_slope_count",
+    "preference_model.curve_too_short",
+    "preference_model.expression_constant_non_finite",
+    "preference_model.expression_too_deep",
+    "preference_model.no_attributes",
+    "preference_model.parameter_assumption_blank",
+    "preference_model.parameter_count_mismatch",
+    "preference_model.parameter_duplicate",
+    "preference_model.parameter_id_blank",
+    "preference_model.parameter_range_empty",
+    "preference_model.parameter_range_non_finite",
+    "preference_model.parameter_units_blank",
+    "preference_model.parameter_unused",
+    "preference_model.parameter_value_non_finite",
+    "preference_model.relation_bound_non_finite",
+    "preference_model.relation_coefficient_non_finite",
+    "preference_model.relation_duplicate",
+    "preference_model.relation_id_blank",
+    "preference_model.relation_origin_blank",
+    "preference_model.relation_repeated_parameter",
+    "preference_model.relation_unknown_parameter",
+    "preference_model.relation_without_terms",
+    "preference_model.unknown_attribute",
+    "preference_model.unknown_parameter",
+    "preference_model.utility_units_blank",
+    "preference_model.value_non_finite",
+    "preference_set_learning.declared_set_empty",
+    "preference_set_learning.linear_program_refused",
+    "preference_set_learning.model_invalid",
+    "preference_set_learning.program_inconsistent",
+    "preference_set_learning.records_invalid",
+    "preference_set_learning.relation_id_collision",
+    "preference_set_learning.tolerance_negative",
+    "preference_set_learning.tolerance_non_finite",
     "prior_signal.adapted_prior_not_draws",
     "prior_signal.artifact_not_in_catalog",
     "prior_signal.coefficient_prior_not_signal",
@@ -3013,6 +3179,41 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("chain_recovery_posterior.external_power_prior", &["route_not_supported"]),
     ("chain_recovery_posterior.mapped_prior", &["route_not_supported"]),
     ("chain_recovery_posterior.non_positive_scale", &["invalid_argument"]),
+    ("choice_record.analysis_date_blank", &["invalid_argument"]),
+    ("choice_record.analysis_identity_blank", &["invalid_argument"]),
+    ("choice_record.attribute_duplicate", &["invalid_argument"]),
+    ("choice_record.attribute_id_blank", &["invalid_argument"]),
+    ("choice_record.attribute_units_blank", &["invalid_argument"]),
+    ("choice_record.attributes_differ", &["quantity_semantics_mismatch"]),
+    ("choice_record.attributes_missing", &["invalid_argument"]),
+    ("choice_record.belief_law_required", &["decision_contract_unsatisfied"]),
+    ("choice_record.belief_not_finite", &["invalid_argument"]),
+    ("choice_record.chosen_unknown", &["invalid_argument"]),
+    ("choice_record.decider_blank", &["invalid_argument"]),
+    ("choice_record.draws_empty", &["invalid_argument"]),
+    ("choice_record.draws_width_mismatch", &["invalid_argument"]),
+    ("choice_record.forecast_source_blank", &["invalid_argument"]),
+    ("choice_record.means_width_mismatch", &["invalid_argument"]),
+    ("choice_record.model_invalid", &["invalid_argument"]),
+    ("choice_record.observation_row_blank", &["invalid_argument"]),
+    ("choice_record.observation_row_double_counted", &["evidence_double_counted"]),
+    ("choice_record.observation_row_repeated", &["invalid_argument"]),
+    ("choice_record.observation_rows_missing", &["invalid_argument"]),
+    ("choice_record.option_duplicate", &["invalid_argument"]),
+    ("choice_record.option_id_blank", &["invalid_argument"]),
+    ("choice_record.options_too_few", &["invalid_argument"]),
+    ("choice_record.pooling_assumption_blank", &["invalid_argument"]),
+    ("choice_record.population_blank", &["invalid_argument"]),
+    ("choice_record.realized_assumption_blank", &["invalid_argument"]),
+    ("choice_record.record_duplicate", &["invalid_argument"]),
+    ("choice_record.record_id_blank", &["invalid_argument"]),
+    ("choice_record.records_missing", &["invalid_argument"]),
+    ("choice_record.shape_parameters_not_fixed", &["route_not_supported"]),
+    ("choice_record.term_not_finite", &["decision_contract_unsatisfied"]),
+    ("choice_record.weight_negative", &["invalid_argument"]),
+    ("choice_record.weight_not_finite", &["invalid_argument"]),
+    ("choice_record.weights_length_mismatch", &["invalid_argument"]),
+    ("choice_record.weights_sum_invalid", &["invalid_argument"]),
     ("cluster_dml.cancelled", &["cancelled_no_claim"]),
     ("cluster_dml.cluster_ids_missing", &["required_option_missing"]),
     ("cluster_dml.dyadic_giant_component", &["dyadic_dependence_not_supported"]),
@@ -4515,6 +4716,137 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("predictive_assessment.too_few_clusters", &["too_few_clusters"]),
     ("predictive_assessment.unknown_source", &["invalid_argument"]),
     ("predictive_assessment.wrong_contract", &["route_not_supported"]),
+    ("preference_certified.atom_probabilities_invalid", &["decision_contract_unsatisfied"]),
+    ("preference_certified.atom_probabilities_required", &["decision_contract_unsatisfied"]),
+    ("preference_certified.atoms_invalid", &["invalid_argument"]),
+    ("preference_certified.enclosure_non_finite", &["invalid_argument"]),
+    ("preference_certified.logarithm_domain", &["invalid_argument"]),
+    ("preference_certified.measure_empty", &["invalid_argument"]),
+    ("preference_certified.measure_incomplete", &["decision_contract_unsatisfied"]),
+    ("preference_certified.measure_labels_invalid", &["invalid_argument"]),
+    ("preference_certified.measure_point_dimension", &["invalid_argument"]),
+    ("preference_certified.measure_point_non_finite", &["invalid_argument"]),
+    ("preference_certified.measure_point_outside_set", &["invalid_argument"]),
+    ("preference_certified.measure_required", &["decision_contract_unsatisfied"]),
+    ("preference_certified.measure_unknown_parameter", &["invalid_argument"]),
+    ("preference_certified.measure_weights_invalid", &["invalid_argument"]),
+    ("preference_certified.minimax_regret_needs_expectation", &["route_not_supported"]),
+    ("preference_certified.mixture_criterion_unsupported", &["route_not_supported"]),
+    ("preference_certified.options_invalid", &["invalid_argument"]),
+    ("preference_certified.preference_set_empty", &["invalid_argument"]),
+    ("preference_certified.source_refused", &["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied", "joint_law_required", "distribution_meaning_mismatch", "route_not_supported"]),
+    ("preference_certified.structure_inputs_required", &["route_not_supported"]),
+    ("preference_choice_model.consistency_not_positive", &["glm_fit_refused"]),
+    ("preference_choice_model.covariance_not_positive_definite", &["glm_fit_refused"]),
+    ("preference_choice_model.draws_missing", &["invalid_argument"]),
+    ("preference_choice_model.fit_options_invalid", &["invalid_argument"]),
+    ("preference_choice_model.fit_refused", &["glm_fit_refused"]),
+    ("preference_choice_model.level_invalid", &["invalid_argument"]),
+    ("preference_choice_model.model_invalid", &["invalid_argument"]),
+    ("preference_choice_model.no_draw_inside_set", &["uncertainty_representation_insufficient"]),
+    ("preference_choice_model.not_converged", &["glm_fit_refused"]),
+    ("preference_choice_model.nothing_identified", &["design_rank_deficient"]),
+    ("preference_choice_model.rank_deficient", &["design_rank_deficient"]),
+    ("preference_choice_model.records_invalid", &["invalid_argument", "quantity_semantics_mismatch", "evidence_double_counted", "route_not_supported", "decision_contract_unsatisfied"]),
+    ("preference_choice_model.separated", &["glm_fit_refused"]),
+    ("preference_choice_model.unit_of_account_missing", &["design_rank_deficient"]),
+    ("preference_contract.action_duplicate", &["invalid_argument"]),
+    ("preference_contract.action_id_blank", &["invalid_argument"]),
+    ("preference_contract.action_without_quantity", &["invalid_argument"]),
+    ("preference_contract.constraint_duplicate", &["invalid_argument"]),
+    ("preference_contract.constraint_id_blank", &["invalid_argument"]),
+    ("preference_contract.constraint_non_finite", &["invalid_argument"]),
+    ("preference_contract.constraint_probability", &["invalid_argument"]),
+    ("preference_contract.constraint_units_blank", &["invalid_argument"]),
+    ("preference_contract.constraint_unknown_action", &["invalid_argument"]),
+    ("preference_contract.constraint_unknown_attribute", &["invalid_argument"]),
+    ("preference_contract.criterion_invalid", &["invalid_argument"]),
+    ("preference_contract.decision_contract_refused", &["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied"]),
+    ("preference_contract.fixed_input_non_finite", &["invalid_argument"]),
+    ("preference_contract.fixed_units_mismatch", &["quantity_semantics_mismatch"]),
+    ("preference_contract.input_count_mismatch", &["invalid_argument"]),
+    ("preference_contract.not_lowerable", &["route_not_supported"]),
+    ("preference_contract.parameter_count_mismatch", &["invalid_argument"]),
+    ("preference_contract.parameter_non_finite", &["invalid_argument"]),
+    ("preference_contract.quantity_invalid", &["quantity_semantics_mismatch"]),
+    ("preference_contract.quantity_outside_scope", &["quantity_semantics_mismatch"]),
+    ("preference_contract.quantity_units_mismatch", &["quantity_semantics_mismatch"]),
+    ("preference_contract.target_population_blank", &["invalid_argument"]),
+    ("preference_contract.too_few_actions", &["invalid_argument"]),
+    ("preference_decision.coefficient_non_finite", &["decision_contract_unsatisfied"]),
+    ("preference_decision.criterion_needs_certified_route", &["route_not_supported"]),
+    ("preference_decision.linear_program_infeasible", &["invalid_argument"]),
+    ("preference_decision.linear_program_refused", &["invalid_argument"]),
+    ("preference_decision.linear_program_unbounded", &["invalid_argument"]),
+    ("preference_decision.measure_empty", &["invalid_argument"]),
+    ("preference_decision.measure_incomplete", &["decision_contract_unsatisfied"]),
+    ("preference_decision.measure_label_blank", &["invalid_argument"]),
+    ("preference_decision.measure_label_count", &["invalid_argument"]),
+    ("preference_decision.measure_label_duplicate", &["invalid_argument"]),
+    ("preference_decision.measure_origin_blank", &["invalid_argument"]),
+    ("preference_decision.measure_point_dimension", &["invalid_argument"]),
+    ("preference_decision.measure_point_non_finite", &["invalid_argument"]),
+    ("preference_decision.measure_point_outside_set", &["invalid_argument"]),
+    ("preference_decision.measure_required", &["decision_contract_unsatisfied"]),
+    ("preference_decision.measure_unresolved_repeated", &["invalid_argument"]),
+    ("preference_decision.measure_unresolved_unknown", &["invalid_argument"]),
+    ("preference_decision.measure_weight_count", &["invalid_argument"]),
+    ("preference_decision.measure_weight_invalid", &["invalid_argument"]),
+    ("preference_decision.measure_weight_total_zero", &["invalid_argument"]),
+    ("preference_decision.options_invalid", &["invalid_argument"]),
+    ("preference_decision.part_not_lowerable", &["route_not_supported"]),
+    ("preference_decision.preference_set_empty", &["invalid_argument"]),
+    ("preference_decision.shape_parameters_need_certified_route", &["route_not_supported"]),
+    ("preference_decision.source_refused", &["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied", "joint_law_required", "distribution_meaning_mismatch", "route_not_supported"]),
+    ("preference_decision.structure_duplicate", &["invalid_argument"]),
+    ("preference_decision.structure_id_blank", &["invalid_argument"]),
+    ("preference_decision.structure_probabilities_exceed_one", &["decision_contract_unsatisfied"]),
+    ("preference_decision.structure_probabilities_partial", &["decision_contract_unsatisfied"]),
+    ("preference_decision.structure_probabilities_required", &["decision_contract_unsatisfied"]),
+    ("preference_decision.structure_probability_invalid", &["decision_contract_unsatisfied"]),
+    ("preference_decision.structures_empty", &["invalid_argument"]),
+    ("preference_decision.worst_case_of_expected_regret", &["route_not_supported"]),
+    ("preference_model.attribute_count_mismatch", &["invalid_argument"]),
+    ("preference_model.attribute_duplicate", &["invalid_argument"]),
+    ("preference_model.attribute_id_blank", &["invalid_argument"]),
+    ("preference_model.attribute_units_blank", &["invalid_argument"]),
+    ("preference_model.attribute_unused", &["invalid_argument"]),
+    ("preference_model.curve_breakpoint_non_finite", &["invalid_argument"]),
+    ("preference_model.curve_breakpoints_not_increasing", &["invalid_argument"]),
+    ("preference_model.curve_slope_count", &["invalid_argument"]),
+    ("preference_model.curve_too_short", &["invalid_argument"]),
+    ("preference_model.expression_constant_non_finite", &["invalid_argument"]),
+    ("preference_model.expression_too_deep", &["invalid_argument"]),
+    ("preference_model.no_attributes", &["invalid_argument"]),
+    ("preference_model.parameter_assumption_blank", &["invalid_argument"]),
+    ("preference_model.parameter_count_mismatch", &["invalid_argument"]),
+    ("preference_model.parameter_duplicate", &["invalid_argument"]),
+    ("preference_model.parameter_id_blank", &["invalid_argument"]),
+    ("preference_model.parameter_range_empty", &["invalid_argument"]),
+    ("preference_model.parameter_range_non_finite", &["invalid_argument"]),
+    ("preference_model.parameter_units_blank", &["invalid_argument"]),
+    ("preference_model.parameter_unused", &["invalid_argument"]),
+    ("preference_model.parameter_value_non_finite", &["invalid_argument"]),
+    ("preference_model.relation_bound_non_finite", &["invalid_argument"]),
+    ("preference_model.relation_coefficient_non_finite", &["invalid_argument"]),
+    ("preference_model.relation_duplicate", &["invalid_argument"]),
+    ("preference_model.relation_id_blank", &["invalid_argument"]),
+    ("preference_model.relation_origin_blank", &["invalid_argument"]),
+    ("preference_model.relation_repeated_parameter", &["invalid_argument"]),
+    ("preference_model.relation_unknown_parameter", &["invalid_argument"]),
+    ("preference_model.relation_without_terms", &["invalid_argument"]),
+    ("preference_model.unknown_attribute", &["invalid_argument"]),
+    ("preference_model.unknown_parameter", &["invalid_argument"]),
+    ("preference_model.utility_units_blank", &["invalid_argument"]),
+    ("preference_model.value_non_finite", &["invalid_argument"]),
+    ("preference_set_learning.declared_set_empty", &["invalid_argument"]),
+    ("preference_set_learning.linear_program_refused", &["invalid_argument"]),
+    ("preference_set_learning.model_invalid", &["invalid_argument"]),
+    ("preference_set_learning.program_inconsistent", &["invalid_argument"]),
+    ("preference_set_learning.records_invalid", &["invalid_argument", "quantity_semantics_mismatch", "evidence_double_counted", "route_not_supported", "decision_contract_unsatisfied"]),
+    ("preference_set_learning.relation_id_collision", &["invalid_argument"]),
+    ("preference_set_learning.tolerance_negative", &["invalid_argument"]),
+    ("preference_set_learning.tolerance_non_finite", &["invalid_argument"]),
     ("prior_signal.adapted_prior_not_draws", &["invalid_argument"]),
     ("prior_signal.artifact_not_in_catalog", &["design_signal_invalid"]),
     ("prior_signal.coefficient_prior_not_signal", &["design_signal_invalid"]),
@@ -6081,6 +6413,80 @@ pub mod chain_recovery_posterior {
     pub const MAPPED_PRIOR: &str = "chain_recovery_posterior.mapped_prior";
     /// Detail `chain_recovery_posterior.non_positive_scale`.
     pub const NON_POSITIVE_SCALE: &str = "chain_recovery_posterior.non_positive_scale";
+}
+
+/// Details in the `choice_record` family.
+pub mod choice_record {
+    /// Detail `choice_record.analysis_date_blank`.
+    pub const ANALYSIS_DATE_BLANK: &str = "choice_record.analysis_date_blank";
+    /// Detail `choice_record.analysis_identity_blank`.
+    pub const ANALYSIS_IDENTITY_BLANK: &str = "choice_record.analysis_identity_blank";
+    /// Detail `choice_record.attribute_duplicate`.
+    pub const ATTRIBUTE_DUPLICATE: &str = "choice_record.attribute_duplicate";
+    /// Detail `choice_record.attribute_id_blank`.
+    pub const ATTRIBUTE_ID_BLANK: &str = "choice_record.attribute_id_blank";
+    /// Detail `choice_record.attribute_units_blank`.
+    pub const ATTRIBUTE_UNITS_BLANK: &str = "choice_record.attribute_units_blank";
+    /// Detail `choice_record.attributes_differ`.
+    pub const ATTRIBUTES_DIFFER: &str = "choice_record.attributes_differ";
+    /// Detail `choice_record.attributes_missing`.
+    pub const ATTRIBUTES_MISSING: &str = "choice_record.attributes_missing";
+    /// Detail `choice_record.belief_law_required`.
+    pub const BELIEF_LAW_REQUIRED: &str = "choice_record.belief_law_required";
+    /// Detail `choice_record.belief_not_finite`.
+    pub const BELIEF_NOT_FINITE: &str = "choice_record.belief_not_finite";
+    /// Detail `choice_record.chosen_unknown`.
+    pub const CHOSEN_UNKNOWN: &str = "choice_record.chosen_unknown";
+    /// Detail `choice_record.decider_blank`.
+    pub const DECIDER_BLANK: &str = "choice_record.decider_blank";
+    /// Detail `choice_record.draws_empty`.
+    pub const DRAWS_EMPTY: &str = "choice_record.draws_empty";
+    /// Detail `choice_record.draws_width_mismatch`.
+    pub const DRAWS_WIDTH_MISMATCH: &str = "choice_record.draws_width_mismatch";
+    /// Detail `choice_record.forecast_source_blank`.
+    pub const FORECAST_SOURCE_BLANK: &str = "choice_record.forecast_source_blank";
+    /// Detail `choice_record.means_width_mismatch`.
+    pub const MEANS_WIDTH_MISMATCH: &str = "choice_record.means_width_mismatch";
+    /// Detail `choice_record.model_invalid`.
+    pub const MODEL_INVALID: &str = "choice_record.model_invalid";
+    /// Detail `choice_record.observation_row_blank`.
+    pub const OBSERVATION_ROW_BLANK: &str = "choice_record.observation_row_blank";
+    /// Detail `choice_record.observation_row_double_counted`.
+    pub const OBSERVATION_ROW_DOUBLE_COUNTED: &str = "choice_record.observation_row_double_counted";
+    /// Detail `choice_record.observation_row_repeated`.
+    pub const OBSERVATION_ROW_REPEATED: &str = "choice_record.observation_row_repeated";
+    /// Detail `choice_record.observation_rows_missing`.
+    pub const OBSERVATION_ROWS_MISSING: &str = "choice_record.observation_rows_missing";
+    /// Detail `choice_record.option_duplicate`.
+    pub const OPTION_DUPLICATE: &str = "choice_record.option_duplicate";
+    /// Detail `choice_record.option_id_blank`.
+    pub const OPTION_ID_BLANK: &str = "choice_record.option_id_blank";
+    /// Detail `choice_record.options_too_few`.
+    pub const OPTIONS_TOO_FEW: &str = "choice_record.options_too_few";
+    /// Detail `choice_record.pooling_assumption_blank`.
+    pub const POOLING_ASSUMPTION_BLANK: &str = "choice_record.pooling_assumption_blank";
+    /// Detail `choice_record.population_blank`.
+    pub const POPULATION_BLANK: &str = "choice_record.population_blank";
+    /// Detail `choice_record.realized_assumption_blank`.
+    pub const REALIZED_ASSUMPTION_BLANK: &str = "choice_record.realized_assumption_blank";
+    /// Detail `choice_record.record_duplicate`.
+    pub const RECORD_DUPLICATE: &str = "choice_record.record_duplicate";
+    /// Detail `choice_record.record_id_blank`.
+    pub const RECORD_ID_BLANK: &str = "choice_record.record_id_blank";
+    /// Detail `choice_record.records_missing`.
+    pub const RECORDS_MISSING: &str = "choice_record.records_missing";
+    /// Detail `choice_record.shape_parameters_not_fixed`.
+    pub const SHAPE_PARAMETERS_NOT_FIXED: &str = "choice_record.shape_parameters_not_fixed";
+    /// Detail `choice_record.term_not_finite`.
+    pub const TERM_NOT_FINITE: &str = "choice_record.term_not_finite";
+    /// Detail `choice_record.weight_negative`.
+    pub const WEIGHT_NEGATIVE: &str = "choice_record.weight_negative";
+    /// Detail `choice_record.weight_not_finite`.
+    pub const WEIGHT_NOT_FINITE: &str = "choice_record.weight_not_finite";
+    /// Detail `choice_record.weights_length_mismatch`.
+    pub const WEIGHTS_LENGTH_MISMATCH: &str = "choice_record.weights_length_mismatch";
+    /// Detail `choice_record.weights_sum_invalid`.
+    pub const WEIGHTS_SUM_INVALID: &str = "choice_record.weights_sum_invalid";
 }
 
 /// Details in the `cluster_dml` family.
@@ -9541,6 +9947,292 @@ pub mod predictive_assessment {
     pub const UNKNOWN_SOURCE: &str = "predictive_assessment.unknown_source";
     /// Detail `predictive_assessment.wrong_contract`.
     pub const WRONG_CONTRACT: &str = "predictive_assessment.wrong_contract";
+}
+
+/// Details in the `preference_certified` family.
+pub mod preference_certified {
+    /// Detail `preference_certified.atom_probabilities_invalid`.
+    pub const ATOM_PROBABILITIES_INVALID: &str = "preference_certified.atom_probabilities_invalid";
+    /// Detail `preference_certified.atom_probabilities_required`.
+    pub const ATOM_PROBABILITIES_REQUIRED: &str = "preference_certified.atom_probabilities_required";
+    /// Detail `preference_certified.atoms_invalid`.
+    pub const ATOMS_INVALID: &str = "preference_certified.atoms_invalid";
+    /// Detail `preference_certified.enclosure_non_finite`.
+    pub const ENCLOSURE_NON_FINITE: &str = "preference_certified.enclosure_non_finite";
+    /// Detail `preference_certified.logarithm_domain`.
+    pub const LOGARITHM_DOMAIN: &str = "preference_certified.logarithm_domain";
+    /// Detail `preference_certified.measure_empty`.
+    pub const MEASURE_EMPTY: &str = "preference_certified.measure_empty";
+    /// Detail `preference_certified.measure_incomplete`.
+    pub const MEASURE_INCOMPLETE: &str = "preference_certified.measure_incomplete";
+    /// Detail `preference_certified.measure_labels_invalid`.
+    pub const MEASURE_LABELS_INVALID: &str = "preference_certified.measure_labels_invalid";
+    /// Detail `preference_certified.measure_point_dimension`.
+    pub const MEASURE_POINT_DIMENSION: &str = "preference_certified.measure_point_dimension";
+    /// Detail `preference_certified.measure_point_non_finite`.
+    pub const MEASURE_POINT_NON_FINITE: &str = "preference_certified.measure_point_non_finite";
+    /// Detail `preference_certified.measure_point_outside_set`.
+    pub const MEASURE_POINT_OUTSIDE_SET: &str = "preference_certified.measure_point_outside_set";
+    /// Detail `preference_certified.measure_required`.
+    pub const MEASURE_REQUIRED: &str = "preference_certified.measure_required";
+    /// Detail `preference_certified.measure_unknown_parameter`.
+    pub const MEASURE_UNKNOWN_PARAMETER: &str = "preference_certified.measure_unknown_parameter";
+    /// Detail `preference_certified.measure_weights_invalid`.
+    pub const MEASURE_WEIGHTS_INVALID: &str = "preference_certified.measure_weights_invalid";
+    /// Detail `preference_certified.minimax_regret_needs_expectation`.
+    pub const MINIMAX_REGRET_NEEDS_EXPECTATION: &str = "preference_certified.minimax_regret_needs_expectation";
+    /// Detail `preference_certified.mixture_criterion_unsupported`.
+    pub const MIXTURE_CRITERION_UNSUPPORTED: &str = "preference_certified.mixture_criterion_unsupported";
+    /// Detail `preference_certified.options_invalid`.
+    pub const OPTIONS_INVALID: &str = "preference_certified.options_invalid";
+    /// Detail `preference_certified.preference_set_empty`.
+    pub const PREFERENCE_SET_EMPTY: &str = "preference_certified.preference_set_empty";
+    /// Detail `preference_certified.source_refused`.
+    pub const SOURCE_REFUSED: &str = "preference_certified.source_refused";
+    /// Detail `preference_certified.structure_inputs_required`.
+    pub const STRUCTURE_INPUTS_REQUIRED: &str = "preference_certified.structure_inputs_required";
+}
+
+/// Details in the `preference_choice_model` family.
+pub mod preference_choice_model {
+    /// Detail `preference_choice_model.consistency_not_positive`.
+    pub const CONSISTENCY_NOT_POSITIVE: &str = "preference_choice_model.consistency_not_positive";
+    /// Detail `preference_choice_model.covariance_not_positive_definite`.
+    pub const COVARIANCE_NOT_POSITIVE_DEFINITE: &str = "preference_choice_model.covariance_not_positive_definite";
+    /// Detail `preference_choice_model.draws_missing`.
+    pub const DRAWS_MISSING: &str = "preference_choice_model.draws_missing";
+    /// Detail `preference_choice_model.fit_options_invalid`.
+    pub const FIT_OPTIONS_INVALID: &str = "preference_choice_model.fit_options_invalid";
+    /// Detail `preference_choice_model.fit_refused`.
+    pub const FIT_REFUSED: &str = "preference_choice_model.fit_refused";
+    /// Detail `preference_choice_model.level_invalid`.
+    pub const LEVEL_INVALID: &str = "preference_choice_model.level_invalid";
+    /// Detail `preference_choice_model.model_invalid`.
+    pub const MODEL_INVALID: &str = "preference_choice_model.model_invalid";
+    /// Detail `preference_choice_model.no_draw_inside_set`.
+    pub const NO_DRAW_INSIDE_SET: &str = "preference_choice_model.no_draw_inside_set";
+    /// Detail `preference_choice_model.not_converged`.
+    pub const NOT_CONVERGED: &str = "preference_choice_model.not_converged";
+    /// Detail `preference_choice_model.nothing_identified`.
+    pub const NOTHING_IDENTIFIED: &str = "preference_choice_model.nothing_identified";
+    /// Detail `preference_choice_model.rank_deficient`.
+    pub const RANK_DEFICIENT: &str = "preference_choice_model.rank_deficient";
+    /// Detail `preference_choice_model.records_invalid`.
+    pub const RECORDS_INVALID: &str = "preference_choice_model.records_invalid";
+    /// Detail `preference_choice_model.separated`.
+    pub const SEPARATED: &str = "preference_choice_model.separated";
+    /// Detail `preference_choice_model.unit_of_account_missing`.
+    pub const UNIT_OF_ACCOUNT_MISSING: &str = "preference_choice_model.unit_of_account_missing";
+}
+
+/// Details in the `preference_contract` family.
+pub mod preference_contract {
+    /// Detail `preference_contract.action_duplicate`.
+    pub const ACTION_DUPLICATE: &str = "preference_contract.action_duplicate";
+    /// Detail `preference_contract.action_id_blank`.
+    pub const ACTION_ID_BLANK: &str = "preference_contract.action_id_blank";
+    /// Detail `preference_contract.action_without_quantity`.
+    pub const ACTION_WITHOUT_QUANTITY: &str = "preference_contract.action_without_quantity";
+    /// Detail `preference_contract.constraint_duplicate`.
+    pub const CONSTRAINT_DUPLICATE: &str = "preference_contract.constraint_duplicate";
+    /// Detail `preference_contract.constraint_id_blank`.
+    pub const CONSTRAINT_ID_BLANK: &str = "preference_contract.constraint_id_blank";
+    /// Detail `preference_contract.constraint_non_finite`.
+    pub const CONSTRAINT_NON_FINITE: &str = "preference_contract.constraint_non_finite";
+    /// Detail `preference_contract.constraint_probability`.
+    pub const CONSTRAINT_PROBABILITY: &str = "preference_contract.constraint_probability";
+    /// Detail `preference_contract.constraint_units_blank`.
+    pub const CONSTRAINT_UNITS_BLANK: &str = "preference_contract.constraint_units_blank";
+    /// Detail `preference_contract.constraint_unknown_action`.
+    pub const CONSTRAINT_UNKNOWN_ACTION: &str = "preference_contract.constraint_unknown_action";
+    /// Detail `preference_contract.constraint_unknown_attribute`.
+    pub const CONSTRAINT_UNKNOWN_ATTRIBUTE: &str = "preference_contract.constraint_unknown_attribute";
+    /// Detail `preference_contract.criterion_invalid`.
+    pub const CRITERION_INVALID: &str = "preference_contract.criterion_invalid";
+    /// Detail `preference_contract.decision_contract_refused`.
+    pub const DECISION_CONTRACT_REFUSED: &str = "preference_contract.decision_contract_refused";
+    /// Detail `preference_contract.fixed_input_non_finite`.
+    pub const FIXED_INPUT_NON_FINITE: &str = "preference_contract.fixed_input_non_finite";
+    /// Detail `preference_contract.fixed_units_mismatch`.
+    pub const FIXED_UNITS_MISMATCH: &str = "preference_contract.fixed_units_mismatch";
+    /// Detail `preference_contract.input_count_mismatch`.
+    pub const INPUT_COUNT_MISMATCH: &str = "preference_contract.input_count_mismatch";
+    /// Detail `preference_contract.not_lowerable`.
+    pub const NOT_LOWERABLE: &str = "preference_contract.not_lowerable";
+    /// Detail `preference_contract.parameter_count_mismatch`.
+    pub const PARAMETER_COUNT_MISMATCH: &str = "preference_contract.parameter_count_mismatch";
+    /// Detail `preference_contract.parameter_non_finite`.
+    pub const PARAMETER_NON_FINITE: &str = "preference_contract.parameter_non_finite";
+    /// Detail `preference_contract.quantity_invalid`.
+    pub const QUANTITY_INVALID: &str = "preference_contract.quantity_invalid";
+    /// Detail `preference_contract.quantity_outside_scope`.
+    pub const QUANTITY_OUTSIDE_SCOPE: &str = "preference_contract.quantity_outside_scope";
+    /// Detail `preference_contract.quantity_units_mismatch`.
+    pub const QUANTITY_UNITS_MISMATCH: &str = "preference_contract.quantity_units_mismatch";
+    /// Detail `preference_contract.target_population_blank`.
+    pub const TARGET_POPULATION_BLANK: &str = "preference_contract.target_population_blank";
+    /// Detail `preference_contract.too_few_actions`.
+    pub const TOO_FEW_ACTIONS: &str = "preference_contract.too_few_actions";
+}
+
+/// Details in the `preference_decision` family.
+pub mod preference_decision {
+    /// Detail `preference_decision.coefficient_non_finite`.
+    pub const COEFFICIENT_NON_FINITE: &str = "preference_decision.coefficient_non_finite";
+    /// Detail `preference_decision.criterion_needs_certified_route`.
+    pub const CRITERION_NEEDS_CERTIFIED_ROUTE: &str = "preference_decision.criterion_needs_certified_route";
+    /// Detail `preference_decision.linear_program_infeasible`.
+    pub const LINEAR_PROGRAM_INFEASIBLE: &str = "preference_decision.linear_program_infeasible";
+    /// Detail `preference_decision.linear_program_refused`.
+    pub const LINEAR_PROGRAM_REFUSED: &str = "preference_decision.linear_program_refused";
+    /// Detail `preference_decision.linear_program_unbounded`.
+    pub const LINEAR_PROGRAM_UNBOUNDED: &str = "preference_decision.linear_program_unbounded";
+    /// Detail `preference_decision.measure_empty`.
+    pub const MEASURE_EMPTY: &str = "preference_decision.measure_empty";
+    /// Detail `preference_decision.measure_incomplete`.
+    pub const MEASURE_INCOMPLETE: &str = "preference_decision.measure_incomplete";
+    /// Detail `preference_decision.measure_label_blank`.
+    pub const MEASURE_LABEL_BLANK: &str = "preference_decision.measure_label_blank";
+    /// Detail `preference_decision.measure_label_count`.
+    pub const MEASURE_LABEL_COUNT: &str = "preference_decision.measure_label_count";
+    /// Detail `preference_decision.measure_label_duplicate`.
+    pub const MEASURE_LABEL_DUPLICATE: &str = "preference_decision.measure_label_duplicate";
+    /// Detail `preference_decision.measure_origin_blank`.
+    pub const MEASURE_ORIGIN_BLANK: &str = "preference_decision.measure_origin_blank";
+    /// Detail `preference_decision.measure_point_dimension`.
+    pub const MEASURE_POINT_DIMENSION: &str = "preference_decision.measure_point_dimension";
+    /// Detail `preference_decision.measure_point_non_finite`.
+    pub const MEASURE_POINT_NON_FINITE: &str = "preference_decision.measure_point_non_finite";
+    /// Detail `preference_decision.measure_point_outside_set`.
+    pub const MEASURE_POINT_OUTSIDE_SET: &str = "preference_decision.measure_point_outside_set";
+    /// Detail `preference_decision.measure_required`.
+    pub const MEASURE_REQUIRED: &str = "preference_decision.measure_required";
+    /// Detail `preference_decision.measure_unresolved_repeated`.
+    pub const MEASURE_UNRESOLVED_REPEATED: &str = "preference_decision.measure_unresolved_repeated";
+    /// Detail `preference_decision.measure_unresolved_unknown`.
+    pub const MEASURE_UNRESOLVED_UNKNOWN: &str = "preference_decision.measure_unresolved_unknown";
+    /// Detail `preference_decision.measure_weight_count`.
+    pub const MEASURE_WEIGHT_COUNT: &str = "preference_decision.measure_weight_count";
+    /// Detail `preference_decision.measure_weight_invalid`.
+    pub const MEASURE_WEIGHT_INVALID: &str = "preference_decision.measure_weight_invalid";
+    /// Detail `preference_decision.measure_weight_total_zero`.
+    pub const MEASURE_WEIGHT_TOTAL_ZERO: &str = "preference_decision.measure_weight_total_zero";
+    /// Detail `preference_decision.options_invalid`.
+    pub const OPTIONS_INVALID: &str = "preference_decision.options_invalid";
+    /// Detail `preference_decision.part_not_lowerable`.
+    pub const PART_NOT_LOWERABLE: &str = "preference_decision.part_not_lowerable";
+    /// Detail `preference_decision.preference_set_empty`.
+    pub const PREFERENCE_SET_EMPTY: &str = "preference_decision.preference_set_empty";
+    /// Detail `preference_decision.shape_parameters_need_certified_route`.
+    pub const SHAPE_PARAMETERS_NEED_CERTIFIED_ROUTE: &str = "preference_decision.shape_parameters_need_certified_route";
+    /// Detail `preference_decision.source_refused`.
+    pub const SOURCE_REFUSED: &str = "preference_decision.source_refused";
+    /// Detail `preference_decision.structure_duplicate`.
+    pub const STRUCTURE_DUPLICATE: &str = "preference_decision.structure_duplicate";
+    /// Detail `preference_decision.structure_id_blank`.
+    pub const STRUCTURE_ID_BLANK: &str = "preference_decision.structure_id_blank";
+    /// Detail `preference_decision.structure_probabilities_exceed_one`.
+    pub const STRUCTURE_PROBABILITIES_EXCEED_ONE: &str = "preference_decision.structure_probabilities_exceed_one";
+    /// Detail `preference_decision.structure_probabilities_partial`.
+    pub const STRUCTURE_PROBABILITIES_PARTIAL: &str = "preference_decision.structure_probabilities_partial";
+    /// Detail `preference_decision.structure_probabilities_required`.
+    pub const STRUCTURE_PROBABILITIES_REQUIRED: &str = "preference_decision.structure_probabilities_required";
+    /// Detail `preference_decision.structure_probability_invalid`.
+    pub const STRUCTURE_PROBABILITY_INVALID: &str = "preference_decision.structure_probability_invalid";
+    /// Detail `preference_decision.structures_empty`.
+    pub const STRUCTURES_EMPTY: &str = "preference_decision.structures_empty";
+    /// Detail `preference_decision.worst_case_of_expected_regret`.
+    pub const WORST_CASE_OF_EXPECTED_REGRET: &str = "preference_decision.worst_case_of_expected_regret";
+}
+
+/// Details in the `preference_model` family.
+pub mod preference_model {
+    /// Detail `preference_model.attribute_count_mismatch`.
+    pub const ATTRIBUTE_COUNT_MISMATCH: &str = "preference_model.attribute_count_mismatch";
+    /// Detail `preference_model.attribute_duplicate`.
+    pub const ATTRIBUTE_DUPLICATE: &str = "preference_model.attribute_duplicate";
+    /// Detail `preference_model.attribute_id_blank`.
+    pub const ATTRIBUTE_ID_BLANK: &str = "preference_model.attribute_id_blank";
+    /// Detail `preference_model.attribute_units_blank`.
+    pub const ATTRIBUTE_UNITS_BLANK: &str = "preference_model.attribute_units_blank";
+    /// Detail `preference_model.attribute_unused`.
+    pub const ATTRIBUTE_UNUSED: &str = "preference_model.attribute_unused";
+    /// Detail `preference_model.curve_breakpoint_non_finite`.
+    pub const CURVE_BREAKPOINT_NON_FINITE: &str = "preference_model.curve_breakpoint_non_finite";
+    /// Detail `preference_model.curve_breakpoints_not_increasing`.
+    pub const CURVE_BREAKPOINTS_NOT_INCREASING: &str = "preference_model.curve_breakpoints_not_increasing";
+    /// Detail `preference_model.curve_slope_count`.
+    pub const CURVE_SLOPE_COUNT: &str = "preference_model.curve_slope_count";
+    /// Detail `preference_model.curve_too_short`.
+    pub const CURVE_TOO_SHORT: &str = "preference_model.curve_too_short";
+    /// Detail `preference_model.expression_constant_non_finite`.
+    pub const EXPRESSION_CONSTANT_NON_FINITE: &str = "preference_model.expression_constant_non_finite";
+    /// Detail `preference_model.expression_too_deep`.
+    pub const EXPRESSION_TOO_DEEP: &str = "preference_model.expression_too_deep";
+    /// Detail `preference_model.no_attributes`.
+    pub const NO_ATTRIBUTES: &str = "preference_model.no_attributes";
+    /// Detail `preference_model.parameter_assumption_blank`.
+    pub const PARAMETER_ASSUMPTION_BLANK: &str = "preference_model.parameter_assumption_blank";
+    /// Detail `preference_model.parameter_count_mismatch`.
+    pub const PARAMETER_COUNT_MISMATCH: &str = "preference_model.parameter_count_mismatch";
+    /// Detail `preference_model.parameter_duplicate`.
+    pub const PARAMETER_DUPLICATE: &str = "preference_model.parameter_duplicate";
+    /// Detail `preference_model.parameter_id_blank`.
+    pub const PARAMETER_ID_BLANK: &str = "preference_model.parameter_id_blank";
+    /// Detail `preference_model.parameter_range_empty`.
+    pub const PARAMETER_RANGE_EMPTY: &str = "preference_model.parameter_range_empty";
+    /// Detail `preference_model.parameter_range_non_finite`.
+    pub const PARAMETER_RANGE_NON_FINITE: &str = "preference_model.parameter_range_non_finite";
+    /// Detail `preference_model.parameter_units_blank`.
+    pub const PARAMETER_UNITS_BLANK: &str = "preference_model.parameter_units_blank";
+    /// Detail `preference_model.parameter_unused`.
+    pub const PARAMETER_UNUSED: &str = "preference_model.parameter_unused";
+    /// Detail `preference_model.parameter_value_non_finite`.
+    pub const PARAMETER_VALUE_NON_FINITE: &str = "preference_model.parameter_value_non_finite";
+    /// Detail `preference_model.relation_bound_non_finite`.
+    pub const RELATION_BOUND_NON_FINITE: &str = "preference_model.relation_bound_non_finite";
+    /// Detail `preference_model.relation_coefficient_non_finite`.
+    pub const RELATION_COEFFICIENT_NON_FINITE: &str = "preference_model.relation_coefficient_non_finite";
+    /// Detail `preference_model.relation_duplicate`.
+    pub const RELATION_DUPLICATE: &str = "preference_model.relation_duplicate";
+    /// Detail `preference_model.relation_id_blank`.
+    pub const RELATION_ID_BLANK: &str = "preference_model.relation_id_blank";
+    /// Detail `preference_model.relation_origin_blank`.
+    pub const RELATION_ORIGIN_BLANK: &str = "preference_model.relation_origin_blank";
+    /// Detail `preference_model.relation_repeated_parameter`.
+    pub const RELATION_REPEATED_PARAMETER: &str = "preference_model.relation_repeated_parameter";
+    /// Detail `preference_model.relation_unknown_parameter`.
+    pub const RELATION_UNKNOWN_PARAMETER: &str = "preference_model.relation_unknown_parameter";
+    /// Detail `preference_model.relation_without_terms`.
+    pub const RELATION_WITHOUT_TERMS: &str = "preference_model.relation_without_terms";
+    /// Detail `preference_model.unknown_attribute`.
+    pub const UNKNOWN_ATTRIBUTE: &str = "preference_model.unknown_attribute";
+    /// Detail `preference_model.unknown_parameter`.
+    pub const UNKNOWN_PARAMETER: &str = "preference_model.unknown_parameter";
+    /// Detail `preference_model.utility_units_blank`.
+    pub const UTILITY_UNITS_BLANK: &str = "preference_model.utility_units_blank";
+    /// Detail `preference_model.value_non_finite`.
+    pub const VALUE_NON_FINITE: &str = "preference_model.value_non_finite";
+}
+
+/// Details in the `preference_set_learning` family.
+pub mod preference_set_learning {
+    /// Detail `preference_set_learning.declared_set_empty`.
+    pub const DECLARED_SET_EMPTY: &str = "preference_set_learning.declared_set_empty";
+    /// Detail `preference_set_learning.linear_program_refused`.
+    pub const LINEAR_PROGRAM_REFUSED: &str = "preference_set_learning.linear_program_refused";
+    /// Detail `preference_set_learning.model_invalid`.
+    pub const MODEL_INVALID: &str = "preference_set_learning.model_invalid";
+    /// Detail `preference_set_learning.program_inconsistent`.
+    pub const PROGRAM_INCONSISTENT: &str = "preference_set_learning.program_inconsistent";
+    /// Detail `preference_set_learning.records_invalid`.
+    pub const RECORDS_INVALID: &str = "preference_set_learning.records_invalid";
+    /// Detail `preference_set_learning.relation_id_collision`.
+    pub const RELATION_ID_COLLISION: &str = "preference_set_learning.relation_id_collision";
+    /// Detail `preference_set_learning.tolerance_negative`.
+    pub const TOLERANCE_NEGATIVE: &str = "preference_set_learning.tolerance_negative";
+    /// Detail `preference_set_learning.tolerance_non_finite`.
+    pub const TOLERANCE_NON_FINITE: &str = "preference_set_learning.tolerance_non_finite";
 }
 
 /// Details in the `prior_signal` family.

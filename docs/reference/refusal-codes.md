@@ -1031,6 +1031,204 @@ causal question, and the host record (`antecedent.host.fallback_response`,
 `antecedent::host::fallback_response`) shows `causal_status: unsupported` beside the status of
 the noncausal claim. See the [fallback guide](../guides/fallback.md).
 
+## Preference sets and recorded choices
+
+Value models, preference contracts, recorded choices, decisions across a preference set and the preference parameters learned from recorded choices. Each error's `to_refusal()` gives the code, stage and detail below; a wrapped error reports the wrapped refusal.
+
+### Value models and preference contracts
+
+`preference_model.*`, `preference_contract.*`. A value model declares attributes, ranged preference parameters and relations between them; a preference contract binds it to actions, quantities and hard constraints. Every value-model cause is a malformed declaration or point.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `preference_model.no_attributes` | `invalid_argument` | Declare at least one attribute the value reads. |
+| `preference_model.attribute_id_blank` | `invalid_argument` | Give every attribute a non-blank id. |
+| `preference_model.attribute_duplicate` | `invalid_argument` | Give every attribute a distinct id. |
+| `preference_model.attribute_units_blank` | `invalid_argument` | State the units of every attribute. |
+| `preference_model.parameter_id_blank` | `invalid_argument` | Give every parameter a non-blank id. |
+| `preference_model.parameter_duplicate` | `invalid_argument` | Give every parameter a distinct id. |
+| `preference_model.parameter_units_blank` | `invalid_argument` | State the units of every parameter. |
+| `preference_model.parameter_range_non_finite` | `invalid_argument` | Declare finite lower and upper values. |
+| `preference_model.parameter_range_empty` | `invalid_argument` | Declare lower <= upper. |
+| `preference_model.parameter_assumption_blank` | `invalid_argument` | Name the assumption the range stands on. |
+| `preference_model.relation_id_blank` | `invalid_argument` | Give every relation a non-blank id. |
+| `preference_model.relation_duplicate` | `invalid_argument` | Give every relation a distinct id. |
+| `preference_model.relation_origin_blank` | `invalid_argument` | Name both. |
+| `preference_model.relation_without_terms` | `invalid_argument` | Give it at least one parameter coefficient. |
+| `preference_model.relation_unknown_parameter` | `invalid_argument` | Read declared parameters only. |
+| `preference_model.relation_repeated_parameter` | `invalid_argument` | Combine the coefficients into one term. |
+| `preference_model.relation_coefficient_non_finite` | `invalid_argument` | Supply finite coefficients. |
+| `preference_model.relation_bound_non_finite` | `invalid_argument` | Supply a finite bound. |
+| `preference_model.expression_constant_non_finite` | `invalid_argument` | Supply finite constants. |
+| `preference_model.expression_too_deep` | `invalid_argument` | Flatten the expression. |
+| `preference_model.unknown_attribute` | `invalid_argument` | Read declared attributes only. |
+| `preference_model.unknown_parameter` | `invalid_argument` | Read declared parameters only. |
+| `preference_model.parameter_unused` | `invalid_argument` | Remove it or use it in the value. |
+| `preference_model.attribute_unused` | `invalid_argument` | Remove it or use it in the value. |
+| `preference_model.utility_units_blank` | `invalid_argument` | State the units the value is measured in. |
+| `preference_model.value_non_finite` | `invalid_argument` | Narrow the ranges or change the value. |
+| `preference_model.attribute_count_mismatch` | `invalid_argument` | Supply one value per attribute. |
+| `preference_model.parameter_count_mismatch` | `invalid_argument` | Supply one value per parameter. |
+| `preference_model.parameter_value_non_finite` | `invalid_argument` | Supply finite parameter values. |
+| `preference_model.curve_too_short` | `invalid_argument` | Supply at least two. |
+| `preference_model.curve_slope_count` | `invalid_argument` | Supply one fewer slope than breakpoints. |
+| `preference_model.curve_breakpoint_non_finite` | `invalid_argument` | Supply finite breakpoints. |
+| `preference_model.curve_breakpoints_not_increasing` | `invalid_argument` | Order them and remove repeats. |
+| `preference_contract.decision_contract_refused` | the wrapped refusal's code | The refusal carries the decision contract's own `decision_contract.*` detail; follow that row. |
+| `preference_contract.target_population_blank` | `invalid_argument` | Name the population the decision is for. |
+| `preference_contract.criterion_invalid` | `invalid_argument` | Supply a finite threshold and a level inside its range. |
+| `preference_contract.too_few_actions` | `invalid_argument` | Declare at least two. |
+| `preference_contract.action_id_blank` | `invalid_argument` | Give every action a non-blank id. |
+| `preference_contract.action_duplicate` | `invalid_argument` | Give every action a distinct id. |
+| `preference_contract.input_count_mismatch` | `invalid_argument` | Supply one input per attribute. |
+| `preference_contract.action_without_quantity` | `invalid_argument` | Read at least one attribute from a quantity. |
+| `preference_contract.fixed_input_non_finite` | `invalid_argument` | Supply a finite value. |
+| `preference_contract.fixed_units_mismatch` | `quantity_semantics_mismatch` | State it in the attribute's units. |
+| `preference_contract.quantity_invalid` | `quantity_semantics_mismatch` | Declare its variable, units, population and horizon. |
+| `preference_contract.quantity_units_mismatch` | `quantity_semantics_mismatch` | Read a quantity in the attribute's units. |
+| `preference_contract.quantity_outside_scope` | `quantity_semantics_mismatch` | Read quantities in the decision's scope. |
+| `preference_contract.constraint_id_blank` | `invalid_argument` | Give every constraint a non-blank id. |
+| `preference_contract.constraint_duplicate` | `invalid_argument` | Give every constraint a distinct id. |
+| `preference_contract.constraint_units_blank` | `invalid_argument` | State the units of its bound. |
+| `preference_contract.constraint_non_finite` | `invalid_argument` | Supply finite values. |
+| `preference_contract.constraint_probability` | `invalid_argument` | Supply a probability in that range. |
+| `preference_contract.constraint_unknown_attribute` | `invalid_argument` | Read declared attributes only. |
+| `preference_contract.constraint_unknown_action` | `invalid_argument` | Name declared actions only. |
+| `preference_contract.parameter_count_mismatch` | `invalid_argument` | Supply one value per parameter. |
+| `preference_contract.parameter_non_finite` | `invalid_argument` | Supply finite values. |
+| `preference_contract.not_lowerable` | `route_not_supported` | Evaluate on the certified route. |
+
+### Recorded choices
+
+`choice_record.*`. A choice record set holds recorded choices, the options each decider had and what the decider expected of each option.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `choice_record.model_invalid` | `invalid_argument` | The refusal carries the value model's own `preference_model.*` detail; follow that row. |
+| `choice_record.attributes_missing` | `invalid_argument` | Declare the attributes its options are described by. |
+| `choice_record.attribute_id_blank` | `invalid_argument` | Give every attribute a non-blank id. |
+| `choice_record.attribute_units_blank` | `invalid_argument` | State the units of every attribute. |
+| `choice_record.attribute_duplicate` | `invalid_argument` | Give every attribute a distinct id. |
+| `choice_record.population_blank` | `invalid_argument` | Name the population whose choices were recorded. |
+| `choice_record.pooling_assumption_blank` | `invalid_argument` | Name the assumption that the deciders share one set of preferences. |
+| `choice_record.records_missing` | `invalid_argument` | Supply at least one recorded choice. |
+| `choice_record.record_id_blank` | `invalid_argument` | Give every record a non-blank id. |
+| `choice_record.record_duplicate` | `invalid_argument` | Give every record a distinct id. |
+| `choice_record.decider_blank` | `invalid_argument` | Name who made the choice. |
+| `choice_record.options_too_few` | `invalid_argument` | Record every option that was available. |
+| `choice_record.option_id_blank` | `invalid_argument` | Give every option a non-blank id. |
+| `choice_record.option_duplicate` | `invalid_argument` | Give every option a distinct id. |
+| `choice_record.chosen_unknown` | `invalid_argument` | Name one of the recorded options. |
+| `choice_record.forecast_source_blank` | `invalid_argument` | Name where the forecast came from. |
+| `choice_record.analysis_identity_blank` | `invalid_argument` | Name the result the decider read. |
+| `choice_record.analysis_date_blank` | `invalid_argument` | Name the date the decider read the result. |
+| `choice_record.realized_assumption_blank` | `invalid_argument` | Name the assumption that the decider expected the realized outcome. |
+| `choice_record.means_width_mismatch` | `invalid_argument` | Supply one mean per attribute. |
+| `choice_record.draws_empty` | `invalid_argument` | Supply at least one draw row. |
+| `choice_record.draws_width_mismatch` | `invalid_argument` | Supply one value per attribute in every row. |
+| `choice_record.belief_not_finite` | `invalid_argument` | Supply finite means or draws. |
+| `choice_record.weights_length_mismatch` | `invalid_argument` | Supply one weight per row. |
+| `choice_record.weight_not_finite` | `invalid_argument` | Supply finite weights. |
+| `choice_record.weight_negative` | `invalid_argument` | Supply non-negative weights. |
+| `choice_record.weights_sum_invalid` | `invalid_argument` | Supply weights with a positive total. |
+| `choice_record.observation_rows_missing` | `invalid_argument` | Name the rows the record rests on. |
+| `choice_record.observation_row_blank` | `invalid_argument` | Give every row a non-blank id. |
+| `choice_record.observation_row_repeated` | `invalid_argument` | Name each row once. |
+| `choice_record.observation_row_double_counted` | `evidence_double_counted` | Keep the row in one record only. |
+| `choice_record.attributes_differ` | `quantity_semantics_mismatch` | Describe the options in the model's attributes and units. |
+| `choice_record.shape_parameters_not_fixed` | `route_not_supported` | Fix those parameters to a single value or evaluate on the certified route. |
+| `choice_record.belief_law_required` | `decision_contract_unsatisfied` | Record the belief as draws. |
+| `choice_record.term_not_finite` | `decision_contract_unsatisfied` | Check the belief and the value's domain. |
+
+### Decisions across a preference set
+
+`preference_decision.*`, `preference_certified.*`. `preference_decision.*` comes from the exact route (the value affine in its parameters), `preference_certified.*` from the certified route (subdivision of the set). Refusals about structures are raised at the `structural` stage, the others at `evaluate`.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `preference_decision.source_refused` | the wrapped refusal's code | The refusal carries the source evaluation's own `decision_evaluation.*` or `decision_contract.*` detail; follow that row. |
+| `preference_decision.linear_program_refused` | `invalid_argument` | Relax the linear-program options, or rescale the declared ranges and relations. The supplied text names the linear program's own detail and message. |
+| `preference_decision.criterion_needs_certified_route` | `route_not_supported` | Evaluate on the certified route with aligned joint draws. |
+| `preference_decision.shape_parameters_need_certified_route` | `route_not_supported` | Evaluate on the certified route with aligned joint draws. |
+| `preference_decision.part_not_lowerable` | `route_not_supported` | Evaluate on the certified route with aligned joint draws. |
+| `preference_decision.worst_case_of_expected_regret` | `route_not_supported` | Evaluate on the certified route or choose another policy. |
+| `preference_decision.options_invalid` | `invalid_argument` | Supply a finite, non-negative tie tolerance. |
+| `preference_decision.preference_set_empty` | `invalid_argument` | Widen the ranges or remove a relation. |
+| `preference_decision.measure_required` | `decision_contract_unsatisfied` | Supply a measure or choose another policy. |
+| `preference_decision.measure_incomplete` | `decision_contract_unsatisfied` | Supply a measure that resolves every parameter. |
+| `preference_decision.measure_empty` | `invalid_argument` | Supply at least one point. |
+| `preference_decision.measure_point_dimension` | `invalid_argument` | Supply one value per parameter. |
+| `preference_decision.measure_point_non_finite` | `invalid_argument` | Supply finite points. |
+| `preference_decision.measure_point_outside_set` | `invalid_argument` | Supply points inside the declared ranges and relations. |
+| `preference_decision.measure_weight_count` | `invalid_argument` | Supply one weight per point. |
+| `preference_decision.measure_weight_invalid` | `invalid_argument` | Supply finite, non-negative weights. |
+| `preference_decision.measure_weight_total_zero` | `invalid_argument` | Give at least one point a positive weight. |
+| `preference_decision.measure_label_count` | `invalid_argument` | Supply one label per point. |
+| `preference_decision.measure_label_blank` | `invalid_argument` | Give every point a non-blank label. |
+| `preference_decision.measure_label_duplicate` | `invalid_argument` | Give every point a distinct label. |
+| `preference_decision.measure_origin_blank` | `invalid_argument` | Name where the measure came from. |
+| `preference_decision.measure_unresolved_unknown` | `invalid_argument` | Name declared parameter positions only. |
+| `preference_decision.measure_unresolved_repeated` | `invalid_argument` | Name each unresolved parameter once. |
+| `preference_decision.structures_empty` | `invalid_argument` | Supply at least one. |
+| `preference_decision.structure_id_blank` | `invalid_argument` | Give every structure a non-blank id. |
+| `preference_decision.structure_duplicate` | `invalid_argument` | Give every structure a distinct id. |
+| `preference_decision.structure_probabilities_partial` | `decision_contract_unsatisfied` | Give every structure a probability or none. |
+| `preference_decision.structure_probability_invalid` | `decision_contract_unsatisfied` | Supply finite, non-negative probabilities. |
+| `preference_decision.structure_probabilities_exceed_one` | `decision_contract_unsatisfied` | Supply probabilities whose total is at most one. |
+| `preference_decision.structure_probabilities_required` | `decision_contract_unsatisfied` | Supply one for every structure or choose another structural policy. |
+| `preference_decision.coefficient_non_finite` | `decision_contract_unsatisfied` | Check the source and the value's domain. |
+| `preference_decision.linear_program_unbounded` | `invalid_argument` | None: valid input does not produce it; report it with the declaration. |
+| `preference_decision.linear_program_infeasible` | `invalid_argument` | None: valid input does not produce it; report it with the declaration. |
+| `preference_certified.source_refused` | the wrapped refusal's code | The refusal carries the source evaluation's own `decision_evaluation.*` or `decision_contract.*` detail; follow that row. |
+| `preference_certified.structure_inputs_required` | `route_not_supported` | Evaluate across structures. |
+| `preference_certified.options_invalid` | `invalid_argument` | Supply options inside their documented ranges. |
+| `preference_certified.minimax_regret_needs_expectation` | `route_not_supported` | Use an expectation criterion or another policy. |
+| `preference_certified.measure_required` | `decision_contract_unsatisfied` | Supply a measure or choose another policy. |
+| `preference_certified.measure_empty` | `invalid_argument` | Supply at least one point. |
+| `preference_certified.measure_unknown_parameter` | `invalid_argument` | Name declared parameter positions only. |
+| `preference_certified.measure_incomplete` | `decision_contract_unsatisfied` | Supply a measure that resolves every parameter. |
+| `preference_certified.measure_point_dimension` | `invalid_argument` | Supply one value per parameter. |
+| `preference_certified.measure_point_non_finite` | `invalid_argument` | Supply finite points. |
+| `preference_certified.measure_point_outside_set` | `invalid_argument` | Supply points inside the declared ranges and relations. |
+| `preference_certified.measure_weights_invalid` | `invalid_argument` | Supply such weights. |
+| `preference_certified.measure_labels_invalid` | `invalid_argument` | Supply one label per point. |
+| `preference_certified.preference_set_empty` | `invalid_argument` | Widen the ranges or remove a relation. |
+| `preference_certified.logarithm_domain` | `invalid_argument` | Narrow the ranges or change the value. |
+| `preference_certified.enclosure_non_finite` | `invalid_argument` | Narrow the ranges or change the value. |
+| `preference_certified.atoms_invalid` | `invalid_argument` | Supply distinct, non-blank structure ids. |
+| `preference_certified.atom_probabilities_invalid` | `decision_contract_unsatisfied` | Supply valid probabilities. |
+| `preference_certified.atom_probabilities_required` | `decision_contract_unsatisfied` | Supply them or choose another structural policy. |
+| `preference_certified.mixture_criterion_unsupported` | `route_not_supported` | Use an expectation criterion or another structural policy. |
+
+### Learning preferences from recorded choices
+
+`preference_set_learning.*`, `preference_choice_model.*`. `preference_set_learning.*` comes from learning the set compatible with recorded choices (stage `learn`), `preference_choice_model.*` from estimating parameters under the logit choice model (stage `estimate`). Records that contradict the declared set are an outcome of set learning, not a refusal: the outcome names the conflicting records and the smallest tolerance at which they become compatible.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `preference_set_learning.model_invalid` | `invalid_argument` | The refusal carries the value model's own `preference_model.*` detail; follow that row. |
+| `preference_set_learning.records_invalid` | the wrapped refusal's code | The refusal carries the records' own `choice_record.*` detail; follow that row. |
+| `preference_set_learning.linear_program_refused` | `invalid_argument` | Relax `SetLearningOptions::lp`, or rescale the declared ranges and relations. The supplied text names the linear program's own detail and message. |
+| `preference_set_learning.tolerance_negative` | `invalid_argument` | Supply a finite, non-negative tolerance in utility units. |
+| `preference_set_learning.tolerance_non_finite` | `invalid_argument` | Supply a finite, non-negative tolerance in utility units. |
+| `preference_set_learning.declared_set_empty` | `invalid_argument` | Widen the ranges or remove a relation. |
+| `preference_set_learning.relation_id_collision` | `invalid_argument` | Rename the declared relation or the record. |
+| `preference_set_learning.program_inconsistent` | `invalid_argument` | Tighten the linear-program tolerances. |
+| `preference_choice_model.level_invalid` | `invalid_argument` | Supply a level in that range. |
+| `preference_choice_model.draws_missing` | `invalid_argument` | Request at least one draw. |
+| `preference_choice_model.fit_options_invalid` | `invalid_argument` | Supply finite, positive values. |
+| `preference_choice_model.model_invalid` | `invalid_argument` | The refusal carries the value model's own `preference_model.*` detail; follow that row. |
+| `preference_choice_model.records_invalid` | the wrapped refusal's code | The refusal carries the records' own `choice_record.*` detail; follow that row. |
+| `preference_choice_model.unit_of_account_missing` | `design_rank_deficient` | Record choices whose options differ in the fixed part. |
+| `preference_choice_model.nothing_identified` | `design_rank_deficient` | Record choices whose options differ. |
+| `preference_choice_model.rank_deficient` | `design_rank_deficient` | Record choices that vary the named parameters separately or fix one of them. |
+| `preference_choice_model.separated` | `glm_fit_refused` | Use the compatible-set method. |
+| `preference_choice_model.consistency_not_positive` | `glm_fit_refused` | Check the sign of the fixed part or use the compatible-set method. |
+| `preference_choice_model.not_converged` | `glm_fit_refused` | Raise the iteration limit or use the compatible-set method. |
+| `preference_choice_model.fit_refused` | `glm_fit_refused` | Use the compatible-set method. The supplied text names the fit's own detail and message. |
+| `preference_choice_model.covariance_not_positive_definite` | `glm_fit_refused` | Record more choices or use the compatible-set method. |
+| `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method. |
+
 ## Other registered refusal codes
 
 Every code below is registered in `parity/reason_codes.toml`. Each is a scientific, input or resource refusal with its own code; none is `not_supported`, which is reserved for a unit that lacks provenance or an independent scientific check.

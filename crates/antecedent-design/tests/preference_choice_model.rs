@@ -4,6 +4,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::reason_details;
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet, OptionBelief,
     Pooling,
@@ -601,18 +602,30 @@ fn invalid_options_model_and_records_are_refused() {
     let records = cost_only_records(&model, 3);
     for level in [0.0, 1.0, f64::NAN] {
         let options = ChoiceModelOptions { level, ..quick() };
-        assert_eq!(refusal(&model, &records, options), "preference_choice_model.level_invalid");
+        assert_eq!(
+            refusal(&model, &records, options),
+            reason_details::preference_choice_model::LEVEL_INVALID
+        );
     }
     let options = ChoiceModelOptions { n_draws: 0, ..quick() };
-    assert_eq!(refusal(&model, &records, options), "preference_choice_model.draws_missing");
+    assert_eq!(
+        refusal(&model, &records, options),
+        reason_details::preference_choice_model::DRAWS_MISSING
+    );
     let fit =
         ConditionalLogitOptions { gradient_tolerance: 0.0, ..ConditionalLogitOptions::default() };
     let options = ChoiceModelOptions { fit, ..quick() };
-    assert_eq!(refusal(&model, &records, options), "preference_choice_model.fit_options_invalid");
+    assert_eq!(
+        refusal(&model, &records, options),
+        reason_details::preference_choice_model::FIT_OPTIONS_INVALID
+    );
 
     let mut blank = model.clone();
     blank.utility_units = " ".to_owned();
-    assert_eq!(refusal(&blank, &records, quick()), "preference_choice_model.model_invalid");
+    assert_eq!(
+        refusal(&blank, &records, quick()),
+        reason_details::preference_choice_model::MODEL_INVALID
+    );
 
     let mut renamed = records;
     renamed.attributes[0].id = "gain".to_owned();
@@ -639,7 +652,7 @@ fn missing_unit_of_account_and_nothing_to_learn_are_refused() {
     );
     assert_eq!(
         refusal(&free_cost, &records, quick()),
-        "preference_choice_model.unit_of_account_missing"
+        reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING
     );
 
     let model = one_rate_model(0.0, 50.0);
@@ -647,7 +660,10 @@ fn missing_unit_of_account_and_nothing_to_learn_are_refused() {
         .map(|r| record(format!("r{r}"), "clinician".to_owned(), vec![vec![1.0, 2.0]; 2], 0))
         .collect();
     let records = record_set(&model, identical, pooled());
-    assert_eq!(refusal(&model, &records, quick()), "preference_choice_model.nothing_identified");
+    assert_eq!(
+        refusal(&model, &records, quick()),
+        reason_details::preference_choice_model::NOTHING_IDENTIFIED
+    );
 }
 
 #[test]
@@ -723,7 +739,10 @@ fn fit_budget_covariance_and_declared_set_refusals() {
     let single_decider = record_set(&model, simulated.iter().map(one).collect(), pooled());
     let fit = ConditionalLogitOptions { max_iterations: 0, ..ConditionalLogitOptions::default() };
     let options = ChoiceModelOptions { fit, ..quick() };
-    assert_eq!(refusal(&model, &single_decider, options), "preference_choice_model.not_converged");
+    assert_eq!(
+        refusal(&model, &single_decider, options),
+        reason_details::preference_choice_model::NOT_CONVERGED
+    );
 
     // Two clusters' scores sum to the zero gradient, so the sandwich has rank one.
     let two_deciders = record_set(&model, simulated, pooled());

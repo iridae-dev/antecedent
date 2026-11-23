@@ -1284,45 +1284,74 @@ impl PreferenceModelError {
     /// Stable detail id, prefixed `preference_model.`.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
-            Self::NoAttributes => "preference_model.no_attributes",
-            Self::BlankAttributeId { .. } => "preference_model.attribute_id_blank",
-            Self::DuplicateAttribute { .. } => "preference_model.attribute_duplicate",
-            Self::BlankAttributeUnits { .. } => "preference_model.attribute_units_blank",
-            Self::BlankParameterId { .. } => "preference_model.parameter_id_blank",
-            Self::DuplicateParameter { .. } => "preference_model.parameter_duplicate",
-            Self::BlankParameterUnits { .. } => "preference_model.parameter_units_blank",
-            Self::NonFiniteRange { .. } => "preference_model.parameter_range_non_finite",
-            Self::ReversedRange { .. } => "preference_model.parameter_range_empty",
-            Self::BlankAssumption { .. } => "preference_model.parameter_assumption_blank",
-            Self::BlankRelationId { .. } => "preference_model.relation_id_blank",
-            Self::DuplicateRelation { .. } => "preference_model.relation_duplicate",
-            Self::BlankRelationOrigin { .. } => "preference_model.relation_origin_blank",
-            Self::EmptyRelation { .. } => "preference_model.relation_without_terms",
-            Self::RelationUnknownParameter { .. } => "preference_model.relation_unknown_parameter",
+            Self::NoAttributes => reason_details::preference_model::NO_ATTRIBUTES,
+            Self::BlankAttributeId { .. } => reason_details::preference_model::ATTRIBUTE_ID_BLANK,
+            Self::DuplicateAttribute { .. } => {
+                reason_details::preference_model::ATTRIBUTE_DUPLICATE
+            }
+            Self::BlankAttributeUnits { .. } => {
+                reason_details::preference_model::ATTRIBUTE_UNITS_BLANK
+            }
+            Self::BlankParameterId { .. } => reason_details::preference_model::PARAMETER_ID_BLANK,
+            Self::DuplicateParameter { .. } => {
+                reason_details::preference_model::PARAMETER_DUPLICATE
+            }
+            Self::BlankParameterUnits { .. } => {
+                reason_details::preference_model::PARAMETER_UNITS_BLANK
+            }
+            Self::NonFiniteRange { .. } => {
+                reason_details::preference_model::PARAMETER_RANGE_NON_FINITE
+            }
+            Self::ReversedRange { .. } => reason_details::preference_model::PARAMETER_RANGE_EMPTY,
+            Self::BlankAssumption { .. } => {
+                reason_details::preference_model::PARAMETER_ASSUMPTION_BLANK
+            }
+            Self::BlankRelationId { .. } => reason_details::preference_model::RELATION_ID_BLANK,
+            Self::DuplicateRelation { .. } => reason_details::preference_model::RELATION_DUPLICATE,
+            Self::BlankRelationOrigin { .. } => {
+                reason_details::preference_model::RELATION_ORIGIN_BLANK
+            }
+            Self::EmptyRelation { .. } => reason_details::preference_model::RELATION_WITHOUT_TERMS,
+            Self::RelationUnknownParameter { .. } => {
+                reason_details::preference_model::RELATION_UNKNOWN_PARAMETER
+            }
             Self::RelationRepeatedParameter { .. } => {
-                "preference_model.relation_repeated_parameter"
+                reason_details::preference_model::RELATION_REPEATED_PARAMETER
             }
             Self::RelationNonFiniteCoefficient { .. } => {
-                "preference_model.relation_coefficient_non_finite"
+                reason_details::preference_model::RELATION_COEFFICIENT_NON_FINITE
             }
-            Self::RelationNonFiniteBound { .. } => "preference_model.relation_bound_non_finite",
-            Self::NonFiniteConstant => "preference_model.expression_constant_non_finite",
-            Self::ExpressionTooDeep { .. } => "preference_model.expression_too_deep",
-            Self::UnknownAttribute { .. } => "preference_model.unknown_attribute",
-            Self::UnknownParameter { .. } => "preference_model.unknown_parameter",
-            Self::UnusedParameter { .. } => "preference_model.parameter_unused",
-            Self::UnusedAttribute { .. } => "preference_model.attribute_unused",
-            Self::BlankUtilityUnits => "preference_model.utility_units_blank",
-            Self::NonFiniteValue => "preference_model.value_non_finite",
-            Self::AttributeCount { .. } => "preference_model.attribute_count_mismatch",
-            Self::ParameterCount { .. } => "preference_model.parameter_count_mismatch",
-            Self::NonFiniteParameterValue { .. } => "preference_model.parameter_value_non_finite",
-            Self::CurveTooShort { .. } => "preference_model.curve_too_short",
-            Self::CurveSlopeCount { .. } => "preference_model.curve_slope_count",
-            Self::CurveBreakpointNonFinite { .. } => "preference_model.curve_breakpoint_non_finite",
+            Self::RelationNonFiniteBound { .. } => {
+                reason_details::preference_model::RELATION_BOUND_NON_FINITE
+            }
+            Self::NonFiniteConstant => {
+                reason_details::preference_model::EXPRESSION_CONSTANT_NON_FINITE
+            }
+            Self::ExpressionTooDeep { .. } => reason_details::preference_model::EXPRESSION_TOO_DEEP,
+            Self::UnknownAttribute { .. } => reason_details::preference_model::UNKNOWN_ATTRIBUTE,
+            Self::UnknownParameter { .. } => reason_details::preference_model::UNKNOWN_PARAMETER,
+            Self::UnusedParameter { .. } => reason_details::preference_model::PARAMETER_UNUSED,
+            Self::UnusedAttribute { .. } => reason_details::preference_model::ATTRIBUTE_UNUSED,
+            Self::BlankUtilityUnits => reason_details::preference_model::UTILITY_UNITS_BLANK,
+            Self::NonFiniteValue => reason_details::preference_model::VALUE_NON_FINITE,
+            Self::AttributeCount { .. } => {
+                reason_details::preference_model::ATTRIBUTE_COUNT_MISMATCH
+            }
+            Self::ParameterCount { .. } => {
+                reason_details::preference_model::PARAMETER_COUNT_MISMATCH
+            }
+            Self::NonFiniteParameterValue { .. } => {
+                reason_details::preference_model::PARAMETER_VALUE_NON_FINITE
+            }
+            Self::CurveTooShort { .. } => reason_details::preference_model::CURVE_TOO_SHORT,
+            Self::CurveSlopeCount { .. } => reason_details::preference_model::CURVE_SLOPE_COUNT,
+            Self::CurveBreakpointNonFinite { .. } => {
+                reason_details::preference_model::CURVE_BREAKPOINT_NON_FINITE
+            }
             Self::CurveBreakpointsNotIncreasing { .. } => {
-                "preference_model.curve_breakpoints_not_increasing"
+                reason_details::preference_model::CURVE_BREAKPOINTS_NOT_INCREASING
             }
         }
     }

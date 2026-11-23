@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_details;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy, UtilityExpr,
 };
@@ -340,7 +341,7 @@ fn relations_that_contradict_the_ranges_leave_an_empty_set() {
     let c = contract_for(m, &["A", "B"], "outcome", PreferencePolicy::RequireInvariantBestAction);
     let refused = evaluate(&c, &two_arms(), None).unwrap_err();
     assert_eq!(refused, E::EmptyPreferenceSet);
-    assert_eq!(refused.detail(), "preference_decision.preference_set_empty");
+    assert_eq!(refused.detail(), reason_details::preference_decision::PREFERENCE_SET_EMPTY);
     assert_eq!(declared_measure(vec![vec![1.0]], None).validate(&set), Err(E::EmptyPreferenceSet));
 }
 
@@ -392,12 +393,12 @@ fn a_weighted_policy_refuses_without_a_complete_measure() {
     let c = contract_for(model(0.0, 3.0), &["A", "B"], "outcome", PreferencePolicy::Weighted);
     let refused = evaluate(&c, &two_arms(), None).unwrap_err();
     assert_eq!(refused, E::MeasureRequired);
-    assert_eq!(refused.detail(), "preference_decision.measure_required");
+    assert_eq!(refused.detail(), reason_details::preference_decision::MEASURE_REQUIRED);
     let mut partial = declared_measure(vec![vec![1.0]], None);
     partial.unresolved = vec![0];
     let refused = evaluate(&c, &two_arms(), Some(&partial)).unwrap_err();
     assert_eq!(refused, E::MeasureIncomplete { parameters: vec!["w".into()] });
-    assert_eq!(refused.detail(), "preference_decision.measure_incomplete");
+    assert_eq!(refused.detail(), reason_details::preference_decision::MEASURE_INCOMPLETE);
 }
 
 #[test]
@@ -519,7 +520,7 @@ fn a_mean_source_answers_an_affine_value() {
     let c = contract_for(kinked, &["A", "B"], "mean", PreferencePolicy::ReportOnly);
     let refused = evaluate_preference_contract_on_means(&c, &mean_source(), None, options());
     assert!(matches!(refused, Err(E::Eval(_))), "{refused:?}");
-    assert_eq!(refused.unwrap_err().detail(), "preference_decision.source_refused");
+    assert_eq!(refused.unwrap_err().detail(), reason_details::preference_decision::SOURCE_REFUSED);
 
     // A hard constraint is refused as the mean evaluator refuses it.
     let mut c = contract_for(model(0.0, 3.0), &["A", "B"], "mean", PreferencePolicy::ReportOnly);
@@ -577,7 +578,10 @@ fn expected_regret_gives_the_expected_utility_verdict_without_amounts() {
         refused,
         E::CertifiedRouteRequired { reason: CertifiedRouteReason::WorstCaseOfExpectedRegret }
     );
-    assert_eq!(refused.detail(), "preference_decision.worst_case_of_expected_regret");
+    assert_eq!(
+        refused.detail(),
+        reason_details::preference_decision::WORST_CASE_OF_EXPECTED_REGRET
+    );
 }
 
 #[test]
@@ -591,7 +595,10 @@ fn values_the_exact_route_cannot_answer_need_the_certified_route() {
             reason: CertifiedRouteReason::Criterion(DecisionCriterion::Quantile { p: 0.5 })
         }
     );
-    assert_eq!(refused.detail(), "preference_decision.criterion_needs_certified_route");
+    assert_eq!(
+        refused.detail(),
+        reason_details::preference_decision::CRITERION_NEEDS_CERTIFIED_ROUTE
+    );
     c.criterion = DecisionCriterion::ThresholdProbability { threshold: 1.0 };
     assert!(matches!(
         evaluate(&c, &two_arms(), None),
@@ -610,7 +617,10 @@ fn values_the_exact_route_cannot_answer_need_the_certified_route() {
             reason: CertifiedRouteReason::ShapeParameters { parameters: vec!["w".into()] }
         }
     );
-    assert_eq!(refused.detail(), "preference_decision.shape_parameters_need_certified_route");
+    assert_eq!(
+        refused.detail(),
+        reason_details::preference_decision::SHAPE_PARAMETERS_NEED_CERTIFIED_ROUTE
+    );
 
     let curved = model_with(
         vec![parameter("w", 0.0, 1.0)],
@@ -622,7 +632,7 @@ fn values_the_exact_route_cannot_answer_need_the_certified_route() {
         refused,
         E::CertifiedRouteRequired { reason: CertifiedRouteReason::PartNotLowerable }
     );
-    assert_eq!(refused.detail(), "preference_decision.part_not_lowerable");
+    assert_eq!(refused.detail(), reason_details::preference_decision::PART_NOT_LOWERABLE);
 }
 
 #[test]
@@ -744,12 +754,12 @@ fn invalid_options_and_contracts_refuse() {
     let bad = PreferenceDecisionOptions { tie_tolerance: -1.0, ..options() };
     let refused = evaluate_preference_contract(&c, &source, None, bad).unwrap_err();
     assert_eq!(refused, E::InvalidOptions { option: "tie_tolerance" });
-    assert_eq!(refused.detail(), "preference_decision.options_invalid");
+    assert_eq!(refused.detail(), reason_details::preference_decision::OPTIONS_INVALID);
     let mut invalid = c.clone();
     invalid.actions.truncate(1);
     let refused = evaluate_preference_contract(&invalid, &source, None, options()).unwrap_err();
     assert!(matches!(refused, E::Contract(_)));
-    assert_eq!(refused.detail(), "preference_contract.too_few_actions");
+    assert_eq!(refused.detail(), reason_details::preference_contract::TOO_FEW_ACTIONS);
     // A source that lacks B's coordinates is surfaced as a source refusal.
     let other = law(&c.model, &two_arms()[..1], Some(weights()));
     let refused = evaluate_preference_contract(&c, &other, None, options()).unwrap_err();

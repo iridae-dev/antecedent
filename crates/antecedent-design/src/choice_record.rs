@@ -346,44 +346,63 @@ impl ChoiceRecordError {
     /// Stable detail identity of the refusal.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
-            Self::Model(_) => "choice_record.model_invalid",
-            Self::AttributesMissing => "choice_record.attributes_missing",
-            Self::AttributeIdBlank { .. } => "choice_record.attribute_id_blank",
-            Self::AttributeUnitsBlank { .. } => "choice_record.attribute_units_blank",
-            Self::AttributeDuplicate { .. } => "choice_record.attribute_duplicate",
-            Self::PopulationBlank => "choice_record.population_blank",
-            Self::PoolingAssumptionBlank => "choice_record.pooling_assumption_blank",
-            Self::RecordsMissing => "choice_record.records_missing",
-            Self::RecordIdBlank { .. } => "choice_record.record_id_blank",
-            Self::RecordDuplicate { .. } => "choice_record.record_duplicate",
-            Self::DeciderBlank { .. } => "choice_record.decider_blank",
-            Self::OptionsTooFew { .. } => "choice_record.options_too_few",
-            Self::OptionIdBlank { .. } => "choice_record.option_id_blank",
-            Self::OptionDuplicate { .. } => "choice_record.option_duplicate",
-            Self::ChosenUnknown { .. } => "choice_record.chosen_unknown",
-            Self::ForecastSourceBlank { .. } => "choice_record.forecast_source_blank",
-            Self::AnalysisIdentityBlank { .. } => "choice_record.analysis_identity_blank",
-            Self::AnalysisDateBlank { .. } => "choice_record.analysis_date_blank",
-            Self::RealizedAssumptionBlank { .. } => "choice_record.realized_assumption_blank",
-            Self::MeansWidthMismatch { .. } => "choice_record.means_width_mismatch",
-            Self::DrawsEmpty { .. } => "choice_record.draws_empty",
-            Self::DrawsWidthMismatch { .. } => "choice_record.draws_width_mismatch",
-            Self::BeliefNotFinite { .. } => "choice_record.belief_not_finite",
-            Self::WeightsLengthMismatch { .. } => "choice_record.weights_length_mismatch",
-            Self::WeightNotFinite { .. } => "choice_record.weight_not_finite",
-            Self::WeightNegative { .. } => "choice_record.weight_negative",
-            Self::WeightsSumInvalid { .. } => "choice_record.weights_sum_invalid",
-            Self::ObservationRowsMissing { .. } => "choice_record.observation_rows_missing",
-            Self::ObservationRowBlank { .. } => "choice_record.observation_row_blank",
-            Self::ObservationRowRepeated { .. } => "choice_record.observation_row_repeated",
-            Self::ObservationRowDoubleCounted { .. } => {
-                "choice_record.observation_row_double_counted"
+            Self::Model(_) => reason_details::choice_record::MODEL_INVALID,
+            Self::AttributesMissing => reason_details::choice_record::ATTRIBUTES_MISSING,
+            Self::AttributeIdBlank { .. } => reason_details::choice_record::ATTRIBUTE_ID_BLANK,
+            Self::AttributeUnitsBlank { .. } => {
+                reason_details::choice_record::ATTRIBUTE_UNITS_BLANK
             }
-            Self::AttributesDiffer { .. } => "choice_record.attributes_differ",
-            Self::ShapeParametersNotFixed { .. } => "choice_record.shape_parameters_not_fixed",
-            Self::BeliefLawRequired { .. } => "choice_record.belief_law_required",
-            Self::TermNotFinite { .. } => "choice_record.term_not_finite",
+            Self::AttributeDuplicate { .. } => reason_details::choice_record::ATTRIBUTE_DUPLICATE,
+            Self::PopulationBlank => reason_details::choice_record::POPULATION_BLANK,
+            Self::PoolingAssumptionBlank => reason_details::choice_record::POOLING_ASSUMPTION_BLANK,
+            Self::RecordsMissing => reason_details::choice_record::RECORDS_MISSING,
+            Self::RecordIdBlank { .. } => reason_details::choice_record::RECORD_ID_BLANK,
+            Self::RecordDuplicate { .. } => reason_details::choice_record::RECORD_DUPLICATE,
+            Self::DeciderBlank { .. } => reason_details::choice_record::DECIDER_BLANK,
+            Self::OptionsTooFew { .. } => reason_details::choice_record::OPTIONS_TOO_FEW,
+            Self::OptionIdBlank { .. } => reason_details::choice_record::OPTION_ID_BLANK,
+            Self::OptionDuplicate { .. } => reason_details::choice_record::OPTION_DUPLICATE,
+            Self::ChosenUnknown { .. } => reason_details::choice_record::CHOSEN_UNKNOWN,
+            Self::ForecastSourceBlank { .. } => {
+                reason_details::choice_record::FORECAST_SOURCE_BLANK
+            }
+            Self::AnalysisIdentityBlank { .. } => {
+                reason_details::choice_record::ANALYSIS_IDENTITY_BLANK
+            }
+            Self::AnalysisDateBlank { .. } => reason_details::choice_record::ANALYSIS_DATE_BLANK,
+            Self::RealizedAssumptionBlank { .. } => {
+                reason_details::choice_record::REALIZED_ASSUMPTION_BLANK
+            }
+            Self::MeansWidthMismatch { .. } => reason_details::choice_record::MEANS_WIDTH_MISMATCH,
+            Self::DrawsEmpty { .. } => reason_details::choice_record::DRAWS_EMPTY,
+            Self::DrawsWidthMismatch { .. } => reason_details::choice_record::DRAWS_WIDTH_MISMATCH,
+            Self::BeliefNotFinite { .. } => reason_details::choice_record::BELIEF_NOT_FINITE,
+            Self::WeightsLengthMismatch { .. } => {
+                reason_details::choice_record::WEIGHTS_LENGTH_MISMATCH
+            }
+            Self::WeightNotFinite { .. } => reason_details::choice_record::WEIGHT_NOT_FINITE,
+            Self::WeightNegative { .. } => reason_details::choice_record::WEIGHT_NEGATIVE,
+            Self::WeightsSumInvalid { .. } => reason_details::choice_record::WEIGHTS_SUM_INVALID,
+            Self::ObservationRowsMissing { .. } => {
+                reason_details::choice_record::OBSERVATION_ROWS_MISSING
+            }
+            Self::ObservationRowBlank { .. } => {
+                reason_details::choice_record::OBSERVATION_ROW_BLANK
+            }
+            Self::ObservationRowRepeated { .. } => {
+                reason_details::choice_record::OBSERVATION_ROW_REPEATED
+            }
+            Self::ObservationRowDoubleCounted { .. } => {
+                reason_details::choice_record::OBSERVATION_ROW_DOUBLE_COUNTED
+            }
+            Self::AttributesDiffer { .. } => reason_details::choice_record::ATTRIBUTES_DIFFER,
+            Self::ShapeParametersNotFixed { .. } => {
+                reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED
+            }
+            Self::BeliefLawRequired { .. } => reason_details::choice_record::BELIEF_LAW_REQUIRED,
+            Self::TermNotFinite { .. } => reason_details::choice_record::TERM_NOT_FINITE,
         }
     }
 }

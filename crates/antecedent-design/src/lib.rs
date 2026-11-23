@@ -50,6 +50,7 @@ pub mod preference_choice_model;
 pub mod preference_contract;
 pub mod preference_decision;
 pub mod preference_model;
+pub mod preference_refusal;
 pub mod preference_set_learning;
 pub mod preposterior;
 pub mod prior_signal;

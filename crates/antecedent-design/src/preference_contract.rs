@@ -810,33 +810,62 @@ impl PreferenceContractError {
     /// `preference_model.` detail.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
             Self::Model(inner) => inner.detail(),
-            Self::Contract(_) => "preference_contract.decision_contract_refused",
-            Self::BlankTargetPopulation => "preference_contract.target_population_blank",
-            Self::InvalidCriterion => "preference_contract.criterion_invalid",
-            Self::TooFewActions { .. } => "preference_contract.too_few_actions",
-            Self::BlankActionId { .. } => "preference_contract.action_id_blank",
-            Self::DuplicateAction { .. } => "preference_contract.action_duplicate",
-            Self::InputCount { .. } => "preference_contract.input_count_mismatch",
-            Self::NoQuantityInput { .. } => "preference_contract.action_without_quantity",
-            Self::NonFiniteFixedInput { .. } => "preference_contract.fixed_input_non_finite",
-            Self::FixedUnitsMismatch { .. } => "preference_contract.fixed_units_mismatch",
-            Self::InvalidQuantity { .. } => "preference_contract.quantity_invalid",
-            Self::QuantityUnitsMismatch { .. } => "preference_contract.quantity_units_mismatch",
-            Self::OutsideScope { .. } => "preference_contract.quantity_outside_scope",
-            Self::BlankConstraintId { .. } => "preference_contract.constraint_id_blank",
-            Self::DuplicateConstraint { .. } => "preference_contract.constraint_duplicate",
-            Self::BlankConstraintUnits { .. } => "preference_contract.constraint_units_blank",
-            Self::ConstraintNonFinite { .. } => "preference_contract.constraint_non_finite",
-            Self::ConstraintProbability { .. } => "preference_contract.constraint_probability",
-            Self::ConstraintUnknownAttribute { .. } => {
-                "preference_contract.constraint_unknown_attribute"
+            Self::Contract(_) => reason_details::preference_contract::DECISION_CONTRACT_REFUSED,
+            Self::BlankTargetPopulation => {
+                reason_details::preference_contract::TARGET_POPULATION_BLANK
             }
-            Self::ConstraintUnknownAction { .. } => "preference_contract.constraint_unknown_action",
-            Self::ParameterCount { .. } => "preference_contract.parameter_count_mismatch",
-            Self::NonFiniteParameter { .. } => "preference_contract.parameter_non_finite",
-            Self::NotLowerable { .. } => "preference_contract.not_lowerable",
+            Self::InvalidCriterion => reason_details::preference_contract::CRITERION_INVALID,
+            Self::TooFewActions { .. } => reason_details::preference_contract::TOO_FEW_ACTIONS,
+            Self::BlankActionId { .. } => reason_details::preference_contract::ACTION_ID_BLANK,
+            Self::DuplicateAction { .. } => reason_details::preference_contract::ACTION_DUPLICATE,
+            Self::InputCount { .. } => reason_details::preference_contract::INPUT_COUNT_MISMATCH,
+            Self::NoQuantityInput { .. } => {
+                reason_details::preference_contract::ACTION_WITHOUT_QUANTITY
+            }
+            Self::NonFiniteFixedInput { .. } => {
+                reason_details::preference_contract::FIXED_INPUT_NON_FINITE
+            }
+            Self::FixedUnitsMismatch { .. } => {
+                reason_details::preference_contract::FIXED_UNITS_MISMATCH
+            }
+            Self::InvalidQuantity { .. } => reason_details::preference_contract::QUANTITY_INVALID,
+            Self::QuantityUnitsMismatch { .. } => {
+                reason_details::preference_contract::QUANTITY_UNITS_MISMATCH
+            }
+            Self::OutsideScope { .. } => {
+                reason_details::preference_contract::QUANTITY_OUTSIDE_SCOPE
+            }
+            Self::BlankConstraintId { .. } => {
+                reason_details::preference_contract::CONSTRAINT_ID_BLANK
+            }
+            Self::DuplicateConstraint { .. } => {
+                reason_details::preference_contract::CONSTRAINT_DUPLICATE
+            }
+            Self::BlankConstraintUnits { .. } => {
+                reason_details::preference_contract::CONSTRAINT_UNITS_BLANK
+            }
+            Self::ConstraintNonFinite { .. } => {
+                reason_details::preference_contract::CONSTRAINT_NON_FINITE
+            }
+            Self::ConstraintProbability { .. } => {
+                reason_details::preference_contract::CONSTRAINT_PROBABILITY
+            }
+            Self::ConstraintUnknownAttribute { .. } => {
+                reason_details::preference_contract::CONSTRAINT_UNKNOWN_ATTRIBUTE
+            }
+            Self::ConstraintUnknownAction { .. } => {
+                reason_details::preference_contract::CONSTRAINT_UNKNOWN_ACTION
+            }
+            Self::ParameterCount { .. } => {
+                reason_details::preference_contract::PARAMETER_COUNT_MISMATCH
+            }
+            Self::NonFiniteParameter { .. } => {
+                reason_details::preference_contract::PARAMETER_NON_FINITE
+            }
+            Self::NotLowerable { .. } => reason_details::preference_contract::NOT_LOWERABLE,
         }
     }
 }

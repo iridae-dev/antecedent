@@ -287,25 +287,32 @@ impl ChoiceModelError {
     /// Stable detail identity of the refusal.
     #[must_use]
     pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
-            Self::LevelInvalid { .. } => "preference_choice_model.level_invalid",
-            Self::DrawsMissing => "preference_choice_model.draws_missing",
-            Self::FitOptionsInvalid => "preference_choice_model.fit_options_invalid",
-            Self::Model(_) => "preference_choice_model.model_invalid",
-            Self::Records(_) => "preference_choice_model.records_invalid",
-            Self::NoUnitOfAccount { .. } => "preference_choice_model.unit_of_account_missing",
-            Self::NothingIdentified { .. } => "preference_choice_model.nothing_identified",
-            Self::RankDeficient { .. } => "preference_choice_model.rank_deficient",
-            Self::Separated { .. } => "preference_choice_model.separated",
+            Self::LevelInvalid { .. } => reason_details::preference_choice_model::LEVEL_INVALID,
+            Self::DrawsMissing => reason_details::preference_choice_model::DRAWS_MISSING,
+            Self::FitOptionsInvalid => reason_details::preference_choice_model::FIT_OPTIONS_INVALID,
+            Self::Model(_) => reason_details::preference_choice_model::MODEL_INVALID,
+            Self::Records(_) => reason_details::preference_choice_model::RECORDS_INVALID,
+            Self::NoUnitOfAccount { .. } => {
+                reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING
+            }
+            Self::NothingIdentified { .. } => {
+                reason_details::preference_choice_model::NOTHING_IDENTIFIED
+            }
+            Self::RankDeficient { .. } => reason_details::preference_choice_model::RANK_DEFICIENT,
+            Self::Separated { .. } => reason_details::preference_choice_model::SEPARATED,
             Self::ConsistencyNotPositive { .. } => {
-                "preference_choice_model.consistency_not_positive"
+                reason_details::preference_choice_model::CONSISTENCY_NOT_POSITIVE
             }
-            Self::NotConverged { .. } => "preference_choice_model.not_converged",
-            Self::Fit { .. } => "preference_choice_model.fit_refused",
+            Self::NotConverged { .. } => reason_details::preference_choice_model::NOT_CONVERGED,
+            Self::Fit { .. } => reason_details::preference_choice_model::FIT_REFUSED,
             Self::CovarianceNotPositiveDefinite { .. } => {
-                "preference_choice_model.covariance_not_positive_definite"
+                reason_details::preference_choice_model::COVARIANCE_NOT_POSITIVE_DEFINITE
             }
-            Self::NoDrawInsideSet { .. } => "preference_choice_model.no_draw_inside_set",
+            Self::NoDrawInsideSet { .. } => {
+                reason_details::preference_choice_model::NO_DRAW_INSIDE_SET
+            }
         }
     }
 }

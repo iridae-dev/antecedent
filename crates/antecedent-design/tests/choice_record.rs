@@ -2,6 +2,7 @@
 //! of every option from attribute means and from weighted joint draws.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::reason_details;
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
     OptionBelief, Pooling, choice_features,
@@ -149,21 +150,36 @@ fn a_well_formed_set_validates_and_lists_deciders_and_assumptions() {
 #[test]
 fn every_set_level_refusal_names_its_cause() {
     let cases: Vec<(ChoiceRecordError, &str)> = vec![
-        (refused(|s| s.attributes.clear()), "choice_record.attributes_missing"),
-        (refused(|s| s.attributes[1].id = " ".to_owned()), "choice_record.attribute_id_blank"),
-        (refused(|s| s.attributes[1].units = String::new()), "choice_record.attribute_units_blank"),
+        (refused(|s| s.attributes.clear()), reason_details::choice_record::ATTRIBUTES_MISSING),
+        (
+            refused(|s| s.attributes[1].id = " ".to_owned()),
+            reason_details::choice_record::ATTRIBUTE_ID_BLANK,
+        ),
+        (
+            refused(|s| s.attributes[1].units = String::new()),
+            reason_details::choice_record::ATTRIBUTE_UNITS_BLANK,
+        ),
         (
             refused(|s| s.attributes[1].id = "benefit".to_owned()),
-            "choice_record.attribute_duplicate",
+            reason_details::choice_record::ATTRIBUTE_DUPLICATE,
         ),
-        (refused(|s| s.population = "  ".to_owned()), "choice_record.population_blank"),
+        (
+            refused(|s| s.population = "  ".to_owned()),
+            reason_details::choice_record::POPULATION_BLANK,
+        ),
         (
             refused(|s| s.pooling = Pooling::Pooled { assumption_id: String::new() }),
-            "choice_record.pooling_assumption_blank",
+            reason_details::choice_record::POOLING_ASSUMPTION_BLANK,
         ),
-        (refused(|s| s.records.clear()), "choice_record.records_missing"),
-        (refused(|s| s.records[1].id = String::new()), "choice_record.record_id_blank"),
-        (refused(|s| s.records[1].id = "r1".to_owned()), "choice_record.record_duplicate"),
+        (refused(|s| s.records.clear()), reason_details::choice_record::RECORDS_MISSING),
+        (
+            refused(|s| s.records[1].id = String::new()),
+            reason_details::choice_record::RECORD_ID_BLANK,
+        ),
+        (
+            refused(|s| s.records[1].id = "r1".to_owned()),
+            reason_details::choice_record::RECORD_DUPLICATE,
+        ),
     ];
     for (error, detail) in cases {
         assert_eq!(error.detail(), detail, "{error:?}");
@@ -322,7 +338,7 @@ fn a_row_under_two_records_is_double_counting() {
             second_record: "r3".to_owned(),
         }
     );
-    assert_eq!(error.detail(), "choice_record.observation_row_double_counted");
+    assert_eq!(error.detail(), reason_details::choice_record::OBSERVATION_ROW_DOUBLE_COUNTED);
     // Distinct spellings are distinct rows.
     let mut s = set();
     s.records[2].observation_rows.push("visits#01".to_owned());
@@ -510,7 +526,7 @@ fn kinked_model_is_refused_from_means_and_computed_from_draws() {
             term: Some(1),
         }
     );
-    assert_eq!(error.detail(), "choice_record.belief_law_required");
+    assert_eq!(error.detail(), reason_details::choice_record::BELIEF_LAW_REQUIRED);
 
     s.records[0].options[0].belief = OptionBelief::Draws {
         rows: vec![1.0, 1.0, 2.0, 3.0, 4.0, 6.0],
@@ -571,7 +587,7 @@ fn a_free_shape_parameter_is_refused_by_name() {
         error,
         ChoiceRecordError::ShapeParametersNotFixed { parameters: vec!["cost_scale".to_owned()] }
     );
-    assert_eq!(error.detail(), "choice_record.shape_parameters_not_fixed");
+    assert_eq!(error.detail(), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
 }
 
 #[test]
@@ -587,7 +603,7 @@ fn attributes_that_differ_from_the_model_are_refused() {
             records: Some(attribute("cost", "eur")),
         }
     );
-    assert_eq!(error.detail(), "choice_record.attributes_differ");
+    assert_eq!(error.detail(), reason_details::choice_record::ATTRIBUTES_DIFFER);
 
     let mut s = set();
     s.attributes.push(attribute("harm", "events"));
@@ -612,7 +628,7 @@ fn an_invalid_model_or_record_set_is_refused_before_features() {
     model.preferences.parameters[0] = parameter("per_benefit", 2.0, 1.0);
     let error = choice_features(&model, &set()).expect_err("empty range");
     assert!(matches!(error, ChoiceRecordError::Model(_)));
-    assert_eq!(error.detail(), "choice_record.model_invalid");
+    assert_eq!(error.detail(), reason_details::choice_record::MODEL_INVALID);
 
     let mut s = set();
     s.records.clear();
@@ -629,7 +645,7 @@ fn an_overflowing_expectation_is_refused() {
         error,
         ChoiceRecordError::TermNotFinite { record: "r1".to_owned(), option: "wait".to_owned() }
     );
-    assert_eq!(error.detail(), "choice_record.term_not_finite");
+    assert_eq!(error.detail(), reason_details::choice_record::TERM_NOT_FINITE);
 }
 
 #[test]

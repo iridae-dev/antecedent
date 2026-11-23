@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_details;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionContractError, DecisionCriterion, HardConstraint, StructuralPolicy,
     UtilityExpr,
@@ -207,7 +208,7 @@ fn binding_refuses_a_wrong_point_and_an_unlowerable_value() {
     ));
     let refused = contract_with(curved.clone()).bind(&[2.0, 0.75]);
     assert_eq!(refused, Err(E::NotLowerable { action: "treat".into() }));
-    assert_eq!(refused.unwrap_err().detail(), "preference_contract.not_lowerable");
+    assert_eq!(refused.unwrap_err().detail(), reason_details::preference_contract::NOT_LOWERABLE);
 
     // With the benefit known for every action the exponential folds to a constant.
     let mut known = contract_with(curved);
@@ -490,11 +491,11 @@ fn every_contract_refusal_names_its_cause() {
         assert_eq!(c.probe_contract().map(|_| ()), Err(refused.clone()));
         details.insert(refused.detail());
     }
-    assert!(details.contains("preference_model.utility_units_blank"));
+    assert!(details.contains(reason_details::preference_model::UTILITY_UNITS_BLANK));
     assert!(
         details
             .iter()
-            .filter(|d| **d != "preference_model.utility_units_blank")
+            .filter(|d| **d != reason_details::preference_model::UTILITY_UNITS_BLANK)
             .all(|d| d.starts_with("preference_contract."))
     );
     // Distinct causes: 24 cases, four of which repeat a cause.
@@ -512,7 +513,7 @@ fn a_refusal_of_the_derived_ordinary_contract_is_reported() {
     assert_eq!(c.validate(), Ok(()));
     let refused = c.bind(&[2.0, 0.75]).unwrap_err();
     assert_eq!(refused, E::Contract(DecisionContractError::InvalidParameter("constraint")));
-    assert_eq!(refused.detail(), "preference_contract.decision_contract_refused");
+    assert_eq!(refused.detail(), reason_details::preference_contract::DECISION_CONTRACT_REFUSED);
     for other in [
         E::ParameterCount { expected: 2, found: 1 },
         E::NonFiniteParameter { index: 0 },

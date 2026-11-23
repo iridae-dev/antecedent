@@ -4,6 +4,7 @@
 //! record order, and every refusal.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::reason_details;
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceOption, ChoiceRecord, ChoiceRecordSet, OptionBelief, Pooling,
 };
@@ -485,21 +486,21 @@ fn every_refusal_names_its_cause() {
     let with = |tolerance: f64| SetLearningOptions { tolerance, ..Default::default() };
 
     let negative = refusal(&model, &records, with(-0.5));
-    assert_eq!(negative.detail(), "preference_set_learning.tolerance_negative");
+    assert_eq!(negative.detail(), reason_details::preference_set_learning::TOLERANCE_NEGATIVE);
     let infinite = refusal(&model, &records, with(f64::NAN));
-    assert_eq!(infinite.detail(), "preference_set_learning.tolerance_non_finite");
+    assert_eq!(infinite.detail(), reason_details::preference_set_learning::TOLERANCE_NON_FINITE);
 
     let mut blank = model.clone();
     blank.utility_units = " ".to_owned();
     let invalid = refusal(&blank, &records, with(0.0));
-    assert_eq!(invalid.detail(), "preference_set_learning.model_invalid");
-    assert_eq!(inner_detail(&invalid), "preference_model.utility_units_blank");
+    assert_eq!(invalid.detail(), reason_details::preference_set_learning::MODEL_INVALID);
+    assert_eq!(inner_detail(&invalid), reason_details::preference_model::UTILITY_UNITS_BLANK);
 
     let mut empty = records.clone();
     empty.records.clear();
     let missing = refusal(&model, &empty, with(0.0));
-    assert_eq!(missing.detail(), "preference_set_learning.records_invalid");
-    assert_eq!(inner_detail(&missing), "choice_record.records_missing");
+    assert_eq!(missing.detail(), reason_details::preference_set_learning::RECORDS_INVALID);
+    assert_eq!(inner_detail(&missing), reason_details::choice_record::RECORDS_MISSING);
 
     // `x0 + t * t * x1` has no linear form in the free parameter t.
     let mut squared = model.clone();
@@ -508,8 +509,8 @@ fn every_refusal_names_its_cause() {
         E::product(E::product(E::Parameter(0), E::Parameter(0)), E::Attribute(1)),
     );
     let no_form = refusal(&squared, &records, with(0.0));
-    assert_eq!(no_form.detail(), "preference_set_learning.records_invalid");
-    assert_eq!(inner_detail(&no_form), "choice_record.shape_parameters_not_fixed");
+    assert_eq!(no_form.detail(), reason_details::preference_set_learning::RECORDS_INVALID);
+    assert_eq!(inner_detail(&no_form), reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED);
 
     let declared = |id: &str, bound: f64| LinearRelation {
         id: id.to_owned(),
@@ -521,12 +522,12 @@ fn every_refusal_names_its_cause() {
     let mut impossible = model.clone();
     impossible.preferences.relations.push(declared("above_range", 5.0));
     let empty_set = refusal(&impossible, &records, with(0.0));
-    assert_eq!(empty_set.detail(), "preference_set_learning.declared_set_empty");
+    assert_eq!(empty_set.detail(), reason_details::preference_set_learning::DECLARED_SET_EMPTY);
 
     let mut clashing = model.clone();
     clashing.preferences.relations.push(declared("choice.r1.b", -4.0));
     let collision = refusal(&clashing, &records, with(0.0));
-    assert_eq!(collision.detail(), "preference_set_learning.relation_id_collision");
+    assert_eq!(collision.detail(), reason_details::preference_set_learning::RELATION_ID_COLLISION);
     assert!(
         matches!(collision, SetLearningError::RelationIdCollision { ref id } if id == "choice.r1.b")
     );
@@ -534,6 +535,6 @@ fn every_refusal_names_its_cause() {
     let mut bad_lp = with(0.0);
     bad_lp.lp.feasibility_tolerance = 0.0;
     let lp = refusal(&model, &records, bad_lp);
-    assert_eq!(lp.detail(), "preference_set_learning.linear_program_refused");
+    assert_eq!(lp.detail(), reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED);
     assert_eq!(inner_detail(&lp), "linear_program.invalid_options");
 }

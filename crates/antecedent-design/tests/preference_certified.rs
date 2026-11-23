@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_details;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy, UtilityExpr,
 };
@@ -957,7 +958,7 @@ fn every_contract_option_and_measure_refusal_is_typed() {
     one_action.actions.truncate(1);
     let error = refusal(&one_action, None);
     assert!(matches!(error, E::Contract(PreferenceContractError::TooFewActions { count: 1 })));
-    assert_eq!(error.detail(), "preference_contract.too_few_actions");
+    assert_eq!(error.detail(), reason_details::preference_contract::TOO_FEW_ACTIONS);
 
     let structures = affine_contract(
         1.0,
@@ -975,7 +976,7 @@ fn every_contract_option_and_measure_refusal_is_typed() {
     ] {
         let error = evaluate_preference_certified(&plain, &law, None, options).unwrap_err();
         assert_eq!(error, E::InvalidOptions { option: name });
-        assert_eq!(error.detail(), "preference_certified.options_invalid");
+        assert_eq!(error.detail(), reason_details::preference_certified::OPTIONS_INVALID);
     }
 
     let quantile_regret = affine_contract(
@@ -1006,7 +1007,7 @@ fn every_contract_option_and_measure_refusal_is_typed() {
     let missing = law_missing_b();
     let error = evaluate_preference_certified(&plain, &missing, None, budget(4)).unwrap_err();
     assert!(matches!(error, E::Eval(_)));
-    assert_eq!(error.detail(), "preference_certified.source_refused");
+    assert_eq!(error.detail(), reason_details::preference_certified::SOURCE_REFUSED);
 }
 
 fn law_missing_b() -> DistributionArtifact {
@@ -1024,7 +1025,7 @@ fn every_enclosure_and_set_refusal_is_typed() {
     let one = law(&["one"], &[&[1.0]], None);
     let error = evaluate_preference_certified(&empty, &one, None, budget(16)).unwrap_err();
     assert_eq!(error, E::EmptyPreferenceSet);
-    assert_eq!(error.detail(), "preference_certified.preference_set_empty");
+    assert_eq!(error.detail(), reason_details::preference_certified::PREFERENCE_SET_EMPTY);
 
     // ln(x0 + k) with x0 = 2 and k down to -5 is undefined on part of the declared range.
     let ln = contract(
@@ -1044,7 +1045,7 @@ fn every_enclosure_and_set_refusal_is_typed() {
         error,
         E::LogarithmDomain { action: "sure".into(), lower: vec![-5.0], upper: vec![1.0] }
     );
-    assert_eq!(error.detail(), "preference_certified.logarithm_domain");
+    assert_eq!(error.detail(), reason_details::preference_certified::LOGARITHM_DOMAIN);
 
     let overflow = contract(
         model(
@@ -1060,7 +1061,7 @@ fn every_enclosure_and_set_refusal_is_typed() {
     let source = law(&["sure", "gamble"], &[&[1000.0, 1.0]], None);
     let error = evaluate_preference_certified(&overflow, &source, None, budget(16)).unwrap_err();
     assert!(matches!(error, E::NonFiniteEnclosure { ref subject, .. } if subject == "sure"));
-    assert_eq!(error.detail(), "preference_certified.enclosure_non_finite");
+    assert_eq!(error.detail(), reason_details::preference_certified::ENCLOSURE_NON_FINITE);
 
     // A measure point at which the value overflows: -exp(-r x) with x = -1000 and r = 1.
     let risky = risk_contract(PreferencePolicy::Weighted);
@@ -1075,7 +1076,7 @@ fn every_enclosure_and_set_refusal_is_typed() {
     let error =
         evaluate_preference_certified(&risky, &source, Some(&measure), budget(16)).unwrap_err();
     assert!(matches!(error, E::Model(_)));
-    assert_eq!(error.detail(), "preference_model.value_non_finite");
+    assert_eq!(error.detail(), reason_details::preference_model::VALUE_NON_FINITE);
 }
 
 #[test]
@@ -1085,7 +1086,7 @@ fn every_structural_refusal_is_typed() {
     let error =
         evaluate_preference_certified_structural(&invariant, &[], None, options).unwrap_err();
     assert_eq!(error, E::InvalidAtoms);
-    assert_eq!(error.detail(), "preference_certified.atoms_invalid");
+    assert_eq!(error.detail(), reason_details::preference_certified::ATOMS_INVALID);
     let repeated =
         vec![atom("s", None, evaluated(affine_law())), atom("s", None, evaluated(affine_law()))];
     assert_eq!(
@@ -1099,14 +1100,14 @@ fn every_structural_refusal_is_typed() {
     let error =
         evaluate_preference_certified_structural(&invariant, &partial, None, options).unwrap_err();
     assert_eq!(error, E::InvalidProbabilities);
-    assert_eq!(error.detail(), "preference_certified.atom_probabilities_invalid");
+    assert_eq!(error.detail(), reason_details::preference_certified::ATOM_PROBABILITIES_INVALID);
 
     let bayes = structural(StructuralPolicy::BayesOverStructures);
     let unweighted = vec![atom("s1", None, evaluated(affine_law()))];
     let error =
         evaluate_preference_certified_structural(&bayes, &unweighted, None, options).unwrap_err();
     assert_eq!(error, E::ProbabilitiesRequired);
-    assert_eq!(error.detail(), "preference_certified.atom_probabilities_required");
+    assert_eq!(error.detail(), reason_details::preference_certified::ATOM_PROBABILITIES_REQUIRED);
 
     let mut quantile = bayes;
     quantile.criterion = DecisionCriterion::Quantile { p: 0.5 };
@@ -1114,26 +1115,44 @@ fn every_structural_refusal_is_typed() {
     let error =
         evaluate_preference_certified_structural(&quantile, &weighted, None, options).unwrap_err();
     assert_eq!(error, E::MixtureCriterionUnsupported { criterion: "quantile" });
-    assert_eq!(error.detail(), "preference_certified.mixture_criterion_unsupported");
+    assert_eq!(error.detail(), reason_details::preference_certified::MIXTURE_CRITERION_UNSUPPORTED);
 }
 
 #[test]
 fn the_remaining_detail_ids_are_stable() {
     let cases = [
-        (E::StructureInputsRequired, "preference_certified.structure_inputs_required"),
-        (E::MinimaxRegretNeedsExpectation, "preference_certified.minimax_regret_needs_expectation"),
-        (E::MeasureRequired, "preference_certified.measure_required"),
-        (E::MeasureEmpty, "preference_certified.measure_empty"),
-        (E::MeasureUnknownParameter { index: 0 }, "preference_certified.measure_unknown_parameter"),
-        (E::MeasureIncomplete { parameters: vec![] }, "preference_certified.measure_incomplete"),
+        (
+            E::StructureInputsRequired,
+            reason_details::preference_certified::STRUCTURE_INPUTS_REQUIRED,
+        ),
+        (
+            E::MinimaxRegretNeedsExpectation,
+            reason_details::preference_certified::MINIMAX_REGRET_NEEDS_EXPECTATION,
+        ),
+        (E::MeasureRequired, reason_details::preference_certified::MEASURE_REQUIRED),
+        (E::MeasureEmpty, reason_details::preference_certified::MEASURE_EMPTY),
+        (
+            E::MeasureUnknownParameter { index: 0 },
+            reason_details::preference_certified::MEASURE_UNKNOWN_PARAMETER,
+        ),
+        (
+            E::MeasureIncomplete { parameters: vec![] },
+            reason_details::preference_certified::MEASURE_INCOMPLETE,
+        ),
         (
             E::MeasurePointDimension { index: 0, expected: 1, found: 2 },
-            "preference_certified.measure_point_dimension",
+            reason_details::preference_certified::MEASURE_POINT_DIMENSION,
         ),
-        (E::MeasureNonFinitePoint { index: 0 }, "preference_certified.measure_point_non_finite"),
-        (E::MeasurePointOutsideSet { index: 0 }, "preference_certified.measure_point_outside_set"),
-        (E::MeasureWeightsInvalid, "preference_certified.measure_weights_invalid"),
-        (E::MeasureLabelsInvalid, "preference_certified.measure_labels_invalid"),
+        (
+            E::MeasureNonFinitePoint { index: 0 },
+            reason_details::preference_certified::MEASURE_POINT_NON_FINITE,
+        ),
+        (
+            E::MeasurePointOutsideSet { index: 0 },
+            reason_details::preference_certified::MEASURE_POINT_OUTSIDE_SET,
+        ),
+        (E::MeasureWeightsInvalid, reason_details::preference_certified::MEASURE_WEIGHTS_INVALID),
+        (E::MeasureLabelsInvalid, reason_details::preference_certified::MEASURE_LABELS_INVALID),
     ];
     for (error, detail) in cases {
         assert_eq!(error.detail(), detail);

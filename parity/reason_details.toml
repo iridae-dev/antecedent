@@ -1524,6 +1524,216 @@ codes = ["invalid_argument"]
 meaning = "The prior scale is not finite and positive."
 
 [[detail]]
+id = "choice_record.analysis_date_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An analysis belief does not name its as-of date; name the date the decider read the result."
+
+[[detail]]
+id = "choice_record.analysis_identity_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An analysis belief does not name the identity of its result; name the result the decider read."
+
+[[detail]]
+id = "choice_record.attribute_duplicate"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "Two attributes of the choice record set share an id; give every attribute a distinct id."
+
+[[detail]]
+id = "choice_record.attribute_id_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An attribute of the choice record set has a blank id; give every attribute a non-blank id."
+
+[[detail]]
+id = "choice_record.attribute_units_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An attribute of the choice record set has blank units; state the units of every attribute."
+
+[[detail]]
+id = "choice_record.attributes_differ"
+family = "choice_record"
+codes = ["quantity_semantics_mismatch"]
+meaning = "The records' attributes differ in id or units from the value model's; describe the options in the model's attributes and units."
+
+[[detail]]
+id = "choice_record.attributes_missing"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The choice record set declares no attribute; declare the attributes its options are described by."
+
+[[detail]]
+id = "choice_record.belief_law_required"
+family = "choice_record"
+codes = ["decision_contract_unsatisfied"]
+meaning = "A term of the value is not affine in the attributes, so attribute means give no expectation of it; record the belief as draws."
+
+[[detail]]
+id = "choice_record.belief_not_finite"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A belief value is not finite; supply finite means or draws."
+
+[[detail]]
+id = "choice_record.chosen_unknown"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The chosen option is not among the record's options; name one of the recorded options."
+
+[[detail]]
+id = "choice_record.decider_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A choice record names no decider; name who made the choice."
+
+[[detail]]
+id = "choice_record.draws_empty"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A belief of draws holds no rows; supply at least one draw row."
+
+[[detail]]
+id = "choice_record.draws_width_mismatch"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A belief of draws is not a whole number of attribute rows; supply one value per attribute in every row."
+
+[[detail]]
+id = "choice_record.forecast_source_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A recorded forecast belief does not name its source; name where the forecast came from."
+
+[[detail]]
+id = "choice_record.means_width_mismatch"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A belief of means does not give one value per attribute; supply one mean per attribute."
+
+[[detail]]
+id = "choice_record.model_invalid"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The value model the records are read under is refused; the refusal carries the value model's own detail."
+
+[[detail]]
+id = "choice_record.observation_row_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An observation row id of a choice record is blank; give every row a non-blank id."
+
+[[detail]]
+id = "choice_record.observation_row_double_counted"
+family = "choice_record"
+codes = ["evidence_double_counted"]
+meaning = "Two choice records rest on the same observation row, which would count it twice; keep the row in one record only."
+
+[[detail]]
+id = "choice_record.observation_row_repeated"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A choice record names the same observation row twice; name each row once."
+
+[[detail]]
+id = "choice_record.observation_rows_missing"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A choice record names no observation row; name the rows the record rests on."
+
+[[detail]]
+id = "choice_record.option_duplicate"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "Two options of a choice record share an id; give every option a distinct id."
+
+[[detail]]
+id = "choice_record.option_id_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "An option of a choice record has a blank id; give every option a non-blank id."
+
+[[detail]]
+id = "choice_record.options_too_few"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A choice record offers fewer than two options; record every option that was available."
+
+[[detail]]
+id = "choice_record.pooling_assumption_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "Pooling is declared without naming its assumption; name the assumption that the deciders share one set of preferences."
+
+[[detail]]
+id = "choice_record.population_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The choice record set names no population; name the population whose choices were recorded."
+
+[[detail]]
+id = "choice_record.realized_assumption_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A realized-outcome belief does not name its assumption; name the assumption that the decider expected the realized outcome."
+
+[[detail]]
+id = "choice_record.record_duplicate"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "Two choice records share an id; give every record a distinct id."
+
+[[detail]]
+id = "choice_record.record_id_blank"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A choice record has a blank id; give every record a non-blank id."
+
+[[detail]]
+id = "choice_record.records_missing"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The choice record set holds no record; supply at least one recorded choice."
+
+[[detail]]
+id = "choice_record.shape_parameters_not_fixed"
+family = "choice_record"
+codes = ["route_not_supported"]
+meaning = "The value is not affine in parameters whose range is more than one value, so recorded choices give no linear relation; fix those parameters to a single value or evaluate on the certified route."
+
+[[detail]]
+id = "choice_record.term_not_finite"
+family = "choice_record"
+codes = ["decision_contract_unsatisfied"]
+meaning = "A term's value or expectation under a recorded belief is not finite; check the belief and the value's domain."
+
+[[detail]]
+id = "choice_record.weight_negative"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A draw weight is negative; supply non-negative weights."
+
+[[detail]]
+id = "choice_record.weight_not_finite"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "A draw weight is not finite; supply finite weights."
+
+[[detail]]
+id = "choice_record.weights_length_mismatch"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "Draw weights are not one per draw row; supply one weight per row."
+
+[[detail]]
+id = "choice_record.weights_sum_invalid"
+family = "choice_record"
+codes = ["invalid_argument"]
+meaning = "The draw weights do not have a positive, finite sum; supply weights with a positive total."
+
+[[detail]]
 id = "cluster_dml.cancelled"
 family = "cluster_dml"
 codes = ["cancelled_no_claim"]
@@ -10438,6 +10648,792 @@ id = "predictive_assessment.wrong_contract"
 family = "predictive_assessment"
 codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (observations, predictor laws, validation design, configuration) differs."
+
+[[detail]]
+id = "preference_certified.atom_probabilities_invalid"
+family = "preference_certified"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Structure probabilities are given for some structures only, are not finite and non-negative, or sum to more than one; supply valid probabilities."
+
+[[detail]]
+id = "preference_certified.atom_probabilities_required"
+family = "preference_certified"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Weighting over structures needs a probability for every structure; supply them or choose another structural policy."
+
+[[detail]]
+id = "preference_certified.atoms_invalid"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "No structure is supplied, or a structure id is blank or repeated; supply distinct, non-blank structure ids."
+
+[[detail]]
+id = "preference_certified.enclosure_non_finite"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The enclosure of an action's value or a relation is not finite on part of the preference set; narrow the ranges or change the value."
+
+[[detail]]
+id = "preference_certified.logarithm_domain"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "A logarithm in an action's value reaches zero or below on part of the preference set, where the value is not defined; narrow the ranges or change the value."
+
+[[detail]]
+id = "preference_certified.measure_empty"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The measure has no point; supply at least one point."
+
+[[detail]]
+id = "preference_certified.measure_incomplete"
+family = "preference_certified"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The measure leaves some parameters unresolved, so measure-weighted values are not defined; supply a measure that resolves every parameter."
+
+[[detail]]
+id = "preference_certified.measure_labels_invalid"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The measure labels are not one label per point; supply one label per point."
+
+[[detail]]
+id = "preference_certified.measure_point_dimension"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "A measure point does not have one value per preference parameter; supply one value per parameter."
+
+[[detail]]
+id = "preference_certified.measure_point_non_finite"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "A measure point has a non-finite value; supply finite points."
+
+[[detail]]
+id = "preference_certified.measure_point_outside_set"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "A measure point lies outside the preference set; supply points inside the declared ranges and relations."
+
+[[detail]]
+id = "preference_certified.measure_required"
+family = "preference_certified"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The weighted policy needs a measure over the preference set; supply a measure or choose another policy."
+
+[[detail]]
+id = "preference_certified.measure_unknown_parameter"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The measure marks a parameter position the preference set does not declare as unresolved; name declared parameter positions only."
+
+[[detail]]
+id = "preference_certified.measure_weights_invalid"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The measure weights are not one finite, non-negative weight per point with a positive total; supply such weights."
+
+[[detail]]
+id = "preference_certified.minimax_regret_needs_expectation"
+family = "preference_certified"
+codes = ["route_not_supported"]
+meaning = "Minimax regret on the certified route needs an expectation criterion; use an expectation criterion or another policy."
+
+[[detail]]
+id = "preference_certified.mixture_criterion_unsupported"
+family = "preference_certified"
+codes = ["route_not_supported"]
+meaning = "A quantile or largest regret of a mixture of structures is not a weighted average of the structures' values; use an expectation criterion or another structural policy."
+
+[[detail]]
+id = "preference_certified.options_invalid"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "An option of the certified evaluation is outside its range; supply options inside their documented ranges."
+
+[[detail]]
+id = "preference_certified.preference_set_empty"
+family = "preference_certified"
+codes = ["invalid_argument"]
+meaning = "The relations exclude every parameter value of the declared ranges; widen the ranges or remove a relation."
+
+[[detail]]
+id = "preference_certified.source_refused"
+family = "preference_certified"
+codes = ["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied", "joint_law_required", "distribution_meaning_mismatch", "route_not_supported"]
+meaning = "The source cannot answer the contract on the certified route; the refusal carries the evaluation's own detail."
+
+[[detail]]
+id = "preference_certified.structure_inputs_required"
+family = "preference_certified"
+codes = ["route_not_supported"]
+meaning = "The criterion needs identified-set or structure inputs, not one draw source; evaluate across structures."
+
+[[detail]]
+id = "preference_choice_model.consistency_not_positive"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The estimated choice consistency is not positive: the choices run against the unit of account; check the sign of the fixed part or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.covariance_not_positive_definite"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The chosen covariance of the coefficients has no Cholesky factor, so no measure can be drawn; record more choices or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.draws_missing"
+family = "preference_choice_model"
+codes = ["invalid_argument"]
+meaning = "No measure draws are requested; request at least one draw."
+
+[[detail]]
+id = "preference_choice_model.fit_options_invalid"
+family = "preference_choice_model"
+codes = ["invalid_argument"]
+meaning = "The fit's gradient tolerance or separation bound is not finite and positive; supply finite, positive values."
+
+[[detail]]
+id = "preference_choice_model.fit_refused"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The conditional logit fit refused for another reason, such as numerically singular information; the refusal names the fit's own detail."
+
+[[detail]]
+id = "preference_choice_model.level_invalid"
+family = "preference_choice_model"
+codes = ["invalid_argument"]
+meaning = "The interval level is not strictly between 0 and 1; supply a level in that range."
+
+[[detail]]
+id = "preference_choice_model.model_invalid"
+family = "preference_choice_model"
+codes = ["invalid_argument"]
+meaning = "The value model is refused; the refusal carries the value model's own detail."
+
+[[detail]]
+id = "preference_choice_model.no_draw_inside_set"
+family = "preference_choice_model"
+codes = ["uncertainty_representation_insufficient"]
+meaning = "Every draw from the normal approximation had non-positive consistency or fell outside the declared set; draw more, record more choices or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.not_converged"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The choice-model fit did not converge; raise the iteration limit or use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.nothing_identified"
+family = "preference_choice_model"
+codes = ["design_rank_deficient"]
+meaning = "Neither the fixed part nor any parameter term differs between the options of any record; record choices whose options differ."
+
+[[detail]]
+id = "preference_choice_model.rank_deficient"
+family = "preference_choice_model"
+codes = ["design_rank_deficient"]
+meaning = "The within-record differences of the choice design are linearly dependent; record choices that vary the named parameters separately or fix one of them."
+
+[[detail]]
+id = "preference_choice_model.records_invalid"
+family = "preference_choice_model"
+codes = ["invalid_argument", "quantity_semantics_mismatch", "evidence_double_counted", "route_not_supported", "decision_contract_unsatisfied"]
+meaning = "The choice records are refused or do not fit the value model; the refusal carries the records' own detail."
+
+[[detail]]
+id = "preference_choice_model.separated"
+family = "preference_choice_model"
+codes = ["glm_fit_refused"]
+meaning = "The choices are perfectly consistent with a value in the family, so the likelihood has no finite maximum; use the compatible-set method."
+
+[[detail]]
+id = "preference_choice_model.unit_of_account_missing"
+family = "preference_choice_model"
+codes = ["design_rank_deficient"]
+meaning = "The fixed part of the value never differs between the options of a record, so the scale of the parameters is not determined; record choices whose options differ in the fixed part."
+
+[[detail]]
+id = "preference_contract.action_duplicate"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "Two actions of the preference contract share an id; give every action a distinct id."
+
+[[detail]]
+id = "preference_contract.action_id_blank"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "An action of the preference contract has a blank id; give every action a non-blank id."
+
+[[detail]]
+id = "preference_contract.action_without_quantity"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "An action reads only fixed inputs, so no source informs it; read at least one attribute from a quantity."
+
+[[detail]]
+id = "preference_contract.constraint_duplicate"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "Two hard constraints share an id; give every constraint a distinct id."
+
+[[detail]]
+id = "preference_contract.constraint_id_blank"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint has a blank id; give every constraint a non-blank id."
+
+[[detail]]
+id = "preference_contract.constraint_non_finite"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint has a non-finite bound or constant; supply finite values."
+
+[[detail]]
+id = "preference_contract.constraint_probability"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint's probability is outside (0, 1]; supply a probability in that range."
+
+[[detail]]
+id = "preference_contract.constraint_units_blank"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint has blank units; state the units of its bound."
+
+[[detail]]
+id = "preference_contract.constraint_unknown_action"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint names an action the contract does not declare; name declared actions only."
+
+[[detail]]
+id = "preference_contract.constraint_unknown_attribute"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A hard constraint reads an attribute the value model does not declare; read declared attributes only."
+
+[[detail]]
+id = "preference_contract.criterion_invalid"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "The criterion's threshold or level is invalid; supply a finite threshold and a level inside its range."
+
+[[detail]]
+id = "preference_contract.decision_contract_refused"
+family = "preference_contract"
+codes = ["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied"]
+meaning = "The ordinary decision contract derived from the preference contract is refused; the refusal carries the decision contract's own detail."
+
+[[detail]]
+id = "preference_contract.fixed_input_non_finite"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A fixed input of an action is not finite; supply a finite value."
+
+[[detail]]
+id = "preference_contract.fixed_units_mismatch"
+family = "preference_contract"
+codes = ["quantity_semantics_mismatch"]
+meaning = "A fixed input is stated in units other than its attribute's; state it in the attribute's units."
+
+[[detail]]
+id = "preference_contract.input_count_mismatch"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "An action does not give one input per attribute of the value model; supply one input per attribute."
+
+[[detail]]
+id = "preference_contract.not_lowerable"
+family = "preference_contract"
+codes = ["route_not_supported"]
+meaning = "The bound value still holds an exponential or logarithm of a quantity attribute, which an ordinary decision utility cannot express; evaluate on the certified route."
+
+[[detail]]
+id = "preference_contract.parameter_count_mismatch"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A parameter point to bind has a different length than the preference set's dimension; supply one value per parameter."
+
+[[detail]]
+id = "preference_contract.parameter_non_finite"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "A parameter value to bind is not finite; supply finite values."
+
+[[detail]]
+id = "preference_contract.quantity_invalid"
+family = "preference_contract"
+codes = ["quantity_semantics_mismatch"]
+meaning = "A quantity an action reads is not a complete scientific quantity; declare its variable, units, population and horizon."
+
+[[detail]]
+id = "preference_contract.quantity_outside_scope"
+family = "preference_contract"
+codes = ["quantity_semantics_mismatch"]
+meaning = "A quantity an action reads is outside the decision's target population or horizon; read quantities in the decision's scope."
+
+[[detail]]
+id = "preference_contract.quantity_units_mismatch"
+family = "preference_contract"
+codes = ["quantity_semantics_mismatch"]
+meaning = "A quantity an action reads is in units other than its attribute's; read a quantity in the attribute's units."
+
+[[detail]]
+id = "preference_contract.target_population_blank"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "The preference contract names no target population; name the population the decision is for."
+
+[[detail]]
+id = "preference_contract.too_few_actions"
+family = "preference_contract"
+codes = ["invalid_argument"]
+meaning = "The preference contract compares fewer than two actions; declare at least two."
+
+[[detail]]
+id = "preference_decision.coefficient_non_finite"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The expectation of a part of an action's value is not finite under the source; check the source and the value's domain."
+
+[[detail]]
+id = "preference_decision.criterion_needs_certified_route"
+family = "preference_decision"
+codes = ["route_not_supported"]
+meaning = "The criterion is not affine in the preference parameters, so the exact route cannot decide it; evaluate on the certified route with aligned joint draws."
+
+[[detail]]
+id = "preference_decision.linear_program_infeasible"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A linear program over a region already shown non-empty reported no feasible point; the program tolerances are inconsistent with the declared set."
+
+[[detail]]
+id = "preference_decision.linear_program_refused"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A linear program over the preference set refused its input, its options or its work limit; the refusal names the linear program's own detail."
+
+[[detail]]
+id = "preference_decision.linear_program_unbounded"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A linear program over the bounded preference set reported an unbounded objective, which valid input cannot produce; the declaration or the program tolerances are inconsistent."
+
+[[detail]]
+id = "preference_decision.measure_empty"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The measure has no point; supply at least one point."
+
+[[detail]]
+id = "preference_decision.measure_incomplete"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The measure leaves some parameters unresolved, so measure-weighted values are not defined; supply a measure that resolves every parameter."
+
+[[detail]]
+id = "preference_decision.measure_label_blank"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A measure label is blank; give every point a non-blank label."
+
+[[detail]]
+id = "preference_decision.measure_label_count"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The measure does not give one label per point; supply one label per point."
+
+[[detail]]
+id = "preference_decision.measure_label_duplicate"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "Two measure points share a label; give every point a distinct label."
+
+[[detail]]
+id = "preference_decision.measure_origin_blank"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The measure's origin names no assumption or estimate; name where the measure came from."
+
+[[detail]]
+id = "preference_decision.measure_point_dimension"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A measure point does not have one coordinate per preference parameter; supply one value per parameter."
+
+[[detail]]
+id = "preference_decision.measure_point_non_finite"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A measure point has a non-finite coordinate; supply finite points."
+
+[[detail]]
+id = "preference_decision.measure_point_outside_set"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A measure point lies outside the preference set; supply points inside the declared ranges and relations."
+
+[[detail]]
+id = "preference_decision.measure_required"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The weighted policy needs a measure over the preference set; supply a measure or choose another policy."
+
+[[detail]]
+id = "preference_decision.measure_unresolved_repeated"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "An unresolved index of the measure repeats; name each unresolved parameter once."
+
+[[detail]]
+id = "preference_decision.measure_unresolved_unknown"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "An unresolved index of the measure names no parameter; name declared parameter positions only."
+
+[[detail]]
+id = "preference_decision.measure_weight_count"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The measure does not give one weight per point; supply one weight per point."
+
+[[detail]]
+id = "preference_decision.measure_weight_invalid"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A measure weight is negative or not finite; supply finite, non-negative weights."
+
+[[detail]]
+id = "preference_decision.measure_weight_total_zero"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The measure weights sum to zero; give at least one point a positive weight."
+
+[[detail]]
+id = "preference_decision.options_invalid"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "An option of the exact evaluation is outside its range; supply a finite, non-negative tie tolerance."
+
+[[detail]]
+id = "preference_decision.part_not_lowerable"
+family = "preference_decision"
+codes = ["route_not_supported"]
+meaning = "A part of the value holds an exponential or logarithm of a quantity attribute, which the exact route cannot express; evaluate on the certified route with aligned joint draws."
+
+[[detail]]
+id = "preference_decision.preference_set_empty"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "The relations contradict the declared ranges, so no parameter point is admissible; widen the ranges or remove a relation."
+
+[[detail]]
+id = "preference_decision.shape_parameters_need_certified_route"
+family = "preference_decision"
+codes = ["route_not_supported"]
+meaning = "The value is not affine in some preference parameters, so the exact route cannot decide it; evaluate on the certified route with aligned joint draws."
+
+[[detail]]
+id = "preference_decision.source_refused"
+family = "preference_decision"
+codes = ["invalid_argument", "quantity_semantics_mismatch", "decision_contract_unsatisfied", "joint_law_required", "distribution_meaning_mismatch", "route_not_supported"]
+meaning = "The source cannot answer the ordinary contract derived from the preference contract; the refusal carries the evaluation's own detail."
+
+[[detail]]
+id = "preference_decision.structure_duplicate"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "Two structures share an id; give every structure a distinct id."
+
+[[detail]]
+id = "preference_decision.structure_id_blank"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "A structure has a blank id; give every structure a non-blank id."
+
+[[detail]]
+id = "preference_decision.structure_probabilities_exceed_one"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Structure probabilities sum to more than one; supply probabilities whose total is at most one."
+
+[[detail]]
+id = "preference_decision.structure_probabilities_partial"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Structure probabilities are given for some structures but not all; give every structure a probability or none."
+
+[[detail]]
+id = "preference_decision.structure_probabilities_required"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Weighting over structures needs genuine structure probabilities; supply one for every structure or choose another structural policy."
+
+[[detail]]
+id = "preference_decision.structure_probability_invalid"
+family = "preference_decision"
+codes = ["decision_contract_unsatisfied"]
+meaning = "A structure probability is negative or not finite; supply finite, non-negative probabilities."
+
+[[detail]]
+id = "preference_decision.structures_empty"
+family = "preference_decision"
+codes = ["invalid_argument"]
+meaning = "No structure is supplied to the evaluation across structures; supply at least one."
+
+[[detail]]
+id = "preference_decision.worst_case_of_expected_regret"
+family = "preference_decision"
+codes = ["route_not_supported"]
+meaning = "The worst case of expected regret over the preference set is not a linear program; evaluate on the certified route or choose another policy."
+
+[[detail]]
+id = "preference_model.attribute_count_mismatch"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A point supplies a different number of attribute values than the model declares; supply one value per attribute."
+
+[[detail]]
+id = "preference_model.attribute_duplicate"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "Two attributes of the value model share an id; give every attribute a distinct id."
+
+[[detail]]
+id = "preference_model.attribute_id_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "An attribute of the value model has a blank id; give every attribute a non-blank id."
+
+[[detail]]
+id = "preference_model.attribute_units_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "An attribute of the value model has blank units; state the units of every attribute."
+
+[[detail]]
+id = "preference_model.attribute_unused"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A declared attribute is never read by the value; remove it or use it in the value."
+
+[[detail]]
+id = "preference_model.curve_breakpoint_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A curve breakpoint is not finite; supply finite breakpoints."
+
+[[detail]]
+id = "preference_model.curve_breakpoints_not_increasing"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "Curve breakpoints do not strictly increase; order them and remove repeats."
+
+[[detail]]
+id = "preference_model.curve_slope_count"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A piecewise-linear curve does not give one slope per segment between breakpoints; supply one fewer slope than breakpoints."
+
+[[detail]]
+id = "preference_model.curve_too_short"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A piecewise-linear curve has fewer than two breakpoints; supply at least two."
+
+[[detail]]
+id = "preference_model.expression_constant_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value expression holds a non-finite constant; supply finite constants."
+
+[[detail]]
+id = "preference_model.expression_too_deep"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value expression is nested deeper than the supported limit; flatten the expression."
+
+[[detail]]
+id = "preference_model.no_attributes"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value model declares no attribute; declare at least one attribute the value reads."
+
+[[detail]]
+id = "preference_model.parameter_assumption_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A preference parameter names no assumption for its range; name the assumption the range stands on."
+
+[[detail]]
+id = "preference_model.parameter_count_mismatch"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A point supplies a different number of parameter values than the model declares; supply one value per parameter."
+
+[[detail]]
+id = "preference_model.parameter_duplicate"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "Two preference parameters share an id; give every parameter a distinct id."
+
+[[detail]]
+id = "preference_model.parameter_id_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A preference parameter has a blank id; give every parameter a non-blank id."
+
+[[detail]]
+id = "preference_model.parameter_range_empty"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A preference parameter's range has its lower end above its upper end; declare lower <= upper."
+
+[[detail]]
+id = "preference_model.parameter_range_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A preference parameter's range has a non-finite end; declare finite lower and upper values."
+
+[[detail]]
+id = "preference_model.parameter_units_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A preference parameter has blank units; state the units of every parameter."
+
+[[detail]]
+id = "preference_model.parameter_unused"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A declared preference parameter is never read by the value; remove it or use it in the value."
+
+[[detail]]
+id = "preference_model.parameter_value_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A parameter value to bind is not finite; supply finite parameter values."
+
+[[detail]]
+id = "preference_model.relation_bound_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation has a non-finite bound; supply a finite bound."
+
+[[detail]]
+id = "preference_model.relation_coefficient_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation has a non-finite coefficient; supply finite coefficients."
+
+[[detail]]
+id = "preference_model.relation_duplicate"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "Two relations between preference parameters share an id; give every relation a distinct id."
+
+[[detail]]
+id = "preference_model.relation_id_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation between preference parameters has a blank id; give every relation a non-blank id."
+
+[[detail]]
+id = "preference_model.relation_origin_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation taken from a recorded choice names a blank record or rejected option; name both."
+
+[[detail]]
+id = "preference_model.relation_repeated_parameter"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation names one parameter twice; combine the coefficients into one term."
+
+[[detail]]
+id = "preference_model.relation_unknown_parameter"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation reads a parameter position the preference set does not declare; read declared parameters only."
+
+[[detail]]
+id = "preference_model.relation_without_terms"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "A relation between preference parameters has no terms; give it at least one parameter coefficient."
+
+[[detail]]
+id = "preference_model.unknown_attribute"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value expression reads an attribute position the model does not declare; read declared attributes only."
+
+[[detail]]
+id = "preference_model.unknown_parameter"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value expression reads a parameter position the model does not declare; read declared parameters only."
+
+[[detail]]
+id = "preference_model.utility_units_blank"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value model has blank utility units; state the units the value is measured in."
+
+[[detail]]
+id = "preference_model.value_non_finite"
+family = "preference_model"
+codes = ["invalid_argument"]
+meaning = "The value is not finite at the evaluated attribute and parameter point, for example a logarithm of a non-positive argument; narrow the ranges or change the value."
+
+[[detail]]
+id = "preference_set_learning.declared_set_empty"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "The declared ranges and relations admit no parameter value before any record is added; widen the ranges or remove a relation."
+
+[[detail]]
+id = "preference_set_learning.linear_program_refused"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "A linear program refused its input, its options or its work limit while learning the set; the refusal names the linear program's own detail."
+
+[[detail]]
+id = "preference_set_learning.model_invalid"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "The value model, or the learned set built from it, is refused; the refusal carries the value model's own detail."
+
+[[detail]]
+id = "preference_set_learning.program_inconsistent"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "Two linear programs over the same region disagree on whether it is empty; tighten the linear-program tolerances."
+
+[[detail]]
+id = "preference_set_learning.records_invalid"
+family = "preference_set_learning"
+codes = ["invalid_argument", "quantity_semantics_mismatch", "evidence_double_counted", "route_not_supported", "decision_contract_unsatisfied"]
+meaning = "The choice records are refused or give no linear relation under the value model; the refusal carries the records' own detail."
+
+[[detail]]
+id = "preference_set_learning.relation_id_collision"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "A relation built from a recorded choice has the same id as a declared relation or another choice relation; rename the declared relation or the record."
+
+[[detail]]
+id = "preference_set_learning.tolerance_negative"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "The choice tolerance is negative; supply a finite, non-negative tolerance in utility units."
+
+[[detail]]
+id = "preference_set_learning.tolerance_non_finite"
+family = "preference_set_learning"
+codes = ["invalid_argument"]
+meaning = "The choice tolerance is not finite; supply a finite, non-negative tolerance in utility units."
 
 [[detail]]
 id = "prior_signal.adapted_prior_not_draws"
