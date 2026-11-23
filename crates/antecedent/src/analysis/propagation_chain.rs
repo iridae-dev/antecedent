@@ -86,8 +86,11 @@ use antecedent_contract::dependence::{
 use antecedent_contract::evidence_ledger::{EvidenceLedger, LedgerError, SourceId, SourceStatus};
 
 use super::lowering::chain::{declaration_identity, lower_chain};
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::planner::lowered::{ChainProgram, LoweredProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::unit::{SupportKey, require_program};
+use crate::support::units_generated::unit_of;
 
 /// Aligned output-law draws and their optional normalized row weights.
 type OutputLaw<'a> = (&'a [u64], Option<&'a [u64]>);
@@ -98,6 +101,56 @@ type JointOutputLaw<'a> = (&'a [Vec<u64>], Option<&'a [u64]>);
 
 fn refusal(error: &PropagationChainError) -> ChainRefusal {
     error.to_refusal()
+}
+
+/// Whether a release build refuses a propagation chain whose support unit is not supported.
+///
+/// The unit is the capability record bound to the `PropagationChain` route in
+/// `parity/compiled_units.toml`. The gate stays closed until that record's evidence is earned,
+/// so no valid use refuses before then; flipping this constant is the only change that turns it
+/// on.
+pub(crate) const RELEASE_SUPPORT_GATE_LIVE: bool = false;
+
+/// The route a public chain entry runs under.
+const CHAIN_ROUTE: &str = "PropagationChain";
+
+fn unsupported(error: &antecedent_core::NotSupported) -> ChainRefusal {
+    ChainRefusal::new(
+        error.code(),
+        "propagation_chain.not_supported",
+        error.message(),
+        None,
+        antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+    )
+}
+
+/// The support gate of a public chain entry: a release build refuses a chain whose unit is not
+/// supported, and a development build records what it would refuse and runs. A chain program
+/// nested in another program's dispatch (a union's rerun, a decision over a chain) is that
+/// program's business and is not gated again.
+fn gate_chain(ctx: &ExecutionContext, handle: &PropagationChainPlan) -> Result<(), ChainRefusal> {
+    if !RELEASE_SUPPORT_GATE_LIVE
+        || ctx.lowered_dispatch().is_some()
+        || handle.lowered().route() != CHAIN_ROUTE
+    {
+        return Ok(());
+    }
+    gate_program(ctx, handle).map_err(|error| unsupported(&error))
+}
+
+/// The support gate of consuming an exported chain record, which retains no handle.
+fn gate_chain_consume(ctx: &ExecutionContext) -> Result<(), ChainRefusal> {
+    if !RELEASE_SUPPORT_GATE_LIVE || ctx.lowered_dispatch().is_some() {
+        return Ok(());
+    }
+    match unit_of(CHAIN_ROUTE) {
+        Some(unit) => require_program(ctx, &SupportKey::Unit(unit), CHAIN_ROUTE)
+            .map_err(|error| unsupported(&error)),
+        None => {
+            antecedent_core::support_gate::require_supported(ctx, CHAIN_ROUTE, &["support_unit"])
+                .map_err(|error| unsupported(&error))
+        }
+    }
 }
 
 /// A compiled chain: the lowered program and the chain it was lowered from.
@@ -187,6 +240,12 @@ pub fn compile_propagation_chain(
     Ok(PropagationChainPlan { lowered: Arc::new(lowered), program })
 }
 
+impl CompiledProgramHandle for PropagationChainPlan {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl PropagationChainPlan {
     /// Bind a chain declaration to a larger compiler program, such as a
     /// chain plus a decision. The retained chain must be the same declaration.
@@ -257,6 +316,20 @@ impl PropagationChainPlan {
     /// leaving its domain, updated draws too few to represent the posterior),
     /// or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PropagationChain, ChainRefusal> {
+        gate_chain(ctx, self)?;
+        self.execute_within_program(ctx)
+    }
+
+    /// Execute the retained program as a part of an enclosing program's execution. The
+    /// enclosing program has passed its own support gate, so this one does not pass the chain's.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::execute`], without the support gate.
+    pub(crate) fn execute_within_program(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PropagationChain, ChainRefusal> {
         let scoped = ctx.enter_lowered_dispatch(self.identity());
         let record = PropagationChainRecordWire::seal(self.program.draft().clone(), &scoped)
             .map_err(|error| refusal(&error))?;
@@ -532,6 +605,7 @@ pub fn consume_propagation_chain(
     expected_identity: Option<&str>,
     ctx: &ExecutionContext,
 ) -> Result<ConsumedPropagationChain, ChainRefusal> {
+    gate_chain_consume(ctx)?;
     PropagationChainRecordWire::decode(bytes)
         .and_then(|record| record.consume(expected_identity, ctx))
         .map_err(|error| refusal(&error))

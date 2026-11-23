@@ -184,8 +184,22 @@ fn propagation_chain_consume(
     }
 }
 
+/// The support decision of the unit a compiled program's route runs under, as JSON: the unit,
+/// its status, whether it is supported and the evidence it lacks; `null` while no unit is bound
+/// to the route. Reading it changes no program identity.
+pub(crate) fn unit_support_json(view: &antecedent::planner::PlanView) -> serde_json::Value {
+    view.unit_support().map_or(serde_json::Value::Null, |support| {
+        json!({
+            "unit": support.unit(),
+            "status": support.status().as_str(),
+            "supported": support.supported(),
+            "missing_evidence": support.missing_evidence(),
+        })
+    })
+}
+
 /// Compile a declared chain without executing it and view every layer of its
-/// lowered program as JSON.
+/// lowered program as JSON, with the support decision of its unit under `unit_support`.
 #[pyfunction]
 #[pyo3(signature = (record_json, cancel=None))]
 fn propagation_chain_plan_view(
@@ -198,7 +212,14 @@ fn propagation_chain_plan_view(
     };
     let ctx = execution_context(0, None, cancel);
     match compile_propagation_chain(draft, &ctx) {
-        Ok(plan) => (Some(plan.plan_view().to_json().to_string()), None),
+        Ok(plan) => {
+            let view = plan.plan_view();
+            let mut json = view.to_json();
+            if let Some(object) = json.as_object_mut() {
+                object.insert("unit_support".to_owned(), unit_support_json(&view));
+            }
+            (Some(json.to_string()), None)
+        }
         Err(refusal) => (None, Some(refusal_json(&refusal))),
     }
 }

@@ -395,3 +395,20 @@ fn a_refused_chain_does_not_compile() {
             .expect_err("refused");
     assert_eq!(refusal.next_attempt().name(), "supply_posterior_draws");
 }
+
+#[test]
+fn the_chain_reads_the_support_decision_of_its_unit_and_execution_consults_it() {
+    let plan =
+        compile_propagation_chain(draft(ChainReading::Spread, LawMeaning::Posterior), &ctx())
+            .expect("compiles");
+    let decision = plan.support().expect("the chain route is bound to a unit");
+    let view = plan.plan_view().unit_support().expect("the plan view reads the unit");
+    assert_eq!(view.status(), decision.status);
+    assert_eq!(view.unit(), decision.unit.label());
+    let executed = plan.execute(&ctx());
+    if RELEASE_SUPPORT_GATE_LIVE && !view.supported() && !cfg!(feature = "development") {
+        assert_eq!(executed.expect_err("refused").code(), "not_supported");
+    } else {
+        executed.expect("the chain runs");
+    }
+}

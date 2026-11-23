@@ -1166,6 +1166,10 @@ def plan_view(
     will carry once the chain executes.
     The output quantity, when declared, is bound into that identity.
     Joint output declarations are also bound into the compiled identity.
+
+    ``unit_support`` carries the support decision of the unit the route runs under
+    (``{"unit", "status", "supported", "missing_evidence"}``), or ``None`` while no unit is bound
+    to the route; reading it changes no program identity.
     """
     execution = resolve_execution(execution)
     record = _declaration(

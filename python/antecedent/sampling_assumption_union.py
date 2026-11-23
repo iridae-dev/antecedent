@@ -159,6 +159,18 @@ class SamplingAssumptionUnion(ScientificResult):
         """The compiled route of a union computed here; ``None`` for a replayed one."""
         return None if self._native is None else str(self._native.route)
 
+    @property
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this union's route runs under.
+
+        ``{"unit", "status", "supported", "missing_evidence"}``, or ``None`` for a replayed
+        union (it holds no program) and while no unit is bound to the route.
+        """
+        if self._native is None:
+            return None
+        decision: dict[str, Any] | None = json.loads(self._native.unit_support_json)
+        return decision
+
     def export(
         self, *, execution: Execution | None = None
     ) -> ExportedArtifact[SamplingAssumptionUnion]:
