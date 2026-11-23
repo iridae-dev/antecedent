@@ -70,6 +70,8 @@ from ._native import decide_preferences_means as _decide_means
 from ._native import decide_preferences_structures as _decide_structures
 from ._native import export_preference_decision as _export_decision
 from ._native import preference_chain_joint_law as _chain_joint_law
+from ._native import preference_compile_across_studies as _compile_across
+from ._native import preference_compile_for_study as _compile_for_study
 from ._native import preference_contract_describe as _describe_contract
 from ._native import preference_experiment_quantity as _experiment_quantity
 from ._native import preference_experiment_source as _experiment_source
@@ -1141,6 +1143,86 @@ class Contract:
         )
 
     @outcome_operation
+    def compile(
+        self,
+        source: Any,
+        *,
+        draws: int | None = None,
+        seed: int = 0,
+        shared: Mapping[tuple[int, int], Sequence[float]] | None = None,
+        refits: int | None = None,
+        execution: Execution | None = None,
+    ) -> CompiledDecision:
+        """Bind this contract to the analysis that estimates its quantities and compile it.
+
+        This is the way in. ``source`` is the analysis, prepared with
+        :func:`antecedent.prepare`: one prepared study (its mean response curve, under its
+        structure or each structure of its graph posterior), a sequence of prepared studies
+        (one outcome each), or a compiled design of several outcomes
+        (``joint_panel.prepare_native_joint_design``). Every quantity an action reads must be
+        a coordinate the analysis targets. The decision is lowered into the analysis's own
+        plan, so :meth:`CompiledDecision.inspect` shows the quantities, the source the
+        contract needs, the trade-off ranges and the identification before anything is
+        fitted; what cannot be answered (a quantity not identified, a source the analysis
+        cannot supply, studies that share observations without a declared covariance) is
+        refused here. :meth:`CompiledDecision.execute` then runs each plan once.
+
+        Several studies meet by their means when means suffice. A value that needs one law
+        of their outcomes needs ``draws=`` (the aligned rows the propagation chain draws,
+        under ``seed=``) and, for studies that share observations, ``shared=``: the declared
+        covariance between the estimates of each such pair ``(i, j)``, rows of study ``i``'s
+        coordinates by columns of study ``j``'s. A static-regime design reads its arm means,
+        or with ``refits=`` (at least 99, under ``seed=``) its aligned whole-subject refits.
+        """
+        from ._joint_panel_designs import PreparedNativeJointDesign
+        from ._panel_execution import run_panel
+        from .design.ranking import _bound_native
+        from .transport._controls import call_native
+
+        source = require_success(source)
+        contract_json = json.dumps(self._wire())
+        if isinstance(source, PreparedNativeJointDesign):
+            bootstrap = None if refits is None else json.dumps({"replicates": refits, "seed": seed})
+            compiled, refusal = run_panel(
+                execution,
+                source._handle.compile_for_preference_decision,
+                contract_json,
+                bootstrap,
+            )
+        elif isinstance(source, (list, tuple)):
+            natives = [_bound_native(require_success(study)) for study in source]
+            if shared is not None:
+                kind = "shared_evidence"
+            elif draws is not None:
+                kind = "distinct_evidence"
+            else:
+                kind = "undeclared"
+            dependence = {
+                "kind": kind,
+                "draws": 2000 if draws is None else int(draws),
+                "seed": int(seed),
+                "cross": [
+                    {"first": int(i), "second": int(j), "covariance": [float(v) for v in block]}
+                    for (i, j), block in (shared or {}).items()
+                ],
+            }
+            compiled, refusal = call_native(
+                execution,
+                _compile_across,
+                natives,
+                contract_json,
+                json.dumps(dependence),
+                seed="seed",
+            )
+        else:
+            compiled, refusal = call_native(
+                execution, _compile_for_study, _bound_native(source), contract_json, seed="seed"
+            )
+        _raise(refusal)
+        assert compiled is not None
+        return CompiledDecision(self, compiled)
+
+    @outcome_operation
     def evaluate(
         self,
         source: Any,
@@ -1156,7 +1238,11 @@ class Contract:
         population: str = "target",
         execution: Execution | None = None,
     ) -> PreferenceDecision:
-        """Decide across every admissible value of the trade-offs.
+        """Decide across every admissible value of the trade-offs, on a source already in hand.
+
+        The way in is :meth:`compile`, which binds the contract to the analysis, shows the plan
+        and refuses what cannot be answered before anything is fitted. This is the lower layer
+        that route calls: it reads a source the caller already holds.
 
         ``source`` is what :meth:`antecedent.decision.Contract.evaluate` reads (aligned joint
         draws; a mean source or bound external claim; a supported analysis result, read as its
@@ -1219,6 +1305,94 @@ class Contract:
         _raise(refusal)
         assert body is not None
         return PreferenceDecision(self, resolved, json.loads(body), measure_wire, options)
+
+
+class CompiledDecision(ScientificResult):
+    """A decision across preferences compiled with the analysis that estimates it.
+
+    :meth:`inspect` reads what the compile states before anything is fitted: the bound
+    contract identity, each quantity the actions read, the source representation the contract
+    needs, the carrier the plan demands, every structure with its identification and weight,
+    the unidentified mass, the declared joint law of separately estimated outcomes, and every
+    compiled plan (whose ``evidence.decision.preference`` lists the quantities, the trade-off
+    parameters with their ranges and the bound contract). :meth:`execute` runs each plan once
+    and returns the :class:`PreferenceDecision`.
+    """
+
+    def __init__(self, contract: Contract, native: Any) -> None:
+        self._contract = contract
+        self._native = native
+
+    @property
+    def contract(self) -> Contract:
+        return self._contract
+
+    @property
+    def bound_identity(self) -> str:
+        """Identity of the contract bound to the analysis's causal contracts."""
+        return str(self._native.bound_identity())
+
+    def inspect(self) -> Mapping[str, Any]:
+        """What the compile states, read without fitting anything."""
+        return MappingProxyType(json.loads(self._native.describe()))
+
+    @property
+    def plans(self) -> tuple[Mapping[str, Any], ...]:
+        """Every compiled plan, each with the decision in its evidence layer."""
+        return tuple(
+            MappingProxyType(plan) for plan in json.loads(self._native.describe())["plans"]
+        )
+
+    @property
+    def unidentified_mass(self) -> float:
+        """Share of the structural mass under which the quantities are not identified."""
+        return float(self.inspect()["unidentified_mass"])
+
+    def _summary_fields(self) -> dict[str, Any]:
+        described = self.inspect()
+        return {
+            "bound_identity": described["bound_identity"],
+            "representation": described["demand"]["representation"],
+            "structures": len(described["structures"]),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(json.loads(self._native.describe()))
+
+    @outcome_operation
+    def execute(
+        self,
+        measure: Measure | None = None,
+        execution: Execution | None = None,
+        *,
+        tie_tolerance: float | None = None,
+        vertex_cap: int | None = None,
+        max_boxes: int | None = None,
+        min_width_fraction: float | None = None,
+    ) -> PreferenceDecision:
+        """Run every compiled plan once and decide across the admissible trade-offs.
+
+        ``measure`` and the tuning options are those of :meth:`Contract.evaluate`. The decision
+        reads the execution's cancellation token at its work boundaries.
+        """
+        from .transport._controls import call_native
+
+        measure_wire = self._contract._measure(measure)
+        options = _options(tie_tolerance, vertex_cap, max_boxes, min_width_fraction)
+        body, refusal, law = call_native(
+            execution,
+            self._native.execute,
+            None if measure_wire is None else json.dumps(measure_wire),
+            json.dumps(options),
+            seed="seed",
+        )
+        _raise(refusal)
+        assert body is not None
+        source = self if law is None else JointDistributionArtifact._from_native(law)
+        return PreferenceDecision(self._contract, source, json.loads(body), measure_wire, options)
+
+    def __repr__(self) -> str:
+        return f"<CompiledDecision {self.bound_identity[:12]}>"
 
 
 def joint_law(*laws: JointDistributionArtifact) -> JointDistributionArtifact:
@@ -1809,6 +1983,7 @@ __all__ = [
     "Action",
     "ActionRecord",
     "Attribute",
+    "CompiledDecision",
     "Contract",
     "Criterion",
     "Constraint",

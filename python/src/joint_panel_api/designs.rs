@@ -340,6 +340,42 @@ impl PyPreparedNativeJointDesign {
             crate::detach_catch(py, || self.inner.execute(inference, &ctx).map_err(panel_error))?;
         Ok(PyNativeJointDesignResult { inner })
     }
+    /// Compile a decision across preferences whose quantities are this design's arm means,
+    /// with the decision attached to layer four of the design's program. `bootstrap_json`
+    /// (`{replicates, seed}`) declares the whole-subject refits a static-regime design draws
+    /// when the decision needs a joint law. Nothing is executed.
+    #[pyo3(signature=(contract_json,bootstrap_json=None,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments, reason = "the declaration and the execution controls")]
+    fn compile_for_preference_decision(
+        &self,
+        py: Python<'_>,
+        contract_json: &str,
+        bootstrap_json: Option<&str>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::preferences_api::CompiledReply> {
+        bounded_json(contract_json, "preference contract")?;
+        let contract = crate::preferences_api::preference_contract_from(contract_json)?;
+        let bootstrap = match bootstrap_json {
+            Some(json) => {
+                bounded_json(json, "design bootstrap")?;
+                let wire: BootstrapWire =
+                    serde_json::from_str(json).map_err(|e| crate::value_err(e.to_string()))?;
+                Some(antecedent::analysis::preference_decision::DesignBootstrap {
+                    replicates: wire.replicates,
+                    seed: wire.seed,
+                })
+            }
+            None => None,
+        };
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let outcome = crate::detach_catch(py, || {
+            Ok(self.inner.compile_for_preference_decision(&contract, bootstrap, &ctx))
+        })?;
+        crate::preferences_api::compiled_reply(outcome)
+    }
     #[pyo3(signature=(artifact,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn consume_current(
         &self,
@@ -419,3 +455,11 @@ fn replay_native_joint_design(
 }
 
 mod population;
+
+/// The whole-subject refits a static-regime design draws for a decision's joint law.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BootstrapWire {
+    replicates: usize,
+    seed: u64,
+}

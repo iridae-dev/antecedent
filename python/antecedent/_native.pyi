@@ -7726,6 +7726,37 @@ def replay_preference_decision(
     source: JointDistributionArtifact,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+
+class _CompiledPreferenceDecision:
+    def describe(self) -> str: ...
+    def bound_identity(self) -> str: ...
+    def execute(
+        self,
+        measure_json: str | None,
+        options_json: str,
+        *,
+        seed: int = 0,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None, JointDistributionArtifact | None]: ...
+
+def preference_compile_for_study(
+    study: PreparedAnalysis,
+    contract_json: str,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
+def preference_compile_across_studies(
+    studies: list[PreparedAnalysis],
+    contract_json: str,
+    dependence_json: str,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
 def learn_preference_set(
     model_json: str,
     records_json: str,
@@ -12251,6 +12282,16 @@ class _PreparedNativeJointDesign:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _NativeJointDesignResult: ...
+    def compile_for_preference_decision(
+        self,
+        contract_json: str,
+        bootstrap_json: str | None = None,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
     def consume_current(
         self,
         artifact: bytes,

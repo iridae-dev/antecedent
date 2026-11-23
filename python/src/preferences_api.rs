@@ -30,6 +30,12 @@ use antecedent::analysis::preference_decision::{
     experiment_mean_source, joint_law_of, learn_compatible_set_accepted_with_context,
     learn_compatible_set_with_context, preference_route, source_requirement,
 };
+use antecedent::analysis::preference_decision::{
+    CompiledPreferenceDecision, CompiledPreferenceEvaluation, CompiledStructure,
+    CrossStudyCovariance, OutcomeDependence, PreferenceDecisionExecution, PreferenceJointLaw,
+    PreferenceRouteError, StructureIdentification,
+    compile_preference_decision_across_prepared_studies,
+};
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_adapters::{
@@ -41,12 +47,16 @@ use antecedent::design::decision_contract::{SourceRepresentation, UtilityExpr};
 use antecedent::design::decision_eval::MeanEstimate;
 use antecedent::design::decision_robustness::{AtomSupport, InputSupport};
 use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::planner::PlanView;
+use antecedent::planner::lowered::CarrierDemand;
 use antecedent::scientific::ScientificQuantity;
+use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::sync::Arc;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
 use crate::distribution_api::PyJointDistributionArtifact;
@@ -2123,8 +2133,369 @@ fn preference_experiment_quantity(
     })
 }
 
+// ---------------------------------------------------------------------------
+// The compiled route: bind, inspect the plan, execute.
+// ---------------------------------------------------------------------------
+
+/// A decision across preferences compiled with the analyses that estimate its quantities:
+/// the plan shows the decision before anything is fitted, and executing it runs every
+/// compiled plan once.
+#[pyclass(name = "_CompiledPreferenceDecision", frozen)]
+pub(crate) struct PyCompiledPreferenceDecision {
+    inner: Arc<CompiledPreferenceDecision>,
+}
+
+/// `(compiled handle, refusal JSON)`: exactly one is set.
+pub(crate) type CompiledReply = (Option<PyCompiledPreferenceDecision>, Option<String>);
+
+/// `(result JSON, refusal JSON, aligned law the decision read)`.
+type ExecutedReply = (Option<String>, Option<String>, Option<PyJointDistributionArtifact>);
+
+/// A preference contract from its declaration JSON, for the bridges that compile it.
+///
+/// # Errors
+/// A malformed declaration.
+pub(crate) fn preference_contract_from(json: &str) -> PyResult<PreferenceContract> {
+    contract_from(json)
+}
+
+/// A compile outcome as the handle or the refusal JSON; a compiler or design error raises.
+///
+/// # Errors
+/// The compiler's or the design's error, raised as its Python exception.
+pub(crate) fn compiled_reply(
+    outcome: Result<CompiledPreferenceDecision, PreferenceRouteError>,
+) -> PyResult<CompiledReply> {
+    match outcome {
+        Ok(compiled) => {
+            Ok((Some(PyCompiledPreferenceDecision { inner: Arc::new(compiled) }), None))
+        }
+        Err(error) => route_error(error).map(|refused| (None, Some(refused))),
+    }
+}
+
+fn route_error(error: PreferenceRouteError) -> PyResult<String> {
+    match error {
+        PreferenceRouteError::Refused(refused) => Ok(refusal(&refused)),
+        PreferenceRouteError::Compiler(error) => Err(crate::py_err(*error)),
+        PreferenceRouteError::Design(error) => {
+            Err(crate::joint_panel_api::joint_panel_error(*error))
+        }
+    }
+}
+
+const fn representation_name(representation: SourceRepresentation) -> &'static str {
+    match representation {
+        SourceRepresentation::Mean => "mean",
+        SourceRepresentation::MeanAndCovariance => "mean_and_covariance",
+        SourceRepresentation::Cdf => "cdf",
+        SourceRepresentation::QuantileFunction => "quantile_function",
+        SourceRepresentation::MarginalDraws => "marginal_draws",
+        SourceRepresentation::JointDraws => "joint_draws",
+    }
+}
+
+fn dependence_json(dependence: OutcomeDependence) -> Value {
+    match dependence {
+        OutcomeDependence::Undeclared => json!({"kind": "undeclared"}),
+        OutcomeDependence::DistinctEvidence { draws, seed } => {
+            json!({"kind": "distinct_evidence", "draws": draws, "seed": seed})
+        }
+        OutcomeDependence::SharedEvidence { draws, seed } => {
+            json!({"kind": "shared_evidence", "draws": draws, "seed": seed})
+        }
+    }
+}
+
+fn joint_law_json(joint: &PreferenceJointLaw) -> Value {
+    let fact = joint.fact();
+    json!({
+        "dependence": fact.dependence(),
+        "draws": fact.draws(),
+        "seed": fact.seed(),
+        "reading": fact.reading(),
+        "label": fact.label(),
+        "declaration": fact.declaration(),
+        "cross_blocks": fact.cross_blocks(),
+        "inputs": fact
+            .inputs()
+            .iter()
+            .map(|input| json!({
+                "source": input.source(),
+                "stage": input.stage(),
+                "study": input.study(),
+                "quantity": input.quantity(),
+                "factor": input.factor(),
+            }))
+            .collect::<Vec<_>>(),
+        "stages": joint
+            .plan()
+            .stages
+            .iter()
+            .map(|stage| json!({
+                "id": stage.id,
+                "kind": stage.kind.as_str(),
+                "representation": stage.representation.as_str(),
+                "sources": stage.sources,
+            }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+fn structure_json(structure: &CompiledStructure) -> Value {
+    let identification = match structure.identification() {
+        StructureIdentification::Identified(status) => {
+            json!({"kind": "identified", "status": status.as_str()})
+        }
+        StructureIdentification::IdentifiedAtPreparation => {
+            json!({"kind": "identified_at_preparation"})
+        }
+        StructureIdentification::NotIdentified(reason) => {
+            json!({"kind": "not_identified", "reason": reason})
+        }
+    };
+    json!({
+        "key": structure.key(),
+        "class_key": structure.class_key(),
+        "weight": structure.weight(),
+        "source": structure.source(),
+        "identification": identification,
+        "plan_identity": structure.plan_view().map(|view| view.identity().to_hex()),
+    })
+}
+
+/// What the compile states, before anything is fitted.
+fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
+    let demand = compiled.demand();
+    let route = match demand.route.route {
+        PreferenceRoute::Exact => "exact",
+        PreferenceRoute::Certified => "certified",
+    };
+    json!({
+        "bound_identity": compiled.bound_identity(),
+        "contract_identity": compiled.contract().identity().ok(),
+        "causal": compiled.causal_bindings(),
+        "dependence": dependence_json(compiled.dependence()),
+        "cross_study_covariance": compiled
+            .cross_study_covariance()
+            .iter()
+            .map(|block| json!({
+                "first": block.first,
+                "second": block.second,
+                "covariance": block.covariance,
+            }))
+            .collect::<Vec<_>>(),
+        "demand": {
+            "route": route,
+            "route_reason": json!(demand.route.reason),
+            "representation": representation_name(demand.representation),
+            "accepted": demand
+                .requirement
+                .any_of
+                .iter()
+                .map(|r| representation_name(*r))
+                .collect::<Vec<_>>(),
+            "carrier": demand.carrier.map(CarrierDemand::as_str),
+            "quantities": demand
+                .quantities
+                .iter()
+                .map(|q| json!({
+                    "identity": q.quantity.canonical_identity(),
+                    "quantity": ScientificQuantityWire::from(&q.quantity),
+                    "source": q.source,
+                    "read_by": q.read_by,
+                }))
+                .collect::<Vec<_>>(),
+        },
+        "structures": compiled.structures().iter().map(structure_json).collect::<Vec<_>>(),
+        "unidentified_mass": compiled.unidentified_mass(),
+        "joint_law": compiled.joint_law().map(joint_law_json),
+        "plans": compiled.plan_views().iter().map(PlanView::to_json).collect::<Vec<_>>(),
+    })
+}
+
+fn executed_json(
+    compiled: &CompiledPreferenceDecision,
+    executed: &PreferenceDecisionExecution,
+) -> Value {
+    let contract = compiled.contract();
+    let mut body = match &executed.evaluation {
+        CompiledPreferenceEvaluation::Single(evaluation) => evaluation_json(evaluation, contract),
+        CompiledPreferenceEvaluation::Structures(evaluation) => {
+            structural_json(evaluation, contract)
+        }
+    };
+    let receipt = &executed.receipt;
+    body["compiled"] = json!({
+        "bound_identity": receipt.bound_identity,
+        "contract_identity": receipt.contract_identity,
+        "causal": receipt.causal,
+        "programs": receipt.programs.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
+        "mixture": executed.mixture.as_ref().map(|m| json!({
+            "weight_basis": m.weight_basis.as_str(),
+            "identified_mass": m.identified_mass,
+            "unidentified_mass": m.unidentified_mass,
+            "unevaluable_mass": m.unevaluable_mass,
+        })),
+    });
+    body
+}
+
+#[pymethods]
+impl PyCompiledPreferenceDecision {
+    /// What the compile states (the bound identity, the demand, every structure with its
+    /// identification and plan identity, the masses, the declared joint law and every plan
+    /// view), as JSON. Nothing is fitted.
+    fn describe(&self) -> String {
+        describe_json(&self.inner).to_string()
+    }
+
+    /// Identity of the preference contract bound to the analyses' causal contracts.
+    fn bound_identity(&self) -> String {
+        self.inner.bound_identity().to_owned()
+    }
+
+    /// Run every compiled plan once and decide across the preference set; the decision reads
+    /// `cancel` at its work boundaries.
+    #[pyo3(signature = (measure_json, options_json, *, seed=0, memory_bytes=None, cancel=None))]
+    fn execute(
+        &self,
+        py: Python<'_>,
+        measure_json: Option<&str>,
+        options_json: &str,
+        seed: u64,
+        memory_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<ExecutedReply> {
+        let measure = measure_opt(measure_json)?;
+        let options = options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(seed, memory_bytes, cancel);
+        let compiled = Arc::clone(&self.inner);
+        crate::detach_catch(py, move || match compiled.execute(measure.as_ref(), options, &ctx) {
+            Ok(executed) => {
+                let law = match &executed.source {
+                    Some(NativeDecisionSource::JointLaw(law)) => {
+                        Some(PyJointDistributionArtifact {
+                            artifact: law.as_ref().clone(),
+                            source_claim: None,
+                        })
+                    }
+                    _ => None,
+                };
+                Ok((Some(executed_json(&compiled, &executed).to_string()), None, law))
+            }
+            Err(error) => route_error(error).map(|refused| (None, Some(refused), None)),
+        })
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CrossWire {
+    first: usize,
+    second: usize,
+    covariance: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DependenceWire {
+    kind: String,
+    #[serde(default)]
+    draws: usize,
+    #[serde(default)]
+    seed: u64,
+    #[serde(default)]
+    cross: Vec<CrossWire>,
+}
+
+fn dependence_from(json: &str) -> PyResult<(OutcomeDependence, Vec<CrossStudyCovariance>)> {
+    let wire: DependenceWire = parse(json, "dependence")?;
+    let dependence = match wire.kind.as_str() {
+        "undeclared" => OutcomeDependence::Undeclared,
+        "distinct_evidence" => {
+            OutcomeDependence::DistinctEvidence { draws: wire.draws, seed: wire.seed }
+        }
+        "shared_evidence" => {
+            OutcomeDependence::SharedEvidence { draws: wire.draws, seed: wire.seed }
+        }
+        other => {
+            return Err(crate::value_err(format!(
+                "dependence is undeclared, distinct_evidence or shared_evidence, not {other}"
+            )));
+        }
+    };
+    let cross = wire
+        .cross
+        .into_iter()
+        .map(|block| CrossStudyCovariance {
+            first: block.first,
+            second: block.second,
+            covariance: block.covariance,
+        })
+        .collect();
+    Ok((dependence, cross))
+}
+
+/// Compile a decision across preferences with one prepared study: bind the contract to the
+/// study's query, lower the decision into the study's plan and check identification under
+/// every structure it carries. Nothing is fitted.
+#[pyfunction]
+#[pyo3(signature = (study, contract_json, *, seed=0, memory_bytes=None, cancel=None))]
+fn preference_compile_for_study(
+    py: Python<'_>,
+    study: PyRef<'_, crate::prepared_api::PyPreparedAnalysis>,
+    contract_json: &str,
+    seed: u64,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<CompiledReply> {
+    let contract = contract_from(contract_json)?;
+    let ctx = crate::transport_common::execution_context(seed, memory_bytes, cancel);
+    let prepared = Arc::clone(&study.inner);
+    drop(study);
+    let outcome = crate::detach_catch(py, move || {
+        Ok(prepared.compile_for_preference_decision(&contract, &ctx))
+    })?;
+    compiled_reply(outcome)
+}
+
+/// Compile a decision across preferences whose quantities are the outcomes of several
+/// prepared studies, one outcome per study, under the declared dependence (`{kind, draws,
+/// seed, cross}`).
+#[pyfunction]
+#[pyo3(signature = (studies, contract_json, dependence_json, *, seed=0, memory_bytes=None, cancel=None))]
+fn preference_compile_across_studies(
+    py: Python<'_>,
+    studies: Vec<PyRef<'_, crate::prepared_api::PyPreparedAnalysis>>,
+    contract_json: &str,
+    dependence_json: &str,
+    seed: u64,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<CompiledReply> {
+    let contract = contract_from(contract_json)?;
+    let (dependence, cross) = dependence_from(dependence_json)?;
+    let ctx = crate::transport_common::execution_context(seed, memory_bytes, cancel);
+    let prepared: Vec<_> = studies.iter().map(|study| Arc::clone(&study.inner)).collect();
+    drop(studies);
+    let outcome = crate::detach_catch(py, move || {
+        let handles: Vec<&antecedent::PreparedStudy> = prepared.iter().map(AsRef::as_ref).collect();
+        Ok(compile_preference_decision_across_prepared_studies(
+            &handles,
+            &contract,
+            (dependence, &cross),
+            &ctx,
+        ))
+    })?;
+    compiled_reply(outcome)
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyAcceptedPreferences>()?;
+    m.add_class::<PyCompiledPreferenceDecision>()?;
+    m.add_function(wrap_pyfunction!(preference_compile_for_study, m)?)?;
+    m.add_function(wrap_pyfunction!(preference_compile_across_studies, m)?)?;
     m.add_function(wrap_pyfunction!(preference_experiment_source, m)?)?;
     m.add_function(wrap_pyfunction!(preference_experiment_quantity, m)?)?;
     m.add_function(wrap_pyfunction!(preference_chain_joint_law, m)?)?;
