@@ -346,8 +346,8 @@ def schema_cases() -> list[bool]:
             "required_job_not_a_job",
             {
                 "parity/release.toml": replace(
-                    '"development", "python-lint", "scientific", "python-wheels"]',
-                    '"development", "python-lint", "scientific", "python-wheels", "pull_request"]',
+                    '"scientific", "python-wheels", "proofs"]',
+                    '"scientific", "python-wheels", "proofs", "pull_request"]',
                 )
             },
             ["required job 'pull_request' missing from ci.yml"],

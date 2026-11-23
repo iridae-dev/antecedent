@@ -1,0 +1,14 @@
+name = "antecedent_formal"
+defaultTargets = ["Antecedent"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+
+[[require]]
+name = "plausible"
+git = "https://github.com/leanprover-community/plausible"
+rev = "v4.36.0"
+
+[[lean_lib]]
+name = "Antecedent"

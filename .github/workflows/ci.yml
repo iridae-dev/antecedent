@@ -508,6 +508,26 @@ jobs:
           cargo nextest run -P development -p antecedent --features development --test development_build
           cargo nextest run -P development -p antecedent-core --features development --lib
 
+  # Machine-checked properties: the Lean specifications and proofs under formal/,
+  # built with the toolchain pinned in formal/lean-toolchain and the packages pinned
+  # in formal/lake-manifest.json. A broken proof fails the build.
+  proofs:
+    name: Proofs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the Lean specifications and proofs
+        uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+        with:
+          lake-package-directory: formal
+          build: true
+          test: false
+          lint: false
+          use-mathlib-cache: false
+
   # Linux source-tree Python checks all use one native extension from this run.
   # Keep the full release wheel matrix independent: it checks packaged installs
   # across every supported platform and interpreter.
