@@ -1,0 +1,35 @@
+feature_id = "design.experiment_planning"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Power, sample size and minimum detectable effect of a declared randomized design: two-arm
+# complete and Bernoulli assignment, stratified, factorial, multi-arm families, cluster designs
+# with the design effect for equal and unequal cluster sizes, switchbacks with serial
+# dependence, group-sequential designs, and Bayesian posterior-success, assurance and
+# posterior-precision criteria under a conjugate normal prior. The planner solves the analytic
+# characteristic, and when the request declares a simulation it runs the whole procedure (data
+# generation, the design's analysis estimator, the planned decision) under keyed streams and
+# reports the agreement. Calibration of the characteristics is not_measured.
+papers = [
+ { title = "Sample size for cluster randomized trials: effect of coefficient of variation of cluster size and analysis method", doi = "10.1093/ije/dyl129", sections = ["Design effect with variable cluster size: 1 + ((1 + CV^2) m - 1) rho"] },
+]
+
+implementation_deviations = [
+ "Power of a mean comparison is the noncentral t power of the stated analysis (complete: n - 2 - p degrees of freedom, with p the declared covariates of an ANCOVA; stratified, cluster, factorial and switchback have their own degrees of freedom; Bernoulli assignment is a binomial mixture over the realized arm sizes), not the z approximation; Cohen's table sizes are its published values. A binary outcome is tested by its Wald statistic against the normal law with the unpooled variance. The declared covariate relation is an assumption, not estimated.",
+ "Group-sequential operating characteristics use the declared alpha-spending function and a one-sided or two-sided boundary on the normal information scale (Jennison and Turnbull, Group Sequential Methods with Applications to Clinical Trials, 2000, a book with no DOI); the single-look design is the fixed z design.",
+ "Bayesian assurance and posterior-success probability are computed in closed form for a conjugate normal prior on the effect with known outcome variance; non-normal outcomes use the normal approximation of the effect estimate. A prior is the caller's declaration and is never validated.",
+ "Every planning assumption (outcome variance, intraclass correlation, attrition, allocation ratio, effect, serial dependence, washout) is declared by the caller and retained in the program identity. The plan is a statement about those assumptions: it is not evidence the assumptions hold, and no calibration of the plan against realized trials is measured.",
+ "The simulation agrees with the analytic characteristic only within Monte Carlo error and the normal approximations of the analytic law; the planner reports both rather than substituting one for the other.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/planning_known_truth.rs",
+ "crates/antecedent/tests/experiment_planning.rs",
+ "crates/antecedent-design/src/planning/tests.rs",
+ "crates/antecedent-stats/src/power.rs",
+]

@@ -1,0 +1,38 @@
+feature_id = "composition.propagation_chain"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A declared chain of transformations over aligned draws, intervals and points: a pool, a
+# measurement mapping, a transport, a derived quantity, a nonlinear utility, a preposterior
+# update. The route adds no estimator of its own. A draw table is evaluated row by row, so a
+# nonlinear stage reads the joint law of its inputs (E[g(X)] is the row mean of g, never g(E[X])),
+# a dependent pool weights by the joint covariance of the aligned draws, an interval source is
+# propagated by interval arithmetic into an enclosure that holds under every coupling, and a
+# preposterior stage simulates the future study per row and re-evaluates the decision under the
+# updated draws. The uncertainty statement is the declared dependence contract and the chain
+# rule that refuses an independent pool of overlapping evidence; it is not a coverage claim.
+papers = [
+ { title = "Introduction to Interval Analysis", doi = "10.1137/1.9780898717716", sections = ["Chapter 2: interval arithmetic", "Chapter 3: the fundamental theorem of interval arithmetic (inclusion monotonicity)"] },
+]
+
+implementation_deviations = [
+ "The enclosure is the natural interval extension of the declared stage expression. An input that appears twice in one stage is treated as two independent intervals, so the enclosure is valid but can be wider than the range of the function (the dependency problem of interval arithmetic); it never excludes a value reachable under any coupling of the inputs.",
+ "Draw tables are finite aligned samples. The mean, variance and utility of a stage are the weighted row summaries of those draws, so each carries Monte Carlo or grid error that is not propagated; nothing here is a posterior or predictive law unless every source is declared as posterior or predictive draws of the same alignment.",
+ "A value is labelled point_only; its spread uncalibrated_spread; posterior draws posterior_propagation only when every source is posterior draws; an enclosure propagation_enclosure; a predictive output predictive_propagation. No label is a coverage statement, and an interval reading of a composed quantity is refused until a coverage record at the composed coordinate is measured.",
+ "Shared evidence (rows, clusters, models, priors, disturbances, periods) is a declaration of the source. The chain rule checks the declarations are consistent with each other (an independent pool of declared-overlapping sources is evidence_double_counted, an unknown overlap is evidence_overlap_unknown) but cannot verify a declaration the caller got wrong.",
+ "A withdrawn source invalidates the stages that depend on it and a re-weighted source re-weights them; every other stage keeps its stored numbers bit for bit. A reweight is an assumption change the caller declares, not an inference.",
+ "The preposterior update simulates one future study per row from the declared noise standard deviation, sample size and caller-supplied standard-normal noise draws and re-evaluates the decision under the updated draws; it is not a general design-evaluation engine.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/propagation_chain_known_truth.rs",
+ "crates/antecedent/src/analysis/propagation_chain_tests.rs",
+ "crates/antecedent/src/analysis/propagation_chain_family_tests.rs",
+ "crates/antecedent-io-core/src/propagation_chain_record_tests.rs",
+ "crates/antecedent-stats/src/propagation_chain_tests.rs",
+]

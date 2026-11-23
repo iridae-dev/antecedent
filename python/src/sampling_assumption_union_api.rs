@@ -131,6 +131,10 @@ impl Compiled {
         dispatch!(self, plan => plan.lowered())
     }
 
+    fn plan_view(&self) -> antecedent::planner::PlanView {
+        dispatch!(self, plan => plan.plan_view())
+    }
+
     fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -310,6 +314,13 @@ impl PySamplingAssumptionUnion {
     #[getter]
     fn route(&self) -> &'static str {
         self.plan.lowered().route()
+    }
+
+    /// The support decision of the unit the program's route runs under, as JSON; `null` while
+    /// no unit is bound to the route.
+    #[getter]
+    fn unit_support_json(&self) -> String {
+        crate::propagation_chain_api::unit_support_json(&self.plan.plan_view()).to_string()
     }
 
     /// Seal the declaration and the result after re-executing it under the bound seed.

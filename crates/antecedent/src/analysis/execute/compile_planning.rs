@@ -35,6 +35,7 @@ use super::Study;
 use super::planning_simulation::{scratch_bytes, simulate};
 use super::route_input::RouteInput;
 use crate::analysis::lowering::{CompileGoal, refuse_reentry};
+use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -61,11 +62,40 @@ pub const STANDALONE_PLANNING: NextAttempt = NextAttempt::new(
      compile a randomized study whose declared randomization is the planned design",
 );
 
+/// Whether a release build refuses a planning program whose support unit is not supported.
+///
+/// The unit is the capability record bound to the `ExperimentPlanning` route in
+/// `parity/compiled_units.toml`. The gate stays closed until that record's evidence is earned,
+/// so no valid use refuses before then; flipping this constant is the only change that turns
+/// it on.
+pub(crate) const RELEASE_SUPPORT_GATE_LIVE: bool = false;
+
+/// The route of a planning request compiled without a study.
+const PLANNING_ROUTE: &str = "ExperimentPlanning";
+
 /// A compiled planning request and its lowered program.
 #[derive(Clone, Debug)]
 pub struct PlanningPlan {
     lowered: Arc<LoweredProgram>,
     program: PlanningProgram,
+}
+
+impl CompiledProgramHandle for PlanningPlan {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl PlanningPlan {
+    /// The support gate of executing a standalone plan: a release build refuses a plan whose
+    /// unit is not supported; a development build records what it would refuse and runs. A plan
+    /// attached to a study runs under the study's route and unit, not this one.
+    fn gate_release_support(&self, ctx: &ExecutionContext) -> Result<(), CausalError> {
+        if !RELEASE_SUPPORT_GATE_LIVE || self.lowered.route() != PLANNING_ROUTE {
+            return Ok(());
+        }
+        gate_program(ctx, self).map_err(CausalError::from)
+    }
 }
 
 /// An executed plan: the analytic plan, its simulation when requested, and
@@ -127,6 +157,7 @@ impl PlanningPlan {
     /// the design's minimum), [`CausalError::Resource`] when the pool cannot
     /// hold the simulation, or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PlannedExperiment, CausalError> {
+        self.gate_release_support(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "planning" });
         }
@@ -439,5 +470,41 @@ impl Study {
             crate::compile_reason!("route_not_lowered", "the study compiled without a program")
         })?;
         Ok(PlanningPlan { lowered, program })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_design::planning::{PlanningAssumptions, PlanningCriterion};
+
+    use super::*;
+
+    fn request() -> PlanningRequest {
+        PlanningRequest::new(
+            PlannedDesign::Complete,
+            PlanningAssumptions::continuous(1.0).with_effect(0.5),
+            PlanningCriterion::Power { target: 0.8 },
+            PlanningGoal::SampleSize { max_units: 10_000 },
+        )
+    }
+
+    #[test]
+    fn the_plan_reads_the_support_decision_of_its_unit_and_execution_consults_it() {
+        let ctx = ExecutionContext::for_tests(1);
+        let plan = compile(&request(), &ctx);
+        let decision = plan.support().expect("the planning route is bound to a unit");
+        let view = plan.plan_view().unit_support().expect("the plan view reads the unit");
+        assert_eq!(view.status(), decision.status);
+        assert_eq!(view.unit(), decision.unit.label());
+        let executed = plan.execute(&ctx);
+        if RELEASE_SUPPORT_GATE_LIVE && !view.supported() && !cfg!(feature = "development") {
+            assert!(executed.is_err(), "a release build refuses an unsupported unit");
+        } else {
+            executed.expect("the plan runs");
+        }
+    }
+
+    fn compile(request: &PlanningRequest, ctx: &ExecutionContext) -> PlanningPlan {
+        compile_planning(request, ctx).expect("compiles")
     }
 }

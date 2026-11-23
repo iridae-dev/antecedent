@@ -83,6 +83,7 @@ __all__ = [
     "operating_characteristics",
     "plan_experiment",
     "planning_program_identity",
+    "planning_unit_support",
     "sample_size",
 ]
 
@@ -937,3 +938,21 @@ def planning_program_identity(
     """Identity of the lowered program the request compiles to; nothing is solved."""
     request = _request(design, assumptions, criterion, goal, simulation)
     return str(_native.planning_program_identity_py(request))
+
+
+def planning_unit_support(
+    design: Design,
+    assumptions: Assumptions,
+    criterion: Criterion,
+    goal: Goal,
+    *,
+    simulation: Simulation | None = None,
+) -> dict[str, Any] | None:
+    """Support decision of the unit the request's compiled route runs under; nothing is solved.
+
+    Returns ``{"unit", "status", "supported", "missing_evidence"}``, or ``None`` while no unit is
+    bound to the route. Reading it changes no program identity.
+    """
+    request = _request(design, assumptions, criterion, goal, simulation)
+    decision: dict[str, Any] | None = json.loads(_native.planning_unit_support_py(request))
+    return decision

@@ -413,8 +413,20 @@ fn planning_program_identity_py(request_json: &str) -> PyResult<String> {
     compile_planning(&request, &ctx).map(|plan| plan.identity().to_hex()).map_err(py_err)
 }
 
+/// The support decision of the unit the planning route runs under, as JSON; `null` while no
+/// unit is bound to the route. Nothing is solved or simulated.
+#[pyfunction]
+fn planning_unit_support_py(request_json: &str) -> PyResult<String> {
+    let request = request(request_json)?;
+    let ctx = crate::py_execution_context(0, 1);
+    compile_planning(&request, &ctx)
+        .map(|plan| crate::propagation_chain_api::unit_support_json(&plan.plan_view()).to_string())
+        .map_err(py_err)
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(plan_experiment_py, module)?)?;
     module.add_function(wrap_pyfunction!(planning_program_identity_py, module)?)?;
+    module.add_function(wrap_pyfunction!(planning_unit_support_py, module)?)?;
     Ok(())
 }

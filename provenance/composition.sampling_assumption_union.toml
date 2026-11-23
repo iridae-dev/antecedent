@@ -1,0 +1,36 @@
+feature_id = "composition.sampling_assumption_union"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Whole-chain bootstrap union around an assumption envelope: the original propagation chain and
+# every resampled rerun are compiled and executed, and the rowwise-envelope endpoint means are
+# joined into one interval by the basic bootstrap with a Bonferroni split of the level. The
+# resampling schemes are independent rows (Efron), complete clusters (Cameron, Gelbach and Miller
+# apply the same resampling to clustered data) and overlapping moving blocks of one ordered series
+# (Kunsch). The interval assumptions are held fixed in every rerun; they are never sampled.
+papers = [
+ { title = "Bootstrap Methods: Another Look at the Jackknife", doi = "10.1214/aos/1176344552", sections = ["Section 2: the bootstrap estimate of a standard error and of a distribution"] },
+ { title = "The Jackknife and the Bootstrap for General Stationary Observations", doi = "10.1214/aos/1176347265", sections = ["Section 2: the moving block bootstrap"] },
+ { title = "Bootstrap-Based Improvements for Inference with Clustered Errors", doi = "10.1162/rest.90.3.414", sections = ["Section 2: the pairs cluster bootstrap"] },
+]
+
+implementation_deviations = [
+ "The estimand is the identified set of an assumption envelope, [mean of the rowwise lower enclosure, mean of the rowwise upper enclosure], not a point parameter. Each endpoint gets its own one-sided basic bootstrap bound, lower = 2 * lower_hat - Q_{1 - a/2}(lower*) and upper = 2 * upper_hat - Q_{a/2}(upper*) with type-7 quantiles, and the two bounds are reported as one interval. The Bonferroni split makes the pair a conservative joint statement about both endpoints; it is not the Imbens-Manski construction for a partially identified parameter, which also uses the width of the set, and it is not a confidence region for the true parameter inside the set.",
+ "Coverage is not measured. The route labels its result calibration = not_measured and the nominal level is not a coverage statement; the whole-route coverage measurement is a separate, ignored experiment (tests iid_, cluster_ and moving_block_sampling_assumption_union_calibration) owned by calibration, and nothing here earns it.",
+ "Cluster independence, stationarity and weak serial dependence of a moving-block series, and the panel regime of a stratified or panel scheme are declarations of the caller. They are not tested against the rows. The moving-block scheme uses overlapping, non-circular blocks of a prespecified length, truncating the last block; it has no block-length selection rule, no stationary (random-length) variant and no bias correction of the block mean.",
+ "A declared-reruns scheme takes the replicate chains the caller produced and checks only that their stages, interval assumptions and source layout match the original; whether those reruns resampled correctly is a provenance declaration of the caller, not a verified fact.",
+ "The bootstrap generator is the library's own keyed stream seeded from the execution context; the result is reproducible under that seed and a consumer replays the whole schedule and compares the result bits. A different seed gives a different, equally valid candidate.",
+ "At least 100 and at most 4096 replicates, at least 20 raw units: below the replicate floor the type-7 tail quantile of a 95 percent interval is not defined by the data, so the route refuses rather than reports.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/sampling_assumption_union_known_truth.rs",
+ "crates/antecedent/src/analysis/sampling_assumption_union.rs",
+ "crates/antecedent/tests/iid_sampling_assumption_union_calibration.rs",
+ "crates/antecedent/tests/cluster_sampling_assumption_union_calibration.rs",
+]
