@@ -8,6 +8,20 @@
 //! `beta = (lambda, lambda * theta)` on the features `(F_i, T_i1, ..., T_iK)`, and
 //! `theta_k = beta_k / beta_0`.
 //!
+//! Only available options enter the fit: an option listed as
+//! [`OptionBelief::Unavailable`](crate::choice_record::OptionBelief::Unavailable) existed but could
+//! not be chosen, so it teaches nothing about preferences and is not a row of its record's choice
+//! set. A record with fewer than two available options is left out of the fit (a choice set needs
+//! two alternatives): it counts toward the learnability of no parameter and is not counted in
+//! [`ChoiceModelEstimate::n_records`].
+//!
+//! Stated comparisons ([`BeliefSource::Stated`](crate::choice_record::BeliefSource::Stated):
+//! what someone said they would choose, not what they chose) and recorded choices need not share
+//! a choice-consistency scale, so one fit never mixes them: a fit whose records hold both is
+//! refused ([`ChoiceModelError::StatedAndRecordedMixed`]). Fit them separately, or use the
+//! compatible-set method, which does not depend on a noise scale. A fit on stated comparisons
+//! alone stands on their named assumption as well as on the logit choice model.
+//!
 //! What the estimate is: the trade-offs the recorded decision-makers acted on, under the stated
 //! choice model and the recorded expectations of each option. What it is not: it is not what the
 //! trade-offs should be; the interval's coverage is not measured (it is reported with
@@ -156,7 +170,8 @@ pub struct ChoiceModelEstimate {
     pub log_likelihood: f64,
     /// Log-likelihood with every coefficient zero (each option equally likely).
     pub null_log_likelihood: f64,
-    /// Records in the fit.
+    /// Records used in the fit: those with at least two available options. A record with a single
+    /// available option is left out and not counted.
     pub n_records: usize,
     /// Distinct decision-makers in the fit.
     pub n_deciders: usize,
@@ -217,6 +232,17 @@ pub enum ChoiceModelError {
     Model(PreferenceModelError),
     /// The records are invalid or do not fit the model.
     Records(ChoiceRecordError),
+    /// The records of the fit hold both stated comparisons and recorded choices, which need not
+    /// share a choice-consistency scale. Fit them separately, or use the compatible-set method,
+    /// which does not depend on a noise scale.
+    StatedAndRecordedMixed {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// Number of stated comparisons in the fit.
+        stated: usize,
+        /// Number of recorded choices in the fit.
+        recorded: usize,
+    },
     /// The fixed part never differs between the options of a record, so the scale of the
     /// parameters is not determined.
     NoUnitOfAccount {
@@ -294,6 +320,9 @@ impl ChoiceModelError {
             Self::FitOptionsInvalid => reason_details::preference_choice_model::FIT_OPTIONS_INVALID,
             Self::Model(_) => reason_details::preference_choice_model::MODEL_INVALID,
             Self::Records(_) => reason_details::preference_choice_model::RECORDS_INVALID,
+            Self::StatedAndRecordedMixed { .. } => {
+                reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED
+            }
             Self::NoUnitOfAccount { .. } => {
                 reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING
             }
@@ -333,6 +362,11 @@ impl fmt::Display for ChoiceModelError {
             }
             Self::Model(error) => write!(f, "invalid value model ({})", error.detail()),
             Self::Records(error) => write!(f, "choice records refused: {error}"),
+            Self::StatedAndRecordedMixed { decider, stated, recorded } => write!(
+                f,
+                "{}: {stated} stated comparisons and {recorded} recorded choices need not share a noise scale; fit them separately or use the compatible-set method",
+                who(decider.as_deref())
+            ),
             Self::NoUnitOfAccount { decider } => write!(
                 f,
                 "{}: the fixed part of the value never differs between options, so the scale of the parameters is not determined",
@@ -391,6 +425,10 @@ impl std::error::Error for ChoiceModelError {}
 /// [`Pooling::PerDecider`] fits each decision-maker's records separately, each with its own
 /// [`EstimateOutcome`], and reports nothing pooled.
 ///
+/// Records with fewer than two available options are left out of every fit. A fit whose records
+/// hold both stated comparisons and recorded choices is refused with
+/// [`ChoiceModelError::StatedAndRecordedMixed`].
+///
 /// # Errors
 /// - [`ChoiceModelError::LevelInvalid`], [`ChoiceModelError::DrawsMissing`],
 ///   [`ChoiceModelError::FitOptionsInvalid`] for invalid options;
@@ -430,10 +468,12 @@ pub fn estimate_choice_model(
         records_digest,
         n_parameters: features.n_parameters,
         assumptions: assumptions.into_iter().collect(),
+        stated: records.stated_records().into_iter().collect(),
     };
     match &records.pooling {
         Pooling::Pooled { .. } => {
-            let sets: Vec<&ChoiceSetFeatures> = features.sets.iter().collect();
+            let sets: Vec<&ChoiceSetFeatures> =
+                features.sets.iter().filter(|s| informative(s)).collect();
             let estimate = context.estimate(&sets, None)?;
             Ok(ChoiceModelResult { pooled: Some(Box::new(estimate)), per_decider: Vec::new() })
         }
@@ -442,8 +482,11 @@ pub fn estimate_choice_model(
                 .deciders()
                 .into_iter()
                 .map(|decider| {
-                    let sets: Vec<&ChoiceSetFeatures> =
-                        features.sets.iter().filter(|s| s.decider == decider).collect();
+                    let sets: Vec<&ChoiceSetFeatures> = features
+                        .sets
+                        .iter()
+                        .filter(|s| s.decider == decider && informative(s))
+                        .collect();
                     let outcome = match context.estimate(&sets, Some(decider.as_str())) {
                         Ok(estimate) => EstimateOutcome::Estimated(Box::new(estimate)),
                         Err(error) => EstimateOutcome::Refused(error),
@@ -456,6 +499,11 @@ pub fn estimate_choice_model(
     }
 }
 
+/// Whether a record's choice set can enter the fit: at least two available options.
+fn informative(set: &ChoiceSetFeatures) -> bool {
+    set.option_ids.len() >= 2
+}
+
 /// What every fit of one call shares.
 struct Context<'a> {
     model: &'a ValueModel,
@@ -464,6 +512,8 @@ struct Context<'a> {
     records_digest: String,
     n_parameters: usize,
     assumptions: Vec<String>,
+    /// Identities of the stated comparisons among the records.
+    stated: BTreeSet<String>,
 }
 
 /// The conditional logit design of one fit.
@@ -493,6 +543,14 @@ impl Context<'_> {
         decider: Option<&str>,
     ) -> Result<ChoiceModelEstimate, ChoiceModelError> {
         let owned = || decider.map(str::to_owned);
+        let stated = sets.iter().filter(|set| self.stated.contains(&set.record_id)).count();
+        if stated > 0 && stated < sets.len() {
+            return Err(ChoiceModelError::StatedAndRecordedMixed {
+                decider: owned(),
+                stated,
+                recorded: sets.len() - stated,
+            });
+        }
         let parameters = &self.model.preferences.parameters;
         let columns = self.classify(sets);
         if !columns.unit {
@@ -929,6 +987,7 @@ mod tests {
             chosen: 0,
             fixed,
             terms: Vec::new(),
+            unavailable: Vec::new(),
         };
         let flat = set(vec![1.0e6, 1.0e6 + 1e-6]);
         let varied = set(vec![1.0, 2.0]);

@@ -1139,6 +1139,11 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `choice_record.shape_parameters_not_fixed` | `route_not_supported` | Fix those parameters to a single value or evaluate on the certified route. |
 | `choice_record.belief_law_required` | `decision_contract_unsatisfied` | Record the belief as draws. |
 | `choice_record.term_not_finite` | `decision_contract_unsatisfied` | Check the belief and the value's domain. |
+| `choice_record.chosen_unavailable` | `invalid_argument` | Correct the chosen option or its availability. |
+| `choice_record.unavailable_constraint_blank` | `invalid_argument` | Name the constraint. |
+| `choice_record.stated_elicitation_blank` | `invalid_argument` | Name the elicitation. |
+| `choice_record.stated_assumption_blank` | `invalid_argument` | Name that assumption. |
+| `choice_record.stated_belief_not_exact` | `invalid_argument` | Describe each option by exact attribute values. |
 
 ### Decisions across a preference set
 
@@ -1228,6 +1233,36 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_choice_model.fit_refused` | `glm_fit_refused` | Use the compatible-set method. The supplied text names the fit's own detail and message. |
 | `preference_choice_model.covariance_not_positive_definite` | `glm_fit_refused` | Record more choices or use the compatible-set method. |
 | `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method. |
+| `preference_choice_model.stated_and_recorded_mixed` | `route_not_supported` | Fit stated comparisons and recorded choices separately, or use the compatible-set method. |
+
+### Accepted preferences and preference artifacts
+
+`accepted_preferences.*`, `preference_evaluation.*`, `preference_artifact.*`. Accepting preferences (stage `accept`) fixes the value model, the basis it was accepted on and a version; the evaluation chooses the exact or the certified route; a preference artifact is written at `export` and read, checked and replayed at `consume`. A wrapped value-model, set-learning, choice-model, contract or evaluation error reports the wrapped refusal. The route labels `preference_route.*` name why a route was chosen and are not refusal details. `accepted_preferences.choices_contradictory` states the tolerance needed in `expected` and the conflicting records in `supplied`.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `accepted_preferences.model_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences under the model they were learned from. |
+| `accepted_preferences.options_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences with the options they were learned with. |
+| `accepted_preferences.pooled_not_available` | `invalid_argument` | Name the decider whose preferences to accept. |
+| `accepted_preferences.decider_unknown` | `invalid_argument` | Name a decider the records hold. |
+| `accepted_preferences.choices_contradictory` | `decision_contract_unsatisfied` | Raise the tolerance to the stated value or remove one of the named records. |
+| `accepted_preferences.acknowledge_empty` | `invalid_argument` | Name at least one pending item. |
+| `accepted_preferences.acknowledge_repeated` | `invalid_argument` | Name each item once. |
+| `accepted_preferences.not_pending` | `invalid_argument` | Name only pending items. |
+| `accepted_preferences.version_invalid` | `invalid_argument` | Supply a version of at least one. |
+| `accepted_preferences.version_exhausted` | `invalid_argument` | Accept the preferences anew instead of revising them. |
+| `preference_evaluation.joint_draws_required` | `joint_law_required` | Supply aligned joint draws. |
+| `preference_artifact.encode_failed` | `invalid_argument` | None: the supplied text names the encoding failure. |
+| `preference_artifact.container_refused` | `invalid_argument`, `schema_mismatch` | Supply bytes written by this library. |
+| `preference_artifact.wire_malformed` | `invalid_argument` | Supply bytes written by this library. |
+| `preference_artifact.identity_resealed` | `invalid_argument` | Re-export from the producer instead of editing the bytes. |
+| `preference_artifact.identity_expected` | `decision_contract_unsatisfied` | Supply the artifact whose identity was retained. |
+| `preference_artifact.contract_expected` | `decision_contract_unsatisfied` | Supply the result of the retained contract. |
+| `preference_artifact.source_expected` | `decision_contract_unsatisfied` | Supply the result computed from the retained draws. |
+| `preference_artifact.result_contract_mismatch` | `decision_contract_unsatisfied` | Re-export the result from the producer. |
+| `preference_artifact.replay_source_differs` | `decision_contract_unsatisfied` | Replay with the draws the result was computed from. |
+| `preference_artifact.replay_records_differ` | `decision_contract_unsatisfied` | Replay with the records they were learned from. |
+| `preference_artifact.replay_mismatch` | `decision_contract_unsatisfied` | Re-export from the producer and replay again. |
 
 ## Other registered refusal codes
 

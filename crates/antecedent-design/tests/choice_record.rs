@@ -1,11 +1,12 @@
 //! Recorded choices: validation refusals, the canonical digest, and expected linear-form terms
-//! of every option from attribute means and from weighted joint draws.
+//! of every available option from attribute means and from weighted joint draws; unavailable
+//! options are digested and reported but give no features; stated comparisons.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_details;
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
-    OptionBelief, Pooling, choice_features,
+    OptionBelief, Pooling, UnavailableOption, choice_features,
 };
 use antecedent_design::preference_model::{
     Attribute, PreferenceExpr as E, PreferenceParameter, PreferenceSet, ValueModel,
@@ -659,4 +660,184 @@ fn features_follow_record_order_and_are_deterministic() {
     let ids: Vec<&str> = second.sets.iter().map(|x| x.record_id.as_str()).collect();
     assert_eq!(ids, ["r3", "r2", "r1"]);
     assert_eq!(second.sets[0], first.sets[2]);
+}
+
+fn unavailable(constraint: &str) -> OptionBelief {
+    OptionBelief::Unavailable { constraint_id: constraint.to_owned() }
+}
+
+#[test]
+fn an_unavailable_option_must_name_its_constraint_and_cannot_be_chosen() {
+    let error = refused(|s| s.records[1].options[1].belief = unavailable(" "));
+    assert_eq!(
+        error,
+        ChoiceRecordError::UnavailableConstraintBlank {
+            record: "r2".to_owned(),
+            option: "wait".to_owned()
+        }
+    );
+    assert_eq!(error.detail(), reason_details::choice_record::UNAVAILABLE_CONSTRAINT_BLANK);
+
+    let error = refused(|s| s.records[1].options[0].belief = unavailable("budget_cap"));
+    assert_eq!(
+        error,
+        ChoiceRecordError::ChosenUnavailable {
+            record: "r2".to_owned(),
+            option: "treat".to_owned()
+        }
+    );
+    assert_eq!(error.detail(), reason_details::choice_record::CHOSEN_UNAVAILABLE);
+}
+
+#[test]
+fn a_record_with_one_available_option_is_valid() {
+    let mut s = set();
+    s.records[1].options[1].belief = unavailable("budget_cap");
+    s.validate().expect("one available option is valid");
+    s.records[0].options[1].belief = unavailable("formulary");
+    s.records[2].options[1].belief = unavailable("budget_cap");
+    assert_eq!(s.constraints(), ["budget_cap", "formulary"]);
+    assert_eq!(s.assumptions(), set().assumptions(), "constraints are not assumptions");
+    assert!(set().constraints().is_empty());
+}
+
+#[test]
+fn digest_changes_when_an_option_becomes_unavailable_or_its_constraint_changes() {
+    let base = set().digest().expect("digest");
+    let mut excluded = set();
+    excluded.records[0].options[1].belief = unavailable("budget_cap");
+    let excluded_digest = excluded.digest().expect("digest");
+    assert_ne!(excluded_digest, base);
+    let mut other = set();
+    other.records[0].options[1].belief = unavailable("formulary");
+    let other_digest = other.digest().expect("digest");
+    assert_ne!(other_digest, base);
+    assert_ne!(other_digest, excluded_digest);
+    // Listing an unavailable option is not the same record as leaving it out.
+    let mut listed = set();
+    listed.records[0].options.push(option("refer", unavailable("budget_cap")));
+    assert_ne!(listed.digest().expect("digest"), base);
+}
+
+#[test]
+fn features_leave_out_unavailable_options_and_reindex_the_choice() {
+    let mut s = set();
+    s.records.truncate(2);
+    s.records[1].options.insert(0, option("refer", unavailable("budget_cap")));
+    s.records[1].options.push(option("operate", means(&[-2.0, 0.25])));
+    s.records[1].chosen = "operate".to_owned();
+    let f = features(&rate_model(), &s);
+    assert!(f.sets[0].unavailable.is_empty());
+    let second = &f.sets[1];
+    assert_eq!(second.option_ids, ["treat", "wait", "operate"]);
+    assert_eq!(second.chosen, 2);
+    assert_eq!(second.fixed.len(), 3);
+    assert_all_close(&second.terms, &[3.0, 5.0, 1.0, 0.5, -2.0, 0.25]);
+    assert_eq!(
+        second.unavailable,
+        [UnavailableOption {
+            option_id: "refer".to_owned(),
+            constraint_id: "budget_cap".to_owned()
+        }]
+    );
+
+    // A single available option gives one row and no comparison.
+    let mut single = set();
+    single.records[0].options[1].belief = unavailable("formulary");
+    let f = features(&rate_model(), &single);
+    assert_eq!(f.sets[0].option_ids, ["treat"]);
+    assert_eq!(f.sets[0].chosen, 0);
+    assert_all_close(&f.sets[0].terms, &[3.0, 5.0]);
+    assert_eq!(f.sets[0].unavailable.len(), 1);
+}
+
+#[test]
+fn an_unavailable_option_needs_no_belief_law() {
+    // The kinked model needs draws for every available option, but none for an unavailable one.
+    let mut s = set();
+    s.records.truncate(1);
+    s.records[0].options[0].belief =
+        OptionBelief::Draws { rows: vec![1.0, 1.0, 2.0, 3.0], weights: None };
+    s.records[0].options[1].belief = unavailable("budget_cap");
+    let f = features(&kinked_model(), &s);
+    assert_eq!(f.sets[0].option_ids, ["treat"]);
+}
+
+fn stated_source(elicitation: &str, assumption: &str) -> BeliefSource {
+    BeliefSource::Stated {
+        elicitation_id: elicitation.to_owned(),
+        assumption_id: assumption.to_owned(),
+    }
+}
+
+#[test]
+fn a_stated_comparison_names_its_elicitation_and_assumption_and_states_exact_bundles() {
+    let r = || "r2".to_owned();
+    let cases = [
+        (
+            refused(|s| s.records[1].belief_source = stated_source(" ", "stated_reflects_acted")),
+            ChoiceRecordError::StatedElicitationBlank { record: r() },
+            reason_details::choice_record::STATED_ELICITATION_BLANK,
+        ),
+        (
+            refused(|s| s.records[1].belief_source = stated_source("survey", "")),
+            ChoiceRecordError::StatedAssumptionBlank { record: r() },
+            reason_details::choice_record::STATED_ASSUMPTION_BLANK,
+        ),
+        (
+            refused(|s| {
+                s.records[1].belief_source = stated_source("survey", "stated_reflects_acted");
+                s.records[1].options[1].belief =
+                    OptionBelief::Draws { rows: vec![1.0, 0.5], weights: None };
+            }),
+            ChoiceRecordError::StatedBeliefNotExact { record: r(), option: "wait".to_owned() },
+            reason_details::choice_record::STATED_BELIEF_NOT_EXACT,
+        ),
+        (
+            refused(|s| {
+                s.records[1].belief_source = stated_source("survey", "stated_reflects_acted");
+                s.records[1].options[1].belief = unavailable("budget_cap");
+            }),
+            ChoiceRecordError::StatedBeliefNotExact { record: r(), option: "wait".to_owned() },
+            reason_details::choice_record::STATED_BELIEF_NOT_EXACT,
+        ),
+    ];
+    for (error, want, detail) in cases {
+        assert_eq!(error, want);
+        assert_eq!(error.detail(), detail);
+    }
+}
+
+#[test]
+fn stated_comparisons_are_listed_digested_and_add_their_assumption() {
+    let mut s = set();
+    s.records[1].belief_source = stated_source("survey", "stated_reflects_acted");
+    s.records[0].options.push(option("refer", means(&[0.0, 0.0])));
+    s.records[0].belief_source = stated_source("survey", "stated_reflects_acted");
+    s.validate().expect("stated comparisons of any number of bundles");
+    assert_eq!(s.stated_records(), ["r1", "r2"]);
+    assert!(set().stated_records().is_empty());
+    assert_eq!(
+        s.assumptions(),
+        ["realized_as_expected", "shared_preferences", "stated_reflects_acted"]
+    );
+
+    let mut one = set();
+    one.records[1].belief_source = stated_source("survey", "stated_reflects_acted");
+    let digests = [
+        set().digest().expect("digest"),
+        one.digest().expect("digest"),
+        {
+            let mut x = one.clone();
+            x.records[1].belief_source = stated_source("interview", "stated_reflects_acted");
+            x.digest().expect("digest")
+        },
+        {
+            let mut x = one.clone();
+            x.records[1].belief_source = stated_source("survey", "other_assumption");
+            x.digest().expect("digest")
+        },
+    ];
+    let distinct: std::collections::BTreeSet<&String> = digests.iter().collect();
+    assert_eq!(distinct.len(), digests.len());
 }

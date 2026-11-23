@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_details;
 use antecedent_design::accepted_preferences::{
     AcceptedPreferences, AcceptedPreferencesError, PendingReview, PreferenceBasis,
     PreferenceContractParts, estimate_accepted, learn_compatible_set_accepted,
@@ -285,11 +286,11 @@ fn round_trip(accepted: &AcceptedPreferences) -> AcceptedPreferencesArtifact {
 
     let error = AcceptedPreferencesArtifact::from_bytes(&bytes, "another identity").unwrap_err();
     assert_eq!(error, E::IdentityExpected);
-    assert_eq!(error.detail(), "preference_artifact.identity_expected");
+    assert_eq!(error.detail(), reason_details::preference_artifact::IDENTITY_EXPECTED);
     let error =
         AcceptedPreferencesArtifact::from_bytes(&corrupt(&bytes), accepted.identity()).unwrap_err();
     assert!(matches!(error, E::Container(_)), "{error:?}");
-    assert_eq!(error.detail(), "preference_artifact.container_refused");
+    assert_eq!(error.detail(), reason_details::preference_artifact::CONTAINER_REFUSED);
     loaded
 }
 
@@ -340,14 +341,14 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     changed.records[0] = record("r1", [1.2, 1.0], [0.0, 0.0], "a");
     let error = artifact.replay(&changed).unwrap_err();
     assert_eq!(error, E::ReplayRecordsDiffer);
-    assert_eq!(error.detail(), "preference_artifact.replay_records_differ");
+    assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_RECORDS_DIFFER);
 
     // Records that no longer hold together: `r2` now reads `w >= 2`.
     let mut contradictory = records.clone();
     contradictory.records[1] = record("r2", [1.0, 0.5], [0.0, 0.0], "b");
     let error = artifact.replay(&contradictory).unwrap_err();
     assert!(matches!(&error, E::Accepted(AcceptedPreferencesError::Contradictory { .. })));
-    assert_eq!(error.detail(), "accepted_preferences.choices_contradictory");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::CHOICES_CONTRADICTORY);
 
     // A stored range that the records do not reproduce.
     let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
@@ -356,7 +357,7 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let edited = AcceptedPreferences::from_compatible_set(&model, edited, tolerant()).unwrap();
     let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
     assert_eq!(error, E::ReplayMismatch { field: "ranges" });
-    assert_eq!(error.detail(), "preference_artifact.replay_mismatch");
+    assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_MISMATCH);
 
     // An estimate: changed records, then a stored consistency the records do not reproduce.
     let records = simulated(300, 21);
@@ -389,10 +390,10 @@ fn decision_round_trip(
 
     let error = PreferenceDecisionArtifact::from_bytes(&bytes, "another", &digest).unwrap_err();
     assert_eq!(error, E::ContractExpected);
-    assert_eq!(error.detail(), "preference_artifact.contract_expected");
+    assert_eq!(error.detail(), reason_details::preference_artifact::CONTRACT_EXPECTED);
     let error = PreferenceDecisionArtifact::from_bytes(&bytes, &identity, "other").unwrap_err();
     assert_eq!(error, E::SourceExpected);
-    assert_eq!(error.detail(), "preference_artifact.source_expected");
+    assert_eq!(error.detail(), reason_details::preference_artifact::SOURCE_EXPECTED);
     let error =
         PreferenceDecisionArtifact::from_bytes(&corrupt(&bytes), &identity, &digest).unwrap_err();
     assert!(matches!(error, E::Container(_)), "{error:?}");
@@ -478,7 +479,7 @@ fn a_decision_replay_refuses_other_draws_and_any_changed_result() {
     let other = standard_law(&cost_model(), 0.5);
     let error = artifact.replay(&other).unwrap_err();
     assert_eq!(error, E::ReplaySourceDiffers);
-    assert_eq!(error.detail(), "preference_artifact.replay_source_differs");
+    assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_SOURCE_DIFFERS);
 
     let PreferenceEvaluation::Exact(result) = artifact.evaluation() else { panic!("exact") };
     let mut flipped = (**result).clone();
@@ -557,7 +558,7 @@ fn building_a_decision_artifact_refuses_mismatched_or_invalid_parts() {
     )
     .unwrap_err();
     assert_eq!(error, E::ResultContractMismatch);
-    assert_eq!(error.detail(), "preference_artifact.result_contract_mismatch");
+    assert_eq!(error.detail(), reason_details::preference_artifact::RESULT_CONTRACT_MISMATCH);
 
     let mut single = c.clone();
     single.actions.truncate(1);
@@ -577,7 +578,7 @@ fn building_a_decision_artifact_refuses_mismatched_or_invalid_parts() {
 
     let error = artifact.to_bytes("").unwrap_err();
     assert!(matches!(error, E::Encode(_)), "{error:?}");
-    assert_eq!(error.detail(), "preference_artifact.encode_failed");
+    assert_eq!(error.detail(), reason_details::preference_artifact::ENCODE_FAILED);
 }
 
 #[test]

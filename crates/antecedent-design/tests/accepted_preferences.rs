@@ -9,6 +9,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::reason_details;
 use antecedent_design::accepted_preferences::{
     AcceptedPreferences, AcceptedPreferencesError as E, LearningOptions, PendingReview,
     PreferenceBasis, estimate_accepted, learn_compatible_set_accepted,
@@ -268,7 +269,7 @@ fn learning_reviewing_and_relearning_each_give_a_new_version_and_identity() {
     // An item that is no longer pending, or never was, is refused.
     let error = reviewed.acknowledge(&[not_varied("t1")]).unwrap_err();
     assert_eq!(error, E::NotPending { item: not_varied("t1") });
-    assert_eq!(error.detail(), "accepted_preferences.not_pending");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::NOT_PENDING);
     let foreign = PendingReview::ParameterNotLearnable { parameter_id: "t0".to_owned() };
     assert_eq!(learned.acknowledge(&[foreign.clone()]), Err(E::NotPending { item: foreign }));
     let other_tolerance = PendingReview::ToleranceApplied { tolerance: 0.5 };
@@ -306,10 +307,10 @@ fn acknowledging_nothing_or_one_item_twice_is_refused() {
             .unwrap();
     let error = learned.acknowledge(&[]).unwrap_err();
     assert_eq!(error, E::NoItems);
-    assert_eq!(error.detail(), "accepted_preferences.acknowledge_empty");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY);
     let error = learned.acknowledge(&[not_varied("t1"), not_varied("t1")]).unwrap_err();
     assert_eq!(error, E::RepeatedItem { item: not_varied("t1") });
-    assert_eq!(error.detail(), "accepted_preferences.acknowledge_repeated");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED);
 }
 
 #[test]
@@ -389,12 +390,12 @@ fn deciders_are_selected_by_name() {
 
     let error = learn_compatible_set_accepted(&model, &per_decider, None, tolerant()).unwrap_err();
     assert_eq!(error, E::PooledNotAvailable);
-    assert_eq!(error.detail(), "accepted_preferences.pooled_not_available");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::POOLED_NOT_AVAILABLE);
 
     let error = learn_compatible_set_accepted(&model, &per_decider, Some("nobody"), tolerant())
         .unwrap_err();
     assert_eq!(error, E::DeciderUnknown { decider: "nobody".to_owned() });
-    assert_eq!(error.detail(), "accepted_preferences.decider_unknown");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::DECIDER_UNKNOWN);
 
     // An estimate under pooled records fits no decider on its own.
     let cost = cost_model((0.0, 3.0), None);
@@ -435,7 +436,7 @@ fn contradictory_choices_are_refused_with_the_conflict() {
     let E::Contradictory { decider, conflict } = &error else { panic!("{error:?}") };
     assert_eq!(decider, &None);
     assert_eq!(conflict.records, vec!["r1".to_owned(), "r3".to_owned()]);
-    assert_eq!(error.detail(), "accepted_preferences.choices_contradictory");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::CHOICES_CONTRADICTORY);
 }
 
 #[test]
@@ -453,7 +454,7 @@ fn a_learned_object_of_another_model_or_other_options_is_refused() {
         error,
         E::ModelMismatch { expected: other.identity().unwrap(), found: model.identity().unwrap() }
     );
-    assert_eq!(error.detail(), "accepted_preferences.model_mismatch");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::MODEL_MISMATCH);
 
     let error = AcceptedPreferences::from_compatible_set(
         &model,
@@ -462,7 +463,7 @@ fn a_learned_object_of_another_model_or_other_options_is_refused() {
     )
     .unwrap_err();
     assert_eq!(error, E::OptionsMismatch { option: "tolerance" });
-    assert_eq!(error.detail(), "accepted_preferences.options_mismatch");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::OPTIONS_MISMATCH);
     let accepted =
         AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant()).unwrap();
     assert_eq!(accepted.identity(), learned.identity());

@@ -1,4 +1,5 @@
-//! Recorded past choices and the expected linear-form terms of every option.
+//! Recorded past choices and stated comparisons, and the expected linear-form terms of every
+//! available option.
 //!
 //! A [`ChoiceRecord`] states which alternatives a decision-maker had, what was expected of each
 //! (a [`OptionBelief`]: attribute means or aligned joint draws), which one was chosen, where the
@@ -11,9 +12,23 @@
 //! refused. Rows are compared as evidence-ledger row identities are: by their exact spelling,
 //! after surrounding whitespace is trimmed (no other normalisation is applied).
 //!
+//! A stated comparison ([`BeliefSource::Stated`]) is a record of what someone said they would
+//! choose among hypothetical outcome bundles in an elicitation exercise, not of what they chose.
+//! It is read as evidence about preferences only under a named assumption that the statement
+//! reflects the preferences the person would act on. A hypothetical bundle is known exactly, so
+//! every option of a stated record is given by its attribute values ([`OptionBelief::Means`]).
+//!
+//! An option can be listed as [`OptionBelief::Unavailable`]: it existed at the time of the choice
+//! but could not be chosen, because a named constraint (a budget cap, a regulation, a policy)
+//! excluded it. Choosing another option over it says nothing about preferences, so an unavailable
+//! option teaches nothing: it takes part in the record's digest and is reported by
+//! [`choice_features`], but it contributes no features and no comparison with the chosen option.
+//! The chosen option must be available. A record lists at least two options; one with a single
+//! available option is valid and teaches nothing.
+//!
 //! [`choice_features`] reads a [`ValueModel`] whose value is `fixed + sum_j theta_j * terms[j]`
-//! and gives, for every option of every record, the expectation of the fixed part and of each
-//! term under the option's belief. Every fixed parameter (`lower == upper`) is substituted by its
+//! and gives, for every available option of every record, the expectation of the fixed part and
+//! of each term under the option's belief. Every fixed parameter (`lower == upper`) is substituted by its
 //! value before the linear form is taken, so its column of [`ChoiceSetFeatures::terms`] is zero
 //! and its contribution is folded into [`ChoiceSetFeatures::fixed`]; the nonzero columns are
 //! exactly the free parameters. A term's expectation from attribute means is its value at the
@@ -51,6 +66,24 @@ pub enum BeliefSource {
         /// Identity of the assumption that realized outcomes stand for expectations; non-blank.
         assumption_id: String,
     },
+    /// A stated comparison: what the decider said they would choose among hypothetical outcome
+    /// bundles, not what they chose. The options are the bundles, each given exactly by its
+    /// attribute values ([`OptionBelief::Means`]).
+    Stated {
+        /// Identity of the elicitation exercise the statement came from; non-blank.
+        elicitation_id: String,
+        /// Identity of the assumption that a stated comparison reflects the preferences the
+        /// person would act on; non-blank.
+        assumption_id: String,
+    },
+}
+
+impl BeliefSource {
+    /// Whether the record is a stated comparison rather than a recorded choice.
+    #[must_use]
+    pub const fn is_stated(&self) -> bool {
+        matches!(self, Self::Stated { .. })
+    }
 }
 
 /// What was expected of one option.
@@ -65,14 +98,28 @@ pub enum OptionBelief {
         /// Optional non-negative weight per row with a positive sum; uniform when absent.
         weights: Option<Vec<f64>>,
     },
+    /// The option existed but could not be chosen: a named constraint excluded it. Nothing was
+    /// expected of it for the purpose of the choice, and it teaches nothing about preferences.
+    Unavailable {
+        /// Identity of the constraint that excluded the option; non-blank.
+        constraint_id: String,
+    },
 }
 
-/// One alternative that was available at a recorded choice.
+impl OptionBelief {
+    /// Whether the option could be chosen (it is not [`OptionBelief::Unavailable`]).
+    #[must_use]
+    pub const fn is_available(&self) -> bool {
+        !matches!(self, Self::Unavailable { .. })
+    }
+}
+
+/// One alternative listed at a recorded choice.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChoiceOption {
     /// Identity of the option within its record; non-blank and distinct.
     pub id: String,
-    /// What was expected of the option.
+    /// What was expected of the option, or that it was unavailable.
     pub belief: OptionBelief,
 }
 
@@ -81,15 +128,18 @@ pub struct ChoiceOption {
 pub struct ChoiceRecord {
     /// Identity of the record; non-blank and distinct within a set.
     pub id: String,
-    /// Who chose; non-blank.
+    /// Who chose, or for a stated comparison who made the statement; non-blank.
     pub decider: String,
-    /// The alternatives that were available; at least two.
+    /// The alternatives listed at the choice; at least two. An option whose belief is
+    /// [`OptionBelief::Unavailable`] existed but could not be chosen and teaches nothing.
     pub options: Vec<ChoiceOption>,
-    /// Identity of the chosen option.
+    /// Identity of the chosen option (for a stated comparison, the bundle the decider said they
+    /// would take); it must be available.
     pub chosen: String,
     /// Where the beliefs came from.
     pub belief_source: BeliefSource,
-    /// Evidence-ledger row identities this record rests on; non-empty, non-blank, distinct.
+    /// Evidence-ledger row identities this record rests on (for a stated comparison, the
+    /// identity of the response); non-empty, non-blank, distinct.
     pub observation_rows: Vec<String>,
 }
 
@@ -162,7 +212,7 @@ pub enum ChoiceRecordError {
         /// The record.
         record: String,
     },
-    /// A record offers fewer than two options.
+    /// A record lists fewer than two options.
     OptionsTooFew {
         /// The record.
         record: String,
@@ -189,6 +239,37 @@ pub enum ChoiceRecordError {
         record: String,
         /// The chosen identity as declared.
         chosen: String,
+    },
+    /// An unavailable option does not name the constraint that excluded it.
+    UnavailableConstraintBlank {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
+    },
+    /// The chosen option is marked unavailable.
+    ChosenUnavailable {
+        /// The record.
+        record: String,
+        /// The chosen option.
+        option: String,
+    },
+    /// A stated comparison does not name its elicitation exercise.
+    StatedElicitationBlank {
+        /// The record.
+        record: String,
+    },
+    /// A stated comparison does not name the assumption that it reflects acted-on preferences.
+    StatedAssumptionBlank {
+        /// The record.
+        record: String,
+    },
+    /// An option of a stated comparison is not given exactly by its attribute values.
+    StatedBeliefNotExact {
+        /// The record.
+        record: String,
+        /// The option.
+        option: String,
     },
     /// A recorded forecast does not name its source.
     ForecastSourceBlank {
@@ -365,6 +446,19 @@ impl ChoiceRecordError {
             Self::OptionIdBlank { .. } => reason_details::choice_record::OPTION_ID_BLANK,
             Self::OptionDuplicate { .. } => reason_details::choice_record::OPTION_DUPLICATE,
             Self::ChosenUnknown { .. } => reason_details::choice_record::CHOSEN_UNKNOWN,
+            Self::UnavailableConstraintBlank { .. } => {
+                reason_details::choice_record::UNAVAILABLE_CONSTRAINT_BLANK
+            }
+            Self::ChosenUnavailable { .. } => reason_details::choice_record::CHOSEN_UNAVAILABLE,
+            Self::StatedElicitationBlank { .. } => {
+                reason_details::choice_record::STATED_ELICITATION_BLANK
+            }
+            Self::StatedAssumptionBlank { .. } => {
+                reason_details::choice_record::STATED_ASSUMPTION_BLANK
+            }
+            Self::StatedBeliefNotExact { .. } => {
+                reason_details::choice_record::STATED_BELIEF_NOT_EXACT
+            }
             Self::ForecastSourceBlank { .. } => {
                 reason_details::choice_record::FORECAST_SOURCE_BLANK
             }
@@ -508,7 +602,8 @@ impl ChoiceRecordSet {
 
     /// Canonical digest of the set (domain `antecedent.choice_records.v1`): attributes in order,
     /// population, pooling, and the records sorted by identity. Within a record: decider, options
-    /// in declared order with their beliefs, the chosen identity, the belief source, and the
+    /// in declared order with their beliefs (an unavailable option by its identity, a marker and
+    /// its constraint identity), the chosen identity, the belief source, and the
     /// trimmed observation rows sorted. Independent of record order; changes with any value.
     ///
     /// # Errors
@@ -541,8 +636,9 @@ impl ChoiceRecordSet {
         set.into_iter().map(str::to_owned).collect()
     }
 
-    /// Assumptions the set stands on, sorted and distinct: the pooling assumption and every
-    /// assumption that realized outcomes stand for expectations.
+    /// Assumptions the set stands on, sorted and distinct: the pooling assumption, every
+    /// assumption that realized outcomes stand for expectations, and every assumption that a
+    /// stated comparison reflects the preferences the person would act on.
     #[must_use]
     pub fn assumptions(&self) -> Vec<String> {
         let mut set: BTreeSet<&str> = BTreeSet::new();
@@ -550,10 +646,42 @@ impl ChoiceRecordSet {
             set.insert(assumption_id.as_str());
         }
         for record in &self.records {
-            if let BeliefSource::RealizedOutcome { assumption_id } = &record.belief_source {
-                set.insert(assumption_id.as_str());
+            match &record.belief_source {
+                BeliefSource::RealizedOutcome { assumption_id }
+                | BeliefSource::Stated { assumption_id, .. } => {
+                    set.insert(assumption_id.as_str());
+                }
+                BeliefSource::RecordedForecast { .. } | BeliefSource::AnalysisAsOf { .. } => {}
             }
         }
+        set.into_iter().map(str::to_owned).collect()
+    }
+
+    /// Identities of the stated comparisons ([`BeliefSource::Stated`]), sorted.
+    #[must_use]
+    pub fn stated_records(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .records
+            .iter()
+            .filter(|r| r.belief_source.is_stated())
+            .map(|r| r.id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// Constraints named by unavailable options, sorted and distinct.
+    #[must_use]
+    pub fn constraints(&self) -> Vec<String> {
+        let set: BTreeSet<&str> = self
+            .records
+            .iter()
+            .flat_map(|r| &r.options)
+            .filter_map(|o| match &o.belief {
+                OptionBelief::Unavailable { constraint_id } => Some(constraint_id.as_str()),
+                OptionBelief::Means(_) | OptionBelief::Draws { .. } => None,
+            })
+            .collect();
         set.into_iter().map(str::to_owned).collect()
     }
 }
@@ -588,6 +716,12 @@ fn validate_record(record: &ChoiceRecord, width: usize) -> Result<(), ChoiceReco
             chosen: record.chosen.clone(),
         });
     }
+    if record.options.iter().any(|o| o.id == record.chosen && !o.belief.is_available()) {
+        return Err(ChoiceRecordError::ChosenUnavailable {
+            record: id(),
+            option: record.chosen.clone(),
+        });
+    }
     match &record.belief_source {
         BeliefSource::RecordedForecast { source_id } if is_blank(source_id) => {
             return Err(ChoiceRecordError::ForecastSourceBlank { record: id() });
@@ -601,7 +735,22 @@ fn validate_record(record: &ChoiceRecord, width: usize) -> Result<(), ChoiceReco
         BeliefSource::RealizedOutcome { assumption_id } if is_blank(assumption_id) => {
             return Err(ChoiceRecordError::RealizedAssumptionBlank { record: id() });
         }
+        BeliefSource::Stated { elicitation_id, .. } if is_blank(elicitation_id) => {
+            return Err(ChoiceRecordError::StatedElicitationBlank { record: id() });
+        }
+        BeliefSource::Stated { assumption_id, .. } if is_blank(assumption_id) => {
+            return Err(ChoiceRecordError::StatedAssumptionBlank { record: id() });
+        }
         _ => {}
+    }
+    if record.belief_source.is_stated()
+        && let Some(option) =
+            record.options.iter().find(|o| !matches!(o.belief, OptionBelief::Means(_)))
+    {
+        return Err(ChoiceRecordError::StatedBeliefNotExact {
+            record: id(),
+            option: option.id.clone(),
+        });
     }
     if record.observation_rows.is_empty() {
         return Err(ChoiceRecordError::ObservationRowsMissing { record: id() });
@@ -680,6 +829,12 @@ fn validate_belief(
                 }
             }
         }
+        OptionBelief::Unavailable { constraint_id } => {
+            if is_blank(constraint_id) {
+                let (record, option) = names();
+                return Err(ChoiceRecordError::UnavailableConstraintBlank { record, option });
+            }
+        }
     }
     Ok(())
 }
@@ -700,6 +855,9 @@ fn encode_record(record: &ChoiceRecord) -> [u8; 32] {
                     None => out.word(0),
                 };
             }
+            OptionBelief::Unavailable { constraint_id } => {
+                out.word(3).text(constraint_id);
+            }
         }
     }
     out.text(&record.chosen);
@@ -709,6 +867,9 @@ fn encode_record(record: &ChoiceRecord) -> [u8; 32] {
             out.word(2).text(result_identity).text(as_of)
         }
         BeliefSource::RealizedOutcome { assumption_id } => out.word(3).text(assumption_id),
+        BeliefSource::Stated { elicitation_id, assumption_id } => {
+            out.word(4).text(elicitation_id).text(assumption_id)
+        }
     };
     let mut rows: Vec<&str> =
         record.observation_rows.iter().map(String::as_str).map(str::trim).collect();
@@ -717,7 +878,7 @@ fn encode_record(record: &ChoiceRecord) -> [u8; 32] {
     out.finish()
 }
 
-/// Expected value of every linear-form term for every option of every record.
+/// Expected value of every linear-form term for every available option of every record.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChoiceFeatures {
     /// The value model's full parameter count (columns of [`ChoiceSetFeatures::terms`]).
@@ -726,26 +887,46 @@ pub struct ChoiceFeatures {
     pub sets: Vec<ChoiceSetFeatures>,
 }
 
-/// Expected linear-form terms of the options of one record.
+/// An option listed at a record that could not be chosen.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnavailableOption {
+    /// Identity of the option.
+    pub option_id: String,
+    /// Identity of the constraint that excluded it.
+    pub constraint_id: String,
+}
+
+/// Expected linear-form terms of the available options of one record. Unavailable options teach
+/// nothing about preferences: they are left out of `option_ids`, `fixed` and `terms` and listed in
+/// `unavailable`. A record with a single available option has one row and teaches nothing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChoiceSetFeatures {
     /// The record.
     pub record_id: String,
     /// Who chose.
     pub decider: String,
-    /// Option identities in declared order.
+    /// Identities of the available options, in declared order.
     pub option_ids: Vec<String>,
     /// Position of the chosen option in `option_ids`.
     pub chosen: usize,
-    /// Expected fixed part per option, including the contribution of every fixed parameter.
+    /// Expected fixed part per available option, including the contribution of every fixed
+    /// parameter.
     pub fixed: Vec<f64>,
-    /// Row-major `options x n_parameters`: the expected term of parameter `j` per option. The
-    /// column of a fixed parameter (`lower == upper`) is zero; its contribution is in `fixed`.
+    /// Row-major `available options x n_parameters`: the expected term of parameter `j` per
+    /// available option. The column of a fixed parameter (`lower == upper`) is zero; its
+    /// contribution is in `fixed`.
     pub terms: Vec<f64>,
+    /// The options listed as unavailable, in declared order, with the constraint that excluded
+    /// each.
+    pub unavailable: Vec<UnavailableOption>,
 }
 
-/// Expected value of the fixed part and of every linear-form term for every option of every
-/// record, under each option's belief.
+/// Expected value of the fixed part and of every linear-form term for every available option of
+/// every record, under each option's belief.
+///
+/// An unavailable option ([`OptionBelief::Unavailable`]) teaches nothing about preferences: it
+/// has no features, is left out of the option rows (so `chosen` indexes the available options),
+/// and is listed in [`ChoiceSetFeatures::unavailable`].
 ///
 /// Every fixed parameter (`lower == upper`) is substituted by its value first, so its column is
 /// zero and its contribution is folded into the fixed part. From attribute means a part's
@@ -776,7 +957,17 @@ pub fn choice_features(
     for record in &records.records {
         let mut fixed = Vec::with_capacity(record.options.len());
         let mut terms = Vec::with_capacity(record.options.len() * n_parameters);
+        let mut option_ids = Vec::with_capacity(record.options.len());
+        let mut unavailable = Vec::new();
         for option in &record.options {
+            if let OptionBelief::Unavailable { constraint_id } = &option.belief {
+                unavailable.push(UnavailableOption {
+                    option_id: option.id.clone(),
+                    constraint_id: constraint_id.clone(),
+                });
+                continue;
+            }
+            option_ids.push(option.id.clone());
             fixed.push(expectation(&form.fixed, None, record, option, records.attributes.len())?);
             for (j, term) in form.terms.iter().enumerate() {
                 let value = if fixed_columns.get(j).copied().flatten().is_some() {
@@ -787,14 +978,15 @@ pub fn choice_features(
                 terms.push(value);
             }
         }
-        let chosen = record.options.iter().position(|o| o.id == record.chosen).unwrap_or(0);
+        let chosen = option_ids.iter().position(|o| *o == record.chosen).unwrap_or(0);
         sets.push(ChoiceSetFeatures {
             record_id: record.id.clone(),
             decider: record.decider.clone(),
-            option_ids: record.options.iter().map(|o| o.id.clone()).collect(),
+            option_ids,
             chosen,
             fixed,
             terms,
+            unavailable,
         });
     }
     Ok(ChoiceFeatures { n_parameters, sets })
@@ -908,6 +1100,8 @@ fn expectation(
             }
             weighted / total
         }
+        // Unavailable options are skipped before any expectation is taken; none is formed here.
+        OptionBelief::Unavailable { .. } => return Err(not_finite()),
     };
     if value.is_finite() { Ok(value) } else { Err(not_finite()) }
 }

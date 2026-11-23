@@ -11,11 +11,14 @@
 
 use antecedent_contract::ExternalRefusal;
 
+use crate::accepted_preferences::AcceptedPreferencesError;
 use crate::choice_record::ChoiceRecordError;
+use crate::preference_artifact::PreferenceArtifactError;
 use crate::preference_certified::PreferenceCertifiedError;
 use crate::preference_choice_model::ChoiceModelError;
 use crate::preference_contract::PreferenceContractError;
 use crate::preference_decision::{CertifiedRouteReason, PreferenceDecisionError};
+use crate::preference_evaluation::PreferenceEvaluationError;
 use crate::preference_model::PreferenceModelError;
 use crate::preference_set_learning::SetLearningError;
 use crate::signal::{RefusalBuilder, at_stage};
@@ -30,6 +33,12 @@ const STRUCTURAL: &str = "structural";
 const LEARN: &str = "learn";
 /// Stage of estimating preference parameters from recorded choices.
 const ESTIMATE: &str = "estimate";
+/// Stage of accepting, acknowledging and versioning preferences.
+const ACCEPT: &str = "accept";
+/// Stage of writing a preference artifact.
+const EXPORT: &str = "export";
+/// Stage of reading, checking and replaying a preference artifact.
+const CONSUME: &str = "consume";
 
 const CERTIFIED_ROUTE: &str = "evaluate with evaluate_preference_certified on aligned joint draws";
 const COMPATIBLE_SET: &str = "use the compatible-set method (learn_compatible_set)";
@@ -355,8 +364,33 @@ impl ChoiceRecordError {
                     .supplied(chosen.clone())
                     .build()
             }
+            Self::UnavailableConstraintBlank { record, option } => {
+                invalid("name the constraint that made the option unavailable")
+                    .offending(at(record, option))
+                    .build()
+            }
+            Self::ChosenUnavailable { record, option } => {
+                invalid("correct the chosen option or its availability")
+                    .offending(at(record, option))
+                    .build()
+            }
             Self::ForecastSourceBlank { record } => {
                 invalid("name where the forecast came from").offending(record.clone()).build()
+            }
+            Self::StatedElicitationBlank { record } => {
+                invalid("name the elicitation the stated comparison came from")
+                    .offending(record.clone())
+                    .build()
+            }
+            Self::StatedAssumptionBlank { record } => invalid(
+                "name the assumption that a stated comparison reflects the preferences acted on",
+            )
+            .offending(record.clone())
+            .build(),
+            Self::StatedBeliefNotExact { record, option } => {
+                invalid("give every bundle of a stated comparison as exact attribute values")
+                    .offending(at(record, option))
+                    .build()
             }
             Self::AnalysisIdentityBlank { record } => {
                 invalid("name the identity of the result the decider read")
@@ -843,6 +877,19 @@ impl ChoiceModelError {
             }
             Self::Model(error) => at_stage(error.to_refusal(), ESTIMATE),
             Self::Records(error) => at_stage(error.to_refusal(), ESTIMATE),
+            Self::StatedAndRecordedMixed { decider, stated, recorded } => refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .offending_opt(decider.clone())
+            .expected("stated comparisons only, or recorded choices only")
+            .supplied(format!("{stated} stated, {recorded} recorded"))
+            .remedy(
+                "fit stated comparisons and recorded choices separately, or use the \
+                 compatible-set method, which does not depend on a noise scale",
+            )
+            .build(),
             Self::NoUnitOfAccount { decider } => design(
                 decider.clone(),
                 "record choices whose options differ in the fixed part of the value",
@@ -895,6 +942,161 @@ impl ChoiceModelError {
             .supplied(drawn.to_string())
             .remedy("draw more, record more choices, or use the compatible-set method")
             .build(),
+        }
+    }
+}
+
+impl AcceptedPreferencesError {
+    /// Structured refusal for a failure to accept, acknowledge or version preferences.
+    ///
+    /// A value-model, set-learning or choice-model refusal keeps its own refusal. A
+    /// contradiction states the tolerance needed as `expected` and the conflicting records as
+    /// `supplied`.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), ACCEPT, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                ACCEPT,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        match self {
+            Self::Model(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::SetLearning(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::ChoiceModel(error) => at_stage(error.to_refusal(), ACCEPT),
+            Self::ModelMismatch { expected, found } => {
+                unsatisfied("accept the learned preferences under the model they were learned from")
+                    .expected(expected.clone())
+                    .supplied(found.clone())
+                    .build()
+            }
+            Self::OptionsMismatch { option } => unsatisfied(
+                "accept the learned preferences with the options they were learned with",
+            )
+            .offending(*option)
+            .build(),
+            Self::PooledNotAvailable => {
+                invalid("name the decider whose preferences to accept").build()
+            }
+            Self::DeciderUnknown { decider } => {
+                invalid("name a decider the records hold").offending(decider.clone()).build()
+            }
+            Self::Contradictory { decider, conflict } => unsatisfied(
+                "raise the tolerance to the stated value or remove one of the named records",
+            )
+            .offending_opt(decider.clone())
+            .expected(format!("tolerance >= {}", conflict.tolerance_needed))
+            .supplied(conflict.records.join(","))
+            .build(),
+            Self::NoItems => invalid("name at least one pending review item").build(),
+            Self::RepeatedItem { item } => {
+                invalid("name each review item once").offending(format!("{item:?}")).build()
+            }
+            Self::NotPending { item } => invalid("name only review items that are pending")
+                .offending(format!("{item:?}"))
+                .build(),
+            Self::VersionInvalid { version } => invalid("supply a version of at least one")
+                .expected("1")
+                .supplied(version.to_string())
+                .build(),
+            Self::VersionExhausted => {
+                invalid("accept the preferences anew instead of revising them").build()
+            }
+        }
+    }
+}
+
+impl PreferenceEvaluationError {
+    /// Structured refusal for a failure of the route-choosing evaluation across a preference
+    /// set.
+    ///
+    /// A contract, exact-route or certified-route refusal keeps its own refusal.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        match self {
+            Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Exact(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Certified(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::JointDrawsRequired { reason } => refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                EVALUATE,
+                self.detail(),
+            )
+            .offending(*reason)
+            .expected("joint_draws")
+            .supplied("mean")
+            .remedy("supply aligned joint draws so the certified route can answer")
+            .build(),
+        }
+    }
+}
+
+impl PreferenceArtifactError {
+    /// Structured refusal for a failure to write, read, check or replay a preference artifact.
+    ///
+    /// An accepted-preferences, contract or evaluation refusal keeps its own refusal; an
+    /// encoding or container failure carries the container's message as the supplied text.
+    #[must_use]
+    pub fn to_refusal(&self) -> ExternalRefusal {
+        let invalid = |stage, remedy| {
+            refusal(antecedent_core::reason_code!("invalid_argument"), stage, self.detail())
+                .remedy(remedy)
+        };
+        let unsatisfied = |remedy| {
+            refusal(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                CONSUME,
+                self.detail(),
+            )
+            .remedy(remedy)
+        };
+        match self {
+            Self::Encode(error) => {
+                refusal(antecedent_core::reason_code!("invalid_argument"), EXPORT, self.detail())
+                    .supplied(error.to_string())
+                    .build()
+            }
+            Self::Container(error) => invalid(CONSUME, "supply bytes written by this library")
+                .supplied(error.to_string())
+                .build(),
+            Self::Malformed { what } => invalid(CONSUME, "supply bytes written by this library")
+                .offending(what.clone())
+                .build(),
+            Self::Accepted(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::Contract(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::Evaluation(error) => at_stage(error.to_refusal(), CONSUME),
+            Self::StoredIdentityMismatch => {
+                invalid(CONSUME, "re-export from the producer instead of editing the bytes").build()
+            }
+            Self::IdentityExpected => {
+                unsatisfied("supply the artifact whose identity was retained").build()
+            }
+            Self::ContractExpected => {
+                unsatisfied("supply the result of the retained preference contract").build()
+            }
+            Self::SourceExpected => {
+                unsatisfied("supply the result computed from the retained draws").build()
+            }
+            Self::ResultContractMismatch => {
+                unsatisfied("re-export the result from the producer").build()
+            }
+            Self::ReplaySourceDiffers => {
+                unsatisfied("replay with the draws the result was computed from").build()
+            }
+            Self::ReplayRecordsDiffer => {
+                unsatisfied("replay with the records the preferences were learned from").build()
+            }
+            Self::ReplayMismatch { field } => {
+                unsatisfied("re-export from the producer and replay again")
+                    .offending(*field)
+                    .build()
+            }
         }
     }
 }
@@ -1023,5 +1225,47 @@ mod tests {
         let nested = ChoiceModelError::Records(ChoiceRecordError::RecordsMissing).to_refusal();
         registered(&nested, "estimate");
         assert_eq!(nested.detail, reason_details::choice_record::RECORDS_MISSING);
+    }
+
+    #[test]
+    fn a_contradiction_states_the_tolerance_and_the_records() {
+        use crate::preference_set_learning::{ChoiceConflict, ConflictKind};
+        let value = AcceptedPreferencesError::Contradictory {
+            decider: Some("d1".into()),
+            conflict: ChoiceConflict {
+                records: vec!["r1".into(), "r2".into()],
+                kind: ConflictKind::Smallest,
+                tolerance_needed: 0.5,
+            },
+        }
+        .to_refusal();
+        registered(&value, "accept");
+        assert_eq!(value.detail, reason_details::accepted_preferences::CHOICES_CONTRADICTORY);
+        assert_eq!(value.expected.as_deref(), Some("tolerance >= 0.5"));
+        assert_eq!(value.supplied.as_deref(), Some("r1,r2"));
+        assert_eq!(
+            value.remedy,
+            Some("raise the tolerance to the stated value or remove one of the named records")
+        );
+    }
+
+    #[test]
+    fn evaluation_and_artifact_refusals_are_registered() {
+        let value =
+            PreferenceEvaluationError::JointDrawsRequired { reason: "criterion" }.to_refusal();
+        registered(&value, "evaluate");
+        assert_eq!(value.code, "joint_law_required");
+        registered(
+            &PreferenceArtifactError::ReplayMismatch { field: "verdict" }.to_refusal(),
+            "consume",
+        );
+        registered(
+            &PreferenceArtifactError::Malformed { what: "kind".into() }.to_refusal(),
+            "consume",
+        );
+        let nested =
+            PreferenceArtifactError::Accepted(AcceptedPreferencesError::NoItems).to_refusal();
+        registered(&nested, "consume");
+        assert_eq!(nested.detail, reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY);
     }
 }

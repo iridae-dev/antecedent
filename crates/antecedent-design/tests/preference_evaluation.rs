@@ -10,6 +10,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_details;
 use antecedent_design::accepted_preferences::{
     AcceptedPreferences, PreferenceContractParts, estimate_accepted, learn_compatible_set_accepted,
 };
@@ -445,7 +446,7 @@ fn the_exact_route_falls_through_when_it_names_the_certified_route() {
     assert_eq!(evaluation.route(), PreferenceRoute::Certified);
     let error = decide_preferences_on_means(&c, &mean_source(&model), None, options()).unwrap_err();
     assert_eq!(error, E::JointDrawsRequired { reason: ROUTE_PART_NOT_LOWERABLE });
-    assert_eq!(error.detail(), "preference_evaluation.joint_draws_required");
+    assert_eq!(error.detail(), reason_details::preference_evaluation::JOINT_DRAWS_REQUIRED);
 
     // The worst case of expected regret is not a linear program over the set.
     let model = cost_model(0.0, 3.0);

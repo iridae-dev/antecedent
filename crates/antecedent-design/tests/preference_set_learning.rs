@@ -1,12 +1,13 @@
 //! Compatible preference sets from recorded choices: hand-derived ranges, binding choices,
 //! conflicts and the tolerance they need, per-decider, pooled and overlapping sets, shape-rule
 //! relations, recovery of a known parameter vector from simulated choices, invariance under
-//! record order, and every refusal.
+//! record order, unavailable options that teach nothing, stated comparisons, and every refusal.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_details;
 use antecedent_design::choice_record::{
     BeliefSource, ChoiceOption, ChoiceRecord, ChoiceRecordSet, OptionBelief, Pooling,
+    choice_features,
 };
 use antecedent_design::preference_model::{
     Attribute, Curve, LinearRelation, PreferenceExpr as E, PreferenceParameter, PreferenceSet,
@@ -15,6 +16,7 @@ use antecedent_design::preference_model::{
 use antecedent_design::preference_set_learning::{
     ASSUMPTION_CHOICES_OPTIMAL, BindingChoice, ConflictKind, LearnedPreferenceSet,
     SetLearningError, SetLearningOptions, SetLearningResult, SetOutcome, learn_compatible_set,
+    uninformative_records,
 };
 
 fn attributes(n: usize) -> Vec<Attribute> {
@@ -386,7 +388,7 @@ fn simulated(rng: &mut Lcg, truth: &[f64], n: usize) -> Vec<ChoiceRecord> {
                 .collect();
             let value = |o: &ChoiceOption| match &o.belief {
                 OptionBelief::Means(m) => m[0] + truth[0] * m[1] + truth[1] * m[2],
-                OptionBelief::Draws { .. } => f64::NAN,
+                OptionBelief::Draws { .. } | OptionBelief::Unavailable { .. } => f64::NAN,
             };
             let chosen = options
                 .iter()
@@ -537,4 +539,108 @@ fn every_refusal_names_its_cause() {
     let lp = refusal(&model, &records, bad_lp);
     assert_eq!(lp.detail(), reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED);
     assert_eq!(inner_detail(&lp), "linear_program.invalid_options");
+}
+
+fn mark_unavailable(record: &mut ChoiceRecord, option: &str, constraint: &str) {
+    for o in &mut record.options {
+        if o.id == option {
+            o.belief = OptionBelief::Unavailable { constraint_id: constraint.to_owned() };
+        }
+    }
+}
+
+/// Options a = (0, 1), b = (1, 0), c = (-10, 0), a chosen: against b, `t >= 1`; against c,
+/// `t >= -10`, which the declared range `[-4, 4]` already implies.
+fn three_options() -> ChoiceRecord {
+    record("r", "d", &[("a", &[0.0, 1.0]), ("b", &[1.0, 0.0]), ("c", &[-10.0, 0.0])], "a")
+}
+
+#[test]
+fn an_unavailable_option_teaches_nothing() {
+    let model = one_parameter();
+    let learn_one = |r: ChoiceRecord| {
+        let result = learn(&model, &record_set(&model, vec![r], Pooling::PerDecider), 0.0);
+        learned(only(&result)).clone()
+    };
+
+    let listed = learn_one(three_options());
+    range_is(&listed, 0, 1.0, 4.0);
+    assert!(listed.ranges[0].narrowed);
+    assert!(listed.binding.contains(&binding(&[("r", "b")])[0]));
+
+    let mut excluded = three_options();
+    mark_unavailable(&mut excluded, "b", "budget_cap");
+    let excluded = learn_one(excluded);
+    range_is(&excluded, 0, -4.0, 4.0);
+    assert!(!excluded.ranges[0].narrowed);
+    assert!(excluded.binding.iter().all(|c| c.rejected_option != "b"));
+    assert!(excluded.set.relations.iter().all(|r| !r.id.ends_with(".b")));
+
+    let mut removed = three_options();
+    removed.options.remove(1);
+    let removed = learn_one(removed);
+    assert_eq!(removed.ranges, excluded.ranges);
+    assert_eq!(removed.binding, excluded.binding);
+    assert_eq!(removed.set.relations, excluded.set.relations);
+}
+
+#[test]
+fn a_record_with_one_available_option_changes_nothing() {
+    let model = one_parameter();
+    let mut single = record("s", "d", &[("a", &[0.0, 1.0]), ("b", &[1.0, 0.0])], "a");
+    mark_unavailable(&mut single, "b", "regulation");
+    let alone = record_set(&model, vec![at_most_three("d")], Pooling::PerDecider);
+    let both = record_set(&model, vec![at_most_three("d"), single.clone()], Pooling::PerDecider);
+    let alone_result = learn(&model, &alone, 0.0);
+    let both_result = learn(&model, &both, 0.0);
+    let (a, b) = (learned(only(&alone_result)), learned(only(&both_result)));
+    assert_eq!(a.ranges, b.ranges);
+    assert_eq!(a.set.relations, b.set.relations);
+    assert_eq!(b.n_records, 2);
+    assert_eq!(both_result.per_decider[0].n_records, 2);
+
+    let only_single = record_set(&model, vec![single], Pooling::PerDecider);
+    let result = learn(&model, &only_single, 0.0);
+    let set = learned(only(&result));
+    assert_eq!(set.n_records, 1);
+    assert!(!set.ranges[0].varied_in_records && !set.ranges[0].narrowed);
+    assert!(set.set.relations.is_empty());
+    let features = choice_features(&model, &both).expect("features");
+    assert_eq!(uninformative_records(&features), ["s"]);
+}
+
+fn stated(mut record: ChoiceRecord) -> ChoiceRecord {
+    record.belief_source = BeliefSource::Stated {
+        elicitation_id: "survey_2024".to_owned(),
+        assumption_id: "stated_reflects_acted".to_owned(),
+    };
+    record
+}
+
+#[test]
+fn a_stated_comparison_narrows_like_the_equivalent_recorded_choice() {
+    let model = one_parameter();
+    let recorded = record_set(&model, vec![at_least_one("d")], Pooling::PerDecider);
+    let said = record_set(&model, vec![stated(at_least_one("d"))], Pooling::PerDecider);
+    let recorded_result = learn(&model, &recorded, 0.0);
+    let said_result = learn(&model, &said, 0.0);
+    let (r, s) = (learned(only(&recorded_result)), learned(only(&said_result)));
+    assert_eq!(r.ranges, s.ranges);
+    assert_eq!(r.set.relations, s.set.relations);
+    assert_eq!(
+        s.set.relations[0].origin,
+        RelationOrigin::Choice { record_id: "r1".to_owned(), rejected_option: "b".to_owned() }
+    );
+    assert!(s.assumptions.contains(&"stated_reflects_acted".to_owned()));
+    assert!(!r.assumptions.contains(&"stated_reflects_acted".to_owned()));
+
+    let mixed = record_set(
+        &model,
+        vec![stated(at_least_one("d")), at_most_three("d")],
+        Pooling::PerDecider,
+    );
+    let result = learn(&model, &mixed, 0.0);
+    let set = learned(only(&result));
+    range_is(set, 0, 1.0, 3.0);
+    assert_eq!(set.n_records, 2);
 }

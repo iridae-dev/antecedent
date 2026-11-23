@@ -224,11 +224,14 @@ impl PreferenceEvaluationError {
     /// detail.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
             Self::Contract(inner) => inner.detail(),
             Self::Exact(inner) => inner.detail(),
             Self::Certified(inner) => inner.detail(),
-            Self::JointDrawsRequired { .. } => "preference_evaluation.joint_draws_required",
+            Self::JointDrawsRequired { .. } => {
+                reason_details::preference_evaluation::JOINT_DRAWS_REQUIRED
+            }
         }
     }
 }

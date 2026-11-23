@@ -8,6 +8,19 @@ from __future__ import annotations
 from typing import Final
 
 
+class accepted_preferences:  # noqa: N801
+    ACKNOWLEDGE_EMPTY: Final = "accepted_preferences.acknowledge_empty"
+    ACKNOWLEDGE_REPEATED: Final = "accepted_preferences.acknowledge_repeated"
+    CHOICES_CONTRADICTORY: Final = "accepted_preferences.choices_contradictory"
+    DECIDER_UNKNOWN: Final = "accepted_preferences.decider_unknown"
+    MODEL_MISMATCH: Final = "accepted_preferences.model_mismatch"
+    NOT_PENDING: Final = "accepted_preferences.not_pending"
+    OPTIONS_MISMATCH: Final = "accepted_preferences.options_mismatch"
+    POOLED_NOT_AVAILABLE: Final = "accepted_preferences.pooled_not_available"
+    VERSION_EXHAUSTED: Final = "accepted_preferences.version_exhausted"
+    VERSION_INVALID: Final = "accepted_preferences.version_invalid"
+
+
 class adaptive_inference:  # noqa: N801
     ANALYSIS_INVALID: Final = "adaptive_inference.analysis_invalid"
     ANALYSIS_ROUTE_MISMATCH: Final = "adaptive_inference.analysis_route_mismatch"
@@ -334,6 +347,7 @@ class choice_record:  # noqa: N801
     ATTRIBUTES_MISSING: Final = "choice_record.attributes_missing"
     BELIEF_LAW_REQUIRED: Final = "choice_record.belief_law_required"
     BELIEF_NOT_FINITE: Final = "choice_record.belief_not_finite"
+    CHOSEN_UNAVAILABLE: Final = "choice_record.chosen_unavailable"
     CHOSEN_UNKNOWN: Final = "choice_record.chosen_unknown"
     DECIDER_BLANK: Final = "choice_record.decider_blank"
     DRAWS_EMPTY: Final = "choice_record.draws_empty"
@@ -355,7 +369,11 @@ class choice_record:  # noqa: N801
     RECORD_ID_BLANK: Final = "choice_record.record_id_blank"
     RECORDS_MISSING: Final = "choice_record.records_missing"
     SHAPE_PARAMETERS_NOT_FIXED: Final = "choice_record.shape_parameters_not_fixed"
+    STATED_ASSUMPTION_BLANK: Final = "choice_record.stated_assumption_blank"
+    STATED_BELIEF_NOT_EXACT: Final = "choice_record.stated_belief_not_exact"
+    STATED_ELICITATION_BLANK: Final = "choice_record.stated_elicitation_blank"
     TERM_NOT_FINITE: Final = "choice_record.term_not_finite"
+    UNAVAILABLE_CONSTRAINT_BLANK: Final = "choice_record.unavailable_constraint_blank"
     WEIGHT_NEGATIVE: Final = "choice_record.weight_negative"
     WEIGHT_NOT_FINITE: Final = "choice_record.weight_not_finite"
     WEIGHTS_LENGTH_MISMATCH: Final = "choice_record.weights_length_mismatch"
@@ -2304,6 +2322,20 @@ class predictive_assessment:  # noqa: N801
     WRONG_CONTRACT: Final = "predictive_assessment.wrong_contract"
 
 
+class preference_artifact:  # noqa: N801
+    CONTAINER_REFUSED: Final = "preference_artifact.container_refused"
+    CONTRACT_EXPECTED: Final = "preference_artifact.contract_expected"
+    ENCODE_FAILED: Final = "preference_artifact.encode_failed"
+    IDENTITY_EXPECTED: Final = "preference_artifact.identity_expected"
+    IDENTITY_RESEALED: Final = "preference_artifact.identity_resealed"
+    REPLAY_MISMATCH: Final = "preference_artifact.replay_mismatch"
+    REPLAY_RECORDS_DIFFER: Final = "preference_artifact.replay_records_differ"
+    REPLAY_SOURCE_DIFFERS: Final = "preference_artifact.replay_source_differs"
+    RESULT_CONTRACT_MISMATCH: Final = "preference_artifact.result_contract_mismatch"
+    SOURCE_EXPECTED: Final = "preference_artifact.source_expected"
+    WIRE_MALFORMED: Final = "preference_artifact.wire_malformed"
+
+
 class preference_certified:  # noqa: N801
     ATOM_PROBABILITIES_INVALID: Final = "preference_certified.atom_probabilities_invalid"
     ATOM_PROBABILITIES_REQUIRED: Final = "preference_certified.atom_probabilities_required"
@@ -2345,6 +2377,7 @@ class preference_choice_model:  # noqa: N801
     RANK_DEFICIENT: Final = "preference_choice_model.rank_deficient"
     RECORDS_INVALID: Final = "preference_choice_model.records_invalid"
     SEPARATED: Final = "preference_choice_model.separated"
+    STATED_AND_RECORDED_MIXED: Final = "preference_choice_model.stated_and_recorded_mixed"
     UNIT_OF_ACCOUNT_MISSING: Final = "preference_choice_model.unit_of_account_missing"
 
 
@@ -2412,6 +2445,10 @@ class preference_decision:  # noqa: N801
     STRUCTURE_PROBABILITY_INVALID: Final = "preference_decision.structure_probability_invalid"
     STRUCTURES_EMPTY: Final = "preference_decision.structures_empty"
     WORST_CASE_OF_EXPECTED_REGRET: Final = "preference_decision.worst_case_of_expected_regret"
+
+
+class preference_evaluation:  # noqa: N801
+    JOINT_DRAWS_REQUIRED: Final = "preference_evaluation.joint_draws_required"
 
 
 class preference_model:  # noqa: N801
@@ -3685,6 +3722,16 @@ class weighted_target:  # noqa: N801
 
 
 ALL: Final[tuple[str, ...]] = (
+    "accepted_preferences.acknowledge_empty",
+    "accepted_preferences.acknowledge_repeated",
+    "accepted_preferences.choices_contradictory",
+    "accepted_preferences.decider_unknown",
+    "accepted_preferences.model_mismatch",
+    "accepted_preferences.not_pending",
+    "accepted_preferences.options_mismatch",
+    "accepted_preferences.pooled_not_available",
+    "accepted_preferences.version_exhausted",
+    "accepted_preferences.version_invalid",
     "adaptive_inference.analysis_invalid",
     "adaptive_inference.analysis_route_mismatch",
     "adaptive_inference.anytime_premise_contexts",
@@ -3948,6 +3995,7 @@ ALL: Final[tuple[str, ...]] = (
     "choice_record.attributes_missing",
     "choice_record.belief_law_required",
     "choice_record.belief_not_finite",
+    "choice_record.chosen_unavailable",
     "choice_record.chosen_unknown",
     "choice_record.decider_blank",
     "choice_record.draws_empty",
@@ -3969,7 +4017,11 @@ ALL: Final[tuple[str, ...]] = (
     "choice_record.record_id_blank",
     "choice_record.records_missing",
     "choice_record.shape_parameters_not_fixed",
+    "choice_record.stated_assumption_blank",
+    "choice_record.stated_belief_not_exact",
+    "choice_record.stated_elicitation_blank",
     "choice_record.term_not_finite",
+    "choice_record.unavailable_constraint_blank",
     "choice_record.weight_negative",
     "choice_record.weight_not_finite",
     "choice_record.weights_length_mismatch",
@@ -5476,6 +5528,17 @@ ALL: Final[tuple[str, ...]] = (
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "preference_artifact.container_refused",
+    "preference_artifact.contract_expected",
+    "preference_artifact.encode_failed",
+    "preference_artifact.identity_expected",
+    "preference_artifact.identity_resealed",
+    "preference_artifact.replay_mismatch",
+    "preference_artifact.replay_records_differ",
+    "preference_artifact.replay_source_differs",
+    "preference_artifact.result_contract_mismatch",
+    "preference_artifact.source_expected",
+    "preference_artifact.wire_malformed",
     "preference_certified.atom_probabilities_invalid",
     "preference_certified.atom_probabilities_required",
     "preference_certified.atoms_invalid",
@@ -5509,6 +5572,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.rank_deficient",
     "preference_choice_model.records_invalid",
     "preference_choice_model.separated",
+    "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.unit_of_account_missing",
     "preference_contract.action_duplicate",
     "preference_contract.action_id_blank",
@@ -5566,6 +5630,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_decision.structure_probability_invalid",
     "preference_decision.structures_empty",
     "preference_decision.worst_case_of_expected_regret",
+    "preference_evaluation.joint_draws_required",
     "preference_model.attribute_count_mismatch",
     "preference_model.attribute_duplicate",
     "preference_model.attribute_id_blank",
@@ -6603,6 +6668,16 @@ ALL: Final[tuple[str, ...]] = (
 )
 
 CODES: Final[dict[str, tuple[str, ...]]] = {
+    "accepted_preferences.acknowledge_empty": ("invalid_argument",),
+    "accepted_preferences.acknowledge_repeated": ("invalid_argument",),
+    "accepted_preferences.choices_contradictory": ("decision_contract_unsatisfied",),
+    "accepted_preferences.decider_unknown": ("invalid_argument",),
+    "accepted_preferences.model_mismatch": ("decision_contract_unsatisfied",),
+    "accepted_preferences.not_pending": ("invalid_argument",),
+    "accepted_preferences.options_mismatch": ("decision_contract_unsatisfied",),
+    "accepted_preferences.pooled_not_available": ("invalid_argument",),
+    "accepted_preferences.version_exhausted": ("invalid_argument",),
+    "accepted_preferences.version_invalid": ("invalid_argument",),
     "adaptive_inference.analysis_invalid": ("invalid_argument",),
     "adaptive_inference.analysis_route_mismatch": ("adaptive_assumption_violated",),
     "adaptive_inference.anytime_premise_contexts": ("adaptive_assumption_violated",),
@@ -6872,6 +6947,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "choice_record.attributes_missing": ("invalid_argument",),
     "choice_record.belief_law_required": ("decision_contract_unsatisfied",),
     "choice_record.belief_not_finite": ("invalid_argument",),
+    "choice_record.chosen_unavailable": ("invalid_argument",),
     "choice_record.chosen_unknown": ("invalid_argument",),
     "choice_record.decider_blank": ("invalid_argument",),
     "choice_record.draws_empty": ("invalid_argument",),
@@ -6893,7 +6969,11 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "choice_record.record_id_blank": ("invalid_argument",),
     "choice_record.records_missing": ("invalid_argument",),
     "choice_record.shape_parameters_not_fixed": ("route_not_supported",),
+    "choice_record.stated_assumption_blank": ("invalid_argument",),
+    "choice_record.stated_belief_not_exact": ("invalid_argument",),
+    "choice_record.stated_elicitation_blank": ("invalid_argument",),
     "choice_record.term_not_finite": ("decision_contract_unsatisfied",),
+    "choice_record.unavailable_constraint_blank": ("invalid_argument",),
     "choice_record.weight_negative": ("invalid_argument",),
     "choice_record.weight_not_finite": ("invalid_argument",),
     "choice_record.weights_length_mismatch": ("invalid_argument",),
@@ -8444,6 +8524,17 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "predictive_assessment.too_few_clusters": ("too_few_clusters",),
     "predictive_assessment.unknown_source": ("invalid_argument",),
     "predictive_assessment.wrong_contract": ("route_not_supported",),
+    "preference_artifact.container_refused": ("invalid_argument", "schema_mismatch"),
+    "preference_artifact.contract_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.encode_failed": ("invalid_argument",),
+    "preference_artifact.identity_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.identity_resealed": ("invalid_argument",),
+    "preference_artifact.replay_mismatch": ("decision_contract_unsatisfied",),
+    "preference_artifact.replay_records_differ": ("decision_contract_unsatisfied",),
+    "preference_artifact.replay_source_differs": ("decision_contract_unsatisfied",),
+    "preference_artifact.result_contract_mismatch": ("decision_contract_unsatisfied",),
+    "preference_artifact.source_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.wire_malformed": ("invalid_argument",),
     "preference_certified.atom_probabilities_invalid": ("decision_contract_unsatisfied",),
     "preference_certified.atom_probabilities_required": ("decision_contract_unsatisfied",),
     "preference_certified.atoms_invalid": ("invalid_argument",),
@@ -8490,6 +8581,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "decision_contract_unsatisfied",
     ),
     "preference_choice_model.separated": ("glm_fit_refused",),
+    "preference_choice_model.stated_and_recorded_mixed": ("route_not_supported",),
     "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
     "preference_contract.action_duplicate": ("invalid_argument",),
     "preference_contract.action_id_blank": ("invalid_argument",),
@@ -8558,6 +8650,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_decision.structure_probability_invalid": ("decision_contract_unsatisfied",),
     "preference_decision.structures_empty": ("invalid_argument",),
     "preference_decision.worst_case_of_expected_regret": ("route_not_supported",),
+    "preference_evaluation.joint_draws_required": ("joint_law_required",),
     "preference_model.attribute_count_mismatch": ("invalid_argument",),
     "preference_model.attribute_duplicate": ("invalid_argument",),
     "preference_model.attribute_id_blank": ("invalid_argument",),

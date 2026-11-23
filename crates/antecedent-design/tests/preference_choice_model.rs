@@ -1,6 +1,8 @@
 //! Noisy-choice estimates of preference parameters: recovery of a known consistency and rates
 //! from simulated logit choices, a hand-derived one-column fit, learnability and the measure,
-//! clustered and model covariance, per-decider outcomes, determinism, and every refusal.
+//! clustered and model covariance, per-decider outcomes, determinism, records whose unavailable
+//! options leave fewer than two alternatives, stated comparisons kept apart from recorded
+//! choices, and every refusal.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -760,4 +762,117 @@ fn fit_budget_covariance_and_declared_set_refusals() {
         estimate_choice_model(&narrow, &records, quick()).unwrap_err(),
         ChoiceModelError::NoDrawInsideSet { decider: None, drawn: 200 }
     );
+}
+
+fn without_record_identity(estimate: &ChoiceModelEstimate) -> (f64, usize, f64) {
+    (estimate.consistency, estimate.n_records, estimate.log_likelihood)
+}
+
+#[test]
+fn a_record_with_one_available_option_is_left_out_of_the_fit() {
+    let value = |x: &[f64]| 4.0 * x[0] - x[1];
+    let simulation = one_rate_simulation(&value);
+    let model = one_rate_model(0.0, 50.0);
+    let simulated = simulate(&simulation, &mut Xorshift::new(31), 300, "r", &single);
+    let base = pooled_estimate(
+        estimate_choice_model(&model, &record_set(&model, simulated.clone(), pooled()), quick())
+            .unwrap(),
+    );
+
+    let mut extra = record("x".to_owned(), single(0), vec![vec![1.0, 1.0], vec![0.0, 9.0]], 0);
+    extra.options[1].belief = OptionBelief::Unavailable { constraint_id: "budget_cap".to_owned() };
+    let mut with_extra = simulated;
+    with_extra.push(extra);
+    let records = record_set(&model, with_extra, pooled());
+    records.validate().expect("one available option is a valid record");
+    let estimate = pooled_estimate(estimate_choice_model(&model, &records, quick()).unwrap());
+    assert_eq!(estimate.n_records, 300);
+    assert_eq!(estimate.parameters, base.parameters);
+    assert_eq!(estimate.coefficient_covariance, base.coefficient_covariance);
+    assert_eq!(estimate.measure.points, base.measure.points);
+    let (got, want) = (without_record_identity(&estimate), without_record_identity(&base));
+    assert!(close(got.0, want.0, 0.0) && got.1 == want.1 && close(got.2, want.2, 0.0));
+    assert_ne!(estimate.records_digest, base.records_digest);
+}
+
+#[test]
+fn an_unavailable_option_is_not_a_row_of_its_choice_set() {
+    let value = |x: &[f64]| 4.0 * x[0] - x[1];
+    let simulation = one_rate_simulation(&value);
+    let model = one_rate_model(0.0, 50.0);
+    let simulated = simulate(&simulation, &mut Xorshift::new(41), 300, "r", &single);
+    // Mark the last option of every record whose choice was another option unavailable, and
+    // compare with the same records with that option removed.
+    let mut marked = simulated.clone();
+    let mut removed = simulated;
+    for (m, r) in marked.iter_mut().zip(removed.iter_mut()) {
+        if r.chosen != "o2" {
+            m.options[2].belief =
+                OptionBelief::Unavailable { constraint_id: "regulation".to_owned() };
+            r.options.pop();
+        }
+    }
+    let marked = pooled_estimate(
+        estimate_choice_model(&model, &record_set(&model, marked, pooled()), quick()).unwrap(),
+    );
+    let removed = pooled_estimate(
+        estimate_choice_model(&model, &record_set(&model, removed, pooled()), quick()).unwrap(),
+    );
+    assert_eq!(marked.parameters, removed.parameters);
+    assert_eq!(marked.n_records, removed.n_records);
+    assert!(close(marked.consistency, removed.consistency, 0.0));
+}
+
+fn stated(mut record: ChoiceRecord) -> ChoiceRecord {
+    record.belief_source = BeliefSource::Stated {
+        elicitation_id: "survey".to_owned(),
+        assumption_id: "assumption.stated_reflects_acted".to_owned(),
+    };
+    record
+}
+
+#[test]
+fn stated_and_recorded_choices_are_never_fitted_together() {
+    let value = |x: &[f64]| 4.0 * x[0] - x[1];
+    let simulation = one_rate_simulation(&value);
+    let model = one_rate_model(0.0, 50.0);
+    let mut rng = Xorshift::new(51);
+    let recorded = simulate(&simulation, &mut rng, 300, "r", &single);
+    let said: Vec<ChoiceRecord> =
+        simulate(&simulation, &mut rng, 200, "s", &single).into_iter().map(stated).collect();
+
+    let mut both = recorded.clone();
+    both.extend(said.iter().cloned());
+    let records = record_set(&model, both, pooled());
+    let error = estimate_choice_model(&model, &records, quick()).expect_err("mixed");
+    assert_eq!(
+        error,
+        ChoiceModelError::StatedAndRecordedMixed { decider: None, stated: 200, recorded: 300 }
+    );
+    assert_eq!(error.detail(), reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED);
+
+    // Per decider, each decider's own records decide.
+    let mut split = recorded.clone();
+    split.extend(said.iter().cloned().map(|mut r| {
+        r.decider = "respondent".to_owned();
+        r
+    }));
+    let result =
+        estimate_choice_model(&model, &record_set(&model, split, Pooling::PerDecider), quick())
+            .unwrap();
+    assert_eq!(result.per_decider.len(), 2);
+    assert!(
+        result.per_decider.iter().all(|(_, o)| matches!(o, EstimateOutcome::Estimated(_))),
+        "{result:?}"
+    );
+
+    let stated_only = record_set(&model, said, pooled());
+    let estimate = pooled_estimate(estimate_choice_model(&model, &stated_only, quick()).unwrap());
+    assert_eq!(estimate.n_records, 200);
+    assert!(estimate.assumptions.iter().any(|a| a == "assumption.stated_reflects_acted"));
+    let found = &estimate.parameters[0];
+    assert!((found.estimate - 4.0).abs() < 4.0 * found.standard_error, "{found:?}");
+    let recorded_only = record_set(&model, recorded, pooled());
+    let estimate = pooled_estimate(estimate_choice_model(&model, &recorded_only, quick()).unwrap());
+    assert!(!estimate.assumptions.iter().any(|a| a == "assumption.stated_reflects_acted"));
 }

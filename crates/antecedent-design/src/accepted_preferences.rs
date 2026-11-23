@@ -204,20 +204,23 @@ impl AcceptedPreferencesError {
     /// detail.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
             Self::Model(inner) => inner.detail(),
-            Self::ModelMismatch { .. } => "accepted_preferences.model_mismatch",
-            Self::OptionsMismatch { .. } => "accepted_preferences.options_mismatch",
+            Self::ModelMismatch { .. } => reason_details::accepted_preferences::MODEL_MISMATCH,
+            Self::OptionsMismatch { .. } => reason_details::accepted_preferences::OPTIONS_MISMATCH,
             Self::SetLearning(inner) => inner.detail(),
             Self::ChoiceModel(inner) => inner.detail(),
-            Self::PooledNotAvailable => "accepted_preferences.pooled_not_available",
-            Self::DeciderUnknown { .. } => "accepted_preferences.decider_unknown",
-            Self::Contradictory { .. } => "accepted_preferences.choices_contradictory",
-            Self::NoItems => "accepted_preferences.acknowledge_empty",
-            Self::RepeatedItem { .. } => "accepted_preferences.acknowledge_repeated",
-            Self::NotPending { .. } => "accepted_preferences.not_pending",
-            Self::VersionInvalid { .. } => "accepted_preferences.version_invalid",
-            Self::VersionExhausted => "accepted_preferences.version_exhausted",
+            Self::PooledNotAvailable => reason_details::accepted_preferences::POOLED_NOT_AVAILABLE,
+            Self::DeciderUnknown { .. } => reason_details::accepted_preferences::DECIDER_UNKNOWN,
+            Self::Contradictory { .. } => {
+                reason_details::accepted_preferences::CHOICES_CONTRADICTORY
+            }
+            Self::NoItems => reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY,
+            Self::RepeatedItem { .. } => reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED,
+            Self::NotPending { .. } => reason_details::accepted_preferences::NOT_PENDING,
+            Self::VersionInvalid { .. } => reason_details::accepted_preferences::VERSION_INVALID,
+            Self::VersionExhausted => reason_details::accepted_preferences::VERSION_EXHAUSTED,
         }
     }
 }
@@ -716,7 +719,10 @@ mod tests {
             AcceptedPreferences::from_parts(model(), PreferenceBasis::Declared, None, 0, &[])
                 .unwrap_err();
         assert_eq!(error, E::VersionInvalid { version: 0 });
-        assert_eq!(error.detail(), "accepted_preferences.version_invalid");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::accepted_preferences::VERSION_INVALID
+        );
     }
 
     #[test]
@@ -738,7 +744,10 @@ mod tests {
         let error =
             last.relearn_compatible_set(&records, None, SetLearningOptions::default()).unwrap_err();
         assert_eq!(error, E::VersionExhausted);
-        assert_eq!(error.detail(), "accepted_preferences.version_exhausted");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::accepted_preferences::VERSION_EXHAUSTED
+        );
         let error =
             last.relearn_estimate(&records, None, ChoiceModelOptions::default()).unwrap_err();
         assert_eq!(error, E::VersionExhausted);

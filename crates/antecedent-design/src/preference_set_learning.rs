@@ -8,7 +8,13 @@
 //!
 //! `sum_k theta_k (T_ck - T_jk) >= -tolerance - (F_c - F_j)`
 //!
-//! with id `"choice.{record_id}.{rejected_option}"` and origin [`RelationOrigin::Choice`]. A
+//! with id `"choice.{record_id}.{rejected_option}"` and origin [`RelationOrigin::Choice`]. Only
+//! available options are compared: an option listed as
+//! [`OptionBelief::Unavailable`](crate::choice_record::OptionBelief::Unavailable) existed but
+//! could not be chosen, so not choosing it teaches nothing about preferences and no relation is
+//! formed against it. A record with a single available option forms no relation, varies no
+//! parameter and changes nothing; it still counts as a record of the outcome
+//! ([`uninformative_records`] names such records). A
 //! difference smaller in magnitude than [`COEFFICIENT_RELATIVE_THRESHOLD`] times the larger of
 //! its two operands is read as zero (it is rounding, not a recorded difference). A relation with
 //! no remaining coefficient is not added; when it is violated the record contradicts the model
@@ -22,6 +28,12 @@
 //! conflict: a smallest set of records that cannot hold together with the declared set (an
 //! exhaustive search up to a size), or an irreducible one from a deletion filter, together with
 //! the smallest tolerance at which every record of the outcome becomes compatible.
+//!
+//! A stated comparison ([`BeliefSource::Stated`](crate::choice_record::BeliefSource::Stated)) is
+//! what someone said they would choose among hypothetical bundles, not what they chose. It adds
+//! relations exactly as a recorded choice does, with the same tolerance, and the learned set then
+//! also stands on the statement's named assumption that it reflects the preferences the person
+//! would act on (carried in [`LearnedPreferenceSet::assumptions`]).
 //!
 //! A learned set is an assumption range, not a probability statement.
 //!
@@ -83,8 +95,8 @@ pub struct ParameterRange {
     pub declared: (f64, f64),
     /// Smallest and largest value of the parameter over the learned set.
     pub learned: (f64, f64),
-    /// Some record of the outcome has two options whose expected term for this parameter
-    /// differs.
+    /// Some record of the outcome has two available options whose expected term for this
+    /// parameter differs.
     pub varied_in_records: bool,
     /// The learned range lies strictly inside the declared range as restricted by the declared
     /// relations (beyond the linear-program feasibility tolerance) at either end.
@@ -142,7 +154,8 @@ pub struct LearnedPreferenceSet {
     pub binding: Vec<BindingChoice>,
     /// The tolerance the choice relations were built with.
     pub tolerance: f64,
-    /// Number of records the set was learned from.
+    /// Number of records the set was learned from, including records with a single available
+    /// option (which form no relation).
     pub n_records: usize,
     /// Sorted, distinct: parameter assumptions, the record set's assumptions, and
     /// [`ASSUMPTION_CHOICES_OPTIMAL`].
@@ -334,13 +347,25 @@ pub fn learn_compatible_set(
     Ok(SetLearningResult { pooled, per_decider, overlap })
 }
 
+/// Identities of the records, in record order, with fewer than two available options: they form
+/// no choice relation and teach nothing about preferences.
+#[must_use]
+pub fn uninformative_records(features: &ChoiceFeatures) -> Vec<String> {
+    features
+        .sets
+        .iter()
+        .filter(|set| set.option_ids.len() < 2)
+        .map(|set| set.record_id.clone())
+        .collect()
+}
+
 /// Choice relations and slack rows of one record.
 struct RecordChoices {
     record_id: String,
     decider: String,
     /// Relations with at least one nonzero coefficient, in option order.
     relations: Vec<LinearRelation>,
-    /// For every rejected option: the dense coefficients `T_c - T_j` and `-(F_c - F_j)`.
+    /// For every rejected available option: the dense coefficients `T_c - T_j` and `-(F_c - F_j)`.
     slack_rows: Vec<(Vec<f64>, f64)>,
     /// Some relation has no coefficient and is violated.
     contradicts_alone: bool,

@@ -135,37 +135,43 @@ impl PreferenceArtifactError {
     /// keeps its own detail.
     #[must_use]
     pub fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details;
         match self {
-            Self::Encode(_) => "preference_artifact.encode_failed",
-            Self::Container(_) => "preference_artifact.container_refused",
-            Self::Malformed { .. } => "preference_artifact.wire_malformed",
+            Self::Encode(_) => reason_details::preference_artifact::ENCODE_FAILED,
+            Self::Container(_) => reason_details::preference_artifact::CONTAINER_REFUSED,
+            Self::Malformed { .. } => reason_details::preference_artifact::WIRE_MALFORMED,
             Self::Accepted(inner) => inner.detail(),
             Self::Contract(inner) => inner.detail(),
             Self::Evaluation(inner) => inner.detail(),
-            Self::StoredIdentityMismatch => "preference_artifact.identity_resealed",
-            Self::IdentityExpected => "preference_artifact.identity_expected",
-            Self::ContractExpected => "preference_artifact.contract_expected",
-            Self::SourceExpected => "preference_artifact.source_expected",
-            Self::ResultContractMismatch => "preference_artifact.result_contract_mismatch",
-            Self::ReplaySourceDiffers => "preference_artifact.replay_source_differs",
-            Self::ReplayRecordsDiffer => "preference_artifact.replay_records_differ",
-            Self::ReplayMismatch { .. } => "preference_artifact.replay_mismatch",
+            Self::StoredIdentityMismatch => reason_details::preference_artifact::IDENTITY_RESEALED,
+            Self::IdentityExpected => reason_details::preference_artifact::IDENTITY_EXPECTED,
+            Self::ContractExpected => reason_details::preference_artifact::CONTRACT_EXPECTED,
+            Self::SourceExpected => reason_details::preference_artifact::SOURCE_EXPECTED,
+            Self::ResultContractMismatch => {
+                reason_details::preference_artifact::RESULT_CONTRACT_MISMATCH
+            }
+            Self::ReplaySourceDiffers => reason_details::preference_artifact::REPLAY_SOURCE_DIFFERS,
+            Self::ReplayRecordsDiffer => reason_details::preference_artifact::REPLAY_RECORDS_DIFFER,
+            Self::ReplayMismatch { .. } => reason_details::preference_artifact::REPLAY_MISMATCH,
         }
     }
 }
 
 impl From<PreferenceArtifactError> for IoError {
-    /// A container error stays itself; every other refusal becomes the decision layer's
-    /// refusal code with the detail id leading the message.
+    /// A container error stays itself; every other refusal keeps the registered code and
+    /// detail of its structured refusal, with the detail id leading the message.
     fn from(error: PreferenceArtifactError) -> Self {
         match error {
             PreferenceArtifactError::Encode(inner) | PreferenceArtifactError::Container(inner) => {
                 inner
             }
-            other => Self::Refused {
-                code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                message: format!("{}: {other}", other.detail()),
-            },
+            other => {
+                let refusal = other.to_refusal();
+                Self::Refused {
+                    code: refusal.code,
+                    message: format!("{}: {other}", refusal.detail),
+                }
+            }
         }
     }
 }
@@ -2206,7 +2212,7 @@ mod tests {
     fn unknown_names_are_malformed() {
         assert_eq!(
             kind_from("treatment").unwrap_err().detail(),
-            "preference_artifact.wire_malformed"
+            antecedent_core::reason_details::preference_artifact::WIRE_MALFORMED
         );
         assert!(structural_from("bayes").is_err());
         assert!(preference_policy_from("weighted_sum").is_err());
@@ -2277,7 +2283,10 @@ mod tests {
         let error =
             AcceptedPreferencesArtifact::from_bytes(&bytes, accepted.identity()).unwrap_err();
         assert_eq!(error, E::StoredIdentityMismatch);
-        assert_eq!(error.detail(), "preference_artifact.identity_resealed");
+        assert_eq!(
+            error.detail(),
+            antecedent_core::reason_details::preference_artifact::IDENTITY_RESEALED
+        );
         let io: IoError = error.into();
         assert!(matches!(io, IoError::Refused { .. }));
     }
