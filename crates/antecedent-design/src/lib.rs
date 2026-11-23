@@ -46,6 +46,7 @@ pub mod obligation_adapters;
 mod plan_common;
 pub mod planning;
 pub mod preference_contract;
+pub mod preference_decision;
 pub mod preference_model;
 pub mod preference_set_learning;
 pub mod preposterior;
