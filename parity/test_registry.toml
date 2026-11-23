@@ -9065,6 +9065,13 @@ path = "python/tests/test_supported_staged.py"
 gates = ["inventory"]
 
 [[test]]
+id = "load-identity-binding-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_load_identity_binding.py"
+gates = ["inventory"]
+
+[[test]]
 id = "lifecycle-python"
 crate = "python"
 cargo_target = "script"

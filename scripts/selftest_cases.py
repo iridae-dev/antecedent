@@ -8,7 +8,8 @@
     python3 scripts/selftest_cases.py metadata  # gate_metadata_consistency.sh --self-test
 
 Each case builds a disposable overlay of the repo (files are hard linked where
-possible; most suites link `python/` to reuse the built extension), copies the files it
+possible; ignored build products under `python/` are linked to reuse the built
+extension), copies the files it
 breaks into it, runs the unchanged gate script from the overlay, and requires
 the gate to fail with the case's expected message. A positive control (the overlay with no mutation) must pass, so a gate
 that fails on everything cannot satisfy its self-test. The working tree is
@@ -41,31 +42,54 @@ def _repo_files() -> list[str]:
     return [f for f in listed.split("\0") if f and (ROOT / f).is_file()]
 
 
+def _ignored_python_entries() -> list[str]:
+    """Untracked, git-ignored top-level entries under `python/` (built extension, venv)."""
+    listed = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "-z",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "--",
+            "python",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout.decode()
+    return [f.rstrip("/") for f in listed.split("\0") if f]
+
+
 def build_overlay(tmp: Path, *, link_python: bool = True) -> Path:
     """Hard-link (or copy) every tracked and unignored file into a fresh tree."""
     ov = tmp / "repo"
     ov.mkdir()
     for rel in _repo_files():
-        if link_python and rel.startswith("python/"):
-            continue
         dest = ov / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         try:
             dest.hardlink_to(ROOT / rel)
         except OSError:
             shutil.copy2(ROOT / rel, dest)
-    # `python/` stays a link to the checkout: a gate's `uv run` there resolves
-    # to the real project directory (POSIX cwd is canonical) and reuses the
-    # built extension instead of rebuilding it once per case.
+    # Ignored build products under `python/` (the built extension, the virtual
+    # environment) stay links to the checkout so a gate's `uv run` reuses them instead of
+    # rebuilding once per case. Source files are linked individually: the evidence gates
+    # refuse a path that resolves outside the repository root, so `python/` itself must be
+    # a real directory inside the overlay.
     if link_python:
-        (ov / "python").symlink_to(ROOT / "python")
+        for rel in _ignored_python_entries():
+            dest = ov / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if not dest.exists() and not dest.is_symlink():
+                dest.symlink_to(ROOT / rel)
     return ov
 
 
 def materialize(ov: Path, rel: str) -> Path:
     """Make `rel` an independent, writable copy inside the overlay."""
-    if rel.startswith("python/"):
-        raise SystemExit(f"self-test cannot mutate {rel}: python/ is shared with the checkout")
     target = ov / rel
     if target.exists() or target.is_symlink():
         target.unlink()  # never write through a hard link into the checkout
