@@ -4,6 +4,8 @@
 - Date: 2026-09-15
 - Extends: [0020](0020-support-matrix-and-prepared-workflow.md), [0016](0016-design-state.md)
 
+> Amended by [ADR 0028](0028-one-compiled-path.md): multi-source data sets have their own identity domain and programs compose over child programs.
+
 ## Context
 
 1.10 makes Antecedent a causal compiler at the public boundary: a typed

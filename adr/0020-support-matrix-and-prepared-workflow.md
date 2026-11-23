@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-18
 
+> Amended by [ADR 0028](0028-one-compiled-path.md): the support model is the single support-unit model defined there.
+
 ## Context
 
 0.5 shipped continuous responses and a staged *spell* (`identify` →

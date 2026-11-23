@@ -4,6 +4,8 @@
 - Date: 2026-09-20
 - Extends: [0022](0022-causal-compiler-contract.md), [0020](0020-support-matrix-and-prepared-workflow.md), [0023](0023-learner-substrate.md)
 
+> Amended by [ADR 0028](0028-one-compiled-path.md): transport compiles through Study by a transport identification layer and multi-source data identity, superseding the "no second workflow engine / no new `analyze` shape" clause for that purpose.
+
 ## Context
 
 1.10 supported one transport cell: `analyze` + `TransportQuery` + trial-to-target
