@@ -112,9 +112,6 @@ pub enum JointTransportPredictiveDecisionError {
     /// Producer or portable artifact failed.
     #[error("joint transport predictive artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("joint transport predictive decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Six-layer program retained before a fit or a prediction runs.
@@ -560,7 +557,9 @@ impl CompiledJointTransportPredictiveDecision {
     ) -> Result<JointTransportPredictiveDecisionResult, JointTransportPredictiveDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self).map_err(|refusal| {
+                JointTransportPredictiveDecisionError::Invalid(refusal.message())
+            })?;
         }
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,

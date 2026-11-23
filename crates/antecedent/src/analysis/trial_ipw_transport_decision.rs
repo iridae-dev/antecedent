@@ -112,9 +112,6 @@ pub enum TrialIpwTransportDecisionError {
     /// Artifact encoding refusal.
     #[error("trial IPW transport artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("trial IPW transport decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 type Error = TrialIpwTransportDecisionError;
 
@@ -436,7 +433,7 @@ impl CompiledTrialIpwTransportDecision {
         let rows = &self.request.rows;
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self).map_err(|refusal| Error::Invalid(refusal.message()))?;
         }
         let _lease = scoped
             .acquire_admission(

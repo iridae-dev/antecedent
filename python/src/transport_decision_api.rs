@@ -152,6 +152,18 @@ enum Failure {
     Bundle(BundleError),
 }
 
+impl Failure {
+    /// An invalid-state message that carries the registered `not_supported` reason is the
+    /// support gate's refusal; any other is an invalid declaration.
+    fn from_invalid(message: String) -> Self {
+        if message.contains("reason=not_supported") {
+            Self::NotSupported(message)
+        } else {
+            Self::Invalid(message)
+        }
+    }
+}
+
 /// A refusal carrying its own registered code keeps it; any other takes `default`.
 fn coded(default: &'static str, message: String) -> PyErr {
     if crate::reason_code_in_message(&message).is_some() {
@@ -202,12 +214,11 @@ impl From<TrialIpwTransportDecisionError> for Failure {
         use TrialIpwTransportDecisionError as E;
         let message = error.to_string();
         match error {
-            E::Invalid(_) => Self::Invalid(message),
+            E::Invalid(_) => Self::from_invalid(message),
             E::Producer(_) => Self::Identification(message),
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
-            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -217,12 +228,11 @@ impl From<TrialIpwPredictiveDecisionError> for Failure {
         use TrialIpwPredictiveDecisionError as E;
         let message = error.to_string();
         match error {
-            E::Invalid(_) => Self::Invalid(message),
+            E::Invalid(_) => Self::from_invalid(message),
             E::Producer(_) => Self::Identification(message),
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
-            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -232,12 +242,11 @@ impl From<JointTransportEffectDecisionError> for Failure {
         use JointTransportEffectDecisionError as E;
         let message = error.to_string();
         match error {
-            E::Invalid(_) => Self::Invalid(message),
+            E::Invalid(_) => Self::from_invalid(message),
             E::Identify(_) => Self::Identification(message),
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
-            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -247,12 +256,11 @@ impl From<JointTransportPredictiveDecisionError> for Failure {
         use JointTransportPredictiveDecisionError as E;
         let message = error.to_string();
         match error {
-            E::Invalid(_) => Self::Invalid(message),
+            E::Invalid(_) => Self::from_invalid(message),
             E::Identify(_) => Self::Identification(message),
             E::Contract(_) => Self::Contract(message),
             E::Chain(_) => Self::Decision(message),
             E::Io(io) => Self::Io(io),
-            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }
@@ -262,12 +270,11 @@ impl From<TemporalPathTransportError> for Failure {
         use TemporalPathTransportError as E;
         let message = error.to_string();
         match error {
-            E::Invalid(_) => Self::Invalid(message),
+            E::Invalid(_) => Self::from_invalid(message),
             E::Query(query) => Self::Query(query),
             E::Io(io) => Self::Io(io),
             E::Estimate(estimate) => Self::Estimate(estimate),
             E::ProvenNonTransportable => Self::NonTransportable(message),
-            E::NotSupported(_) => Self::NotSupported(message),
         }
     }
 }

@@ -95,13 +95,14 @@ enum Failure {
 }
 
 fn binding_refusal(stage: &str, detail: &str, message: &str) -> String {
-    RefusalJson::new(
-        antecedent::reason::reason_code!("bridge_binding_mismatch"),
-        stage,
-        detail,
-        message,
-    )
-    .json()
+    // The support gate carries its registered `not_supported` reason in the message of an
+    // invalid-state refusal; it keeps that code instead of a binding mismatch.
+    let code = if message.contains("reason=not_supported") {
+        antecedent::reason::reason_code!("not_supported")
+    } else {
+        antecedent::reason::reason_code!("bridge_binding_mismatch")
+    };
+    RefusalJson::new(code, stage, detail, message).json()
 }
 
 fn cancelled() -> PyErr {
@@ -174,10 +175,6 @@ fn bridge_refusal(error: &BridgeTransportDecisionError) -> PyResult<String> {
         }
         BridgeTransportDecisionError::Chain(inner) => chain_refusal(inner),
         BridgeTransportDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
-        BridgeTransportDecisionError::NotSupported(inner) => {
-            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
-                .json())
-        }
     }
 }
 
@@ -187,13 +184,14 @@ fn assessment_refusal(
 ) -> PyResult<String> {
     match error {
         BridgeTransportPremiseAssessmentError::Invalid(message) => {
-            Ok(RefusalJson::new(invalid_code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
+            let code = if message.contains("reason=not_supported") {
+                antecedent::reason::reason_code!("not_supported")
+            } else {
+                invalid_code
+            };
+            Ok(RefusalJson::new(code, ASSESSMENT_STAGE, ASSESSMENT_REFUSED, message).json())
         }
         BridgeTransportPremiseAssessmentError::Io(inner) => io_refusal(inner, ASSESSMENT_STAGE),
-        BridgeTransportPremiseAssessmentError::NotSupported(inner) => {
-            Ok(RefusalJson::new(inner.code(), ASSESSMENT_STAGE, inner.detail, &inner.to_string())
-                .json())
-        }
     }
 }
 
@@ -210,10 +208,6 @@ fn assessed_refusal(error: &AssessedBridgeTransportDecisionError) -> PyResult<St
         }
         AssessedBridgeTransportDecisionError::Bridge(inner) => bridge_refusal(inner),
         AssessedBridgeTransportDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
-        AssessedBridgeTransportDecisionError::NotSupported(inner) => {
-            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
-                .json())
-        }
     }
 }
 
@@ -228,10 +222,6 @@ fn robust_refusal(error: &AssessedBridgeRobustDecisionError) -> PyResult<String>
         }
         AssessedBridgeRobustDecisionError::Chain(inner) => chain_refusal(inner),
         AssessedBridgeRobustDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
-        AssessedBridgeRobustDecisionError::NotSupported(inner) => {
-            Ok(RefusalJson::new(inner.code(), DECISION_STAGE, inner.detail, &inner.to_string())
-                .json())
-        }
     }
 }
 

@@ -89,9 +89,6 @@ pub enum BridgeTransportDecisionError {
     /// Artifact encoding or decoding refused.
     #[error("bridge transport decision artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("bridge transport decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Checked declaration, aligned source law and retained six-layer program.
@@ -323,7 +320,8 @@ impl CompiledBridgeTransportDecision {
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)?;
+            gate_program(ctx, self)
+                .map_err(|refusal| BridgeTransportDecisionError::Invalid(refusal.message()))?;
         }
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = Self::chain_draft(&bridge)?;
@@ -480,9 +478,6 @@ pub enum AssessedBridgeTransportDecisionError {
     /// Artifact encoding or decoding refused.
     #[error("assessed bridge decision artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("assessed bridge decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -651,7 +646,9 @@ impl CompiledAssessedBridgeTransportDecision {
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)?;
+            gate_program(ctx, self).map_err(|refusal| {
+                AssessedBridgeTransportDecisionError::Invalid(refusal.message())
+            })?;
         }
         let assessment = self.assessment.execute(ctx)?;
         let bridge = self.bridge.execute(ctx)?;
@@ -799,9 +796,6 @@ pub enum AssessedBridgeRobustDecisionError {
     /// Artifact encoding or independent replay refused.
     #[error("assessed bridge robust artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("assessed bridge robust decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1051,7 +1045,8 @@ impl CompiledAssessedBridgeRobustDecision {
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)?;
+            gate_program(ctx, self)
+                .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         }
         // The children compile their data-dependent chains, which a lowered dispatch refuses as
         // reentry, so they run under the caller's context.
@@ -1504,7 +1499,8 @@ impl CompiledAssessedBridgePosteriorDecision {
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(ctx, self)?;
+            gate_program(ctx, self)
+                .map_err(|refusal| AssessedBridgeRobustDecisionError::Invalid(refusal.message()))?;
         }
         if ctx.rng.master_seed() != self.seed {
             return Err(AssessedBridgeRobustDecisionError::Invalid(

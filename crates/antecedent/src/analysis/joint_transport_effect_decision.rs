@@ -100,9 +100,6 @@ pub enum JointTransportEffectDecisionError {
     /// Producer or combined artifact failed.
     #[error("joint transport effect artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("joint transport effect decision: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Retained compiler program, before any source or target fit runs.
@@ -410,7 +407,8 @@ impl CompiledJointTransportEffectDecision {
     ) -> Result<JointTransportEffectDecisionResult, JointTransportEffectDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self)
+                .map_err(|refusal| JointTransportEffectDecisionError::Invalid(refusal.message()))?;
         }
         let (producer, fit) = JointBayesianArtifactWire::build(
             &self.identification,

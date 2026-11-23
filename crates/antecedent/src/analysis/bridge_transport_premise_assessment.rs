@@ -114,9 +114,6 @@ pub enum BridgeTransportPremiseAssessmentError {
     /// Artifact encoding or decoding failed.
     #[error("bridge transport premise artifact: {0}")]
     Io(#[from] IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("bridge transport premise assessment: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -504,7 +501,9 @@ impl CompiledBridgeTransportPremiseAssessment {
     ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self).map_err(|refusal| {
+                BridgeTransportPremiseAssessmentError::Invalid(refusal.to_string())
+            })?;
         }
         if scoped.cancellation.is_cancelled() {
             return Err(invalid("bridge premise assessment was cancelled"));

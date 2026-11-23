@@ -108,9 +108,6 @@ pub enum TemporalPathTransportError {
     /// A finite two-model witness proves the requested event is not transportable.
     #[error("the declared evidence does not transport a path world")]
     ProvenNonTransportable,
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("temporal path transport: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Both exact selection-diagram derivations and the complete compiler program.
@@ -514,7 +511,8 @@ impl CompiledTemporalPathTransport {
     ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         }
         let active = self.active.evaluate(&self.data, &scoped)?;
         let baseline = self.baseline.evaluate(&self.data, &scoped)?;
@@ -946,7 +944,8 @@ impl CompiledSampledTemporalPathTransport {
     ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         }
         let estimate = estimate_sampled_counterfactual_transport_contrast(
             self.active.derivation(),
@@ -1522,7 +1521,8 @@ impl CompiledContinuousChainTransport {
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
-            gate_program(&scoped, self)?;
+            gate_program(&scoped, self)
+                .map_err(|refusal| TemporalPathTransportError::Invalid(refusal.message()))?;
         }
         let arms: Vec<Vec<_>> = [false, true]
             .iter()
