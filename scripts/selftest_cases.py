@@ -428,7 +428,8 @@ def schema_cases() -> list[bool]:
             {
                 "parity/supported_routes.toml": replace(
                     '\n[[route]]\ncoordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"\n'
-                    'identifier = "response.backdoor"\nestimator = "response.kennedy_dr"\n',
+                    'identifier = "response.backdoor"\nestimator = "response.kennedy_dr"\n'
+                    'lowering = "GraphPosteriorStaticResponse"\n',
                     "",
                 )
             },
