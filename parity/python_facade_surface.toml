@@ -4268,6 +4268,30 @@ status = "bound"
 python = "antecedent.preferences.Contract.evaluate"
 
 [[entry]]
+rust = "antecedent::analysis::preference_decision::decide"
+kind = "fn"
+status = "internal"
+reason = "The form of decide_with_context without an execution context; Python decides through antecedent.preferences.Contract.evaluate, which calls decide_with_context under the execution's cancellation and memory bounds."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::compile_preference_decision_across_prepared_studies"
+kind = "fn"
+status = "bound"
+python = "antecedent.preferences.Contract.compile"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::compile_preference_decision_across_studies"
+kind = "fn"
+status = "internal"
+reason = "Compiles built Rust studies; Python holds prepared studies, so antecedent.preferences.Contract.compile reaches the same route through compile_preference_decision_across_prepared_studies."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence"
+kind = "fn"
+status = "internal"
+reason = "Shared evidence over built Rust studies; Python declares it with antecedent.preferences.Contract.compile(shared=...), which passes the blocks to compile_preference_decision_across_prepared_studies."
+
+[[entry]]
 rust = "antecedent::analysis::preference_decision::decide_claim_with_context"
 kind = "fn"
 status = "unverified"
