@@ -51,6 +51,7 @@ pub mod preference_certified;
 pub mod preference_choice_model;
 pub mod preference_contract;
 pub mod preference_decision;
+mod preference_enclosure;
 pub mod preference_evaluation;
 pub mod preference_model;
 pub mod preference_refusal;

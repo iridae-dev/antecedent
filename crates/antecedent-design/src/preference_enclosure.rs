@@ -1,0 +1,238 @@
+//! Outward-rounded interval enclosures for certified decisions across a preference set.
+//!
+//! An [`Interval`] is a closed interval of reals with finite ends. Every floating operation
+//! moves the lower end of its result down and the upper end up by one representable step (two
+//! for `exp` and `ln`), so each enclosure contains the exact real range. [`enclose`] evaluates
+//! a model expression with the attributes at their drawn values and every parameter ranging
+//! over its interval; [`weighted_sum`] widens a weighted sum by `2 (n + 1) eps` times the sum of
+//! magnitudes so it also contains any floating summation order. [`Queued`] orders boxes
+//! waiting to be split: the box of largest volume first, ties broken by the lexicographically
+//! smallest lower corner.
+
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::cmp::Ordering;
+
+use crate::preference_model::PreferenceExpr;
+
+/// Relative roundoff tolerance the decision layer uses when comparing cumulative weights with
+/// a quantile level.
+const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
+
+/// Why an enclosure could not be formed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum EncloseFailure {
+    /// A logarithm's argument reaches zero or below.
+    LnDomain,
+    /// A bound is not finite (or an index is unknown, which a validated contract excludes).
+    NonFinite,
+}
+
+/// A closed interval `[lo, hi]` of reals with finite ends.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Interval {
+    pub(crate) lo: f64,
+    pub(crate) hi: f64,
+}
+
+impl Interval {
+    /// The degenerate interval of an exactly known value.
+    pub(crate) const fn point(value: f64) -> Self {
+        Self { lo: value, hi: value }
+    }
+
+    /// Finite ends only.
+    pub(crate) fn checked(lo: f64, hi: f64) -> Result<Self, EncloseFailure> {
+        if lo.is_finite() && hi.is_finite() && lo <= hi {
+            Ok(Self { lo, hi })
+        } else {
+            Err(EncloseFailure::NonFinite)
+        }
+    }
+
+    /// Ends computed with round-to-nearest, widened outward by one representable step.
+    pub(crate) fn rounded(lo: f64, hi: f64) -> Result<Self, EncloseFailure> {
+        Self::checked(lo.next_down(), hi.next_up())
+    }
+
+    pub(crate) fn plus(self, other: Self) -> Result<Self, EncloseFailure> {
+        Self::rounded(self.lo + other.lo, self.hi + other.hi)
+    }
+
+    pub(crate) fn minus(self, other: Self) -> Result<Self, EncloseFailure> {
+        Self::rounded(self.lo - other.hi, self.hi - other.lo)
+    }
+
+    pub(crate) const fn negated(self) -> Self {
+        Self { lo: -self.hi, hi: -self.lo }
+    }
+
+    pub(crate) fn times(self, other: Self) -> Result<Self, EncloseFailure> {
+        let products =
+            [self.lo * other.lo, self.lo * other.hi, self.hi * other.lo, self.hi * other.hi];
+        if products.iter().any(|value| value.is_nan()) {
+            return Err(EncloseFailure::NonFinite);
+        }
+        let lo = products.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = products.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        Self::rounded(lo, hi)
+    }
+
+    pub(crate) fn scale(self, factor: f64) -> Result<Self, EncloseFailure> {
+        self.times(Self::point(factor))
+    }
+
+    /// Pointwise minimum; exact, since `min` is monotone in both arguments.
+    pub(crate) const fn min(self, other: Self) -> Self {
+        Self { lo: self.lo.min(other.lo), hi: self.hi.min(other.hi) }
+    }
+
+    /// Pointwise maximum; exact, since `max` is monotone in both arguments.
+    pub(crate) const fn max(self, other: Self) -> Self {
+        Self { lo: self.lo.max(other.lo), hi: self.hi.max(other.hi) }
+    }
+
+    /// `exp` is increasing; the library function is not correctly rounded, so each end moves
+    /// two steps. The lower end is never below zero.
+    pub(crate) fn exp(self) -> Result<Self, EncloseFailure> {
+        let lo = self.lo.exp().next_down().next_down().max(0.0);
+        let hi = self.hi.exp().next_up().next_up();
+        Self::checked(lo, hi)
+    }
+
+    /// `ln` is increasing on `(0, inf)`; an argument reaching zero or below is outside the
+    /// domain.
+    pub(crate) fn ln(self) -> Result<Self, EncloseFailure> {
+        if self.lo <= 0.0 {
+            return Err(EncloseFailure::LnDomain);
+        }
+        Self::checked(self.lo.ln().next_down().next_down(), self.hi.ln().next_up().next_up())
+    }
+
+    /// Exactly zero at both ends.
+    pub(crate) fn is_zero(self) -> bool {
+        self.lo >= 0.0 && self.hi <= 0.0
+    }
+}
+
+/// Enclose `expr` with the attributes at the given values and every parameter ranging over its
+/// interval.
+pub(crate) fn enclose(
+    expr: &PreferenceExpr,
+    attributes: &[f64],
+    parameters: &[Interval],
+) -> Result<Interval, EncloseFailure> {
+    use PreferenceExpr as P;
+    let go = |inner: &PreferenceExpr| enclose(inner, attributes, parameters);
+    let value = match expr {
+        P::Const(value) => Interval::point(*value),
+        P::Attribute(k) => Interval::point(*attributes.get(*k).ok_or(EncloseFailure::NonFinite)?),
+        P::Parameter(j) => *parameters.get(*j).ok_or(EncloseFailure::NonFinite)?,
+        P::Neg(a) => go(a)?.negated(),
+        P::Add(a, b) => go(a)?.plus(go(b)?)?,
+        P::Sub(a, b) => go(a)?.minus(go(b)?)?,
+        P::Mul(a, b) => go(a)?.times(go(b)?)?,
+        P::Min(a, b) => go(a)?.min(go(b)?),
+        P::Max(a, b) => go(a)?.max(go(b)?),
+        P::Exp(a) => go(a)?.exp()?,
+        P::Ln(a) => go(a)?.ln()?,
+    };
+    Interval::checked(value.lo, value.hi)
+}
+
+/// Enclosure of `sum w_i x_i` over terms of positive weight, widened by `2 (n + 1) eps` times
+/// the sum of magnitudes so that any floating summation order is also contained.
+pub(crate) fn weighted_sum(
+    terms: impl IntoIterator<Item = (f64, Interval)>,
+) -> Result<Interval, EncloseFailure> {
+    let mut total = Interval::point(0.0);
+    let mut magnitude = 0.0_f64;
+    let mut count = 0.0_f64;
+    for (weight, value) in terms {
+        if weight > 0.0 {
+            total = total.plus(value.scale(weight)?)?;
+            magnitude += weight * value.lo.abs().max(value.hi.abs());
+            count += 1.0;
+        }
+    }
+    let slack = 2.0 * (count + 1.0) * f64::EPSILON * magnitude;
+    Interval::rounded(total.lo - slack, total.hi + slack)
+}
+
+/// `constant + sum_j parameters_j * coefficients_j`, skipping exactly-zero coefficients.
+pub(crate) fn affine(
+    constant: Interval,
+    coefficients: &[Interval],
+    parameters: &[Interval],
+) -> Result<Interval, EncloseFailure> {
+    let mut total = constant;
+    for (coefficient, parameter) in coefficients.iter().zip(parameters) {
+        if !coefficient.is_zero() {
+            total = total.plus(parameter.times(*coefficient)?)?;
+        }
+    }
+    Ok(total)
+}
+
+/// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF, with the decision
+/// layer's mass tolerance.
+pub(crate) fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
+    let mut cumulative = 0.0;
+    for &index in &order {
+        if weights[index] <= 0.0 {
+            continue;
+        }
+        cumulative += weights[index];
+        if cumulative >= p || (cumulative - p).abs() <= MASS_TOLERANCE * cumulative.max(p) {
+            return Some(values[index]);
+        }
+    }
+    order.iter().rev().find(|&&i| weights[i] > 0.0).map(|&index| values[index])
+}
+
+/// A box waiting to be split. Larger volume first, then the smaller lower corner.
+pub(crate) struct Queued {
+    pub(crate) volume: f64,
+    pub(crate) lower: Vec<f64>,
+    pub(crate) slot: usize,
+}
+
+pub(crate) fn lexicographic(left: &[f64], right: &[f64]) -> Ordering {
+    left.iter()
+        .zip(right)
+        .map(|(l, r)| l.total_cmp(r))
+        .find(|order| order.is_ne())
+        .unwrap_or(Ordering::Equal)
+}
+
+impl Ord for Queued {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.volume
+            .total_cmp(&other.volume)
+            .then_with(|| lexicographic(&other.lower, &self.lower))
+            .then_with(|| other.slot.cmp(&self.slot))
+    }
+}
+
+impl PartialOrd for Queued {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Queued {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for Queued {}
+
+/// Where a box sits relative to the relations.
+pub(crate) enum Fit {
+    Inside,
+    Boundary,
+    Outside,
+}

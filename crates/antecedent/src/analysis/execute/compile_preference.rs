@@ -40,44 +40,38 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod atoms;
+mod bind;
+mod design;
 mod evidence;
 mod facts;
 mod joint;
 mod outcomes;
+mod structures;
 
-use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_contract::{
-    ExternalRefusal, ProgramBinding, QuantityMismatch, QuantityRole, ScientificQuantity,
-};
-use antecedent_core::reason_details::{
-    decision_evaluation, decision_evidence, native_claims, program_binding,
-};
-use antecedent_core::{
-    CanonicalWriter, CausalQuery, CausalSchema, ExecutionContext, IdentificationStatus,
-    ObservationSpec, ResponseFunctional, ResponseIdentification, SemanticDigest, TargetPopulation,
-};
-use antecedent_data::TableView;
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::reason_details::native_claims;
+use antecedent_core::{ExecutionContext, ResponseIdentification, SemanticDigest};
 use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
-use antecedent_design::preference_contract::{ActionInput, PreferenceContract};
+use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_design::preference_decision::PreferenceMeasure;
 use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationOptions, RouteChoice, StructuralPreferenceEvaluation,
     preference_route,
 };
-use antecedent_io::distribution_artifact::DistributionCalibration;
 
+pub use bind::BoundPreferenceContract;
+pub use design::DesignBootstrap;
 pub use evidence::{CrossStudyCovariance, SharedEvidence};
 pub use joint::PreferenceJointLaw;
-pub use outcomes::{
-    DesignBootstrap, OutcomeDependence, compile_preference_decision_across_studies,
-};
+pub use outcomes::{OutcomeDependence, compile_preference_decision_across_studies};
 pub use outcomes::{
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
+pub use structures::{CompiledStructure, StructureIdentification};
 
 use super::Study;
 use crate::analysis::contract::CausalContract;
@@ -86,14 +80,13 @@ use crate::analysis::lowering::CompileGoal;
 use crate::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
-use crate::analysis::preference_decision::{
-    decide_across_structures_with_context, decide_with_context, structure_claims,
-};
+use crate::analysis::preference_decision::decide_with_context;
+use crate::planner::PlanView;
 use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceValueFacts};
-use crate::planner::plan_view::IdentificationKind;
-use crate::planner::{PlanStage, PlanView};
-use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
+use crate::result::{StructuralResponseMixture, StructuralWeightBasis};
 use crate::{CausalError, PreparedStudy};
+use bind::BoundStudy;
+use structures::compile_structure;
 
 const STAGE_BIND: &str = "bind";
 const STAGE_COMPILE: &str = "compile";
@@ -248,203 +241,6 @@ fn not_identified(quantities: &[DemandedQuantity], mass: f64, why: &str) -> Pref
     .into()
 }
 
-// ---------------------------------------------------------------------------------------------
-// Binding
-// ---------------------------------------------------------------------------------------------
-
-/// The mean response curve a study targets, read from its own query and schema.
-#[derive(Clone, Debug)]
-struct StudyQuery {
-    outcome: String,
-    treatment: String,
-    outcome_units: Option<String>,
-    dose_units: Option<String>,
-    doses: Vec<f64>,
-    schema: CausalSchema,
-    causal_target: String,
-    causal_identification: String,
-    snapshot: String,
-    observations: String,
-    rows: usize,
-}
-
-/// A study bound to the decision: its program binding and the coordinates it targets.
-#[derive(Clone, Debug)]
-struct BoundStudy {
-    binding: ProgramBinding,
-    coordinates: Vec<ScientificQuantity>,
-    schema: CausalSchema,
-    causal_target: String,
-    causal_identification: String,
-    snapshot: String,
-    /// Content identity of the study's stored table (its columns, rows, mask and weights,
-    /// not its schema roles or the analysis compiled over it): studies of one table share
-    /// it whatever outcome they target.
-    observations: String,
-    /// Rows of the study's table: the observations its analysis reads.
-    rows: usize,
-}
-
-impl BoundStudy {
-    /// The response context the claim conversion reads: the compiler-derived binding, the
-    /// data snapshot and the execution's seed.
-    fn context(&self, ctx: &ExecutionContext) -> NativeResponseContext {
-        NativeResponseContext {
-            program: self.binding.clone(),
-            snapshot_id: self.snapshot.clone(),
-            rng_id: format!("antecedent.execution.master_seed:{}", ctx.rng.master_seed()),
-            calibration: DistributionCalibration::NotMeasured,
-        }
-    }
-}
-
-fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, PreferenceRouteError> {
-    let CausalQuery::Response(query) = &study.query else {
-        return Err(unsupported_query("a query that is not a response"));
-    };
-    let ResponseFunctional::MeanCurve { outcome, treatment } = &query.functional else {
-        return Err(unsupported_query("a response functional other than a mean curve"));
-    };
-    if query.temporal.is_some()
-        || query.observation != ObservationSpec::Complete
-        || query.target_population != TargetPopulation::AllObserved
-        || !query.outcome_functional.is_mean()
-    {
-        return Err(unsupported_query(
-            "a temporal, partially observed, retargeted or non-mean response curve",
-        ));
-    }
-    let doses = treatment.grid.values().map_err(|_| unsupported_query("an invalid dose grid"))?;
-    let crate::analysis::builder::DataInput::Tabular(data) = &study.data else {
-        return Err(unsupported_query("a mean response curve of non-tabular data"));
-    };
-    let schema = data.schema().clone();
-    let variable = |id| {
-        schema.get(id).map(|v| (v.name.to_string(), v.unit.as_deref().map(str::to_owned))).map_err(
-            |_| {
-                PreferenceRouteError::from(
-                    ExternalRefusal::new(
-                        antecedent_core::reason_code!("unknown_variable"),
-                        STAGE_BIND,
-                        native_claims::UNKNOWN_VARIABLE,
-                    )
-                    .with_supplied(format!("{id:?}")),
-                )
-            },
-        )
-    };
-    let (outcome, outcome_units) = variable(*outcome)?;
-    let (treatment, dose_units) = variable(treatment.variable)?;
-    Ok(StudyQuery {
-        outcome,
-        treatment,
-        outcome_units,
-        dose_units,
-        doses,
-        schema,
-        causal_target: causal.identities.target.to_hex(),
-        causal_identification: causal.identities.identification.to_hex(),
-        snapshot: causal.identities.data_snapshot.to_hex(),
-        observations: SemanticDigest::from_bytes(data.storage().content_digest()).to_hex(),
-        rows: data.row_count(),
-    })
-}
-
-/// Every quantity input of `contract`: `(action, attribute, quantity)`.
-fn quantity_inputs(
-    contract: &PreferenceContract,
-) -> impl Iterator<Item = (&str, &str, &ScientificQuantity)> {
-    contract.actions.iter().flat_map(move |action| {
-        action.inputs.iter().zip(&contract.model.attributes).filter_map(
-            move |(input, attribute)| match input {
-                ActionInput::Quantity(quantity) => {
-                    Some((action.id.as_str(), attribute.id.as_str(), quantity))
-                }
-                ActionInput::Fixed { .. } => None,
-            },
-        )
-    })
-}
-
-/// The study whose outcome `quantity` names.
-fn study_of(
-    studies: &[StudyQuery],
-    (action, attribute): (&str, &str),
-    quantity: &ScientificQuantity,
-) -> Result<usize, PreferenceRouteError> {
-    studies.iter().position(|study| study.outcome == quantity.variable_id).ok_or_else(|| {
-        ExternalRefusal::new(
-            antecedent_core::reason_code!("quantity_semantics_mismatch"),
-            STAGE_BIND,
-            program_binding::TREATMENT_OUTCOME_SUBSTITUTION,
-        )
-        .with_offending(at(action, attribute))
-        .with_expected(
-            studies.iter().map(|study| study.outcome.as_str()).collect::<Vec<_>>().join(", "),
-        )
-        .with_supplied(quantity.variable_id.clone())
-        .with_remedy("read an outcome the compiled studies estimate")
-        .into()
-    })
-}
-
-/// The refusal of a quantity no coordinate of a study matches, naming the first dimension
-/// that differs from the closest coordinate (the one at the same regime, else the first).
-fn coordinate_refusal(
-    coordinates: &[ScientificQuantity],
-    (action, attribute): (&str, &str),
-    quantity: &ScientificQuantity,
-) -> PreferenceRouteError {
-    let reference = coordinates
-        .iter()
-        .find(|coordinate| coordinate.regime_id == quantity.regime_id)
-        .or_else(|| coordinates.first());
-    let mismatch = reference.map_or(QuantityMismatch::InvalidCoordinate, |coordinate| {
-        quantity.require_same_coordinate(coordinate).err().unwrap_or(QuantityMismatch::Regime)
-    });
-    let field_of =
-        |field: fn(&ScientificQuantity) -> String| reference.map_or_else(String::new, field);
-    let (detail, expected, supplied) = match mismatch {
-        QuantityMismatch::Variable => (
-            program_binding::TREATMENT_OUTCOME_SUBSTITUTION,
-            field_of(|c| c.variable_id.clone()),
-            quantity.variable_id.clone(),
-        ),
-        QuantityMismatch::Units => {
-            (native_claims::UNITS_CONFLICT, field_of(|c| c.units.clone()), quantity.units.clone())
-        }
-        QuantityMismatch::Population => (
-            program_binding::POPULATION_MISMATCH,
-            field_of(|c| c.population_id.clone()),
-            quantity.population_id.clone(),
-        ),
-        QuantityMismatch::Regime => (
-            program_binding::DOSE_GRID_CHANGED,
-            coordinates.iter().map(|c| c.regime_id.as_str()).collect::<Vec<_>>().join(", "),
-            quantity.regime_id.clone(),
-        ),
-        QuantityMismatch::Horizon
-        | QuantityMismatch::Functional
-        | QuantityMismatch::Conditioning
-        | QuantityMismatch::Transform
-        | QuantityMismatch::InvalidCoordinate => (
-            decision_evaluation::QUANTITY_NOT_FOUND,
-            field_of(ScientificQuantity::canonical_identity),
-            quantity.canonical_identity(),
-        ),
-    };
-    ExternalRefusal::new(
-        antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        STAGE_BIND,
-        detail,
-    )
-    .with_offending(at(action, attribute))
-    .with_expected(expected)
-    .with_supplied(supplied)
-    .with_remedy("read a coordinate the study's query targets; nothing is reinterpreted")
-    .into()
-}
-
 /// One scientific quantity the decision reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DemandedQuantity {
@@ -455,161 +251,6 @@ pub struct DemandedQuantity {
     pub source: usize,
     /// `(action, attribute)` of every input that reads it.
     pub read_by: Vec<(String, String)>,
-}
-
-/// Bind every quantity input of `contract` to a coordinate of one study, resolving each
-/// study's outcome units (the schema's, else the units every input reading it declares).
-fn bind_studies(
-    contract: &PreferenceContract,
-    studies: Vec<StudyQuery>,
-) -> Result<(Vec<BoundStudy>, Vec<DemandedQuantity>), PreferenceRouteError> {
-    let mut seen = HashSet::new();
-    if let Some(repeated) = studies.iter().find(|study| !seen.insert(study.outcome.as_str())) {
-        return Err(ExternalRefusal::new(
-            antecedent_core::reason_code!("invalid_argument"),
-            STAGE_BIND,
-            decision_evidence::INVALID_DECLARATION,
-        )
-        .with_offending(repeated.outcome.clone())
-        .with_expected("one compiled study per outcome")
-        .with_remedy("estimate each outcome once, or several outcomes of one design jointly")
-        .into());
-    }
-    let mut units: Vec<Option<String>> =
-        studies.iter().map(|study| study.outcome_units.clone()).collect();
-    for (action, attribute, quantity) in quantity_inputs(contract) {
-        let index = study_of(&studies, (action, attribute), quantity)?;
-        if units[index].is_none() {
-            units[index] = Some(quantity.units.clone());
-        }
-    }
-    let bound: Vec<BoundStudy> = studies
-        .into_iter()
-        .zip(units)
-        .map(|(study, outcome_units)| {
-            let binding = ProgramBinding {
-                graph_id: study.causal_identification.clone(),
-                contract_id: study.causal_target.clone(),
-                treatment_id: study.treatment,
-                outcome_id: study.outcome,
-                population_id: contract.target_population.clone(),
-                intervention_kind: "do".to_owned(),
-                horizon: 0,
-                dose_grid: study.doses,
-                dose_units: study.dose_units.unwrap_or_else(|| UNDECLARED_UNITS.to_owned()),
-                outcome_units: outcome_units.unwrap_or_else(|| UNDECLARED_UNITS.to_owned()),
-                functional_id: MEAN_FUNCTIONAL.to_owned(),
-                transform_id: IDENTITY_TRANSFORM.to_owned(),
-            };
-            BoundStudy {
-                coordinates: binding.expected_quantities(),
-                binding,
-                schema: study.schema,
-                causal_target: study.causal_target,
-                causal_identification: study.causal_identification,
-                snapshot: study.snapshot,
-                observations: study.observations,
-                rows: study.rows,
-            }
-        })
-        .collect();
-    let mut demanded: Vec<DemandedQuantity> = Vec::new();
-    for (action, attribute, quantity) in quantity_inputs(contract) {
-        let source = bound
-            .iter()
-            .position(|study| study.binding.outcome_id == quantity.variable_id)
-            .ok_or_else(|| coordinate_refusal(&[], (action, attribute), quantity))?;
-        let coordinates = &bound[source].coordinates;
-        let Some(coordinate) =
-            coordinates.iter().find(|c| quantity.require_same_coordinate(c).is_ok())
-        else {
-            return Err(coordinate_refusal(coordinates, (action, attribute), quantity));
-        };
-        let read = (action.to_owned(), attribute.to_owned());
-        match demanded.iter_mut().find(|d| d.quantity == *coordinate) {
-            Some(entry) => entry.read_by.push(read),
-            None => demanded.push(DemandedQuantity {
-                quantity: coordinate.clone(),
-                source,
-                read_by: vec![read],
-            }),
-        }
-    }
-    Ok((bound, demanded))
-}
-
-fn bound_identity(contract_identity: &str, causal: &[(String, String)]) -> String {
-    let mut writer = CanonicalWriter::new(BOUND_TAG);
-    writer.text(contract_identity).word(causal.len() as u64);
-    for (target, identification) in causal {
-        writer.text(target).text(identification);
-    }
-    writer.finish_hex()
-}
-
-/// A preference contract bound to the causal contracts of the studies that estimate its
-/// quantities.
-#[derive(Clone, Debug)]
-pub struct BoundPreferenceContract {
-    contract: PreferenceContract,
-    contract_identity: String,
-    studies: Vec<BoundStudy>,
-    quantities: Vec<DemandedQuantity>,
-    identity: String,
-}
-
-impl BoundPreferenceContract {
-    fn bind(
-        contract: &PreferenceContract,
-        studies: &[(&Study, &CausalContract)],
-    ) -> Result<Self, PreferenceRouteError> {
-        let contract_identity = contract.identity().map_err(|e| e.to_refusal())?;
-        let queries = studies
-            .iter()
-            .map(|(study, causal)| study_query(study, causal))
-            .collect::<Result<Vec<_>, _>>()?;
-        let (studies, quantities) = bind_studies(contract, queries)?;
-        let causal: Vec<(String, String)> = studies
-            .iter()
-            .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
-            .collect();
-        let identity = bound_identity(&contract_identity, &causal);
-        Ok(Self { contract: contract.clone(), contract_identity, studies, quantities, identity })
-    }
-
-    /// The preference contract.
-    #[must_use]
-    pub const fn contract(&self) -> &PreferenceContract {
-        &self.contract
-    }
-
-    /// The quantities the actions read, each with the study that targets it.
-    #[must_use]
-    pub fn quantities(&self) -> &[DemandedQuantity] {
-        &self.quantities
-    }
-
-    /// The coordinates study `source` targets, one per dose of its grid.
-    #[must_use]
-    pub fn coordinates(&self, source: usize) -> Option<&[ScientificQuantity]> {
-        self.studies.get(source).map(|study| &study.coordinates[..])
-    }
-
-    /// Canonical identity of the preference contract bound to every study's causal target
-    /// and identification.
-    #[must_use]
-    pub fn identity(&self) -> &str {
-        &self.identity
-    }
-
-    /// `(causal target, causal identification)` of every study, lowercase hex.
-    #[must_use]
-    pub fn causal_bindings(&self) -> Vec<(String, String)> {
-        self.studies
-            .iter()
-            .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
-            .collect()
-    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -634,72 +275,6 @@ pub struct PreferenceDemand {
     pub carrier: Option<CarrierDemand>,
 }
 
-/// How identification was established for one structure.
-#[derive(Clone, Debug, PartialEq)]
-pub enum StructureIdentification {
-    /// Identified at compile with this status and retained with the program.
-    Identified(IdentificationStatus),
-    /// The program identifies on each execution; preparation at compile identified it.
-    IdentifiedAtPreparation,
-    /// Not identified under this structure, with the compiler's reason.
-    NotIdentified(String),
-}
-
-/// One structure the decision is compiled under.
-#[derive(Clone, Debug)]
-pub struct CompiledStructure {
-    key: Option<u64>,
-    /// Key of the equivalence-class atom a completion belongs to.
-    class: Option<u64>,
-    weight: f64,
-    source: usize,
-    identification: StructureIdentification,
-    plan: Option<PlanView>,
-    runner: Option<PreparedStudy>,
-}
-
-impl CompiledStructure {
-    /// Graph key of a graph-posterior structure; `None` for a study's single structure.
-    #[must_use]
-    pub const fn key(&self) -> Option<u64> {
-        self.key
-    }
-
-    /// Share of the posterior mass on this structure; one for a single structure. For a
-    /// completion of an equivalence-class atom it is the class weight split evenly over the
-    /// class's completions: an enumeration weight, not a probability.
-    #[must_use]
-    pub const fn weight(&self) -> f64 {
-        self.weight
-    }
-
-    /// Graph key of the equivalence-class atom this structure completes; `None` for a
-    /// structure that is not a completion.
-    #[must_use]
-    pub const fn class_key(&self) -> Option<u64> {
-        self.class
-    }
-
-    /// Index of the study the structure belongs to.
-    #[must_use]
-    pub const fn source(&self) -> usize {
-        self.source
-    }
-
-    /// How identification was established.
-    #[must_use]
-    pub const fn identification(&self) -> &StructureIdentification {
-        &self.identification
-    }
-
-    /// The compiled plan of this structure, with the decision in layer four; `None` when the
-    /// structure did not compile because the quantity is not identified under it.
-    #[must_use]
-    pub const fn plan_view(&self) -> Option<&PlanView> {
-        self.plan.as_ref()
-    }
-}
-
 /// Where the compiled decision reads its quantities.
 #[derive(Clone, Debug)]
 enum Sources {
@@ -711,7 +286,7 @@ enum Sources {
         basis: StructuralWeightBasis,
     },
     /// A compiled native joint design of several outcomes.
-    Design(Box<outcomes::DesignSource>),
+    Design(Box<design::DesignSource>),
 }
 
 /// A decision across a range of preferences compiled with the studies that estimate its
@@ -762,63 +337,6 @@ fn decision_program(
         information_value: None,
         scenario_source: None,
     }
-}
-
-const fn point_identified(status: IdentificationStatus) -> bool {
-    matches!(
-        status,
-        IdentificationStatus::NonparametricallyIdentified
-            | IdentificationStatus::IdentifiedUnderParametricRestrictions
-    )
-}
-
-/// A structure that compiled and prepared, or why the quantity is not identified under it.
-type StructureOutcome = Result<(PlanView, StructureIdentification, PreparedStudy), String>;
-
-/// Compile `study` with the decision in layer four, read its identification from the plan
-/// and prepare it (or take the caller's prepared handle). An identification refusal is the
-/// structure's outcome; any other refusal ends the compile.
-fn compile_structure(
-    study: &Study,
-    goal: &CompileGoal,
-    prepared: Option<&PreparedStudy>,
-    ctx: &ExecutionContext,
-) -> Result<StructureOutcome, PreferenceRouteError> {
-    let plan = match study.compile_for_goal(goal, ctx) {
-        Ok(plan) => plan,
-        Err(error) if error.is_identification_refusal() => return Ok(Err(error.to_string())),
-        Err(error) => return Err(error.into()),
-    };
-    let view =
-        PlanView::of_plan(&plan, PlanStage::Compiled, Some(study), Some(ctx.kernel_policy), None)?;
-    let identification = view.identification();
-    let identified = match identification.kind() {
-        IdentificationKind::Retained => match identification.status() {
-            Some(status) if point_identified(status) => StructureIdentification::Identified(status),
-            Some(status) => {
-                return Ok(Err(format!("identification status {}", status.as_str())));
-            }
-            None => StructureIdentification::IdentifiedAtPreparation,
-        },
-        IdentificationKind::Deferred => {
-            return Ok(Err(identification.reason().unwrap_or("deferred").to_owned()));
-        }
-        IdentificationKind::PerExecution => StructureIdentification::IdentifiedAtPreparation,
-        IdentificationKind::NonGraphical | IdentificationKind::NotClaimed => {
-            return Err(unsupported_query("a program without a graphical identification"));
-        }
-    };
-    let runner = match prepared {
-        Some(prepared) => prepared.clone(),
-        None => match study.prepare(ctx) {
-            Ok(prepared) => prepared,
-            Err(error) if error.is_identification_refusal() => {
-                return Ok(Err(error.to_string()));
-            }
-            Err(error) => return Err(error.into()),
-        },
-    };
-    Ok(Ok((view, identified, runner)))
 }
 
 /// One study entering the compile: its frozen causal contract and, for a prepared handle,
@@ -1067,12 +585,6 @@ pub struct PreferenceDecisionExecution {
     pub receipt: PreferenceDecisionReceipt,
 }
 
-/// A cancellation or resource refusal ends the run; any other estimation failure leaves a
-/// structure unevaluated.
-fn fatal(error: &CausalError) -> bool {
-    matches!(error.peeled(), CausalError::Cancelled { .. } | CausalError::Resource { .. })
-}
-
 fn no_response() -> PreferenceRouteError {
     unsupported_query("an execution that published no response curve")
 }
@@ -1272,76 +784,6 @@ impl CompiledPreferenceDecision {
             receipt: self.receipt(programs),
         })
     }
-
-    fn execute_structures(
-        &self,
-        studies: &[BoundStudy],
-        (structures, basis): (&[CompiledStructure], StructuralWeightBasis),
-        measure: Option<&PreferenceMeasure>,
-        options: PreferenceEvaluationOptions,
-        ctx: &ExecutionContext,
-    ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
-        let study = studies.first().ok_or_else(no_response)?;
-        let mut atoms = Vec::with_capacity(structures.len());
-        let mut programs = Vec::with_capacity(structures.len());
-        let (mut identified, mut unidentified, mut unevaluable) = (0.0, 0.0, 0.0);
-        for structure in structures {
-            let graph_key = structure.key.unwrap_or_default();
-            let weight = structure.weight;
-            let Some(runner) = &structure.runner else {
-                unidentified += weight;
-                atoms.push(structural_atom(graph_key, weight, None));
-                continue;
-            };
-            programs.extend(structure.plan.as_ref().map(PlanView::identity));
-            match runner.estimate_retained(ctx) {
-                Ok(result) => {
-                    if let Some(response) = retained_response(&result) {
-                        identified += weight;
-                        atoms.push(structural_atom(graph_key, weight, Some(response)));
-                    } else {
-                        unevaluable += weight;
-                        atoms.push(unevaluated_atom(graph_key, weight));
-                    }
-                }
-                Err(error) if fatal(&error) => return Err(error.into()),
-                Err(_) => {
-                    unevaluable += weight;
-                    atoms.push(unevaluated_atom(graph_key, weight));
-                }
-            }
-        }
-        let mixture = StructuralResponseMixture {
-            weight_basis: basis,
-            atoms,
-            identified_mass: identified,
-            unidentified_mass: unidentified,
-            unevaluable_mass: unevaluable,
-            subsampled_out_mass: 0.0,
-            identified_set: None,
-            identified_set_interval: None,
-            conditional_on_identified: None,
-            full_mass_scope: true,
-            truncated_atoms: 0,
-            aggregation_policy: None,
-        };
-        let claims = structure_claims(
-            &mixture,
-            &[],
-            &study.schema,
-            &study.context(ctx),
-            self.contract.structural_policy,
-        )?;
-        let evaluation =
-            decide_across_structures_with_context(&self.contract, &claims, measure, options, ctx)?;
-        Ok(PreferenceDecisionExecution {
-            evaluation: CompiledPreferenceEvaluation::Structures(evaluation),
-            source: None,
-            inputs: Vec::new(),
-            mixture: Some(mixture),
-            receipt: self.receipt(programs),
-        })
-    }
 }
 
 /// A structure with its own response, or one under which the quantity is not identified.
@@ -1390,69 +832,4 @@ fn retained_response(result: &crate::StudyResult) -> Option<antecedent_core::Cau
         }
     }
     Some(response)
-}
-
-fn structural_atom(
-    graph_key: u64,
-    weight: f64,
-    response: Option<antecedent_core::CausalResponse>,
-) -> StructuralResponseAtom {
-    let Some(response) = response else {
-        return StructuralResponseAtom {
-            graph_key,
-            weight,
-            status: IdentificationStatus::NotIdentified,
-            value: None,
-            posterior: None,
-            response: None,
-        };
-    };
-    let value = match &response.estimate {
-        ResponseIdentification::PointIdentified(value) => Some(value.clone()),
-        _ => None,
-    };
-    StructuralResponseAtom {
-        graph_key,
-        weight,
-        status: response.identification_status,
-        value,
-        posterior: None,
-        response: Some(response),
-    }
-}
-
-/// An identified structure whose estimate did not complete: it carries no response, so the
-/// decision reports its mass as unevaluated.
-const fn unevaluated_atom(graph_key: u64, weight: f64) -> StructuralResponseAtom {
-    StructuralResponseAtom {
-        graph_key,
-        weight,
-        status: IdentificationStatus::NonparametricallyIdentified,
-        value: None,
-        posterior: None,
-        response: None,
-    }
-}
-
-/// The coordinate of one outcome of a design under one arm.
-fn arm_coordinate(
-    variable_id: &str,
-    name: &str,
-    units: &str,
-    population: &str,
-    regime: &str,
-    horizon: u32,
-) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable_id.to_owned(),
-        variable_name: name.to_owned(),
-        role: QuantityRole::Outcome,
-        units: units.to_owned(),
-        population_id: population.to_owned(),
-        regime_id: regime.to_owned(),
-        horizon,
-        functional_id: MEAN_FUNCTIONAL.to_owned(),
-        conditioning: Vec::new(),
-        transform_id: IDENTITY_TRANSFORM.to_owned(),
-    }
 }

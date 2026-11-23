@@ -40,10 +40,10 @@ use antecedent_discovery::adjacency_mask::{
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_graph::{CompletionSampler, CpdagCompletionSampler, DEFAULT_COMPLETION_OPERATIONS};
 
-use super::{
-    CANCELLED_STAGE, CompiledStructure, PreferenceRouteError, STAGE_COMPILE,
-    StructureIdentification, StructureOutcome, compile_structure,
+use super::structures::{
+    CompiledStructure, StructureIdentification, StructureOutcome, compile_structure,
 };
+use super::{CANCELLED_STAGE, PreferenceRouteError, STAGE_COMPILE};
 use crate::accepted::AcceptedGraph;
 use crate::analysis::lowering::CompileGoal;
 use crate::result::StructuralWeightBasis;
