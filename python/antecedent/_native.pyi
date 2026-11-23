@@ -7667,10 +7667,18 @@ class _AcceptedPreferences:
     def summary_json(self) -> str: ...
     def acknowledge(self, items_json: str) -> tuple[_AcceptedPreferences | None, str | None]: ...
     def relearn_compatible_set(
-        self, records_json: str, decider: str | None, options_json: str
+        self,
+        records_json: str,
+        decider: str | None,
+        options_json: str,
+        cancel: CancellationToken | None = None,
     ) -> tuple[_AcceptedPreferences | None, str | None]: ...
     def relearn_choice_model(
-        self, records_json: str, decider: str | None, options_json: str
+        self,
+        records_json: str,
+        decider: str | None,
+        options_json: str,
+        cancel: CancellationToken | None = None,
     ) -> tuple[_AcceptedPreferences | None, str | None]: ...
     def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
 
@@ -7681,12 +7689,14 @@ def decide_preferences_joint(
     measure_json: str | None,
     options_json: str,
     source: JointDistributionArtifact,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def decide_preferences_means(
     contract_json: str,
     measure_json: str | None,
     options_json: str,
     mean_source_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def decide_preferences_structures(
     contract_json: str,
@@ -7695,6 +7705,7 @@ def decide_preferences_structures(
     kind: str,
     claims_json: str,
     sources: list[JointDistributionArtifact | None],
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def preference_analysis_options(
     contract_json: str,
@@ -7707,27 +7718,48 @@ def export_preference_decision(
     options_json: str,
     source: JointDistributionArtifact,
     artifact_id: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[bytes | None, str | None]: ...
 def replay_preference_decision(
-    data: bytes, contract_json: str, source: JointDistributionArtifact
+    data: bytes,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def learn_preference_set(
-    model_json: str, records_json: str, options_json: str
+    model_json: str,
+    records_json: str,
+    options_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def estimate_preference_choice_model(
-    model_json: str, records_json: str, options_json: str
+    model_json: str,
+    records_json: str,
+    options_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 def accept_preferences_declared(
     model_json: str,
 ) -> tuple[_AcceptedPreferences | None, str | None]: ...
 def accept_preferences_compatible_set(
-    model_json: str, records_json: str, decider: str | None, options_json: str
+    model_json: str,
+    records_json: str,
+    decider: str | None,
+    options_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[_AcceptedPreferences | None, str | None]: ...
 def accept_preferences_choice_model(
-    model_json: str, records_json: str, decider: str | None, options_json: str
+    model_json: str,
+    records_json: str,
+    decider: str | None,
+    options_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[_AcceptedPreferences | None, str | None]: ...
 def consume_accepted_preferences(
-    data: bytes, expected_identity: str, records_json: str | None
+    data: bytes,
+    expected_identity: str,
+    records_json: str | None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[_AcceptedPreferences | None, str | None]: ...
 def preference_chain_joint_law(
     record_json: str, cancel: CancellationToken | None

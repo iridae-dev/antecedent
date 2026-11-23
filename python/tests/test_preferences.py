@@ -404,10 +404,8 @@ def test_separately_sampled_laws_do_not_pair():
 
 
 def test_a_propagation_chain_joins_its_outputs_under_the_declared_dependence():
-    # A predictive law answers a mean-like functional, not an interventional outcome threshold.
-    T_BEN, T_HARM, W_BEN, W_HARM = (
-        _quantity(q.variable_id, q.units, q.regime_id, "mean") for q in COLUMNS
-    )
+    # A predictive chain is the outcome law under each action, so it answers `outcome` inputs.
+    T_BEN, T_HARM, W_BEN, W_HARM = COLUMNS
     from antecedent import propagation_chain as pc
 
     shared = [("disturbance", "trial-shock")]

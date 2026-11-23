@@ -24,10 +24,11 @@ use antecedent::analysis::preference_decision::{
     RelationOrigin, RelationSense, SetLearningOptions, SetLearningResult, SetOutcome,
     StructuralCertifiedResult, StructuralPolicy, StructuralPreferenceEvaluation,
     StructuralPreferenceResult, StructuralPreferenceVerdict, ValueModel, analysis_options,
-    chain_joint_law, decide_across_structures, decide_preferences, decide_preferences_on_means,
-    estimate_accepted, estimate_choice_model, experiment_arm_quantity, experiment_mean_source,
-    joint_law_of, learn_compatible_set, learn_compatible_set_accepted, preference_route,
-    source_requirement,
+    chain_joint_law, decide_across_structures_with_context,
+    decide_preferences_on_means_with_context, decide_preferences_with_context,
+    estimate_accepted_with_context, estimate_choice_model_with_context, experiment_arm_quantity,
+    experiment_mean_source, joint_law_of, learn_compatible_set_accepted_with_context,
+    learn_compatible_set_with_context, preference_route, source_requirement,
 };
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
 use antecedent::contract::ExternalRefusal;
@@ -1568,51 +1569,73 @@ fn preference_contract_describe(contract_json: &str) -> PyResult<Reply> {
     })
 }
 
-/// Decide a preference contract on aligned joint draws, by the route rule.
+/// Decide a preference contract on aligned joint draws, by the route rule. The decision reads
+/// `cancel` at its work boundaries.
 #[pyfunction]
+#[pyo3(signature = (contract_json, measure_json, options_json, source, cancel=None))]
 fn decide_preferences_joint(
     contract_json: &str,
     measure_json: Option<&str>,
     options_json: &str,
     source: &PyJointDistributionArtifact,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let contract = contract_from(contract_json)?;
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(reply(
-            decide_preferences(&contract, source.inner(), measure.as_ref(), options)
-                .map(|e| evaluation_json(&e, &contract))
-                .map_err(|e| refusal(&e.to_refusal())),
+            decide_preferences_with_context(
+                &contract,
+                source.inner(),
+                measure.as_ref(),
+                options,
+                &ctx,
+            )
+            .map(|e| evaluation_json(&e, &contract))
+            .map_err(|e| refusal(&e.to_refusal())),
         ))
     })
 }
 
-/// Decide a preference contract on a mean-only source (exact route only).
+/// Decide a preference contract on a mean-only source (exact route only). The decision reads
+/// `cancel` at its work boundaries.
 #[pyfunction]
+#[pyo3(signature = (contract_json, measure_json, options_json, mean_source_json, cancel=None))]
 fn decide_preferences_means(
     contract_json: &str,
     measure_json: Option<&str>,
     options_json: &str,
     mean_source_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let contract = contract_from(contract_json)?;
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
         let source = mean_source_from(mean_source_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(reply(
-            decide_preferences_on_means(&contract, &source, measure.as_ref(), options)
-                .map(|e| evaluation_json(&e, &contract))
-                .map_err(|e| refusal(&e.to_refusal())),
+            decide_preferences_on_means_with_context(
+                &contract,
+                &source,
+                measure.as_ref(),
+                options,
+                &ctx,
+            )
+            .map(|e| evaluation_json(&e, &contract))
+            .map_err(|e| refusal(&e.to_refusal())),
         ))
     })
 }
 
 /// Decide a preference contract across structures (`kind` as the robust decision's claims:
 /// `point`, `graph_dependent`, `weighted_graph_posterior`, `finite_scenarios`) and its
-/// preference set together; `sources` aligns with the claims.
+/// preference set together; `sources` aligns with the claims. The decision reads `cancel` at
+/// its work boundaries.
 #[pyfunction]
+#[pyo3(signature = (contract_json, measure_json, options_json, kind, claims_json, sources, cancel=None))]
 fn decide_preferences_structures(
     contract_json: &str,
     measure_json: Option<&str>,
@@ -1620,17 +1643,24 @@ fn decide_preferences_structures(
     kind: &str,
     claims_json: &str,
     sources: Vec<Option<PyRef<'_, PyJointDistributionArtifact>>>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let contract = contract_from(contract_json)?;
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
         check_declared_size(claims_json, MAX_PREFERENCE_JSON_BYTES, "structures")?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         let run = || -> Result<Value, String> {
             let claims = adapt(contract.structural_policy, kind, claims_json, &sources)?;
-            let evaluation =
-                decide_across_structures(&contract, &claims, measure.as_ref(), options)
-                    .map_err(|e| refusal(&e))?;
+            let evaluation = decide_across_structures_with_context(
+                &contract,
+                &claims,
+                measure.as_ref(),
+                options,
+                &ctx,
+            )
+            .map_err(|e| refusal(&e))?;
             Ok(structural_json(&evaluation, &contract))
         };
         Ok(reply(run()))
@@ -1670,8 +1700,9 @@ fn preference_analysis_options(
 }
 
 /// Decide on aligned joint draws and export the bound decision record; returns the bytes or
-/// a refusal.
+/// a refusal. The decision reads `cancel` at its work boundaries.
 #[pyfunction]
+#[pyo3(signature = (contract_json, measure_json, options_json, source, artifact_id, cancel=None))]
 fn export_preference_decision<'py>(
     py: Python<'py>,
     contract_json: &str,
@@ -1679,14 +1710,21 @@ fn export_preference_decision<'py>(
     options_json: &str,
     source: &PyJointDistributionArtifact,
     artifact_id: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Option<Bound<'py, PyBytes>>, Option<String>)> {
     crate::catch_ffi(|| {
         let contract = contract_from(contract_json)?;
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
-        let outcome =
-            PreferenceDecisionArtifact::evaluate(contract, source.inner(), measure, options)
-                .and_then(|artifact| artifact.to_bytes(artifact_id));
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
+        let outcome = PreferenceDecisionArtifact::evaluate_with_context(
+            contract,
+            source.inner(),
+            measure,
+            options,
+            &ctx,
+        )
+        .and_then(|artifact| artifact.to_bytes(artifact_id));
         Ok(match outcome {
             Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
             Err(error) => (None, Some(refusal(&error.to_refusal()))),
@@ -1696,15 +1734,19 @@ fn export_preference_decision<'py>(
 
 /// Replay a stored decision under the consumer's contract and draws: load it under the
 /// contract's identity and the draws' digest, recompute, and require the stored result.
-/// Returns the result JSON (with `measure` and `options` as stored) or a refusal.
+/// Returns the result JSON (with `measure` and `options` as stored) or a refusal. The
+/// recomputation reads `cancel` at its work boundaries.
 #[pyfunction]
+#[pyo3(signature = (data, contract_json, source, cancel=None))]
 fn replay_preference_decision(
     data: &[u8],
     contract_json: &str,
     source: &PyJointDistributionArtifact,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let contract = contract_from(contract_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         let run = || -> Result<Value, String> {
             let identity = contract.identity().map_err(|e| refusal(&e.to_refusal()))?;
             let artifact = PreferenceDecisionArtifact::from_bytes(
@@ -1713,7 +1755,9 @@ fn replay_preference_decision(
                 &source_digest(source.inner()),
             )
             .map_err(|e| refusal(&e.to_refusal()))?;
-            artifact.replay(source.inner()).map_err(|e| refusal(&e.to_refusal()))?;
+            artifact
+                .replay_with_context(source.inner(), &ctx)
+                .map_err(|e| refusal(&e.to_refusal()))?;
             let mut value = evaluation_json(artifact.evaluation(), artifact.contract());
             value["measure"] = artifact.measure().map_or(Value::Null, measure_value);
             Ok(value)
@@ -1727,19 +1771,23 @@ fn replay_preference_decision(
 // ---------------------------------------------------------------------------
 
 /// Learn the set of preference parameters compatible with recorded choices; returns
-/// `{pooled, per_decider, overlap}` or a refusal.
+/// `{pooled, per_decider, overlap}` or a refusal. The learner reads `cancel` before every
+/// linear program.
 #[pyfunction]
+#[pyo3(signature = (model_json, records_json, options_json, cancel=None))]
 fn learn_preference_set(
     model_json: &str,
     records_json: &str,
     options_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = set_options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(reply(
-            learn_compatible_set(&model, &records, options)
+            learn_compatible_set_with_context(&model, &records, options, &ctx)
                 .map(|result| set_result_json(&result))
                 .map_err(|e| refusal(&e.to_refusal())),
         ))
@@ -1747,19 +1795,23 @@ fn learn_preference_set(
 }
 
 /// Estimate the preference parameters from choices read as noisy; returns
-/// `{pooled, per_decider}` or a refusal.
+/// `{pooled, per_decider}` or a refusal. The estimator reads `cancel` before every fit,
+/// Newton step and block of measure draws.
 #[pyfunction]
+#[pyo3(signature = (model_json, records_json, options_json, cancel=None))]
 fn estimate_preference_choice_model(
     model_json: &str,
     records_json: &str,
     options_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = choice_options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(reply(
-            estimate_choice_model(&model, &records, options)
+            estimate_choice_model_with_context(&model, &records, options, &ctx)
                 .map(|result| choice_result_json(&result))
                 .map_err(|e| refusal(&e.to_refusal())),
         ))
@@ -1806,36 +1858,46 @@ impl PyAcceptedPreferences {
         })
     }
 
-    /// Relearn the compatible set from `records`: version + 1, acknowledgements cleared.
+    /// Relearn the compatible set from `records`: version + 1, acknowledgements cleared. The
+    /// learner reads `cancel` before every linear program.
+    #[pyo3(signature = (records_json, decider, options_json, cancel=None))]
     fn relearn_compatible_set(
         &self,
         records_json: &str,
         decider: Option<&str>,
         options_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<HandleReply> {
         crate::catch_ffi(|| {
             let records = records_from(records_json)?;
             let options = set_options_from(options_json)?;
+            let ctx = crate::transport_common::execution_context(0, None, cancel);
             Ok(handle(
                 self.inner
-                    .relearn_compatible_set(&records, decider, options)
+                    .relearn_compatible_set_with_context(&records, decider, options, &ctx)
                     .map_err(|e| e.to_refusal()),
             ))
         })
     }
 
-    /// Re-estimate from `records`: version + 1, acknowledgements cleared.
+    /// Re-estimate from `records`: version + 1, acknowledgements cleared. The estimator reads
+    /// `cancel` before every fit, Newton step and block of measure draws.
+    #[pyo3(signature = (records_json, decider, options_json, cancel=None))]
     fn relearn_choice_model(
         &self,
         records_json: &str,
         decider: Option<&str>,
         options_json: &str,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<HandleReply> {
         crate::catch_ffi(|| {
             let records = records_from(records_json)?;
             let options = choice_options_from(options_json)?;
+            let ctx = crate::transport_common::execution_context(0, None, cancel);
             Ok(handle(
-                self.inner.relearn_estimate(&records, decider, options).map_err(|e| e.to_refusal()),
+                self.inner
+                    .relearn_estimate_with_context(&records, decider, options, &ctx)
+                    .map_err(|e| e.to_refusal()),
             ))
         })
     }
@@ -1865,57 +1927,68 @@ fn accept_preferences_declared(model_json: &str) -> PyResult<HandleReply> {
 }
 
 /// Learn the compatible set and accept it; `decider` selects one decider's outcome, `None`
-/// the pooled one.
+/// the pooled one. The learner reads `cancel` before every linear program.
 #[pyfunction]
+#[pyo3(signature = (model_json, records_json, decider, options_json, cancel=None))]
 fn accept_preferences_compatible_set(
     model_json: &str,
     records_json: &str,
     decider: Option<&str>,
     options_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<HandleReply> {
     crate::catch_ffi(|| {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = set_options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(handle(
-            learn_compatible_set_accepted(&model, &records, decider, options)
+            learn_compatible_set_accepted_with_context(&model, &records, decider, options, &ctx)
                 .map_err(|e| e.to_refusal()),
         ))
     })
 }
 
-/// Estimate from choices read as noisy and accept the estimate.
+/// Estimate from choices read as noisy and accept the estimate. The estimator reads `cancel`
+/// before every fit, Newton step and block of measure draws.
 #[pyfunction]
+#[pyo3(signature = (model_json, records_json, decider, options_json, cancel=None))]
 fn accept_preferences_choice_model(
     model_json: &str,
     records_json: &str,
     decider: Option<&str>,
     options_json: &str,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<HandleReply> {
     crate::catch_ffi(|| {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = choice_options_from(options_json)?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         Ok(handle(
-            estimate_accepted(&model, &records, decider, options).map_err(|e| e.to_refusal()),
+            estimate_accepted_with_context(&model, &records, decider, options, &ctx)
+                .map_err(|e| e.to_refusal()),
         ))
     })
 }
 
 /// Load accepted preferences under an identity the consumer retained; with records, a
-/// learned basis is relearned from them and must be reproduced.
+/// learned basis is relearned from them and must be reproduced, reading `cancel` as the
+/// learner or the estimator does.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity, records_json))]
+#[pyo3(signature = (data, expected_identity, records_json, cancel=None))]
 fn consume_accepted_preferences(
     data: &[u8],
     expected_identity: &str,
     records_json: Option<&str>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<HandleReply> {
     crate::catch_ffi(|| {
         let records = records_json.map(records_from).transpose()?;
+        let ctx = crate::transport_common::execution_context(0, None, cancel);
         let outcome = AcceptedPreferencesArtifact::from_bytes(data, expected_identity)
             .and_then(|artifact| match &records {
-                Some(records) => artifact.replay(records).map(|()| artifact),
+                Some(records) => artifact.replay_with_context(records, &ctx).map(|()| artifact),
                 None => Ok(artifact),
             })
             .map(|artifact| artifact.accepted().clone())

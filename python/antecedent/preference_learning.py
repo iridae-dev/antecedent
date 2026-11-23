@@ -37,8 +37,9 @@ What each result is and is not:
   probability statement. Contradictory records are reported with the tolerance that would
   reconcile them, never silently dropped.
 * A choice-model estimate reads each choice as noisy (logit). Its intervals come from a normal
-  approximation whose coverage is not measured, and its measure over the trade-offs is draws
-  from that approximation, not a posterior.
+  approximation whose calibration status is resolved from the shipped coverage table
+  (``not_measured`` until a coverage record exists), and its measure over the trade-offs is
+  draws from that approximation, not a posterior.
 * An option that existed but could not be chosen (``Option(..., unavailable=constraint_id)``)
   teaches nothing about preferences.
 * Pooling several decision-makers into one set of preferences is itself a named assumption
@@ -71,6 +72,7 @@ from ._native import preference_analysis_options as _analysis_options
 from ._scientific import ScientificResult
 from ._validate import real, text
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .joint_distribution import JointDistributionArtifact
 from .outcomes import outcome_operation
 from .preferences import (
@@ -481,22 +483,40 @@ class CompatibleSet:
         return json.dumps(wire)
 
     @outcome_operation
-    def learn(self, model: ValueModel, records: Records) -> CompatibleSetResult:
-        """The full outcome: per decider, pooled (when pooled) and every conflict."""
+    def learn(
+        self, model: ValueModel, records: Records, *, execution: Execution | None = None
+    ) -> CompatibleSetResult:
+        """The full outcome: per decider, pooled (when pooled) and every conflict. The learner
+        reads the execution's cancellation token at its work boundaries; a cancelled run is
+        refused with ``cancelled_no_claim``."""
+        execution = resolve_execution(execution)
         wire = _model_wire(model)
-        body, refusal = _learn_set(json.dumps(wire), _records(records)._wire(wire), self._options())
+        body, refusal = _learn_set(
+            json.dumps(wire), _records(records)._wire(wire), self._options(), execution.cancel
+        )
         _raise(refusal)
         assert body is not None
         return CompatibleSetResult(json.loads(body))
 
     def accept(
-        self, model: ValueModel, records: Records, *, decider: str | None = None
+        self,
+        model: ValueModel,
+        records: Records,
+        *,
+        decider: str | None = None,
+        execution: Execution | None = None,
     ) -> AcceptedPreferences:
         """Learn and accept: ``decider=None`` takes the pooled outcome (records must be
-        :class:`Pooled`), a name takes that decider's own. Contradictory records refuse."""
+        :class:`Pooled`), a name takes that decider's own. Contradictory records refuse. The
+        learner reads the execution's cancellation token at its work boundaries."""
+        execution = resolve_execution(execution)
         wire = _model_wire(model)
         native, refusal = _accept_compatible_set(
-            json.dumps(wire), _records(records)._wire(wire), decider, self._options()
+            json.dumps(wire),
+            _records(records)._wire(wire),
+            decider,
+            self._options(),
+            execution.cancel,
         )
         _raise(refusal)
         return AcceptedPreferences(native)
@@ -509,7 +529,8 @@ class CompatibleSet:
 class ParameterEstimate:
     """One trade-off's point estimate and interval.
 
-    The interval comes from a normal approximation; its coverage is not measured.
+    The interval comes from a normal approximation; its calibration status is the estimate's
+    ``interval_calibration``.
     ``inside_declared`` says whether the point estimate lies in the declared range."""
 
     parameter: str
@@ -526,7 +547,9 @@ class ChoiceEstimate:
 
     ``consistency`` is how sharply choices follow value. ``measure`` holds draws from the normal
     approximation to the estimate's sampling distribution, kept inside the declared set; it is
-    not a posterior. ``interval_calibration`` is ``not_measured``."""
+    not a posterior. ``interval_calibration`` is resolved from the shipped coverage table:
+    ``measured`` only when a current coverage record measured this construction, otherwise
+    ``not_measured``."""
 
     identity: str
     decider: str | None
@@ -608,7 +631,8 @@ class ChoiceModelResult(ScientificResult):
 class ChoiceModel:
     """Estimate the trade-offs from choices read as noisy.
 
-    ``level`` is the two-sided level of each interval (coverage not measured), ``draws`` the
+    ``level`` is the two-sided level of each interval (calibration from the shipped coverage
+    table), ``draws`` the
     number of draws in the estimate's measure, ``seed`` their generator seed. Records holding
     both stated comparisons and recorded choices in one fit are refused.
     """
@@ -623,23 +647,39 @@ class ChoiceModel:
         )
 
     @outcome_operation
-    def learn(self, model: ValueModel, records: Records) -> ChoiceModelResult:
-        """The pooled estimate, or one outcome per decider."""
+    def learn(
+        self, model: ValueModel, records: Records, *, execution: Execution | None = None
+    ) -> ChoiceModelResult:
+        """The pooled estimate, or one outcome per decider. The estimator reads the
+        execution's cancellation token at its work boundaries; a cancelled run is refused with
+        ``cancelled_no_claim``."""
+        execution = resolve_execution(execution)
         wire = _model_wire(model)
         body, refusal = _estimate_choice_model(
-            json.dumps(wire), _records(records)._wire(wire), self._options()
+            json.dumps(wire), _records(records)._wire(wire), self._options(), execution.cancel
         )
         _raise(refusal)
         assert body is not None
         return ChoiceModelResult(json.loads(body), [p["id"] for p in wire["parameters"]])
 
     def accept(
-        self, model: ValueModel, records: Records, *, decider: str | None = None
+        self,
+        model: ValueModel,
+        records: Records,
+        *,
+        decider: str | None = None,
+        execution: Execution | None = None,
     ) -> AcceptedPreferences:
-        """Estimate and accept; the accepted preferences carry the estimate's measure."""
+        """Estimate and accept; the accepted preferences carry the estimate's measure. The
+        estimator reads the execution's cancellation token at its work boundaries."""
+        execution = resolve_execution(execution)
         wire = _model_wire(model)
         native, refusal = _accept_choice_model(
-            json.dumps(wire), _records(records)._wire(wire), decider, self._options()
+            json.dumps(wire),
+            _records(records)._wire(wire),
+            decider,
+            self._options(),
+            execution.cancel,
         )
         _raise(refusal)
         return AcceptedPreferences(native)
@@ -657,7 +697,8 @@ class ReviewItem:
     ``estimate_outside_declared``, ``draws_outside_declared`` or ``stated_comparisons_used``
     (the records include stated comparisons: what someone said they would choose, not what
     they chose); ``parameter`` names the parameter and ``amount`` the tolerance, the dropped
-    share or the number of stated comparisons, when there is one."""
+    share or the number of stated comparisons, when there is one. A parameter the model fixes
+    (``lower == upper``) is a value stated outright and raises no item."""
 
     kind: str
     parameter: str | None = None
@@ -798,9 +839,12 @@ class AcceptedPreferences:
         *,
         decider: str | None = None,
         using: CompatibleSet | ChoiceModel | None = None,
+        execution: Execution | None = None,
     ) -> AcceptedPreferences:
         """Relearn from ``records`` with the stored options (or ``using``): version + 1,
-        acknowledgements cleared."""
+        acknowledgements cleared. The learner reads the execution's cancellation token at its
+        work boundaries; a cancelled run is refused with ``cancelled_no_claim``."""
+        execution = resolve_execution(execution)
         if using is None:
             learning = self._summary.get("learning")
             if learning is None:
@@ -814,9 +858,13 @@ class AcceptedPreferences:
                 using = ChoiceModel(learning["level"], learning["n_draws"], learning["seed"])
         wire = _records(records)._wire(self._summary["declared_model"])
         if isinstance(using, CompatibleSet):
-            native, refusal = self._native.relearn_compatible_set(wire, decider, using._options())
+            native, refusal = self._native.relearn_compatible_set(
+                wire, decider, using._options(), execution.cancel
+            )
         elif isinstance(using, ChoiceModel):
-            native, refusal = self._native.relearn_choice_model(wire, decider, using._options())
+            native, refusal = self._native.relearn_choice_model(
+                wire, decider, using._options(), execution.cancel
+            )
         else:
             raise CausalTypeError("using= is a CompatibleSet or a ChoiceModel")
         _raise(refusal)
@@ -866,13 +914,19 @@ def _load_acceptance(result: AcceptedPreferences, bound: bool) -> ArtifactAccept
     acceptance=_load_acceptance,
 )
 def load(
-    data: bytes, *, expected_identity: str, records: Records | None = None
+    data: bytes,
+    *,
+    expected_identity: str,
+    records: Records | None = None,
+    execution: Execution | None = None,
 ) -> AcceptedPreferences:
     """Load accepted preferences under an identity retained separately from the bytes.
 
     With ``records``, a learned basis is relearned from them with the stored options and must be
-    reproduced; a declared basis needs no records.
+    reproduced; a declared basis needs no records. The relearning reads the execution's
+    cancellation token; a cancelled replay is refused with ``cancelled_no_claim``.
     """
+    execution = resolve_execution(execution)
     data = container_bytes(data)
     records_json = None
     if records is not None:
@@ -882,7 +936,7 @@ def load(
         assert unverified is not None
         model = json.loads(unverified.summary_json())["declared_model"]
         records_json = _records(records)._wire(model)
-    native, refusal = _consume_accepted(data, expected_identity, records_json)
+    native, refusal = _consume_accepted(data, expected_identity, records_json, execution.cancel)
     _raise(refusal)
     accepted = AcceptedPreferences(native)
     accepted._replayed = records is not None or accepted.basis == "declared"

@@ -82,6 +82,7 @@ from ._validate import real, text
 from .decision import Constraint, ConstraintExclusion, Criterion
 from .decision import Expr as _DecisionExpr
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .external import BoundExternalClaim
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .outcomes import Answer, outcome_operation, require_success
@@ -1153,28 +1154,32 @@ class Contract:
         outcome_units: str | None = None,
         dose_units: str | None = None,
         population: str = "target",
+        execution: Execution | None = None,
     ) -> PreferenceDecision:
         """Decide across every admissible value of the trade-offs.
 
-                ``source`` is what :meth:`antecedent.decision.Contract.evaluate` reads (aligned joint
-                draws; a mean source or bound external claim; a supported analysis result, read as its
-                mean source with ``program=``, ``outcome_units=``, ``dose_units=`` and ``population=``
-                as there), or :class:`Structures` to decide across causal structures as well. Several
-                separately estimated outcomes are read as one law: a sequence of
-                :class:`~antecedent.joint_distribution.JointDistributionArtifact` whose rows already pair
-                (see :func:`joint_law`), or a :class:`~antecedent.propagation_chain.PropagationChain`
-                whose declared joint outputs join them under the chain's declared dependence (see
+        ``source`` is what :meth:`antecedent.decision.Contract.evaluate` reads (aligned joint
+        draws; a mean source or bound external claim; a supported analysis result, read as its
+        mean source with ``program=``, ``outcome_units=``, ``dose_units=`` and ``population=``
+        as there), or :class:`Structures` to decide across causal structures as well. Several
+        separately estimated outcomes are read as one law: a sequence of
+        :class:`~antecedent.joint_distribution.JointDistributionArtifact` whose rows already pair
+        (see :func:`joint_law`), or a :class:`~antecedent.propagation_chain.PropagationChain`
+        whose declared joint outputs join them under the chain's declared dependence (see
         :func:`chain_law`). The :class:`~antecedent.decision_evidence.JointEvidence` of one
-                experiment is read as its arm means (:func:`experiment_means`); name each action's
-                inputs with :func:`experiment_quantity`. Means answer only a value affine in the
-                attributes; a kinked or otherwise nonlinear term refuses.
+        experiment is read as its arm means (:func:`experiment_means`); name each action's
+        inputs with :func:`experiment_quantity`. Means answer only a value affine in the
+        attributes; a kinked or otherwise nonlinear term refuses.
 
-                A mean source answers only the exact route (an affine value and an expectation
-                criterion); anything else refuses with ``preference_evaluation.joint_draws_required``.
-                ``measure`` weighs trade-off values for :meth:`Policy.weighted` and reports shares; it
-                is refused when the accepted preferences already carry one. ``tie_tolerance``,
-                ``vertex_cap``, ``max_boxes`` and ``min_width_fraction`` tune the routes.
+        A mean source answers only the exact route (an affine value and an expectation
+        criterion); anything else refuses with ``preference_evaluation.joint_draws_required``.
+        ``measure`` weighs trade-off values for :meth:`Policy.weighted` and reports shares; it
+        is refused when the accepted preferences already carry one. ``tie_tolerance``,
+        ``vertex_cap``, ``max_boxes`` and ``min_width_fraction`` tune the routes. The decision
+        reads the execution's cancellation token at its work boundaries; a cancelled run is
+        refused with ``cancelled_no_claim``.
         """
+        execution = resolve_execution(execution)
         resolved = self._source(
             source,
             program=program,
@@ -1197,14 +1202,19 @@ class Contract:
                 resolved.kind,
                 json.dumps(claims),
                 sources,
+                execution.cancel,
             )
         elif isinstance(resolved, JointDistributionArtifact):
             body, refusal = _decide_joint(
-                contract_json, measure_json, options_json, resolved._native
+                contract_json, measure_json, options_json, resolved._native, execution.cancel
             )
         else:
             body, refusal = _decide_means(
-                contract_json, measure_json, options_json, json.dumps(_mean_wire(resolved))
+                contract_json,
+                measure_json,
+                options_json,
+                json.dumps(_mean_wire(resolved)),
+                execution.cancel,
             )
         _raise(refusal)
         assert body is not None
@@ -1473,9 +1483,10 @@ class PreferenceDecision(ScientificResult):
 
     @property
     def answer(self) -> Answer:
+        """A structured answer whose ``detail`` is the verdict kind (``"necessarily_best"``, ...)."""
         return Answer(
             "structured",
-            detail="preference_decision." + self.kind,
+            detail=self.kind,
             structured={"selected": self.selected, "contract_identity": self.contract_identity},
         )
 
@@ -1762,13 +1773,20 @@ class PreferenceDecision(ScientificResult):
     input="data",
 )
 def replay(
-    data: bytes, *, contract: Contract, source: JointDistributionArtifact
+    data: bytes,
+    *,
+    contract: Contract,
+    source: JointDistributionArtifact,
+    execution: Execution | None = None,
 ) -> PreferenceDecision:
     """Recompute a stored decision across preferences from the consumer's own inputs.
 
     The contract and draws are the consumer's: a record computed under another contract, from
-    other draws, or with edited numbers refuses. The stored measure and options are reused.
+    other draws, or with edited numbers refuses. The stored measure and options are reused. The
+    recomputation reads the execution's cancellation token at its work boundaries; a cancelled
+    replay is refused with ``cancelled_no_claim``.
     """
+    execution = resolve_execution(execution)
     data = container_bytes(data)
     source = require_success(source)
     if not isinstance(contract, Contract):
@@ -1778,7 +1796,9 @@ def replay(
             "replay needs the JointDistributionArtifact of aligned draws the decision was "
             f"computed from, not {type(source).__name__}"
         )
-    body, refusal = _replay_decision(data, json.dumps(contract._wire()), source._native)
+    body, refusal = _replay_decision(
+        data, json.dumps(contract._wire()), source._native, execution.cancel
+    )
     _raise(refusal)
     assert body is not None
     decoded = json.loads(body)
