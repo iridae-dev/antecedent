@@ -23,7 +23,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal
 
-from . import _native
+from . import _deprecation, _native
 from ._data import as_columns, as_multi_env_columns
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -1352,7 +1352,19 @@ def mediation_sensitivity(
     target_source: str | None = None,
 ) -> SensitivityResult:
     """Indirect effect as a function of the mediator-outcome error correlation ``rho``
-    (Imai, Keele and Yamamoto 2010); the break-even ``rho`` explains it away."""
+    (Imai, Keele and Yamamoto 2010); the break-even ``rho`` explains it away.
+
+    Deprecated: this direct path runs without the causal compiler. Prepare the study with an
+    ``ant.MediationEffect`` query and call :func:`refute_target` with a
+    ``TargetRefutationSpec(suite="cheap", mediator=...)``; its ``target.sequential_ignorability``
+    check reports the break-even ``rho`` (``value``) and the indirect effect at ``rho = 0``
+    (``refuted[-1]``) from the same working model.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.mediation_sensitivity",
+        "antecedent.validation.refute_target(study, checks=TargetRefutationSpec("
+        "suite='cheap', mediator=...)) on an ant.MediationEffect study",
+    )
     return _sensitivity(
         "mediation",
         _sensitivity_mediation(
