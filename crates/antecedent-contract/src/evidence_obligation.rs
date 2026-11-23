@@ -510,21 +510,22 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
     if !spec.required_slots.iter().all(|slot| seen_slots.insert(&**slot)) {
         return Err(invalid("a required contract slot is listed twice"));
     }
+    let slots_text = spec.required_slots.iter().map(AsRef::as_ref);
+    let forges_later_field = |field: &str, field_index: usize| {
+        FIELD_KEYS[field_index + 1..]
+            .iter()
+            .any(|key| field.contains(&format!("{FIELD_SEPARATOR}{key}")))
+    };
     if spec.required_slots.iter().any(|slot| slot.contains(SLOT_JOIN))
-        || [
-            spec.population.as_deref(),
-            spec.provenance.proof_step.as_deref(),
-            Some(&*spec.provenance.family),
-            Some(&*spec.provenance.source),
-        ]
-        .into_iter()
-        .flatten()
-        .chain(spec.required_slots.iter().map(AsRef::as_ref))
-        .any(|text| text.contains(FIELD_SEPARATOR))
+        || spec.population.as_deref().is_some_and(|p| forges_later_field(p, KEY_POPULATION))
+        || slots_text.clone().any(|slot| forges_later_field(slot, KEY_SLOTS))
+        || forges_later_field(&spec.provenance.family, KEY_FAMILY)
+        || forges_later_field(&spec.provenance.source, KEY_SOURCE)
+        || spec.provenance.proof_step.as_deref().is_some_and(|t| forges_later_field(t, KEY_STEP))
     {
         return Err(invalid(
-            "an obligation population, slot, family, source or proof step contains a \
-             reserved identity separator (';' or, in a slot, '|')",
+            "an obligation population, slot, family, source or proof step contains the \
+             start of a later identity field (';' followed by its key), or a slot contains '|'",
         ));
     }
     if !distinct(&spec.variables)
@@ -593,6 +594,30 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
 const FIELD_SEPARATOR: char = ';';
 /// Joins the sorted required slots inside the `slots=[..]` field.
 const SLOT_JOIN: char = '|';
+/// Keys of the canonical content fields in order, each as it appears after
+/// the separator; the last is the repeated `quantity:` entry. A free-text
+/// field may not contain the separator followed by the key of a later field,
+/// which is what makes the unframed text uniquely parseable.
+const FIELD_KEYS: [&str; 13] = [
+    "kind=",
+    "scope=",
+    "pop=",
+    "vars=",
+    "do=",
+    "cond=",
+    "joint=",
+    "n=",
+    "slots=",
+    "family=",
+    "source=",
+    "step=",
+    "quantity:",
+];
+const KEY_POPULATION: usize = 2;
+const KEY_SLOTS: usize = 8;
+const KEY_FAMILY: usize = 9;
+const KEY_SOURCE: usize = 10;
+const KEY_STEP: usize = 11;
 
 fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     let mut slots: Vec<&str> = spec.required_slots.iter().map(AsRef::as_ref).collect();
@@ -626,9 +651,9 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
 /// accidental collision but is not a collision bound against an adversary.
 ///
 /// The canonical content is unframed text. It is injective on accepted inputs
-/// only because validation refuses the separators it uses: `;` (field
-/// separator) in the population, any slot, family, source or proof step, and
-/// `|` (slot join) in a slot; variable lists are numeric and slots are distinct.
+/// because validation refuses a free-text field (population, slot, family,
+/// source, proof step) containing `;` followed by the key of a later field, a
+/// slot containing `|`, and a repeated slot; variable lists are numeric.
 fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
     let digest = antecedent_core::identity::blake3_hex(canonical_content(spec).as_bytes());
     Arc::from(format!("eo1:{}:{}", spec.kind.as_str(), &digest[..32]))
@@ -700,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn separators_are_refused_so_encoding_is_injective() {
+    fn forged_later_fields_are_refused_so_encoding_is_injective() {
         let mut joined = spec(EvidenceObligationKind::ProvideJointLaw);
         joined.required_slots = Arc::from([Arc::from("a|b")]);
         assert!(EvidenceObligation::try_new(joined).is_err());
@@ -710,9 +735,34 @@ mod tests {
         let mut pop = spec(EvidenceObligationKind::ProvideJointLaw);
         pop.population = Some(Arc::from("t;vars=[1]"));
         assert!(EvidenceObligation::try_new(pop).is_err());
+        let mut slot = spec(EvidenceObligationKind::ProvideJointLaw);
+        slot.required_slots = Arc::from([Arc::from("a;family=x")]);
+        assert!(EvidenceObligation::try_new(slot).is_err());
+        let mut family = spec(EvidenceObligationKind::ProvideJointLaw);
+        family.provenance.family = Arc::from("f;source=x");
+        assert!(EvidenceObligation::try_new(family).is_err());
         let mut step = spec(EvidenceObligationKind::ProvideJointLaw);
         step.provenance.proof_step = Some(Arc::from("s;quantity:0:x"));
         assert!(EvidenceObligation::try_new(step).is_err());
+    }
+
+    #[test]
+    fn a_separator_that_forges_no_later_field_is_accepted() {
+        let mut hedge = spec(EvidenceObligationKind::ProvideJointLaw);
+        hedge.provenance.source = Arc::from("hedge:f=[1];f_prime=[2]");
+        assert!(EvidenceObligation::try_new(hedge).is_ok());
+    }
+
+    #[test]
+    fn field_keys_match_the_canonical_content() {
+        let mut with_quantity = spec(EvidenceObligationKind::ProvideJointLaw);
+        with_quantity.variables = Arc::from([]);
+        let text = canonical_content(&with_quantity);
+        let mut at = 0;
+        for key in &FIELD_KEYS[..FIELD_KEYS.len() - 1] {
+            let found = text[at..].find(key).expect("key present in order");
+            at += found + key.len();
+        }
     }
 
     #[test]
