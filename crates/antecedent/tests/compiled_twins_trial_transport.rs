@@ -184,7 +184,7 @@ fn compiled_trial_transport_equals_the_direct_ipw_point_standard_error_and_inter
             let reference = EffectEstimate::new(
                 direct.ipw,
                 direct_se,
-                effect.assumptions.clone(),
+                effect.provenance.assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             );
             let wald = PublishedScalarUncertainty::select(&reference).interval(&reference);
