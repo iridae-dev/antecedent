@@ -14,6 +14,12 @@ Lifetime descendants, excluding the initiating event, are the matching column of
 
 `HawkesParameters::excitation_offspring` reports all four quantities as functionals of the conditional intensity.
 
+## Finite-rank marks
+
+A marked history replaces the catalog with prototypes. Each prototype carries nonnegative source features, target features and a reference mass. With fixed decays the ground intensity is linear in the baseline and in the excitation coefficients. The fit does not project onto a spectral-radius constraint: that constraint is not a simple function of the coefficients. It projects onto a reproduction cap, the largest lifetime direct-child count allowed for any declared prototype, strictly below one. The cap is sufficient for stability and is generally stricter than `ρ < 1`, as the catalog column cap is. Declared parameters are checked with the spectral witness of the prototype branching matrix.
+
+The rank and the basis are capped by the same dense-feature allowance as the catalog. The prototype count is capped by the cost of that spectral witness.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow

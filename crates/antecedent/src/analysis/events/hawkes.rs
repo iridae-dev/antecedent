@@ -658,6 +658,63 @@ fn rk4(state: &[f64], k1: &[f64], k2: &[f64], k3: &[f64], k4: &[f64], dt: f64) -
         .collect()
 }
 
+/// Piecewise-constant nonnegative immigrant regressor on an observation window.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BaselineFeature {
+    /// Left edge of each piece. The first equals the window start.
+    pub knots: Vec<f64>,
+    /// Nonnegative level on `[knot, next knot)`.
+    pub values: Vec<f64>,
+}
+
+impl BaselineFeature {
+    pub(super) fn validate(&self, window: EventWindow) -> Result<(), EventError> {
+        #[allow(clippy::float_cmp, reason = "the first knot must be the window start exactly")]
+        let aligned = self.knots.first().is_some_and(|knot| *knot == window.start);
+        let varies = self.values.iter().copied().reduce(f64::max).unwrap_or(0.0)
+            > self.values.iter().copied().reduce(f64::min).unwrap_or(0.0);
+        if !aligned
+            || self.knots.len() != self.values.len()
+            || self.knots.len() > 4096
+            || self.knots.windows(2).any(|pair| !(pair[1] > pair[0]))
+            || self.knots.last().is_some_and(|knot| *knot >= window.end)
+            || self.values.iter().any(|value| !value.is_finite() || *value < 0.0)
+            || !varies
+        {
+            return Err(EventError::invalid(
+                "alternative immigrant feature must vary, stay nonnegative and cover the window",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn value(&self, time: f64) -> f64 {
+        let mut level = self.values[0];
+        for (knot, value) in self.knots.iter().zip(&self.values) {
+            if *knot <= time {
+                level = *value;
+            } else {
+                break;
+            }
+        }
+        level
+    }
+
+    pub(super) fn integral(&self, start: f64, end: f64) -> f64 {
+        let mut total = 0.0;
+        for (index, (&knot, &level)) in self.knots.iter().zip(&self.values).enumerate() {
+            let right = self.knots.get(index + 1).copied().unwrap_or(end);
+            let left = knot.max(start);
+            let right = right.min(end);
+            if right > left {
+                total += level * (right - left);
+            }
+        }
+        total
+    }
+}
+
 #[cfg(test)]
 mod offspring_tests {
     use super::HawkesParameters;

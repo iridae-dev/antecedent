@@ -15,6 +15,7 @@ implementation_deviations = [
   "A conditional world response is driven by exogenous, paired arrivals through drift inputs. A separate half-step recorder preserves the established SDE execution lane and its item fingerprints. Grid maxima and indicators have discrete observation semantics.",
   "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff.",
   "Finite-horizon direct offspring is α(1 - exp(-β H)). Lifetime descendants are the column of (I - A)^{-1} - I, which removes the initiating event counted by the resolvent. Horizon descendants integrate the linear filter ODE and are not the resolvent of the horizon-discounted branching matrix.",
+  "The marked kernel is finite-rank on declared prototype features. Its fit projects onto a uniform reproduction cap, a convex sufficient condition for spectral radius below one and generally stricter. Declared marked parameters are checked with the prototype branching matrix.",
 ]
 upstream_implementations_observed = []
 test_sources = [

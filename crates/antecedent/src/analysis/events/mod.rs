@@ -14,6 +14,7 @@ use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
 mod assessment;
 mod dynamics;
 mod hawkes;
+mod marked;
 mod study;
 
 pub use assessment::{
@@ -25,6 +26,11 @@ pub use dynamics::{
     PreparedEventWorlds,
 };
 pub use hawkes::{ExcitationOffspring, HawkesFit, HawkesFitSpec, HawkesParameters};
+pub use marked::{
+    MAX_PROTOTYPES, MarkPrototype, MarkedArrival, MarkedFit, MarkedFitSpec, MarkedHistory,
+    MarkedOffspring, MarkedParameters, PreparedMarkedDraw, PreparedMarkedFit,
+    PreparedMarkedLikelihood,
+};
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
     PreparedEventStudy, PreparedEventUpdate,
