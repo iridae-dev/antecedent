@@ -45,9 +45,6 @@ pub enum SequentialReliabilityError {
     /// Portable representation refused.
     #[error("sequential reliability artifact: {0}")]
     Io(#[from] antecedent_io::IoError),
-    /// A release build refuses the route while its support unit is not supported.
-    #[error("sequential policy reliability: {0}")]
-    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// Raw evaluation mode; every policy is fixed before evaluating these data.
@@ -356,7 +353,10 @@ impl SequentialPolicyReliabilityPlan {
         ctx: &ExecutionContext,
     ) -> Result<SequentialPolicyReliabilityResult, SequentialReliabilityError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        crate::analysis::program_handle::gate_program(&scoped, self)?;
+        // A release build refuses an unsupported unit; the refusal rides `Invalid` with its
+        // `reason=not_supported:` wire message, which the Python binding raises as such.
+        crate::analysis::program_handle::gate_program(&scoped, self)
+            .map_err(|refused| SequentialReliabilityError::Invalid(refused.message()))?;
         // Enumerate reachable histories first: sampling cannot establish support.
         for policy in &self.policies {
             evaluate_policy(&self.model, policy, EvaluationLimits::default(), &scoped)?;

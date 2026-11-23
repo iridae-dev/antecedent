@@ -308,6 +308,13 @@ fn reliability_invalid_json(message: &str, replay: bool) -> String {
 /// error.
 fn reliability_refusal(error: SequentialReliabilityError, replay: bool) -> PyResult<String> {
     match error {
+        SequentialReliabilityError::Invalid(message)
+            if message.starts_with(antecedent::reason::reason_code::PREFIX)
+                && message[antecedent::reason::reason_code::PREFIX.len()..]
+                    .starts_with("not_supported:") =>
+        {
+            Err(crate::errors::unsupported_message(message))
+        }
         SequentialReliabilityError::Invalid(message) => {
             Ok(reliability_invalid_json(message, replay))
         }
@@ -318,9 +325,6 @@ fn reliability_refusal(error: SequentialReliabilityError, replay: bool) -> PyRes
             Ok(crate::decision_reliability_api::error_json(&error))
         }
         SequentialReliabilityError::Io(error) => Err(crate::py_err(error)),
-        SequentialReliabilityError::NotSupported(refused) => {
-            Err(crate::errors::not_supported_err(&refused))
-        }
     }
 }
 
