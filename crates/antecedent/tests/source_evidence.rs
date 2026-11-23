@@ -289,6 +289,37 @@ fn bounded_evidence_refuses_oversized_logical_sections_before_decompression() {
 }
 
 #[test]
+fn a_tampered_contract_is_refused_as_source_evidence() {
+    use antecedent_io::{
+        AnalysisResultContractWire, CONTRACT_SECTION, CompressPolicy, EncodedArtifact, from_cbor,
+        pack_section_shared, to_cbor,
+    };
+    let bytes = source().original_bytes().to_vec();
+    let mut artifact = EncodedArtifact::read_from(std::io::Cursor::new(&bytes)).unwrap();
+    let index = artifact.manifest.sections.iter().position(|s| s.id == CONTRACT_SECTION).unwrap();
+    let mut contract: AnalysisResultContractWire =
+        from_cbor(&artifact.sections[index].data).unwrap();
+    contract.identities.target[0] ^= 0xff;
+    let (descriptor, section) = pack_section_shared(
+        CONTRACT_SECTION,
+        "application/cbor",
+        to_cbor(&contract).unwrap().into(),
+        CompressPolicy::Auto,
+    );
+    artifact.manifest.sections[index] = descriptor;
+    artifact.sections[index] = section;
+    let mut tampered = Vec::new();
+    artifact.write_to(&mut tampered).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&tampered).unwrap();
+    assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.target"));
+    let error = SourceEvidence::from_result(&tampered).unwrap_err();
+    assert_eq!(
+        (error.code, error.detail),
+        ("invalid_argument", antecedent_core::reason_details::source_evidence::SOURCE_UNVERIFIED)
+    );
+}
+
+#[test]
 fn original_native_source_chain_is_typed_and_independently_rederived() {
     let source = source();
     let chain = source.provenance_chain().unwrap();

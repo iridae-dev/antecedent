@@ -232,8 +232,9 @@ pub enum NumericalCause {
     /// The provider trust standing moved (and does not withdraw): the numbers
     /// were produced under a different standing.
     TrustChanged,
-    /// The node's calibration record was replaced by a different one: the
-    /// earlier uncertainty statement carries no authority.
+    /// The node's calibration record was replaced by a different one, or a record
+    /// appeared where none was held: the earlier uncertainty statement carries no
+    /// authority.
     CalibrationChanged,
     /// Coordinates that were outside the support are supported again: the
     /// earlier numbers were never supported there.
@@ -608,10 +609,13 @@ fn own_causes(
             {
                 causes.push(NumericalCause::SupportRestored);
             }
+            // A record that replaced another, or one that appeared where none was held
+            // (point-only or required before), is an own change: calibration must not
+            // rise silently across reused numbers. Lowering to not held is a withdrawal
+            // or annotation of the interval, handled where calibration is evaluated.
             if !coordinate_changed
-                && let (Some(was), Some(is)) =
-                    (held_record(&before.calibration), held_record(&node.calibration))
-                && was != is
+                && let Some(is) = held_record(&node.calibration)
+                && held_record(&before.calibration) != Some(is)
             {
                 causes.push(NumericalCause::CalibrationChanged);
             }

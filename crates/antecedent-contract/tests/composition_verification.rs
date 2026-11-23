@@ -760,6 +760,41 @@ fn a_replaced_calibration_record_recomputes_its_owner_and_refuses_its_heirs() {
 }
 
 #[test]
+fn calibration_raised_to_held_recomputes_its_owner() {
+    let held = CalibrationDeclaration::Held { record: d(90), coordinate: d(100) };
+    for lower in [CalibrationDeclaration::Required, CalibrationDeclaration::PointOnly] {
+        let before = build(&Params { result_calibration: lower, ..params() });
+        let after = build(&Params { result_calibration: held.clone(), ..params() });
+        let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
+        let result = r.claim("result").expect("claim");
+        assert_eq!(result.class, Revalidation::Recompute);
+        assert!(result.numerical.iter().any(|n| n.cause == NumericalCause::CalibrationChanged));
+        assert_eq!(result.authority, PriorAuthority::NotRetained);
+    }
+}
+
+#[test]
+fn an_unchanged_held_record_stays_valid_and_lowering_it_is_not_a_raise() {
+    let held = CalibrationDeclaration::Held { record: d(90), coordinate: d(100) };
+    let same = build(&params());
+    let r = revalidate(&same, &build(&params()), &no_effects()).expect("revalidate");
+    assert_eq!(r.claim("result").expect("claim").class, Revalidation::StillValid);
+    assert!(r.claim("result").expect("claim").numerical.is_empty());
+    // lowering Held to Required raises no calibration cause: the owner's numbers are
+    // unchanged and its interval is simply no longer held
+    let lowered =
+        build(&Params { result_calibration: CalibrationDeclaration::Required, ..params() });
+    let r = revalidate(
+        &build(&Params { result_calibration: held, ..params() }),
+        &lowered,
+        &no_effects(),
+    )
+    .expect("revalidate");
+    let result = r.claim("result").expect("claim");
+    assert!(result.numerical.iter().all(|n| n.cause != NumericalCause::CalibrationChanged));
+}
+
+#[test]
 fn a_provider_standing_nobody_stated_is_not_a_support() {
     let g = build(&Params { trust: TrustStanding::Undeclared, ..params() });
     let r = revalidate(&g, &g, &no_effects()).expect("revalidate");
