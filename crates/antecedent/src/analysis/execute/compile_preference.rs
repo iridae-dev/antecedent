@@ -25,17 +25,19 @@
 //!
 //! Several outcomes compile through machinery that already joins them: separately estimated
 //! outcomes ([`compile_preference_decision_across_studies`]) meet as one mean source when
-//! means suffice and otherwise through a propagation-chain family table declared and checked
-//! at compile, under the declared distinct evidence of the studies or, for studies the
-//! evidence ledger finds sharing observations, under a declared cross-study covariance
-//! ([`compile_preference_decision_with_shared_evidence`]); the outcomes of one compiled
+//! means suffice and otherwise through a propagation chain declared, checked and compiled at
+//! compile with its family table bound at execution, under the declared distinct evidence of
+//! the studies or, for studies the evidence ledger finds sharing observations (rows of one
+//! source table, or units of one declared identifier space), under a declared cross-study
+//! covariance ([`compile_preference_decision_with_shared_evidence`]); the outcomes of one compiled
 //! static-regime, cluster-randomized or experiment design
 //! ([`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_preference_decision`])
 //! are read from its arm means or, for a static regime, from its aligned whole-subject
 //! bootstrap refits, with the decision attached to layer four of the design's program.
 //!
 //! A graph posterior's structures are compiled per atom kind: DAG and ADMG atoms as studies
-//! of their own structure, equivalence-class atoms per completion (see `atoms`).
+//! of their own structure, equivalence-class atoms per member, weighed by a declared class prior when one is given
+//! (see `atoms`).
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -64,7 +66,8 @@ use antecedent_design::preference_evaluation::{
 
 pub use bind::BoundPreferenceContract;
 pub use design::DesignBootstrap;
-pub use evidence::{CrossStudyCovariance, SharedEvidence};
+pub(crate) use evidence::EvidenceRows;
+pub use evidence::{CrossStudyCovariance, RowProvenance, SharedEvidence, UnitKey};
 pub use joint::PreferenceJointLaw;
 pub use outcomes::{OutcomeDependence, compile_preference_decision_across_studies};
 pub use outcomes::{
@@ -390,8 +393,15 @@ pub(super) fn compile_entries(
         return Err(unsupported_query("a graph posterior among several separately fitted studies"));
     }
     let (demand, carrier) = demand_of(contract, bound.quantities.clone(), posterior)?;
-    outcomes::check_dependence(&bound.studies, &demand, (dependence, shared), ctx)?;
-    let declared = joint::declare(&bound.studies, &demand, dependence, shared, &bound.identity)?;
+    let overlaps = outcomes::check_dependence(&bound.studies, &demand, (dependence, shared), ctx)?;
+    let declared = joint::declare(
+        &bound.studies,
+        &demand,
+        (dependence, shared),
+        overlaps.as_ref(),
+        &bound.identity,
+        ctx,
+    )?;
     let mut structures = Vec::new();
     let mut basis = StructuralWeightBasis::PosteriorProbability;
     for (source, entry) in entries.iter().enumerate() {
@@ -419,15 +429,7 @@ pub(super) fn compile_entries(
             continue;
         }
         match compile_structure(entry.study, &goal, entry.prepared, ctx)? {
-            Ok((plan, identification, runner)) => structures.push(CompiledStructure {
-                key: None,
-                class: None,
-                weight: 1.0,
-                source,
-                identification,
-                plan: Some(plan),
-                runner: Some(runner),
-            }),
+            Ok(outcome) => structures.push(CompiledStructure::single(source, outcome)),
             Err(why) => {
                 let read: Vec<DemandedQuantity> = read.into_iter().cloned().collect();
                 return Err(not_identified(&read, 1.0, &why));
@@ -484,10 +486,14 @@ impl Study {
     /// under the study's structure, or under any structure of its graph posterior
     /// (`effect_not_identified`, with the unidentified mass); graph-posterior atoms of a kind
     /// the single-graph compiler cannot compile (`preference_compile.atom_kind_not_compiled`),
-    /// an equivalence class whose completions exceed the cap
-    /// (`preference_compile.class_completions_truncated`) and `BayesOverStructures` over
-    /// class completions, whose weights are not probabilities; and every refusal of compile
-    /// and preparation.
+    /// an equivalence class above the declared exact limit without a uniform declared measure
+    /// that draws a sample (`preference_compile.class_completions_truncated`), a sample the
+    /// budget cannot draw (`preference_compile.class_sampling_budget`), a keyed class prior
+    /// with a missing or extra member key or ordered masses
+    /// (`preference_compile.class_prior_keys_mismatch`), a sample under a measure that is not
+    /// uniform (`preference_compile.class_prior_sampling_needs_uniform`), and
+    /// `BayesOverStructures` over class atoms without a declared class prior; and every refusal
+    /// of compile and preparation.
     pub fn compile_for_preference_decision(
         &self,
         contract: &PreferenceContract,
@@ -530,6 +536,9 @@ pub enum CompiledPreferenceEvaluation {
     Single(PreferenceEvaluation),
     /// Across the structures of a graph posterior and the preference set together.
     Structures(StructuralPreferenceEvaluation),
+    /// Across structures some of whose equivalence classes were sampled under a declared
+    /// uniform measure: what a sample supports, never a verdict over every member.
+    Sampled(Box<crate::analysis::preference_decision::SampledStructuralEvaluation>),
 }
 
 impl CompiledPreferenceEvaluation {
@@ -538,7 +547,7 @@ impl CompiledPreferenceEvaluation {
     pub const fn single(&self) -> Option<&PreferenceEvaluation> {
         match self {
             Self::Single(evaluation) => Some(evaluation),
-            Self::Structures(_) => None,
+            Self::Structures(_) | Self::Sampled(_) => None,
         }
     }
 
@@ -547,7 +556,18 @@ impl CompiledPreferenceEvaluation {
     pub const fn structures(&self) -> Option<&StructuralPreferenceEvaluation> {
         match self {
             Self::Structures(evaluation) => Some(evaluation),
-            Self::Single(_) => None,
+            Self::Single(_) | Self::Sampled(_) => None,
+        }
+    }
+
+    /// The decision on sampled class members, when some class was sampled.
+    #[must_use]
+    pub fn sampled(
+        &self,
+    ) -> Option<&crate::analysis::preference_decision::SampledStructuralEvaluation> {
+        match self {
+            Self::Sampled(evaluation) => Some(evaluation),
+            Self::Single(_) | Self::Structures(_) => None,
         }
     }
 }
@@ -629,12 +649,19 @@ impl CompiledPreferenceDecision {
         &self.shared
     }
 
-    /// The propagation chain declared and checked at compile that joins separately
-    /// estimated outcomes into one law; `None` when means suffice, for one study and for a
-    /// design.
+    /// The propagation chain declared, checked and compiled at compile that joins
+    /// separately estimated outcomes into one law; `None` when means suffice, for one study
+    /// and for a design.
     #[must_use]
     pub const fn joint_law(&self) -> Option<&PreferenceJointLaw> {
         self.joint.as_ref()
+    }
+
+    /// The plan view of the compiled chain that joins separately estimated outcomes, beside
+    /// the decision plans of [`Self::plan_views`]; `None` when no chain is declared.
+    #[must_use]
+    pub fn chain_plan_view(&self) -> Option<PlanView> {
+        self.joint.as_ref().map(|joint| joint.program().plan_view())
     }
 
     /// Every compiled structure, including the ones under which the quantities are not
@@ -765,13 +792,8 @@ impl CompiledPreferenceDecision {
         let source = if let [input] = inputs.as_slice() {
             input.source.clone()
         } else {
-            let (source, chain) = outcomes::join_studies(
-                &inputs,
-                studies,
-                (self.dependence, &self.shared),
-                &self.identity,
-                ctx,
-            )?;
+            let (source, chain) =
+                outcomes::join_studies(&inputs, studies, self.joint.as_ref(), ctx)?;
             programs.extend(chain);
             source
         };

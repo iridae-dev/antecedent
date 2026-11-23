@@ -7,35 +7,31 @@
 //! propagation chain draws one aligned law from the moment-matched family table of their
 //! posterior summaries; under shared evidence the declared cross-study blocks enter the
 //! family table's covariance beside them. The evidence ledger judges at compile whether the
-//! studies share observations, and the chain is declared and checked at compile. Rows of
+//! studies share observations, and the chain is declared, checked and compiled at compile with
+//! its family table deferred; execution binds each study's posterior moments to it. Rows of
 //! separately produced draws are never paired by index.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
-use antecedent_contract::dependence::SharedFactorKind;
-use antecedent_contract::propagation_chain::{ChainReading, ChainRefusal, LawMeaning, StageKind};
+use antecedent_contract::propagation_chain::ChainRefusal;
 use antecedent_core::reason_details::{decision_evaluation, native_claims};
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_design::decision_contract::SourceRepresentation;
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_io::distribution_artifact::DistributionArtifact;
-use antecedent_io::propagation_chain_record::{
-    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainStageWire,
-};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
-use super::evidence::{CrossStudyCovariance, SharedEvidence};
+use super::evidence::{CrossStudyCovariance, SharedEvidence, StudyOverlaps};
+use super::joint::PreferenceJointLaw;
 use super::{
     BoundStudy, CompiledPreferenceDecision, PreferenceDemand, PreferenceRouteError, STAGE_COMPILE,
     STAGE_EVALUATE, StudyEntry, compile_entries,
 };
 use crate::analysis::native_claims::{NativeDecisionInput, NativeDecisionSource};
 use crate::analysis::preference_decision::chain_joint_law;
-use crate::analysis::propagation_chain::{
-    FamilyDependence, FamilyEstimate, compile_propagation_chain, family_table,
-};
+use crate::analysis::propagation_chain::ChainTableBinding;
 use crate::{CausalError, PreparedStudy, Study};
 
 /// How separately estimated outcomes depend on each other.
@@ -83,15 +79,16 @@ pub(super) fn unpaired(supplied: &str) -> PreferenceRouteError {
 
 /// Check that separately estimated outcomes can be joined as the demand needs: a declared
 /// dependence, at least two aligned rows, and the evidence ledger's judgment of whether the
-/// studies share observations ([`super::evidence::judge`]).
+/// studies share observations ([`super::evidence::judge`]). Returns the pairs that share
+/// observations, when the ledger judged them.
 pub(super) fn check_dependence(
     studies: &[BoundStudy],
     demand: &PreferenceDemand,
     (dependence, shared): (OutcomeDependence, &[CrossStudyCovariance]),
     ctx: &ExecutionContext,
-) -> Result<(), PreferenceRouteError> {
+) -> Result<Option<StudyOverlaps>, PreferenceRouteError> {
     if studies.len() < 2 || demand.representation == SourceRepresentation::Mean {
-        return Ok(());
+        return Ok(None);
     }
     let (OutcomeDependence::DistinctEvidence { draws, .. }
     | OutcomeDependence::SharedEvidence { draws, .. }) = dependence
@@ -101,7 +98,7 @@ pub(super) fn check_dependence(
     if draws < 2 {
         return Err(unpaired("a joined law of fewer than two aligned rows"));
     }
-    super::evidence::judge(studies, dependence, shared, ctx)
+    super::evidence::judge(studies, dependence, shared, ctx).map(Some)
 }
 
 /// Compile a decision across the preference set of `contract` whose quantities are the
@@ -116,7 +113,11 @@ pub(super) fn check_dependence(
 /// Every refusal of [`Study::compile_for_preference_decision`] for each study; two studies
 /// of the same outcome; a graph posterior among the studies; a contract that needs a joint
 /// law with no declared dependence (`joint_law_required`); distinct evidence declared for
-/// studies whose tables share rows (`evidence_double_counted`).
+/// studies that share rows of one source table or units of one identifier space
+/// (`evidence_double_counted`); a unit key on one study and not on a study of another table,
+/// or keys of different identifier spaces (`evidence_overlap_unknown`); a unit key naming the
+/// treatment or outcome (`preference_compile.unit_key_invalid`); a joined law whose family
+/// table exceeds its work budget (`moment_matched_table_work_budget`), at compile.
 pub fn compile_preference_decision_across_studies(
     studies: &[&Study],
     contract: &PreferenceContract,
@@ -190,13 +191,12 @@ pub fn compile_preference_decision_across_prepared_studies(
 }
 
 /// Join the sources of separately estimated outcomes: their means side by side, or one
-/// aligned law from the chain under the declared distinct evidence. Returns the source and
-/// the chain's program identity.
+/// aligned law drawn by the chain compiled at compile, its deferred family table bound to each
+/// study's posterior moments. Returns the source and the chain's compiled program identity.
 pub(super) fn join_studies(
     inputs: &[NativeDecisionInput],
     studies: &[BoundStudy],
-    (dependence, shared): (OutcomeDependence, &[CrossStudyCovariance]),
-    alignment: &str,
+    joint: Option<&PreferenceJointLaw>,
     ctx: &ExecutionContext,
 ) -> Result<(NativeDecisionSource, Option<SemanticDigest>), PreferenceRouteError> {
     let means: Vec<&MeanSource> = inputs
@@ -209,9 +209,7 @@ pub(super) fn join_studies(
     if means.len() == inputs.len() {
         return Ok((NativeDecisionSource::Mean(side_by_side(&means)), None));
     }
-    let (OutcomeDependence::DistinctEvidence { draws, seed }
-    | OutcomeDependence::SharedEvidence { draws, seed }) = dependence
-    else {
+    let Some(joint) = joint else {
         return Err(unpaired("separately estimated outcomes with no declared dependence"));
     };
     let mut laws = Vec::with_capacity(inputs.len());
@@ -227,10 +225,13 @@ pub(super) fn join_studies(
                 study.binding.outcome_id
             )));
         }
-        laws.push((law.as_ref(), study.observations.as_str()));
+        laws.push(law.as_ref());
     }
-    let (law, program) = chain_law(&laws, (draws, seed, shared), alignment, ctx)?;
-    Ok((NativeDecisionSource::JointLaw(Box::new(law)), Some(program)))
+    let binding = table_binding(&laws, ctx)?;
+    let chain =
+        joint.program().execute_bound(&binding, ctx).map_err(|refusal| chain_refusal(&refusal))?;
+    let law = chain_joint_law(&chain)?;
+    Ok((NativeDecisionSource::JointLaw(Box::new(law)), Some(chain.lowered_program_identity())))
 }
 
 /// Means of separately estimated outcomes side by side; each mean stays its own study's.
@@ -282,62 +283,15 @@ pub(super) fn law_refusal(supplied: String) -> PreferenceRouteError {
     .into()
 }
 
-/// Each study's covariance within it, and the declared block between studies that share
-/// observations; zero between the others.
-fn declared_covariance(
-    columns: &[(usize, Vec<f64>)],
-    offsets: &[usize],
-    shared: &[CrossStudyCovariance],
-) -> Result<Vec<f64>, PreferenceRouteError> {
-    let k = columns.len();
-    let mut declared = vec![0.0; k * k];
-    for (i, (left, x)) in columns.iter().enumerate() {
-        for (j, (right, y)) in columns.iter().enumerate() {
-            if left == right {
-                declared[i * k + j] = covariance(x, y);
-            }
-        }
-    }
-    for block in shared {
-        let (Some(&first), Some(&second)) = (offsets.get(block.first), offsets.get(block.second))
-        else {
-            return Err(law_refusal(
-                "a declared block names a study the chain does not join".to_owned(),
-            ));
-        };
-        let rows = columns.iter().filter(|(study, _)| *study == block.first).count();
-        let cols = columns.iter().filter(|(study, _)| *study == block.second).count();
-        if block.covariance.len() != rows * cols {
-            return Err(law_refusal(
-                "a declared block misaligned with the studies' laws".to_owned(),
-            ));
-        }
-        for p in 0..rows {
-            for q in 0..cols {
-                let term = block.covariance[p * cols + q];
-                declared[(first + p) * k + second + q] = term;
-                declared[(second + q) * k + first + p] = term;
-            }
-        }
-    }
-    Ok(declared)
-}
-
-/// The posterior summaries of every study's law as a family table (each study's covariance
-/// within it, the declared cross-study blocks between studies that share observations and
-/// nothing between the others), drawn into one aligned law by the propagation chain whose
-/// declaration the compile checked. Returns the law and the chain's program identity.
-fn chain_law(
-    laws: &[(&DistributionArtifact, &str)],
-    (draws, seed, shared): (usize, u64, &[CrossStudyCovariance]),
-    alignment: &str,
+/// The posterior moments of every study's law, in the deferred table's slot and group order:
+/// each column's mean, and each study's covariance within it.
+fn table_binding(
+    laws: &[&DistributionArtifact],
     ctx: &ExecutionContext,
-) -> Result<(DistributionArtifact, SemanticDigest), PreferenceRouteError> {
-    let mut estimates = Vec::new();
-    let mut columns: Vec<(usize, Vec<f64>)> = Vec::new();
-    let mut outputs = Vec::new();
-    let mut offsets = Vec::with_capacity(laws.len());
-    for (study, (law, rows)) in laws.iter().enumerate() {
+) -> Result<ChainTableBinding, PreferenceRouteError> {
+    let mut means = Vec::new();
+    let mut within = Vec::with_capacity(laws.len());
+    for (study, law) in laws.iter().enumerate() {
         let [n, width] = law.shape();
         let masked = law.metadata().supported.as_ref().is_some_and(|mask| mask.contains(&false));
         if law.metadata().weights.is_some() || masked || n < 2 {
@@ -346,66 +300,22 @@ fn chain_law(
                  law never drops a weight or a support mask"
             )));
         }
-        offsets.push(columns.len());
+        let mut columns = Vec::with_capacity(width);
         for j in 0..width {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled { stage: super::CANCELLED_STAGE }.into());
             }
             let values: Vec<f64> = (0..n).map(|draw| law.draws()[draw * width + j]).collect();
-            let stage = super::joint::stage_id(study, j);
-            let spread = covariance(&values, &values).sqrt();
-            estimates.push(
-                FamilyEstimate::new(
-                    &format!("{stage}_source"),
-                    mean(&values),
-                    spread,
-                    LawMeaning::Posterior,
-                )
-                .with_factor(SharedFactorKind::Row, rows),
-            );
-            let quantity = law.quantities().get(j).cloned().ok_or_else(|| {
-                law_refusal(format!("study {study}: column {j} has no coordinate"))
-            })?;
-            outputs.push(ChainJointOutputWire { stage, quantity });
-            columns.push((study, values));
+            means.push(mean(&values));
+            columns.push(values);
         }
+        let mut block = vec![0.0; width * width];
+        for (p, x) in columns.iter().enumerate() {
+            for (q, y) in columns.iter().enumerate() {
+                block[p * width + q] = covariance(x, y);
+            }
+        }
+        within.push(block);
     }
-    let declared = declared_covariance(&columns, &offsets, shared)?;
-    let table = family_table(
-        alignment,
-        &estimates,
-        &FamilyDependence::Covariance(declared),
-        None,
-        draws,
-        seed,
-    )
-    .map_err(|refusal| chain_refusal(&refusal))?;
-    let stages = outputs
-        .iter()
-        .map(|output| {
-            ChainStageWire::new(
-                &output.stage,
-                StageKind::DerivedQuantity,
-                &[format!("{}_source", output.stage).as_str()],
-                ChainOpWire::affine(
-                    ChainCoefficientWire::fixed(1.0),
-                    ChainCoefficientWire::fixed(0.0),
-                ),
-            )
-        })
-        .collect();
-    let Some((output, quantity)) =
-        outputs.first().map(|first| (first.stage.clone(), first.quantity.clone()))
-    else {
-        return Err(law_refusal("no column to join".to_owned()));
-    };
-    let draft = table
-        .draft(ChainReading::Posterior, &output, stages)
-        .with_output_quantity(quantity)
-        .with_joint_outputs(outputs);
-    let chain = compile_propagation_chain(draft, ctx)
-        .and_then(|plan| plan.execute(ctx))
-        .map_err(|refusal| chain_refusal(&refusal))?;
-    let law = chain_joint_law(&chain)?;
-    Ok((law, chain.lowered_program_identity()))
+    Ok(ChainTableBinding { means, within })
 }

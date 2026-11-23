@@ -303,6 +303,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         self.analysis.refuse_unread_sampling_weights_for_route(data)?;
+        self.analysis.refuse_unread_class_prior()?;
         // The retained operation executes itself; each implementation runs in
         // its own frame, so this one holds a single result slot.
         if let Some(result) = self.execution.operation().estimate_tabular(self, data, ctx, notes)? {

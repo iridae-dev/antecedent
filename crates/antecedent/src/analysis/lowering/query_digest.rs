@@ -207,6 +207,8 @@ fn audit_identification_inputs(study: &Study) {
         lag_zero_average_effect: _,
         // Development-build disclosure; never part of a study's identity.
         would_refuse: _,
+        // Read only when the evidence of separately estimated outcomes is judged for overlap.
+        evidence_rows: _,
         // A built study never carries this: the build refuses it.
         continuous_cell: _,
         // A structure search and a mechanism fit are executed after identification and neither

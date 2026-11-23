@@ -229,11 +229,23 @@ fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
     if input.caller_graph && input.declared.tiered.is_some() {
         return Err(tiered_graph_conflict());
     }
-    if input.declared.class_prior.is_some() && input.graph_posterior.is_some() {
+    // With a graph posterior of CPDAG or PAG atoms a class prior is the declared conditional
+    // measure over the members of every class atom; other atom kinds have no members to weigh.
+    if input.declared.class_prior.is_some()
+        && input.graph_posterior.as_ref().is_some_and(|posterior| {
+            posterior.lag_masks().is_some()
+                || !matches!(
+                    posterior.atom_kind(),
+                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                )
+        })
+    {
         return Err(CausalError::Conflict {
             what: "class_prior",
-            detail: "class_prior and graph_posterior are distinct structural-mass contracts; \
-                     supply exactly one",
+            detail: "class_prior and graph_posterior are distinct structural-mass contracts \
+                     unless the posterior's atoms are static CPDAGs or PAGs, whose members the \
+                     class prior weighs; supply exactly one",
         });
     }
     Ok(())
@@ -1526,7 +1538,7 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
     let structure = chosen.classified.structure;
     let matrix_class = chosen.classified.matrix_class;
     {
-        let Spine { carry, graph, query, graph_posterior: _ } = &mut chosen.classified.spine;
+        let Spine { carry, graph, query, graph_posterior } = &mut chosen.classified.spine;
         if !carry.settings.refute_explicit && carry.refute_default_downgrade.is_none() {
             let support_query = carry
                 .lag_zero_average_effect
@@ -1603,7 +1615,10 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
                       probabilities",
             });
         }
-        if carry.declared.class_prior.is_some() && !graph.class().is_incomplete_temporal() {
+        if carry.declared.class_prior.is_some()
+            && graph_posterior.is_none()
+            && !graph.class().is_incomplete_temporal()
+        {
             return Err(CausalError::Unsupported {
                 message: "class_prior requires an incomplete temporal graph class",
             });
@@ -1995,6 +2010,7 @@ fn into_study(exposure: BoundExposure) -> Study {
             posterior_provenance: None,
             lag_zero_average_effect,
             would_refuse: antecedent_core::support_gate::drain_unscoped(),
+            evidence_rows: None,
         }),
         data,
         graph: Arc::new(graph),

@@ -8,10 +8,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use antecedent_contract::{ExternalRefusal, ProgramBinding, QuantityMismatch, ScientificQuantity};
 use antecedent_core::reason_details::{
-    decision_evaluation, decision_evidence, native_claims, program_binding,
+    decision_evaluation, decision_evidence, native_claims, preference_compile, program_binding,
 };
 use antecedent_core::{
     CanonicalWriter, CausalQuery, CausalSchema, ExecutionContext, ObservationSpec,
@@ -21,6 +22,7 @@ use antecedent_data::TableView;
 use antecedent_design::preference_contract::{ActionInput, PreferenceContract};
 use antecedent_io::distribution_artifact::DistributionCalibration;
 
+use super::evidence::{StudyUnits, study_units};
 use super::{
     BOUND_TAG, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL, PreferenceRouteError,
     STAGE_BIND, UNDECLARED_UNITS, at, unsupported_query,
@@ -41,8 +43,10 @@ struct StudyQuery {
     causal_target: String,
     causal_identification: String,
     snapshot: String,
-    observations: String,
     rows: usize,
+    origin: String,
+    origin_rows: Option<Arc<[u64]>>,
+    units: Option<StudyUnits>,
 }
 
 /// A study bound to the decision: its program binding and the coordinates it targets.
@@ -54,12 +58,17 @@ pub(super) struct BoundStudy {
     pub(super) causal_target: String,
     pub(super) causal_identification: String,
     pub(super) snapshot: String,
-    /// Content identity of the study's stored table (its columns, rows, mask and weights,
-    /// not its schema roles or the analysis compiled over it): studies of one table share
-    /// it whatever outcome they target.
-    pub(super) observations: String,
     /// Rows of the study's table: the observations its analysis reads.
     pub(super) rows: usize,
+    /// Content identity of the table the study's rows came from: the source table of a
+    /// declared column projection, else the study's own stored table (its columns, rows, mask
+    /// and weights, not its schema roles or the analysis compiled over it), so studies of one
+    /// table share it whatever outcome they target.
+    pub(super) origin: String,
+    /// Index in the source table of each row, when the projection selected rows.
+    pub(super) origin_rows: Option<Arc<[u64]>>,
+    /// The units the analysis reads, when the study declares a unit key.
+    pub(super) units: Option<StudyUnits>,
 }
 
 impl BoundStudy {
@@ -110,8 +119,26 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
             },
         )
     };
-    let (outcome, outcome_units) = variable(*outcome)?;
-    let (treatment, dose_units) = variable(treatment.variable)?;
+    let (outcome_id, treatment_id) = (*outcome, treatment.variable);
+    let (outcome, outcome_units) = variable(outcome_id)?;
+    let (treatment, dose_units) = variable(treatment_id)?;
+    let observations = SemanticDigest::from_bytes(data.storage().content_digest()).to_hex();
+    let declared = study.evidence_rows.as_deref();
+    let provenance = declared.and_then(|rows| rows.provenance.as_ref());
+    let resolved = declared.and_then(|rows| rows.units.as_ref());
+    if let Some(key) = resolved.and_then(|units| units.variable)
+        && (key == outcome_id || key == treatment_id)
+    {
+        return Err(ExternalRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            STAGE_BIND,
+            preference_compile::UNIT_KEY_INVALID,
+        )
+        .with_offending(format!("{key:?}"))
+        .with_expected("a unit identifier column that is neither the treatment nor the outcome")
+        .with_remedy("declare the column that identifies the units the rows observe")
+        .into());
+    }
     Ok(StudyQuery {
         outcome,
         treatment,
@@ -122,7 +149,9 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
         causal_target: causal.identities.target.to_hex(),
         causal_identification: causal.identities.identification.to_hex(),
         snapshot: causal.identities.data_snapshot.to_hex(),
-        observations: SemanticDigest::from_bytes(data.storage().content_digest()).to_hex(),
+        origin: provenance.map_or(observations, |p| p.table().to_owned()),
+        origin_rows: provenance.and_then(|p| p.rows().map(Arc::from)),
+        units: resolved.map(|units| study_units(units, data)),
         rows: data.row_count(),
     })
 }
@@ -273,8 +302,10 @@ fn bind_studies(
                 causal_target: study.causal_target,
                 causal_identification: study.causal_identification,
                 snapshot: study.snapshot,
-                observations: study.observations,
                 rows: study.rows,
+                origin: study.origin,
+                origin_rows: study.origin_rows,
+                units: study.units,
             }
         })
         .collect();

@@ -155,6 +155,10 @@ pub struct StudyConfig {
     /// What a development build ran although a release build would have refused it at build
     /// time. Not part of the study's identity; always empty in a release build.
     pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
+    /// Where the rows of the study's table came from and the unit identifiers they observe,
+    /// checked against the table at build. Read only when separately estimated outcomes are
+    /// judged for shared evidence; never an input to identification or estimation.
+    pub(crate) evidence_rows: Option<Arc<compile_preference::EvidenceRows>>,
 }
 
 /// Prepared analysis (static or temporal).
@@ -562,3 +566,5 @@ pub use compile_preference::{
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
+pub use compile_preference::{RowProvenance, UnitKey};
+pub(crate) use compile_preference::EvidenceRows;

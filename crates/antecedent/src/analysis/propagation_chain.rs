@@ -72,12 +72,17 @@ pub use antecedent_contract::propagation_chain::{
 };
 use antecedent_core::{ExecutionContext, SemanticDigest};
 pub use antecedent_io::propagation_chain_record::{
-    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
-    ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
-    ConsumedPropagationChain, PROPAGATION_CHAIN_SECTION, PropagationChainError,
-    PropagationChainRecordWire, STATUS_CURRENT, STATUS_INVALIDATED, STATUS_REWEIGHTED,
+    ChainChangeWire, ChainCoefficientWire, ChainDeclaredBlockWire, ChainDeferredTableWire,
+    ChainExprTermWire, ChainFactorWire, ChainOpWire, ChainSourceWire, ChainStageResultWire,
+    ChainStageWire, ChainUnaryWire, ConsumedPropagationChain, PROPAGATION_CHAIN_SECTION,
+    PropagationChainError, PropagationChainRecordWire, STATUS_CURRENT, STATUS_INVALIDATED,
+    STATUS_REWEIGHTED,
 };
-use std::collections::BTreeSet;
+use antecedent_io::propagation_chain_record::{
+    DEFERRED_MOMENT_MATCHED_NORMAL, DEFERRED_SOURCE_UNBOUND, PROPAGATION_CHAIN_DEFERRED_FEATURE,
+    propagation_chain_identity,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent_contract::dependence::{
@@ -164,6 +169,9 @@ pub fn compile_propagation_chain(
     };
     draft.version = version;
     draft.required_features = vec![feature.to_owned()];
+    if draft.deferred.is_some() {
+        draft.required_features.push(PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned());
+    }
     draft.results.clear();
     draft.output_draws = None;
     draft.output_weights = None;
@@ -257,6 +265,15 @@ impl PropagationChainPlan {
     /// leaving its domain, updated draws too few to represent the posterior),
     /// or cancellation.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PropagationChain, ChainRefusal> {
+        if self.is_deferred() {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                DEFERRED_SOURCE_UNBOUND,
+                "the program's family table is deferred; bind its moments with execute_bound",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            ));
+        }
         let scoped = ctx.enter_lowered_dispatch(self.identity());
         let record = PropagationChainRecordWire::seal(self.program.draft().clone(), &scoped)
             .map_err(|error| refusal(&error))?;
@@ -579,6 +596,25 @@ fn family_refusal(
     )
 }
 
+/// The refusal of a family table's work admission or construction.
+fn table_refusal(error: &antecedent_stats::ChainError) -> ChainRefusal {
+    ChainRefusal::new(
+        match error {
+            antecedent_stats::ChainError::Cancelled => "execution_cancelled",
+            antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
+            _ => antecedent_core::reason_code!("invalid_argument"),
+        },
+        match error {
+            antecedent_stats::ChainError::Cancelled => "propagation_chain.family_table_cancelled",
+            antecedent_stats::ChainError::Budget(_) => "propagation_chain.family_table_work_limit",
+            _ => "propagation_chain.family_table_refused",
+        },
+        error.to_string(),
+        None,
+        antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,
+    )
+}
+
 fn dependence_refusal(error: &DependenceError) -> ChainRefusal {
     ChainRefusal::new(
         error.code(),
@@ -823,27 +859,7 @@ pub fn family_table(
         rows,
         antecedent_stats::propagation_chain::MAX_MOMENT_MATCHED_TABLE_WORK,
     )
-    .map_err(|error| {
-        ChainRefusal::new(
-            match &error {
-                antecedent_stats::ChainError::Cancelled => "execution_cancelled",
-                antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
-                _ => antecedent_core::reason_code!("invalid_argument"),
-            },
-            match &error {
-                antecedent_stats::ChainError::Cancelled => {
-                    "propagation_chain.family_table_cancelled"
-                }
-                antecedent_stats::ChainError::Budget(_) => {
-                    "propagation_chain.family_table_work_limit"
-                }
-                _ => "propagation_chain.family_table_refused",
-            },
-            error.to_string(),
-            None,
-            antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,
-        )
-    })?;
+    .map_err(|error| table_refusal(&error))?;
     let mut seen = BTreeSet::new();
     for estimate in estimates {
         if matches!(estimate.meaning, LawMeaning::Predictive | LawMeaning::Innovation) {
@@ -918,27 +934,7 @@ pub fn family_table(
     check_family_dependence(estimates, &sources, dependence, &standard_error, &covariance)?;
     let means: Vec<f64> = estimates.iter().map(|e| e.estimate).collect();
     let table = antecedent_stats::moment_matched_normal_table(&means, &covariance, rows, seed)
-        .map_err(|error| {
-            ChainRefusal::new(
-                match &error {
-                    antecedent_stats::ChainError::Cancelled => "execution_cancelled",
-                    antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
-                    _ => antecedent_core::reason_code!("invalid_argument"),
-                },
-                match &error {
-                    antecedent_stats::ChainError::Cancelled => {
-                        "propagation_chain.family_table_cancelled"
-                    }
-                    antecedent_stats::ChainError::Budget(_) => {
-                        "propagation_chain.family_table_work_limit"
-                    }
-                    _ => "propagation_chain.family_table_refused",
-                },
-                error.to_string(),
-                None,
-                antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,
-            )
-        })?;
+        .map_err(|error| table_refusal(&error))?;
     let mut wires = Vec::with_capacity(k);
     let mut bindings = Vec::new();
     for ((estimate, column), extra) in estimates.iter().zip(&table).zip(&derived) {
@@ -1130,6 +1126,483 @@ fn check_family_dependence(
         _ => {}
     }
     Ok(())
+}
+
+// ------------------------------------------------------------ deferred tables
+
+/// One estimate of a family table whose moments are bound at execution: the chain source it
+/// becomes, the law it is read as and the evidence it used. Its mean and spread exist only
+/// once the analysis that produces it has run.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FamilyEstimateDecl {
+    /// Identity of the chain source this becomes.
+    pub id: String,
+    /// Whether the uncertainty is a sampling law or a posterior.
+    pub meaning: LawMeaning,
+    /// Evidence factors the estimate used.
+    pub factors: Vec<(SharedFactorKind, String)>,
+    /// Whether the factor list may be partial.
+    pub unknown_overlap: bool,
+}
+
+impl FamilyEstimateDecl {
+    /// An estimate that declares no factors yet.
+    #[must_use]
+    pub fn new(id: &str, meaning: LawMeaning) -> Self {
+        Self { id: id.to_owned(), meaning, factors: Vec::new(), unknown_overlap: false }
+    }
+
+    /// Declare that the estimate used a factor.
+    #[must_use]
+    pub fn with_factor(mut self, kind: SharedFactorKind, id: &str) -> Self {
+        self.factors.push((kind, id.to_owned()));
+        self
+    }
+
+    /// Declare that the factor list may be partial.
+    #[must_use]
+    pub fn with_unknown_overlap(mut self) -> Self {
+        self.unknown_overlap = true;
+        self
+    }
+
+    fn dependence_source(&self) -> Result<DependenceSource, ChainRefusal> {
+        let mut sets = SharedFactorSets::empty();
+        for (kind, id) in &self.factors {
+            sets.try_insert(*kind, id).map_err(|error| dependence_refusal(&error))?;
+        }
+        let built = if self.unknown_overlap {
+            DependenceSource::try_with_unknown_overlap(&self.id, sets)
+        } else {
+            DependenceSource::try_declared(&self.id, sets)
+        };
+        built.map_err(|error| dependence_refusal(&error))
+    }
+}
+
+/// A declared covariance block between two groups of a deferred family table.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeferredCrossBlock {
+    /// Index of the first group.
+    pub first: usize,
+    /// Index of the second group, after the first.
+    pub second: usize,
+    /// Row-major covariance between every estimate of the first group (rows, in group order)
+    /// and every estimate of the second (columns).
+    pub covariance: Vec<f64>,
+}
+
+/// The draw sources of a family table whose moments are bound at execution, and the table
+/// they are columns of.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeferredFamilyTable {
+    /// One draw source per estimate, with its declared factors and no values.
+    pub sources: Vec<ChainSourceWire>,
+    /// The table: rows, seed, slot order, groups and the declared blocks between groups.
+    pub table: ChainDeferredTableWire,
+}
+
+impl DeferredFamilyTable {
+    /// Draft a joint-draw chain over these sources whose table is bound at execution.
+    #[must_use]
+    pub fn draft(
+        &self,
+        reading: ChainReading,
+        output: &str,
+        stages: Vec<ChainStageWire>,
+    ) -> PropagationChainRecordWire {
+        let mut draft = PropagationChain::draft(
+            TableConstruction::JointDraws,
+            reading,
+            output,
+            self.sources.clone(),
+            stages,
+        );
+        draft.deferred = Some(self.table.clone());
+        draft
+    }
+}
+
+/// The moments a deferred family table is bound to.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChainTableBinding {
+    /// One mean per slot of the table, in slot order.
+    pub means: Vec<f64>,
+    /// One row-major covariance per group of the table, in group order, over the group's
+    /// slots in their group order.
+    pub within: Vec<Vec<f64>>,
+}
+
+/// Declare a family table whose means and within-group covariances are bound at execution.
+///
+/// Everything [`family_table`] checks that does not depend on those numbers is checked here:
+/// the table's shape and work budget, every estimate's meaning, identity and factors, the
+/// groups, the declared blocks between groups, and that a declared block is nonzero exactly
+/// where the two groups' estimates share a declared factor. The diagonal and the positive
+/// semi-definiteness of the assembled covariance are checked when it is bound
+/// ([`PropagationChainPlan::execute_bound`]). Each estimate belongs to exactly one of `groups`
+/// (indices into `estimates`); the covariance within a group is bound at execution, and
+/// between groups it is the declared `cross` block, or zero.
+///
+/// # Errors
+/// A table outside the cell or work budget, fewer than two rows, an estimate read as a
+/// predictive or innovation law, duplicate or blank ids, invalid factors, groups that do not
+/// partition the estimates, a malformed declared block, or a block that disagrees with the
+/// declared factors.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the declaration checks read in order in one place, as in family_table"
+)]
+pub fn deferred_family_table(
+    alignment: &str,
+    estimates: &[FamilyEstimateDecl],
+    groups: &[Vec<usize>],
+    cross: &[DeferredCrossBlock],
+    rows: usize,
+    seed: u64,
+) -> Result<DeferredFamilyTable, ChainRefusal> {
+    let k = estimates.len();
+    if k == 0 || k.checked_mul(k).is_none_or(|cells| cells > MAX_FAMILY_TABLE_CELLS) || rows < 2 {
+        return Err(family_refusal(
+            "propagation_chain.family_shape",
+            "a family table joins at least one estimate in at least two rows and a joint table \
+             within the cell budget",
+            None,
+        ));
+    }
+    antecedent_stats::propagation_chain::admit_moment_matched_table_work(
+        k,
+        rows,
+        antecedent_stats::propagation_chain::MAX_MOMENT_MATCHED_TABLE_WORK,
+    )
+    .map_err(|error| table_refusal(&error))?;
+    let mut seen = BTreeSet::new();
+    for estimate in estimates {
+        if matches!(estimate.meaning, LawMeaning::Predictive | LawMeaning::Innovation) {
+            return Err(family_refusal(
+                "propagation_chain.family_meaning",
+                "an estimate and its standard error do not specify a predictive outcome law",
+                Some(&estimate.id),
+            ));
+        }
+        if !seen.insert(estimate.id.as_str()) || estimate.id.trim().is_empty() {
+            return Err(family_refusal(
+                "propagation_chain.family_shape",
+                "each estimate names a distinct, non-blank source",
+                Some(&estimate.id),
+            ));
+        }
+    }
+    let mut group_of = vec![None; k];
+    for (group, members) in groups.iter().enumerate() {
+        if members.is_empty() {
+            return Err(family_refusal(
+                "propagation_chain.family_shape",
+                "every group of a deferred table holds at least one estimate",
+                None,
+            ));
+        }
+        for &member in members {
+            match group_of.get_mut(member) {
+                Some(slot @ None) => *slot = Some(group),
+                _ => {
+                    return Err(family_refusal(
+                        "propagation_chain.family_shape",
+                        "every estimate of a deferred table is in exactly one group",
+                        None,
+                    ));
+                }
+            }
+        }
+    }
+    if group_of.iter().any(Option::is_none) {
+        return Err(family_refusal(
+            "propagation_chain.family_shape",
+            "every estimate of a deferred table is in exactly one group",
+            None,
+        ));
+    }
+    let mut declared = BTreeMap::new();
+    for block in cross {
+        let (Some(rows_of), Some(columns_of)) = (groups.get(block.first), groups.get(block.second))
+        else {
+            return Err(family_refusal(
+                "propagation_chain.family_covariance",
+                "a declared block names a group the table does not have",
+                None,
+            ));
+        };
+        if block.first >= block.second
+            || declared.contains_key(&(block.first, block.second))
+            || block.covariance.len() != rows_of.len() * columns_of.len()
+            || block.covariance.iter().any(|term| !term.is_finite())
+        {
+            return Err(family_refusal(
+                "propagation_chain.family_covariance",
+                "a declared block is a finite matrix between two distinct groups, first before \
+                 second, declared once",
+                None,
+            ));
+        }
+        declared.insert((block.first, block.second), block);
+    }
+    let sources: Vec<DependenceSource> =
+        estimates.iter().map(FamilyEstimateDecl::dependence_source).collect::<Result<_, _>>()?;
+    for (first, rows_of) in groups.iter().enumerate() {
+        for (second, columns_of) in groups.iter().enumerate().skip(first + 1) {
+            let block = declared.get(&(first, second));
+            for (p, &i) in rows_of.iter().enumerate() {
+                for (q, &j) in columns_of.iter().enumerate() {
+                    let term =
+                        block.map_or(0.0, |block| block.covariance[p * columns_of.len() + q]);
+                    let pair =
+                        DependenceContract::assess(&[sources[i].clone(), sources[j].clone()])
+                            .map_err(|error| dependence_refusal(&error))?;
+                    let shares = !pair.shared_factors().is_empty();
+                    if term != 0.0 && !shares {
+                        return Err(ChainRefusal::new(
+                            antecedent_core::reason_code!("evidence_overlap_unknown"),
+                            "propagation_chain.family_dependence",
+                            "a nonzero covariance names the evidence the two estimates share; declare the shared factor",
+                            Some(&estimates[i].id),
+                            antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
+                        ));
+                    }
+                    if term == 0.0 && shares {
+                        return Err(ChainRefusal::new(
+                            antecedent_core::reason_code!("evidence_double_counted"),
+                            "propagation_chain.family_dependence",
+                            "two estimates share declared evidence but the covariance counts it as independent",
+                            Some(&estimates[i].id),
+                            antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    let wires = estimates
+        .iter()
+        .map(|estimate| {
+            let mut wire = ChainSourceWire::draws(&estimate.id, estimate.meaning, alignment, &[]);
+            for (kind, id) in &estimate.factors {
+                wire = wire.with_factor(*kind, id);
+            }
+            if estimate.unknown_overlap {
+                wire = wire.with_unknown_overlap();
+            }
+            wire
+        })
+        .collect();
+    let slots: Vec<String> = estimates.iter().map(|estimate| estimate.id.clone()).collect();
+    let table = ChainDeferredTableWire {
+        construction: DEFERRED_MOMENT_MATCHED_NORMAL.to_owned(),
+        rows: rows as u64,
+        seed,
+        within_blocks: groups
+            .iter()
+            .map(|members| members.iter().map(|&member| slots[member].clone()).collect())
+            .collect(),
+        declared_cross: cross
+            .iter()
+            .map(|block| ChainDeclaredBlockWire {
+                first: block.first as u64,
+                second: block.second as u64,
+                terms: block.covariance.iter().map(|term| term.to_bits()).collect(),
+            })
+            .collect(),
+        slots,
+    };
+    Ok(DeferredFamilyTable { sources: wires, table })
+}
+
+fn bind_refusal(message: impl Into<String>) -> ChainRefusal {
+    family_refusal("propagation_chain.family_shape", message, None)
+}
+
+impl PropagationChainPlan {
+    /// Whether the program's family table is bound at execution
+    /// ([`Self::execute_bound`]) rather than carried by its sources.
+    #[must_use]
+    pub fn is_deferred(&self) -> bool {
+        self.program.draft().deferred.is_some()
+    }
+
+    /// Bind the deferred family table of the program to `binding`, draw it and execute the
+    /// program on it, inside the program's dispatch scope.
+    ///
+    /// The bound table is the one [`family_table`] draws for the same moments, rows and seed,
+    /// so the sealed record is the record of the concrete chain (its own identity, replayed by
+    /// [`consume_propagation_chain`] as any other). The record with its slot draws removed and
+    /// its table restored must be the declaration the program was compiled from; the result is
+    /// stamped with the identity of that compiled program.
+    ///
+    /// # Errors
+    /// A program without a deferred table (`propagation_chain.program_mismatch`); a binding of
+    /// the wrong shape (`propagation_chain.family_shape`); every refusal of [`family_table`]
+    /// on the assembled covariance (its diagonal against the published spreads, the declared
+    /// factors, positive semi-definiteness); a refusal of the arithmetic; cancellation.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "assembling, drawing and checking the bound table read in order in one place"
+    )]
+    pub fn execute_bound(
+        &self,
+        binding: &ChainTableBinding,
+        ctx: &ExecutionContext,
+    ) -> Result<PropagationChain, ChainRefusal> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("cancelled_no_claim"),
+                "propagation_chain.cancelled",
+                "binding was cancelled; cancellation is not a verdict on the chain",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            ));
+        }
+        let draft = self.program.draft();
+        let Some(table) = draft.deferred.as_ref() else {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "propagation_chain.program_mismatch",
+                "the program has no deferred family table to bind",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            ));
+        };
+        let k = table.slots.len();
+        if binding.means.len() != k || binding.within.len() != table.within_blocks.len() {
+            return Err(bind_refusal(format!(
+                "the binding holds {} means and {} group covariances for a table of {k} slots \
+                 in {} groups",
+                binding.means.len(),
+                binding.within.len(),
+                table.within_blocks.len()
+            )));
+        }
+        let position: BTreeMap<&str, usize> =
+            table.slots.iter().enumerate().map(|(index, slot)| (slot.as_str(), index)).collect();
+        let members = |group: &[String]| -> Result<Vec<usize>, ChainRefusal> {
+            group
+                .iter()
+                .map(|slot| {
+                    position
+                        .get(slot.as_str())
+                        .copied()
+                        .ok_or_else(|| bind_refusal(format!("group member `{slot}` is not a slot")))
+                })
+                .collect()
+        };
+        let mut covariance = vec![0.0; k * k];
+        for (group, terms) in table.within_blocks.iter().zip(&binding.within) {
+            let at = members(group.as_slice())?;
+            let m = at.len();
+            if terms.len() != m * m {
+                return Err(bind_refusal(format!(
+                    "a group of {m} slots is bound to {} covariance terms",
+                    terms.len()
+                )));
+            }
+            for (p, &row) in at.iter().enumerate() {
+                for (q, &column) in at.iter().enumerate() {
+                    covariance[row * k + column] = terms[p * m + q];
+                }
+            }
+        }
+        for block in &table.declared_cross {
+            let group = |index: u64| {
+                usize::try_from(index)
+                    .ok()
+                    .and_then(|index| table.within_blocks.get(index))
+                    .map(Vec::as_slice)
+                    .ok_or_else(|| bind_refusal("a declared block names a group out of range"))
+            };
+            let rows_of = members(group(block.first)?)?;
+            let columns_of = members(group(block.second)?)?;
+            if block.terms.len() != rows_of.len() * columns_of.len() {
+                return Err(bind_refusal("a declared block misaligned with its groups"));
+            }
+            for (p, &row) in rows_of.iter().enumerate() {
+                for (q, &column) in columns_of.iter().enumerate() {
+                    let term = f64::from_bits(block.terms[p * columns_of.len() + q]);
+                    covariance[row * k + column] = term;
+                    covariance[column * k + row] = term;
+                }
+            }
+        }
+        let mut estimates = Vec::with_capacity(k);
+        let mut alignment: Option<&str> = None;
+        for (index, slot) in table.slots.iter().enumerate() {
+            let source = draft
+                .sources
+                .iter()
+                .find(|source| source.id == *slot)
+                .ok_or_else(|| bind_refusal(format!("slot `{slot}` is not a source")))?;
+            let meaning =
+                source.meaning.as_deref().and_then(LawMeaning::from_name).ok_or_else(|| {
+                    bind_refusal(format!("slot `{slot}` declares no law meaning"))
+                })?;
+            let own = source.alignment.as_deref().unwrap_or_default();
+            if alignment.is_some_and(|shared| shared != own) {
+                return Err(bind_refusal("the slots of one table share one alignment"));
+            }
+            alignment = Some(own);
+            let mut estimate = FamilyEstimate::new(
+                slot,
+                binding.means[index],
+                covariance[index * k + index].sqrt(),
+                meaning,
+            );
+            for factor in &source.factors {
+                let kind = SharedFactorKind::from_name(&factor.kind).ok_or_else(|| {
+                    bind_refusal(format!("slot `{slot}` declares an unknown factor kind"))
+                })?;
+                estimate = estimate.with_factor(kind, &factor.id);
+            }
+            if !source.complete_disclosure {
+                estimate = estimate.with_unknown_overlap();
+            }
+            estimates.push(estimate);
+        }
+        let rows = usize::try_from(table.rows)
+            .map_err(|_| bind_refusal("the table's rows do not fit this platform"))?;
+        let family = family_table(
+            alignment.unwrap_or_default(),
+            &estimates,
+            &FamilyDependence::Covariance(covariance),
+            None,
+            rows,
+            table.seed,
+        )?;
+        let mut concrete = draft.clone();
+        concrete.deferred = None;
+        for wire in family.sources {
+            if let Some(source) = concrete.sources.iter_mut().find(|source| source.id == wire.id) {
+                *source = wire;
+            }
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.identity());
+        let record =
+            PropagationChainRecordWire::seal(concrete, &scoped).map_err(|error| refusal(&error))?;
+        let mut template = record.clone();
+        for source in &mut template.sources {
+            if table.slots.contains(&source.id) {
+                source.values.clear();
+            }
+        }
+        template.deferred = Some(table.clone());
+        let declared = propagation_chain_identity(&template).map_err(|error| refusal(&error))?;
+        if declared != self.program.declaration_identity() {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "propagation_chain.program_mismatch",
+                "the bound record is not the declaration the program was compiled from",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            ));
+        }
+        Ok(PropagationChain { record, program_identity: self.identity() })
+    }
 }
 
 #[cfg(test)]

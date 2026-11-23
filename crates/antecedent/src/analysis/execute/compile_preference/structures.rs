@@ -3,9 +3,13 @@
 //! Each structure is compiled with the decision in layer four, its identification read from
 //! the plan, and prepared. At execution every prepared structure is estimated once; its
 //! response is retained beside its weight, and the unidentified and unevaluated mass are
-//! reported, never renormalized.
+//! reported, never renormalized. When some class atom was sampled rather than enumerated,
+//! the verdict is read on the sampled measure and reported as such
+//! ([`crate::analysis::preference_decision::SampledStructuralEvaluation`]).
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, IdentificationStatus, ResponseIdentification};
 use antecedent_design::preference_decision::PreferenceMeasure;
@@ -18,7 +22,8 @@ use super::{
 };
 use crate::analysis::lowering::CompileGoal;
 use crate::analysis::preference_decision::{
-    decide_across_structures_with_context, structure_claims,
+    ClassMember, ClassSampling, decide_across_structures_with_context,
+    decide_on_sampled_structures, structure_claims,
 };
 use crate::planner::plan_view::IdentificationKind;
 use crate::planner::{PlanStage, PlanView};
@@ -47,6 +52,8 @@ pub struct CompiledStructure {
     pub(super) identification: StructureIdentification,
     pub(super) plan: Option<PlanView>,
     pub(super) runner: Option<PreparedStudy>,
+    /// The member of an equivalence-class atom this structure is; `None` otherwise.
+    pub(super) member: Option<ClassMember>,
 }
 
 impl CompiledStructure {
@@ -57,11 +64,46 @@ impl CompiledStructure {
     }
 
     /// Share of the posterior mass on this structure; one for a single structure. For a
-    /// completion of an equivalence-class atom it is the class weight split evenly over the
-    /// class's completions: an enumeration weight, not a probability.
+    /// member of an equivalence-class atom without a declared class prior it is the class
+    /// weight split evenly over the class's members: an enumeration weight, not a probability.
+    /// With a declared class prior it is the atom's posterior weight times the member's
+    /// declared conditional mass (for a sampled class, times the share of the draws that
+    /// produced the member): a probability under that declaration.
     #[must_use]
     pub const fn weight(&self) -> f64 {
         self.weight
+    }
+
+    /// The equivalence-class member this structure is, with its content fingerprint and, for
+    /// a sampled class, its multiplicity and the draw; `None` for a structure that is not a
+    /// class member.
+    #[must_use]
+    pub const fn member(&self) -> Option<&ClassMember> {
+        self.member.as_ref()
+    }
+
+    /// Content fingerprint of the class member (the key a keyed class prior names); `None`
+    /// for a structure that is not a class member.
+    #[must_use]
+    pub fn fingerprint(&self) -> Option<u64> {
+        self.member.as_ref().map(|member| member.fingerprint)
+    }
+
+    /// The structure of a study with one structure, compiled under it.
+    pub(super) fn single(
+        source: usize,
+        (plan, identification, runner): (PlanView, StructureIdentification, PreparedStudy),
+    ) -> Self {
+        Self {
+            key: None,
+            class: None,
+            weight: 1.0,
+            source,
+            identification,
+            plan: Some(plan),
+            runner: Some(runner),
+            member: None,
+        }
     }
 
     /// Graph key of the equivalence-class atom this structure completes; `None` for a
@@ -156,6 +198,21 @@ fn fatal(error: &CausalError) -> bool {
 }
 
 impl CompiledPreferenceDecision {
+    /// The draw of every class atom that was sampled rather than enumerated, in structure
+    /// order; empty when every class was enumerated exactly.
+    #[must_use]
+    pub fn class_sampling(&self) -> Vec<Arc<ClassSampling>> {
+        let mut out: Vec<Arc<ClassSampling>> = Vec::new();
+        for structure in self.structures() {
+            if let Some(sampling) = structure.member.as_ref().and_then(|m| m.sampling.as_ref())
+                && !out.iter().any(|seen| seen.class_key == sampling.class_key)
+            {
+                out.push(Arc::clone(sampling));
+            }
+        }
+        out
+    }
+
     pub(super) fn execute_structures(
         &self,
         studies: &[BoundStudy],
@@ -208,6 +265,28 @@ impl CompiledPreferenceDecision {
             truncated_atoms: 0,
             aggregation_policy: None,
         };
+        let sampled = structures
+            .iter()
+            .any(|structure| structure.member.as_ref().is_some_and(|m| m.sampling.is_some()));
+        if sampled {
+            let members: Vec<Option<ClassMember>> =
+                structures.iter().map(|structure| structure.member.clone()).collect();
+            let evaluation = decide_on_sampled_structures(
+                &self.contract,
+                (&mixture, members.as_slice()),
+                (&study.schema, &study.context(ctx)),
+                measure,
+                options,
+                ctx,
+            )?;
+            return Ok(PreferenceDecisionExecution {
+                evaluation: CompiledPreferenceEvaluation::Sampled(Box::new(evaluation)),
+                source: None,
+                inputs: Vec::new(),
+                mixture: Some(mixture),
+                receipt: self.receipt(programs),
+            });
+        }
         let claims = structure_claims(
             &mixture,
             &[],

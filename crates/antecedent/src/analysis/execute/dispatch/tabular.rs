@@ -42,6 +42,29 @@ impl super::super::Study {
         Ok(result)
     }
 
+    /// A class prior declared beside a graph posterior weighs the members of its CPDAG and PAG
+    /// atoms; only a decision across the posterior's structures reads members one by one. The
+    /// ordinary graph-posterior mixture identifies and estimates each class atom as a whole
+    /// (one adjustment valid for every member, or an unidentified atom), which a measure over
+    /// members does not enter, so it refuses the prior rather than ignore it.
+    ///
+    /// # Errors
+    /// `option_not_applicable` (`structure_posterior.class_prior_not_read`) when the study
+    /// declares both.
+    pub(crate) fn refuse_unread_class_prior(&self) -> Result<(), CausalError> {
+        if self.graph_posterior.is_some() && self.declared.class_prior.is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                detail = antecedent_core::reason_details::structure_posterior::CLASS_PRIOR_NOT_READ,
+                "a class prior over the members of graph-posterior class atoms is read by a \
+                 preference decision compiled across the posterior's structures; the \
+                 graph-posterior mixture estimates each class atom as a whole. Compile the \
+                 decision, or drop the class prior for this estimate"
+            ));
+        }
+        Ok(())
+    }
+
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
     pub(super) fn execute_graph_posterior_tabular(
         &self,
@@ -50,6 +73,7 @@ impl super::super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.refuse_unread_class_prior()?;
         let result = self.execute_graph_posterior_tabular_unrefuted(data, gp, physical, ctx)?;
         let CausalQuery::Response(q) = &self.query else { return Ok(result) };
         if gp.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::Dag {

@@ -54,6 +54,7 @@ const CHAIN_DESIGN_SHAPE: &str = "a propagation chain combines declared sources;
 
 const QUERY_TAG: &str = "antecedent.propagation_chain.lowered_query";
 const SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_source";
+const DEFERRED_SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_deferred_source";
 
 fn refuse(reason: impl std::fmt::Display) -> ChainRefusal {
     ChainRefusal::new(
@@ -101,7 +102,25 @@ fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
     }
 }
 
-fn source_digest(source: &antecedent_io::propagation_chain_record::ChainSourceWire) -> [u8; 32] {
+fn source_digest(
+    source: &antecedent_io::propagation_chain_record::ChainSourceWire,
+    deferred: Option<&antecedent_io::propagation_chain_record::ChainDeferredTableWire>,
+) -> [u8; 32] {
+    // A slot of a deferred table has no draws yet: it is digested by its place in the table,
+    // whose rows and seed are declared. A concrete source keeps its digest exactly.
+    if let Some(table) = deferred
+        && let Some(slot) = table.slots.iter().position(|id| *id == source.id)
+    {
+        let mut writer = CanonicalWriter::new(DEFERRED_SOURCE_TAG);
+        writer
+            .text(&source.id)
+            .text(&source.representation)
+            .text(&table.construction)
+            .word(table.rows)
+            .word(table.seed)
+            .word(slot as u64);
+        return writer.finish();
+    }
     let mut writer = CanonicalWriter::new(SOURCE_TAG);
     writer.text(&source.id).text(&source.representation).word(source.values.len() as u64);
     for value in &source.values {
@@ -186,7 +205,13 @@ fn physical_layer(
     draft: &PropagationChainRecordWire,
     decision: Option<&DecisionProgram>,
 ) -> Result<PhysicalLayer, ChainRefusal> {
-    let rows = draft.sources.iter().map(|s| s.values.len() as u64).max().unwrap_or(1);
+    let rows = draft
+        .sources
+        .iter()
+        .map(|s| s.values.len() as u64)
+        .chain(draft.deferred.as_ref().map(|table| table.rows))
+        .max()
+        .unwrap_or(1);
     let nodes = (draft.sources.len() + draft.stages.len()) as u64;
     let retained_joint_columns = draft.joint_outputs.len() as u64;
     let table_bytes = rows
@@ -287,7 +312,7 @@ pub(crate) fn lower_chain_with_decision(
         .iter()
         .map(|source| EvidenceSourceRef {
             role: EvidenceRole::ChainSource,
-            digest: Some(source_digest(source)),
+            digest: Some(source_digest(source, draft.deferred.as_ref())),
         })
         .collect();
     let stages = draft.stages.len();

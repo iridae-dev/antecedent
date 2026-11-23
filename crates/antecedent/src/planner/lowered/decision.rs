@@ -296,6 +296,9 @@ pub struct PreferenceChainInputFact {
     pub(crate) study: usize,
     pub(crate) quantity: Arc<str>,
     pub(crate) factor: Arc<str>,
+    pub(crate) factors: Arc<[Arc<str>]>,
+    pub(crate) basis: Arc<str>,
+    pub(crate) namespace: Option<Arc<str>>,
 }
 
 impl PreferenceChainInputFact {
@@ -323,10 +326,33 @@ impl PreferenceChainInputFact {
         &self.quantity
     }
 
-    /// The row factor the source declares: its study's data snapshot.
+    /// The first row factor the source declares: for a study whose overlap is judged by table
+    /// content, the content identity of the table its rows came from (the source table of a
+    /// column projection, else its own table).
     #[must_use]
     pub fn factor(&self) -> &str {
         &self.factor
+    }
+
+    /// Every row factor the source declares. A study with a declared unit key declares one per
+    /// study it shares units with (named by the shared units), or one naming its own units
+    /// when it shares none.
+    #[must_use]
+    pub fn factors(&self) -> &[Arc<str>] {
+        &self.factors
+    }
+
+    /// How the study's overlap with the others was judged: `table_content` (the rows of the
+    /// table it was taken from) or `unit_key` (its declared unit identifiers).
+    #[must_use]
+    pub fn basis(&self) -> &str {
+        &self.basis
+    }
+
+    /// The identifier space of the study's unit key, when overlap was judged by unit key.
+    #[must_use]
+    pub fn namespace(&self) -> Option<&str> {
+        self.namespace.as_deref()
     }
 }
 
@@ -342,6 +368,7 @@ pub struct PreferenceJointLawFact {
     pub(crate) reading: Arc<str>,
     pub(crate) label: Arc<str>,
     pub(crate) declaration: Arc<str>,
+    pub(crate) program: SemanticDigest,
 }
 
 impl PreferenceJointLawFact {
@@ -392,6 +419,13 @@ impl PreferenceJointLawFact {
     #[must_use]
     pub fn declaration(&self) -> &str {
         &self.declaration
+    }
+
+    /// Identity of the chain's lowered program, compiled before anything is fitted: the
+    /// program whose identity the execution's receipt carries for the chain.
+    #[must_use]
+    pub const fn program(&self) -> SemanticDigest {
+        self.program
     }
 }
 
@@ -493,7 +527,10 @@ impl UtilityForm {
                 // quantity identities and the bound contract identity; a declared joint law
                 // is not, so it is written when present.
                 if let Some(joint) = &facts.joint_law {
-                    writer.text("joint_law").text(&joint.declaration);
+                    writer
+                        .text("joint_law")
+                        .text(&joint.declaration)
+                        .bytes(joint.program.as_bytes());
                 }
             }
         }

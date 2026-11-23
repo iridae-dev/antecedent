@@ -120,6 +120,7 @@ fn preference_json(
             "reading": joint.reading(),
             "label": joint.label(),
             "declaration": joint.declaration(),
+            "program": joint.program().to_hex(),
             "cross_blocks": joint
                 .cross_blocks()
                 .iter()
@@ -134,6 +135,9 @@ fn preference_json(
                     "study": input.study(),
                     "quantity": input.quantity(),
                     "factor": input.factor(),
+                    "factors": input.factors().iter().map(|factor| &**factor).collect::<Vec<_>>(),
+                    "basis": input.basis(),
+                    "namespace": input.namespace(),
                 }))
                 .collect::<Vec<_>>(),
             "outputs": joint

@@ -28,7 +28,10 @@
 //!   of graphs examined ([`StructuralResponseMixture`]: weights and identification per
 //!   structure), with each identified structure's own response, as structural atoms, keeping
 //!   unidentified and unevaluated mass, and [`decide_across_structures`] decides across those
-//!   structures and the preference set together;
+//!   structures and the preference set together; when some equivalence class was sampled
+//!   under a declared uniform measure rather than enumerated, [`decide_on_sampled_structures`]
+//!   reports what a sample supports (a Monte Carlo verdict on the sampled measure, or each
+//!   sampled member's own verdict) and never a verdict over every member;
 //! * [`analysis_options`] and [`analysis_belief_source`] state what was expected of the
 //!   options of a recorded choice from an analysis result, so the compatible-set learner and
 //!   the noisy-choice estimate learn from analysis-backed records;
@@ -53,6 +56,9 @@
     clippy::result_large_err,
     reason = "DecisionFacadeRefusal carries the decision layer's structured refusal by value on a cold once-per-declaration path; boxing it would change the public error contract"
 )]
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use antecedent_contract::propagation_chain::{ChainReading, TableConstruction};
 use antecedent_contract::{
@@ -88,6 +94,7 @@ pub use antecedent_design::accepted_preferences::{
 pub use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
     ChoiceSetFeatures, OptionBelief, Pooling, UnavailableOption, choice_features,
+    choice_features_at,
 };
 pub use antecedent_design::decision_contract::{
     ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy,
@@ -103,9 +110,10 @@ pub use antecedent_design::preference_certified::{
 };
 pub use antecedent_design::preference_choice_model::{
     ASSUMPTION_LOGIT_CHOICE, CALIBRATION_ESTIMATOR, CALIBRATION_INTERVAL_METHOD, CALIBRATION_QUERY,
-    ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, CovarianceKind,
-    EstimateOutcome, ParameterEstimate, calibration_basis, estimate_choice_model,
-    estimate_choice_model_with_context,
+    CALIBRATION_SHAPE_ESTIMATOR, CALIBRATION_SHAPE_INTERVAL_METHOD, ChoiceModelError,
+    ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, CovarianceKind, EstimateOutcome,
+    ParameterEstimate, ParameterIntervalMethod, calibration_basis, estimate_choice_model,
+    estimate_choice_model_with_context, shape_calibration_basis,
 };
 pub use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
@@ -120,22 +128,25 @@ pub use antecedent_design::preference_decision::{
 pub use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, PreferenceRoute,
     ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE, ROUTE_PART_NOT_LOWERABLE,
-    ROUTE_SHAPE_PARAMETERS, ROUTE_WORST_CASE_OF_EXPECTED_REGRET, RouteChoice,
-    StructuralPreferenceEvaluation, decide_preferences, decide_preferences_on_means,
+    ROUTE_SHAPE_PARAMETERS, ROUTE_VALUE_RELATIONS, ROUTE_WORST_CASE_OF_EXPECTED_REGRET,
+    RouteChoice, StructuralPreferenceEvaluation, decide_preferences, decide_preferences_on_means,
     decide_preferences_on_means_with_context, decide_preferences_structural,
     decide_preferences_structural_with_context, decide_preferences_with_context,
     decide_with_accepted, decide_with_accepted_with_context, preference_route,
 };
 pub use antecedent_design::preference_model::{
-    Attribute, Curve, LinearForm, LinearRelation, MAX_PREFERENCE_DEPTH, PreferenceExpr,
+    Attribute, BeliefRows, Curve, LinearForm, LinearRelation, MAX_PREFERENCE_DEPTH, PreferenceExpr,
     PreferenceModelError, PreferenceParameter, PreferenceRows, PreferenceSet, RelationOrigin,
-    RelationSense, ValueModel, shape,
+    RelationSense, ValueModel, ValueRelation, shape,
 };
 pub use antecedent_design::preference_set_learning::{
-    ASSUMPTION_CHOICES_OPTIMAL, BindingChoice, ChoiceConflict, ConflictKind, DeciderOverlap,
-    DeciderSet, LearnedPreferenceSet, ParameterRange, SetLearningError, SetLearningOptions,
-    SetLearningResult, SetOutcome, learn_compatible_set, learn_compatible_set_with_context,
+    ASSUMPTION_CHOICES_OPTIMAL, BindingChoice, CellStatus, ChoiceConflict, ConflictKind,
+    DEFAULT_MAX_SHAPE_BOXES, DEFAULT_MIN_SHAPE_WIDTH_FRACTION, DeciderOverlap, DeciderSet,
+    LearnedPreferenceSet, LearnedRegion, ParameterRange, RangeBasis, RegionCell, SetLearningError,
+    SetLearningOptions, SetLearningResult, SetOutcome, UndeterminedSet, learn_compatible_set,
+    learn_compatible_set_with_context,
 };
+pub use antecedent_stats::ShapeSearchOptions;
 
 pub use super::execute::{
     BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
@@ -144,7 +155,7 @@ pub use super::execute::{
     StructureIdentification, compile_preference_decision_across_studies,
 };
 pub use super::execute::{
-    CrossStudyCovariance, PreferenceJointLaw, SharedEvidence,
+    CrossStudyCovariance, PreferenceJointLaw, RowProvenance, SharedEvidence, UnitKey,
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
@@ -353,8 +364,10 @@ pub fn decide_accepted_with_context(
 /// No mass is dropped or renormalized: weight the mixture never assigned to an atom stays
 /// unassigned, and the evaluators report it.
 ///
-/// Posterior weights are genuine structure probabilities ([`adapt_weighted_graph_atoms`]);
-/// caller-supplied class priors are declared weights ([`adapt_finite_scenarios`]);
+/// Posterior weights are genuine structure probabilities ([`adapt_weighted_graph_atoms`]),
+/// and so are posterior atom weights times a declared conditional measure over the members of
+/// each class atom ([`StructuralWeightBasis::PosteriorWithDeclaredClassPrior`]), under that
+/// declaration; caller-supplied class priors are declared weights ([`adapt_finite_scenarios`]);
 /// completion-enumeration weights are not probabilities, so completions are graph-dependent
 /// claims without weights ([`adapt_graph_dependent_claims`]).
 ///
@@ -391,6 +404,7 @@ pub fn structure_claims(
         mixture.weight_basis,
         StructuralWeightBasis::PosteriorProbability
             | StructuralWeightBasis::CallerSuppliedClassPrior
+            | StructuralWeightBasis::PosteriorWithDeclaredClassPrior
     );
     let requirement = joint_draws();
     let mut claims = Vec::with_capacity(mixture.atoms.len());
@@ -432,7 +446,10 @@ pub fn structure_claims(
         });
     }
     match mixture.weight_basis {
-        StructuralWeightBasis::PosteriorProbability => adapt_weighted_graph_atoms(claims, policy),
+        StructuralWeightBasis::PosteriorProbability
+        | StructuralWeightBasis::PosteriorWithDeclaredClassPrior => {
+            adapt_weighted_graph_atoms(claims, policy)
+        }
         StructuralWeightBasis::CallerSuppliedClassPrior => adapt_finite_scenarios(claims, policy),
         StructuralWeightBasis::CompletionEnumeration => {
             adapt_graph_dependent_claims(claims, policy)
@@ -478,6 +495,731 @@ pub fn decide_across_structures_with_context(
     }
     decide_preferences_structural_with_context(contract, &claims.atoms, measure, options, ctx)
         .map_err(|e| e.to_refusal())
+}
+
+// ---------------------------------------------------------------------------------------------
+// A declared measure over class members, and decisions on a sample of members
+// ---------------------------------------------------------------------------------------------
+
+/// Two-sided level of every interval over sampled class masses, and the one-sided level of
+/// every bound on the mass where another action is best.
+pub const SAMPLED_MASS_LEVEL: f64 = 0.95;
+
+/// How the members of a class atom were drawn.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClassSamplingScheme {
+    /// A CPDAG: exactly uniform draws by clique-picking over its chain components, from an
+    /// exact count of the class.
+    CliquePicking,
+    /// A PAG: every circle endpoint a tail or an arrowhead with probability one half, the draw
+    /// accepted when it is a member of the class; exactly uniform over the maximal ancestral
+    /// graphs the PAG represents, within a search budget.
+    CircleEndpointRejection,
+}
+
+impl ClassSamplingScheme {
+    /// Snake-case name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CliquePicking => "clique_picking",
+            Self::CircleEndpointRejection => "circle_endpoint_rejection",
+        }
+    }
+}
+
+/// The number of members of a sampled class.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClassSize {
+    /// Counted exactly.
+    Exact(u128),
+    /// Not counted; at least this many distinct members were seen.
+    AtLeast(u128),
+}
+
+/// The draw of one class atom whose members were sampled rather than enumerated.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClassSampling {
+    /// Graph key of the class atom.
+    pub class_key: u64,
+    /// How the members were drawn.
+    pub scheme: ClassSamplingScheme,
+    /// The class size, exact or a lower bound.
+    pub class_size: ClassSize,
+    /// Members drawn, with replacement.
+    pub drawn: usize,
+    /// Distinct members among the draws.
+    pub distinct: usize,
+    /// Seed of the draw; the class atom reads the stream `(seed, class_key)`.
+    pub seed: u64,
+    /// Endpoint assignments tried, accepted or not (PAG draws); `None` for an exact sampler.
+    pub attempts: Option<u64>,
+    /// The assumption the uniform measure was declared under.
+    pub assumption: Option<String>,
+}
+
+/// One member of an equivalence-class atom among the structures of a decision.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClassMember {
+    /// Content fingerprint of the member ([`antecedent_graph::dag_fingerprint`] of a DAG
+    /// member, [`antecedent_graph::mag_fingerprint`] of a MAG member): the key a keyed class
+    /// prior names.
+    pub fingerprint: u64,
+    /// Draws that produced the member; one when the class was enumerated.
+    pub multiplicity: usize,
+    /// The draw, when the class was sampled.
+    pub sampling: Option<Arc<ClassSampling>>,
+}
+
+/// A proportion estimated from draws, scaled by the declared mass it is a share of, with an
+/// exact Clopper–Pearson interval at [`SAMPLED_MASS_LEVEL`]. A Monte Carlo estimate of a mass
+/// under the declared measure, never renormalized.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MassEstimate {
+    /// Share of the draws times the class mass.
+    pub estimate: f64,
+    /// Lower end of the interval, times the class mass.
+    pub lower: f64,
+    /// Upper end of the interval, times the class mass.
+    pub upper: f64,
+}
+
+/// What became of the draws of one sampled class.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledClassMass {
+    /// Graph key of the class atom.
+    pub class_key: u64,
+    /// The class atom's posterior mass.
+    pub class_mass: f64,
+    /// Members drawn.
+    pub drawn: usize,
+    /// Mass on members whose response was evaluated.
+    pub identified: MassEstimate,
+    /// Mass on members under which the quantities are not identified.
+    pub unidentified: MassEstimate,
+    /// Mass on identified members whose response was not evaluated.
+    pub unevaluated: MassEstimate,
+}
+
+/// The Monte Carlo estimate of the expected-value margin of one action over another at one
+/// vertex of the preference set, under the declared measure over structures, with its Monte
+/// Carlo standard error. Margins are affine in the trade-off parameters, so the vertices
+/// bound them over the whole set.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledMargin {
+    /// The earlier action in declaration order.
+    pub first: String,
+    /// The later action in declaration order.
+    pub second: String,
+    /// The vertex of the preference set, in parameter order.
+    pub vertex: Vec<f64>,
+    /// Mass-weighted expected value of `first` minus that of `second` over the evaluated
+    /// structures, in the value model's utility units (for a loss criterion smaller values
+    /// are better).
+    pub margin: f64,
+    /// Monte Carlo standard error from the sampled classes; `None` when a sampled class drew
+    /// a single member.
+    pub standard_error: Option<f64>,
+}
+
+/// A one-sided Clopper–Pearson bound on the declared mass of one sampled class on which an
+/// action other than the reported one is best.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OtherBestBound {
+    /// Graph key of the class atom.
+    pub class_key: u64,
+    /// Draws whose member was evaluated with another action best.
+    pub disagreeing: usize,
+    /// Members drawn.
+    pub drawn: usize,
+    /// Upper bound at [`SAMPLED_MASS_LEVEL`], times the class mass.
+    pub upper: f64,
+}
+
+/// What a decision on sampled class members can claim.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SampledStructuralVerdict {
+    /// `BayesOverStructures`: the verdict computed on the sampled measure, a Monte Carlo
+    /// estimate of the declared one. No action is claimed best across the whole declared
+    /// measure or for every member.
+    OnSampledMeasure {
+        /// The action the verdict on the sampled measure chooses, if it chooses one.
+        best_on_sampled_measure: Option<String>,
+        /// The actions still in contention on the sampled measure when none is chosen.
+        candidates: Vec<String>,
+    },
+    /// `Maximin` and `RequireInvariantBestAction` need every member of a class, so no combined
+    /// verdict is given from a sample: each sampled member's own verdict is reported.
+    PerSampledMember {
+        /// The action every evaluated structure (every sampled member included) chooses, if
+        /// one does.
+        best_on_every_sampled_member: Option<String>,
+        /// For that action, per sampled class, a bound on the declared mass where another
+        /// action is best.
+        other_best: Vec<OtherBestBound>,
+    },
+    /// `ReportOnly`: per-structure results only.
+    ReportOnly,
+}
+
+/// A decision across structures some of whose equivalence classes were sampled.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledStructuralEvaluation {
+    /// The evaluation on the sampled structures: under the contract's policy for
+    /// `BayesOverStructures` and `ReportOnly`; each structure on its own (the report-only
+    /// policy) for `Maximin` and `RequireInvariantBestAction`, whose minimum over a sample
+    /// would overstate the worst case and is never computed.
+    pub evaluation: StructuralPreferenceEvaluation,
+    /// What may be claimed from the sample.
+    pub verdict: SampledStructuralVerdict,
+    /// The draw of every sampled class.
+    pub sampling: Vec<ClassSampling>,
+    /// The identified, unidentified and unevaluated mass of every sampled class.
+    pub masses: Vec<SampledClassMass>,
+    /// Pairwise margins at each vertex of the preference set with their Monte Carlo standard
+    /// errors (`BayesOverStructures` on the exact route only; empty otherwise).
+    pub margins: Vec<SampledMargin>,
+    /// Level of the intervals and bounds.
+    pub level: f64,
+}
+
+impl SampledStructuralEvaluation {
+    /// The verdict in plain words, stating that it rests on sampled members.
+    #[must_use]
+    pub fn statement(&self) -> String {
+        let draws: usize = self.sampling.iter().map(|s| s.drawn).sum();
+        let scope = format!(
+            "Some equivalence classes were sampled ({draws} member draw(s) under a declared \
+             uniform measure)"
+        );
+        match &self.verdict {
+            SampledStructuralVerdict::OnSampledMeasure {
+                best_on_sampled_measure: Some(action),
+                ..
+            } => format!(
+                "{scope}. On the sampled measure action {action} is preferred; this is a Monte \
+                 Carlo estimate of the declared measure, not a claim that {action} is best for \
+                 every member."
+            ),
+            SampledStructuralVerdict::OnSampledMeasure { candidates, .. } => format!(
+                "{scope}. On the sampled measure no action is chosen{}.",
+                if candidates.is_empty() {
+                    String::new()
+                } else {
+                    format!("; still in contention: {}", candidates.join(", "))
+                }
+            ),
+            SampledStructuralVerdict::PerSampledMember {
+                best_on_every_sampled_member: Some(action),
+                other_best,
+            } => {
+                let bound: f64 = other_best.iter().map(|b| b.upper).sum();
+                format!(
+                    "{scope}. Action {action} is best on every sampled member; the declared \
+                     mass on which another action is best is at most {bound:.4} (one-sided, \
+                     level {}, summed over the sampled classes). No verdict over every member \
+                     is given.",
+                    self.level
+                )
+            }
+            SampledStructuralVerdict::PerSampledMember { .. } => format!(
+                "{scope}. The sampled members do not all choose one action; no verdict over \
+                 every member is given."
+            ),
+            SampledStructuralVerdict::ReportOnly => {
+                format!("{scope}. No action is chosen; per-structure results are reported.")
+            }
+        }
+    }
+}
+
+/// The exact two-sided Clopper–Pearson interval for a binomial proportion with `successes`
+/// of `trials` at `level`: each end is a beta quantile. `None` for no trials, more successes
+/// than trials, or a level outside `(0, 1)`.
+#[must_use]
+pub fn clopper_pearson(successes: u64, trials: u64, level: f64) -> Option<(f64, f64)> {
+    if trials == 0 || successes > trials || !proper_level(level) {
+        return None;
+    }
+    let tail = (1.0 - level) / 2.0;
+    let (x, n) = (successes as f64, trials as f64);
+    let lower = if successes == 0 { 0.0 } else { beta_quantile(tail, x, n - x + 1.0) };
+    let upper = if successes == trials { 1.0 } else { beta_quantile(1.0 - tail, x + 1.0, n - x) };
+    Some((lower, upper))
+}
+
+/// The exact one-sided Clopper–Pearson upper bound for a binomial proportion with
+/// `successes` of `trials` at `level`; with no successes it is `1 - (1 - level)^(1/trials)`.
+/// `None` as for [`clopper_pearson`].
+#[must_use]
+pub fn clopper_pearson_upper(successes: u64, trials: u64, level: f64) -> Option<f64> {
+    if trials == 0 || successes > trials || !proper_level(level) {
+        return None;
+    }
+    if successes == trials {
+        return Some(1.0);
+    }
+    let (x, n) = (successes as f64, trials as f64);
+    Some(beta_quantile(level, x + 1.0, n - x))
+}
+
+/// Whether `level` is a probability strictly between zero and one.
+fn proper_level(level: f64) -> bool {
+    level.is_finite() && level > 0.0 && level < 1.0
+}
+
+/// The `p` quantile of a Beta(`a`, `b`) law, by bisection on the regularized incomplete beta
+/// function, which increases in its argument.
+fn beta_quantile(p: f64, a: f64, b: f64) -> f64 {
+    let (mut low, mut high) = (0.0_f64, 1.0_f64);
+    for _ in 0..200 {
+        let mid = 0.5 * (low + high);
+        if antecedent_stats::special::regularized_incomplete_beta(mid, a, b) < p {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    0.5 * (low + high)
+}
+
+/// The action a per-structure exact verdict chooses, if it chooses one.
+fn exact_choice(verdict: &PreferenceVerdict) -> Option<&str> {
+    match verdict {
+        PreferenceVerdict::NecessarilyBest(action)
+        | PreferenceVerdict::NeverBeaten { action, .. }
+        | PreferenceVerdict::WorstCaseChoice(action)
+        | PreferenceVerdict::MinimaxRegretChoice(action)
+        | PreferenceVerdict::MeasureChoice { action, .. } => Some(action.as_str()),
+        PreferenceVerdict::PreferenceDependent { .. }
+        | PreferenceVerdict::Tied(_)
+        | PreferenceVerdict::ReportOnly
+        | PreferenceVerdict::NoAdmissibleAction => None,
+    }
+}
+
+/// The action a per-structure certified verdict chooses, if it chooses one.
+fn certified_choice(verdict: &CertifiedVerdict) -> Option<&str> {
+    match verdict {
+        CertifiedVerdict::NecessarilyBest(action)
+        | CertifiedVerdict::WorstCaseChoice(action)
+        | CertifiedVerdict::MinimaxRegretChoice(action)
+        | CertifiedVerdict::MeasureChoice { action, .. } => Some(action.as_str()),
+        CertifiedVerdict::PreferenceDependent { .. }
+        | CertifiedVerdict::Undetermined { .. }
+        | CertifiedVerdict::ReportOnly
+        | CertifiedVerdict::NoAdmissibleAction => None,
+    }
+}
+
+/// The verdict of a `BayesOverStructures` evaluation on the sampled measure.
+fn on_sampled_measure(evaluation: &StructuralPreferenceEvaluation) -> SampledStructuralVerdict {
+    let (best, candidates): (Option<&str>, Vec<String>) = match evaluation {
+        StructuralPreferenceEvaluation::Exact(result) => match &result.verdict {
+            StructuralPreferenceVerdict::Combined(verdict) => (
+                exact_choice(verdict),
+                match verdict {
+                    PreferenceVerdict::PreferenceDependent { possibly_best } => {
+                        possibly_best.clone()
+                    }
+                    PreferenceVerdict::Tied(actions) => actions.clone(),
+                    _ => Vec::new(),
+                },
+            ),
+            StructuralPreferenceVerdict::StructuresDisagree(choices) => (
+                None,
+                choices
+                    .iter()
+                    .filter_map(|choice| exact_choice(&choice.verdict).map(str::to_owned))
+                    .collect(),
+            ),
+            StructuralPreferenceVerdict::InsufficientScience(_)
+            | StructuralPreferenceVerdict::ReportOnly => (None, Vec::new()),
+        },
+        StructuralPreferenceEvaluation::Certified(result) => match &result.verdict {
+            StructuralCertifiedVerdict::Combined(verdict) => (
+                certified_choice(verdict),
+                match verdict {
+                    CertifiedVerdict::PreferenceDependent { certified_somewhere } => {
+                        certified_somewhere.clone()
+                    }
+                    CertifiedVerdict::Undetermined { candidates, .. } => candidates.clone(),
+                    _ => Vec::new(),
+                },
+            ),
+            StructuralCertifiedVerdict::StructuresDisagree(choices) => (
+                None,
+                choices
+                    .iter()
+                    .filter_map(|choice| certified_choice(&choice.verdict).map(str::to_owned))
+                    .collect(),
+            ),
+            StructuralCertifiedVerdict::InsufficientScience(_)
+            | StructuralCertifiedVerdict::ReportOnly => (None, Vec::new()),
+        },
+    };
+    let mut distinct: Vec<String> = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        if !distinct.contains(&candidate) {
+            distinct.push(candidate);
+        }
+    }
+    let candidates = distinct;
+    SampledStructuralVerdict::OnSampledMeasure {
+        best_on_sampled_measure: best.map(str::to_owned),
+        candidates: if best.is_some() { Vec::new() } else { candidates },
+    }
+}
+
+/// Each structure's id with the action its own verdict chooses, for the evaluated ones.
+fn evaluated_choices(evaluation: &StructuralPreferenceEvaluation) -> Vec<(String, Option<String>)> {
+    match evaluation {
+        StructuralPreferenceEvaluation::Exact(result) => result
+            .atoms
+            .iter()
+            .filter_map(|atom| match &atom.status {
+                PreferenceAtomStatus::Evaluated(inner) => {
+                    Some((atom.id.clone(), exact_choice(&inner.verdict).map(str::to_owned)))
+                }
+                PreferenceAtomStatus::Unidentified | PreferenceAtomStatus::Unevaluated(_) => None,
+            })
+            .collect(),
+        StructuralPreferenceEvaluation::Certified(result) => result
+            .atoms
+            .iter()
+            .filter_map(|atom| match &atom.status {
+                CertifiedAtomStatus::Evaluated(inner) => {
+                    Some((atom.id.clone(), certified_choice(&inner.verdict).map(str::to_owned)))
+                }
+                CertifiedAtomStatus::Unidentified | CertifiedAtomStatus::Unevaluated(_) => None,
+            })
+            .collect(),
+    }
+}
+
+/// The structures of each sampled class: `(class mass, draw, [(atom index, multiplicity)])`.
+type SampledClasses = BTreeMap<u64, (f64, Arc<ClassSampling>, Vec<(usize, usize)>)>;
+
+fn sampled_classes(
+    mixture: &StructuralResponseMixture,
+    members: &[Option<ClassMember>],
+) -> SampledClasses {
+    let mut classes: SampledClasses = BTreeMap::new();
+    for (index, (atom, member)) in mixture.atoms.iter().zip(members).enumerate() {
+        let Some(member) = member else {
+            continue;
+        };
+        let Some(sampling) = &member.sampling else {
+            continue;
+        };
+        let entry = classes
+            .entry(sampling.class_key)
+            .or_insert_with(|| (0.0, Arc::clone(sampling), Vec::new()));
+        entry.0 += atom.weight;
+        entry.2.push((index, member.multiplicity));
+    }
+    classes
+}
+
+fn scaled(successes: usize, trials: usize, mass: f64) -> MassEstimate {
+    let (x, n) = (successes as u64, trials as u64);
+    let (lower, upper) = clopper_pearson(x, n, SAMPLED_MASS_LEVEL).unwrap_or((0.0, 1.0));
+    let share = if trials == 0 { 0.0 } else { successes as f64 / trials as f64 };
+    MassEstimate { estimate: share * mass, lower: lower * mass, upper: upper * mass }
+}
+
+/// Whether the mixture atom carries an evaluated, identified response.
+fn evaluated_atom(atom: &crate::result::StructuralResponseAtom) -> bool {
+    atom.response.is_some()
+        && matches!(
+            atom.status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        )
+}
+
+fn class_masses(
+    mixture: &StructuralResponseMixture,
+    classes: &SampledClasses,
+) -> Vec<SampledClassMass> {
+    classes
+        .iter()
+        .map(|(&class_key, (mass, sampling, atoms))| {
+            let (mut identified, mut unidentified, mut unevaluated) = (0, 0, 0);
+            for &(index, multiplicity) in atoms {
+                match mixture.atoms.get(index) {
+                    Some(atom) if atom.status == IdentificationStatus::NotIdentified => {
+                        unidentified += multiplicity;
+                    }
+                    Some(atom) if evaluated_atom(atom) => identified += multiplicity,
+                    _ => unevaluated += multiplicity,
+                }
+            }
+            let drawn = sampling.drawn;
+            SampledClassMass {
+                class_key,
+                class_mass: *mass,
+                drawn,
+                identified: scaled(identified, drawn, *mass),
+                unidentified: scaled(unidentified, drawn, *mass),
+                unevaluated: scaled(unevaluated, drawn, *mass),
+            }
+        })
+        .collect()
+}
+
+/// Per sampled class, the bound on the declared mass where an action other than `action` is
+/// best: draws whose member was evaluated and chose otherwise, of all draws.
+fn other_best_bounds(
+    action: &str,
+    mixture: &StructuralResponseMixture,
+    classes: &SampledClasses,
+    choices: &[(String, Option<String>)],
+) -> Vec<OtherBestBound> {
+    classes
+        .iter()
+        .map(|(&class_key, (mass, sampling, atoms))| {
+            let disagreeing: usize = atoms
+                .iter()
+                .filter(|(index, _)| {
+                    mixture.atoms.get(*index).is_some_and(|atom| {
+                        let id = format!("{GRAPH_ATOM_PREFIX}{}", atom.graph_key);
+                        choices
+                            .iter()
+                            .any(|(seen, chosen)| *seen == id && chosen.as_deref() != Some(action))
+                    })
+                })
+                .map(|(_, multiplicity)| *multiplicity)
+                .sum();
+            let upper = clopper_pearson_upper(
+                disagreeing as u64,
+                sampling.drawn as u64,
+                SAMPLED_MASS_LEVEL,
+            )
+            .unwrap_or(1.0);
+            OtherBestBound { class_key, disagreeing, drawn: sampling.drawn, upper: upper * mass }
+        })
+        .collect()
+}
+
+/// The expectation of every part of the linear form for every action under one structure's
+/// response: `[action][part]`, part zero the fixed part. `None` when the response does not
+/// convert to an aligned joint law the term contract reads.
+fn part_expectations(
+    terms: &antecedent_design::decision_contract::DecisionContract,
+    (actions, parts): (usize, usize),
+    response: &CausalResponse,
+    (schema, context): (&CausalSchema, &NativeResponseContext),
+) -> Option<Vec<Vec<f64>>> {
+    let claim = NativeResponseClaim::from_response(response, schema, context).ok()?;
+    let input = claim.decision_source(&joint_draws()).ok()?;
+    let NativeDecisionSource::JointLaw(law) = input.source else {
+        return None;
+    };
+    let draws = utility_draws(terms, &law).ok()?;
+    let mean = |column: &[f64]| -> f64 {
+        column.iter().zip(&draws.weights).map(|(value, weight)| value * weight).sum()
+    };
+    (0..actions)
+        .map(|action| {
+            (0..parts)
+                .map(|part| draws.utilities.get(action * parts + part).map(|c| mean(c.as_slice())))
+                .collect::<Option<Vec<f64>>>()
+        })
+        .collect()
+}
+
+/// The vertices of the contract's preference set; `None` when they cannot be enumerated.
+fn preference_vertices(
+    contract: &PreferenceContract,
+    options: PreferenceEvaluationOptions,
+) -> Option<Vec<Vec<f64>>> {
+    let set = &contract.model.preferences;
+    if set.dimension() == 0 {
+        return Some(vec![Vec::new()]);
+    }
+    let rows = set.inequality_rows();
+    let constraints: Vec<antecedent_stats::linear_program::LinearConstraint> = rows
+        .coefficients
+        .into_iter()
+        .zip(rows.rhs)
+        .map(|(coefficients, rhs)| antecedent_stats::linear_program::LinearConstraint {
+            coefficients,
+            sense: antecedent_stats::linear_program::ConstraintSense::AtMost,
+            rhs,
+        })
+        .collect();
+    let (lower, upper): (Vec<f64>, Vec<f64>) = set.bounds().into_iter().unzip();
+    antecedent_stats::linear_program::vertices(
+        &constraints,
+        &lower,
+        &upper,
+        options.exact.vertex_cap,
+        options.exact.lp,
+    )
+    .ok()
+}
+
+/// Every pairwise margin at every vertex, with the Monte Carlo standard error of the sampled
+/// classes; empty when the model has no linear form, a vertex enumeration fails, or an
+/// evaluated structure's response cannot be read.
+fn sampled_margins(
+    contract: &PreferenceContract,
+    (mixture, members): (&StructuralResponseMixture, &[Option<ClassMember>]),
+    (schema, context): (&CausalSchema, &NativeResponseContext),
+    options: PreferenceEvaluationOptions,
+) -> Vec<SampledMargin> {
+    let Ok(Some(terms)) = contract.term_contract() else {
+        return Vec::new();
+    };
+    let Some(vertices) = preference_vertices(contract, options) else {
+        return Vec::new();
+    };
+    let actions = contract.actions.len();
+    let parts = contract.model.preferences.dimension() + 1;
+    // Expectations of every evaluated structure; an unread response leaves no margins.
+    let mut expectations: Vec<Option<Vec<Vec<f64>>>> = Vec::with_capacity(mixture.atoms.len());
+    for atom in &mixture.atoms {
+        if !evaluated_atom(atom) {
+            expectations.push(None);
+            continue;
+        }
+        let Some(response) = atom.response.as_ref() else {
+            return Vec::new();
+        };
+        let Some(read) = part_expectations(&terms, (actions, parts), response, (schema, context))
+        else {
+            return Vec::new();
+        };
+        expectations.push(Some(read));
+    }
+    let classes = sampled_classes(mixture, members);
+    let margin_at = |index: usize, (first, second): (usize, usize), vertex: &[f64]| -> f64 {
+        expectations.get(index).and_then(Option::as_ref).map_or(0.0, |e| {
+            let difference = |part: usize| e[first][part] - e[second][part];
+            difference(0)
+                + vertex.iter().enumerate().map(|(j, theta)| theta * difference(j + 1)).sum::<f64>()
+        })
+    };
+    let mut out = Vec::new();
+    for vertex in &vertices {
+        for first in 0..actions {
+            for second in (first + 1)..actions {
+                let margin: f64 = mixture
+                    .atoms
+                    .iter()
+                    .enumerate()
+                    .map(|(index, atom)| atom.weight * margin_at(index, (first, second), vertex))
+                    .sum();
+                let mut variance = 0.0;
+                let mut defined = true;
+                for (mass, sampling, atoms) in classes.values() {
+                    let drawn = sampling.drawn;
+                    if drawn < 2 {
+                        defined = false;
+                        continue;
+                    }
+                    let values: Vec<(f64, usize)> = atoms
+                        .iter()
+                        .map(|&(index, k)| (margin_at(index, (first, second), vertex), k))
+                        .collect();
+                    let n = drawn as f64;
+                    let mean = values.iter().map(|(v, k)| v * *k as f64).sum::<f64>() / n;
+                    let squares: f64 =
+                        values.iter().map(|(v, k)| (v - mean).powi(2) * *k as f64).sum();
+                    // Draws not among the listed members (none, when every draw compiled)
+                    // contribute zero.
+                    let listed: usize = values.iter().map(|(_, k)| *k).sum();
+                    let rest = drawn.saturating_sub(listed) as f64 * mean.powi(2);
+                    variance += mass * mass * (squares + rest) / (n - 1.0) / n;
+                }
+                out.push(SampledMargin {
+                    first: contract.actions[first].id.clone(),
+                    second: contract.actions[second].id.clone(),
+                    vertex: vertex.clone(),
+                    margin,
+                    standard_error: defined.then(|| variance.sqrt()),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Decide `contract` across structures some of whose equivalence classes were sampled.
+///
+/// `mixture` holds every structure with its weight (for a sampled member, its class mass
+/// times its share of the draws) and `members` the class member each structure is, aligned
+/// with `mixture.atoms`. The weights are read as probabilities under the declared class
+/// measure. Under `BayesOverStructures` the verdict is computed on the sampled measure and
+/// reported as a Monte Carlo estimate (never as best for every member), with every pairwise
+/// expected-value margin at every vertex of the preference set and its Monte Carlo standard
+/// error on the exact route. `Maximin` and `RequireInvariantBestAction` need every member, so
+/// each structure is evaluated on its own and no combined verdict is given: the action best
+/// on every sampled member, if any, is reported with a one-sided Clopper–Pearson bound on the
+/// declared mass where another action is best. `ReportOnly` runs unchanged. The identified,
+/// unidentified and unevaluated mass of every sampled class is estimated with an exact
+/// Clopper–Pearson interval, scaled by the class mass and never renormalized.
+///
+/// # Errors
+/// Every refusal of [`structure_claims`] and [`decide_across_structures_with_context`].
+pub fn decide_on_sampled_structures(
+    contract: &PreferenceContract,
+    (mixture, members): (&StructuralResponseMixture, &[Option<ClassMember>]),
+    (schema, context): (&CausalSchema, &NativeResponseContext),
+    measure: Option<&PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<SampledStructuralEvaluation, DecisionFacadeRefusal> {
+    let per_member = matches!(
+        contract.structural_policy,
+        StructuralPolicy::Maximin | StructuralPolicy::RequireInvariantBestAction
+    );
+    let mut evaluated = contract.clone();
+    if per_member {
+        evaluated.structural_policy = StructuralPolicy::ReportOnly;
+    }
+    let claims = structure_claims(mixture, &[], schema, context, evaluated.structural_policy)?;
+    let evaluation =
+        decide_across_structures_with_context(&evaluated, &claims, measure, options, ctx)?;
+    let classes = sampled_classes(mixture, members);
+    let (verdict, margins) = match contract.structural_policy {
+        StructuralPolicy::BayesOverStructures => (
+            on_sampled_measure(&evaluation),
+            if evaluation.route() == PreferenceRoute::Exact {
+                sampled_margins(contract, (mixture, members), (schema, context), options)
+            } else {
+                Vec::new()
+            },
+        ),
+        StructuralPolicy::ReportOnly => (SampledStructuralVerdict::ReportOnly, Vec::new()),
+        StructuralPolicy::Maximin | StructuralPolicy::RequireInvariantBestAction => {
+            let choices = evaluated_choices(&evaluation);
+            let first = choices.first().and_then(|(_, chosen)| chosen.clone());
+            let common = first.filter(|action| {
+                choices.iter().all(|(_, chosen)| chosen.as_deref() == Some(action.as_str()))
+            });
+            let other_best = common
+                .as_deref()
+                .map(|action| other_best_bounds(action, mixture, &classes, &choices))
+                .unwrap_or_default();
+            (
+                SampledStructuralVerdict::PerSampledMember {
+                    best_on_every_sampled_member: common,
+                    other_best,
+                },
+                Vec::new(),
+            )
+        }
+    };
+    Ok(SampledStructuralEvaluation {
+        evaluation,
+        verdict,
+        sampling: classes.values().map(|(_, sampling, _)| sampling.as_ref().clone()).collect(),
+        masses: class_masses(mixture, &classes),
+        margins,
+        level: SAMPLED_MASS_LEVEL,
+    })
 }
 
 /// What was expected of each action of `contract`, read from an analysis source, as the
