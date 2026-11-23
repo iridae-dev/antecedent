@@ -1452,3 +1452,7 @@ path = "tests/suite_12.rs"
 [[test]]
 name = "suite_13"
 path = "tests/suite_13.rs"
+
+[[test]]
+name = "compiled_units"
+path = "tests/compiled_units.rs"

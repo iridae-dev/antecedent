@@ -47,6 +47,7 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::units_generated;
 use crate::support::{require_capability_route, require_capability_route_unscoped};
 use antecedent_contract::DataClassification;
 use antecedent_contract::bridge::{BridgeContract, ValueKind};
@@ -896,7 +897,7 @@ pub fn consume_portable_chain_bundle_recomputation(
 // support status of its own: while the unit is not supported, a release build refuses each entry
 // point by its route id (`parity/capability_records.toml`) and a development build runs it and
 // records the refusal in its context.
-const BUNDLE_CAPABILITY: &str = "composition.bundle";
+const BUNDLE_CAPABILITY: &str = units_generated::COMPOSITION_BUNDLE.as_str();
 const BRIDGE_COMPILE_ROUTE: &str = "antecedent.composition.compile_bridge_bundle_recomputation";
 const BRIDGE_CONSUME_ROUTE: &str =
     "antecedent.composition.consume_portable_bridge_bundle_recomputation";

@@ -1,0 +1,161 @@
+# One row per compiled route whose support is the status of a unit outside the support matrix.
+#
+# `lowering` is `PlanRoute::as_str` of the route; `unit_kind` is `capability` (a record in
+# parity/capability_records.toml, status in antecedent-io-core/data/unit_support_status.json) or
+# `graphless` (a row of parity/support_graphless.toml); `unit` is the unit id (for a graphless
+# row, `family:design:method:inference_claim`); `entry` names the
+# Rust source and the Python module that expose the route.
+# crates/antecedent/src/support/units_generated.rs is generated from this file by
+# scripts/generate_compiled_units.py.
+
+schema = 1
+
+[[route]]
+lowering = "PolicySubsampling"
+unit_kind = "capability"
+unit = "estimate.observational_policy_value"
+entry = { rust = "crates/antecedent/src/analysis/observational_policy.rs", python = "python/antecedent/observational_policy.py" }
+
+[[route]]
+lowering = "BundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_decision_terminal.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "BridgeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "CyclicPosteriorBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "CyclicPosteriorNodeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "TrialIpwNodeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "GraphImputationTransportNodeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "JointTransportEffectNodeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "JointTransportPredictiveNodeDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "TrialIpwPredictiveNodeDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "CyclicTargetFeedbackNodeDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "GraphImputationPredictiveNodeDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "SequentialPolicyReliabilityNodeBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_sequential_bundle.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "PosteriorDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_decision_terminal.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "JointPanelResponse"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointPanelTimeVarying"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointPanelImputation"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointPanelProgramSearch"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointPanelProgramSelection"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointPanelExperiment"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "JointDesign"
+unit_kind = "capability"
+unit = "joint_response.interval_readings"
+entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "EventProcess"
+unit_kind = "capability"
+unit = "forecast.event_process"
+entry = { rust = "crates/antecedent/src/analysis/events/mod.rs", python = "python/antecedent/events.py" }
+
+[[route]]
+lowering = "MnarFixedShift"
+unit_kind = "capability"
+unit = "mnar_fixed_shift.compiled_candidate"
+entry = { rust = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", python = "python/antecedent/mnar_fixed_shift.py" }
+
+[[route]]
+lowering = "LatentSoftIntervention"
+unit_kind = "capability"
+unit = "estimate.latent_soft_intervention"
+entry = { rust = "crates/antecedent/src/analysis/latent_soft_intervention.rs", python = "python/antecedent/latent_soft_intervention.py" }

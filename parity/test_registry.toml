@@ -24886,3 +24886,17 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_graph_reliability_report.py"
 gates = ["inventory"]
+
+[[test]]
+id = "compiled-units"
+crate = "antecedent"
+cargo_target = "compiled_units"
+path = "crates/antecedent/tests/compiled_units.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-support-unit-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/support/unit.rs"
+gates = ["inventory", "named"]

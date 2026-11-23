@@ -788,6 +788,152 @@ def graphless_generated_problems() -> list[str]:
 MATRIX_EVIDENCE_KINDS = ALL_EVIDENCE_KINDS - {"process_attested"}
 
 
+# --------------------------------------------------------------------------- compiled units
+COMPILED_UNITS = "parity/compiled_units.toml"
+UNIT_STATUS = "crates/antecedent-io-core/data/unit_support_status.json"
+PLAN_ROUTE_SOURCE = "crates/antecedent/src/analysis/lowering/registry.rs"
+
+
+def plan_route_variants(registry_text: str) -> set[str]:
+    """The named variants of `pub enum PlanRoute` that are written out in the registry source.
+    The route cells the table macro generates are not listed there."""
+    body = re.search(r"pub enum PlanRoute \{(.*?)\n        \}", registry_text, re.S)
+    if body is None:
+        return set()
+    return set(re.findall(r"^\s+([A-Z][A-Za-z0-9]*)\s*[,(]", body.group(1), re.M))
+
+
+def compiled_unit_problems(
+    compiled: dict | None = None,
+    records: list[dict] | None = None,
+    status: dict | None = None,
+    rows: list[dict] | None = None,
+    registry_text: str | None = None,
+    check_files: bool = True,
+) -> list[str]:
+    """Every compiled route bound to a support unit names a unit that exists, and the record of
+    that unit agrees with the binding. A unit is one of three kinds of source, and a compiled
+    route outside the support matrix is bound to a capability record or a graphless row by
+    parity/compiled_units.toml; the Rust table is generated from that file.
+
+    Not checked here: that every `PlanRoute` outside the support matrix is bound. That needs the
+    route table the registry macro expands, which is not readable from the source text."""
+    compiled = compiled if compiled is not None else _load(COMPILED_UNITS)
+    records = records if records is not None else _load(RECORDS).get("record") or []
+    status = status if status is not None else json.loads((ROOT / UNIT_STATUS).read_text(encoding="utf-8"))
+    rows = rows if rows is not None else _load(GRAPHLESS).get("support") or []
+    if registry_text is None:
+        registry_text = (ROOT / PLAN_ROUTE_SOURCE).read_text(encoding="utf-8")
+    variants = plan_route_variants(registry_text)
+
+    record_ids: dict[str, dict] = {}
+    for record in records:
+        record_ids[record["id"]] = record
+        record_ids.setdefault(record.get("capability", record["id"]), record)
+    status_ids = {unit["id"] for unit in status.get("capabilities") or []}
+    graphless_ids = {graphless_ident(row) for row in rows}
+
+    found: list[str] = []
+    bound: dict[str, set[str]] = {}
+    seen: set[str] = set()
+    for row in compiled.get("route") or []:
+        route, kind, unit = row.get("lowering"), row.get("unit_kind"), row.get("unit")
+        where = f"{COMPILED_UNITS}: {route}"
+        if route in seen:
+            found.append(f"{where}: bound twice")
+        seen.add(route)
+        if variants and route not in variants:
+            found.append(f"{where}: not a PlanRoute variant")
+        if kind == "capability":
+            if unit not in record_ids:
+                found.append(f"{where}: unit {unit} is not a record in {RECORDS}")
+            if unit not in status_ids:
+                found.append(f"{where}: unit {unit} has no derived status in {UNIT_STATUS}")
+            bound.setdefault(unit, set()).add(route)
+        elif kind == "graphless":
+            if unit not in graphless_ids:
+                found.append(f"{where}: unit {unit} is not a row in {GRAPHLESS}")
+        else:
+            found.append(f"{where}: unit_kind {kind!r} is neither capability nor graphless")
+        entry = row.get("entry") or {}
+        for lang in ("rust", "python"):
+            path = entry.get(lang)
+            if not path:
+                found.append(f"{where}: entry has no {lang} path")
+            elif check_files and not (ROOT / path).is_file():
+                found.append(f"{where}: entry {lang} path {path} does not exist")
+
+    for unit, routes in sorted(bound.items()):
+        declared = (record_ids.get(unit) or {}).get("compiled_routes")
+        if declared is not None and set(declared) != routes:
+            found.append(
+                f"{RECORDS}: {unit} compiled_routes {sorted(declared)} != {COMPILED_UNITS} {sorted(routes)}"
+            )
+    for record in records:
+        declared = record.get("compiled_routes")
+        if declared and record["id"] not in bound:
+            found.append(f"{RECORDS}: {record['id']} lists compiled_routes but {COMPILED_UNITS} binds none to it")
+    return found
+
+
+def compiled_units_generated_problems() -> list[str]:
+    """The generated route to unit table is current (generate_compiled_units.py --check)."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate_compiled_units.py"), "--check"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return []
+    return [line for line in (result.stdout + result.stderr).splitlines() if line.strip()] or [
+        "generate_compiled_units.py --check failed"
+    ]
+
+
+def compiled_units_self_test() -> None:
+    """Stubbed sources: the shipped binding passes, and each broken binding is named."""
+    if compiled_unit_problems():
+        sys.exit(f"compiled units self-test: the shipped bindings fail: {compiled_unit_problems()}")
+    print("ok  shipped compiled units pass")
+    registry = "pub enum PlanRoute {\n            $(\n                $cell,\n            )+\n            ObservationalPolicy,\n            MnarFixedShift,\n        }"
+    records = [{"id": "estimate.demo", "capability": "estimate.demo"}]
+    status = {"capabilities": [{"id": "estimate.demo", "status": "supported", "missing_evidence": []}]}
+    route = {"lowering": "MnarFixedShift", "unit_kind": "capability", "unit": "estimate.demo",
+             "entry": {"rust": "a.rs", "python": "a.py"}}
+
+    def run(name: str, want: str | None, **overrides) -> None:
+        args = {"compiled": {"route": [route]}, "records": records, "status": status, "rows": [],
+                "registry_text": registry, "check_files": False}
+        args.update(overrides)
+        got = compiled_unit_problems(**args)
+        if want is None and got:
+            sys.exit(f"compiled units self-test {name}: expected a pass, got {got}")
+        if want is not None and not any(want in problem for problem in got):
+            sys.exit(f"compiled units self-test {name}: expected `{want}`, got {got}")
+        print(f"ok  {name}")
+
+    run("a bound capability passes", None)
+    run("a unit with no record fails", "is not a record", records=[])
+    run("a unit with no derived status fails", "no derived status", status={"capabilities": []})
+    run("a route that is not a PlanRoute fails", "not a PlanRoute variant",
+        compiled={"route": [dict(route, lowering="NoSuchRoute")]})
+    run("a route bound twice fails", "bound twice", compiled={"route": [route, route]})
+    run("an unknown unit kind fails", "neither capability nor graphless",
+        compiled={"route": [dict(route, unit_kind="matrix")]})
+    run("a graphless unit with no row fails", "is not a row",
+        compiled={"route": [dict(route, unit_kind="graphless", unit="a:b:c:d")]})
+    run("an entry with no python path fails", "no python path",
+        compiled={"route": [dict(route, entry={"rust": "a.rs"})]})
+    run("a record whose compiled_routes disagree fails", "compiled_routes",
+        records=[dict(records[0], compiled_routes=["ObservationalPolicy"])])
+    run("a record listing routes that nothing binds fails", "binds none",
+        records=[dict(records[0], compiled_routes=["ObservationalPolicy"])], compiled={"route": []})
+    run("a record whose compiled_routes agree passes", None,
+        records=[dict(records[0], compiled_routes=["MnarFixedShift"])])
+    print("compiled units self-test: ok")
+
+
 def regression_pin_problem(fixture: str, inference: str) -> str | None:
     """Why `fixture` cannot back known truth for a cell of this inference mode.
 
@@ -1633,6 +1779,10 @@ def structure_problems() -> list[str]:
     if not graphless_current:
         print("generated graphless supports: current")
     found += [f"graphless supports: {p}" for p in graphless_current]
+    compiled = compiled_unit_problems() + compiled_units_generated_problems()
+    if not compiled:
+        print("compiled units: bound to existing units, generated table current")
+    found += [f"compiled units: {p}" for p in compiled]
     return found
 
 
@@ -1663,6 +1813,7 @@ def cited_test_problems(shard: str) -> list[str]:
 def main(argv: list[str]) -> int:
     if "--self-test" in argv:
         graphless_self_test()
+        compiled_units_self_test()
         return 0
     if "--transport" in argv:
         path = Path(argv[argv.index("--transport") + 1])

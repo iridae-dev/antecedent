@@ -43,6 +43,9 @@ mod cell;
 mod gate;
 mod matrix;
 mod matrix_data;
+#[allow(dead_code, reason = "each compiled route is bound to its unit as it adopts the decision")]
+pub(crate) mod unit;
+pub(crate) mod units_generated;
 
 #[cfg(test)]
 mod graphless_tests;
