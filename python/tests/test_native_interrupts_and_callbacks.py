@@ -170,18 +170,24 @@ def test_seed_governs_a_mechanism_that_accepts_an_rng():
     assert not np.array_equal(a, c)
 
 
-def _holds_gil_for_control():
-    """PyDLL deliberately retains the GIL; this is the negative control."""
+def _gil_holding_pause():
+    """A 200 ms native sleep through PyDLL, which retains the GIL: the negative control.
+
+    Loading the library releases the GIL, so it happens here, before the witness is
+    released; the returned call is the only thing that runs while the witness waits."""
     if sys.platform == "win32":
         pause = ctypes.PyDLL("kernel32").Sleep
         pause.argtypes = [ctypes.c_uint32]
         pause.restype = None
-        pause(200)
-    else:
-        pause = ctypes.PyDLL(None).usleep
-        pause.argtypes = [ctypes.c_uint]
-        pause.restype = ctypes.c_int
+        return lambda: pause(200)
+    pause = ctypes.PyDLL(None).usleep
+    pause.argtypes = [ctypes.c_uint]
+    pause.restype = ctypes.c_int
+
+    def control():
         assert pause(200_000) == 0
+
+    return control
 
 
 def _python_thread_progresses_during(operation):
@@ -219,7 +225,7 @@ def test_a_long_native_estimator_lets_other_python_threads_run():
     A GIL-holding native sleep is the negative control. This tests concurrency,
     without treating a busy counter's contended throughput as a release budget.
     """
-    assert not _python_thread_progresses_during(_holds_gil_for_control)
+    assert not _python_thread_progresses_during(_gil_holding_pause())
     outcome = np.random.default_rng(3).normal(size=20)
     assignment = [bool(i % 2) for i in range(20)]
     assert _python_thread_progresses_during(
