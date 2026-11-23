@@ -4,6 +4,8 @@ An event forecast represents arrivals by type on a named continuous clock. A com
 
 Choose the observation window and record the complete history from an explicit empty origin. Native likelihood treats the forecast cutoff as the first instant outside the observed window. Gaps and ties in native timestamps need a separate observation model. Branching and decay arrays use target rows and source columns. Excitation describes predictive association. World effects come from the declared causal equations and bindings.
 
+A dense catalog is limited by the likelihood build. One build charges `(events + 1) * types²` against the operation budget, and the catalog cap is the largest type count for which a build at the event cap uses at most half that budget. A forecast can still be refused when its fit or simulation exceeds the budget. The composer accepts as many intervention worlds as the SDE retains, 63 plus the baseline, and refuses when the grid's cell product exceeds its execution budget.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow

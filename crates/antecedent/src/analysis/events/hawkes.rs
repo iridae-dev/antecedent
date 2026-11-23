@@ -58,7 +58,7 @@ pub(super) struct Work<'a> {
 
 impl<'a> Work<'a> {
     pub(super) fn new(ctx: &'a ExecutionContext) -> Self {
-        Self { ctx, remaining: 250_000_000 }
+        Self { ctx, remaining: super::OPERATION_BUDGET }
     }
 
     pub(super) fn take(&mut self, amount: usize) -> Result<(), EventError> {

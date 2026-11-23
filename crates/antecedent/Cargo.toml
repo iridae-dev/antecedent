@@ -1338,6 +1338,11 @@ path = "tests/events.rs"
 required-features = ["development"]
 
 [[test]]
+name = "hawkes_marks"
+path = "tests/hawkes_marks.rs"
+required-features = ["development"]
+
+[[test]]
 name = "event_count_calibration"
 path = "tests/event_count_calibration.rs"
 required-features = ["calibration-internal"]

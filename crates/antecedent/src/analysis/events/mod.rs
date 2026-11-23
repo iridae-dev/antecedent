@@ -33,9 +33,38 @@ pub use study::{
 pub(crate) const CAPABILITY: &str = "forecast.event_process";
 pub(crate) const COUNT_INTERVAL: &str = "forecast.event_count_interval";
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_TYPES: usize = 16;
-const MAX_EVENTS: usize = 100_000;
+/// Operation charges for one event-process invocation, shared with the Hawkes work counter.
+pub(super) const OPERATION_BUDGET: usize = 250_000_000;
+pub(super) const MAX_EVENTS: usize = 100_000;
 const MAX_PATHS: usize = 4096;
+
+/// Largest dense event catalog.
+///
+/// A likelihood build charges `(MAX_EVENTS + 1) * n²` operations. This is the
+/// largest `n` for which that build uses at most half the operation budget, so
+/// gradient evaluations still fit in the same invocation. The work counter
+/// refuses a fit or forecast that exceeds the budget even inside this cap.
+/// The bound is the dense per-pair kernel's arithmetic, not a property of the
+/// Hawkes process.
+pub const MAX_EVENT_TYPES: usize = max_dense_types(MAX_EVENTS, OPERATION_BUDGET);
+
+/// Largest `n` with `(max_events + 1) * n² <= budget / 2`.
+pub const fn max_dense_types(max_events: usize, budget: usize) -> usize {
+    let allowance = budget / 2;
+    let rows = max_events.saturating_add(1);
+    let mut n = 1usize;
+    loop {
+        let next = n + 1;
+        if next > 4096 {
+            return n;
+        }
+        let cost = rows.saturating_mul(next).saturating_mul(next);
+        if cost > allowance {
+            return n;
+        }
+        n = next;
+    }
+}
 
 /// A typed refusal from event compilation or execution.
 #[derive(Debug, thiserror::Error)]
@@ -230,7 +259,7 @@ impl EventHistory {
         self.window.validate()?;
         let valid_name = |s: &str| !s.trim().is_empty() && s.len() <= 256;
         if self.catalog.is_empty()
-            || self.catalog.len() > MAX_TYPES
+            || self.catalog.len() > MAX_EVENT_TYPES
             || self.catalog.iter().collect::<BTreeSet<_>>().len() != self.catalog.len()
             || self.catalog.iter().any(|kind| !valid_name(kind))
             || [&self.time_unit, &self.origin, &self.source].iter().any(|name| !valid_name(name))
@@ -857,5 +886,40 @@ impl PreparedEventLikelihood {
         let scoped = scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
         let _scratch = admit(&scoped, history_bytes(&self.history) * 12, 0)?;
         hawkes::log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
+    }
+}
+
+#[cfg(test)]
+mod limits {
+    use super::{
+        EventHistory, EventWindow, MAX_EVENT_TYPES, MAX_EVENTS, OPERATION_BUDGET, max_dense_types,
+    };
+
+    fn history(types: usize) -> EventHistory {
+        EventHistory {
+            catalog: (0..types).map(|i| format!("type-{i}")).collect(),
+            time_unit: "hour".into(),
+            origin: "origin".into(),
+            source: "log".into(),
+            empty_origin: 0.0,
+            window: EventWindow { start: 0.0, end: 1.0 },
+            left: vec![],
+            events: vec![],
+            gaps: vec![],
+        }
+    }
+
+    #[test]
+    fn dense_catalog_cap_is_half_the_likelihood_build() {
+        let n = MAX_EVENT_TYPES;
+        let build = (MAX_EVENTS + 1) * n * n;
+        assert!(build <= OPERATION_BUDGET / 2, "{build}");
+        let next = (MAX_EVENTS + 1) * (n + 1) * (n + 1);
+        assert!(next > OPERATION_BUDGET / 2, "{next}");
+        assert!(n > 16);
+        assert_eq!(n, max_dense_types(MAX_EVENTS, OPERATION_BUDGET));
+        history(n).validate(true).unwrap();
+        history(17).validate(true).unwrap();
+        assert!(history(n + 1).validate(true).is_err());
     }
 }
