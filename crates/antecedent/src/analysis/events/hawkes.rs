@@ -715,6 +715,224 @@ impl BaselineFeature {
     }
 }
 
+struct ImmigrantLikelihood {
+    n: usize,
+    features: Vec<(usize, f64, Vec<f64>)>,
+    compensator: Vec<f64>,
+}
+
+impl ImmigrantLikelihood {
+    fn new(
+        history: &EventHistory,
+        decay: &[f64],
+        feature: &BaselineFeature,
+        work: &mut Work<'_>,
+    ) -> Result<Self, EventError> {
+        let n = history.catalog.len();
+        work.take((history.left.len() + history.events.len() + 1) * n * n)?;
+        let mut state = HistoryState::at(history, decay, history.window.start, &history.left);
+        let mut integral = vec![0.0; n * n];
+        let mut features = Vec::with_capacity(history.events.len());
+        for event in &history.events {
+            state.advance(event.time, &mut integral);
+            let start = event.kind * n;
+            features.push((
+                event.kind,
+                feature.value(event.time),
+                state.values[start..start + n].to_vec(),
+            ));
+            state.arrive(event.kind);
+        }
+        state.advance(history.window.end, &mut integral);
+        let span = history.window.end - history.window.start;
+        let immigrant = feature.integral(history.window.start, history.window.end);
+        let mut compensator = vec![span; n];
+        compensator.extend(std::iter::repeat_n(immigrant, n));
+        compensator.extend(integral);
+        Ok(Self { n, features, compensator })
+    }
+
+    fn evaluate(
+        &self,
+        x: &[f64],
+        gradient: &mut [f64],
+        work: &mut Work<'_>,
+    ) -> Result<f64, EventError> {
+        let n = self.n;
+        work.take((self.features.len() + 1) * (2 * n + 1))?;
+        if !gradient.is_empty() {
+            gradient.copy_from_slice(&self.compensator);
+        }
+        let mut loss: f64 = self.compensator.iter().zip(x).map(|(a, b)| a * b).sum();
+        for (kind, level, row) in &self.features {
+            let alpha = 2 * n + *kind * n;
+            let intensity = x[*kind]
+                + x[n + *kind] * level
+                + row.iter().zip(&x[alpha..alpha + n]).map(|(a, b)| a * b).sum::<f64>();
+            if !intensity.is_finite() || intensity <= 0.0 {
+                return Ok(f64::INFINITY);
+            }
+            loss -= intensity.ln();
+            if !gradient.is_empty() {
+                let weight = intensity.recip();
+                gradient[*kind] -= weight;
+                gradient[n + *kind] -= level * weight;
+                for (coordinate, value) in row.iter().enumerate() {
+                    gradient[alpha + coordinate] -= value * weight;
+                }
+            }
+        }
+        Ok(loss)
+    }
+
+    fn weak_information(&self, work: &mut Work<'_>) -> Result<bool, EventError> {
+        let n = self.n;
+        let width = n + 2;
+        work.take((self.features.len() + 1) * width * width)?;
+        let mut covariance = vec![vec![0.0; width * width]; n];
+        for (kind, level, features) in &self.features {
+            let row: Vec<_> = [1.0, *level].into_iter().chain(features.iter().copied()).collect();
+            for i in 0..width {
+                for j in 0..width {
+                    covariance[*kind][i * width + j] += row[i] * row[j];
+                }
+            }
+        }
+        for mut block in covariance {
+            let norm: Vec<_> = (0..width).map(|j| block[j * width + j].sqrt()).collect();
+            if norm.iter().any(|value| !value.is_finite() || *value == 0.0) {
+                return Ok(true);
+            }
+            for i in 0..width {
+                for j in 0..width {
+                    block[i * width + j] /= norm[i] * norm[j];
+                }
+            }
+            if solve(block, vec![1.0; width], 1e-7).is_none() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+fn project_immigrant(mut values: Vec<f64>, n: usize, cap: f64) -> Vec<f64> {
+    for value in &mut values {
+        *value = value.max(0.0);
+    }
+    let offset = 2 * n;
+    for source in 0..n {
+        let mut column: Vec<_> =
+            (0..n).map(|target| values[offset + target * n + source]).collect();
+        if column.iter().sum::<f64>() <= cap {
+            continue;
+        }
+        column.sort_unstable_by(|a, b| b.total_cmp(a));
+        let mut sum = 0.0_f64;
+        let mut threshold = 0.0_f64;
+        for (index, value) in column.into_iter().enumerate() {
+            sum += value;
+            threshold = threshold.max((sum - cap) / (index + 1) as f64);
+        }
+        for target in 0..n {
+            let value = &mut values[offset + target * n + source];
+            *value = (*value - threshold).max(0.0);
+        }
+    }
+    values
+}
+
+pub(super) fn fit_alternative(
+    history: &EventHistory,
+    spec: &HawkesFitSpec,
+    feature: &BaselineFeature,
+    work: &mut Work<'_>,
+) -> Result<HawkesFit, EventError> {
+    let n = history.catalog.len();
+    feature.validate(history.window)?;
+    let likelihood = ImmigrantLikelihood::new(history, &spec.decay, feature, work)?;
+    let mut counts = vec![0_u32; n];
+    for event in &history.events {
+        counts[event.kind] += 1;
+    }
+    if counts.contains(&0) {
+        return Err(EventError::Fit("every fitted type needs observed arrivals"));
+    }
+    let scale = history.events.len() as f64;
+    let mut x: Vec<_> =
+        counts.into_iter().map(|count| f64::from(count) / likelihood.compensator[0]).collect();
+    x.resize(2 * n + n * n, 0.0);
+    let mut gradient = vec![0.0; x.len()];
+    let mut step = 1.0_f64;
+    for iteration in 0..spec.iterations {
+        let loss = likelihood.evaluate(&x, &mut gradient, work)?;
+        if !loss.is_finite() || gradient.iter().any(|value| !value.is_finite()) {
+            return Err(EventError::Fit("nonfinite likelihood or gradient"));
+        }
+        for value in &mut gradient {
+            *value /= scale;
+        }
+        let projected = project_immigrant(
+            x.iter().zip(&gradient).map(|(value, slope)| value - slope).collect(),
+            n,
+            spec.column_cap,
+        );
+        let residual =
+            x.iter().zip(&projected).map(|(left, right)| (left - right).abs()).fold(0.0, f64::max);
+        if residual <= 1e-7 {
+            let branching = x.split_off(2 * n);
+            let active_columns = (0..n)
+                .filter(|&source| {
+                    (0..n).map(|target| branching[target * n + source]).sum::<f64>()
+                        >= spec.column_cap - 1e-7
+                })
+                .collect();
+            let zero_edges = branching
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &value)| (value <= 1e-7).then_some(index))
+                .collect();
+            let parameters = HawkesParameters {
+                baseline: x[..n].to_vec(),
+                branching,
+                decay: spec.decay.clone(),
+            };
+            parameters.validate(n)?;
+            return Ok(HawkesFit {
+                parameters,
+                log_likelihood: -loss,
+                iterations: iteration,
+                projected_residual: residual,
+                active_columns,
+                zero_edges,
+                weak_identification: likelihood.weak_information(work)?,
+            });
+        }
+        step = (2.0 * step).min(1024.0);
+        let mut accepted = None;
+        for _ in 0..48 {
+            let candidate = project_immigrant(
+                x.iter().zip(&gradient).map(|(value, slope)| value - step * slope).collect(),
+                n,
+                spec.column_cap,
+            );
+            let descent: f64 = gradient
+                .iter()
+                .zip(x.iter().zip(&candidate))
+                .map(|(slope, (left, right))| slope * (right - left))
+                .sum();
+            let next = likelihood.evaluate(&candidate, &mut [], work)? / scale;
+            if descent < 0.0 && next <= loss / scale + 1e-4 * descent {
+                accepted = Some(candidate);
+                break;
+            }
+            step *= 0.5;
+        }
+        x = accepted.ok_or(EventError::Fit("likelihood line search stalled"))?;
+    }
+    Err(EventError::Fit("optimizer iteration limit"))
+}
+
 #[cfg(test)]
 mod offspring_tests {
     use super::HawkesParameters;

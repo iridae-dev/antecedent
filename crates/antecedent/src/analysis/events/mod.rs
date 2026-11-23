@@ -12,6 +12,7 @@ use crate::Study;
 use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
 
 mod assessment;
+mod challenge;
 mod dynamics;
 mod hawkes;
 mod marked;
@@ -21,11 +22,18 @@ pub use assessment::{
     CountCoverageCandidate, ForecastAssessment, ForecastAssessmentRequest, ForecastOrigin,
     ForecastScore, PreparedForecastAssessment, PublishedCountInterval, ReliabilityBin,
 };
+pub use challenge::{
+    ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge, PreparedExcitationChallenge,
+    PreparedMarkedChallenge, ReleaseChoice, StructuralStatus, compare_marked_release_times,
+    compare_release_times,
+};
 pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
     PreparedEventWorlds,
 };
-pub use hawkes::{ExcitationOffspring, HawkesFit, HawkesFitSpec, HawkesParameters};
+pub use hawkes::{
+    BaselineFeature, ExcitationOffspring, HawkesFit, HawkesFitSpec, HawkesParameters,
+};
 pub use marked::{
     MAX_PROTOTYPES, MarkPrototype, MarkedArrival, MarkedFit, MarkedFitSpec, MarkedHistory,
     MarkedOffspring, MarkedParameters, PreparedMarkedDraw, PreparedMarkedFit,

@@ -802,6 +802,15 @@ pub(super) fn fit(
     fit_coefficients(history, spec, None, work)
 }
 
+pub(super) fn fit_alternative(
+    history: &MarkedHistory,
+    spec: &MarkedFitSpec,
+    feature: &hawkes::BaselineFeature,
+    work: &mut hawkes::Work<'_>,
+) -> Result<MarkedFit, EventError> {
+    fit_coefficients(history, spec, Some(feature), work)
+}
+
 pub(super) fn log_likelihood(
     history: &MarkedHistory,
     parameters: &MarkedParameters,

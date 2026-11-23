@@ -20,6 +20,12 @@ A marked history replaces the catalog with prototypes. Each prototype carries no
 
 The rank and the basis are capped by the same dense-feature allowance as the catalog. The prototype count is capped by the cost of that spectral witness.
 
+## From an excitation mass to an effect
+
+An excitation mass is not an effect. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The structural reading is retained only when the horizon-specific direct masses agree within a declared tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `structural_direct` refuses.
+
+`compare_release_times` uses a retained reading. It compares the in-window direct children and descendants of an earlier and a later release. The comparison is the offspring of one intervened event under that reading. A utility over path outcomes is still a decision contract on the event worlds.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow
