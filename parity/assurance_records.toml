@@ -102,7 +102,7 @@ checked_commit = "943cba005bc47d291dd4bcaf63b1d9dc16b03542"
 [[records]]
 id = "identity.order_insensitive_declarations"
 proposition = "For an order-insensitive declaration list written as its length followed by its elements sorted under a total order, reordering the list never changes the written stream, any other change (an element added, removed or replaced) always changes it, and two such lists written in sequence cannot trade elements. Under a collision-free hash, two lists have the same identity exactly when they are the same up to order."
-scope = "The canonical encoding used for evidence-ledger source lists (write_ids) and transport populations and assumptions (TransportIdentity::encode), as a model. The production encoders are not translated; the adversarial campaign exercises them."
+scope = "The canonical encoding used for evidence-ledger source lists (write_ids) and transport populations and assumptions (TransportIdentity::encode), as a model over multisets. Registering a transported source first reduces its populations and assumptions to sets (EvidenceLedger::add_source sorts and removes duplicates), so in the ledger a repeated declaration is not a change; the theorems then apply to the deduplicated lists. The production encoders are not translated; the adversarial campaign exercises them."
 trusted = [
     "the Lean 4 kernel",
     "the identity hash is collision-free on the streams it is given (an explicit hypothesis of identity_eq_iff)",

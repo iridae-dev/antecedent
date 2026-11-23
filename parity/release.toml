@@ -66,4 +66,4 @@ id = "release.ci_required_jobs"
 status = "done"
 evidence_kind = "process_attested"
 notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA. Enforced by scripts/gate_release_candidate.sh, which reads required_jobs through scripts/ci_workflow.py and checks each is green on the candidate SHA; gate self-tests break the input on purpose."
-required_jobs = ["static", "rust", "features", "public-api", "cited-tests", "benches", "deny", "development", "python-lint", "scientific", "python-wheels", "proofs"]
+required_jobs = ["static", "rust", "features", "public-api", "cited-tests", "benches", "deny", "development", "python-lint", "scientific", "python-wheels", "proofs", "kani", "adversarial"]

@@ -1,0 +1,182 @@
+# Adversarial campaign: generated cases against production code, and the defects they
+# must catch. Read and run by scripts/adversarial.py.
+#
+# A case is one generated test, of one kind:
+#   preserving  a meaning-preserving change (a permitted reordering) keeps the result
+#   changing    a meaning-changing change breaks identity, or is refused
+#   invalid     an invalid combination is refused with the typed reason
+#   bound       a property checked over all inputs in a bound (Kani), or a specification
+#               check (Plausible)
+# The expected outcome of every case comes from a proved rule (formal/) or the stated
+# identity and refusal rules, never from an earlier output of the code under test.
+#
+# A mutation is a defect deliberately introduced into production code. The campaign
+# applies it, runs the cases that must catch it, and restores the file. A mutation that
+# no case catches, or that could not be applied or run, fails the campaign; each is
+# reported as detected, undetected or unexecuted. A failed or missing case is never a pass.
+
+[runners.rust]
+directory = "formal/adversarial"
+command = ["cargo", "test"]
+
+[runners.python]
+directory = "python"
+command = ["uv", "run", "--project", ".", "python", "-m", "pytest", "-rA", "-p", "no:cacheprovider", "tests/test_adversarial_ledger_identity.py"]
+
+[runners.kani]
+directory = "formal/kani"
+command = ["cargo", "kani"]
+
+[runners.lean]
+directory = "formal"
+command = ["lake", "build"]
+
+# Retranslates the production kernels (needs AENEAS_DIR) and rebuilds the proofs about them.
+[runners.aeneas]
+directory = "."
+command = ["bash", "-c", "bash formal/rust/extract.sh && cd formal/rust && lake build"]
+
+[[cases]]
+id = "identity.permutation_keeps_digest"
+kind = "preserving"
+runner = "rust"
+test = "identity_permutation_keeps_digest"
+
+[[cases]]
+id = "identity.relevant_change_breaks_digest"
+kind = "changing"
+runner = "rust"
+test = "identity_relevant_change_breaks_digest"
+
+[[cases]]
+id = "identity.lists_cannot_trade_elements"
+kind = "changing"
+runner = "rust"
+test = "identity_lists_cannot_trade_elements"
+
+[[cases]]
+id = "ledger.reordered_pooling_keeps_identity"
+kind = "preserving"
+runner = "python"
+test = "test_reordering_pooled_sources_keeps_the_result_identity"
+
+[[cases]]
+id = "ledger.dropped_source_changes_identity"
+kind = "changing"
+runner = "python"
+test = "test_dropping_a_pooled_source_changes_the_result_identity"
+
+[[cases]]
+id = "ledger.reordered_transport_keeps_identity"
+kind = "preserving"
+runner = "python"
+test = "test_reordering_transport_declarations_keeps_the_source_identity"
+
+[[cases]]
+id = "ledger.repeated_transport_declaration_keeps_identity"
+kind = "preserving"
+runner = "python"
+test = "test_repeating_a_transport_declaration_keeps_the_source_identity"
+
+[[cases]]
+id = "ledger.transport_change_changes_identity"
+kind = "changing"
+runner = "python"
+test = "test_a_relevant_transport_change_changes_the_source_identity"
+
+[[cases]]
+id = "claims.relay_weakening_accepted"
+kind = "preserving"
+runner = "rust"
+test = "relay_weakening_is_accepted"
+
+[[cases]]
+id = "claims.relay_raising_domain_refused"
+kind = "invalid"
+runner = "rust"
+test = "relay_raising_domain_is_refused"
+
+[[cases]]
+id = "claims.relay_without_premises_refused"
+kind = "invalid"
+runner = "rust"
+test = "relay_without_its_premises_is_refused"
+
+[[cases]]
+id = "acceptance.matching_expectation_bound"
+kind = "preserving"
+runner = "rust"
+test = "matching_expectation_is_bound"
+
+[[cases]]
+id = "acceptance.mismatched_expectation_rejected"
+kind = "invalid"
+runner = "rust"
+test = "mismatched_expectation_is_rejected"
+
+[[cases]]
+id = "acceptance.no_expectation_never_bound"
+kind = "invalid"
+runner = "rust"
+test = "no_retained_expectation_is_never_bound"
+
+[[cases]]
+id = "acceptance.false_self_description_rejected"
+kind = "invalid"
+runner = "rust"
+test = "false_self_description_is_rejected"
+
+[[cases]]
+id = "acceptance.bound_over_all_inputs"
+kind = "bound"
+runner = "kani"
+test = "bound_only_against_the_retained_expectation"
+
+[[cases]]
+id = "claims.translated_checks_proved"
+kind = "bound"
+runner = "aeneas"
+test = "AntecedentRust.Standing"
+
+[[cases]]
+id = "specification.generated_cases"
+kind = "bound"
+runner = "lean"
+test = "Antecedent.Generated"
+
+# Deliberately introduced defects. Each must be caught by at least one named case.
+
+[[mutations]]
+id = "relay_accepts_any_change_from_a_positive_status"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "    from == to || (from.is_positive() && to == DomainStatus::Unknown)"
+new = "    from == to || from.is_positive()"
+caught_by = ["claims.relay_raising_domain_refused", "claims.translated_checks_proved"]
+
+[[mutations]]
+id = "derivation_may_raise_identification"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "    derived.strength_rank() <= parent.strength_rank()"
+new = "    derived.strength_rank() <= parent.strength_rank() + 1"
+caught_by = ["claims.translated_checks_proved"]
+
+[[mutations]]
+id = "transport_assumptions_ignored"
+file = "crates/antecedent-contract/src/evidence_ledger/source.rs"
+old = "        writer.texts(&assumptions);"
+new = "        let _ = &assumptions;"
+caught_by = ["identity.relevant_change_breaks_digest", "ledger.transport_change_changes_identity"]
+
+[[mutations]]
+id = "bind_skips_payload"
+file = "crates/antecedent-io-core/src/bound_identity.rs"
+old = "    if !same_digest(bound.payload, expected.payload) {"
+new = "    if false && !same_digest(bound.payload, expected.payload) {"
+caught_by = ["acceptance.mismatched_expectation_rejected", "acceptance.bound_over_all_inputs"]
+
+[[mutations]]
+id = "bind_trusts_missing_expectation"
+file = "crates/antecedent-io-core/src/bound_identity.rs"
+old = "        return Ok(BoundMatch::NotRequired { slot: required });"
+new = "        return Ok(BoundMatch::Bound { slot: required });"
+caught_by = ["acceptance.no_expectation_never_bound", "acceptance.bound_over_all_inputs"]

@@ -52,6 +52,7 @@ profile = "release"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.140",
     "maturin>=1.14.1",
     "mypy>=1.17.0",
     "numpy>=2.4.6",

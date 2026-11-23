@@ -7,8 +7,8 @@
 
 use antecedent_core::SemanticDigest;
 use antecedent_io_core::bound_identity::{
-    BoundIdentity, BoundMatch, CyclicSolution, ExpectedIdentity, IdentitySlot,
-    SelfDescribedDigest, bind,
+    BoundIdentity, BoundMatch, CyclicSolution, ExpectedIdentity, IdentitySlot, SelfDescribedDigest,
+    bind,
 };
 
 fn any_digest() -> SemanticDigest {

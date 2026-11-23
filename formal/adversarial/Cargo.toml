@@ -1,0 +1,20 @@
+# Property-based adversarial tests over the public API of the production crates. A separate
+# workspace, so the proptest dependency never enters the main workspace lockfile.
+#
+#   cargo test --manifest-path formal/adversarial/Cargo.toml
+[package]
+name = "antecedent-adversarial"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace]
+
+[dependencies]
+antecedent-core = { path = "../../crates/antecedent-core" }
+antecedent-contract = { path = "../../crates/antecedent-contract" }
+antecedent-io-core = { path = "../../crates/antecedent-io-core", default-features = false }
+
+[dev-dependencies]
+proptest = "1"

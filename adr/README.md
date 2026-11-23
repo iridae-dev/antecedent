@@ -31,3 +31,4 @@ compatibility analysis where applicable. See [how Antecedent works](../docs/conc
 | [0024](0024-transport-architecture.md) | Transport architecture: theorem families, typed outcomes, catalogs |
 | [0025](0025-provider-protocol.md) | Provider protocol and adjustment handoff |
 | [0026](0026-internal-contract-versions.md) | Internal contract versions (identity, uncertainty, cyclic solutions, retention, threads, data backends, artifact migration) |
+| [0027](0027-rust-verification-route.md) | Rust verification route (Aeneas and Charon first, Kani second; Verus and Creusot not adopted) |

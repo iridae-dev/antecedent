@@ -508,9 +508,11 @@ jobs:
           cargo nextest run -P development -p antecedent --features development --test development_build
           cargo nextest run -P development -p antecedent-core --features development --lib
 
-  # Machine-checked properties: the Lean specifications and proofs under formal/,
-  # built with the toolchain pinned in formal/lean-toolchain and the packages pinned
-  # in formal/lake-manifest.json. A broken proof fails the build.
+  # Machine-checked properties (parity/assurance_records.toml): the Lean specifications
+  # and proofs under formal/, and the proofs about the Aeneas translation of production
+  # Rust under formal/rust, built with the toolchain pinned in formal/toolchain.toml.
+  # A broken proof fails the build. scripts/assurance.py check (static gate) fails a
+  # record whose Rust items, proofs or pins changed since its checks ran.
   proofs:
     name: Proofs
     runs-on: ubuntu-latest
@@ -527,6 +529,69 @@ jobs:
           test: false
           lint: false
           use-mathlib-cache: false
+
+      # The Aeneas Lean library builds on Mathlib; its prebuilt .olean files come from
+      # the Mathlib build cache, and the proofs are checked here from those.
+      - name: Build the proofs about the translated Rust
+        uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+        with:
+          lake-package-directory: formal/rust
+          build: true
+          test: false
+          lint: false
+          use-mathlib-cache: true
+
+  # Kani proof harnesses on the production Rust (formal/kani), at the Kani version
+  # pinned in formal/toolchain.toml.
+  kani:
+    name: Kani proofs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Install Kani
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("formal/toolchain.toml", "rb"))["kani"])')"
+          cargo install --locked kani-verifier --version "$version"
+          cargo kani setup
+
+      - name: Run the proof harnesses
+        working-directory: formal/kani
+        run: cargo kani
+
+  # Generated adversarial cases against the production crates (formal/adversarial, its
+  # own workspace so proptest stays out of the workspace lockfile). The required cases and
+  # the deliberate defects they must catch are listed in parity/adversarial_campaign.toml;
+  # the static gate checks that every listed case is declared.
+  adversarial:
+    name: Adversarial cases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
+        with:
+          toolchain: "1.97"
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: formal/adversarial
+
+      - name: Run the generated cases
+        working-directory: formal/adversarial
+        run: cargo test --locked
 
   # Linux source-tree Python checks all use one native extension from this run.
   # Keep the full release wheel matrix independent: it checks packaged installs
