@@ -18260,6 +18260,7 @@ pub variant antecedent_io_core::ContractReason::IdentitiesProgram
 pub variant antecedent_io_core::ContractReason::IdentitiesScoreReuse
 pub variant antecedent_io_core::ContractReason::IdentitiesTarget
 pub variant antecedent_io_core::ContractReason::IdentitiesTargetWeights
+pub variant antecedent_io_core::ContractReason::IdentityNoncanonicalPayload
 pub variant antecedent_io_core::ContractReason::InferenceBindingBayesian
 pub variant antecedent_io_core::ContractReason::InferenceBindingInference
 pub variant antecedent_io_core::ContractReason::InferenceBindingValidationSuite

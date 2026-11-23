@@ -30,6 +30,7 @@ use crate::identity::{
     identification_product_digest_wire, inference_binding_digest, program_digest,
 };
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
+use crate::{IdentificationIdentityWire, InferenceBindingWire, ObservationIdentityWire};
 
 /// Largest absolute difference between one probability mass stored in two places that were
 /// written from the same computation (a reasoning slot and the structural response it
@@ -1706,6 +1707,10 @@ fn note_stored_payload_identities(
         Ok(_) => unresolved.push(ContractReason::IdentitiesTarget),
         Err(_) => unresolved.push(ContractReason::TargetPayload),
     }
+    require_canonical_payload(
+        unresolved,
+        contract.identification.as_ref().is_none_or(IdentificationIdentityWire::is_canonical),
+    );
     require_payload_digest(
         unresolved,
         ContractReason::IdentitiesIdentification,
@@ -1729,11 +1734,27 @@ fn note_stored_payload_identities(
     );
 }
 
+/// A stored payload is hashed as it was stored, so a set-valued list in another order (or with
+/// a repeat) would verify under a second identity for the same science. Refuse it instead.
+fn require_canonical_payload(unresolved: &mut Vec<ContractReason>, canonical: bool) {
+    if !canonical && !unresolved.contains(&ContractReason::IdentityNoncanonicalPayload) {
+        unresolved.push(ContractReason::IdentityNoncanonicalPayload);
+    }
+}
+
 /// Verify the inference, observation, execution, and nested identity links.
 fn note_stored_payload_links(
     contract: &AnalysisResultContractWire,
     unresolved: &mut Vec<ContractReason>,
 ) {
+    require_canonical_payload(
+        unresolved,
+        contract.inference_binding.as_ref().is_none_or(InferenceBindingWire::is_canonical),
+    );
+    require_canonical_payload(
+        unresolved,
+        contract.observation.as_ref().is_none_or(ObservationIdentityWire::is_canonical),
+    );
     require_payload_digest(
         unresolved,
         ContractReason::IdentitiesInferenceBinding,

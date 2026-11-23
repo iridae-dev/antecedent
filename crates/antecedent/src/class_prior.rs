@@ -69,7 +69,9 @@ impl ClassPrior {
         Ok(Self { inner: ClassPriorInner::Ordered(masses) })
     }
 
-    /// Canonical identity: exact mass bits, keyed pairs sorted by fingerprint.
+    /// Canonical identity: exact mass bits, keyed pairs sorted by completion key. Keys are
+    /// distinct because [`Self::from_pairs`] refuses a repeated key, so no deduplication is
+    /// needed; the identity wire's `is_canonical` states the same rule for a decoded payload.
     pub(crate) fn identity_wire(&self) -> antecedent_io::ClassPriorIdentityWire {
         match &self.inner {
             ClassPriorInner::Ordered(masses) => antecedent_io::ClassPriorIdentityWire::Ordered(
