@@ -326,11 +326,13 @@ fn controls_bounds_and_the_search_limit_are_checked() {
 }
 
 /// Forty two-option sets whose first option's value is `z + 20 (b1(s) x + b2(s) y)` and second
-/// option's value zero, with bumps `b1` at `s = 0.2` and `b2` at `s = 0.5` of width 0.05. The
+/// option's value zero, with bumps `b1` at `s = 0.2` of width 0.05 and `b2` at `s = 0.5` of width
+/// 0.1, wide enough that `b2` still has a slope at the maximum (with every slope zero there the
+/// expected information of the shape parameter would vanish and no covariance exists). The
 /// first option is chosen in sets 0..30. `x` favours the first option in every set (three in four
 /// choices agree), `y` agrees with 26 of 40 choices and `z` is balanced against the choices, so
 /// the profile has its maximum near 0.2 (about -22.50), a lower local maximum at 0.5 (about
-/// -25.94) and falls to the null value between and beyond them.
+/// -25.94) and falls between them and beyond them.
 struct Ridge {
     starts: Vec<usize>,
     chosen: Vec<usize>,
@@ -356,10 +358,10 @@ impl Ridge {
         }
     }
 
-    fn bump(s: f64, centre: f64) -> (f64, f64) {
-        let u = (s - centre) / 0.05;
+    fn bump(s: f64, centre: f64, width: f64) -> (f64, f64) {
+        let u = (s - centre) / width;
         let value = (-u * u).exp();
-        (value, -2.0 * u / 0.05 * value)
+        (value, -2.0 * u / width * value)
     }
 }
 
@@ -385,16 +387,16 @@ impl ChoiceUtility for Ridge {
     }
 
     fn features(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
-        let (b1, _) = Self::bump(shape[0], 0.2);
-        let (b2, _) = Self::bump(shape[0], 0.5);
+        let (b1, _) = Self::bump(shape[0], 0.2, 0.05);
+        let (b2, _) = Self::bump(shape[0], 0.5, 0.1);
         Ok((0..self.x.len())
             .flat_map(|s| [self.z[s] + 20.0 * (b1 * self.x[s] + b2 * self.y[s]), 0.0])
             .collect())
     }
 
     fn shape_jacobian(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
-        let (_, d1) = Self::bump(shape[0], 0.2);
-        let (_, d2) = Self::bump(shape[0], 0.5);
+        let (_, d1) = Self::bump(shape[0], 0.2, 0.05);
+        let (_, d2) = Self::bump(shape[0], 0.5, 0.1);
         Ok((0..self.x.len())
             .flat_map(|s| {
                 let error = if s < 20 { self.jacobian_error } else { 0.0 };

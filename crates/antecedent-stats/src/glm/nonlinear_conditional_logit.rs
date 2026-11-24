@@ -26,7 +26,11 @@
 //! direction of the information (pivoted Cholesky with a relative tolerance) is refused, naming
 //! the parameters in it.
 //!
-//! Convergence. The polish must end at a point whose bound-projected score passes the inner
+//! Convergence. The polish is Fisher scoring; where the full scoring step is not accepted (the
+//! expected information omits the curvature of the utility's second derivatives, so it can
+//! vanish in a shape direction where the utility's shape derivative is zero), Newton's step with
+//! the observed information, from central differences of the analytic score, is tried as well
+//! and the step reaching the higher log-likelihood is taken. The polish must end at a point whose bound-projected score passes the inner
 //! fits' convergence test (or where a further accepted step no longer moves any coordinate);
 //! otherwise the fit is refused as not converged. The profiles are then maximised from the
 //! polished point: when a profile value exceeds the polished log-likelihood by more than
@@ -300,6 +304,8 @@ const BISECTION_FRACTION: f64 = 1e-9;
 const PROFILE_EXCESS_RELATIVE: f64 = 1e-6;
 /// A profile log-likelihood with the shape point attaining it.
 type ProfileTop = (f64, Vec<f64>);
+/// Relative step of the central differences of the score that give the observed information.
+const OBSERVED_STEP: f64 = 1e-6;
 /// Largest number of bisection steps for one interval end.
 const MAX_BISECTIONS: usize = 60;
 /// Pivots of the information below this fraction of its largest diagonal are null directions.
@@ -719,17 +725,17 @@ impl Fitter<'_> {
         largest <= self.options.fit.gradient_tolerance * evaluation.scale.max(f64::MIN_POSITIVE)
     }
 
-    /// Fisher scoring in `psi` from `start`, shape parameters kept inside their bounds.
+    /// Fisher scoring in `psi` from `start`, shape parameters kept inside their bounds; where the
+    /// full scoring step is not accepted, Newton's step with the observed information (central
+    /// differences of the score) is tried as well and the better of the two is taken.
     ///
     /// The polish ends when the projected score passes the convergence test, or when an
     /// accepted step leaves every coordinate unchanged (the maximum is located to the precision
-    /// of the coordinates). Ending otherwise (the information cannot be solved, no halved step is
-    /// accepted, or the iteration limit is reached) at a point whose projected score fails the
-    /// test refuses with [`NonlinearChoiceError::NotConverged`]: the covariance and the profile
+    /// of the coordinates). Ending otherwise (neither step can be solved or accepted, or the
+    /// iteration limit is reached) at a point whose projected score fails the test refuses with [`NonlinearChoiceError::NotConverged`]: the covariance and the profile
     /// intervals would be read at a point that is not a maximum.
     fn polish(&self, start: Vec<f64>) -> Result<(Vec<f64>, PsiEvaluation), NonlinearChoiceError> {
         let columns = self.p_beta();
-        let q = columns + self.bounds.len();
         let not_evaluable = |psi: &[f64]| NonlinearChoiceError::UtilityNotEvaluable {
             shape: psi[columns..].to_vec(),
         };
@@ -744,26 +750,30 @@ impl Fitter<'_> {
                 settled = true;
                 break;
             }
-            let Some(step) = solve_spd(&current.information, q, &score) else {
-                break;
+            // Fisher scoring first. Where its full step is not accepted (singular, or halved
+            // because the expected information misses curvature), Newton's step with the
+            // observed information is tried too, and the step reaching the higher
+            // log-likelihood is taken.
+            let scoring = self.scoring_step(&psi, &current, &current.information, &score);
+            let accepted = match scoring {
+                Some((next, evaluation, true)) => Some((next, evaluation)),
+                scoring => {
+                    let newton = self
+                        .observed_information(&psi)?
+                        .and_then(|observed| self.scoring_step(&psi, &current, &observed, &score));
+                    match (scoring, newton) {
+                        (Some((a, ea, _)), Some((b, eb, _))) => {
+                            if eb.log_likelihood > ea.log_likelihood {
+                                Some((b, eb))
+                            } else {
+                                Some((a, ea))
+                            }
+                        }
+                        (Some((a, ea, _)), None) | (None, Some((a, ea, _))) => Some((a, ea)),
+                        (None, None) => None,
+                    }
+                }
             };
-            let allowance = 64.0 * f64::EPSILON * (current.log_likelihood.abs() + 1.0);
-            let mut accepted = None;
-            let mut factor = 1.0;
-            for _ in 0..=MAX_HALVINGS {
-                let mut candidate: Vec<f64> =
-                    psi.iter().zip(&step).map(|(value, d)| value + factor * d).collect();
-                for (m, (lo, hi)) in self.bounds.iter().enumerate() {
-                    candidate[columns + m] = candidate[columns + m].clamp(*lo, *hi);
-                }
-                if let Ok(evaluation) = self.evaluate_psi(&candidate)
-                    && evaluation.log_likelihood >= current.log_likelihood - allowance
-                {
-                    accepted = Some((candidate, evaluation));
-                    break;
-                }
-                factor *= 0.5;
-            }
             let Some((next, evaluation)) = accepted else {
                 break;
             };
@@ -786,6 +796,80 @@ impl Fitter<'_> {
             }
         }
         Ok((psi, current))
+    }
+
+    /// The step `matrix^{-1} score` from `psi`, shape parameters clamped to their bounds, halved
+    /// until the log-likelihood does not fall by more than rounding, and whether the full step
+    /// was accepted; `None` when `matrix` is not positive definite or no halving is accepted.
+    fn scoring_step(
+        &self,
+        psi: &[f64],
+        current: &PsiEvaluation,
+        matrix: &[f64],
+        score: &[f64],
+    ) -> Option<(Vec<f64>, PsiEvaluation, bool)> {
+        let columns = self.p_beta();
+        let q = columns + self.bounds.len();
+        let step = solve_spd(matrix, q, score)?;
+        let allowance = 64.0 * f64::EPSILON * (current.log_likelihood.abs() + 1.0);
+        let mut factor = 1.0;
+        for halvings in 0..=MAX_HALVINGS {
+            let mut candidate: Vec<f64> =
+                psi.iter().zip(&step).map(|(value, d)| value + factor * d).collect();
+            for (m, (lo, hi)) in self.bounds.iter().enumerate() {
+                candidate[columns + m] = candidate[columns + m].clamp(*lo, *hi);
+            }
+            if let Ok(evaluation) = self.evaluate_psi(&candidate)
+                && evaluation.log_likelihood >= current.log_likelihood - allowance
+            {
+                return Some((candidate, evaluation, halvings == 0));
+            }
+            factor *= 0.5;
+        }
+        None
+    }
+
+    /// The observed information at `psi`: minus the central difference of the analytic score,
+    /// symmetrised, each step `OBSERVED_STEP (1 + |psi_k|)` and kept inside the shape bounds.
+    /// The expected information drops the curvature that the second derivatives of the utility
+    /// carry, so it can vanish in a shape direction at a maximum (where the utility's shape
+    /// derivative is zero) while the observed information does not. `None` where the score
+    /// cannot be evaluated on either side.
+    fn observed_information(&self, psi: &[f64]) -> Result<Option<Vec<f64>>, NonlinearChoiceError> {
+        self.observe()?;
+        let columns = self.p_beta();
+        let q = columns + self.bounds.len();
+        let mut matrix = vec![0.0; q * q];
+        for k in 0..q {
+            let h = OBSERVED_STEP * (1.0 + psi[k].abs());
+            let mut up = psi.to_vec();
+            let mut down = psi.to_vec();
+            up[k] += h;
+            down[k] -= h;
+            if k >= columns {
+                let (lo, hi) = self.bounds[k - columns];
+                up[k] = up[k].min(hi);
+                down[k] = down[k].max(lo);
+            }
+            let width = up[k] - down[k];
+            if width.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+                return Ok(None);
+            }
+            let (Ok(above), Ok(below)) = (self.evaluate_psi(&up), self.evaluate_psi(&down)) else {
+                return Ok(None);
+            };
+            for j in 0..q {
+                matrix[j * q + k] = -(above.score[j] - below.score[j]) / width;
+            }
+        }
+        for j in 0..q {
+            for k in 0..j {
+                let mean = 0.5 * (matrix[j * q + k] + matrix[k * q + j]);
+                matrix[j * q + k] = mean;
+                matrix[k * q + j] = mean;
+            }
+        }
+        Ok(Some(matrix))
     }
 
     /// The polished direct parameters started from the profile at `shape`.
