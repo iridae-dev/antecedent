@@ -548,7 +548,7 @@ serves them all:
 | Member | Meaning |
 | --- | --- |
 | `choice` | the chosen action id, or `None` when the result does not choose one |
-| `kind` | the engine's own verdict word (`uniquely_optimal`, `necessarily_best`, ...) |
+| `kind` | the engine's own verdict word (`uniquely_optimal`, `necessarily_best`, ...); for a `RobustDecision` it is the claim type adapted, and the verdict word is `verdict.kind` |
 | `standing` | the verdict class, from the table below |
 | `statement` | the result in words, with its assumptions |
 | `contract_identity`, `contract` | the declared contract |
