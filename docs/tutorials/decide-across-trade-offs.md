@@ -71,23 +71,24 @@ def coordinate(outcome, units, action):
     )
 ```
 
-## Declare the value model
+## Declare the value
 
 ```python
-from antecedent import preferences as pf
+from antecedent import decision
 
-orders = pf.attribute("orders", units="orders")
-returns = pf.attribute("returns", units="returns")
-discount_cost = pf.attribute("discount_cost", units="usd")
+orders = decision.attribute("orders", units="orders")
+returns = decision.attribute("returns", units="returns")
+discount_cost = decision.attribute("discount_cost", units="usd")
 
-margin = pf.fixed("margin", units="usd/order", value=20.0)
-return_cost = pf.strength(
+margin = 20.0
+return_cost = decision.tradeoff(
     "return_cost", units="usd/return", lower=10.0, upper=60.0, assumption="ops.return_cost_band"
 )
-model = pf.ValueModel(margin * orders - return_cost * returns - discount_cost, utility_units="usd")
+model = decision.Value(margin * orders - return_cost * returns - discount_cost, units="usd")
 ```
 
-`margin` is fixed: it is not searched and never learned. `return_cost` is a range, and
+`margin` is a plain number: a trade-off that is not in question, never searched or learned.
+`return_cost` is a range, and
 `ops.return_cost_band` names the judgment it stands on. `model.shape_parameters` is empty, so the
 value is affine in the trade-offs.
 
@@ -95,7 +96,7 @@ value is affine in the trade-offs.
 
 ```python
 def action(name):
-    return pf.Action(
+    return decision.Action(
         name,
         inputs={
             "orders": coordinate("orders", "orders", name),
@@ -104,18 +105,18 @@ def action(name):
         },
     )
 
-def contract_for(preferences, policy=None):
-    return pf.Contract(
-        preferences=preferences,
+def contract_for(value, policy=None):
+    return decision.Contract(
+        value=value,
         actions=tuple(action(name) for name in LEVELS),
         target_population="stores",
-        policy=policy or pf.Policy.invariant_best(),
+        policy=policy or decision.TradeoffPolicy.invariant_best(),
     )
 
 compiled = require_success(contract_for(model).compile(studies))
 compiled.representation              # "mean"
 [q.quantity.regime_id for q in compiled.quantities]
-compiled.parameter_ranges            # {"margin": (20.0, 20.0), "return_cost": (10.0, 60.0)}
+compiled.parameter_ranges            # {"return_cost": (10.0, 60.0)}
 declared = require_success(compiled.execute())
 ```
 
@@ -138,17 +139,17 @@ both still name that table and its 600 store-weeks. They are not distinct eviden
 compile refuses to join them as if they were:
 
 ```python
-overflow_cost = pf.strength(
+overflow_cost = decision.tradeoff(
     "overflow_cost", units="usd/return", lower=0.0, upper=40.0, assumption="ops.overflow_band"
 )
-kinked = pf.ValueModel(
-    margin * orders - return_cost * returns - overflow_cost * pf.excess(returns, 100.0)
+kinked = decision.Value(
+    margin * orders - return_cost * returns - overflow_cost * decision.excess(returns, 100.0)
     - discount_cost,
-    utility_units="usd",
+    units="usd",
 )
 try:
     require_success(contract_for(kinked).compile(studies, draws=2000, seed=7))
-except pf.PreferenceRefusal as refusal:
+except decision.PreferenceRefusal as refusal:
     refusal.reason_code     # "evidence_double_counted": 600 shared observations
 ```
 
@@ -168,7 +169,8 @@ Each action's value is a straight line in the cost of a return `w`:
 
 ```python
 declared.kind        # "preference_dependent"
-declared.selected    # None
+declared.standing    # "depends"
+declared.choice      # None
 print(declared.statement)
 ```
 
@@ -204,8 +206,33 @@ return worth more or less than 30 dollars, and more or less than 50". Those are 
 someone can answer.
 
 If you must choose today without settling the cost, the policy is a choice you make, not a
-fact. `Policy.minimax_regret()` picks `ten` (smallest worst-case regret, 600).
-`Policy.maximin()` picks `none` (best lowest value, 17,000). Both report the same tables.
+fact. `TradeoffPolicy.minimax_regret()` picks `ten` (smallest worst-case regret, 600).
+`TradeoffPolicy.maximin()` picks `none` (best lowest value, 17,000). Both report the same tables;
+the pick is `result.choice` and its `standing` is `policy_choice`.
+
+## One number is an ordinary decision
+
+State the cost of a return as a plain number and nothing is left to range over. The contract is
+then the ordinary decision contract whose utility is the expression:
+
+```python
+fixed = decision.Contract(
+    value=decision.Value(margin * orders - 35.0 * returns - discount_cost, units="usd"),
+    actions=tuple(action(name) for name in LEVELS),
+    target_population="stores",
+)
+fixed.form                     # "ordinary"
+result = require_success(fixed.evaluate(source))
+type(result)                   # decision.Decision
+result.choice                  # "ten"
+```
+
+The result is an ordinary `Decision`: its contract identity equals that of the hand-written
+contract with the same utility, ties are exact equality, and it replays exactly. At 35 dollars per
+return the three values are 18,250, 18,700 and 18,550, so `ten` leads. Compare the range above,
+which leaves the choice to you. A named fixed trade-off,
+`decision.tradeoff("return_cost", units="usd/return", value=35.0)`, keeps the trade-off engine
+and reports its assumption in the result.
 
 ## Optional: narrow the range from past decisions
 
@@ -224,31 +251,31 @@ Choosing `ten` in spring says `20 × 1,000 − 60w − 1,100 ≥ 20 × 900 − 4
 The autumn record lists `twenty` as unavailable, so not choosing it teaches nothing.
 
 ```python
-from antecedent import preference_learning as pl
+from antecedent import decision_learning as dl
 
 def option(name, expected_orders, expected_returns, cost):
-    return pl.Option(
+    return dl.Option(
         name,
         means={"orders": expected_orders, "returns": expected_returns, "discount_cost": cost},
     )
 
 def record(id, options, chosen):
-    return pl.Record(
+    return dl.Record(
         id, decider="returns_manager", options=options, chosen=chosen,
-        source=pl.Forecast(f"planning.forecast.{id}"), observation_rows=(f"ledger:{id}",),
+        source=dl.Forecast(f"planning.forecast.{id}"), observation_rows=(f"ledger:{id}",),
     )
 
 history = [
     record("spring", (option("none", 900, 40, 0), option("ten", 1_000, 60, 1_100)), "ten"),
     record("summer", (option("none", 1_100, 60, 0), option("ten", 1_150, 85, 200)), "none"),
     record("autumn", (option("none", 1_000, 50, 0), option("ten", 1_080, 70, 400),
-                      pl.Option("twenty", unavailable="budget_cap")), "ten"),
+                      dl.Option("twenty", unavailable="budget_cap")), "ten"),
 ]
-records = pl.Records(tuple(history), population="stores")
+records = dl.Records(tuple(history), population="stores")
 
-accepted = pl.CompatibleSet().accept(model, records, decider="returns_manager")
+accepted = dl.CompatibleSet().accept(model, records, decider="returns_manager")
 accepted.ranges["return_cost"]   # (32.0, 45.0)
-accepted.pending                 # (): the trade-off was narrowed; the fixed margin needs no review
+accepted.pending                 # (): the trade-off was narrowed; the margin is a stated number
 ```
 
 `Records` reads each decider separately unless you name a pooling assumption, so `accept` names
@@ -256,12 +283,12 @@ the decider whose choices to accept. `CompatibleSet().learn(model, records)` ret
 outcome instead: each decider's learned set with the choices that bind it (here spring and
 summer), or a conflict.
 
-Decide again with the accepted preferences in place of the model:
+Decide again with the accepted preferences in place of the value:
 
 ```python
 narrowed = require_success(require_success(contract_for(accepted).compile(studies)).execute())
 narrowed.kind        # "necessarily_best"
-narrowed.selected    # "ten"
+narrowed.choice      # "ten"
 ```
 
 Over 32 to 45, `ten` leads `twenty` by at least 60 dollars and `none` by at least 150 dollars per
@@ -296,10 +323,10 @@ under that range the 10% discount is best.
 ## Where to go next
 
 For every declaration, verdict and route, see
-[decide when trade-offs are a range](../preference-decisions.md). For records, the two learning
+[trade-off ranges in depth](../preference-decisions.md). For records, the two learning
 methods and accepted preferences, see
-[narrow trade-offs from past decisions](../preference-learning.md). For decisions with one
-exact utility, see [decision contracts](../decisions.md).
+[learn trade-off ranges](../preference-learning.md). For decisions with one
+exact utility and every way to compile and read a result, see [Decisions](../decisions.md).
 
 ## The complete example
 

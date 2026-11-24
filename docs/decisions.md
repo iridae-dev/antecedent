@@ -13,8 +13,11 @@ For the worked story from a causal result to a stop, continue or run-longer
 choice, see [Decide under uncertainty](tutorials/decide-under-uncertainty.md).
 For decisions that combine several fitted routes, see
 [Decide from mixed evidence](guides/mixed-decisions.md).
-When the outcomes trade off only within a range you can declare, see
-[decide when trade-offs are a range](preference-decisions.md).
+When a value weighs several outcomes, one `Contract(value=...)` covers fixed
+weights and weights declared as ranges; see
+[values over several outcomes](#values-over-several-outcomes) below and the deep
+dives on [trade-off ranges](preference-decisions.md) and on
+[learning them from past decisions](preference-learning.md).
 
 ## Decide from an analysis result
 
@@ -138,6 +141,31 @@ clear-cut, [rank the next study](design-ranking.md).
 the target scope, unknown inputs, non-finite parameters and out-of-range
 probabilities before anything is evaluated.
 
+In Python a `decision.Contract` takes one of two forms, told apart by `value=`:
+
+| Keyword | Ordinary form (`value` omitted) | Value form (`value=decision.Value(...)`) |
+| --- | --- | --- |
+| `actions` | `Action(id, inputs=(q0, q1), utility=expr)`: inputs by position, one utility per action | `Action(id, inputs={"benefit": q0, "harm": q1})`: every attribute named once; no `utility=` |
+| `utility_units` | required | optional; when given, equal to the value's units |
+| `criterion` | required | optional; omitted means posterior expected utility |
+| `target_population`, `horizon`, `constraints`, `structural_policy` | as declared | the same; constraints read attributes |
+| `policy` | not accepted | `TradeoffPolicy`; defaults to `invariant_best`; accepted only when the value declares a trade-off range |
+
+A contract never mixes the two readings: an action with named inputs in an ordinary contract,
+or positional inputs in a value contract, raises `CausalTypeError` naming the action.
+`contract.form` is `"ordinary"` or `"tradeoff"`, `contract.route` is `"exact"`,
+`"certified"` or `None`, and `contract.trade_offs` lists the declared ranges.
+
+#### Hard constraints, by position and by attribute name
+
+A constraint is one class with two readings. In an ordinary contract its expression reads
+inputs by position, `decision.x(k)`. In a value contract it reads attributes by name
+(`decision.attribute("harm", units="events")`), so the same constraint applies to every action
+that supplies the attribute. A constraint reads attributes only, never a trade-off. A
+constraint with `decision.x(k)` inside a value contract, or an attribute inside an ordinary
+contract, raises before anything is evaluated. In the `antecedent.preferences` spelling,
+`x(k)` is attribute `k` of the value.
+
 ### What each functional needs
 
 `DecisionFunctional::requirement(expr)` states which source representation can
@@ -237,6 +265,13 @@ and source identity from constants and replays the decision without the producer
 
 A result over structures has its own artifact (see below).
 
+Replay keeps the tolerance of the engine that computed the result. An ordinary decision
+(including a value with no trade-off range) replays with exact equality. A decision across
+trade-off ranges replays to 1e-9 relative, because its linear programs and interval bounds are
+numerical. A value contract that has an ordinary form exports the same bytes as the hand-written
+ordinary contract; a contract with a trade-off range has no ordinary form and refuses
+`contract.export()` with `preference_contract.no_ordinary_form`.
+
 #### Python surface
 
 `antecedent.decision` follows the Python flow rather than mirroring the Rust
@@ -250,6 +285,14 @@ evaluation, artifacts and refusals are Rust's, and each refusal raises
 `DecisionRefusal`, a `CausalUnsupportedError` with the registered `reason_code`,
 `detail` and `offending` action input. `python/tests/test_decision.py` asserts
 the same enumerated fixture as the Rust integration tests.
+
+Python offers `decision.Structures` as a source: `Structures.point(claim)`,
+`.graph_dependent(claims)`, `.weighted_atoms(claims)` and `.finite_scenarios(claims)` wrap
+`decision_robust.Claim` values, and `contract.evaluate(structures)` combines them under the
+contract's `structural_policy`. An ordinary contract returns a
+[`RobustDecision`](#decide-robustly-from-explicit-joint-scenarios); a contract with a trade-off
+range returns a `TradeoffDecision` that is decided over the structures and the range together.
+`decision_robust` holds the admissibility rules that an ordinary contract can add.
 
 ### Refusals
 
@@ -274,6 +317,11 @@ built with `format!`, so it can be matched against the declared refusals. A miss
 [structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies)
 and, for transported and inverse sources, in
 [transported decisions and inverse forward sources](reference/refusal-codes.md#transported-decisions-and-inverse-forward-sources).
+
+In Python every refusal of a decision is a `DecisionRefusal`. A refusal from the trade-off
+engine is a `PreferenceRefusal`, a subclass, so `except decision.DecisionRefusal` catches both
+and `except decision.PreferenceRefusal` catches only the trade-off ones. An invalid argument is
+a `ValueError` subclass as before.
 
 ### Provenance chain and mean-only sources
 
@@ -392,6 +440,133 @@ exactly, so a hand-built export cannot claim a native fit. In Python,
 `decision_source_from_native_fit(...)` binds a cohort, and `source.interval(level=...)` returns
 the measured result or a typed refusal. A misspecified effect basis and
 a cohort of high-leverage rows are recorded boundaries, not claims.
+
+## Values over several outcomes
+
+A decision often weighs benefit against harm or cost. Declare the value once, over named
+attributes, and give each action its quantities by name:
+
+```python
+from antecedent import decision
+
+benefit = decision.attribute("benefit", units="qaly")
+harm = decision.attribute("harm", units="events")
+
+contract = decision.Contract(
+    value=decision.Value(benefit - 1.0 * harm, units="qaly"),
+    actions=(
+        decision.Action("treat", inputs={"benefit": treat_benefit, "harm": treat_harm}),
+        decision.Action("wait", inputs={"benefit": wait_benefit, "harm": wait_harm}),
+    ),
+    target_population="target",
+)
+result = antecedent.require_success(contract.evaluate(joint_draws))
+print(result.choice, result.standing, result.statement)
+```
+
+### A fixed trade-off is an ordinary contract
+
+A plain number as the weight (`1.0 * harm`) states a trade-off that is not in question. The
+contract is then the ordinary contract it spells: its identity equals the identity of the
+hand-written contract with `utility=decision.x(0) - 1.0 * decision.x(1)`, `evaluate` returns a
+`Decision`, ties are exact equality, and the export and replay are the ordinary ones. Every
+criterion, hard constraint and structural policy behaves as in the ordinary form.
+
+Two limits follow from the ordinary utility language. A value that applies `decision.exp` or
+`decision.ln` to an attribute has no ordinary form and is decided by the trade-off engine. A
+plain number supplied for an attribute that a hard constraint reads splits that constraint per
+action, as `"{constraint}@{action}"`, in the ordinary contract and so in its identity; the
+result still reports an exclusion under the id the constraint was declared with.
+
+A trade-off that is named, `decision.tradeoff("harm_weight", units="qaly/event", value=1.0)`,
+keeps the trade-off engine, so the result reports the declared assumption (`declared_value`
+unless another is given).
+
+## Trade-offs as ranges
+
+`decision.tradeoff(id, units=, lower=, upper=, assumption=)` declares a weight whose admissible
+values are a range. The range is a declared assumption, not a probability. The contract is then
+decided across every admissible value at once: exactly when the value is affine in the
+trade-offs and the criterion is an expectation, by certified subdivision otherwise. The result
+is a `TradeoffDecision` that names where the choice changes (`switches`), what binds, and how
+much of the range is undecided.
+
+```python
+harm_weight = decision.tradeoff(
+    "harm_weight", units="qaly/event", lower=0.5, upper=4.0, assumption="clinical_panel"
+)
+contract = decision.Contract(
+    value=decision.Value(benefit - harm_weight * harm, units="qaly"),
+    actions=actions,
+    target_population="target",
+    policy=decision.TradeoffPolicy.minimax_regret(),
+)
+```
+
+`TradeoffPolicy` is `invariant_best()` (the default), `maximin()`, `minimax_regret()`,
+`weighted()` (needs a `decision.Measure`) or `report_only()`. Relations between trade-offs,
+shapes (`excess`, `shortfall`, `segment`, `Curve`) and measures are in
+[Trade-off ranges in depth](preference-decisions.md).
+
+## Learn trade-offs from past decisions
+
+`antecedent.decision_learning` narrows declared ranges from recorded choices and stated
+comparisons, or estimates them from choices read as noisy, and returns reviewed, versioned
+`AcceptedPreferences`. Pass the accepted preferences as `Contract(value=accepted, ...)`. Stating
+trade-offs never loads the learning module. See
+[Learn trade-off ranges](preference-learning.md).
+
+## Compile with the analysis
+
+`contract.compile(source)` states, before anything is fitted, which quantities the actions read,
+which study targets each, and whether the decision needs means or joint draws; `.execute()` then
+decides. The source is a prepared study, a list of studies (judged for shared evidence by source
+table or unit key), or a compiled design (a randomized design's independent-unit bootstrap,
+under a declared sampling premise). The same call compiles an ordinary contract, a value with no
+trade-off range and a value with ranges:
+
+```python
+compiled = antecedent.require_success(contract.compile(prepared))
+print(compiled.inspect()["demand"])
+result = antecedent.require_success(compiled.execute())
+print(result.choice, result.receipt.contract_identity)
+```
+
+An ordinary contract returns a `Decision` from `execute()`; a contract with trade-off ranges
+returns a `TradeoffDecision`. An ordinary contract compiles with a study of one structure,
+several studies or a design; with a study over a graph posterior it refuses before anything is
+fitted (`preference_compile.ordinary_structures_not_compiled`), and `decision.Structures`
+decides it across structures instead. A quantity that no structure identifies refuses at
+compile time with `effect_not_identified`. The arguments (`draws=`, `seed=`, `refits=`, `sampling=`) and the
+studies' shared-evidence rules are in [Trade-off ranges in depth](preference-decisions.md#which-studies-share-evidence).
+
+## Read any decision result
+
+`Decision`, `TradeoffDecision` and `RobustDecision` share one base, so one reading code path
+serves them all:
+
+| Member | Meaning |
+| --- | --- |
+| `choice` | the chosen action id, or `None` when the result does not choose one |
+| `kind` | the engine's own verdict word (`uniquely_optimal`, `necessarily_best`, ...) |
+| `standing` | the verdict class, from the table below |
+| `statement` | the result in words, with its assumptions |
+| `contract_identity`, `contract` | the declared contract |
+| `effective_tie_tolerance` | `0.0` for an ordinary decision; the tolerance a trade-off decision ties within |
+| `receipt` | for a compiled decision: bound and contract identities, programs, options; otherwise `None` |
+| `explain()`, `export()` | the narrative and the replayable artifact |
+
+| `standing` | Kinds it covers |
+| --- | --- |
+| `best` | `uniquely_optimal`, `structurally_robust`, `support_robust`, `necessarily_best`, `never_beaten` |
+| `tied` | `indistinguishable`, `tied` (no `choice`) |
+| `policy_choice` | `worst_case_choice`, `bayes_choice`, `minimax_regret_choice`, `measure_choice` |
+| `depends` | `support_dependent`, `graph_dependent_choice`, `preference_dependent`, `structures_disagree`, `per_sampled_member` |
+| `undetermined` | `undetermined`, `undetermined_on_sampled_measure` |
+| `insufficient_evidence` | `unsupported_extrapolation`, `insufficient_claims`, `insufficient_science` |
+| `sampled_estimate` | `best_on_sampled_measure`, `best_on_every_sampled_member` |
+| `no_admissible_action` | every action failed a hard constraint |
+| `report_only` | the policy reports without choosing |
 
 ## Decide with transported, composed and cohort sources
 
@@ -606,6 +781,7 @@ cancellation and execution memory limits.
 
 - [Decide under uncertainty](tutorials/decide-under-uncertainty.md): the worked story from a causal result to a choice
 - [Decide from mixed evidence](guides/mixed-decisions.md) and [inverse queries](guides/inverse-outcome.md)
-- [Decide when trade-offs are a range](preference-decisions.md) and, optionally, [narrow trade-offs from past decisions](preference-learning.md)
+- [Trade-off ranges in depth](preference-decisions.md) and [learn trade-off ranges](preference-learning.md)
+- [Decide across trade-offs](tutorials/decide-across-trade-offs.md): a worked example
 - [Rank the next study](design-ranking.md) and [decision reliability](decision-reliability.md)
 - [Beyond the marketing mix](tutorials/beyond-marketing-mix.md): a complete investigation using a shared panel fit

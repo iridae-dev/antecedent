@@ -18,6 +18,8 @@ compiles the decision with those studies (the plan shows the decision's quantiti
 needs and the declared range before anything is fitted), executes it, reads where the choice
 switches, then (optionally) narrows the range from three past decisions and decides again. The
 same decision evaluated on the arm means directly is the lower layer the compiled route calls.
+With the cost of a return stated as one number the contract is an ordinary decision contract, and
+the same call returns an ordinary `Decision`.
 """
 
 from __future__ import annotations
@@ -27,8 +29,8 @@ from statistics import NormalDist
 
 import antecedent as ant
 import numpy as np
-from antecedent import preference_learning as pl
-from antecedent import preferences as pf
+from antecedent import decision
+from antecedent import decision_learning as dl
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
 from antecedent.results.sources import MeanSource
@@ -118,25 +120,25 @@ source = MeanSource(
 )
 
 # %% [markdown]
-# ## Declare the value model
+# ## Declare the value
 #
-# `margin` is fixed: it is neither searched nor learned. `return_cost` is a range, and its
-# assumption names the judgment it stands on.
+# `margin` is a plain number: a trade-off that is not in question. `return_cost` is a range, and
+# its assumption names the judgment it stands on.
 
 # %%
-orders = pf.attribute("orders", units="orders")
-returns = pf.attribute("returns", units="returns")
-discount_cost = pf.attribute("discount_cost", units="usd")
+orders = decision.attribute("orders", units="orders")
+returns = decision.attribute("returns", units="returns")
+discount_cost = decision.attribute("discount_cost", units="usd")
 
-margin = pf.fixed("margin", units="usd/order", value=20.0)
-return_cost = pf.strength(
+margin = 20.0
+return_cost = decision.tradeoff(
     "return_cost",
     units="usd/return",
     lower=10.0,
     upper=60.0,
     assumption="ops.return_cost_band",
 )
-model = pf.ValueModel(margin * orders - return_cost * returns - discount_cost, utility_units="usd")
+model = decision.Value(margin * orders - return_cost * returns - discount_cost, units="usd")
 assert model.shape_parameters == ()  # affine in the trade-offs: the exact route answers
 
 # %% [markdown]
@@ -149,8 +151,8 @@ assert model.shape_parameters == ()  # affine in the trade-offs: the exact route
 
 
 # %%
-def action(name: str) -> pf.Action:
-    return pf.Action(
+def action(name: str) -> decision.Action:
+    return decision.Action(
         name,
         inputs={
             "orders": coordinate("orders", "orders", name),
@@ -160,12 +162,12 @@ def action(name: str) -> pf.Action:
     )
 
 
-def contract_for(preferences, policy=None) -> pf.Contract:
-    return pf.Contract(
-        preferences=preferences,
+def contract_for(value, policy=None) -> decision.Contract:
+    return decision.Contract(
+        value=value,
         actions=tuple(action(name) for name in LEVELS),
         target_population="stores",
-        policy=policy or pf.Policy.invariant_best(),
+        policy=policy or decision.TradeoffPolicy.invariant_best(),
     )
 
 
@@ -173,7 +175,7 @@ compiled = require_success(contract_for(model).compile(studies))
 assert compiled.representation == "mean"
 assert compiled.carrier == "mean"
 assert len(compiled.plans) == 2  # one plan per study, each carrying the decision
-assert compiled.parameter_ranges == {"margin": (20.0, 20.0), "return_cost": (10.0, 60.0)}
+assert compiled.parameter_ranges == {"return_cost": (10.0, 60.0)}
 # Orders are read from the first study and returns from the second.
 assert {q.source for q in compiled.quantities} == {0, 1}
 print("reads:", sorted({q.quantity.regime_id for q in compiled.quantities}))
@@ -182,7 +184,8 @@ decided = require_success(compiled.execute())
 print(decided.statement)
 assert decided.route == "exact"
 assert decided.kind == "preference_dependent"
-assert decided.selected is None
+assert decided.standing == "depends"
+assert decided.choice is None
 
 # %% [markdown]
 # The lower layer: the same contract evaluated on the arm means directly. The compiled route
@@ -202,25 +205,46 @@ regret = {a.id: a.worst_case_regret for a in declared.actions}
 assert np.allclose([regret["none"], regret["ten"], regret["twenty"]], [1_800, 600, 1_200])
 
 # %% [markdown]
+# ## One number is an ordinary decision
+#
+# State the cost of a return as a plain number and nothing is left to range over. The contract is
+# then the ordinary decision contract whose utility is the expression: its result is an ordinary
+# `Decision`, ties are exact, and it replays exactly. At 35 dollars per return the ten percent
+# discount leads.
+
+# %%
+fixed_value = decision.Value(margin * orders - 35.0 * returns - discount_cost, units="usd")
+fixed = decision.Contract(
+    value=fixed_value,
+    actions=tuple(action(name) for name in LEVELS),
+    target_population="stores",
+)
+assert fixed.form == "ordinary"
+fixed_decision = require_success(fixed.evaluate(source))
+assert type(fixed_decision) is decision.Decision
+assert fixed_decision.choice == "ten"
+assert fixed_decision.standing == "best"
+
+# %% [markdown]
 # A kinked charge (an extra cost for every return above 100 per store-week) is not affine in the
 # outcomes, so it needs one law of orders and returns. Both studies were prepared from the same
 # table: each kept only its own columns, but both name that table and its rows, so they are not
 # distinct evidence and the compile refuses to join them as if they were.
 
 # %%
-overflow_cost = pf.strength(
+overflow_cost = decision.tradeoff(
     "overflow_cost", units="usd/return", lower=0.0, upper=40.0, assumption="ops.overflow_band"
 )
-kinked = pf.ValueModel(
+kinked = decision.Value(
     margin * orders
     - return_cost * returns
-    - overflow_cost * pf.excess(returns, 100.0)
+    - overflow_cost * decision.excess(returns, 100.0)
     - discount_cost,
-    utility_units="usd",
+    units="usd",
 )
 try:
     require_success(contract_for(kinked).compile(studies, draws=2000, seed=7))
-except pf.PreferenceRefusal as refusal:
+except decision.PreferenceRefusal as refusal:
     print("refused:", refusal.detail)
     assert refusal.reason_code == "evidence_double_counted"
     assert refusal.detail == "preference_compile.studies_share_evidence"
@@ -247,10 +271,15 @@ assert np.isclose(thresholds[("none", "twenty")], 40.0, atol=0.5)
 assert np.isclose(thresholds[("ten", "twenty")], 30.0, atol=0.5)
 
 # A choice today without settling the cost is a policy you pick, not a fact.
-regret_choice = require_success(contract_for(model, pf.Policy.minimax_regret()).evaluate(source))
-assert regret_choice.selected == "ten"
-worst_case = require_success(contract_for(model, pf.Policy.maximin()).evaluate(source))
-assert worst_case.selected == "none"
+regret_choice = require_success(
+    contract_for(model, decision.TradeoffPolicy.minimax_regret()).evaluate(source)
+)
+assert regret_choice.choice == "ten"
+assert regret_choice.standing == "policy_choice"
+worst_case = require_success(
+    contract_for(model, decision.TradeoffPolicy.maximin()).evaluate(source)
+)
+assert worst_case.choice == "none"
 
 # %% [markdown]
 # ## Optional: narrow the range from past decisions
@@ -261,8 +290,8 @@ assert worst_case.selected == "none"
 
 
 # %%
-def option(name: str, expected_orders: float, expected_returns: float, cost: float) -> pl.Option:
-    return pl.Option(
+def option(name: str, expected_orders: float, expected_returns: float, cost: float) -> dl.Option:
+    return dl.Option(
         name,
         means={
             "orders": expected_orders,
@@ -272,13 +301,13 @@ def option(name: str, expected_orders: float, expected_returns: float, cost: flo
     )
 
 
-def record(id: str, options, chosen: str) -> pl.Record:
-    return pl.Record(
+def record(id: str, options, chosen: str) -> dl.Record:
+    return dl.Record(
         id,
         decider="returns_manager",
         options=options,
         chosen=chosen,
-        source=pl.Forecast(f"planning.forecast.{id}"),
+        source=dl.Forecast(f"planning.forecast.{id}"),
         observation_rows=(f"ledger:{id}",),
     )
 
@@ -291,30 +320,30 @@ history = [
         (
             option("none", 1_000, 50, 0),
             option("ten", 1_080, 70, 400),
-            pl.Option("twenty", unavailable="budget_cap"),
+            dl.Option("twenty", unavailable="budget_cap"),
         ),
         "ten",
     ),
 ]
-records = pl.Records(tuple(history), population="stores")  # read per decider by default
+records = dl.Records(tuple(history), population="stores")  # read per decider by default
 
-learned = require_success(pl.CompatibleSet().learn(model, records))
+learned = require_success(dl.CompatibleSet().learn(model, records))
 manager = learned.per_decider["returns_manager"]
-assert isinstance(manager, pl.LearnedSet)
+assert isinstance(manager, dl.LearnedSet)
 assert np.allclose(manager.range("return_cost"), (32.0, 45.0))
 assert {record_id for record_id, _ in manager.binding} == {"spring", "summer"}
 
-accepted = pl.CompatibleSet().accept(model, records, decider="returns_manager")
+accepted = dl.CompatibleSet().accept(model, records, decider="returns_manager")
 assert np.allclose(accepted.ranges["return_cost"], (32.0, 45.0))
-# The trade-off was varied and narrowed at tolerance zero, and the fixed margin is a value
-# stated outright, so nothing is left for review.
+# The trade-off was varied and narrowed at tolerance zero, and the margin is a number stated
+# outright, so nothing is left for review.
 print("pending review items:", accepted.pending)
 assert accepted.pending == ()
 
 narrowed = require_success(require_success(contract_for(accepted).compile(studies)).execute())
 print(narrowed.statement)
 assert narrowed.kind == "necessarily_best"
-assert narrowed.selected == "ten"
+assert narrowed.choice == "ten"
 
 # %% [markdown]
 # ## When the records disagree
@@ -325,16 +354,16 @@ assert narrowed.selected == "ten"
 
 # %%
 winter = record("winter", (option("none", 1_000, 50, 0), option("ten", 1_050, 60, 500)), "none")
-disagreeing = pl.Records((*history, winter), population="stores")
-conflicted = require_success(pl.CompatibleSet().learn(model, disagreeing))
+disagreeing = dl.Records((*history, winter), population="stores")
+conflicted = require_success(dl.CompatibleSet().learn(model, disagreeing))
 conflict = conflicted.per_decider["returns_manager"]
-assert isinstance(conflict, pl.Conflict)
+assert isinstance(conflict, dl.Conflict)
 assert set(conflict.records) == {"spring", "winter"}
 assert np.isclose(conflict.tolerance_needed, 100.0 / 3.0)
 print(f"spring and winter conflict; tolerance needed {conflict.tolerance_needed:.1f} usd")
 try:
-    pl.CompatibleSet().accept(model, disagreeing, decider="returns_manager")
-except pf.PreferenceRefusal as refusal:
+    dl.CompatibleSet().accept(model, disagreeing, decider="returns_manager")
+except decision.PreferenceRefusal as refusal:
     assert refusal.detail == "accepted_preferences.choices_contradictory"
 else:
     raise AssertionError("contradictory records must not be accepted at tolerance zero")

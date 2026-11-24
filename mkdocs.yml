@@ -128,10 +128,11 @@ nav:
     - Limits by route: guides/transport-scope.md
     - Population, time and uncertainty: population-time-uncertainty.md
   - Decisions and study planning:
-    - Evaluate actions with a decision contract: decisions.md
+    - Decide with a contract:
+      - Decisions: decisions.md
+      - Trade-off ranges in depth: preference-decisions.md
+      - Learn trade-off ranges: preference-learning.md
     - Decide from mixed evidence: guides/mixed-decisions.md
-    - Decide when trade-offs are a range: preference-decisions.md
-    - Narrow trade-offs from past decisions: preference-learning.md
     - Which actions reach a target: guides/inverse-outcome.md
     - Rank further studies: design-ranking.md
     - Optimise history-dependent policies: adaptive-policies.md

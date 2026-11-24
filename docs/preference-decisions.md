@@ -1,12 +1,15 @@
-# Decide when trade-offs are a range
+# Trade-off ranges in depth
 
+This page is the deep dive behind the trade-off sections of the [Decisions guide](decisions.md).
 Decide between actions that move several outcomes at once (benefit, harm, cost) when you can
-state how those outcomes trade off only as a range. You declare a value model: the outcomes it
+state how those outcomes trade off only as a range. You declare a value: the outcomes it
 reads, the trade-offs between them as ranges, fixed values, orderings and curve shapes, and the
 assumption each declaration stands on. Antecedent answers the decision across every trade-off
 you allowed. It says which conclusions follow from the evidence and your declarations, which
 depend on a judgment you have not settled, and which cannot be justified. Use this page when a
-[decision contract](decisions.md) would need one exact utility and you cannot defend one.
+[decision contract](decisions.md) would need one exact utility and you cannot defend one. The
+same `decision.Contract(value=...)` covers a weight you can state exactly (an ordinary contract)
+and a weight you can only bound.
 
 The method is causal decision analysis under partially identified preferences. The evidence
 fixes what each action does to each outcome. Your declarations fix a set of admissible
@@ -23,27 +26,28 @@ as a range. The contract is compiled with that analysis, its plan is inspected, 
 executed.
 
 ```python
-from antecedent import preferences as pf
+from antecedent import decision
 from antecedent.outcomes import require_success
 
-benefit = pf.attribute("benefit", units="qaly")
-harm = pf.attribute("harm", units="events")
-harm_weight = pf.strength(
+benefit = decision.attribute("benefit", units="qaly")
+harm = decision.attribute("harm", units="events")
+harm_weight = decision.tradeoff(
     "harm_weight", units="qaly/event", lower=0.5, upper=4.0, assumption="clinical_panel"
 )
-model = pf.ValueModel(benefit - harm_weight * harm, utility_units="qaly")
+value = decision.Value(benefit - harm_weight * harm, units="qaly")
 
 actions = (
-    pf.Action("treat", inputs={"benefit": treat_benefit, "harm": treat_harm}),
-    pf.Action("wait", inputs={"benefit": wait_benefit, "harm": wait_harm}),
+    decision.Action("treat", inputs={"benefit": treat_benefit, "harm": treat_harm}),
+    decision.Action("wait", inputs={"benefit": wait_benefit, "harm": wait_harm}),
 )
-contract = pf.Contract(model=model, actions=actions, target_population="target")
+contract = decision.Contract(value=value, actions=actions, target_population="target")
 compiled = require_success(contract.compile([benefit_study, harm_study]))
 compiled.quantities       # what each action reads, and the study that targets it
 compiled.representation   # "mean": the source the contract needs; nothing is fitted yet
 decided = require_success(compiled.execute())
 decided.kind         # "necessarily_best", "never_beaten", "preference_dependent", ...
-decided.selected     # the chosen action, or None
+decided.choice       # the chosen action, or None
+decided.standing     # "best", "depends", "policy_choice", ...
 decided.statement    # the verdict in plain words
 ```
 
@@ -130,7 +134,7 @@ drawn (`draws=`, `shared=` or `refits=`). `seed=` defaults to the seed of `execu
 `execution=ant.Execution(seed=11)` alone fixes the chain's draws and a design's refits.
 
 `compiled.execute(measure=None, execution=None)` runs each plan once and returns the same
-`PreferenceDecision` as `evaluate`. When a chain was compiled, execution fits each study, binds
+`TradeoffDecision` as `evaluate`. When a chain was compiled, execution fits each study, binds
 its posterior moments to the chain's deferred family table and runs the compiled program; the
 receipt names that program's identity. The receipt lists the compiled program of every plan
 (`programs`) and, position by position beside it, the identity the executed result reported
@@ -145,62 +149,64 @@ law it read, when it read one, so the decision exports and replays as one evalua
 
 `Contract.evaluate(source)` is the lower layer the compiled route calls. It reads a source you
 already hold: aligned joint draws (a `JointDistributionArtifact`), a `MeanSource`, a bound
-external claim, `pf.Structures`, the arm means of one experiment, or a propagation chain with
+external claim, `decision.Structures`, the arm means of one experiment, or a propagation chain with
 joint outputs. Use it when the numbers come from outside a compiled analysis; it checks the
 coordinates and the representation but cannot check identification, the carrier or the overlap
 of the evidence behind the source.
 
 ## Declare a value model
 
-A value model has three parts: attributes, trade-off parameters and the value expression that
+A value has three parts: attributes, trade-off parameters and the value expression that
 combines them.
 
 - An **attribute** is one outcome the value reads, with its units
-  (`pf.attribute(id, units=...)`). Its value for each action comes from a scientific quantity or
+  (`decision.attribute(id, units=...)`). Its value for each action comes from a scientific quantity or
   a fixed input.
 - A **trade-off parameter** is a number the value multiplies or shapes, with units, an
   admissible range and the id of the assumption the range stands on. A parameter whose lower
   and upper ends are equal is fixed.
-- The **value** is a closed expression over attributes and parameters, in the model's
-  `utility_units`. Write it with `+`, `-`, `*`, division by a number, `pf.maximum`,
-  `pf.minimum`, `pf.exp` and `pf.ln`.
+- The **value** is a closed expression over attributes and parameters, in the value's
+  `units`. Write it with `+`, `-`, `*`, division by a number, `decision.maximum`,
+  `decision.minimum`, `decision.exp` and `decision.ln`.
 
-`pf.ValueModel(value, utility_units=..., relations=...)` reads the attributes and parameters
+`decision.Value(expr, units=..., relations=...)` reads the attributes and parameters
 from the expression in order of first appearance. The admissible set is every parameter point
 inside the declared ranges that also satisfies the declared relations. This page calls a point
 in it an *admissible trade-off*.
 
 ### Rates, fixed values and units
 
-`pf.strength(id, units=..., lower=..., upper=..., assumption=...)` declares a ranged trade-off.
-`pf.fixed(id, units=..., value=...)` declares a settled one. Units are required: `qaly/event`
+`decision.tradeoff(id, units=..., lower=..., upper=..., assumption=...)` declares a ranged trade-off.
+`decision.tradeoff(id, units=..., value=...)` declares a settled, named one; a plain number in
+the expression is a settled trade-off with no name (see
+[fixed trade-offs](#fixed-trade-offs-and-the-tie-tolerance)). Units are required: `qaly/event`
 reads as quality-adjusted life years per adverse event. A fixed parameter is not searched and
 not learned; it is part of the value like a constant.
 
 | Declaration | Use it for | Example |
 | --- | --- | --- |
-| `pf.strength(...)` | a trade-off you can bound but not pin | 0.5 to 4 qaly per adverse event |
-| `pf.fixed(...)` | a trade-off that is settled | 20 usd of margin per order |
-| `pf.relation(...)` | a judgment about which trade-off is larger | harm weighs at least twice cost |
-| `pf.Curve(...)` with shape rules | value that changes with the level of an outcome | each further unit of benefit is worth no more than the last |
-| `pf.excess`, `pf.shortfall`, `pf.segment` | value that starts or stops at a level | waiting time costs nothing up to 14 days |
-| `pf.interaction`, `pf.both` | value that depends on two outcomes together | revenue counts only when stock and staff are both available |
+| `decision.tradeoff(..., lower=, upper=)` | a trade-off you can bound but not pin | 0.5 to 4 qaly per adverse event |
+| `decision.tradeoff(..., value=)` | a trade-off that is settled | 20 usd of margin per order |
+| `decision.relation(...)` | a judgment about which trade-off is larger | harm weighs at least twice cost |
+| `decision.Curve(...)` with shape rules | value that changes with the level of an outcome | each further unit of benefit is worth no more than the last |
+| `decision.excess`, `decision.shortfall`, `decision.segment` | value that starts or stops at a level | waiting time costs nothing up to 14 days |
+| `decision.interaction`, `decision.both` | value that depends on two outcomes together | revenue counts only when stock and staff are both available |
 
 ### Orderings between trade-offs
 
 A relation restricts parameters jointly:
 `coefficient_1 × parameter_1 + coefficient_2 × parameter_2 + ... (>=, <= or ==) bound`.
-Write it with `>=` or `<=` between parameter expressions; `pf.relation` gives it a stable id,
+Write it with `>=` or `<=` between parameter expressions; `decision.relation` gives it a stable id,
 and the four-argument form states an equality.
 
 ```python
-cost = pf.attribute("cost", units="usd")
-cost_weight = pf.strength("cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer")
-rule = pf.relation("harm_outweighs_cost", 4 * cost_weight <= harm_weight)
+cost = decision.attribute("cost", units="usd")
+cost_weight = decision.tradeoff("cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer")
+rule = decision.relation("harm_outweighs_cost", 4 * cost_weight <= harm_weight)
 
-model = pf.ValueModel(
+value = decision.Value(
     benefit - harm_weight * harm - cost_weight * cost,
-    utility_units="qaly",
+    units="qaly",
     relations=(rule,),
 )
 ```
@@ -225,21 +231,21 @@ The shape rules are relations between the slopes, which you pass to the model:
 | `curve.accelerating()` | each slope `<=` the next | convex |
 
 ```python
-low = pf.strength("slope_low", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
-high = pf.strength("slope_high", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
-curve = pf.Curve(benefit, breakpoints=(0.0, 1.0, 3.0), slopes=(low, high))
+low = decision.tradeoff("slope_low", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
+high = decision.tradeoff("slope_high", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
+curve = decision.Curve(benefit, breakpoints=(0.0, 1.0, 3.0), slopes=(low, high))
 
-model = pf.ValueModel(
+value = decision.Value(
     curve - harm_weight * harm,
-    utility_units="qaly",
+    units="qaly",
     relations=(*curve.increasing(), *curve.diminishing()),
 )
 ```
 
-A kink at a declared level uses a parameter-free shape: `pf.excess(x, above)` is
-`max(x − above, 0)`, `pf.shortfall(x, below)` is `max(below − x, 0)` and
-`pf.segment(x, start, end)` is the part of `x` between two levels. `pf.interaction(a, b)` is
-`a × b` and `pf.both(a, b)` is `min(a, b)`. A parameter that multiplies one of these shapes, as
+A kink at a declared level uses a parameter-free shape: `decision.excess(x, above)` is
+`max(x − above, 0)`, `decision.shortfall(x, below)` is `max(below − x, 0)` and
+`decision.segment(x, start, end)` is the part of `x` between two levels. `decision.interaction(a, b)` is
+`a × b` and `decision.both(a, b)` is `min(a, b)`. A parameter that multiplies one of these shapes, as
 the slopes of a curve do, keeps the value affine in the parameters. A parameter placed inside a
 shape (the location of a kink, a parameter squared, a rate inside `exp`) is a *shape
 parameter*: the value is no longer affine in it, `model.shape_parameters` names it, and the
@@ -251,22 +257,22 @@ normalization, and does not require the value to be additive across attributes.
 
 ## Bind actions
 
-`pf.Action(id, inputs={...})` maps each attribute id to a `ScientificQuantity` whose law the
+`decision.Action(id, inputs={...})` maps each attribute id to a `ScientificQuantity` whose law the
 source supplies, or to a fixed number in the attribute's units. At least one input of each
 action is a quantity. Every quantity must lie in the contract's target population and horizon
 and be stated in the attribute's units; a mismatch is refused
 (`preference_contract.quantity_units_mismatch`, `preference_contract.quantity_outside_scope`).
 
-`pf.Contract(actions=..., target_population=..., model=...)` also takes:
+`decision.Contract(actions=..., target_population=..., value=...)` also takes:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `criterion` | `decision.Criterion.expected_utility()` | expected utility, expected loss, threshold probability, quantile, regret or expected regret, as in [decision contracts](decisions.md#what-a-contract-declares) |
-| `policy` | `pf.Policy.invariant_best()` | how the answer across the trade-offs is consumed; see [policies](#choose-a-policy) |
+| `policy` | `decision.TradeoffPolicy.invariant_best()` | how the answer across the trade-offs is consumed; see [policies](#choose-a-policy) |
 | `constraints` | none | hard constraints over attributes |
 | `horizon` | `0` | the horizon every quantity must be at |
-| `structural_policy` | `pf.StructuralPolicy.report_only()` | how [structures](#decide-across-uncertain-causal-structures) combine; the kind as a string is accepted too |
-| `preferences` | | in place of `model`: reviewed [accepted preferences](preference-learning.md#accept-review-and-reuse), which also carry their measure when there is one |
+| `structural_policy` | `"report_only"` | how [structures](#decide-across-uncertain-causal-structures) combine, as a string |
+| `value` | | a `decision.Value`, or reviewed [accepted preferences](preference-learning.md#accept-review-and-reuse), which also carry their measure when there is one |
 
 `contract.route` says which route will answer and `contract.identity` is the digest to retain
 for replay.
@@ -277,10 +283,10 @@ A hard constraint reads attributes, never trade-off parameters:
 `P(expression <= bound) >= min_probability`.
 
 ```python
-cap = pf.constraint("harm_cap", harm, at_most=1.0, units="events", min_probability=0.9)
+cap = decision.Constraint("harm_cap", harm, bound=1.0, units="events", min_probability=0.9)
 ```
 
-`pf.constraint` refuses an expression that reads a trade-off. A constraint excludes an action
+`decision.Constraint` refuses an expression that reads a trade-off. A constraint excludes an action
 before any trade-off is considered. An excluded action keeps its exclusions, each under the
 constraint's own id with the probability it reached and the probability required. No range of trade-offs can buy an action
 back into the comparison, and no constraint is turned into a penalty. When every action is
@@ -293,11 +299,11 @@ The policy says how a result across the admissible set may be consumed.
 
 | Policy | Chooses | Needs |
 | --- | --- | --- |
-| `pf.Policy.invariant_best()` | an action only when it is never beaten anywhere in the set | nothing more |
-| `pf.Policy.maximin()` | the action with the best worst-case value over the set | nothing more |
-| `pf.Policy.minimax_regret()` | the action with the smallest worst-case regret | an expectation criterion |
-| `pf.Policy.weighted()` | the action with the best value under a measure | a [measure](#supply-your-own-weighted-viewpoints) |
-| `pf.Policy.report_only()` | nothing; every table is computed | nothing more |
+| `decision.TradeoffPolicy.invariant_best()` | an action only when it is never beaten anywhere in the set | nothing more |
+| `decision.TradeoffPolicy.maximin()` | the action with the best worst-case value over the set | nothing more |
+| `decision.TradeoffPolicy.minimax_regret()` | the action with the smallest worst-case regret | an expectation criterion |
+| `decision.TradeoffPolicy.weighted()` | the action with the best value under a measure | a [measure](#supply-your-own-weighted-viewpoints) |
+| `decision.TradeoffPolicy.report_only()` | nothing; every table is computed | nothing more |
 
 The policy changes the verdict, not the tables. Every result reports value ranges, possibly
 best actions, worst-case regret and switches whichever policy you pick.
@@ -322,7 +328,8 @@ best actions, worst-case regret and switches whichever policy you pick.
 | `undetermined` | `CertifiedVerdict::Undetermined` | Certified route only: the enclosures did not settle the policy within the budget. The candidates and the undecided share are listed. |
 | `structures_disagree`, `insufficient_science` | `StructuralPreferenceVerdict` | Across structures only; see [structures](#decide-across-uncertain-causal-structures). |
 
-`decided.selected` is the chosen action, or `None` when the verdict chooses none.
+`decided.choice` is the chosen action, or `None` when the verdict chooses none; `decided.standing`
+places the verdict in the vocabulary every [decision result](decisions.md#read-any-decision-result) shares.
 `decided.statement` gives the verdict in one or two plain sentences built from the result's own
 facts. For a dependent verdict that turns on one trade-off it names the trade-off, the value at
 which the choice changes and the admissible range. A range is stated as a range and a measure
@@ -388,17 +395,17 @@ When you want shares as well as ranges, supply a measure: a finite set of admiss
 points with weights. Named points are viewpoints.
 
 ```python
-views = pf.Measure.viewpoints(
+views = decision.Measure.viewpoints(
     {"clinician": {"harm_weight": 1.0}, "patient": {"harm_weight": 3.0}},
     weights={"clinician": 3.0, "patient": 1.0},
     assumption="stakeholder_weights",
 )
-weighted = pf.Contract(model=model, actions=actions, target_population="target",
-                       policy=pf.Policy.weighted())
+weighted = decision.Contract(value=value, actions=actions, target_population="target",
+                       policy=decision.TradeoffPolicy.weighted())
 decided = require_success(weighted.evaluate(source, measure=views))
 ```
 
-Viewpoints are equally weighted unless you give weights. `pf.Measure(points=..., weights=...,
+Viewpoints are equally weighted unless you give weights. `decision.Measure(points=..., weights=...,
 labels=..., assumption=...)` builds an unnamed measure; `unresolved=` names trade-offs the
 measure says nothing about, whose declared ranges still apply. Every point must lie inside the
 admissible set; a point outside it is refused
@@ -407,7 +414,7 @@ admissible set; a point outside it is refused
 A share is the weight of the measure's points at which an action leads; points where several
 actions tie share their weight equally. It is a probability only if the measure you supplied is
 one. The share is the first-rank acceptability index of Lahdelma, Hokkanen and Salminen (1998)
-for a discrete measure, not their integral over a density. Under `Policy.weighted()` the measure
+for a discrete measure, not their integral over a density. Under `TradeoffPolicy.weighted()` the measure
 chooses, and without one the policy is refused (`preference_decision.measure_required`). Under
 any other policy the shares are reported beside the verdict.
 
@@ -423,7 +430,7 @@ each part of the value, and the certified route reads one aligned joint law.
 | Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. Each block is a 2-D array keyed by the studies' positions: one row per coordinate of study `i` and one column per coordinate of study `j`, both in grid order (a block keyed `(j, i)` is read as its transpose). A block of another shape raises `CausalValueError`. The block is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
 | One static-regime design of several outcomes | `contract.compile(design, refits=99)` | Its arm means, or with `refits=` its aligned whole-subject bootstrap refits as one law of every outcome under both arms. |
 | One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)`, or `contract.compile(design, refits=99, seed=..., sampling="assumption.units_sampled")` | Its arm means, under an exposure declared free of interference. A value that needs a joint law reads the independent-unit bootstrap of the arm means, and only under a declared premise (`sampling=`, with `refits=`) that the clusters, pairs or sequences were sampled independently from a larger population; see [a joint law of a randomized design](#a-joint-law-of-a-randomized-design). |
-| Laws you already hold whose rows pair | `contract.evaluate(pf.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
+| Laws you already hold whose rows pair | `contract.evaluate(decision.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
 
 The compiled design carries the decision in its own program's evidence layer, so its plan view
 shows the decision and the design executes the decision-bearing program. When the decision reads
@@ -520,9 +527,9 @@ read as graph-dependent claims unless you declare a measure over them; see
 On structures you already hold, pass them to `evaluate` in place of the source:
 
 ```python
-structures = pf.Structures.weighted_atoms(claims)
-contract = pf.Contract(model=model, actions=actions, target_population="target",
-                       structural_policy=pf.StructuralPolicy.maximin())
+structures = decision.Structures.weighted_atoms(claims)
+contract = decision.Contract(value=value, actions=actions, target_population="target",
+                       structural_policy="maximin")
 decided = require_success(contract.evaluate(structures))
 decided.structures       # each structure's status and its own verdict
 ```
@@ -541,13 +548,13 @@ not supported.
 
 | `structural_policy` | How structures combine |
 | --- | --- |
-| `StructuralPolicy.invariant_best()` (`"require_invariant_best_action"`) | Every structure is evaluated and every structure's verdict must agree; otherwise `structures_disagree` lists each structure's verdict. |
-| `StructuralPolicy.maximin()` (`"maximin"`) | Each action is scored by its worst value over structures at each trade-off, then the preference policy is applied. Every structure must be evaluated. |
-| `StructuralPolicy.bayes_over_structures()` (`"bayes_over_structures"`) | Structure probabilities you supply weight the per-structure values; they are never renormalized. |
-| `StructuralPolicy.report_only()` (`"report_only"`, the default) | Each structure's result, with no combination. |
+| `"require_invariant_best_action"` | Every structure is evaluated and every structure's verdict must agree; otherwise `structures_disagree` lists each structure's verdict. |
+| `"maximin"` | Each action is scored by its worst value over structures at each trade-off, then the preference policy is applied. Every structure must be evaluated. |
+| `"bayes_over_structures"` | Structure probabilities you supply weight the per-structure values; they are never renormalized. |
+| `"report_only"` (the default) | Each structure's result, with no combination. |
 
-`structural_policy=` takes the `pf.StructuralPolicy` value or its kind as a string; a kind that
-does not exist raises `CausalValueError`, as an unknown `Policy` kind does.
+`structural_policy=` takes the kind as a string; a kind that does not exist raises
+`CausalValueError`, as an unknown `TradeoffPolicy` kind does.
 
 Unidentified and unevaluated structure mass is reported (`unidentified_mass`,
 `unevaluated_mass`). A claim that needs every structure returns `insufficient_science` when one
@@ -555,7 +562,7 @@ is unresolved. An action excluded by a hard constraint in any evaluated structur
 everywhere; under `bayes_over_structures` only a structure with positive probability excludes.
 These rules are those of [structural uncertainty](decisions.md#structural-uncertainty) in a
 decision contract, with one difference on the exact route, stated in
-[fixed trade-offs](#a-fixed-trade-off-is-an-ordinary-contract); see also
+[fixed trade-offs](#fixed-trade-offs-and-the-tie-tolerance); see also
 [graph uncertainty](graph_uncertainty.md).
 
 ### Weigh the members of an equivalence class
@@ -635,18 +642,21 @@ The class prior is read only by a decision compiled across the posterior's struc
 ordinary estimate of the same prepared study treats each class atom as a whole and refuses the
 prior rather than ignore it (`structure_posterior.class_prior_not_read`).
 
-## A fixed trade-off is an ordinary contract
+## Fixed trade-offs and the tie tolerance
 
-When every trade-off is fixed (each declared range is one value, or the value model has no
-trade-off), a preference contract is the ordinary [decision contract](decisions.md) whose
-utility is the value model with those numbers in place. The verdict, the admissible actions, the
-exclusions (under your constraint ids) and the criterion values are those of the hand-written
-ordinary contract, under every criterion and structural policy. The words differ:
-`uniquely_optimal` is `necessarily_best`, and `indistinguishable` is `tied` on the exact route
-and `undetermined` among the same actions on the certified route. The results differ only
-where the rules below say so.
+A plain number as a weight is not a trade-off at all: `benefit - 1.0 * harm` is the ordinary
+[decision contract](decisions.md#a-fixed-trade-off-is-an-ordinary-contract) whose utility is the
+expression, with its identity, its `Decision` result, its exact ties and its exact replay.
 
-| Where | Ordinary contract | Preference contract |
+A trade-off that is named and fixed (`decision.tradeoff("harm_weight", units=..., value=1.0)`)
+stays in the trade-off engine, so the result reports its assumption. Its verdict, admissible
+actions, exclusions (under your constraint ids) and criterion values are those of the ordinary
+contract, under every criterion and structural policy. The words differ: `uniquely_optimal` is
+`necessarily_best`, and `indistinguishable` is `tied` on the exact route and `undetermined`
+among the same actions on the certified route. The results differ only where the rules below
+say so.
+
+| Where | Ordinary contract | Contract with a trade-off |
 | --- | --- | --- |
 | Ties, exact route | criterion values equal to the last bit | margins within the effective tie tolerance (the declared `tie_tolerance`, default `1e-9`, or the numerical error bound of the margins when larger); with `tie_tolerance=0` the two agree whenever the margin exceeds that bound |
 | Ties, certified route | criterion values equal to the last bit | a choice only when the outward-rounded enclosures separate by more than `tie_tolerance`; a utility exactly on a threshold probability's threshold, or values that close, leave the choice `undetermined` |
@@ -654,6 +664,7 @@ where the rules below say so.
 | Expected regret | regret amounts, `max_regret` and `evpi` | ranked by expected-utility margins (the same ranking); no regret amounts |
 | Invariance across structures, exact route | each structure's own leader | an action excluded in one structure is excluded in every structure before each is analysed (the certified route keeps each structure's own leader) |
 | Replay | exact | within `1e-9` relative |
+| `effective_tie_tolerance` | `0.0` | the tolerance applied |
 
 ## Two routes and what each guarantees
 
@@ -763,7 +774,7 @@ draws. A decision on a mean source or across structures does not export
 
 ```python
 exported = decided.export()
-replayed = require_success(pf.replay(exported, contract=contract, source=source))
+replayed = require_success(decision.replay(exported, contract=contract, source=source))
 ```
 
 Replay loads only under the contract and draws you retained, recomputes the decision and
@@ -771,12 +782,12 @@ compares every stored field; other draws or an edited number refuse.
 
 ## Refusals you are likely to meet
 
-Each refusal is a `pf.PreferenceRefusal` with a registered `code` and a namespaced `detail`. The
+Each refusal is a `decision.PreferenceRefusal` (a `decision.DecisionRefusal`) with a registered `code` and a namespaced `detail`. The
 compiled route reports a cancelled compile or execution through it too, as
 `preference_compile.cancelled` (`cancelled_no_claim`). An error of the analysis behind the
 decision (the study or design refusing to compile or fit) raises the analysis's own exception,
 as the analysis would alone, with its registered reason code. A malformed
-argument (a `Policy` kind that does not exist, a `shared=` block of the wrong shape, an argument
+argument (a `TradeoffPolicy` kind that does not exist, a `shared=` block of the wrong shape, an argument
 `compile` does not read) raises `CausalValueError` before anything runs, and exceeding the
 execution's memory limit raises `CausalResourceError`, as elsewhere. A refusal of the ordinary
 decision evaluator (a quantity the source does not hold, a non-finite utility) is that refusal
@@ -849,10 +860,34 @@ in [preference sets and recorded choices](reference/refusal-codes.md#preference-
 
 | Language | Entry |
 | --- | --- |
-| Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `StructuralPolicy`, `Measure`, `Structures`, `Contract(...).compile(...)` with `CompiledDecision` (`quantities`, `representation`, `carrier`, `trade_offs`, `parameter_ranges`, `joint_law`, `design_law`, `contract_identity`, `.class_sampling`, `.inspect()` and `.execute()`; `CompiledQuantity`, `TradeOffRange`, `JointLawPlan`, `JointLawInput`, `DesignLawPlan`), `Contract(...).evaluate(...)`, `PreferenceDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
+| Python | `antecedent.decision`: `attribute`, `tradeoff`, `relation`, `Curve`, the shapes, `Value`, `Action`, `Constraint`, `TradeoffPolicy`, `Measure`, `Structures`, `Contract(value=...).compile(...)` with `CompiledDecision` (`quantities`, `representation`, `carrier`, `trade_offs`, `parameter_ranges`, `joint_law`, `design_law`, `contract_identity`, `.class_sampling`, `.inspect()` and `.execute()`; `CompiledQuantity`, `TradeOffRange`, `JointLawPlan`, `JointLawInput`, `DesignLawPlan`), `Contract(value=...).evaluate(...)`, `TradeoffDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
 | Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `TabularData::row_origin` (set by `TabularData::project` and `TabularData::select_rows`); `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
+
+## Names in `antecedent.preferences`
+
+`antecedent.preferences` holds the same objects under the names below. Both spellings run the
+same engine and give the same identities and results.
+
+| `antecedent.preferences` | `antecedent.decision` |
+| --- | --- |
+| `attribute`, `Attribute`, `exp`, `ln`, `excess`, `shortfall`, `segment`, `interaction`, `both`, `Curve`, `Relation`, `relation`, `Measure`, `Structures`, `Action`, `Criterion` | the same names |
+| `strength(id, units=, lower=, upper=, assumption=)` | `tradeoff(id, units=, lower=, upper=, assumption=)` |
+| `fixed(id, units=, value=, assumption=)` | `tradeoff(id, units=, value=)`, or a plain number for an ordinary contract |
+| `Parameter` | `Tradeoff` |
+| `Expr` | `ValueExpr` |
+| `ValueModel(value, utility_units=)` | `Value(expr, units=)` |
+| `Policy` | `TradeoffPolicy` |
+| `StructuralPolicy` | the string on `structural_policy=` |
+| `constraint(id, expr, at_most=, units=)` | `Constraint(id, expr, bound=, units=)` |
+| `Contract(model=` or `preferences=`, ...)` | `Contract(value=, ...)` |
+| `PreferenceDecision` | `TradeoffDecision` |
+| `PreferenceRefusal` | `PreferenceRefusal`, a `DecisionRefusal` |
+| `CompiledDecision`, `CompiledQuantity`, `TradeOffRange`, `JointLawInput`, `JointLawPlan`, `DesignLawPlan`, `ActionRecord`, `Switch`, `SwitchThreshold`, `Region`, `StructureOutcome`, `ClassSampling`, `SampledMass`, `SampledMargin`, `joint_law`, `chain_law`, `experiment_means`, `experiment_quantity`, `replay` | the same names |
+
+`preferences.Contract` always uses the trade-off engine, also for a value with no trade-off, and
+reads `decision.x(k)` in a constraint as attribute `k` of the value. Neither spelling warns.
 
 ## Sources
 
@@ -873,8 +908,9 @@ provenance, with the documented deviations; see [citing a study](guides/citing-a
 
 ## Where next
 
-- [Narrow trade-offs from past decisions and stated comparisons](preference-learning.md):
-  optional, for when you want past choices to inform the ranges
+- [Decisions](decisions.md): the guide this page deepens
+- [Learn trade-off ranges](preference-learning.md): optional, for when you want past choices to
+  inform the ranges
 - [Choose a discount when the cost of a return is a range](tutorials/decide-across-trade-offs.md):
   the worked story
 - [Evaluate actions with a decision contract](decisions.md) and
