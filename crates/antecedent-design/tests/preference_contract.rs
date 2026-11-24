@@ -334,14 +334,23 @@ fn probe_contract_reads_each_quantity_on_its_own() {
 }
 
 #[test]
-fn identity_ignores_declaration_order_but_not_semantics() {
+fn identity_binds_action_and_constraint_order_but_not_relation_order_or_semantics() {
     let base = contract();
     let id = base.identity().unwrap();
-    let mut reordered = base.clone();
-    reordered.actions.reverse();
-    reordered.constraints.reverse();
-    reordered.model.preferences.relations.reverse();
-    assert_eq!(reordered.identity().unwrap(), id);
+    // The preference relations are a set: their declaration order is not part of the identity.
+    let mut relations = base.clone();
+    relations.model.preferences.relations.reverse();
+    assert_eq!(relations.identity().unwrap(), id);
+    // Actions and constraints are written in declaration order: results follow action order.
+    let mut actions = base.clone();
+    actions.actions.reverse();
+    let mut constraints = base.clone();
+    constraints.constraints.reverse();
+    let by_actions = actions.identity().unwrap();
+    let by_constraints = constraints.identity().unwrap();
+    assert_ne!(by_actions, id);
+    assert_ne!(by_constraints, id);
+    assert_ne!(by_actions, by_constraints);
 
     #[allow(clippy::type_complexity, reason = "a list of semantic edits")]
     let edits: Vec<Box<dyn Fn(&mut PreferenceContract)>> = vec![
@@ -375,6 +384,26 @@ fn identity_ignores_declaration_order_but_not_semantics() {
         let mut changed = base.clone();
         edit(&mut changed);
         assert!(seen.insert(changed.identity().unwrap()));
+    }
+}
+
+#[test]
+fn the_same_actions_in_another_order_are_another_contract() {
+    // Two contracts that hold the same actions, inputs and constraints and differ only in the
+    // order the actions are declared report their results in different orders, so they never
+    // share an identity, whichever way the actions are permuted.
+    let base = contract();
+    assert!(base.actions.len() >= 2, "the fixture declares several actions");
+    let mut seen = std::collections::BTreeSet::from([base.identity().unwrap()]);
+    for shift in 1..base.actions.len() {
+        let mut rotated = base.clone();
+        rotated.actions.rotate_left(shift);
+        let mut sorted_ids: Vec<&str> = rotated.actions.iter().map(|a| a.id.as_str()).collect();
+        let mut base_ids: Vec<&str> = base.actions.iter().map(|a| a.id.as_str()).collect();
+        sorted_ids.sort_unstable();
+        base_ids.sort_unstable();
+        assert_eq!(sorted_ids, base_ids, "the same actions");
+        assert!(seen.insert(rotated.identity().unwrap()), "rotation {shift} kept an identity");
     }
 }
 
