@@ -15,9 +15,9 @@
 //! program names that method and covariate in the randomized cell's outcome slot, so a study
 //! that declares the adjustment has a program identity of its own and a study that declares
 //! none keeps the one it had; the contract's resolved estimator names the method, and the
-//! result's `estimated_pre_assignment_cuped` assumption names the covariate (see
-//! `antecedent_io::graphless_support::estimated_cuped_premise`), which the result verifier
-//! requires.
+//! estimator's diagnostic states the covariate as a structured field
+//! (`antecedent_io::graphless_support::ESTIMATED_CUPED_COVARIATE_FIELD`), which the result
+//! verifier requires.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

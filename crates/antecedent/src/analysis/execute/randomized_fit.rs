@@ -119,7 +119,8 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => "estimate.randomized.wald_cace_late",
             Self::FixedCuped => "estimate.randomized.fixed_cuped_ht_itt",
-            Self::EstimatedCuped => "estimate.randomized.estimated_cuped_ht_itt",
+            // The code the result verifier reads the covariate's structured field under.
+            Self::EstimatedCuped => antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC,
             Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",

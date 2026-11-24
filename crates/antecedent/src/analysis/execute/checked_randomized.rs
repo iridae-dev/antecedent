@@ -40,6 +40,21 @@ mod factorial_bernoulli;
 mod policy_net;
 pub(super) use bayesian_arms::bayesian_randomized_estimator;
 
+/// Structured fields of the estimator diagnostic: the covariate of a same-sample CUPED fit, which
+/// the result states as data so a portable result names its pre-assignment premise; none for any
+/// other fit.
+fn estimated_cuped_fields(
+    method: RandomizedMethod,
+    adjustment: Option<&RandomizedAdjustment>,
+) -> Vec<(String, String)> {
+    match (method, adjustment) {
+        (RandomizedMethod::EstimatedCuped, Some(adjustment)) => {
+            antecedent_io::graphless_support::estimated_cuped_fields(adjustment.covariate().raw())
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Uncertainty label of a fit that handled missing outcomes; no interval is published.
 fn responder_uncertainty(
     policy: antecedent_data::MissingPolicy,
@@ -337,12 +352,15 @@ impl CheckedRandomizedOperation {
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    method.diagnostic_id(),
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    diagnostic,
-                )],
+                extra_diagnostics: vec![
+                    Diagnostic::new(
+                        method.diagnostic_id(),
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        diagnostic,
+                    )
+                    .with_fields(estimated_cuped_fields(method, adjustment)),
+                ],
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
@@ -1417,15 +1435,11 @@ fn push_randomized_covariate_assumptions(
     adjustment: Option<&RandomizedAdjustment>,
     assumptions: &mut antecedent_core::AssumptionSet,
 ) {
-    if let Some(RandomizedAdjustment::EstimatedCuped { covariate }) = adjustment {
-        // The description names the covariate, so a portable result states which column the
-        // pre-assignment premise is about and the result verifier can require it.
+    if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCuped { .. })) {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
-                id: Arc::from(antecedent_io::graphless_support::ESTIMATED_CUPED_ASSUMPTION),
-                description: Arc::from(antecedent_io::graphless_support::estimated_cuped_premise(
-                    covariate.raw(),
-                )),
+                id: Arc::from("estimated_pre_assignment_cuped"),
+                description: Arc::from("the CUPED covariate was measured before randomization; its pooled slope is estimated from these outcomes and the independent-row score variance does not propagate that estimation"),
             },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Estimation,

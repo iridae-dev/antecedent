@@ -61,6 +61,17 @@ fn same_interval(left: Option<[f64; 2]>, right: Option<[f64; 2]>) {
     }
 }
 
+/// The structured fields of every estimated-slope CUPED diagnostic of a portable result.
+fn stated_covariates(wire: &antecedent_io::AnalysisResultWire) -> Vec<Vec<(String, String)>> {
+    wire.diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code == antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC
+        })
+        .map(|diagnostic| diagnostic.fields.clone())
+        .collect()
+}
+
 /// The same-sample CUPED adjustment of the covariate in column 1.
 const ESTIMATED_CUPED: RandomizedAdjustment =
     RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(1) };
@@ -112,16 +123,27 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
         ),
         other => panic!("unavailable support: {other:?}"),
     }
-    // The pre-assignment premise names its covariate, and the portable result carrying it
-    // passes the artifact verifier.
-    let premise = antecedent_io::graphless_support::estimated_cuped_premise(1);
-    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
-        &record.assumption,
-        antecedent_core::Assumption::Custom { id, description }
-            if id.as_ref() == antecedent_io::graphless_support::ESTIMATED_CUPED_ASSUMPTION
-                && description.as_ref() == premise
-    )));
+    // The result states its pre-assignment covariate as structured data, and the portable
+    // result carrying it passes the artifact verifier.
     prepared.encode_contracted_result(&result, "estimated-slope-cuped", &ctx).unwrap();
+    let wire = result.analysis_result_wire(prepared.query()).unwrap();
+    assert_eq!(stated_covariates(&wire), vec![vec![("covariate".to_owned(), "1".to_owned())]]);
+    let names = vec!["outcome".to_owned(), "baseline".to_owned()];
+    antecedent_io::encode_analysis_result_artifact(&wire, names.clone(), "stated").unwrap();
+    // A result labelled estimated-slope CUPED that states no covariate, or states the outcome,
+    // is refused.
+    for fields in [vec![], vec![("covariate".to_owned(), "0".to_owned())]] {
+        let mut forged = wire.clone();
+        for diagnostic in &mut forged.diagnostics {
+            if diagnostic.code == antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC {
+                diagnostic.fields.clone_from(&fields);
+            }
+        }
+        let refusal = antecedent_io::encode_analysis_result_artifact(&forged, names.clone(), "x")
+            .expect_err("a result that states no pre-assignment covariate is refused")
+            .to_string();
+        assert!(refusal.contains("states no pre-assignment covariate"), "{fields:?}: {refusal}");
+    }
     let fit = result.into_randomized_effect().unwrap();
     assert_eq!(&*fit.uncertainty, "bernoulli_estimated_cuped_ht_score_normal_interval");
     assert_eq!(fit.effect.to_bits(), direct.effect.to_bits());
