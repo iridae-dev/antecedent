@@ -1104,6 +1104,8 @@ pub enum AttributionOutcome {
     UnitChange(UnitChangeResult),
     /// Mechanism-change detections.
     MechanismChange(Vec<MechanismChangeDetection>),
+    /// Population do-contrast of one parent on one child with its paired Monte Carlo error.
+    PopulationDoContrast(crate::gcm::PopulationDoContrast),
 }
 
 /// The answer of a compiled attribution and the mechanisms it ran on.
@@ -1136,6 +1138,8 @@ pub enum SimulationOutcome {
     Counterfactual(crate::gcm::CounterfactualResult),
     /// Realised values of every step of a rollout or panel replay.
     Temporal(crate::gcm::TemporalPath),
+    /// The nested counterfactual mean over the study's rows.
+    NestedCounterfactual(f64),
 }
 
 /// The answer of a compiled simulation and the mechanisms it ran on.

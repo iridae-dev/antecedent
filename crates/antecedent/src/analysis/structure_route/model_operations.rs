@@ -9,6 +9,11 @@
 //! draws from under a context seeded the same way; the do-samplers start their generator at the
 //! target's seed, as a direct caller passing `CausalRng::from_seed(seed)` does.
 //!
+//! The population do-contrast and the nested counterfactual are also query targets
+//! (`AttributeTarget::PopulationDoContrast`, `SimulationTarget::NestedCounterfactual`): the
+//! query executor (`run_attribute_with_fit`, `run_simulate`) calls these runners, and the
+//! operation forms run through that executor.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{

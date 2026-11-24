@@ -14,20 +14,34 @@
 //! of the study, and its program is keyed by the study's program, the mechanism program and the
 //! operation's canonical encoding.
 //!
+//! The nested counterfactual and the population do-contrast are causal quantities with query
+//! forms of their own, [`antecedent_core::SimulationTarget::NestedCounterfactual`] and
+//! [`antecedent_core::AttributeTarget::PopulationDoContrast`], which a study poses to get the
+//! query-level contract and claim (routes `GcmSimulateDag` and `GcmAttributeDag`). Their
+//! operation forms are kept for existing callers: they run under their own program family as
+//! before, and execute through the query route's own executor (`run_simulate` and
+//! `run_attribute_with_fit` on the fitted model), so the two forms are one implementation and
+//! give the same numbers. New code poses the query.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, ModelOperation, QueryError};
+use antecedent_core::{
+    AttributeQuery, AttributeTarget, ExecutionContext, ModelOperation, QueryError, SimulateQuery,
+    SimulationTarget,
+};
 
 use crate::analysis::builder::DataInput;
 use crate::analysis::lowering::model_operation::OperationSource;
 use crate::analysis::prepared::PreparedStudy;
 use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
-use crate::analysis::structure_route::MechanismProgram;
 use crate::analysis::structure_route::model_operations::{
-    run_arrow_strengths, run_do_sampler, run_model_evaluation, run_nested_counterfactual,
-    run_population_do_contrast,
+    run_arrow_strengths, run_do_sampler, run_model_evaluation,
+};
+use crate::analysis::structure_route::{
+    AttributionOutcome, ChangeReading, MechanismProgram, SimulationOutcome, run_attribute_with_fit,
+    run_simulate,
 };
 use crate::error::CausalError;
 use crate::gcm::MechanismAssignment;
@@ -109,6 +123,12 @@ fn refuse(message: &str) -> CausalError {
     crate::compile_reason!("option_not_applicable", "a fitted-model operation {message}")
 }
 
+fn outcome_mismatch() -> CausalError {
+    CausalError::Compile {
+        message: "a fitted-model operation's query executor returned another outcome".into(),
+    }
+}
+
 impl PreparedStudy {
     /// Run `operation` on the mechanisms the study's mechanism program fits on its own DAG and
     /// table (the standard program when the study declares none).
@@ -118,6 +138,12 @@ impl PreparedStudy {
     /// seeded with the operation's seed, the do-samplers started at
     /// `CausalRng::from_seed(seed)`, [`crate::gcm::ModelEvaluator::evaluate`] and
     /// [`crate::gcm::nested_counterfactual`].
+    ///
+    /// [`ModelOperation::NestedCounterfactual`] and [`ModelOperation::PopulationDoContrast`] are
+    /// kept for existing callers; their query forms
+    /// [`antecedent_core::SimulationTarget::NestedCounterfactual`] and
+    /// [`antecedent_core::AttributeTarget::PopulationDoContrast`] give the same numbers with the
+    /// query-level contract and claim.
     ///
     /// # Errors
     ///
@@ -166,9 +192,23 @@ impl PreparedStudy {
                 ModelOperationAnswer::ArrowStrengths(run_arrow_strengths(&fitted)?)
             }
             ModelOperation::PopulationDoContrast(target) => {
-                ModelOperationAnswer::PopulationDoContrast(run_population_do_contrast(
-                    &fitted, data, target, &scoped,
-                )?)
+                // The query form's executor, on this operation's fitted model.
+                let query = AttributeQuery::new(AttributeTarget::PopulationDoContrast(*target));
+                let outcome = run_attribute_with_fit(
+                    &fitted,
+                    graph,
+                    data,
+                    &query,
+                    None,
+                    ChangeReading::default(),
+                    None,
+                    None,
+                    &scoped,
+                )?;
+                let AttributionOutcome::PopulationDoContrast(result) = outcome else {
+                    return Err(outcome_mismatch());
+                };
+                ModelOperationAnswer::PopulationDoContrast(result)
             }
             ModelOperation::DoSample(target) => {
                 ModelOperationAnswer::DoSample(run_do_sampler(&fitted, data, target, &scoped)?)
@@ -177,9 +217,15 @@ impl PreparedStudy {
                 run_model_evaluation(&fitted, data, target, &scoped)?,
             ),
             ModelOperation::NestedCounterfactual(target) => {
-                ModelOperationAnswer::NestedCounterfactual(run_nested_counterfactual(
-                    &fitted, data, target, &scoped,
-                )?)
+                // The query form's executor, on this operation's fitted model.
+                let query =
+                    SimulateQuery::new(SimulationTarget::NestedCounterfactual(target.clone()));
+                let SimulationOutcome::NestedCounterfactual(mean) =
+                    run_simulate(&fitted, data, &query, &scoped)?
+                else {
+                    return Err(outcome_mismatch());
+                };
+                ModelOperationAnswer::NestedCounterfactual(mean)
             }
             other => {
                 return Err(refuse(&format!("`{}` is not known to this version", other.as_str())));

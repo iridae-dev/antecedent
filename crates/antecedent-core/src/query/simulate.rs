@@ -5,6 +5,10 @@
 //! the population; only the Monte Carlo error of the draws is quantified. The
 //! route executes with calibration status `not_measured`; no coverage record covers it.
 //!
+//! A nested counterfactual `Y_{inner, F_{outer}}` over the study's rows is the
+//! [`SimulationTarget::NestedCounterfactual`] target: the query form of the fitted-model
+//! operation of the same name, with the same declaration.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::{InterventionFault, SimulateFault};
@@ -16,6 +20,7 @@ use crate::ids::VariableId;
 use crate::intervention::{Intervention, InterventionSequence};
 
 use super::error::QueryError;
+use super::model_operations::NestedCounterfactualTarget;
 
 /// What a simulation query simulates.
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +118,11 @@ pub enum SimulationTarget {
         /// Steps before the panel, most recent first, laid out like `panel`.
         history: Arc<[f64]>,
     },
+    /// The nested counterfactual mean `Y_{inner, F_{outer}}` over the study's rows: `outcome`
+    /// under the `inner` interventions while every `frozen` variable keeps the value it takes in
+    /// the `outer` world, on the noise abduced from each row. For the mediation contrast
+    /// `Y_{x, M_{x'}}` take `outer = do(X = x')`, `inner = do(X = x)` and `frozen = {M}`.
+    NestedCounterfactual(NestedCounterfactualTarget),
 }
 
 fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence) {
@@ -145,6 +155,7 @@ impl SimulationTarget {
             Self::Counterfactual { .. } => "counterfactual",
             Self::TemporalRollout { .. } => "temporal_rollout",
             Self::TemporalCounterfactual { .. } => "temporal_counterfactual",
+            Self::NestedCounterfactual(_) => "nested_counterfactual",
         }
     }
 }
@@ -204,6 +215,11 @@ impl CanonicalEncode for SimulationTarget {
                     .reals(panel)
                     .reals(history);
             }
+            Self::NestedCounterfactual(target) => {
+                // The target writes its own operation tag after the simulation tag.
+                writer.word(9);
+                target.encode(writer);
+            }
         }
     }
 }
@@ -253,6 +269,14 @@ impl SimulateQuery {
             | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
                 (schedule.steps.first().and_then(|step| step.intervention.primary_variable()), None)
             }
+            SimulationTarget::NestedCounterfactual(target) => (
+                target
+                    .inner
+                    .iter()
+                    .chain(target.outer.iter())
+                    .find_map(Intervention::primary_variable),
+                Some(target.outcome),
+            ),
         }
     }
 
@@ -260,9 +284,11 @@ impl SimulateQuery {
     ///
     /// # Errors
     ///
-    /// [`QueryError::InvalidIntervention`] for an invalid intervention, and
+    /// [`QueryError::InvalidIntervention`] for an invalid intervention,
     /// [`QueryError::InvalidSimulate`] for no draws, fewer than two policy
-    /// draws, non-finite levels, or a treatment that is also the outcome.
+    /// draws, non-finite levels, or a treatment that is also the outcome, and
+    /// [`QueryError::InvalidModelOperation`] for a nested counterfactual whose frozen set holds
+    /// its outcome or an inner intervention target.
     pub fn validate(&self) -> Result<(), QueryError> {
         let invalid = |fault: SimulateFault| Err(QueryError::InvalidSimulate(fault));
         match &self.target {
@@ -358,6 +384,11 @@ impl SimulateQuery {
                 }
                 Ok(())
             }
+            SimulationTarget::NestedCounterfactual(target) => {
+                validate_interventions(&target.outer)?;
+                validate_interventions(&target.inner)?;
+                target.validate().map_err(QueryError::from)
+            }
         }
     }
 
@@ -394,3 +425,7 @@ impl SimulateQuery {
         Ok(query)
     }
 }
+
+#[cfg(test)]
+#[path = "simulate_tests.rs"]
+mod tests;

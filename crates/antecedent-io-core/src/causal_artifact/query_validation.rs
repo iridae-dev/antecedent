@@ -167,7 +167,7 @@ pub(crate) fn validate_query_ids(
         }
         Q::Simulate(wire) => {
             validate_ids(wire.variable_ids(), variable_count)?;
-            for intervention in wire.interventions() {
+            for intervention in wire.all_interventions() {
                 validate_intervention_ids(intervention, variable_count)?;
             }
             wire.to_domain().map(|_| ())

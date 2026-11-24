@@ -2,7 +2,8 @@
 
 Preparation checks the declarations and retains an owned copy of the rows; estimation fits the
 standard mechanism program on the supplied graph and runs the declared operation through its
-compiled program (an operation of a prepared study, or the ``Simulate`` route for the means).
+compiled program (an operation of a prepared study, the ``Attribute`` route for the
+do-contrast, or the ``Simulate`` route for the means and the nested counterfactual).
 """
 
 from __future__ import annotations

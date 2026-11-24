@@ -190,8 +190,9 @@ class FittedGcm:
 
         Deprecated direct path: ``antecedent.analyze(data, graph=edges,
         query=antecedent.model_operations.PopulationContrast(parent, child, delta, max_units=...), execution=Execution(seed=...))`` answers it
-        through the compiled attribution route with the same numbers for the same execution seed; the
-        route's draws follow the query's seed, not the execution context it runs under.
+        as a compiled ``Attribute`` query (the population do-contrast target), with a contract
+        and a claim, and the same numbers for the same execution seed; the query's draws follow
+        its own seed, not the execution context it runs under.
         The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
         supplied graph, the model ``analyze`` refits; a model with its own candidate set,
         constraints, splits or an accepted discovered structure keeps this method.

@@ -4,14 +4,17 @@ Each query names an operation on the graphical causal model fitted to the data o
 DAG: the strength of every edge (:class:`ArrowStrengths`), a population do-contrast
 (:class:`PopulationContrast`), a named do-sampler (:class:`DoSampling`), the model's
 falsification evaluation (:class:`FittedModelEvaluation`), an interventional mean
-(:class:`InterventionalMean`) and the mean under two simultaneous intervention sets
-(:class:`SimultaneousCounterfactual`). ``analyze(data, graph=edges, query=...)`` prepares a study
-on the rows and the DAG and runs the operation on the mechanisms the standard program fits there:
-the first four as an operation of the prepared study on its own fitted model (program families
-``FittedModelAttribution`` and ``FittedModelSimulation``, gated on the fitted-model units), the
-two means through the compiled ``Simulate`` route. The answer is a
-:class:`antecedent.results.model_operation.ModelOperationResult` naming the program it ran
-under.
+(:class:`InterventionalMean`), the mean under two simultaneous intervention sets
+(:class:`SimultaneousCounterfactual`) and a nested counterfactual mean
+(:class:`NestedCounterfactualMean`). ``analyze(data, graph=edges, query=...)`` prepares a study
+on the rows and the DAG and runs the query on the mechanisms the standard program fits there.
+The causal quantities run as compiled queries with a contract and a claim: the do-contrast
+through the ``Attribute`` route, the two means and the nested counterfactual through the
+``Simulate`` route. The edge strengths, the do-sampler and the evaluation are diagnostics of the
+fitted model and run as an operation of the prepared study on its own fitted model (program
+families ``FittedModelAttribution`` and ``FittedModelSimulation``, gated on the fitted-model
+units). The answer is a :class:`antecedent.results.model_operation.ModelOperationResult` naming
+the program it ran under.
 
 Under ``execution=Execution(seed=...)`` an operation reproduces the numbers the corresponding
 ``FittedGcm`` method gives under the same execution, on a model fitted by ``fit_gcm`` with no
@@ -63,7 +66,7 @@ class PopulationContrast:
 
     Both arms replay the same noise (common random numbers), drawn from the attribution stream
     of the execution's seed. ``max_units`` is the most observed rows accepted; a larger table is
-    refused, not truncated.
+    refused, not truncated. Runs the compiled ``Attribute`` route, with its contract and claim.
     """
 
     parent: str
@@ -181,7 +184,7 @@ class SimultaneousCounterfactual:
     Both sets of hard interventions act in one world on the abduced factual noise
     (``Y_{outer, inner}``). They must target different variables: two interventions on one
     variable are contradictory as one world, so an overlap is refused here, when the query is
-    declared. A nested ``Y_{x, M_{x'}}`` query is a :class:`antecedent.NestedCounterfactual`.
+    declared. A nested ``Y_{x, M_{x'}}`` mean is a :class:`NestedCounterfactualMean`.
     """
 
     outcome: str
@@ -204,6 +207,42 @@ class SimultaneousCounterfactual:
         coerce_fields(self, outer=outer, inner=inner)
 
 
+@dataclass(frozen=True, slots=True)
+class NestedCounterfactualMean:
+    """The nested counterfactual mean ``Y_{inner, F_{outer}}`` of ``outcome`` over every unit.
+
+    On the abduced factual noise of each unit, the ``inner`` hard interventions hold while every
+    ``frozen`` variable keeps the value it takes in the ``outer`` world. For the mediation
+    contrast ``Y_{x, M_{x'}}`` take ``outer={X: x'}``, ``inner={X: x}`` and ``frozen=[M]``. The
+    frozen set may not hold the outcome or a variable the inner world intervenes on; that is
+    refused here, when the query is declared. Runs the compiled ``Simulate`` route, with its
+    contract and claim.
+    """
+
+    outcome: str
+    outer: Mapping[str, float]
+    inner: Mapping[str, float]
+    frozen: Sequence[str]
+    kind: Literal["nested_counterfactual"] = field(
+        default="nested_counterfactual", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        _name("outcome", self.outcome)
+        outer = _levels("outer", self.outer)
+        inner = _levels("inner", self.inner)
+        if isinstance(self.frozen, (str, bytes)) or not isinstance(self.frozen, Sequence):
+            raise CausalTypeError("frozen is a sequence of variable names")
+        frozen = tuple(_name("frozen", name) for name in self.frozen)
+        conflict = sorted(set(frozen) & ({self.outcome} | set(inner)))
+        if conflict:
+            raise CausalValueError(
+                "a nested counterfactual's frozen set may not hold the outcome or an inner "
+                f"intervention target ({', '.join(conflict)})"
+            )
+        coerce_fields(self, outer=outer, inner=inner, frozen=frozen)
+
+
 ModelOperationQuery: TypeAlias = (
     ArrowStrengths
     | PopulationContrast
@@ -211,6 +250,7 @@ ModelOperationQuery: TypeAlias = (
     | FittedModelEvaluation
     | InterventionalMean
     | SimultaneousCounterfactual
+    | NestedCounterfactualMean
 )
 
 #: The query classes ``analyze`` answers through the fitted-model routes.
@@ -221,6 +261,7 @@ MODEL_OPERATION_QUERIES = (
     FittedModelEvaluation,
     InterventionalMean,
     SimultaneousCounterfactual,
+    NestedCounterfactualMean,
 )
 
 
@@ -306,6 +347,17 @@ def analyze_model_operation(
         native = _native.model_operation_simultaneous_counterfactual(
             names, columns, edges, query.outcome, dict(query.outer), dict(query.inner), **run
         )
+    elif isinstance(query, NestedCounterfactualMean):
+        native = _native.model_operation_nested_counterfactual(
+            names,
+            columns,
+            edges,
+            query.outcome,
+            dict(query.outer),
+            dict(query.inner),
+            list(query.frozen),
+            **run,
+        )
     else:
         raise CausalTypeError(f"{type(query).__name__} is not a fitted-model operation")
     return ModelOperationResult._from_native(query, native)
@@ -319,6 +371,7 @@ __all__ = [
     "InterventionalMean",
     "ModelOperationQuery",
     "ModelOperationResult",
+    "NestedCounterfactualMean",
     "PopulationContrast",
     "SimultaneousCounterfactual",
     "analyze_model_operation",

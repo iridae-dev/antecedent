@@ -15,11 +15,12 @@ class ModelOperationResult:
     ``value`` is the engine's answer, unchanged: a list of ``ArrowStrength`` for
     ``ArrowStrengths``, a ``PopulationDoContrast`` for ``PopulationContrast``, a ``DoSample``
     for ``DoSampling``, a ``ModelEvaluation`` for ``FittedModelEvaluation`` and a float for
-    ``InterventionalMean`` and ``SimultaneousCounterfactual``. ``program_route`` names the
-    program family the answer ran under (``FittedModelAttribution``, ``FittedModelSimulation``
-    or ``GcmSimulateDag``) and ``program_identity`` its lowered program. ``route`` is the
-    compiled ``Simulate`` route of the two means (contract, claim, inspection record) and
-    ``None`` for an operation of a prepared study on its own fitted model.
+    ``InterventionalMean``, ``SimultaneousCounterfactual`` and ``NestedCounterfactualMean``.
+    ``program_route`` names the program family the answer ran under (``FittedModelAttribution``,
+    ``FittedModelSimulation``, ``GcmAttributeDag`` or ``GcmSimulateDag``) and
+    ``program_identity`` its lowered program. ``route`` is the compiled query route of the
+    do-contrast, the two means and the nested counterfactual (contract, claim, inspection
+    record) and ``None`` for an operation of a prepared study on its own fitted model.
 
     The answer is a statement about the mechanisms fitted on the supplied graph, not an
     identified effect of the population; the route runs with calibration status
@@ -72,8 +73,13 @@ class ModelOperationResult:
 
     @property
     def mean(self) -> float:
-        """The outcome mean (``InterventionalMean``, ``SimultaneousCounterfactual``)."""
-        return float(self._require("interventional_mean", "simultaneous_counterfactual"))
+        """The outcome mean (``InterventionalMean``, ``SimultaneousCounterfactual``,
+        ``NestedCounterfactualMean``)."""
+        return float(
+            self._require(
+                "interventional_mean", "simultaneous_counterfactual", "nested_counterfactual"
+            )
+        )
 
 
 __all__ = ["ModelOperationResult"]
