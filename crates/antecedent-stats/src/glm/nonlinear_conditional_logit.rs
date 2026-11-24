@@ -37,7 +37,12 @@
 //! `1e-6 (1 + |l|)`, the search and the polish stopped at a lower maximum, so the polish is
 //! started once more from the best profile point, and the fit is refused as not converged if a
 //! profile still lies above it. The estimate, its covariance and its intervals are therefore
-//! read at the maximum the profiles show.
+//! read at the maximum the profiles show. Last, the observed information at the estimate must be
+//! a maximum's in the shape parameters (the expected information is positive semi-definite by
+//! construction and cannot show a saddle): the curvature of the profile log-likelihood over them,
+//! the Schur complement `H_SS - H_SL H_LL^-1 H_LS` of the observed information `H`, must be
+//! positive definite. A direction of negative curvature (a saddle) is refused as not converged,
+//! a null direction as rank deficient naming the shape parameters.
 //!
 //! Identification of the shape parameters. For each shape parameter the profile over its declared
 //! range (maximising over the other shape parameters) is evaluated on an even grid. The fit is
@@ -998,6 +1003,24 @@ impl Fitter<'_> {
         if !dependent.is_empty() {
             return Err(NonlinearChoiceError::RankDeficient { columns: dependent });
         }
+        if n_shape > 0 {
+            // The expected information is positive semi-definite by construction, so it cannot
+            // show a saddle; the observed information at the estimate must be a maximum's in the
+            // shape directions.
+            let refusal = |columns_found: Vec<usize>| {
+                if columns_found.is_empty() {
+                    let (_, largest) = self.projected_score(&psi, &evaluation);
+                    NonlinearChoiceError::NotConverged {
+                        iterations: self.options.fit.max_iterations,
+                        gradient_norm: largest,
+                    }
+                } else {
+                    NonlinearChoiceError::RankDeficient { columns: columns_found }
+                }
+            };
+            let observed = self.observed_information(&psi)?.ok_or_else(|| refusal(Vec::new()))?;
+            shape_curvature(&observed, columns, q).map_err(refusal)?;
+        }
         let mut covariance = invert_square(&evaluation.information, q)
             .ok_or(NonlinearChoiceError::RankDeficient { columns: (0..q).collect() })?;
         symmetrise(&mut covariance, q);
@@ -1160,6 +1183,75 @@ fn two_modes(profile: &ShapeProfile, maximum: f64, threshold: f64) -> Option<(f6
 /// diagonal pivoting; a pivot at most [`PIVOT_RELATIVE`] times the largest diagonal entry is
 /// null, and every parameter with a non-negligible coefficient in the corresponding null
 /// vector of the remaining block takes part.
+/// Whether the observed information `observed` (`q x q`, the first `columns` direct parameters
+/// linear, the rest shape parameters) is a strict maximum's in the shape directions: the Schur
+/// complement `H_SS - H_SL H_LL^-1 H_LS`, the curvature of the profile log-likelihood over the
+/// shape parameters, is positive definite. `Err(vec![])` when it has a negative direction (a
+/// saddle: the likelihood rises along it); `Err(columns)` naming the shape parameters in a null
+/// direction (a pivot at most `PIVOT_RELATIVE` times its largest diagonal), or every direct
+/// parameter when the linear block cannot be inverted.
+fn shape_curvature(observed: &[f64], columns: usize, q: usize) -> Result<(), Vec<usize>> {
+    let n_shape = q - columns;
+    let linear: Vec<f64> =
+        (0..columns).flat_map(|i| (0..columns).map(move |j| observed[i * q + j])).collect();
+    let inverse = if columns == 0 {
+        Vec::new()
+    } else {
+        invert_square(&linear, columns).ok_or_else(|| (0..q).collect::<Vec<_>>())?
+    };
+    let mut schur = vec![0.0; n_shape * n_shape];
+    for a in 0..n_shape {
+        for b in 0..n_shape {
+            let mut value = observed[(columns + a) * q + columns + b];
+            for i in 0..columns {
+                for j in 0..columns {
+                    value -= observed[(columns + a) * q + i]
+                        * inverse[i * columns + j]
+                        * observed[j * q + columns + b];
+                }
+            }
+            schur[a * n_shape + b] = value;
+        }
+    }
+    for a in 0..n_shape {
+        for b in 0..a {
+            let mean = 0.5 * (schur[a * n_shape + b] + schur[b * n_shape + a]);
+            schur[a * n_shape + b] = mean;
+            schur[b * n_shape + a] = mean;
+        }
+    }
+    let scale = (0..n_shape).map(|a| schur[a * n_shape + a].abs()).fold(0.0_f64, f64::max);
+    if !(scale.is_finite() && scale > 0.0) {
+        return Err((columns..q).collect());
+    }
+    // Cholesky without pivoting: a negative pivot shows a direction of negative curvature, a
+    // pivot near zero a null direction.
+    let mut lower = schur;
+    for k in 0..n_shape {
+        let pivot = lower[k * n_shape + k];
+        if pivot.is_nan() {
+            return Err((columns..q).collect());
+        }
+        if pivot < -PIVOT_RELATIVE * scale {
+            return Err(Vec::new());
+        }
+        if pivot <= PIVOT_RELATIVE * scale {
+            return Err((columns..q).collect());
+        }
+        let root = pivot.sqrt();
+        for i in k + 1..n_shape {
+            lower[i * n_shape + k] /= root;
+        }
+        for i in k + 1..n_shape {
+            for j in k + 1..=i {
+                lower[i * n_shape + j] -= lower[i * n_shape + k] * lower[j * n_shape + k];
+                lower[j * n_shape + i] = lower[i * n_shape + j];
+            }
+        }
+    }
+    Ok(())
+}
+
 fn null_directions(information: &[f64], q: usize) -> Vec<usize> {
     let largest = (0..q).map(|i| information[i * q + i]).fold(0.0_f64, f64::max);
     if !(largest.is_finite() && largest > 0.0) {
@@ -1298,6 +1390,24 @@ mod tests {
         assert_eq!(points[1], vec![0.25, 0.75]);
         assert_eq!(points[2], vec![0.75, 0.25]);
         assert_eq!(points[3], vec![0.125, 0.625]);
+    }
+
+    #[test]
+    fn a_saddle_in_the_shape_directions_is_refused() {
+        // psi = (lambda, theta_S1, theta_S2). The shape block alone is positive definite, but
+        // the coupling with the linear block makes the profile curvature over theta_S1
+        // negative: 1 - 2^2 / 1 = -3.
+        let saddle = [1.0, 2.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        assert_eq!(shape_curvature(&saddle, 1, 3), Err(Vec::new()));
+        // A plain saddle inside the shape block: curvature -1 along theta_S2.
+        let plain = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0];
+        assert_eq!(shape_curvature(&plain, 1, 3), Err(Vec::new()));
+        // A flat shape direction: the profile curvature over theta_S1 is 1 - 1 = 0.
+        let flat = [1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        assert_eq!(shape_curvature(&flat, 1, 3), Err(vec![1, 2]));
+        // A maximum: positive definite profile curvature.
+        let maximum = [2.0, 0.5, 0.0, 0.5, 1.0, 0.2, 0.0, 0.2, 3.0];
+        assert_eq!(shape_curvature(&maximum, 1, 3), Ok(()));
     }
 
     #[test]
