@@ -1074,6 +1074,8 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_model.curve_slope_count` | `invalid_argument` | Supply one fewer slope than breakpoints. |
 | `preference_model.curve_breakpoint_non_finite` | `invalid_argument` | Supply finite breakpoints. |
 | `preference_model.curve_breakpoints_not_increasing` | `invalid_argument` | Order them and remove repeats. |
+| `preference_model.value_relation_rows_invalid` | `invalid_argument` | Give both options of a value relation finite rows, one value per model attribute, and non-negative weights with a positive sum. |
+| `preference_model.value_relation_tolerance_invalid` | `invalid_argument` | Supply a finite, non-negative tolerance. |
 | `preference_contract.decision_contract_refused` | the wrapped refusal's code | The refusal carries the decision contract's own `decision_contract.*` detail; follow that row. |
 | `preference_contract.target_population_blank` | `invalid_argument` | Name the population the decision is for. |
 | `preference_contract.criterion_invalid` | `invalid_argument` | Supply a finite threshold and a level inside its range. |
@@ -1136,7 +1138,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `choice_record.observation_row_repeated` | `invalid_argument` | Name each row once. |
 | `choice_record.observation_row_double_counted` | `evidence_double_counted` | Keep the row in one record only. |
 | `choice_record.attributes_differ` | `quantity_semantics_mismatch` | Describe the options in the model's attributes and units. |
-| `choice_record.shape_parameters_not_fixed` | `route_not_supported` | Fix those parameters to a single value or evaluate on the certified route. |
+| `choice_record.shape_parameters_not_fixed` | `route_not_supported` | Raised by `choice_features`, which reads the value as linear in its parameters: give every shape parameter a value with `choice_features_at`, or learn with the compatible-set or choice-model method, which handle shape parameters. |
 | `choice_record.belief_law_required` | `decision_contract_unsatisfied` | Record the belief as draws. |
 | `choice_record.term_not_finite` | `decision_contract_unsatisfied` | Check the belief and the value's domain. |
 | `choice_record.chosen_unavailable` | `invalid_argument` | Correct the chosen option or its availability. |
@@ -1204,10 +1206,32 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_certified.atom_probabilities_invalid` | `decision_contract_unsatisfied` | Supply valid probabilities. |
 | `preference_certified.atom_probabilities_required` | `decision_contract_unsatisfied` | Supply them or choose another structural policy. |
 | `preference_certified.mixture_criterion_unsupported` | `route_not_supported` | Use an expectation criterion or another structural policy. |
+| `preference_decision.value_relations_need_certified_route` | `route_not_supported` | Decide on the certified route: the set holds value relations learned under shape parameters, which are not linear in the parameters. The route choice sends such a set there (`preference_route.value_relations`). |
+
+### Compiled decisions across studies and structures
+
+`preference_compile.*`, with the reused details `decision_evidence.dependence_unknown`, `decision_adapters.completion_count_not_probability` and `structure_posterior.class_prior_not_read`. Raised when a preference contract is compiled with the analysis that estimates its quantities (stage `bind` for a study's declarations, `compile` for the rest), before anything is fitted.
+
+| Detail | Code | What would support the request |
+| --- | --- | --- |
+| `preference_compile.studies_share_evidence` | `evidence_double_counted` | Declare the covariance between the two studies' estimates (`shared=`), or estimate the outcomes jointly in one design. The supplied text counts the shared observations (rows of one table) or the shared units of one unit-key namespace. |
+| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | Declare one finite, nonzero block of the right shape for each pair of studies that share observations, naming the studies in order. |
+| `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Key both studies of different tables in one unit-key namespace, or declare their cross-study covariance. Keys in different namespaces, or a key on one study only, say nothing about the units the two share. |
+| `preference_compile.unit_key_invalid` | `invalid_argument` | Name a unit-key column that identifies the units the rows observe, not the study's treatment or outcome. |
+| `preference_compile.atom_kind_not_compiled` | `route_not_supported` | Decide over a graph posterior whose atoms the single-graph compiler compiles for the bound query. |
+| `preference_compile.class_completions_truncated` | `route_not_supported` | Declare a uniform class prior with a sample (`ClassPrior.uniform(...).sample(...)`), raise the exact limit, orient edges or declare the structure. Without a sample, a class with more members than the exact limit (32 unless declared), or whose member search stopped at its budget, is not decided. |
+| `preference_compile.class_prior_keys_mismatch` | `invalid_argument` | Key the masses by the member fingerprints the compile reports, one per member with a positive total in every class, or declare a uniform measure. Ordered masses name no member. |
+| `preference_compile.class_prior_sampling_needs_uniform` | `invalid_argument` | Sample under a uniform measure; keyed masses need every member's key. |
+| `preference_compile.class_sampling_budget` | `route_not_supported` | Draw fewer members, orient edges or declare the structure. A computational limit, not a statistical one. |
+| `decision_adapters.completion_count_not_probability` | `decision_contract_unsatisfied` | Declare a class prior over the members of the CPDAG or PAG atoms, or choose another structural policy than `bayes_over_structures`. |
+| `structure_posterior.class_prior_not_read` | `option_not_applicable` | Compile a preference decision across the posterior's structures, which reads the class prior, or drop the prior for an ordinary estimate, which treats each class atom as a whole. |
+| `preference_compile.design_exposure_bounded` | `effect_not_identified` | Declare no interference, or decide over the bounded set with a robust decision. |
+| `preference_compile.design_not_supported` | `route_not_supported` | Use a static-regime, cluster-randomized, matched-pair or switchback design. |
+| `preference_compile.program_carries_decision` | `invalid_argument` | Compile the design again before attaching another decision. |
 
 ### Learning preferences from recorded choices
 
-`preference_set_learning.*`, `preference_choice_model.*`. `preference_set_learning.*` comes from learning the set compatible with recorded choices (stage `learn`), `preference_choice_model.*` from estimating parameters under the logit choice model (stage `estimate`). Records that contradict the declared set are an outcome of set learning, not a refusal: the outcome names the conflicting records and the smallest tolerance at which they become compatible.
+`preference_set_learning.*`, `preference_choice_model.*`. `preference_set_learning.*` comes from learning the set compatible with recorded choices (stage `learn`), `preference_choice_model.*` from estimating parameters under the logit choice model (stage `estimate`). Records that contradict the declared set are an outcome of set learning, not a refusal: the outcome names the conflicting records and the smallest tolerance at which they become compatible (under shape parameters, a tolerance that suffices). Under shape parameters, records whose compatibility is proven neither way within the box budget are likewise an outcome (`undetermined`); accepting one is refused (`accepted_preferences.set_undetermined`).
 
 | Detail | Code | What would support the request |
 | --- | --- | --- |
@@ -1219,6 +1243,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_set_learning.declared_set_empty` | `invalid_argument` | Widen the ranges or remove a relation. |
 | `preference_set_learning.relation_id_collision` | `invalid_argument` | Rename the declared relation or the record. |
 | `preference_set_learning.program_inconsistent` | `invalid_argument` | Tighten the linear-program tolerances. |
+| `preference_set_learning.region_budget_invalid` | `invalid_argument` | Supply a shape-box budget of at least one and a minimum width fraction in [0, 1]. |
 | `preference_choice_model.level_invalid` | `invalid_argument` | Supply a level in that range. |
 | `preference_choice_model.draws_missing` | `invalid_argument` | Request at least one draw. |
 | `preference_choice_model.fit_options_invalid` | `invalid_argument` | Supply finite, positive values. |
@@ -1234,6 +1259,10 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_choice_model.covariance_not_positive_definite` | `glm_fit_refused` | Record more choices or use the compatible-set method. |
 | `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method. |
 | `preference_choice_model.stated_and_recorded_mixed` | `route_not_supported` | Fit stated comparisons and recorded choices separately, or use the compatible-set method. |
+| `preference_choice_model.shape_not_identified` | `design_rank_deficient` | Fix the shape parameter, record choices that tell its values apart, or use the compatible-set method. Its profile log-likelihood varies by less than half the chi-square(1) quantile over the declared range. |
+| `preference_choice_model.shape_estimate_at_bound` | `uncertainty_representation_insufficient` | Widen the range if the bound is not a limit of the preference, or use the compatible-set method. The profile likelihood-ratio interval truncated at the bound is reported. |
+| `preference_choice_model.profile_multimodal` | `glm_fit_refused` | Narrow the declared range to one mode, or use the compatible-set method. |
+| `preference_choice_model.shape_search_budget` | `invalid_argument` | Fix some shape parameters to single values, or raise the search limit (`ShapeSearch(max_dimensions=...)`). |
 
 ### Accepted preferences and preference artifacts
 
@@ -1246,6 +1275,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `accepted_preferences.pooled_not_available` | `invalid_argument` | Name the decider whose preferences to accept. |
 | `accepted_preferences.decider_unknown` | `invalid_argument` | Name a decider the records hold. |
 | `accepted_preferences.choices_contradictory` | `decision_contract_unsatisfied` | Raise the tolerance to the stated value or remove one of the named records. |
+| `accepted_preferences.set_undetermined` | `decision_contract_unsatisfied` | Raise the box budget, lower the minimum width, or narrow the shape ranges: neither compatibility nor contradiction of the records was proven before the shape subdivision stopped. |
 | `accepted_preferences.acknowledge_empty` | `invalid_argument` | Name at least one pending item. |
 | `accepted_preferences.acknowledge_repeated` | `invalid_argument` | Name each item once. |
 | `accepted_preferences.not_pending` | `invalid_argument` | Name only pending items. |

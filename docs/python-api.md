@@ -31,6 +31,7 @@ python -m pdoc antecedent -o site/python
 | Interpret a result | <a href="../python/antecedent/results.html">results</a> |
 | Correct measurement | <a href="../python/antecedent/measurement_models.html">measurement_models</a> |
 | Track evidence overlap | <a href="../python/antecedent/evidence_ledger.html">evidence_ledger</a> |
+| Decide across trade-offs that are ranges | <a href="../python/antecedent/preferences.html">preferences</a>, <a href="../python/antecedent/preference_learning.html">preference_learning</a>, <a href="../python/antecedent.html#UnitKey">UnitKey</a>, <a href="../python/antecedent/inference.html#ClassPrior">ClassPrior</a> |
 | Ask a derivative or cross-world question over time | [TemporalQuery](causal-responses.md#ask-a-derivative-or-cross-world-question-over-time) |
 | Declare adaptive procedures | <a href="../python/antecedent/adaptive_inference.html">adaptive_inference</a> |
 | Bind a callback contract | <a href="../python/antecedent/provider_callbacks.html">provider_callbacks</a> |
@@ -161,8 +162,8 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `population` | Named predicates and custom target-distribution weights for analyze() | [python-options.md](python-options.md) |
 | `prediction` | Portable fitted CATE prediction, bound to an independently verified parent claim | [decisions.md](decisions.md) |
 | `predictive_assessment` | Assessment of predictive laws: proper scores, calibration diagnostics and held-out checks | [predictive-assessment.md](predictive-assessment.md) |
-| `preference_learning` | Optional: narrow trade-off ranges from recorded past decisions and stated comparisons, estimate trade-offs from choices read as noisy, and accept reviewed, versioned preferences | [preference-learning.md](preference-learning.md) |
-| `preferences` | Value models with trade-offs declared as ranges, fixed values, orderings and shapes, and decisions across every admissible trade-off | [preference-decisions.md](preference-decisions.md) |
+| `preference_learning` | Optional: narrow trade-off ranges from recorded past decisions and stated comparisons (shape parameters included, by subdivision), estimate trade-offs from choices read as noisy (shape parameters by profile likelihood), and accept reviewed, versioned preferences | [preference-learning.md](preference-learning.md) |
+| `preferences` | Value models with trade-offs declared as ranges, fixed values, orderings and shapes, and decisions across every admissible trade-off, compiled with the prepared studies that estimate them (shared evidence judged by source table or unit key, class members weighed by a declared class prior) | [preference-decisions.md](preference-decisions.md) |
 | `preflight` | Preflight diagnostics, rank-drop plans and cost counts | [guides/preflight-diagnostics.md](guides/preflight-diagnostics.md) |
 | `prepared` | Immutable prepared studies and the common exploration lifecycle | [guides/plan-view.md](guides/plan-view.md) |
 | `priors` | External prior bank: catalog metadata and compatibility filtering | [priors.md](priors.md) |

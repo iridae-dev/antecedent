@@ -9,8 +9,10 @@ review and accept before any decision reads it.
 
 Each recorded choice says that the option taken was valued at least as highly as the options
 rejected. Under the declared value model and the expectations recorded at the time, that is a
-linear inequality on the trade-off parameters. The compatible-set method intersects those
-inequalities with your declared set. The choice-model method reads the choices as noisy and
+linear inequality on the trade-off parameters, or, when the value has
+[shape parameters](#shape-parameters), an inequality in them that the methods handle by
+subdivision or by profiling. The compatible-set method intersects those inequalities with your
+declared set. The choice-model method reads the choices as noisy and
 estimates the parameters.
 
 ## A first narrowing
@@ -150,6 +152,7 @@ stated = pl.Record(
 | Kind of answer | a range over an assumption; no probability | an estimate; the measure is a normal approximation to its sampling distribution |
 | Contradictory choices | reported, with the tolerance needed | absorbed as noise |
 | Stated and recorded together | allowed | refused in one fit |
+| [Shape parameters](#shape-parameters) | learned by subdividing them; outer ranges and the kept boxes | profiled; profile likelihood-ratio intervals |
 | Python | `pl.CompatibleSet(tolerance=...)` | `pl.ChoiceModel(level=..., draws=..., seed=...)` |
 
 ### Compatible set
@@ -228,10 +231,92 @@ must differ in the part of the value that parameter multiplies.
 | Two parameters move together in every record | ranges reflect the joint constraint | refused (`preference_choice_model.rank_deficient`) |
 | Some trade-off values explain every choice with no error (separation) | ranges as computed | refused: the likelihood has no finite maximum (`preference_choice_model.separated`) |
 | A fixed parameter | folded into the fixed part; neither learned nor listed, and no review item | the same |
-| A shape parameter (inside a kink, `exp`, `ln` or a product of parameters) | refused (`choice_record.shape_parameters_not_fixed`) | the same |
+| A shape parameter (inside a kink, `exp`, `ln` or a product of parameters) | learned by subdivision; see [shape parameters](#shape-parameters) | profiled; see [shape parameters](#shape-parameters) |
+| A shape parameter the value differences within a record never read (it adds the same amount to every option) | keeps its declared range | left out of the fit and listed as not learnable; review item `parameter_not_learnable` |
 
-Shape parameters cannot be learned. Fix them to a single value, or keep them declared and
-decide on the [certified route](preference-decisions.md#certified-route).
+## Shape parameters
+
+A shape parameter is one the value is not linear in: a risk attitude inside `exp`, a breakpoint
+inside a kink, a parameter multiplied by another. A recorded choice under such a value is a
+*value relation*: the chosen option's value is at least the rejected option's, as a function of
+every parameter. Both methods learn from them.
+
+```python
+risk = pf.strength("risk", units="1/usd", lower=0.1, upper=3.0, assumption="panel")
+x = pf.attribute("x", units="usd")
+model = pf.ValueModel(-pf.exp(-(risk * x)), utility_units="u")
+
+# A sure 1 usd chosen over an even lottery on 0 and 3 usd.
+choice = pl.Record(
+    "r1", decider="panel",
+    options=(pl.Option("sure", draws={"x": [1.0]}),
+             pl.Option("lottery", draws={"x": [0.0, 3.0]}, weights=[0.5, 0.5])),
+    chosen="sure", source=pl.Forecast("forecast-r1"), observation_rows=("ledger:r1",),
+)
+records = pl.Records((choice,), "target", pl.Pooled("one_panel"))
+
+learned = require_success(pl.CompatibleSet().learn(model, records)).pooled
+learned.ranges[0].basis       # "enclosure": an outer range
+learned.ranges[0].learned     # about (0.481, 3.0): risk >= -ln((sqrt(5) - 1) / 2)
+learned.region.cells          # the kept boxes of risk, each "inside" or "boundary"
+```
+
+**Compatible set.** Only the shape parameters are subdivided. On each box of shape values the
+differences of expected value between the chosen and the rejected option are enclosed with
+outward-rounded interval arithmetic, which leaves a linear system in the remaining trade-offs
+with interval coefficients. A box is dropped when no shape value in it admits trade-offs that
+satisfy every record (the united solution set of Oettli and Prager, 1964, is empty), kept as
+`inside` when some trade-offs satisfy every record at every shape value of the box, and split
+otherwise. Splitting stops when every box is decided, when the box budget is spent
+(`CompatibleSet(max_boxes=...)`, 4,096 by default) or when every width is at most a fraction of
+its declared range (`min_width_fraction=`, `1e-4` by default).
+
+- A learned range is the hull of the kept boxes (for a linear trade-off, of each kept box's
+  outer linear-program range), so it holds every compatible value and possibly more:
+  `basis="enclosure"`, not `"linear_program"`. It is exact only up to the width of the boxes.
+- `LearnedSet.region` lists the kept boxes (`RegionCell`: the box, its status `inside` or
+  `boundary`, and the outer range of each linear trade-off over it), the boxes used and whether
+  the budget ran out.
+- The records conflict exactly when every box is dropped, a proof of emptiness. When no box is
+  proven `inside` before splitting stops, neither compatibility nor contradiction is proven and
+  the outcome is `pl.Undetermined`, with the undecided boxes in its `region`; a larger box budget,
+  a smaller minimum width or narrower shape ranges may settle it. Accepting it is refused
+  (`accepted_preferences.set_undetermined`).
+- The learned set keeps the records as value relations, and accepted preferences carry them
+  into a contract, which [decides on the certified route](preference-decisions.md#two-routes-and-what-each-guarantees).
+
+**Choice model.** The likelihood is profiled over the shape parameters: at each shape value the
+conditional logit is fitted in the consistency and the linear trade-offs, and the shape values
+are searched from the centre of the declared box and the first points of a Sobol sequence
+(Sobol, 1967, with the direction numbers of Joe and Kuo, 2008), then refined locally. Each shape
+parameter gets a profile likelihood-ratio interval (Venzon and Moolgavkar, 1988) at the
+requested level, with its ends found by bisection on the profile and truncated at the declared
+bounds, and
+`interval_method="profile_likelihood"`; the other trade-offs keep normal-approximation
+intervals (`"wald"`). `ChoiceEstimate.shape_parameters` names the profiled parameters, and
+`ChoiceModel(shape_search=pl.ShapeSearch(...))` sets the grid size, the number of shape
+parameters searched (3 by default), the profile grid and the refinement limit.
+
+```python
+# noisy_records: several hundred recorded choices between pairs of sure amounts
+fit = require_success(pl.ChoiceModel(draws=300, seed=3).learn(model, noisy_records))
+fit.pooled.shape_parameters                 # ("risk",)
+fit.pooled.parameters[0].interval_method    # "profile_likelihood"
+fit.pooled.interval_calibration             # "not_measured"
+```
+
+A shape estimate is refused rather than reported when it would mislead:
+
+| Situation | Refusal |
+| --- | --- |
+| The profile log-likelihood varies by less than half the chi-square(1) quantile over the declared range: the choices barely inform the shape | `preference_choice_model.shape_not_identified` |
+| The estimate lies on a declared bound, where the normal approximation fails | `preference_choice_model.shape_estimate_at_bound` |
+| The profile has two separated maxima near the overall maximum, so the likelihood-ratio set is not an interval | `preference_choice_model.profile_multimodal` |
+| More shape parameters than the search covers | `preference_choice_model.shape_search_budget` |
+| The choices are separated at some shape value | `preference_choice_model.separated` |
+
+Fix a shape parameter to one value, record choices that tell its values apart, narrow its range
+to one mode, or use the compatible-set method, which needs no noise model.
 
 ## Contradictions and the tolerance they need
 
@@ -242,9 +327,15 @@ set found by the deletion filter of Chinneck and Dravnieks (1991). An irreducibl
 be smallest. The conflict also reports `tolerance_needed`: the smallest tolerance, in utility
 units, at which every record becomes compatible.
 
+Under shape parameters a conflict is a proof by subdivision that no shape value admits
+trade-offs compatible with the records. Its kind is `not_minimised` when it could not be proven
+that a smaller group of those records is compatible, and its `tolerance_needed` is a tolerance
+at which the records hold together at the best shape value examined: enough, but possibly more
+than the smallest.
+
 ```python
 conflict = learned.pooled                  # a pl.Conflict
-conflict.records, conflict.kind            # the records, "smallest" or "irreducible"
+conflict.records, conflict.kind            # the records, "smallest", "irreducible" or "not_minimised"
 conflict.tolerance_needed                  # in utility units
 pl.CompatibleSet(tolerance=conflict.tolerance_needed).learn(model, records)
 ```
@@ -336,7 +427,10 @@ outputs need not agree to the last bit across platforms.
   included. If the forecasts were wrong or the deciders were mistaken, the learned set says so
   only through contradictions.
 - It does not say what the trade-offs should be.
-- Shape parameters cannot be learned; only fixed or declared.
+- Under shape parameters the compatible set is an outer enclosure, exact only up to the width
+  of its boxes, and within the box budget neither compatibility nor contradiction may be
+  provable (`Undetermined`). The choice model's shape intervals are profile likelihood-ratio
+  intervals, `not_measured` until a coverage record of their construction exists.
 - Motives the value model does not contain are not detected unless they push a choice beyond
   the declared tolerance. Within it, an unrecorded motive is indistinguishable from the
   declared trade-offs.
@@ -353,10 +447,15 @@ The full tables are in
 | `choice_record.realized_assumption_blank` | `invalid_argument` | Name the assumption that realized outcomes stand for expectations |
 | `choice_record.observation_row_double_counted` | `evidence_double_counted` | Keep each evidence row in one record |
 | `choice_record.belief_law_required` | `decision_contract_unsatisfied` | Record the expectation as draws |
-| `choice_record.shape_parameters_not_fixed` | `route_not_supported` | Fix the shape parameters, or decide on the certified route |
 | `preference_choice_model.unit_of_account_missing` | `design_rank_deficient` | Record choices whose options differ in the fixed part |
 | `preference_choice_model.rank_deficient` | `design_rank_deficient` | Record choices that vary the named parameters separately, or fix one |
 | `preference_choice_model.separated` | `glm_fit_refused` | Use the compatible-set method |
+| `preference_choice_model.shape_not_identified` | `design_rank_deficient` | Fix the shape parameter, record choices that tell its values apart, or use the compatible-set method |
+| `preference_choice_model.shape_estimate_at_bound` | `uncertainty_representation_insufficient` | Widen the range if the bound is not a limit of the preference, or use the compatible-set method |
+| `preference_choice_model.profile_multimodal` | `glm_fit_refused` | Narrow the declared range to one mode, or use the compatible-set method |
+| `preference_choice_model.shape_search_budget` | `invalid_argument` | Fix some shape parameters to single values, or raise `ShapeSearch(max_dimensions=...)` |
+| `preference_set_learning.region_budget_invalid` | `invalid_argument` | Give `max_boxes` of at least one and `min_width_fraction` in [0, 1] |
+| `accepted_preferences.set_undetermined` | `decision_contract_unsatisfied` | Raise the box budget, lower the minimum width, or narrow the shape ranges |
 | `preference_choice_model.stated_and_recorded_mixed` | `route_not_supported` | Fit them separately, or use the compatible-set method |
 | `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method |
 | `accepted_preferences.choices_contradictory` | `decision_contract_unsatisfied` | Raise the tolerance to the stated value or remove a named record |
@@ -366,9 +465,9 @@ The full tables are in
 
 | Language | Entry |
 | --- | --- |
-| Python | `antecedent.preference_learning`: `Option`, `Forecast`, `AnalysisAsOf`, `Realized`, `Stated`, `Record`, `Records`, `PerDecider`, `Pooled`, `CompatibleSet(...).learn` and `.accept`, `ChoiceModel(...).learn` and `.accept`, `AcceptedPreferences`, `ReviewItem`, `load` |
+| Python | `antecedent.preference_learning`: `Option`, `Forecast`, `AnalysisAsOf`, `Realized`, `Stated`, `Record`, `Records`, `PerDecider`, `Pooled`, `CompatibleSet(...).learn` and `.accept`, `ChoiceModel(...).learn` and `.accept`, `ShapeSearch`, `Region`, `RegionCell`, `Undetermined`, `AcceptedPreferences`, `ReviewItem`, `load` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `analysis_options`, `analysis_belief_source`, `decide_accepted`, `export_accepted`, `consume_accepted` |
-| Rust, methods | `antecedent_design::choice_record` (`ChoiceRecordSet`, `choice_features`), `preference_set_learning::learn_compatible_set`, `preference_choice_model::estimate_choice_model`, `accepted_preferences::AcceptedPreferences` |
+| Rust, methods | `antecedent_design::choice_record` (`ChoiceRecordSet`, `choice_features`, `choice_features_at`), `preference_set_learning::learn_compatible_set` (`LearnedRegion`, `UndeterminedSet`), `preference_choice_model::estimate_choice_model`, `accepted_preferences::AcceptedPreferences`, `preference_model::ValueRelation`; `antecedent_stats::fit_nonlinear_conditional_logit` |
 
 ## Sources
 
@@ -382,8 +481,15 @@ doi:10.1287/ijoc.3.2.157. McFadden, D. (1974), conditional logit analysis of qua
 behavior, in *Frontiers in Econometrics*. Liang, K.-Y. and Zeger, S. L. (1986), longitudinal
 data analysis using generalized linear models, doi:10.1093/biomet/73.1.13. van der Vaart, A. W.
 (1998), *Asymptotic Statistics*, doi:10.1017/CBO9780511802256. Krinsky, I. and Robb, A. L.
-(1986), on approximating the statistical properties of elasticities, doi:10.2307/1924536. The
-deviations from each are recorded in the method provenance a result carries; see
+(1986), on approximating the statistical properties of elasticities, doi:10.2307/1924536.
+Venzon, D. J. and Moolgavkar, S. H. (1988), a method for computing profile-likelihood-based
+confidence intervals, doi:10.2307/2347496. Sobol, I. M. (1967), on the distribution of points
+in a cube and the approximate evaluation of integrals, doi:10.1016/0041-5553(67)90144-9. Joe,
+S. and Kuo, F. Y. (2008), constructing Sobol sequences with better two-dimensional projections,
+doi:10.1137/070709359. Moore, R. E., Kearfott, R. B. and Cloud, M. J. (2009), *Introduction to
+Interval Analysis*, doi:10.1137/1.9780898717716. Oettli, W. and Prager, W. (1964), compatibility
+of approximate solution of linear equations with given error bounds for coefficients and
+right-hand sides, doi:10.1007/BF01386090. The deviations from each are recorded in the method provenance a result carries; see
 [citing a study](guides/citing-a-study.md).
 
 ## Where next

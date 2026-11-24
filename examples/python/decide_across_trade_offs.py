@@ -202,6 +202,32 @@ regret = {a.id: a.worst_case_regret for a in declared.actions}
 assert np.allclose([regret["none"], regret["ten"], regret["twenty"]], [1_800, 600, 1_200])
 
 # %% [markdown]
+# A kinked charge (an extra cost for every return above 100 per store-week) is not affine in the
+# outcomes, so it needs one law of orders and returns. Both studies were prepared from the same
+# table: each kept only its own columns, but both name that table and its rows, so they are not
+# distinct evidence and the compile refuses to join them as if they were.
+
+# %%
+overflow_cost = pf.strength(
+    "overflow_cost", units="usd/return", lower=0.0, upper=40.0, assumption="ops.overflow_band"
+)
+kinked = pf.ValueModel(
+    margin * orders
+    - return_cost * returns
+    - overflow_cost * pf.excess(returns, 100.0)
+    - discount_cost,
+    utility_units="usd",
+)
+try:
+    require_success(contract_for(kinked).compile(studies, draws=2000, seed=7))
+except pf.PreferenceRefusal as refusal:
+    print("refused:", refusal.detail)
+    assert refusal.reason_code == "evidence_double_counted"
+    assert refusal.detail == "preference_compile.studies_share_evidence"
+else:
+    raise AssertionError("two studies of one table must not be joined as distinct evidence")
+
+# %% [markdown]
 # ## Read the thresholds
 #
 # Each pair's margin depends on `return_cost` alone, so each switch reports the value at which

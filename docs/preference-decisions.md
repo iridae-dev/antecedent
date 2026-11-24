@@ -18,7 +18,9 @@ For a worked story from simulated data to a threshold, see
 ## A first decision
 
 Two actions are compared on benefit (in quality-adjusted life years) and harm (adverse events),
-both supplied by the source. How much benefit one adverse event costs is stated as a range.
+both estimated by the analysis you prepared. How much benefit one adverse event costs is stated
+as a range. The contract is compiled with that analysis, its plan is inspected, then it is
+executed.
 
 ```python
 from antecedent import preferences as pf
@@ -36,17 +38,21 @@ actions = (
     pf.Action("wait", inputs={"benefit": wait_benefit, "harm": wait_harm}),
 )
 contract = pf.Contract(model=model, actions=actions, target_population="target")
-decided = require_success(contract.evaluate(source))
+compiled = require_success(contract.compile([benefit_study, harm_study]))
+compiled.inspect()   # the quantities, the source needed, the plans: nothing is fitted yet
+decided = require_success(compiled.execute())
 decided.kind         # "necessarily_best", "never_beaten", "preference_dependent", ...
 decided.selected     # the chosen action, or None
 decided.statement    # the verdict in plain words
 ```
 
 `treat_benefit`, `treat_harm`, `wait_benefit` and `wait_harm` are `ScientificQuantity`
-coordinates, and `source` supplies them: aligned joint draws (a `JointDistributionArtifact`), a
-mean source, or a supported analysis result. A plain number in `inputs` is an input known
-without uncertainty, stated in the attribute's units. Every attribute of the model gets exactly
-one input.
+coordinates of the mean responses `benefit_study` and `harm_study` estimate (studies prepared
+with `antecedent.prepare` and a `ResponseCurve` query). A plain number in `inputs` is an input
+known without uncertainty, stated in the attribute's units. Every attribute of the model gets
+exactly one input. [Compile with the analysis](#compile-with-the-analysis) says what the compile
+checks and what the plan shows; [evaluate on a source in hand](#evaluate-on-a-source-in-hand) is
+the lower layer it calls.
 
 If the treatment raises benefit by 1 and harm by 0.5 relative to waiting, the margin of `treat`
 over `wait` is `1 − 0.5 × harm_weight`. Over 0.5 to 4 the verdict is `preference_dependent`,
@@ -63,6 +69,61 @@ What this answer is and is not:
 - A probability over trade-offs exists only when you supply one (a [measure](#supply-your-own-weighted-viewpoints))
   or when the optional [statistical learner](preference-learning.md#two-methods) estimates one.
   Its shares and intervals are a different kind of object from the ranges.
+
+## Compile with the analysis
+
+`Contract.compile(source)` binds the contract to the analysis that estimates its quantities and
+lowers the decision into that analysis's own compiled plan. `source` is one prepared study, a
+sequence of prepared studies (one outcome each), or a compiled design of several outcomes
+(`joint_panel.prepare_native_joint_design`). Nothing is fitted until `execute()`.
+
+At compile:
+
+- every quantity an action reads must be a coordinate the analysis targets: its outcome, a
+  regime on its dose grid, the contract's population, the horizon, the mean on the identity
+  scale, in the outcome's units. A quantity that names anything else is refused at bind time,
+  naming the action and the attribute;
+- the contract's requirement fixes the source it needs: the means when the value is affine in
+  the outcomes and the criterion is an expectation, aligned joint draws otherwise. The plan
+  demands the matching carrier of its statistical program, and a realization that cannot supply
+  it (a frequentist study asked for draws) is refused;
+- identification is checked under every structure the study carries. A graph posterior's
+  structures are compiled one by one: DAG and ADMG atoms as studies of their own structure,
+  CPDAG and PAG atoms member by member, weighed by a declared class prior when one is given
+  (see [weigh the members of an equivalence class](#weigh-the-members-of-an-equivalence-class)).
+  Mass under which the quantities are not identified is reported, never renormalized, and a
+  quantity no structure identifies is refused (`effect_not_identified`);
+- separately estimated studies are checked for shared observations (see
+  [which studies share evidence](#which-studies-share-evidence)), and a value that needs one
+  law of their outcomes gets its propagation chain compiled here: the chain rule checks its
+  inputs, dependence and joint outputs, the chain's program is lowered with its family table
+  deferred, and the table's work budget and declared covariance blocks are checked before
+  anything is fitted.
+
+`compiled.inspect()` returns what the compile states. Each plan in `compiled.plans` carries the
+decision in its evidence layer: `evidence.decision.preference` lists every quantity (canonical
+identity, schema variable, regime, units, population, horizon, functional, scale), the
+representation the route reads and the ones the contract accepts, the trade-off parameters with
+their declared ranges, the bound contract identity and, for separately estimated outcomes, the
+joint law the propagation chain will produce: its inputs with their row factors and how their
+overlap was judged, the dependence, the declared blocks and `program`, the identity of the
+chain's compiled program. Another range or another chain is another decision, so another plan
+identity.
+
+`compiled.execute(measure=None, execution=None)` runs each plan once and returns the same
+`PreferenceDecision` as `evaluate`. When a chain was compiled, execution fits each study, binds
+its posterior moments to the chain's deferred family table and runs the compiled program; the
+receipt names that program's identity. The decision's `source` is the aligned law it read, when
+it read one, so the decision exports and replays as one evaluated on draws.
+
+### Evaluate on a source in hand
+
+`Contract.evaluate(source)` is the lower layer the compiled route calls. It reads a source you
+already hold: aligned joint draws (a `JointDistributionArtifact`), a `MeanSource`, a bound
+external claim, `pf.Structures`, the arm means of one experiment, or a propagation chain with
+joint outputs. Use it when the numbers come from outside a compiled analysis; it checks the
+coordinates and the representation but cannot check identification, the carrier or the overlap
+of the evidence behind the source.
 
 ## Declare a value model
 
@@ -326,31 +387,74 @@ any other policy the shares are reported beside the verdict.
 
 ## Several estimated outcomes
 
-A value model usually reads several outcomes, so the source must supply all of them for every
+A value model usually reads several outcomes, so the analysis must supply all of them for every
 action. What it must supply depends on the route: the exact route reads only the expectation of
-each part of the value, and the certified route reads aligned joint draws.
+each part of the value, and the certified route reads one aligned joint law.
 
-| Where the outcomes come from | What reaches the decision | What it answers |
+| Where the outcomes come from | How to compile | What it answers |
 | --- | --- | --- |
-| One experiment that measured several outcomes on every unit | Its arm means, as one mean source (`experiment_mean_source`, with `experiment_arm_quantity` naming each coordinate) | Expectation trade-offs only: a value affine in the outcomes, on the exact route. A kinked term, a probability limit or a quantile is refused by the mean-source rule. Arm means are read only when the exposure is declared free of between-unit interference. |
-| Outcomes fitted separately | One aligned joint law, built by a [propagation chain](scientific-bridges.md) that joins the fits under a dependence you declare (`chain_joint_law`) | Everything the certified route answers, kinked terms and probability limits included. The law is unverified and its calibration not measured. |
-| Several laws whose rows are realizations of one joint law | Their columns side by side (`joint_law_of`) | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
-| One study with several outcomes, wanting a joint law | Not yet available | Kinked terms and probability limits on such a study are refused. |
+| Separate studies, one outcome each | `contract.compile([study_a, study_b])` | Means side by side for an affine expectation. A value that needs a joint law needs a declared dependence: `draws=` (and `seed=`) under distinct evidence, so the propagation chain draws one aligned law from a family table matched to each study's posterior moments. The chain is declared, checked and compiled at compile with its family table deferred: the plan states its inputs, dependence, joint outputs and program identity, the table's work budget is checked before fitting, and execution binds each study's posterior moments to the table. |
+| Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. The declared block, rows of the first study's coordinates by columns of the second's, is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
+| One static-regime design of several outcomes | `contract.compile(design, refits=99)` | Its arm means, or with `refits=` its aligned whole-subject bootstrap refits as one law of every outcome under both arms. |
+| One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)` | Its arm means, under an exposure declared free of interference. These designs retain a conservative design-based covariance of their arm means, not an aligned law, so a value that needs a joint law is refused at compile naming the design. |
+| Laws you already hold whose rows pair | `contract.evaluate(pf.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
 
-These adapters are in Rust (`antecedent::analysis::preference_decision`). From Python today,
-`Contract.evaluate` reads one source: a `JointDistributionArtifact` of aligned draws, a
-`MeanSource`, a bound external claim, `pf.Structures`, or one supported analysis result, read as
-its mean source. An analysis result supplies one outcome, so a contract over several outcomes
-cannot be evaluated directly on it. The experiment and chain adapters above are not exposed to
-Python. You can build a `MeanSource` or a `JointDistributionArtifact` over several outcomes
-yourself; it is then labelled as yours (externally attested or unverified), and the
-[tutorial](tutorials/decide-across-trade-offs.md) does this with randomized arm means. A
-`ChainJointLaw` from `PropagationChain.joint_output_law` is not itself an artifact that
-`evaluate` accepts.
+The compiled design carries the decision in its own program's evidence layer, so its plan view
+shows the decision and the design executes the decision-bearing program. The studies of a
+graph posterior cannot be combined with other studies in one compile.
+
+### Which studies share evidence
+
+Before it joins separately estimated outcomes, the compile judges which studies observe the
+same units. Two studies that do are not distinct evidence: their estimates are correlated, and
+a law that treated them as independent would understate the spread of every margin.
+
+- **Studies of one table share its rows.** `antecedent.prepare` keeps only the columns an
+  analysis reads, but a prepared static `ResponseCurve` names the whole table it was given by
+  its content, whether or not columns were dropped, and its rows keep their positions in that
+  table. Two studies of different outcomes in one table, or a study of every column and a study
+  of a few, therefore share every row. A table with any other value is another table.
+- **Studies of different tables are compared through a unit key.** Declare the column that
+  identifies the unit each row observes, and the identifier space it belongs to:
+
+  ```python
+  key = ant.UnitKey("patient", namespace="hospital_mrn")
+  benefit_study = ant.prepare(trial_a, graph=..., query=..., unit_key=key)
+  harm_study = ant.prepare(registry_b, graph=..., query=..., unit_key=key)
+  ```
+
+  Two studies keyed in the same namespace share exactly the units both observe, each unit
+  counted once; rows excluded from the analysis are not units the study observes. The column is
+  read from the data as supplied, so it need not be an analysis variable, and identifiers keep
+  their type (the text `"1"` and the integer `1` are different units). A key applies to a static
+  `ResponseCurve` on one table and is refused elsewhere (`option_not_applicable`).
+- **Keys that cannot be compared leave the overlap unknown.** Keys in different namespaces, or
+  a key on one study and none on a study of another table, say nothing about which units the
+  two share, so the compile refuses with `evidence_overlap_unknown`. Key both studies in one
+  namespace, or declare their cross-study covariance with `shared=`.
+- **Unkeyed studies of different tables are read as distinct evidence.** A subset of a table
+  passed to `prepare` is a table of its own. If two tables may hold the same units, declare a
+  unit key: without one, the compile has nothing to compare.
+
+A refusal for shared evidence says how many observations (`200 shared observations`) or units
+(`100 shared units in namespace hospital_mrn`) the pair shares, and only those pairs need a
+declared block. In Rust, the same declarations are `StudyBuilder::unit_key(UnitKey::column(id,
+namespace))` (or `UnitKey::labels`) and `StudyBuilder::row_provenance(RowProvenance::of_table(&source))`
+for a projection of `source`; `RowProvenance::new(table, Some(rows))` names the rows a study
+selected, so studies of disjoint rows of one table are distinct and studies of overlapping rows
+share them. A Rust study built without these declarations is judged by its own table's content
+alone. A key column that is the study's treatment or outcome is refused
+(`preference_compile.unit_key_invalid`).
 
 ## Decide across uncertain causal structures
 
-When the causal structure is uncertain, pass the admissible structures in place of the source:
+When a study carries a graph posterior, `contract.compile(study)` compiles each of its
+structures and decides across them under the contract's `structural_policy`; see
+[compile with the analysis](#compile-with-the-analysis). The members of a CPDAG or PAG atom are
+read as graph-dependent claims unless you declare a measure over them; see
+[weigh the members of an equivalence class](#weigh-the-members-of-an-equivalence-class).
+
+On structures you already hold, pass them to `evaluate` in place of the source:
 
 ```python
 structures = pf.Structures("weighted_graph_posterior", claims)
@@ -382,6 +486,83 @@ is unresolved. An action excluded by a hard constraint in any evaluated structur
 everywhere. These rules are those of [structural uncertainty](decisions.md#structural-uncertainty)
 in a decision contract; see also [graph uncertainty](graph_uncertainty.md).
 
+### Weigh the members of an equivalence class
+
+A CPDAG or PAG atom of a graph posterior stands for every member of its equivalence class. The
+compile evaluates each member as its own structure. Without a declared measure over the members
+they are graph-dependent claims: `"maximin"`, `"require_invariant_best_action"` and
+`"report_only"` read them, and `"bayes_over_structures"` is refused at compile
+(`decision_adapters.completion_count_not_probability`), because a count of members is not a
+probability.
+
+Every member of a Markov equivalence class fits the data equally well, so no amount of data
+says how likely one member is relative to another. A measure over members is a declaration you
+make, never an estimate. Declare it with `class_prior=` beside the posterior:
+
+```python
+from antecedent.inference import ClassPrior
+
+study = ant.prepare(
+    table,
+    discovery=posterior,                       # a GraphPosterior of CPDAG or PAG atoms
+    query=ant.ResponseCurve("t", "y", grid=[0.5, 1.5]),
+    inference=ant.Bayesian(backend="conjugate"),
+    class_prior=ClassPrior.uniform("assumption.uniform_within_class"),
+)
+compiled = require_success(contract.compile(study))
+```
+
+A member's probability is then its atom's posterior weight times its mass within the class,
+and every structural policy reads it, `"bayes_over_structures"` included. Two measures are
+available:
+
+- **Uniform** (`ClassPrior.uniform(assumption)`): equal mass on every member, under the named
+  assumption. For a PAG, uniform is over the maximal ancestral graphs it represents, not over
+  DAGs with latent variables.
+- **Keyed** (`ClassPrior.from_pairs([(fingerprint, mass), ...])`): masses keyed by the member
+  fingerprints the compile reports (`compiled.inspect()["structures"][i]["fingerprint"]`),
+  normalized within each class. A graph that is a member of two class atoms has one
+  fingerprint and is keyed once. A missing or unknown fingerprint, masses that sum to zero over
+  a class, or ordered masses, which name no member, are refused
+  (`preference_compile.class_prior_keys_mismatch`).
+
+A class with at most 32 members (or the limit you declare with `.exact_limit(n)`) is enumerated
+exactly. A larger class, or one whose member search stops at its budget, is refused
+(`preference_compile.class_completions_truncated`) unless a uniform measure declares a sample:
+
+```python
+prior = ClassPrior.uniform("assumption.uniform_within_class").sample(400, seed=9)
+```
+
+`sample(members, seed=...)` draws that many members of each class above the limit, uniformly
+and with replacement. A CPDAG's members are drawn exactly uniformly by clique-picking from an
+exact count of the class (Wienöbst, Bannach and Liśkiewicz, 2021). A PAG's are drawn by setting
+each circle mark to a tail or an arrowhead at random and keeping the draws that are members,
+within a search budget, so the draws are exactly uniform over its members; its class size is
+exact only when its enumeration completed, and otherwise a lower bound (the members enumerated
+before the search stopped, or the distinct members drawn, whichever is larger). Only a uniform measure is sampled, since keyed masses need every
+member's key (`preference_compile.class_prior_sampling_needs_uniform`), and a draw the budget
+cannot complete is refused (`preference_compile.class_sampling_budget`). `compiled.class_sampling`
+and `decided.sampling` state each draw: the scheme, the class size and whether it is exact, the
+members drawn, the distinct members and the seed.
+
+A sample never gives a verdict over every member, so a sampled decision is never
+`necessarily_best`:
+
+| `structural_policy` | Verdict on sampled classes | What comes with it |
+| --- | --- | --- |
+| `"bayes_over_structures"` | `best_on_sampled_measure` or `undetermined_on_sampled_measure`: the verdict on the sampled measure, a Monte Carlo estimate of the declared one | `decided.margins`: each pairwise expected-value margin at each vertex of the admissible trade-offs, with its Monte Carlo standard error (exact route) |
+| `"maximin"`, `"require_invariant_best_action"` | `best_on_every_sampled_member` or `per_sampled_member`: each sampled member's own verdict, with no combined verdict | per sampled class, a one-sided 95% Clopper–Pearson upper bound on the declared mass where another action is best (about `3/m` of the class mass when none of `m` draws disagree), in the structural verdict's `other_best` |
+
+For every sampled class, `decided.sampled_masses` gives the identified, unidentified and
+unevaluated mass, each as an estimate with an exact 95% Clopper–Pearson interval (Clopper and
+Pearson, 1934), scaled by the class mass. Unidentified and unevaluated mass is reported, never
+renormalized.
+
+The class prior is read only by a decision compiled across the posterior's structures. An
+ordinary estimate of the same prepared study treats each class atom as a whole and refuses the
+prior rather than ignore it (`structure_posterior.class_prior_not_read`).
+
 ## Two routes and what each guarantees
 
 Antecedent picks the route from the contract. `decided.route` is `exact` or `certified`, and
@@ -389,13 +570,21 @@ Antecedent picks the route from the contract. `decided.route` is `exact` or `cer
 
 | | Exact route | Certified route |
 | --- | --- | --- |
-| Used when | the value is affine in the trade-off parameters and the criterion is expected utility, expected loss or expected regret | any other supported value or criterion |
+| Used when | the value is affine in the trade-off parameters, the criterion is expected utility, expected loss or expected regret, and the preference set holds no value relations | any other supported value or criterion, and any set with value relations |
 | Method | linear programs over the admissible set | interval subdivision of the declared box |
 | Source | means (when every part is affine in the attributes) or aligned joint draws | aligned joint draws only |
 | Undecided share | none | reported when the budget runs out |
 
 `evaluate` takes `tie_tolerance=`, `vertex_cap=`, `max_boxes=` and `min_width_fraction=` to
 tune the routes.
+
+Preferences [learned from recorded choices](preference-learning.md#shape-parameters) under a
+value with shape parameters hold *value relations*: each says that a chosen option's value was
+at least a rejected option's, at the trade-off point. They are not linear in the parameters, so
+a set that holds them is decided on the certified route (`route_reason` is
+`preference_route.value_relations`), which places every box against every value relation as it
+places boxes against linear relations. The exact route refuses such a set
+(`preference_decision.value_relations_need_certified_route`).
 
 ### Exact route
 
@@ -480,6 +669,22 @@ full tables are in
 | `preference_decision.structure_probabilities_required` | `decision_contract_unsatisfied` | Bayes over structures without probabilities | Supply one per structure or choose another structural policy |
 | `preference_certified.minimax_regret_needs_expectation` | `route_not_supported` | Minimax regret with a non-expectation criterion | Use an expectation criterion or another policy |
 | `preference_certified.logarithm_domain` | `invalid_argument` | A logarithm's argument can reach zero inside the box | Narrow the ranges or change the value |
+| `native_claims.response_not_point_identified` | `effect_not_identified` | At compile, no structure the study carries identifies a quantity | Declare a structure or design under which it is identified |
+| `preference_decision.value_relations_need_certified_route` | `route_not_supported` | The exact route was asked to decide a set learned under shape parameters, which holds value relations | Decide on the certified route, which the route choice does by itself |
+| `preference_compile.studies_share_evidence` | `evidence_double_counted` | Compiled studies share observations (rows of one table, or units of one key namespace) and no cross-study covariance is declared; the refusal names how many | Declare it with `shared=`, or estimate the outcomes jointly in one design |
+| `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Studies of different tables whose overlap cannot be judged: unit keys in different namespaces, or a key on one study only | Key both studies in one namespace, or declare their covariance with `shared=` |
+| `preference_compile.unit_key_invalid` | `invalid_argument` | A study's unit key column is its treatment or its outcome | Name a column that identifies the units the rows observe |
+| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | A declared block has the wrong shape, a zero or non-finite term, or names studies that share nothing | Declare one finite, nonzero block per overlapping pair |
+| `preference_compile.design_law_not_aligned` | `joint_law_required` | A cluster or experiment design asked for a joint law | Decide with an affine value and an expectation, which its arm means answer |
+| `preference_compile.design_exposure_bounded` | `effect_not_identified` | The design's exposure declares bias bounds | Declare no interference, or decide over the bounded set robustly |
+| `preference_compile.design_not_supported` | `route_not_supported` | The compiled design has no arm coordinates the decision reads | Use a static-regime, cluster-randomized, matched-pair or switchback design |
+| `preference_compile.atom_kind_not_compiled` | `route_not_supported` | Lagged temporal graph-posterior atoms, or a structure the single-graph route does not support | Decide over a posterior whose atoms the single-graph compiler compiles |
+| `preference_compile.class_completions_truncated` | `route_not_supported` | An equivalence-class atom has more members than the exact limit (32 unless declared), or its member search hit its budget, and no uniform class prior declares a sample | Declare `ClassPrior.uniform(...).sample(...)`, raise the limit, orient edges or declare the structure |
+| `preference_compile.class_prior_keys_mismatch` | `invalid_argument` | A keyed class prior misses a member fingerprint, names one that is no member, sums to zero over a class, or gives ordered masses | Key the masses by the fingerprints the compile reports, or declare a uniform measure |
+| `preference_compile.class_prior_sampling_needs_uniform` | `invalid_argument` | A keyed or ordered class prior declares a sample | Sample under a uniform measure, or key every member and raise the exact limit |
+| `preference_compile.class_sampling_budget` | `route_not_supported` | The declared draws of a class do not fit the search budget (a PAG whose draws are rarely members, or a count beyond its bound) | Draw fewer members, orient edges or declare the structure |
+| `decision_adapters.completion_count_not_probability` | `decision_contract_unsatisfied` | `bayes_over_structures` over CPDAG or PAG members with no class prior declared | Declare a class prior, use another structural policy, or supply genuine structure probabilities |
+| `structure_posterior.class_prior_not_read` | `option_not_applicable` | An ordinary estimate of a graph posterior of CPDAG or PAG atoms was given a class prior, which only a compiled decision reads | Compile the decision, or drop the class prior for this estimate |
 
 ## What stays out of reach
 
@@ -487,8 +692,19 @@ full tables are in
 - Linked pairs of structure and trade-off. Every admissible structure is paired with every
   admissible trade-off.
 - A certified answer from means. The certified route reads aligned joint draws.
-- A joint law from one study with several outcomes, so kinked terms and probability limits on
-  such a study.
+- A joint law of a cluster-randomized design or a matched-pair or switchback experiment. Their
+  arm covariance is a conservative design-based estimate, and the covariance of the potential
+  outcomes across arms that a law would need is not identified by randomization; they answer
+  affine expectations from their arm means.
+- Graph posteriors with lagged temporal atoms in the compiled route: the decision binds a static
+  mean response curve of tabular data, and lagged atoms need a temporal query on temporal data.
+- A graph posterior among several separately fitted studies in one compile.
+- A measure over the members of an equivalence class learned from data. The data cannot tell
+  the members apart, so the measure is always your declaration.
+- A verdict over every member of a sampled class. A sample supports a Monte Carlo estimate on
+  the sampled measure, or each sampled member's verdict with a bound on the mass that disagrees.
+- The overlap of studies of different tables without a unit key in one namespace. Unkeyed, they
+  are read as distinct evidence; keyed in different namespaces, the overlap is unknown.
 - Hard constraints that depend on trade-offs, and penalties in place of constraints.
 - Unbounded ranges. Every parameter needs finite ends.
 - The worst case over trade-offs of expected regret on the exact route; it is referred to the
@@ -499,7 +715,8 @@ full tables are in
 
 | Language | Entry |
 | --- | --- |
-| Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `Measure`, `Structures`, `Contract(...).evaluate(...)`, `PreferenceDecision`, `replay` |
+| Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `Measure`, `Structures`, `Contract(...).compile(...)` with `CompiledDecision.inspect()`, `.class_sampling` and `.execute()`, `Contract(...).evaluate(...)`, `PreferenceDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
+| Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`; `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
 
@@ -514,7 +731,10 @@ Hokkanen, J. and Salminen, P. (1998), SMAA, doi:10.1016/S0377-2217(97)00163-X. M
 Kearfott, R. B. and Cloud, M. J. (2009), *Introduction to Interval Analysis*,
 doi:10.1137/1.9780898717716. Bland, R. G. (1977), new finite pivoting rules for the simplex
 method, doi:10.1287/moor.2.2.103. Lawson, C. L. and Hanson, R. J., *Solving Least Squares
-Problems*, doi:10.1137/1.9781611971217. Each result names these through its method
+Problems*, doi:10.1137/1.9781611971217. Wienöbst, M., Bannach, M. and Liśkiewicz, M. (2021),
+polynomial-time algorithms for counting and sampling Markov equivalent DAGs, AAAI 35. Clopper,
+C. J. and Pearson, E. S. (1934), the use of confidence or fiducial limits illustrated in the
+case of the binomial, doi:10.1093/biomet/26.4.404. Each result names these through its method
 provenance, with the documented deviations; see [citing a study](guides/citing-a-study.md).
 
 ## Where next

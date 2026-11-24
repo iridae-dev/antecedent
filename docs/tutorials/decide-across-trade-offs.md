@@ -38,13 +38,29 @@ value = 20 × orders − return_cost × returns − discount_cost
 
 ## Estimate the two outcomes
 
-Assignment was randomized, so the mean of each arm estimates the mean outcome under that
-discount. The noise in each arm is the same set of equally spaced normal quantiles, so each arm
-mean equals its true mean: 1,000, 1,150 and 1,300 orders, and 50, 80 and 110 returns. A real
+Assignment was randomized, so with the graph `discount -> orders` and `discount -> returns` the
+mean response of each outcome to the discount is identified. One prepared study per outcome
+estimates its mean response curve at the three discount levels. The noise in each arm is the same
+set of equally spaced normal quantiles, so each arm mean equals its true mean: 1,000, 1,150 and
+1,300 orders, and 50, 80 and 110 returns, and the estimated curves pass through them. A real
 experiment would not be this tidy.
 
-Each estimate is declared as a coordinate (outcome, units, population, the discount put in
-place, and the functional `mean`), and the six arm means become one mean source:
+```python
+def prepared_study(outcome):
+    return ant.prepare(
+        table,
+        graph=[("discount", outcome)],
+        query=ant.ResponseCurve("discount", outcome, grid=[0.0, 10.0, 20.0]),
+        inference=ant.Bayesian(backend="conjugate", n_draws=256, prior_scale=1_000_000.0),
+        refute="none",
+    )
+
+studies = [prepared_study("orders"), prepared_study("returns")]
+```
+
+Each quantity a decision reads is declared as a coordinate: the outcome, its units, the
+population, the discount put in place, and the functional `mean`. The study targets exactly these
+coordinates, one per level of its grid:
 
 ```python
 def coordinate(outcome, units, action):
@@ -53,20 +69,7 @@ def coordinate(outcome, units, action):
         population_id="stores", regime_id=f"do(discount={LEVELS[action]:g})",
         horizon=0, functional_id="mean",
     )
-
-source = MeanSource(
-    coordinates=tuple(coordinates),
-    means=tuple(means),
-    provider_id="example.arm_means",
-    snapshot_id="discount-experiment-1",
-    causal_contract_id="randomized_by_store_week",
-)
 ```
-
-A mean source you build yourself is labelled externally attested, not native: the decision
-keeps that label. The Python surface does not yet join two separate analysis results into one
-source; see [several estimated outcomes](../preference-decisions.md#several-estimated-outcomes)
-for what each surface supports.
 
 ## Declare the value model
 
@@ -109,12 +112,49 @@ def contract_for(preferences, policy=None):
         policy=policy or pf.Policy.invariant_best(),
     )
 
-declared = require_success(contract_for(model).evaluate(source))
+compiled = require_success(contract_for(model).compile(studies))
+plan = compiled.inspect()
+plan["demand"]["representation"]     # "mean"
+plan["plans"][0]["evidence"]["decision"]["preference"]["quantities"]
+declared = require_success(compiled.execute())
 ```
 
 The discount cost is a fixed input: it is known, so it is a number in the attribute's units
 rather than a quantity. The value is affine and the criterion is expected utility (the default),
-so the decision takes the exact route and reads only the means.
+so the decision takes the exact route and reads only the means: the plan says so before anything
+is fitted, and each study's plan carries the decision's quantities and the declared range of
+`return_cost`. A quantity the studies do not target (another population, another discount level)
+is refused when the contract is bound. `execute` fits each study once.
+
+The same contract evaluated on means you already hold, with `contract_for(model).evaluate(source)`
+for a `MeanSource` of the six arm means, is the lower layer the compiled route calls; it gives the
+same verdict here.
+
+A value with a kinked charge, say an extra cost for every return above 100 per store-week, is
+not affine in the outcomes, so it needs one law of orders and returns, not their means. The
+compile would join the two studies through a propagation chain, compiled before anything is
+fitted. But both studies were prepared from the same table: each kept only its own columns, and
+both still name that table and its 600 store-weeks. They are not distinct evidence, so the
+compile refuses to join them as if they were:
+
+```python
+overflow_cost = pf.strength(
+    "overflow_cost", units="usd/return", lower=0.0, upper=40.0, assumption="ops.overflow_band"
+)
+kinked = pf.ValueModel(
+    margin * orders - return_cost * returns - overflow_cost * pf.excess(returns, 100.0)
+    - discount_cost,
+    utility_units="usd",
+)
+try:
+    require_success(contract_for(kinked).compile(studies, draws=2000, seed=7))
+except pf.PreferenceRefusal as refusal:
+    refusal.reason_code     # "evidence_double_counted": 600 shared observations
+```
+
+Declaring the covariance between the two studies' estimates (`shared=`), or estimating both
+outcomes in one design, answers it; see
+[which studies share evidence](../preference-decisions.md#which-studies-share-evidence).
 
 ## The decision depends on the range
 
@@ -219,7 +259,7 @@ summer), or a conflict.
 Decide again with the accepted preferences in place of the model:
 
 ```python
-narrowed = require_success(contract_for(accepted).evaluate(source))
+narrowed = require_success(require_success(contract_for(accepted).compile(studies)).execute())
 narrowed.kind        # "necessarily_best"
 narrowed.selected    # "ten"
 ```
@@ -250,7 +290,7 @@ under that range the 10% discount is best.
   planning team's forecasts, with any bias in either.
 - A probability that the cost of a return lies anywhere. Both ranges are declared or learned
   assumptions.
-- The sampling uncertainty of the arm means. The ranges are over the trade-off only; the
+- The sampling uncertainty of the estimated means. The ranges are over the trade-off only; the
   randomized design and the simulated effects are properties of the fixture.
 
 ## Where to go next
