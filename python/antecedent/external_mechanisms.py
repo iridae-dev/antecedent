@@ -30,7 +30,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypedDict, Unpack
 
-from . import _native
+from . import _deprecation, _native
 from .errors import CausalValueError
 
 __all__ = [
@@ -422,10 +422,38 @@ class ExternalFeedbackModel:
         resolver: Any,
         **policy: Unpack[_FeedbackFitPolicy],
     ) -> dict[str, Any]:
-        """Fit declared scalars from known-regime rows. Needs the resolver, like replay."""
+        """Fit declared scalars from known-regime rows. Needs the resolver, like replay.
+
+        Deprecated: :meth:`compiled_fit` runs the same fit through the compiled
+        ``ExternalFeedbackFit`` program and returns it under ``"fit"``.
+        """
+        _deprecation.direct_path_deprecated(
+            "antecedent.external_mechanisms.ExternalFeedbackModel.fit",
+            "antecedent.external_mechanisms.ExternalFeedbackModel.compiled_fit(...)['fit']",
+        )
         spec = self.fit_spec(parameters, rows, **policy)
         request = {"system": self._system(), **spec}
         return json.loads(_native.external_fit(_dumps(request), _resolver(resolver)))
+
+    def compiled_fit(
+        self,
+        parameters: Sequence[Mapping[str, Any]],
+        rows: Sequence[Mapping[str, Any]],
+        *,
+        resolver: Any,
+        **policy: Unpack[_FeedbackFitPolicy],
+    ) -> dict[str, Any]:
+        """Fit declared scalars from known-regime rows through the compiled program.
+
+        The request (see :meth:`fit_spec`) is bound into the ``ExternalFeedbackFit`` program
+        family and fitted with the caller's trusted resolver, which never enters the program
+        identity. Returns ``{"fit": ..., "lowered_program_identity": ..., "route":
+        "ExternalFeedbackFit", "claim": "model_conditional_point"}``; ``"fit"`` is the fitted
+        system with its log-likelihood, iterations, score norm, convergence and trust record.
+        """
+        spec = self.fit_spec(parameters, rows, **policy)
+        request = {"system": self._system(), **spec}
+        return json.loads(_native.external_compiled_fit(_dumps(request), _resolver(resolver)))
 
     def execute(
         self,

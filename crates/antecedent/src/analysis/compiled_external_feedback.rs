@@ -1,0 +1,233 @@
+//! Compiled likelihood fit of a feedback system with registered external mechanisms.
+//!
+//! [`Study::compile_external_feedback_fit`] binds an external-capable feedback system (its
+//! built-in equations and the recorded identity of each registered mechanism: implementation
+//! id, version, content digest, dependencies and declarations), the scalars to fit, the
+//! known-regime rows and the bounded gradient-ascent policy into a lowered program: the
+//! system, targets and policy are the program's question, the rows its source.
+//! [`CompiledExternalFeedbackFit::execute`] fits through
+//! `antecedent_estimate::external_cyclic_fit::fit_external_feedback`, the kernel the direct
+//! entry is, under the caller's execution context. Like replay, fitting runs a mechanism only
+//! after the caller's trusted resolver has supplied an implementation that the kernel verifies
+//! against the record; the resolver is a trust declaration of the execution, not part of the
+//! question, so it is passed to `execute` and never enters the program identity.
+//!
+//! The fit is model-conditional (graph, covariance and mechanism family are assumptions) and
+//! local: convergence is not a global optimum, and no uncertainty is formed.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_contract::ClaimKind;
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
+use antecedent_estimate::external_cyclic_fit::{
+    ExternalFeedbackFit, ExternalFitPolicy, fit_external_feedback,
+};
+use antecedent_model::external_mechanism::{
+    ExternalFeedbackSystem, ExternalFitParameter, TrustedMechanismResolver,
+};
+use antecedent_model::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
+
+use super::compiled_point_program::PointProgram;
+use super::program_handle::{CompiledProgramHandle, gate_program};
+use crate::analysis::execute::Study;
+use crate::error::CausalError;
+use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
+use crate::planner::{PlanStage, PlanView};
+
+const PLAN_ID: &str = "external_feedback_fit.v1";
+const EVALUATOR: &str = "antecedent_estimate::external_cyclic_fit::fit_external_feedback";
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then.
+const GATE_ON_UNIT_SUPPORT: bool = false;
+
+/// The system, fitted scalars, known-regime rows and policy of one external feedback fit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExternalFeedbackFitRequest {
+    system: ExternalFeedbackSystem,
+    parameters: Vec<ExternalFitParameter>,
+    rows: Vec<RegimeRow>,
+    policy: ExternalFitPolicy,
+}
+
+impl ExternalFeedbackFitRequest {
+    /// Declare the template system, the scalars to fit, the rows and the policy (the arguments
+    /// `fit_external_feedback` takes besides the resolver).
+    #[must_use]
+    pub fn new(
+        system: ExternalFeedbackSystem,
+        parameters: Vec<ExternalFitParameter>,
+        rows: Vec<RegimeRow>,
+        policy: ExternalFitPolicy,
+    ) -> Self {
+        Self { system, parameters, rows, policy }
+    }
+
+    /// The template system.
+    #[must_use]
+    pub const fn system(&self) -> &ExternalFeedbackSystem {
+        &self.system
+    }
+}
+
+/// Failure to compile or execute an external feedback fit.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ExternalFeedbackFitError {
+    /// The kernel refused or failed: invalid policy or rows, a missing, unavailable, changed or
+    /// failing resolver, a mechanism callback failure, a non-finite score, or cancellation.
+    #[error(transparent)]
+    Model(#[from] EquilibriumError),
+    /// The program could not be lowered, or the support gate refused it.
+    #[error(transparent)]
+    Compile(#[from] CausalError),
+}
+
+/// An external feedback fit request bound to its lowered program.
+#[derive(Clone, Debug)]
+pub struct CompiledExternalFeedbackFit {
+    request: ExternalFeedbackFitRequest,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// The fit the bound request produced, bound to the program that produced it.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ExternalFeedbackFitRun {
+    /// The fitted system and its termination record, as the kernel returned them.
+    pub fit: ExternalFeedbackFit,
+    /// Identity of the lowered program.
+    pub lowered_program_identity: SemanticDigest,
+    /// Always `model_conditional_point`: no uncertainty is formed.
+    pub claim: &'static str,
+}
+
+fn question_digest(request: &ExternalFeedbackFitRequest) -> Result<[u8; 32], CausalError> {
+    let encode = |what: &str, value: Result<Vec<u8>, serde_json::Error>| {
+        value.map_err(|error| CausalError::Compile {
+            message: format!("{PLAN_ID}: the {what} cannot be encoded: {error}"),
+        })
+    };
+    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.question.v1");
+    writer.bytes(&encode("system", serde_json::to_vec(&request.system))?);
+    writer.bytes(&encode("fitted parameters", serde_json::to_vec(&request.parameters))?);
+    let policy = request.policy;
+    writer
+        .real(policy.learning_rate)
+        .real(policy.score_tolerance)
+        .word(policy.max_iterations as u64)
+        .real(policy.difference_step);
+    Ok(writer.finish())
+}
+
+fn source_digest(rows: &[RegimeRow]) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.rows.v1");
+    writer.word(rows.len() as u64);
+    for row in rows {
+        writer.reals(&row.values).word(row.clamps.len() as u64);
+        for clamp in &row.clamps {
+            writer.word(clamp.variable as u64).real(clamp.value);
+        }
+    }
+    writer.finish()
+}
+
+fn lower(request: &ExternalFeedbackFitRequest) -> Result<Arc<LoweredProgram>, CausalError> {
+    let question = question_digest(request)?;
+    let source = source_digest(&request.rows);
+    let rows = request.rows.len() as u64;
+    let columns = request.system.equations.len() as u64;
+    PointProgram {
+        cell: ProgramCell::ExternalFeedbackFit,
+        plan_id: PLAN_ID,
+        kind: FunctionalKind::InterventionalDistribution,
+        outcome: None,
+        graph_class: "specified_feedback_system_with_registered_external_mechanisms",
+        query_variables: Arc::from([]),
+        question,
+        source,
+        source_role: EvidenceRole::Observations,
+        evaluator: EVALUATOR,
+        supplied: vec![("registered_external_mechanism", None)],
+        rows,
+        columns,
+        input_bytes: rows.saturating_mul(columns).saturating_mul(8),
+        claim: ClaimKind::Point,
+    }
+    .lower()
+}
+
+impl Study {
+    /// Bind an external feedback fit request into a compiled program.
+    ///
+    /// # Errors
+    ///
+    /// A system or parameter list that cannot be encoded, or a physical operator that cannot
+    /// be declared.
+    pub fn compile_external_feedback_fit(
+        request: ExternalFeedbackFitRequest,
+    ) -> Result<CompiledExternalFeedbackFit, ExternalFeedbackFitError> {
+        let lowered = lower(&request)?;
+        Ok(CompiledExternalFeedbackFit { request, lowered })
+    }
+}
+
+impl CompiledProgramHandle for CompiledExternalFeedbackFit {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl CompiledExternalFeedbackFit {
+    /// Inspect all six compiler layers.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Inspect the plan, including the support decision of its unit, without evaluating.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// The bound request.
+    #[must_use]
+    pub const fn request(&self) -> &ExternalFeedbackFitRequest {
+        &self.request
+    }
+
+    /// Fit the declared scalars with the caller's trusted resolver.
+    ///
+    /// # Errors
+    ///
+    /// [`ExternalFeedbackFitError::Model`] for every refusal of the kernel, including fitting
+    /// without a resolver (`mechanism_resolver_missing`) and cancellation;
+    /// [`ExternalFeedbackFitError::Compile`] for the support gate once it is on.
+    pub fn execute(
+        &self,
+        resolver: Option<&dyn TrustedMechanismResolver>,
+        ctx: &ExecutionContext,
+    ) -> Result<ExternalFeedbackFitRun, ExternalFeedbackFitError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self).map_err(CausalError::from)?;
+        }
+        let request = &self.request;
+        let fit = fit_external_feedback(
+            &request.system,
+            resolver,
+            &request.parameters,
+            &request.rows,
+            request.policy,
+            &scoped,
+        )?;
+        Ok(ExternalFeedbackFitRun {
+            fit,
+            lowered_program_identity: self.lowered.identity(),
+            claim: "model_conditional_point",
+        })
+    }
+}
