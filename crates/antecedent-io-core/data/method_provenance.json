@@ -8993,7 +8993,7 @@
     "Each allocated record retains its original DGP, seed protocol, sample-size grid, scored counts, role and decision semantics. No unweighted record is borrowed by a weighted population and no normal record is borrowed by a Student or population-linear Gaussian construction.",
     "Point-route records retain ownership of input validation, declared target populations and their typed refusals. Cancellation is observed by those upstream executions; the endpoint selector itself is constant-work arithmetic on an existing estimate."
    ],
-   "digest": "7ee6b387cce590befadcd82e0ffc828673c7cc91072f2f6b125b8ad76edb8a35",
+   "digest": "2780a9050209c43a8c39b3b86c4f7a15ee7de2a39410a06ed67541764d3b4bc3",
    "id": "estimate.uncertainty",
    "review": "none",
    "scope_limits": [],

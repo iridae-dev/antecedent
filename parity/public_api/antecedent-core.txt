@@ -7620,10 +7620,12 @@ pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_EMP
 pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED: &str
 pub const antecedent_core::reason_details::accepted_preferences::CHOICES_CONTRADICTORY: &str
 pub const antecedent_core::reason_details::accepted_preferences::DECIDER_UNKNOWN: &str
+pub const antecedent_core::reason_details::accepted_preferences::DECLARATION_NOT_KEPT: &str
 pub const antecedent_core::reason_details::accepted_preferences::MODEL_MISMATCH: &str
 pub const antecedent_core::reason_details::accepted_preferences::NOT_PENDING: &str
 pub const antecedent_core::reason_details::accepted_preferences::OPTIONS_MISMATCH: &str
 pub const antecedent_core::reason_details::accepted_preferences::POOLED_NOT_AVAILABLE: &str
+pub const antecedent_core::reason_details::accepted_preferences::RECORDS_MISMATCH: &str
 pub const antecedent_core::reason_details::accepted_preferences::SET_UNDETERMINED: &str
 pub const antecedent_core::reason_details::accepted_preferences::VERSION_EXHAUSTED: &str
 pub const antecedent_core::reason_details::accepted_preferences::VERSION_INVALID: &str
@@ -9475,8 +9477,10 @@ pub const antecedent_core::reason_details::preference_choice_model::SHAPE_ESTIMA
 pub const antecedent_core::reason_details::preference_choice_model::SHAPE_NOT_IDENTIFIED: &str
 pub const antecedent_core::reason_details::preference_choice_model::SHAPE_SEARCH_BUDGET: &str
 pub const antecedent_core::reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED: &str
+pub const antecedent_core::reason_details::preference_choice_model::TOO_FEW_DECIDERS_TO_CLUSTER: &str
 pub const antecedent_core::reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING: &str
 pub const antecedent_core::reason_details::preference_compile::ATOM_KIND_NOT_COMPILED: &str
+pub const antecedent_core::reason_details::preference_compile::CANCELLED: &str
 pub const antecedent_core::reason_details::preference_compile::CLASS_COMPLETIONS_TRUNCATED: &str
 pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_KEYS_MISMATCH: &str
 pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: &str
@@ -9486,9 +9490,12 @@ pub const antecedent_core::reason_details::preference_compile::DESIGN_EXPOSURE_B
 pub const antecedent_core::reason_details::preference_compile::DESIGN_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_SAMPLING_UNDECLARED: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_UNITS_TOO_FEW: &str
+pub const antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH: &str
 pub const antecedent_core::reason_details::preference_compile::PROGRAM_CARRIES_DECISION: &str
+pub const antecedent_core::reason_details::preference_compile::SAMPLED_MIXTURE_NOT_EXACT: &str
 pub const antecedent_core::reason_details::preference_compile::STUDIES_SHARE_EVIDENCE: &str
 pub const antecedent_core::reason_details::preference_compile::UNIT_KEY_INVALID: &str
+pub const antecedent_core::reason_details::preference_compile::UNIT_LABEL_TYPES_DIFFER: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_DUPLICATE: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_ID_BLANK: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_WITHOUT_QUANTITY: &str

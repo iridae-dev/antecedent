@@ -23682,7 +23682,7 @@ wire_changes = ["None in this record; the durable form of a decision is preferen
 compatibility = "Additive. Ordinary decision contracts, their evaluation and their artifacts are unchanged; a value model without parameters gives the ordinary verdict."
 search = false
 bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext", vertex_cap = 100000, max_structure_choices = 4096, max_pivots = 100000 }
-shared_refusal_namespaces = [{ namespace = "preference_model", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_model.rs"] }, { namespace = "preference_contract", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_contract.rs"] }, { namespace = "preference_evaluation", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_evaluation.rs"] }, { namespace = "preference_compile", owner_record = "preference_decision.exact", sources = ["crates/antecedent/src/analysis/execute/compile_preference/atoms.rs", "crates/antecedent/src/analysis/execute/compile_preference/bind.rs", "crates/antecedent/src/analysis/execute/compile_preference/design.rs", "crates/antecedent/src/analysis/execute/compile_preference/evidence.rs"] }]
+shared_refusal_namespaces = [{ namespace = "preference_model", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_model.rs"] }, { namespace = "preference_contract", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_contract.rs"] }, { namespace = "preference_evaluation", owner_record = "preference_decision.exact", sources = ["crates/antecedent-design/src/preference_route_choice.rs"] }, { namespace = "preference_compile", owner_record = "preference_decision.exact", sources = ["crates/antecedent/src/analysis/execute/compile_preference.rs", "crates/antecedent/src/analysis/execute/compile_preference/atoms.rs", "crates/antecedent/src/analysis/execute/compile_preference/bind.rs", "crates/antecedent/src/analysis/execute/compile_preference/design.rs", "crates/antecedent/src/analysis/execute/compile_preference/evidence.rs", "crates/antecedent/src/analysis/preference_decision.rs", "python/src/preferences_api.rs"] }]
 refusals = [
   { detail = "preference_decision.cancelled" },
   { detail = "preference_decision.coefficient_non_finite", remedy = "Check the source draws and the domain of the value." },
@@ -23775,7 +23775,7 @@ refusals = [
   { detail = "preference_evaluation.joint_draws_required", remedy = "Supply aligned joint draws so the certified route can answer." },
   { detail = "preference_compile.atom_kind_not_compiled", remedy = "Decide over a graph posterior whose atoms the single-graph compiler compiles for the bound query." },
   { detail = "preference_compile.class_completions_truncated", remedy = "Declare a uniform class prior that draws a sample, raise the exact limit, orient edges with background knowledge or an intervention, or declare the structure." },
-  { detail = "preference_compile.cross_study_covariance_invalid", remedy = "Declare one finite, nonzero covariance block per pair of studies that share observations." },
+  { detail = "preference_compile.cross_study_covariance_invalid", remedy = "Declare one finite covariance block, not all zero, per pair of studies that share observations." },
   { detail = "preference_compile.design_exposure_bounded", remedy = "Declare no interference, or decide over the bounded set with a robust decision." },
   { detail = "preference_compile.design_sampling_undeclared", remedy = "Declare the premise that the design's independent units were sampled independently from a larger population, with at least 99 refits, or decide with an affine value and an expectation, which the arm means answer." },
   { detail = "preference_compile.design_units_too_few", remedy = "Use a design with at least 30 clusters in each arm, 30 matched pairs or 30 switchback sequences, or decide on the arm means." },
@@ -23786,6 +23786,10 @@ refusals = [
   { detail = "preference_compile.class_prior_sampling_needs_uniform", remedy = "Sample under a uniform class measure, or key every member and raise the exact limit." },
   { detail = "preference_compile.class_sampling_budget", remedy = "Draw fewer members, orient edges or declare the structure." },
   { detail = "preference_compile.unit_key_invalid", remedy = "Name a unit-key column that identifies the units the rows observe, not the study's treatment or outcome." },
+  { detail = "preference_compile.unit_label_types_differ", remedy = "Key both studies of one identifier space by unit labels of one type." },
+  { detail = "preference_compile.executed_program_mismatch", remedy = "Execute the compiled decision's own prepared studies." },
+  { detail = "preference_compile.sampled_mixture_not_exact", remedy = "Read a mixture of sampled class members under the report-only policy, or enumerate the class." },
+  { detail = "preference_compile.cancelled", remedy = "Run again without cancellation; the stop is not a verdict." },
   { detail = "preference_decision.value_relations_need_certified_route", remedy = "Decide on the certified route, which the route choice selects for a set with value relations." },
   { detail = "preference_model.value_relation_rows_invalid", remedy = "Give both options of a value relation finite rows, one value per model attribute, and non-negative weights with a positive sum." },
   { detail = "preference_model.value_relation_tolerance_invalid", remedy = "Supply a finite, non-negative tolerance." },
@@ -24243,6 +24247,7 @@ refusals = [
   { detail = "preference_choice_model.model_invalid" },
   { detail = "preference_choice_model.no_draw_inside_set", remedy = "Draw more, record more choices, or use the compatible-set method." },
   { detail = "preference_choice_model.not_converged", remedy = "Raise the fit's iteration limit, or use the compatible-set method." },
+  { detail = "preference_choice_model.too_few_deciders_to_cluster", remedy = "Record choices from at least 2q + 1 decision-makers for q coefficients, or fit one decision-maker's records." },
   { detail = "preference_choice_model.nothing_identified", remedy = "Record choices whose options differ in the terms of the value." },
   { detail = "preference_choice_model.rank_deficient", remedy = "Unit_of_account." },
   { detail = "preference_choice_model.separated", remedy = "Use the compatible-set method (learn_compatible_set)." },
@@ -24400,6 +24405,8 @@ refusals = [
   { detail = "accepted_preferences.set_undetermined", remedy = "Raise the box budget, lower the minimum width, or narrow the shape ranges." },
   { detail = "accepted_preferences.decider_unknown", remedy = "Name a decider the records hold." },
   { detail = "accepted_preferences.model_mismatch", remedy = "Accept the learned preferences under the model they were learned from." },
+  { detail = "accepted_preferences.declaration_not_kept", remedy = "Accept a learned set that keeps every declared parameter, range and relation." },
+  { detail = "accepted_preferences.records_mismatch", remedy = "Supply the records the set or estimate was learned from." },
   { detail = "accepted_preferences.not_pending", remedy = "Name only review items that are pending." },
   { detail = "accepted_preferences.options_mismatch", remedy = "Accept the learned preferences with the options they were learned with." },
   { detail = "accepted_preferences.pooled_not_available", remedy = "Name the decider whose preferences to accept." },
@@ -24423,6 +24430,7 @@ refusals = [
   { detail = "preference_choice_model.model_invalid" },
   { detail = "preference_choice_model.no_draw_inside_set", remedy = "Draw more, record more choices, or use the compatible-set method." },
   { detail = "preference_choice_model.not_converged", remedy = "Raise the fit's iteration limit, or use the compatible-set method." },
+  { detail = "preference_choice_model.too_few_deciders_to_cluster", remedy = "Record choices from at least 2q + 1 decision-makers for q coefficients, or fit one decision-maker's records." },
   { detail = "preference_choice_model.nothing_identified", remedy = "Record choices whose options differ in the terms of the value." },
   { detail = "preference_choice_model.rank_deficient", remedy = "Unit_of_account." },
   { detail = "preference_choice_model.separated", remedy = "Use the compatible-set method (learn_compatible_set)." },

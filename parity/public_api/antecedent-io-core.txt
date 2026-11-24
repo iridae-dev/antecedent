@@ -18689,6 +18689,7 @@ pub variant antecedent_io_core::StructuralWeightBasisWire::CallerSuppliedClassPr
 pub variant antecedent_io_core::StructuralWeightBasisWire::CompletionEnumeration
 pub variant antecedent_io_core::StructuralWeightBasisWire::PosteriorProbability
 pub variant antecedent_io_core::StructuralWeightBasisWire::PosteriorWithDeclaredClassPrior
+pub variant antecedent_io_core::StructuralWeightBasisWire::SampledClassMeasure
 pub variant antecedent_io_core::SupportStatusWire::Extrapolative
 pub variant antecedent_io_core::SupportStatusWire::MissingEvidence
 pub variant antecedent_io_core::SupportStatusWire::OutsideEmpiricalSupport

@@ -18124,6 +18124,26 @@ test = "python/tests/test_preferences.py::test_compile_across_several_studies"
 assertion_scopes = ["test_compile_across_several_studies"]
 dimensions = ["success", "refusal"]
 assertion_contract = "Two studies meet by their means for an affine value; a kinked value refuses without a declared dependence, joins through a declared four-input chain under distinct evidence, and refuses with preference_compile.studies_share_evidence for two outcomes of one table."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_refuses_an_argument_its_source_does_not_read"
+assertion_scopes = ["test_compile_refuses_an_argument_its_source_does_not_read"]
+dimensions = ["refusal"]
+assertion_contract = "draws, shared, refits, sampling and seed on one study, refits, sampling and seed on several studies, and draws, shared and seed on a design are refused with option_not_applicable."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_shared_evidence_reads_a_block_of_rows_by_columns"
+assertion_scopes = ["test_shared_evidence_reads_a_block_of_rows_by_columns"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A 2-by-2 shared block is stored row-major as rows of the first study's coordinates by columns of the second's, a NumPy block keyed (1, 0) is read as its transpose, and a wrong shape, a flat sequence or a key naming a missing study is refused."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_the_execution_seed_seeds_the_chain_draws_and_the_refits"
+assertion_scopes = ["test_the_execution_seed_seeds_the_chain_draws_and_the_refits"]
+dimensions = ["success"]
+assertion_contract = "Without seed=, the chain draws take the execution's seed (5, 6, or the default Execution seed) and the design refits take it (4); an explicit seed= wins over the execution's."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_cancelled_compile_or_execution_is_a_preference_refusal"
+assertion_scopes = ["test_a_cancelled_compile_or_execution_is_a_preference_refusal"]
+dimensions = ["refusal"]
+assertion_contract = "A cancelled compile, a cancelled execution and a cancelled design compile are each a PreferenceRefusal with preference_compile.cancelled (cancelled_no_claim for the study route)."
 
 [[capability]]
 id = "preferences.compiled_evidence_overlap"
@@ -18132,7 +18152,7 @@ legacy_internal = ["antecedent::analysis::preference_decision::compile_preferenc
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Judge which separately prepared studies share evidence before joining their outcomes: studies of one table share its rows whether or not columns were dropped, and studies of different tables are compared by a declared unit key in one namespace."
-python = "antecedent._row_evidence.UnitKey"
+python = "antecedent.UnitKey"
 required_dimensions = ["success", "refusal"]
 supports = ["capability:preference_decision.exact"]
 [[capability.evidence]]
@@ -18155,6 +18175,11 @@ test = "python/tests/test_preferences.py::test_a_unit_key_is_checked_where_it_is
 assertion_scopes = ["test_a_unit_key_is_checked_where_it_is_declared"]
 dimensions = ["refusal"]
 assertion_contract = "A blank namespace, an unknown key column and a missing identifier are refused at declaration or prepare, and a unit key on a query that does not read it refuses with option_not_applicable."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_column_no_analysis_reads_never_fails_preparation"
+assertion_scopes = ["test_a_column_no_analysis_reads_never_fails_preparation"]
+dimensions = ["success"]
+assertion_contract = "A table holding a two-value-per-row column no analysis reads still prepares, and two outcomes of it are refused as sharing evidence (evidence_double_counted)."
 
 [[capability]]
 id = "preferences.class_member_measure"
@@ -18223,6 +18248,16 @@ test = "python/tests/test_preferences.py::test_export_and_replay_recompute_the_d
 assertion_scopes = ["test_export_and_replay_recompute_the_decision"]
 dimensions = ["artifact", "refusal"]
 assertion_contract = "The replayed decision has the stored kind, contract identity and switch margins, and a replay that does not match is refused."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_replay_keeps_the_stored_evaluation_options"
+assertion_scopes = ["test_replay_keeps_the_stored_evaluation_options"]
+dimensions = ["artifact"]
+assertion_contract = "A certified decision evaluated with tie_tolerance 1e-3 and max_boxes 64 replays to the stored kind and undecided fraction, re-exports to the same bytes, and differs from the export under default options."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_compiled_decision_on_draws_exports_and_replays"
+assertion_scopes = ["test_a_compiled_decision_on_draws_exports_and_replays"]
+dimensions = ["artifact"]
+assertion_contract = "A compiled kinked decision executed on a Bayesian study exports and replays on its joint draws to the same kind, choice and value ranges; a decision answered from means refuses export with decision_evaluation.mean_source_not_replayable."
 
 [[capability]]
 id = "preference_learning.compatible_set"
