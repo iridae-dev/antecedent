@@ -47,10 +47,11 @@ use antecedent_core::{
 };
 use antecedent_discovery::adjacency_mask::{admg_from_adjacency_mask, dag_from_adjacency_mask};
 use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind};
+use antecedent_graph::completion::mag_to_admg;
 use antecedent_graph::{
     Admg, CompletionSampler, CpdagCompletionSampler, CyclicMixedGraph,
     DEFAULT_COMPLETION_OPERATIONS, Dag, DenseNodeId, MarkedEdge, TemporalAdmg, TemporalDag,
-    TemporalPag, mag_to_admg,
+    TemporalPag,
 };
 use antecedent_identify::TemporalCompletionGraph;
 use antecedent_identify::cyclic_id::{CyclicIdPremises, CyclicIdStatus, identify_cyclic};
