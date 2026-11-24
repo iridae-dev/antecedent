@@ -32,9 +32,9 @@
 use std::sync::Arc;
 
 use antecedent_contract::{ExternalRefusal, QuantityRole, ScientificQuantity};
-use antecedent_core::ExecutionContext;
 use antecedent_core::SemanticDigest;
 use antecedent_core::reason_details::preference_compile;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::preference_contract::PreferenceContract;
@@ -66,6 +66,13 @@ use crate::analysis::native_claims::NativeDecisionSource;
 use crate::planner::PlanView;
 use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceDesignLawFact};
 use crate::planner::statistical::Realization;
+
+/// Domain of the digest naming a refit law's resampling recipe.
+const RESAMPLING_TAG: &str = "antecedent.preference_route.design_resampling.v1";
+/// Kind of the whole-subject refits of a static-regime design.
+const STATIC_REGIME_BOOTSTRAP: &str = "static_regime_bootstrap";
+/// Kind of the independent-unit bootstrap of a randomized design.
+const INDEPENDENT_UNIT_BOOTSTRAP: &str = "independent_unit_bootstrap";
 
 /// The refits a compiled design draws when the decision needs a joint law of its outcomes:
 /// aligned whole-subject refits of a static-regime design, or the independent-unit bootstrap
@@ -139,7 +146,7 @@ impl DesignSource {
                 NativeDecisionSource::Mean(self.arm_means(law.means.clone(), &dependency)?)
             }
             (JointNativeDesignLaw::StaticRegimeBootstrap(refits), _) => {
-                let rng_id = format!("{:?}", self.inference);
+                let rng_id = self.resampling_id(None)?;
                 NativeDecisionSource::JointLaw(Box::new(self.refit_law(
                     (&refits.realizations, &refits.failures),
                     rng_id,
@@ -147,15 +154,7 @@ impl DesignSource {
                 )?))
             }
             (JointNativeDesignLaw::IndependentUnitBootstrap(refits), _) => {
-                let JointDesignInference::IndependentUnitBootstrap { replicates, seed, .. } =
-                    &self.inference
-                else {
-                    return Err(law_refusal("the design returned another law".to_owned()));
-                };
-                let rng_id = format!(
-                    "independent_unit_bootstrap:{}:replicates={replicates}:seed={seed}",
-                    refits.unit.name()
-                );
+                let rng_id = self.resampling_id(Some(refits.unit))?;
                 NativeDecisionSource::JointLaw(Box::new(self.refit_law(
                     (&refits.realizations, &refits.failures),
                     rng_id,
@@ -165,6 +164,35 @@ impl DesignSource {
             _ => return Err(law_refusal("the design returned another law".to_owned())),
         };
         Ok((source, vec![compiled], vec![ran]))
+    }
+
+    /// The resampling recipe a refit law names as its `rng_id`: the recipe's kind and a
+    /// canonical digest of its kind, resampled unit, refits and seed. `unit` is the unit an
+    /// independent-unit bootstrap resampled, and `None` for the whole-subject refits of a
+    /// static-regime design. A law that does not match the declared inference is refused.
+    fn resampling_id(&self, unit: Option<IndependentUnit>) -> Result<String, PreferenceRouteError> {
+        let mut writer = CanonicalWriter::new(RESAMPLING_TAG);
+        let kind = match (&self.inference, unit) {
+            (JointDesignInference::StaticRegimeBootstrap { replicates, seed }, None) => {
+                writer.text(STATIC_REGIME_BOOTSTRAP).word(0).word(*replicates as u64).word(*seed);
+                STATIC_REGIME_BOOTSTRAP
+            }
+            (
+                JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling: _ },
+                Some(unit),
+            ) => {
+                writer
+                    .text(INDEPENDENT_UNIT_BOOTSTRAP)
+                    .word(1)
+                    .text(unit.name())
+                    .word(*replicates as u64)
+                    .word(*seed);
+                INDEPENDENT_UNIT_BOOTSTRAP
+            }
+            // Any other pairing is a law the declared inference does not draw.
+            _ => return Err(law_refusal("the design returned another law".to_owned())),
+        };
+        Ok(format!("{kind}:{}", writer.finish_hex()))
     }
 
     /// The arm means, treated arm then control arm, as a mean source over the arm
