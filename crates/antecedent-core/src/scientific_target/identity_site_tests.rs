@@ -126,12 +126,18 @@ fn site_world_collection() {
 }
 
 fn world_of(action: WorldAction) -> Option<[u8; 32]> {
+    world_in(action, TimeFrame::static_decision())
+}
+
+/// A structural action is read at the equilibrium of a feedback model, not at a static
+/// decision time.
+fn world_in(action: WorldAction, time: TimeFrame) -> Option<[u8; 32]> {
     let world = InterventionWorld::new(
         world_id(0),
         action,
         true,
         binding(TargetPopulation::AllObserved, Conditioning::unconditional()),
-        TimeFrame::static_decision(),
+        time,
     )
     .ok()?;
     WorldCollection::new([world]).ok().map(|c| digest(&c))
@@ -152,7 +158,9 @@ fn site_canonical_structural() {
         StructuralAction::additive_shock(vid(2), 0.5).unwrap(),
         StructuralAction::additive_shock(vid(3), -0.5).unwrap(),
     ];
-    set_law(&actions, |items| world_of(WorldAction::structural(items.to_vec()).ok()?));
+    set_law(&actions, |items| {
+        world_in(WorldAction::structural(items.to_vec()).ok()?, TimeFrame::equilibrium())
+    });
 }
 
 fn linear_contrast(terms: &[(ScientificWorldId, f64)]) -> Option<InterventionContrast> {
