@@ -66,3 +66,20 @@ fn the_frontdoor_obligation_names_the_mediator_and_not_the_irrelevant_nodes() {
     let raw: Vec<u32> = front[0].variables.iter().map(|x| x.raw()).collect();
     assert_eq!(raw, vec![0, 1, 2]);
 }
+
+/// The observed variables are a set: listing them in another order or repeating one gives the
+/// same obligations, including the unmeasured-confounder set (sorted, deduplicated) that names
+/// the panel obligations.
+#[test]
+fn site_identification_failure_obligations_read_observed_as_a_set() {
+    let g = graph(6, &[(0, 1), (2, 0), (2, 1), (3, 0), (3, 1), (4, 2), (0, 5)]);
+    let run = |observed: &[VariableId]| {
+        identification_failure_obligations(&failed(0, 1), &g, observed, "pop", None).unwrap()
+    };
+    let base = run(&[v(0), v(1)]);
+    assert!(!base.is_empty());
+    assert_eq!(run(&[v(1), v(0)]), base);
+    assert_eq!(run(&[v(0), v(1), v(0)]), base);
+    // Observing a confounder changes what is owed.
+    assert_ne!(run(&[v(0), v(1), v(2)]), base);
+}
