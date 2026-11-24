@@ -92,6 +92,34 @@ fn refusal(subject: impl Into<String>) -> TransportRefusal {
     }
 }
 
+/// The question: the expected claim, the source population and the shift declaration, every
+/// field in declaration order. Both name lists stay ordered: the kernel compares the effect
+/// modifiers to the model's sorted features as a list, and the selection children are reported
+/// in the value's assumptions in their declared order.
+fn question_digest(
+    expected_claim: Option<&str>,
+    source_population: &str,
+    shift: Option<&SelectionShiftDeclaration>,
+) -> [u8; 32] {
+    let mut question = CanonicalWriter::new("antecedent.transported_cohort.question.v2");
+    question.opt_text(expected_claim).text(source_population);
+    match shift {
+        Some(shift) => {
+            question
+                .word(1)
+                .text(&shift.source_population)
+                .text(&shift.target_population)
+                .text(&shift.selection_node)
+                .texts(&shift.selection_children)
+                .texts(&shift.effect_modifiers);
+        }
+        None => {
+            question.word(0);
+        }
+    }
+    question.finish()
+}
+
 impl Study {
     /// Bind a cohort transport of a retained fitted effect into a compiled program.
     ///
@@ -103,12 +131,11 @@ impl Study {
     pub fn compile_transported_cohort(
         request: TransportedCohortRequest,
     ) -> Result<CompiledTransportedCohort, TransportRefusal> {
-        let mut question = CanonicalWriter::new("antecedent.transported_cohort.question.v1");
-        question
-            .opt_text(request.expected_claim.as_deref())
-            .text(&request.source_population)
-            .text(&format!("{:?}", request.shift));
-        let question = question.finish();
+        let question = question_digest(
+            request.expected_claim.as_deref(),
+            &request.source_population,
+            request.shift.as_ref(),
+        );
         let mut source = CanonicalWriter::new("antecedent.transported_cohort.inputs.v1");
         source.bytes(&request.artifact);
         source.bytes(
@@ -178,5 +205,59 @@ impl CompiledTransportedCohort {
             request.shift.as_ref(),
             &scoped,
         )
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_learn::transported_effect::SelectionShiftDeclaration;
+
+    use super::question_digest;
+
+    fn shift(children: &[&str], modifiers: &[&str], node: &str) -> SelectionShiftDeclaration {
+        SelectionShiftDeclaration {
+            source_population: "source".to_owned(),
+            target_population: "target".to_owned(),
+            selection_node: node.to_owned(),
+            selection_children: children.iter().map(|name| (*name).to_owned()).collect(),
+            effect_modifiers: modifiers.iter().map(|name| (*name).to_owned()).collect(),
+        }
+    }
+
+    fn digest(shift: &SelectionShiftDeclaration) -> [u8; 32] {
+        question_digest(Some("claim"), "source", Some(shift))
+    }
+
+    #[test]
+    fn the_same_declaration_has_the_same_identity() {
+        assert_eq!(
+            digest(&shift(&["age"], &["age", "sex"], "S")),
+            digest(&shift(&["age"], &["age", "sex"], "S"))
+        );
+    }
+
+    #[test]
+    fn a_changed_field_changes_the_identity() {
+        let base = digest(&shift(&["age"], &["age", "sex"], "S"));
+        assert_ne!(base, digest(&shift(&["age"], &["age", "sex"], "T")));
+        assert_ne!(base, digest(&shift(&["sex"], &["age", "sex"], "S")));
+        assert_ne!(base, question_digest(Some("claim"), "source", None));
+        assert_ne!(
+            base,
+            question_digest(None, "source", Some(&shift(&["age"], &["age", "sex"], "S")))
+        );
+        // A name moved from one list to the next is a different declaration.
+        assert_ne!(
+            digest(&shift(&["age", "sex"], &["bmi"], "S")),
+            digest(&shift(&["age"], &["sex", "bmi"], "S"))
+        );
+    }
+
+    #[test]
+    fn reordering_a_name_list_changes_the_identity() {
+        assert_ne!(
+            digest(&shift(&["age"], &["age", "sex"], "S")),
+            digest(&shift(&["age"], &["sex", "age"], "S"))
+        );
     }
 }

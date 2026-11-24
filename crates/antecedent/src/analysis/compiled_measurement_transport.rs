@@ -30,7 +30,9 @@
 use std::sync::Arc;
 
 use antecedent_contract::{ExternalScientificObject, ExternalTrustState};
-use antecedent_core::measurement_model::MeasurementModel;
+use antecedent_core::measurement_model::{
+    ErrorStructure, MappingSemantics, MeasurementModel, RepresentationVersion,
+};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_estimate::measurement_transport::{
     PopulationErrorStructure, TransportedMeasurementModel,
@@ -42,9 +44,10 @@ use antecedent_estimate::measurement_transport_pooled::{
 
 use super::compiled_point_program::PointProgram;
 use super::measurement_model::{
-    MeasurementAnalysisBinding, MeasurementInput, MeasurementModelRefusal,
+    CategoricalTarget, MeasurementAnalysisBinding, MeasurementInput, MeasurementModelRefusal,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::variant;
 use super::transported_measurement::{
     TransportedMeasurementEstimate, transport_measurement, transport_measurement_estimate,
 };
@@ -115,6 +118,204 @@ fn lowering_refusal(error: &CausalError) -> MeasurementModelRefusal {
     }
 }
 
+fn write_representation(writer: &mut CanonicalWriter, representation: &RepresentationVersion) {
+    writer.text(&representation.coordinate_system_id).word(u64::from(representation.version));
+}
+
+fn write_error_structure(writer: &mut CanonicalWriter, structure: ErrorStructure) {
+    match structure {
+        ErrorStructure::NonDifferential => {
+            variant(writer, "non_differential");
+        }
+        ErrorStructure::Differential(axis) => {
+            variant(writer, "differential").text(axis.as_str());
+        }
+        // The structure enum is non-exhaustive; a variant added later is written under its own
+        // tag until it gains its own arm here.
+        _ => {
+            variant(writer, "unrecognized_variant");
+        }
+    }
+}
+
+/// The analysis binding: every field in declaration order.
+fn write_binding(writer: &mut CanonicalWriter, binding: &MeasurementAnalysisBinding) {
+    writer
+        .text(&binding.construct_id)
+        .text(&binding.population_id)
+        .text(&binding.regime_id)
+        .opt_text(binding.arm_id.as_deref());
+    write_representation(writer, &binding.representation);
+    match &binding.representation_mapping {
+        Some(mapping) => {
+            writer.word(1);
+            write_representation(writer, &mapping.from);
+            write_representation(writer, &mapping.to);
+            writer.text(&mapping.mapping_id);
+            match &mapping.semantics {
+                MappingSemantics::CoordinateRelabeling => {
+                    variant(writer, "coordinate_relabeling");
+                }
+                MappingSemantics::InterventionPreserving { evidence_id } => {
+                    variant(writer, "intervention_preserving").text(evidence_id);
+                }
+                // Non-exhaustive: a later variant is written under its own tag until it gains
+                // its own arm here.
+                _ => {
+                    variant(writer, "unrecognized_variant");
+                }
+            }
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    write_error_structure(writer, binding.assumed_structure);
+}
+
+/// The declared population error structure. The invariant parameters are a set (the transport
+/// decision reads them by membership); their `BTreeSet` iterates sorted and without repeats.
+fn write_population_structure(
+    writer: &mut CanonicalWriter,
+    structure: Option<&PopulationErrorStructure>,
+) {
+    match structure {
+        None => {
+            variant(writer, "undeclared");
+        }
+        Some(PopulationErrorStructure::Invariant(declaration)) => {
+            variant(writer, "invariant")
+                .text(&declaration.source_population)
+                .text(&declaration.target_population)
+                .text(&declaration.declarer)
+                .word(declaration.invariant.len() as u64);
+            for parameter in &declaration.invariant {
+                writer.text(parameter.as_str());
+            }
+        }
+        Some(PopulationErrorStructure::Differential { declarer }) => {
+            variant(writer, "differential").text(declarer);
+        }
+    }
+}
+
+/// The provider object by its canonical contract digest (every declared field, including the
+/// exact request) and its trust by kind, attestor or the verification receipt's digest.
+fn write_provider(
+    writer: &mut CanonicalWriter,
+    provider: Option<&(ExternalScientificObject, ExternalTrustState)>,
+) {
+    let Some((object, trust)) = provider else {
+        writer.word(0);
+        return;
+    };
+    writer.word(1).text(&object.contract_digest());
+    match trust {
+        ExternalTrustState::NativeSupported => {
+            variant(writer, "native_supported");
+        }
+        ExternalTrustState::ExternallyAttested { attestor } => {
+            variant(writer, "externally_attested").text(attestor);
+        }
+        ExternalTrustState::ExactRequestVerified(receipt) => {
+            variant(writer, "exact_request_verified").text(&receipt.digest());
+        }
+    }
+}
+
+/// The declared inputs of a transport request the question binds besides the decision's
+/// receipt and the re-bound model: the binding, the population structure and the provider.
+fn write_declaration(writer: &mut CanonicalWriter, request: &MeasurementTransportRequest) {
+    write_binding(writer, &request.binding);
+    write_population_structure(writer, request.structure.as_ref());
+    write_provider(writer, request.provider.as_ref());
+}
+
+/// Digest of the outcome-side data: the variant tag, then every field in declaration order,
+/// reals by their bits. Every list is ordered (rows, draws, columns, levels).
+fn input_digest(input: &MeasurementInput) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.measurement_transport.input.v2");
+    match input {
+        MeasurementInput::ClassicalLinear {
+            outcome,
+            regressor,
+            covariates,
+            covariate_count,
+            replicate_counts,
+        } => {
+            variant(&mut writer, "classical_linear")
+                .reals(outcome)
+                .reals(regressor)
+                .reals(covariates)
+                .word(*covariate_count as u64);
+            match replicate_counts {
+                Some(counts) => writer.word(1).u32s(counts),
+                None => writer.word(0),
+            };
+        }
+        MeasurementInput::RepeatedLinear {
+            outcome,
+            replicate_values,
+            replicate_counts,
+            covariates,
+            covariate_count,
+        } => {
+            variant(&mut writer, "repeated_linear")
+                .reals(outcome)
+                .reals(replicate_values)
+                .u32s(replicate_counts)
+                .reals(covariates)
+                .word(*covariate_count as u64);
+        }
+        MeasurementInput::BinaryPrevalence { events, total } => {
+            variant(&mut writer, "binary_prevalence").word(*events).word(*total);
+        }
+        MeasurementInput::BinaryRiskDifference { exposed_arm_id, unexposed_arm_id, table } => {
+            variant(&mut writer, "binary_risk_difference")
+                .text(exposed_arm_id)
+                .text(unexposed_arm_id)
+                .words(&[
+                    table.exposed_events,
+                    table.exposed_total,
+                    table.unexposed_events,
+                    table.unexposed_total,
+                ]);
+        }
+        MeasurementInput::Categorical { classes, target } => {
+            variant(&mut writer, "categorical").word(classes.len() as u64);
+            for class in classes {
+                writer.word(class.count).real(class.mean).real(class.variance);
+            }
+            match target {
+                CategoricalTarget::Proportion(level) => {
+                    variant(&mut writer, "proportion").text(level);
+                }
+                CategoricalTarget::OutcomeMean(level) => {
+                    variant(&mut writer, "outcome_mean").text(level);
+                }
+                CategoricalTarget::OutcomeContrast { first, second } => {
+                    variant(&mut writer, "outcome_contrast").text(first).text(second);
+                }
+            }
+        }
+        MeasurementInput::LatentPosterior {
+            outcome,
+            draws,
+            draw_count,
+            covariates,
+            covariate_count,
+        } => {
+            variant(&mut writer, "latent_posterior")
+                .reals(outcome)
+                .reals(draws)
+                .word(*draw_count as u64)
+                .reals(covariates)
+                .word(*covariate_count as u64);
+        }
+    }
+    writer.finish()
+}
+
 impl Study {
     /// Decide whether a measurement model may correct the analysis population's indicator and
     /// bind the decision, the re-bound model and the data into a compiled program.
@@ -141,20 +342,13 @@ impl Study {
         let transported =
             transport_measurement(&request.models, request.structure.as_ref(), &request.binding)?;
         let receipt = transported.receipt();
-        let mut question = CanonicalWriter::new("antecedent.measurement_transport.question.v1");
+        let mut question = CanonicalWriter::new("antecedent.measurement_transport.question.v2");
         question
             .bytes(receipt.identity.as_bytes())
-            .bytes(transported.model().identities().model.as_bytes())
-            .text(&format!("{:?}", request.binding))
-            .text(&format!("{:?}", request.structure));
-        if let Some((object, trust)) = &request.provider {
-            question.text(&format!("{object:?}")).text(&format!("{trust:?}"));
-        }
+            .bytes(transported.model().identities().model.as_bytes());
+        write_declaration(&mut question, &request);
         let question = question.finish();
-        let source = CanonicalWriter::digest_bytes(
-            "antecedent.measurement_transport.input.v1",
-            format!("{:?}", request.input).as_bytes(),
-        );
+        let source = input_digest(&request.input);
         let lowered = PointProgram {
             cell: ProgramCell::MeasurementModelTransport,
             plan_id: "measurement_model_transport.v1",
@@ -406,5 +600,108 @@ impl CompiledPooledDifferentialTransport {
             &scoped,
         )?;
         Ok(PooledDifferentialRun { correction, lowered_program_identity: self.lowered.identity() })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_core::CanonicalWriter;
+    use antecedent_core::measurement_model::{ErrorStructure, RepresentationVersion};
+    use antecedent_estimate::measurement_transport::{
+        ErrorParameter, InvarianceDeclaration, PopulationErrorStructure,
+    };
+
+    use super::{
+        MeasurementAnalysisBinding, MeasurementInput, input_digest, write_binding,
+        write_population_structure,
+    };
+
+    fn binding(arm_id: Option<&str>) -> MeasurementAnalysisBinding {
+        MeasurementAnalysisBinding {
+            construct_id: "exposure".to_owned(),
+            population_id: "target".to_owned(),
+            regime_id: "observational".to_owned(),
+            arm_id: arm_id.map(str::to_owned),
+            representation: RepresentationVersion {
+                coordinate_system_id: "sensor".to_owned(),
+                version: 1,
+            },
+            representation_mapping: None,
+            assumed_structure: ErrorStructure::NonDifferential,
+        }
+    }
+
+    fn binding_digest(binding: &MeasurementAnalysisBinding) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("test");
+        write_binding(&mut writer, binding);
+        writer.finish()
+    }
+
+    fn structure_digest(structure: Option<&PopulationErrorStructure>) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("test");
+        write_population_structure(&mut writer, structure);
+        writer.finish()
+    }
+
+    fn linear(outcome: Vec<f64>) -> MeasurementInput {
+        MeasurementInput::ClassicalLinear {
+            outcome,
+            regressor: vec![0.5, 1.5],
+            covariates: Vec::new(),
+            covariate_count: 0,
+            replicate_counts: None,
+        }
+    }
+
+    #[test]
+    fn the_same_declaration_has_the_same_identity() {
+        assert_eq!(binding_digest(&binding(Some("a"))), binding_digest(&binding(Some("a"))));
+        assert_eq!(input_digest(&linear(vec![1.0, 2.0])), input_digest(&linear(vec![1.0, 2.0])));
+    }
+
+    #[test]
+    fn a_changed_field_changes_the_identity() {
+        assert_ne!(binding_digest(&binding(Some("a"))), binding_digest(&binding(None)));
+        let mut differential = binding(Some("a"));
+        differential.assumed_structure = ErrorStructure::Differential(
+            antecedent_core::measurement_model::DifferentialAxis::Population,
+        );
+        assert_ne!(binding_digest(&binding(Some("a"))), binding_digest(&differential));
+        assert_ne!(input_digest(&linear(vec![1.0, 2.0])), input_digest(&linear(vec![1.0, 3.0])));
+        assert_ne!(
+            input_digest(&MeasurementInput::BinaryPrevalence { events: 1, total: 2 }),
+            input_digest(&MeasurementInput::BinaryPrevalence { events: 2, total: 2 })
+        );
+    }
+
+    #[test]
+    fn reordering_rows_changes_the_identity() {
+        assert_ne!(input_digest(&linear(vec![1.0, 2.0])), input_digest(&linear(vec![2.0, 1.0])));
+    }
+
+    #[test]
+    fn the_invariant_parameters_are_a_set() {
+        let declare = |invariant: &[ErrorParameter]| {
+            PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
+                "source", "target", "analyst", invariant,
+            ))
+        };
+        let forward = declare(&[ErrorParameter::Sensitivity, ErrorParameter::Specificity]);
+        let reversed = declare(&[ErrorParameter::Specificity, ErrorParameter::Sensitivity]);
+        let repeated = declare(&[
+            ErrorParameter::Specificity,
+            ErrorParameter::Sensitivity,
+            ErrorParameter::Specificity,
+        ]);
+        assert_eq!(structure_digest(Some(&forward)), structure_digest(Some(&reversed)));
+        assert_eq!(structure_digest(Some(&forward)), structure_digest(Some(&repeated)));
+        let narrower = declare(&[ErrorParameter::Sensitivity]);
+        assert_ne!(structure_digest(Some(&forward)), structure_digest(Some(&narrower)));
+        assert_ne!(structure_digest(Some(&forward)), structure_digest(None));
+    }
+
+    #[test]
+    fn negative_zero_is_not_zero() {
+        assert_ne!(input_digest(&linear(vec![0.0, 2.0])), input_digest(&linear(vec![-0.0, 2.0])));
     }
 }
