@@ -251,6 +251,14 @@ impl AdaptiveInferenceSession {
     /// threshold, exploration mass, outcome structure or look schedule outside the
     /// measured cells still reports its interval, with its calibration annotated
     /// `outside_measured_scope` or `not_measured`.
+    ///
+    /// An interval candidate: the session computes it outside the causal compiler. It is
+    /// hidden and deprecated, and moves behind the `calibration-internal` feature in 4.0.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "3.1.0",
+        note = "an interval candidate computed outside the causal compiler; it moves behind the `calibration-internal` feature in 4.0"
+    )]
     pub fn measured_interval(
         &self,
         request: &AdaptiveResultSpec,

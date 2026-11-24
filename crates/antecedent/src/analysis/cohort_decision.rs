@@ -179,6 +179,15 @@ pub fn fit_cohort_effect(
 /// # Errors
 /// A source not built from `native`, a shifted cohort, a `not_measured` level or fit size
 /// (no attesting record), or a changed artifact.
+///
+/// An interval candidate: the native fit and its interval are computed outside the causal
+/// compiler. It is hidden and deprecated, and moves behind the `calibration-internal`
+/// feature in 4.0.
+#[doc(hidden)]
+#[deprecated(
+    since = "3.1.0",
+    note = "an interval candidate computed outside the causal compiler; it moves behind the `calibration-internal` feature in 4.0"
+)]
 pub fn measured_cohort_interval(
     native: &NativeCohortFit,
     source: &CohortDecisionSource,

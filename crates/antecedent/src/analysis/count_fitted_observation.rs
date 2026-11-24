@@ -130,6 +130,14 @@ impl CountFittedObservation {
     /// supported minimum, complete rows, sample size) has no currently attesting coverage
     /// record, or when the Monte Carlo error of an endpoint exceeds its declared share of
     /// the interval width (`measured_interval.draws_not_converged`).
+    ///
+    /// An interval candidate: the posterior interval is computed outside the causal compiler.
+    /// It is hidden and deprecated, and moves behind the `calibration-internal` feature in 4.0.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "3.1.0",
+        note = "an interval candidate computed outside the causal compiler; it moves behind the `calibration-internal` feature in 4.0"
+    )]
     pub fn interval(
         &self,
         level: f64,
@@ -150,6 +158,7 @@ impl CountFittedObservation {
     ///
     /// # Errors
     /// As [`Self::interval`].
+    #[allow(deprecated, reason = "the same measured interval, under its calibration claim")]
     pub fn calibrated_probability(
         &self,
         level: f64,

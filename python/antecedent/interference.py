@@ -285,9 +285,12 @@ class InterferenceQuery:
     mapping and ``functional`` the contrast between two exposure levels.
 
     :func:`antecedent.analyze` estimates the supported cell (explicit ``Dag``,
-    Frequentist, validation ``none``): NeighborCount exposure under Bernoulli
-    assignment, Horvitz–Thompson / Hájek with the conservative Young variance
-    bound. A separate unsupported construction accepts cluster randomization,
+    Frequentist, validation ``none``): Bernoulli or complete randomization with
+    any built-in exposure mapping (``OwnTreatment``, ``NeighborCount``,
+    ``NeighborFraction``, ``WeightedNeighborExposure``), Horvitz–Thompson / Hájek
+    with the conservative Young variance bound (its coverage record was measured
+    under Bernoulli assignment with NeighborCount exposure). A separate
+    unsupported construction accepts cluster randomization,
     NeighborFraction, an explicit partial-interference partition, and the
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
     has no interval claim. ``SaturationDesign`` estimates exact two-stage
@@ -510,25 +513,32 @@ def estimate(
     contrasts, a conservative variance and the exposure-probability diagnostics) and carries
     no study, contract, export, interval or calibration slot; the only things it checks are
     the input shapes, the design and the work limit. ``antecedent.analyze`` runs the same
-    estimator through the compiler for Bernoulli assignment with neighbour-count exposure, and
-    only that design is deprecated here; the one difference is the seed of Monte Carlo exposure probabilities, which the
-    compiled route derives from its execution context instead of taking ``execution.seed``.
+    estimator through the compiler for Bernoulli and complete randomization under every
+    built-in exposure mapping, and those designs are deprecated here; the one difference is
+    the seed of Monte Carlo exposure probabilities, which the compiled route derives from its
+    execution context instead of taking ``execution.seed``. Cluster randomization keeps this
+    path: the compiled cluster route runs the cluster-level Neyman estimator of the total
+    effect, a different variance from the Young bound computed here.
     ``execution`` supplies that seed and the cancellation and memory policy.
 
     ``work_limit`` sets the total logical-operation ceiling for both exposure
     probabilities; exceeding it refuses the request without reducing the Monte Carlo draw
     count. ``antecedent.analyze(data, graph=[], query=InterferenceQuery(...,
     network=, realized_assignment=))`` is the compiled, study-retaining path for the
-    supported Bernoulli cell and the separately checked, unsupported cluster total-effect
-    construction, and the one to use for a claim.
+    supported Bernoulli and complete-randomization cell and the separately checked,
+    unsupported cluster total-effect construction, and the one to use for a claim.
     """
 
-    # The compiled Python route serves Bernoulli assignment with neighbour-count exposure;
-    # other designs keep this path, undeprecated, until analyze accepts them.
+    # The compiled Python route serves Bernoulli and complete randomization under every
+    # built-in exposure mapping; cluster randomization keeps this path, undeprecated, because
+    # the compiled cluster route is a different (cluster-level Neyman) estimator.
     if (
         isinstance(query, InterferenceQuery)
-        and isinstance(query.assignment, BernoulliAssignment)
-        and isinstance(query.exposure, NeighborCount)
+        and isinstance(query.assignment, (BernoulliAssignment, CompleteRandomization))
+        and isinstance(
+            query.exposure,
+            (OwnTreatment, NeighborCount, NeighborFraction, WeightedNeighborExposure),
+        )
     ):
         direct_path_deprecated(
             "antecedent.interference.estimate",
