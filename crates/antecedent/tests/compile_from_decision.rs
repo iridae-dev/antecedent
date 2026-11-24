@@ -388,8 +388,12 @@ fn the_decision_program_twins_the_released_entry_under_its_own_unit() {
     assert_eq!(parent.program().route(), "ContractAttachedDecision");
     let unit = parent.unit_support().expect("the decision's route is bound to its unit");
     assert_eq!(unit.unit(), "decision.contract");
-    let children: Vec<Option<[u8; 32]>> =
-        parent.evidence().sources().iter().map(|source| source.digest()).collect();
+    let children: Vec<Option<[u8; 32]>> = parent
+        .evidence()
+        .sources()
+        .iter()
+        .map(antecedent::planner::lowered::EvidenceSourceRef::digest)
+        .collect();
     assert_eq!(children, [Some(*decision_identity(&released).as_bytes())]);
     let again = study.compile_decision_program(&problem, &carrier, &ctx).unwrap();
     assert_eq!(again.program_identity(), compiled.program_identity());

@@ -751,6 +751,46 @@ fn demand_of(
     Ok((demand, carrier))
 }
 
+/// Whether the entries decide over a graph posterior, refusing a posterior among several
+/// separately fitted studies and an ordinary contract over posterior structures.
+fn posterior_entries(
+    entries: &[StudyEntry<'_>],
+    contract: &CompiledContract,
+) -> Result<bool, PreferenceRouteError> {
+    let posterior = entries.iter().any(|entry| entry.study.graph_posterior.is_some());
+    if posterior && entries.len() > 1 {
+        return Err(unsupported_query("a graph posterior among several separately fitted studies"));
+    }
+    if posterior && contract.ordinary().is_some() {
+        return Err(ordinary_structures_not_compiled());
+    }
+    Ok(posterior)
+}
+
+/// The parent program's children, weights and composition. The children, as declared: every
+/// structure of every study in study order (`None` for a structure that compiled no program),
+/// then the chain that joins separate studies.
+fn parent_shape(
+    structures: &[CompiledStructure],
+    chain: Option<SemanticDigest>,
+    posterior: bool,
+    sources: usize,
+) -> (Vec<Option<SemanticDigest>>, Vec<f64>, Composition) {
+    let mut children: Vec<Option<SemanticDigest>> =
+        structures.iter().map(|s| s.plan.as_ref().map(PlanView::identity)).collect();
+    children.extend(chain.map(Some));
+    let weights: Vec<f64> =
+        if posterior { structures.iter().map(|s| s.weight).collect() } else { Vec::new() };
+    let composition = if posterior {
+        Composition::AtomMixture { atoms: structures.len() }
+    } else if sources > 1 {
+        Composition::Pooled { sources }
+    } else {
+        Composition::Single
+    };
+    (children, weights, composition)
+}
+
 /// Compile `entries` for `contract`: bind, derive the demand, check the declared dependence
 /// (and, for studies that share observations, the declared cross-study covariance), declare
 /// and check the chain that joins separately estimated outcomes, then compile and prepare
@@ -769,13 +809,7 @@ pub(super) fn compile_entries(
         entries.iter().map(|entry| (entry.study, &entry.causal)).collect();
     let bound = BoundContract::bind(contract, &pairs)?;
     let contract = &bound.contract;
-    let posterior = entries.iter().any(|entry| entry.study.graph_posterior.is_some());
-    if posterior && entries.len() > 1 {
-        return Err(unsupported_query("a graph posterior among several separately fitted studies"));
-    }
-    if posterior && contract.ordinary().is_some() {
-        return Err(ordinary_structures_not_compiled());
-    }
+    let posterior = posterior_entries(entries, contract)?;
     let (demand, carrier) = demand_of(contract, bound.quantities.clone(), posterior)?;
     let overlaps = outcomes::check_dependence(&bound.studies, &demand, (dependence, shared), ctx)?;
     let declared = joint::declare(
@@ -824,20 +858,12 @@ pub(super) fn compile_entries(
     if posterior && structures.iter().all(|s| s.runner.is_none()) {
         return Err(not_identified(&demand.quantities, 1.0, "no structure identifies it"));
     }
-    // The children, as declared: every structure of every study in study order (`None` for a
-    // structure that compiled no program), then the chain that joins separate studies.
-    let mut children: Vec<Option<SemanticDigest>> =
-        structures.iter().map(|s| s.plan.as_ref().map(PlanView::identity)).collect();
-    children.extend(declared.as_ref().map(|law| Some(law.fact().program())));
-    let weights: Vec<f64> =
-        if posterior { structures.iter().map(|s| s.weight).collect() } else { Vec::new() };
-    let composition = if posterior {
-        Composition::AtomMixture { atoms: structures.len() }
-    } else if entries.len() > 1 {
-        Composition::Pooled { sources: entries.len() }
-    } else {
-        Composition::Single
-    };
+    let (children, weights, composition) = parent_shape(
+        &structures,
+        declared.as_ref().map(|law| law.fact().program()),
+        posterior,
+        entries.len(),
+    );
     let read: Vec<&DemandedQuantity> = demand.quantities.iter().collect();
     let schema = match bound.studies.as_slice() {
         [study] => Some(&study.schema),

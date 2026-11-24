@@ -518,8 +518,12 @@ fn the_robust_decision_is_a_parent_program_gated_on_its_own_unit() {
     assert_eq!(unit.unit(), "decision.compiled_joint_scenarios");
     // The one child is the anchor study's program, which keeps its own support cell.
     let anchor = compiled.plan().lowered_program_identity().expect("a lowered anchor");
-    let children: Vec<Option<[u8; 32]>> =
-        parent.evidence().sources().iter().map(|source| source.digest()).collect();
+    let children: Vec<Option<[u8; 32]>> = parent
+        .evidence()
+        .sources()
+        .iter()
+        .map(antecedent::planner::lowered::EvidenceSourceRef::digest)
+        .collect();
     assert_eq!(children, [Some(*anchor.as_bytes())]);
     assert_eq!(compiled.program_identity(), anchor.to_hex(), "the anchor identity is unchanged");
     assert_ne!(compiled.decision_program_identity(), anchor);

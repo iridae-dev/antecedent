@@ -232,7 +232,12 @@ fn dose_study(data: &TabularData, inference: InferenceMode) -> Study {
 
 /// The child program identities layer four of `parent` lists, in order.
 fn listed_children(parent: &PlanView) -> Vec<Option<[u8; 32]>> {
-    parent.evidence().sources().iter().map(|source| source.digest()).collect()
+    parent
+        .evidence()
+        .sources()
+        .iter()
+        .map(crate::planner::lowered::EvidenceSourceRef::digest)
+        .collect()
 }
 
 /// The unit `view` reports, by name.

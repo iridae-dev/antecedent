@@ -266,16 +266,13 @@ fn compile_chain(
     draft.joint_output_weights = None;
     draft.identity.clear();
     draft.label.clear();
-    let (draft, deferred, plan) = match deferred {
-        Some(table) => {
-            let wire = PropagationChainDraftWire { record: draft, deferred: table };
-            let plan = wire.plan().map_err(|error| refusal(&error))?;
-            (wire.record, Some(wire.deferred), plan)
-        }
-        None => {
-            let plan = draft.plan().map_err(|error| refusal(&error))?;
-            (draft, None, plan)
-        }
+    let (draft, deferred, plan) = if let Some(table) = deferred {
+        let wire = PropagationChainDraftWire { record: draft, deferred: table };
+        let plan = wire.plan().map_err(|error| refusal(&error))?;
+        (wire.record, Some(wire.deferred), plan)
+    } else {
+        let plan = draft.plan().map_err(|error| refusal(&error))?;
+        (draft, None, plan)
     };
     let lowered = lower_chain(draft, deferred, plan)?;
     let program = lowered.propagation_chain().cloned().ok_or_else(|| {

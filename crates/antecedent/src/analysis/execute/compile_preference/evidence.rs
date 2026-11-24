@@ -785,6 +785,68 @@ fn judge_pair(
     }
 }
 
+/// The overlap a pair judgement admits, or the refusal of a pair whose overlap cannot be
+/// judged.
+fn admitted(
+    studies: &[BoundStudy],
+    (i, j): (usize, usize),
+    judged: Judged,
+) -> Result<(Overlap, SharedBasis, &'static str), PreferenceRouteError> {
+    Ok(match judged {
+        Judged::Overlap(overlap, basis, independent) => (overlap, basis, independent),
+        Judged::LabelTypesDiffer(reason) => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                STAGE_COMPILE,
+                preference_compile::UNIT_LABEL_TYPES_DIFFER,
+            )
+            .with_offending(pair(studies, i, j))
+            .with_supplied(reason)
+            .with_remedy(
+                "store the unit identifiers under one type on both studies (an integer \
+                 identifier read as a real after missing values, for example), or \
+                 declare labels of one type",
+            )
+            .into());
+        }
+        Judged::Undeclared(undeclared) => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                STAGE_COMPILE,
+                preference_compile::ROW_PROVENANCE_UNDECLARED,
+            )
+            .with_offending(pair(studies, i, j))
+            .with_expected(
+                "a declared row provenance on both studies of different tables, or unit \
+                 keys of one identifier space",
+            )
+            .with_supplied(format!(
+                "basis {PAIR_UNDECLARED}: {undeclared} declares no row provenance"
+            ))
+            .with_remedy(
+                "declare each study's row provenance (RowProvenance::of_table on the \
+                 table it was taken from, or RowProvenance::select_rows for selected \
+                 rows), or declare unit keys of one identifier space",
+            )
+            .into());
+        }
+        Judged::NotComparable(reason) => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                STAGE_COMPILE,
+                decision_evidence::DEPENDENCE_UNKNOWN,
+            )
+            .with_offending(pair(studies, i, j))
+            .with_supplied(reason)
+            .with_remedy(
+                "declare unit keys of one identifier space on both studies, or estimate \
+                 the outcomes jointly in one design",
+            )
+            .into());
+        }
+    })
+}
+
 /// Judge whether the studies' outcomes may be joined under `dependence`: every pair the
 /// ledger finds overlapping is refused under distinct evidence and needs a declared block
 /// under shared evidence; a block for a pair that shares nothing is refused. Studies keyed in
@@ -821,59 +883,7 @@ pub(super) fn judge(
             let declared = cross.iter().any(|block| (block.first, block.second) == (i, j));
             let judged =
                 judge_pair(studies, (i, j), ((&rows, &row_sources), (&units, &unit_sources)))?;
-            let (overlap, basis, independent) = match judged {
-                Judged::Overlap(overlap, basis, independent) => (overlap, basis, independent),
-                Judged::LabelTypesDiffer(reason) => {
-                    return Err(ExternalRefusal::new(
-                        antecedent_core::reason_code!("evidence_overlap_unknown"),
-                        STAGE_COMPILE,
-                        preference_compile::UNIT_LABEL_TYPES_DIFFER,
-                    )
-                    .with_offending(pair(studies, i, j))
-                    .with_supplied(reason)
-                    .with_remedy(
-                        "store the unit identifiers under one type on both studies (an integer \
-                         identifier read as a real after missing values, for example), or \
-                         declare labels of one type",
-                    )
-                    .into());
-                }
-                Judged::Undeclared(undeclared) => {
-                    return Err(ExternalRefusal::new(
-                        antecedent_core::reason_code!("evidence_overlap_unknown"),
-                        STAGE_COMPILE,
-                        preference_compile::ROW_PROVENANCE_UNDECLARED,
-                    )
-                    .with_offending(pair(studies, i, j))
-                    .with_expected(
-                        "a declared row provenance on both studies of different tables, or unit \
-                         keys of one identifier space",
-                    )
-                    .with_supplied(format!(
-                        "basis {PAIR_UNDECLARED}: {undeclared} declares no row provenance"
-                    ))
-                    .with_remedy(
-                        "declare each study's row provenance (RowProvenance::of_table on the \
-                         table it was taken from, or RowProvenance::select_rows for selected \
-                         rows), or declare unit keys of one identifier space",
-                    )
-                    .into());
-                }
-                Judged::NotComparable(reason) => {
-                    return Err(ExternalRefusal::new(
-                        antecedent_core::reason_code!("evidence_overlap_unknown"),
-                        STAGE_COMPILE,
-                        decision_evidence::DEPENDENCE_UNKNOWN,
-                    )
-                    .with_offending(pair(studies, i, j))
-                    .with_supplied(reason)
-                    .with_remedy(
-                        "declare unit keys of one identifier space on both studies, or estimate \
-                         the outcomes jointly in one design",
-                    )
-                    .into());
-                }
-            };
+            let (overlap, basis, independent) = admitted(studies, (i, j), judged)?;
             match overlap {
                 Overlap::Independent if declared => {
                     return Err(invalid(pair(studies, i, j), "studies that share no observations"));

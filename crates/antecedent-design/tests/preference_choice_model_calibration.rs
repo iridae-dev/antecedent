@@ -24,8 +24,9 @@
     reason = "bounded simulation sizes and small indices"
 )]
 
-#[path = "../../antecedent/tests/common/calibration.rs"]
-mod calibration;
+// The calibration helpers are the binary's own module (this file runs inside the
+// decision_reliability_interval_calibration target).
+use super::calibration;
 #[path = "../../antecedent-estimate/tests/common/candidate_calibration.rs"]
 mod candidate;
 
