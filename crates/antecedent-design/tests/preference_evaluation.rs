@@ -987,7 +987,23 @@ fn the_explicit_route_and_its_record_read_no_preference_learning_code() {
         ("preference_contract", include_str!("../src/preference_contract.rs")),
         ("preference_enclosure", include_str!("../src/preference_enclosure.rs")),
         ("preference_decision", include_str!("../src/preference_decision.rs")),
+        (
+            "preference_decision/statements",
+            include_str!("../src/preference_decision/statements.rs"),
+        ),
+        ("preference_decision/measure", include_str!("../src/preference_decision/measure.rs")),
+        ("preference_decision/region", include_str!("../src/preference_decision/region.rs")),
+        (
+            "preference_decision/structural",
+            include_str!("../src/preference_decision/structural.rs"),
+        ),
+        ("preference_sampled", include_str!("../src/preference_sampled.rs")),
         ("preference_certified", include_str!("../src/preference_certified.rs")),
+        ("preference_certified/scoring", include_str!("../src/preference_certified/scoring.rs")),
+        (
+            "preference_certified/subdivision",
+            include_str!("../src/preference_certified/subdivision.rs"),
+        ),
         ("preference_route_choice", include_str!("../src/preference_route_choice.rs")),
         ("preference_decision_artifact", include_str!("../src/preference_decision_artifact.rs")),
     ];

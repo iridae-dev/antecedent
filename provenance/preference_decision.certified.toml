@@ -24,6 +24,8 @@ implementation_deviations = [
 upstream_implementations_observed = []
 modules = [
  "crates/antecedent-design/src/preference_certified.rs",
+ "crates/antecedent-design/src/preference_certified/scoring.rs",
+ "crates/antecedent-design/src/preference_certified/subdivision.rs",
 ]
 test_sources = [
  "crates/antecedent-design/tests/preference_certified.rs (closed-form switch points, enclosures against dense parameter grids, relations, structures, measures and refusals)",

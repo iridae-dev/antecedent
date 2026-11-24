@@ -11614,7 +11614,7 @@
     "Hard constraints are evaluated once, independent of the preference parameters. Composition across causal structures is a repository construction outside the cited works.",
     "The rigor checks against dense parameter grids and closed-form switch points in preference_certified.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded."
    ],
-   "digest": "bbcc98420d8eefd40a51272d260f02681153708749883dae35f660a6cf194195",
+   "digest": "1187601fa7b325d36ef576bd97d32c5055dde46b89c98317fc7eaa37795f5af7",
    "id": "preference_decision.certified",
    "review": "none",
    "scope_limits": [],
@@ -11680,7 +11680,7 @@
     "A joint law of the arm means of a cluster-randomized design, a matched-pair experiment or a switchback experiment is read from an independent-unit bootstrap only under a declared premise that the units (clusters, pairs or sequences) were sampled independently from a larger population: randomization alone identifies the arm means and a conservative covariance bound for their linear combinations, not the cross-arm dependence of the arm-mean estimators. Clusters are resampled within each arm, keeping the arm sizes; pairs and sequences are resampled whole; every refit reruns the complete estimator, including a fixed pretreatment adjustment recentred at the resampled pretreatment mean. At least 99 refits and 30 units (clusters in each arm, pairs or sequences) are required; a refit the estimator refuses keeps its slot and the decision is refused, never computed on the remaining refits. These floors and the failure rule are repository choices. The law is labelled a bootstrap law, unverified, with no calibration measured.",
     "The bootstrap's covariance checks (cluster refits independent across arms with the (n - 1)/n within-arm covariance, pair and sequence refits converging to their closed-form covariances) were written by the same author in the same development effort as the implementation, not by an independent reviewer."
    ],
-   "digest": "e8e1e54c5d4a8b65ef782008fecc780ee3f59840ef063b2484113542dfb2cdf5",
+   "digest": "12070cd2726890e66d8286b35bbaab740210bcd65f1496c890a82c5f6178faa9",
    "id": "preference_decision.exact",
    "review": "none",
    "scope_limits": [],
