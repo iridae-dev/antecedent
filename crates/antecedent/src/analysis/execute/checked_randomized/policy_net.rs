@@ -12,12 +12,35 @@
 //! bit. The row-score standard errors are the default route's, and the pointwise intervals are
 //! formed by the same rule around these points, so the result is classified under the same
 //! graphless support row.
+//!
+//! The binary reading passes the study's declared
+//! [`BinaryPolicyConstraints`](crate::analysis::binary_policy_constraints::BinaryPolicyConstraints)
+//! (capacity, budget and availability of the policy and its reference) to the point-only kernel,
+//! which refuses a policy that breaks one of them exactly as the direct call does. The
+//! multi-action reading passes the availability, capacities and budgets of the query's
+//! multi-action inputs, which query validation has already checked with the same conditions.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CausalError, CheckedPolicyValueOperation, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EstimatorId,
+    EstimatorId, Study,
 };
+use crate::analysis::binary_policy_constraints::BinaryPolicyConstraints;
+
+/// The per-study settings a policy-value operation freezes at prepare: the Bayesian posterior
+/// configuration, if any, and the declared binary policy constraints, if any.
+#[derive(Clone, Debug)]
+pub(crate) struct PolicyValueSettings {
+    pub(super) bayesian: Option<super::super::BayesianConfig>,
+    pub(super) constraints: Option<BinaryPolicyConstraints>,
+}
+
+impl PolicyValueSettings {
+    /// The settings of `study`, with the admitted Bayesian configuration.
+    pub(super) fn of(study: &Study, bayesian: Option<super::super::BayesianConfig>) -> Self {
+        Self { bayesian, constraints: study.declared.binary_policy_constraints.clone() }
+    }
+}
 
 /// The net-value estimator the study declares, if it declares one.
 pub(super) fn selected(declared: Option<EstimatorId>) -> Option<EstimatorId> {
@@ -123,6 +146,9 @@ impl CheckedPolicyValueOperation {
             score.treatment_rate = value.non_control_rate;
             score.total_cost = value.policy_cost;
         } else {
+            // The declared limits, if any, are checked by the kernel itself: its refusals and
+            // their order are the direct call's.
+            let constraints = self.extra.constraints.as_ref();
             let value = antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
                 y,
                 &antecedent_estimate::policy_value::BinaryIpwDesign {
@@ -132,9 +158,9 @@ impl CheckedPolicyValueOperation {
                     reference: Some(&self.query.reference),
                     costs: &self.query.costs,
                     reference_costs: Some(&self.query.reference_costs),
-                    available: None,
+                    available: constraints.and_then(|declared| declared.available.as_deref()),
                 },
-                &antecedent_estimate::policy_value::BinaryPolicyLimits::default(),
+                &constraints.map(BinaryPolicyConstraints::limits).unwrap_or_default(),
             )
             .map_err(|message| CausalError::Unsupported { message })?;
             score.policy_value = value.policy_net;

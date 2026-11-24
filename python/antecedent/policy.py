@@ -888,18 +888,6 @@ def _evaluate_policy_direct(
         raise CausalValueError("available entries must be bool values")
     probability_values = scalar_or_values(propensity)
     cost_values = scalar_or_values(policy.costs)
-    capacity = policy.capacity
-    if policy.max_treatment_rate is not None:
-        numerator, denominator = Decimal(str(policy.max_treatment_rate)).as_integer_ratio()
-        rate_capacity = numerator * n // denominator
-        capacity = rate_capacity if capacity is None else min(capacity, rate_capacity)
-    reference_capacity = None if reference is None else reference.capacity
-    if reference is not None and reference.max_treatment_rate is not None:
-        numerator, denominator = Decimal(str(reference.max_treatment_rate)).as_integer_ratio()
-        rate_capacity = numerator * n // denominator
-        reference_capacity = (
-            rate_capacity if reference_capacity is None else min(reference_capacity, rate_capacity)
-        )
     raw = _evaluate_binary_policy(
         values,
         [bool(value) for value in assignment],
@@ -909,12 +897,59 @@ def _evaluate_policy_direct(
         costs=cost_values,
         reference_costs=None if reference is None else scalar_or_values(reference.costs),
         available=None if available is None else [bool(value) for value in available],
-        capacity=capacity,
-        budget=policy.budget,
-        reference_capacity=reference_capacity,
-        reference_budget=None if reference is None else reference.budget,
+        **_binary_policy_limits(policy, reference, n),
     )
     return PolicyEvaluation(*raw)
+
+
+def _rate_capacity(capacity: int | None, max_treatment_rate: float | None, n: int) -> int | None:
+    """The whole-row capacity of a declared capacity and treatment rate, the tighter of the two.
+
+    The rate is read by its shortest decimal spelling, so ``0.3`` of 10 rows is 3 rows.
+    """
+    if max_treatment_rate is None:
+        return capacity
+    numerator, denominator = Decimal(str(max_treatment_rate)).as_integer_ratio()
+    rate_capacity = numerator * n // denominator
+    return rate_capacity if capacity is None else min(capacity, rate_capacity)
+
+
+def _binary_policy_limits(
+    policy: BinaryPolicy, reference: BinaryPolicy | None, n: int
+) -> dict[str, Any]:
+    """Capacity and budget limits of a binary policy and its reference on ``n`` rows."""
+    return {
+        "capacity": _rate_capacity(policy.capacity, policy.max_treatment_rate, n),
+        "budget": policy.budget,
+        "reference_capacity": (
+            None
+            if reference is None
+            else _rate_capacity(reference.capacity, reference.max_treatment_rate, n)
+        ),
+        "reference_budget": None if reference is None else reference.budget,
+    }
+
+
+def _net_policy_constraint_options(query: PolicyValue, estimator: Any) -> dict[str, Any]:
+    """The limits the compiled net-value reading checks, as native prepare keywords.
+
+    ``estimator="randomized.ipw_policy_net"`` passes the policy's and the reference's capacity
+    (with any ``max_treatment_rate``), budget and the query's ``available`` rows to the compiled
+    route, which checks them with the point-only evaluator's own refusals. A query that
+    declares none of them, or another estimator, passes nothing, so its study is unchanged.
+    """
+    if getattr(estimator, "value", estimator) != "randomized.ipw_policy_net":
+        return {}
+    limits = _binary_policy_limits(
+        query.policy, query.reference, len(resolved(query.policy.actions))
+    )
+    available = resolved_opt(query.available)
+    if available is None and all(value is None for value in limits.values()):
+        return {}
+    return {
+        **limits,
+        "available": None if available is None else [bool(value) for value in available],
+    }
 
 
 def _prediction_ownership(
@@ -1202,11 +1237,14 @@ def evaluate_policy(
     ``PolicyValue`` without ``mu0``/``mu1`` to ``analyze`` with
     ``estimator="randomized.ipw_policy_net"``, which runs this evaluator's arithmetic and
     returns the same values to the bit; the default estimator averages per-row scores and
-    agrees to rounding.
+    agrees to rounding. The policy's and the reference's ``capacity``,
+    ``max_treatment_rate`` and ``budget`` and the ``available`` rows go on the same
+    ``BinaryPolicy`` objects and on ``PolicyValue(available=...)``; the compiled route
+    refuses a policy that breaks one of them exactly as this function does.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.policy.evaluate_policy",
-        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids), estimator='randomized.ipw_policy_net')",
+        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids, reference=reference, available=available), estimator='randomized.ipw_policy_net')",
     )
     return _evaluate_policy_direct(
         evaluation_data,
@@ -1285,11 +1323,14 @@ def evaluate_multi_action_policy(
     ``MultiActionPolicyValue`` to ``analyze`` with
     ``estimator="randomized.multi_action_ipw_policy_net"``, which runs this evaluator's
     arithmetic and returns the same values to the bit; the default estimator averages per-row
-    scores and agrees to rounding.
+    scores and agrees to rounding. The policies' ``capacities`` and ``budget`` and the
+    ``available`` matrix go on the same ``MultiActionPolicy`` objects and on
+    ``MultiActionPolicyValue(available=...)``; the compiled route refuses a policy that breaks
+    one of them, as this function does.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.policy.evaluate_multi_action_policy",
-        "antecedent.analyze(data, query=MultiActionPolicyValue(outcome, assignment, propensities, policy, evaluation_subject_ids), estimator='randomized.multi_action_ipw_policy_net')",
+        "antecedent.analyze(data, query=MultiActionPolicyValue(outcome, assignment, propensities, policy, evaluation_subject_ids, reference=reference, available=available), estimator='randomized.multi_action_ipw_policy_net')",
     )
     return _evaluate_multi_action_policy_direct(
         evaluation_data,
