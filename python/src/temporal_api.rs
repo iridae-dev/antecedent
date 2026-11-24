@@ -9,6 +9,9 @@
 use crate::NumericColumn;
 use crate::*;
 use antecedent::StudyBuilder;
+use antecedent::analysis::temporal_linear_prediction::{
+    TemporalPredictionRequest, compile_temporal_prediction,
+};
 use pyo3::prelude::*;
 
 #[pyfunction]
@@ -72,15 +75,24 @@ fn predict_conditional_summary(
         let (series, _) = series_from_batch(&batch)?;
         let y = schema_var_id(series.schema(), &target)?;
         let x = schema_var_id(series.schema(), &parent)?;
-        let policy = KernelPolicy::default_policy();
-        let pred = TemporalLinearPredictor::fit(
-            &series,
+        // The compiled prediction program runs the same lagged least-squares fit and
+        // conditional evaluation (TemporalLinearPredictor::fit, predict_conditional) with the
+        // same kernel policy; a kernel refusal maps to the same Python error as before.
+        let request = TemporalPredictionRequest::predict_conditional(
+            series,
             y,
             [antecedent::data::LaggedColumn { variable: x, lag: Lag::from_raw(parent_lag) }],
-            &policy,
-        )
-        .map_err(py_err)?;
-        let yhat = pred.predict_conditional(&series, x, level, &policy).map_err(py_err)?;
+            x,
+            level,
+            KernelPolicy::default_policy(),
+        );
+        let ctx = crate::transport_common::execution_context(0, None, None);
+        let outcome = compile_temporal_prediction(request, &ctx)
+            .and_then(|program| program.run(&ctx))
+            .map_err(|error| py_err(antecedent::CausalError::from(error)))?;
+        let yhat = outcome.predictions().ok_or_else(|| {
+            crate::value_err("the compiled prediction program returned no predictions")
+        })?;
         let mean = yhat.iter().sum::<f64>() / yhat.len().max(1) as f64;
         Ok(PredictSummary { mean_prediction: mean, n: yhat.len() as u64 })
     })
