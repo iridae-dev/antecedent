@@ -25965,3 +25965,143 @@ crate = "python"
 cargo_target = "lib"
 path = "python/src/prior_bank.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "core-identity-site-laws"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/identity_site_laws.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "core-identity-sites"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/identity_site_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "core-query-identity-sites"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/identity_site_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "core-scientific-target-identity-sites"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/scientific_target/identity_site_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-composition-verifiers-artifact-inspection-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/composition_verifiers/artifact_inspection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-composition-verifiers-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/composition_verifiers.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-decision-contract-search-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_contract/search.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-decision-robust-artifact-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_robust_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-plan-common-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/plan_common.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-study-candidate-identity-sites"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/study_candidate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-counterfactual-transport-artifact-identity-sites"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/counterfactual_transport_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-callback-result-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/callback_result_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-cohort-decision-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/cohort_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-composition-verification-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/composition_verification_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-cross-world-execution-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/cross_world_execution_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-external-claim-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/external_claim_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-observation-query-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/observation_query_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-temporal-recalc-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/temporal_recalc_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-transport-handoff-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "io-core-transport-revalidation-artifact-identity-sites"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/transport_revalidation_artifact.rs"
+gates = ["inventory", "named"]
