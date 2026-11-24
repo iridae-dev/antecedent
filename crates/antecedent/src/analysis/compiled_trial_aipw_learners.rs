@@ -39,7 +39,7 @@ use crate::error::CausalError;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
 use crate::planner::{PlanStage, PlanView};
 
-const PLAN_ID: &str = "trial_aipw_caller_learners.v1";
+const PLAN_ID: &str = "trial_aipw_learner_transport.v1";
 const EVALUATOR: &str = "antecedent_estimate::estimate_trial_aipw_with_factories";
 /// Whether `execute` passes the support gate of the unit the route is bound to
 /// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
@@ -162,7 +162,10 @@ impl Study {
     ///
     /// # Errors
     ///
-    /// A query other than the binary trial mean contrast, an identification failure, a request
+    /// Bootstrap replicates (`route_not_supported`,
+    /// `trial_aipw_caller_learners.bootstrap_not_supported`: the kernel refuses them for caller
+    /// learners, so they are refused here before anything is fitted), a query other than the
+    /// binary trial mean contrast, an identification failure, a request
     /// the estimator would refuse before fitting (certificate, features, rows, randomization,
     /// sampling, folds), an unencodable query, cancellation, or a physical operator that cannot
     /// be declared.
@@ -171,6 +174,15 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledTrialAipwLearners, CausalError> {
         antecedent_estimate::validate_trial_query(&request.query)?;
+        if request.options.bootstrap != 0 {
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                detail =
+                    antecedent_core::reason_details::trial_aipw_caller_learners::BOOTSTRAP_NOT_SUPPORTED,
+                "caller learners run no joint outer bootstrap, so the route is point-only. Next \
+                 attempt: declare bootstrap 0"
+            ));
+        }
         let identification = TransportIdentifier::new().identify_with_context(
             &request.diagram,
             &request.query,

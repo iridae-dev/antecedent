@@ -218,10 +218,25 @@ mod trial {
             ),
             &ctx,
         )
-        .unwrap()
-        .execute(&ctx)
         .unwrap_err();
         assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+        assert!(
+            error.to_string().contains("trial_aipw_caller_learners.bootstrap_not_supported"),
+            "{error}"
+        );
+        // The direct kernel refuses the same request under the same code.
+        let (outcome, membership, _) = library_learners(IDENTITY);
+        let id = TransportIdentifier::new().identify(&diagram(), &query()).unwrap();
+        let direct = estimate_trial_aipw_with_factories(
+            &id,
+            &input(TrialSampling::IndependentSamples),
+            &replicated,
+            &ctx,
+            &*outcome,
+            &*membership,
+        )
+        .unwrap_err();
+        assert_eq!(direct.reason_code(), Some("route_not_supported"), "{direct}");
     }
 
     #[test]
@@ -461,6 +476,22 @@ mod joint_cells {
         declared.learner = Some(LearnerSpec::Linear(LinearSpec::default()));
         let treatments = vec![id(&data, "t0"), id(&data, "t1")];
         let (outcome, adjustment) = (id(&data, "y"), vec![id(&data, "z")]);
+        // The direct kernel refuses the combination before fitting anything.
+        let (outcome_factory, propensity_factory, _) = library_learners(IDENTITY);
+        let direct = fit_factorized_joint_cells_with_factories(
+            &data,
+            &treatments,
+            outcome,
+            &adjustment,
+            &orderings(),
+            &declared,
+            &ExecutionContext::for_tests(17),
+            &*outcome_factory,
+            &*propensity_factory,
+        )
+        .unwrap_err();
+        assert!(direct.to_string().contains("caller factories cannot be combined"), "{direct}");
+        // The compiled route refuses it at compile, before anything is bound or fitted.
         let error = Study::compile_joint_cells_learners(JointCellsLearnersRequest::new(
             data,
             treatments,
@@ -470,10 +501,12 @@ mod joint_cells {
             declared,
             learners,
         ))
-        .unwrap()
-        .execute(&ExecutionContext::for_tests(17))
         .unwrap_err();
-        assert!(error.to_string().contains("caller factories cannot be combined"), "{error}");
+        assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
+        assert!(
+            error.to_string().contains("joint_cells_caller_learners.built_in_learner_declared"),
+            "{error}"
+        );
     }
 
     #[test]

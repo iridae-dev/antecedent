@@ -45,7 +45,7 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
-const PLAN_ID: &str = "joint_cells_caller_learners.v1";
+const PLAN_ID: &str = "joint_cells_learner_fit.v1";
 const EVALUATOR: &str = "antecedent_estimate::fit_factorized_joint_cells_with_factories";
 /// Whether `execute` passes the support gate of the unit the route is bound to
 /// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
@@ -256,16 +256,27 @@ fn lower(request: &JointCellsLearnersRequest) -> Result<Arc<LoweredProgram>, Cau
 impl Study {
     /// Bind a factorized joint-cell request with caller learners.
     ///
-    /// The kernel decides every refusal (configuration, components, orderings, columns, rows,
-    /// learner tasks and capabilities, cell support), as on the direct entry; nothing is fitted
-    /// here.
+    /// Nothing is fitted here. A built-in learner specification beside the declared learners is
+    /// refused; the kernel decides every other refusal (configuration, components, orderings,
+    /// columns, rows, learner tasks and capabilities, cell support) at execution, as on the
+    /// direct entry.
     ///
     /// # Errors
     ///
-    /// A physical operator that cannot be declared.
+    /// `option_not_applicable` (`joint_cells_caller_learners.built_in_learner_declared`) when
+    /// the configuration also declares a built-in learner, or a physical operator that cannot be
+    /// declared.
     pub fn compile_joint_cells_learners(
         request: JointCellsLearnersRequest,
     ) -> Result<CompiledJointCellsLearners, CausalError> {
+        if request.config.learner.is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                detail = antecedent_core::reason_details::joint_cells_caller_learners::BUILT_IN_LEARNER_DECLARED,
+                "the declared caller learners replace the built-in learner specification. Next \
+                 attempt: leave FactorizedJointConfig::learner unset"
+            ));
+        }
         let lowered = lower(&request)?;
         Ok(CompiledJointCellsLearners { request, lowered })
     }
