@@ -60,6 +60,7 @@ pub(crate) const DESIGN_IDENTIFICATION_REPAIR: UnitId = UnitId::new("design.iden
 pub(crate) const DESIGN_PRIOR_SIGNAL_PLANNING: UnitId = UnitId::new("design.prior_signal_planning");
 pub(crate) const DESIGN_RANKING_ARTIFACT: UnitId = UnitId::new("design.ranking_artifact");
 pub(crate) const DESIGN_STUDY_PLANNING: UnitId = UnitId::new("design.study_planning");
+pub(crate) const DISCOVERY_PER_POPULATION: UnitId = UnitId::new("discovery.per_population");
 pub(crate) const DISCOVERY_SAMPLE_SPLIT_EFFECT: UnitId =
     UnitId::new("discovery.sample_split_effect");
 pub(crate) const DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT: UnitId =
@@ -68,6 +69,8 @@ pub(crate) const ESTIMATE_DESCRIPTIVE_COMPARISON: UnitId =
     UnitId::new("estimate.descriptive_comparison");
 pub(crate) const ESTIMATE_DOSE_GRID_BIAS_AWARE: UnitId =
     UnitId::new("estimate.dose_grid_bias_aware");
+pub(crate) const ESTIMATE_JOINT_CELLS_CALLER_LEARNERS: UnitId =
+    UnitId::new("estimate.joint_cells_caller_learners");
 pub(crate) const ESTIMATE_LATENT_SOFT_INTERVENTION: UnitId =
     UnitId::new("estimate.latent_soft_intervention");
 pub(crate) const ESTIMATE_MATCHED_CASE_CONTROL_ODDS_RATIO: UnitId =
@@ -77,6 +80,11 @@ pub(crate) const ESTIMATE_OBSERVATIONAL_POLICY_VALUE: UnitId =
 pub(crate) const ESTIMATE_TEMPORAL_LINEAR_PREDICTION: UnitId =
     UnitId::new("estimate.temporal_linear_prediction");
 pub(crate) const FORECAST_EVENT_PROCESS: UnitId = UnitId::new("forecast.event_process");
+pub(crate) const FORECAST_HAWKES_EXCITATION: UnitId = UnitId::new("forecast.hawkes_excitation");
+pub(crate) const FORECAST_HAWKES_PARAMETER_BRIDGE: UnitId =
+    UnitId::new("forecast.hawkes_parameter_bridge");
+pub(crate) const FORECAST_MARKED_EVENT_PROCESS: UnitId =
+    UnitId::new("forecast.marked_event_process");
 pub(crate) const GCM_ATTRIBUTE_MECHANISM_REFIT: UnitId =
     UnitId::new("gcm.attribute.mechanism_refit");
 pub(crate) const GCM_MODEL_GRAPH_FALSIFICATION: UnitId =
@@ -132,6 +140,8 @@ pub(crate) const TRANSPORT_CLASSICAL_IDENTIFICATION: UnitId =
     UnitId::new("transport.classical_identification");
 pub(crate) const TRANSPORT_COVARIATE_SHIFT_COHORT_EFFECT: UnitId =
     UnitId::new("transport.covariate_shift_cohort_effect");
+pub(crate) const TRANSPORT_CPDAG_CLASS_ENVELOPE: UnitId =
+    UnitId::new("transport.cpdag_class_envelope");
 pub(crate) const TRANSPORT_FINITE_SCENARIO_ENVELOPE: UnitId =
     UnitId::new("transport.finite_scenario_envelope");
 pub(crate) const TRANSPORT_JOINT_BAYESIAN: UnitId = UnitId::new("transport.joint_bayesian");
@@ -149,6 +159,8 @@ pub(crate) const TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS: UnitId =
     UnitId::new("transport.smoothed_dose_caller_learners");
 pub(crate) const TRANSPORT_TEMPORAL_PATH_SPECIFIC: UnitId =
     UnitId::new("transport.temporal_path_specific");
+pub(crate) const TRANSPORT_TRIAL_AIPW_CALLER_LEARNERS: UnitId =
+    UnitId::new("transport.trial_aipw_caller_learners");
 pub(crate) const TRANSPORT_TRIAL_IPW_DECISION: UnitId = UnitId::new("transport.trial_ipw_decision");
 pub(crate) const TRANSPORT_Z_IDENTIFICATION: UnitId = UnitId::new("transport.z_identification");
 pub(crate) const VALIDATE_DISCOVERY_STABILITY: UnitId = UnitId::new("validate.discovery_stability");
@@ -214,15 +226,20 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "PriorSignalAdaptation" => Some(DESIGN_PRIOR_SIGNAL_PLANNING),
         "DesignRanking" => Some(DESIGN_RANKING_ARTIFACT),
         "StudyAdditionPlanning" => Some(DESIGN_STUDY_PLANNING),
+        "PerPopulationStructureSearch" => Some(DISCOVERY_PER_POPULATION),
         "SampleSplitEffect" => Some(DISCOVERY_SAMPLE_SPLIT_EFFECT),
         "SampleSplitParentSetEffect" => Some(DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT),
         "DescriptiveComparison" => Some(ESTIMATE_DESCRIPTIVE_COMPARISON),
         "DoseGridBiasAware" => Some(ESTIMATE_DOSE_GRID_BIAS_AWARE),
+        "JointCellsLearnerFit" => Some(ESTIMATE_JOINT_CELLS_CALLER_LEARNERS),
         "LatentSoftIntervention" => Some(ESTIMATE_LATENT_SOFT_INTERVENTION),
         "MatchedCaseControl" => Some(ESTIMATE_MATCHED_CASE_CONTROL_ODDS_RATIO),
         "ObservationalPolicy" | "PolicySubsampling" => Some(ESTIMATE_OBSERVATIONAL_POLICY_VALUE),
         "TemporalLinearPrediction" => Some(ESTIMATE_TEMPORAL_LINEAR_PREDICTION),
         "EventProcess" => Some(FORECAST_EVENT_PROCESS),
+        "HawkesExcitation" => Some(FORECAST_HAWKES_EXCITATION),
+        "HawkesParameterBridge" => Some(FORECAST_HAWKES_PARAMETER_BRIDGE),
+        "MarkedEventProcess" => Some(FORECAST_MARKED_EVENT_PROCESS),
         "FittedModelAttribution" => Some(GCM_ATTRIBUTE_MECHANISM_REFIT),
         "GraphFalsification" => Some(GCM_MODEL_GRAPH_FALSIFICATION),
         "FittedModelSimulation" => Some(GCM_SIMULATE_MECHANISM_REFIT),
@@ -286,6 +303,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "BridgeTransportPremiseAssessment" => Some(TRANSPORT_BRIDGE_PREMISE_ASSESSMENT),
         "ClassicalTransportIdentification" => Some(TRANSPORT_CLASSICAL_IDENTIFICATION),
         "TransportedCohortEffect" => Some(TRANSPORT_COVARIATE_SHIFT_COHORT_EFFECT),
+        "DiscoveredClassTransport" => Some(TRANSPORT_CPDAG_CLASS_ENVELOPE),
         "TransportScenarioSet" => Some(TRANSPORT_FINITE_SCENARIO_ENVELOPE),
         "JointBayesianTransport" => Some(TRANSPORT_JOINT_BAYESIAN),
         "JointTransportEffectDecision" | "JointTransportPredictiveDecision" => {
@@ -298,6 +316,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "ZTransportEstimate" => Some(TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT),
         "SmoothedDoseLearnerTransport" => Some(TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS),
         "TemporalPathTransport" => Some(TRANSPORT_TEMPORAL_PATH_SPECIFIC),
+        "TrialAipwLearnerTransport" => Some(TRANSPORT_TRIAL_AIPW_CALLER_LEARNERS),
         "TrialIpwPredictiveDecision" | "TrialIpwTransportDecision" => {
             Some(TRANSPORT_TRIAL_IPW_DECISION)
         }

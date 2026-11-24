@@ -19,6 +19,7 @@ use super::{
     EventWorldRequest, MAX_EVENTS, PreparedKernel, admit, digest, history_bytes, path_bytes,
     release_supported, validate_arrivals, validate_budget,
 };
+use crate::planner::lowered::EventProcessRoute;
 
 /// One weighted hypothesis conditional on the declared initial history.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -121,8 +122,6 @@ pub struct EventStudyValue {
     pub decision_time: f64,
     /// Whether this route has earned release support.
     pub release_supported: bool,
-    /// The signal prices the release only when every hypothesis is the kernel the bridge kept.
-    pub release_information: bool,
 }
 
 /// Compiled actual-observation update and continuation forecast.
@@ -146,6 +145,8 @@ pub struct PreparedEventStudy {
     cost: Option<f64>,
     prior_identity: String,
     plan: PreparedKernel,
+    /// The support unit the study's route runs under.
+    unit: &'static str,
     release_information: bool,
     _lease: AdmissionLease,
 }
@@ -294,12 +295,16 @@ impl crate::Study {
             cost,
             prior_identity,
             plan,
+            unit: CAPABILITY,
             release_information: false,
             _lease: lease,
         })
     }
 
     /// Compile the same study only when the belief is the kernel a bridge kept.
+    ///
+    /// The program is the future study composed on the accepted excitation's program, under the
+    /// parameter-bridge route: the signal prices the release only under that kernel.
     ///
     /// # Errors
     /// A hypothesis is not that kernel, the kernel is marked, or the study declaration is invalid.
@@ -326,6 +331,18 @@ impl crate::Study {
         }
         let mut prepared =
             Self::prepare_event_study(prior, request, worlds, contract, study_cost, ctx)?;
+        let source = digest(
+            "antecedent.events.release_study.v1",
+            &(prepared.plan.identity().to_hex(), accepted.identity().to_hex()),
+        )?;
+        prepared.plan = PreparedKernel::composed_on(
+            EventProcessRoute::ParameterBridge,
+            source,
+            accepted.identity(),
+            "release_study",
+            Some(&prepared.contract),
+        )?;
+        prepared.unit = super::BRIDGE_UNIT;
         prepared.release_information = true;
         Ok(prepared)
     }
@@ -440,6 +457,13 @@ impl PreparedEventUpdate {
 }
 
 impl PreparedEventStudy {
+    /// Whether the signal prices a release: the study was compiled on the kernel an accepted
+    /// excitation kept.
+    #[must_use]
+    pub const fn release_information(&self) -> bool {
+        self.release_information
+    }
+
     /// Inspect without generating arrivals or solving worlds.
     pub fn plan_view(&self) -> crate::planner::PlanView {
         self.plan.plan_view()
@@ -596,8 +620,7 @@ impl PreparedEventStudy {
             branch_actions: branches.map(|index| index.map(|i| actions[i].id.clone())),
             prior: self.prior_identity.clone(),
             decision_time: r.decision_time,
-            release_supported: release_supported(CAPABILITY),
-            release_information: self.release_information,
+            release_supported: release_supported(self.unit),
         })
     }
 }

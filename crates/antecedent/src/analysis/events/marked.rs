@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use super::hawkes::{self, horizon_factor};
 use super::{EventError, EventWindow, MAX_EVENT_TYPES, OPERATION_BUDGET};
+use crate::planner::lowered::EventProcessRoute::Marked;
 
 /// Largest prototype set whose spectral witness (`P³`) fits in half the operation budget.
 pub const MAX_PROTOTYPES: usize = max_prototypes(OPERATION_BUDGET);
@@ -105,6 +106,7 @@ pub struct MarkedFitSpec {
 
 /// Diagnostics for a converged marked fit.
 #[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
 pub struct MarkedFit {
     /// Fitted coefficients and the decays the fit held fixed.
     pub parameters: MarkedParameters,
@@ -128,6 +130,7 @@ pub struct MarkedFit {
 
 /// Conditional-intensity offspring of one prototype. Not an intervention effect.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct MarkedOffspring {
     /// Initiating prototype.
     pub prototype: usize,
@@ -220,12 +223,13 @@ impl MarkedParameters {
         spectral_radius_below_one(&matrix, prototypes.len())
     }
 
-    /// Offspring of one prototype under this conditional intensity.
+    /// Offspring of one prototype under this conditional intensity. The compiled route is
+    /// [`crate::Study::prepare_marked_offspring`].
     ///
     /// # Errors
     /// The kernel is not a stable model on these prototypes, or the horizon
     /// cannot be integrated.
-    pub fn excitation_offspring(
+    pub(crate) fn excitation_offspring(
         &self,
         prototypes: &[MarkPrototype],
         prototype: usize,
@@ -1070,7 +1074,7 @@ impl crate::Study {
         let lease = super::admit(ctx, 0, 8_192)?;
         let source =
             super::digest("antecedent.events.marked_likelihood.v1", &(&history, &parameters))?;
-        let plan = super::PreparedKernel::new(source, "marked_likelihood", super::CAPABILITY)?;
+        let plan = super::PreparedKernel::on(Marked, source, "marked_likelihood")?;
         Ok(PreparedMarkedLikelihood { history, parameters, plan, _lease: lease })
     }
 
@@ -1088,7 +1092,7 @@ impl crate::Study {
         spec.validate(&history)?;
         let lease = super::admit(ctx, 0, 8_192)?;
         let source = super::digest("antecedent.events.marked_fit.v1", &(&history, &spec))?;
-        let plan = super::PreparedKernel::new(source, "marked_fit", super::CAPABILITY)?;
+        let plan = super::PreparedKernel::on(Marked, source, "marked_fit")?;
         Ok(PreparedMarkedFit { history, spec, plan, _lease: lease })
     }
 }
@@ -1163,7 +1167,7 @@ impl crate::Study {
             "antecedent.events.marked_draw.v1",
             &(&history, &parameters, window, paths, max_events, seed),
         )?;
-        let plan = super::PreparedKernel::new(source, "marked_draw", super::CAPABILITY)?;
+        let plan = super::PreparedKernel::on(Marked, source, "marked_draw")?;
         Ok(PreparedMarkedDraw {
             history,
             parameters,

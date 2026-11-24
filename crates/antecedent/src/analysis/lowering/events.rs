@@ -15,9 +15,10 @@ use crate::analysis::events::release_supported;
 use crate::error::CausalError;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape,
-    EventProcessLoweredParts, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
-    FunctionalKind, IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer,
-    ProblemTarget, ProgramIdentityScope, ScientificProblem, UncertaintyReading,
+    EventProcessLoweredParts, EventProcessRoute, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramIdentityScope,
+    ScientificProblem, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::support::CellStatus;
@@ -30,8 +31,54 @@ fn invalid(error: impl std::fmt::Display) -> CausalError {
     )
 }
 
+/// Operations that read an intervened or composed world rather than the observed stream.
+const INTERVENED: &[&str] = &[
+    "paired_event_worlds",
+    "future_event_study",
+    "excitation_question",
+    "release_law",
+    "release_question",
+    "release_study",
+];
+
+/// Operations that estimate parameters before the program reads its result.
+const FITTED: &[&str] = &[
+    "fit_and_forecast",
+    "refit_and_forecast",
+    "assess_forecasts",
+    "marked_fit",
+    "excitation_challenge",
+    "marked_excitation_challenge",
+    "release_comparison",
+    "marked_release_comparison",
+    "release_question",
+];
+
+/// Operations whose result is an exact evaluation with no predictive law.
+const POINT: &[&str] = &[
+    "likelihood",
+    "assess_forecasts",
+    "future_event_study",
+    "count_interval",
+    "marked_likelihood",
+    "marked_fit",
+    "excitation_offspring",
+    "marked_offspring",
+    "excitation_challenge",
+    "marked_excitation_challenge",
+    "release_comparison",
+    "marked_release_comparison",
+    "excitation_question",
+    "shock_query",
+    "release_study",
+];
+
+/// Operations that scan paired worlds or schedules after conditioning.
+const SCANNED: &[&str] = &["paired_event_worlds", "future_event_study", "release_study"];
+
 #[allow(clippy::too_many_lines, reason = "one lowering that assembles every program section")]
 pub(crate) fn lower(
+    route: EventProcessRoute,
     source: SemanticDigest,
     source_bytes: u64,
     operation: &'static str,
@@ -47,7 +94,7 @@ pub(crate) fn lower(
         runtime_query: None,
         identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: if matches!(operation, "paired_event_worlds" | "future_event_study") {
+            kind: if INTERVENED.contains(&operation) {
                 FunctionalKind::InterventionalDistribution
             } else {
                 FunctionalKind::ConditionalObservation
@@ -84,7 +131,7 @@ pub(crate) fn lower(
             .build()
             .map_err(invalid)?,
     ];
-    if matches!(operation, "fit_and_forecast" | "refit_and_forecast" | "assess_forecasts") {
+    if FITTED.contains(&operation) {
         operators.push(
             Operator::new(
                 OperatorDeclaration::new(
@@ -106,7 +153,7 @@ pub(crate) fn lower(
     .map_err(invalid)?;
     operators.push(condition);
     physical.push(PhysicalOperator::declare(PhysicalEffect::Condition).build().map_err(invalid)?);
-    if matches!(operation, "paired_event_worlds" | "future_event_study") {
+    if SCANNED.contains(&operation) {
         operators.push(
             Operator::new(OperatorDeclaration::new(
                 OperatorEffect::Scan,
@@ -122,10 +169,7 @@ pub(crate) fn lower(
                 .map_err(invalid)?,
         );
     }
-    let point = matches!(
-        operation,
-        "likelihood" | "assess_forecasts" | "future_event_study" | "count_interval"
-    );
+    let point = POINT.contains(&operation);
     let statistical = StatisticalProgram {
         identifier: None,
         estimator: None,
@@ -183,6 +227,7 @@ pub(crate) fn lower(
         chain: None,
     };
     Ok(EventProcessLoweredParts {
+        route,
         scientific,
         identification: IdentificationLayer::NonGraphical(Arc::new(
             NonGraphicalIdentification::SpecifiedModelConditional { model: *source.as_bytes() },
@@ -196,7 +241,7 @@ pub(crate) fn lower(
             } else {
                 UncertaintyReading::Predictive
             },
-            kind: Some(if matches!(operation, "paired_event_worlds" | "future_event_study") {
+            kind: Some(if INTERVENED.contains(&operation) {
                 ClaimKind::Response
             } else {
                 ClaimKind::Associational

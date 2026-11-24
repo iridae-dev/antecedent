@@ -41,6 +41,7 @@ pub struct HawkesFitSpec {
 /// `horizon_descendants` integrates the linear filter ODE on `[0, horizon)`.
 /// It is not the resolvent of the horizon-discounted branching matrix.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ExcitationOffspring {
     /// Source type that initiates the cluster.
     pub source: usize,
@@ -131,12 +132,13 @@ impl HawkesParameters {
         Ok(())
     }
 
-    /// Offspring functionals of this conditional intensity.
+    /// Offspring functionals of this conditional intensity. The compiled route is
+    /// [`crate::Study::prepare_excitation_offspring`].
     ///
     /// # Errors
     /// The parameters are not a stable catalog model, or the horizon is not a
     /// positive finite duration the filter ODE can resolve.
-    pub fn excitation_offspring(
+    pub(crate) fn excitation_offspring(
         &self,
         source: usize,
         horizon: f64,

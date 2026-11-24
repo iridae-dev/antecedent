@@ -2,16 +2,16 @@
 
 use antecedent::Study;
 use antecedent::analysis::events::{
-    AcceptedExcitation, BaselineFeature, BridgeContract, Continuation, DeclaredQuantity,
-    EventBelief, EventError, EventForecastRequest, EventHistory, EventLaw, EventObservation,
-    EventStudyRequest, EventWindow, EventWorldRequest, ExcitationChallenge, ExcitationSubject,
-    ExcludedShock, ForecastAssessmentRequest, HawkesParameters, MarkPrototype,
-    MarkedExcitationChallenge, MarkedFitSpec, MarkedHistory, MarkedParameters,
-    PreparedEventForecast, PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate,
-    PreparedEventWorlds, PreparedExcitationChallenge, PreparedForecastAssessment,
-    PreparedMarkedChallenge, PreparedMarkedFit, PreparedMarkedLikelihood, PreparedShock,
-    ReleaseAction, ReleaseDraw, compare_marked_release_times, compare_release_times,
-    parameter_bridge,
+    AcceptedExcitation, BaselineFeature, BridgeContract, DeclaredQuantity, EventBelief, EventError,
+    EventForecastRequest, EventHistory, EventLaw, EventObservation, EventStudyRequest, EventWindow,
+    EventWorldRequest, ExcitationChallenge, ExcludedShock, ForecastAssessmentRequest,
+    HawkesParameters, MarkPrototype, MarkedExcitationChallenge, MarkedFitSpec, MarkedHistory,
+    MarkedParameters, MarkedReleaseComparisonRequest, PreparedEventForecast,
+    PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate, PreparedEventWorlds,
+    PreparedExcitationChallenge, PreparedExcitationOffspring, PreparedForecastAssessment,
+    PreparedMarkedChallenge, PreparedMarkedFit, PreparedMarkedLikelihood, PreparedMarkedOffspring,
+    PreparedReleaseComparison, PreparedReleaseQuestion, PreparedShock, QuestionChallenge,
+    ReleaseAction, ReleaseComparisonRequest, ReleaseDraw, ReleaseQuestion, parameter_bridge,
 };
 use antecedent::design::decision_artifact::{contract_from_json, result_to_json};
 use antecedent::design::evsi::{CostToUtilityMap, StudyCostSpec};
@@ -49,19 +49,6 @@ struct NativePreparedEventProgram {
     inner: Prepared,
 }
 
-struct QuestionPlan {
-    challenge: ChallengePlan,
-    bridge: BridgeContract,
-    discovery: antecedent::AcceptedGraph,
-    action: ReleaseAction,
-    draw: ReleaseDraw,
-}
-
-enum ChallengePlan {
-    Catalog(PreparedExcitationChallenge),
-    Marked(PreparedMarkedChallenge),
-}
-
 enum Prepared {
     Forecast(PreparedEventForecast),
     Likelihood(PreparedEventLikelihood),
@@ -73,18 +60,15 @@ enum Prepared {
     MarkedLikelihood(PreparedMarkedLikelihood),
     MarkedFit(PreparedMarkedFit),
     MarkedChallenge(PreparedMarkedChallenge),
-    Offspring(HawkesParameters, usize, f64),
-    Release(HawkesParameters, PreparedExcitationChallenge, f64, f64, f64),
-    MarkedOffspring(MarkedParameters, Vec<MarkPrototype>, usize, f64),
-    MarkedRelease(MarkedParameters, Vec<MarkPrototype>, PreparedMarkedChallenge, f64, f64, f64),
-    Question(Box<QuestionPlan>),
+    Offspring(PreparedExcitationOffspring),
+    MarkedOffspring(PreparedMarkedOffspring),
+    Release(PreparedReleaseComparison),
+    Question(Box<PreparedReleaseQuestion>),
     Shock(PreparedShock),
 }
 
-/// The compiled plan of a prepared program, `None` for the operations that hold no plan of
-/// their own.
-fn plan_view_of(prepared: &Prepared) -> Option<antecedent::planner::PlanView> {
-    Some(match prepared {
+fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
+    match prepared {
         Prepared::Forecast(p) => p.plan_view(),
         Prepared::Likelihood(p) => p.plan_view(),
         Prepared::Worlds(p) => p.plan_view(),
@@ -95,13 +79,12 @@ fn plan_view_of(prepared: &Prepared) -> Option<antecedent::planner::PlanView> {
         Prepared::MarkedLikelihood(p) => p.plan_view(),
         Prepared::MarkedFit(p) => p.plan_view(),
         Prepared::MarkedChallenge(p) => p.plan_view(),
+        Prepared::Offspring(p) => p.plan_view(),
+        Prepared::MarkedOffspring(p) => p.plan_view(),
+        Prepared::Release(p) => p.plan_view(),
+        Prepared::Question(p) => p.plan_view(),
         Prepared::Shock(p) => p.plan_view(),
-        Prepared::Offspring(..)
-        | Prepared::Release(..)
-        | Prepared::MarkedOffspring(..)
-        | Prepared::MarkedRelease(..)
-        | Prepared::Question(_) => return None,
-    })
+    }
 }
 
 #[pymethods]
@@ -115,47 +98,21 @@ impl NativePreparedEventProgram {
     }
 
     fn unit_support(&self) -> Option<String> {
-        plan_view_of(&self.inner).and_then(|view| crate::errors::unit_support_json(&view))
+        crate::errors::unit_support_json(&plan_view_of(&self.inner))
     }
 
     fn inspect(&self) -> String {
-        if let Some(view) = plan_view_of(&self.inner) {
-            return view.to_json().to_string();
-        }
+        let view = plan_view_of(&self.inner).to_json();
         match &self.inner {
-            Prepared::Offspring(_, source, horizon) => {
-                return json!({"operation": "offspring", "source": source, "horizon": horizon})
-                    .to_string();
-            }
-            Prepared::Release(_, challenge, earlier, later, end) => {
-                return json!({
-                    "operation": "release",
-                    "plan": challenge.plan_view().to_json(),
-                    "earlier": earlier,
-                    "later": later,
-                    "window_end": end,
-                })
-                .to_string();
-            }
-            Prepared::MarkedOffspring(_, _, prototype, horizon) => {
-                return json!({"operation": "marked_offspring", "prototype": prototype, "horizon": horizon})
-                    .to_string();
-            }
-            Prepared::MarkedRelease(_, _, challenge, earlier, later, end) => {
-                return json!({
-                    "operation": "marked_release",
-                    "plan": challenge.plan_view().to_json(),
-                    "earlier": earlier,
-                    "later": later,
-                    "window_end": end,
-                })
-                .to_string();
-            }
-            Prepared::Question(plan) => {
-                let evidence = plan.discovery.provenance().map(|item| hex_digest(&item.digest()));
-                json!({"operation": "excitation_question", "evidence": evidence}).to_string()
-            }
-            _ => unreachable!("every planned operation returned its plan view"),
+            // The question's structural evidence is the discovery provenance it cites, beside
+            // the compiled plan.
+            Prepared::Question(plan) => json!({
+                "operation": "excitation_question",
+                "evidence": plan.evidence(),
+                "plan": view,
+            })
+            .to_string(),
+            _ => view.to_string(),
         }
     }
 
@@ -213,7 +170,14 @@ impl NativePreparedEventProgram {
                     Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
                 }
                 Prepared::Study(p) => {
-                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                    let mut value = json!(p.execute(&ctx).map_err(error)?);
+                    // Only a release study reports that its signal prices the release.
+                    if p.release_information()
+                        && let Some(object) = value.as_object_mut()
+                    {
+                        object.insert("release_information".into(), Value::Bool(true));
+                    }
+                    Ok((None, value, None, None))
                 }
                 Prepared::Challenge(p) => {
                     Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
@@ -228,45 +192,14 @@ impl NativePreparedEventProgram {
                 Prepared::MarkedChallenge(p) => {
                     Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
                 }
-                Prepared::Offspring(parameters, source, horizon) => Ok((
-                    None,
-                    json!(parameters.excitation_offspring(*source, *horizon).map_err(error)?),
-                    None,
-                    None,
-                )),
-                Prepared::Release(parameters, challenge, earlier, later, end) => {
-                    let reading = challenge.execute(&ctx).map_err(error)?;
-                    let comparison = match reading.status {
-                        antecedent::analysis::events::DiagnosticStatus::Agreed => Some(
-                            compare_release_times(parameters, &reading, *earlier, *later, *end)
-                                .map_err(error)?,
-                        ),
-                        antecedent::analysis::events::DiagnosticStatus::Withheld => None,
-                    };
-                    Ok((None, json!({"reading": reading, "comparison": comparison}), None, None))
+                Prepared::Offspring(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
                 }
-                Prepared::MarkedOffspring(parameters, prototypes, prototype, horizon) => Ok((
-                    None,
-                    json!(
-                        parameters
-                            .excitation_offspring(prototypes, *prototype, *horizon)
-                            .map_err(error)?
-                    ),
-                    None,
-                    None,
-                )),
-                Prepared::MarkedRelease(parameters, prototypes, challenge, earlier, later, end) => {
-                    let reading = challenge.execute(&ctx).map_err(error)?;
-                    let comparison = match reading.status {
-                        antecedent::analysis::events::DiagnosticStatus::Agreed => Some(
-                            compare_marked_release_times(
-                                parameters, prototypes, &reading, *earlier, *later, *end,
-                            )
-                            .map_err(error)?,
-                        ),
-                        antecedent::analysis::events::DiagnosticStatus::Withheld => None,
-                    };
-                    Ok((None, json!({"reading": reading, "comparison": comparison}), None, None))
+                Prepared::MarkedOffspring(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::Release(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
                 }
                 Prepared::Update(p) => {
                     let (law, belief) = p.execute_with_belief(&ctx).map_err(error)?;
@@ -558,19 +491,26 @@ fn events_prepare(
                     .map_err(error)?,
                 )
             }
-            Request::Offspring { parameters, source, horizon } => {
-                Prepared::Offspring(parameters, source, horizon)
-            }
+            Request::Offspring { parameters, source, horizon } => Prepared::Offspring(
+                Study::prepare_excitation_offspring(parameters, source, horizon, &ctx)
+                    .map_err(error)?,
+            ),
             Request::Challenge { request } => Prepared::Challenge(
                 Study::prepare_excitation_challenge(request, &ctx).map_err(error)?,
             ),
             Request::Release { parameters, challenge, earlier, later, window_end } => {
                 Prepared::Release(
-                    parameters,
-                    Study::prepare_excitation_challenge(challenge, &ctx).map_err(error)?,
-                    earlier,
-                    later,
-                    window_end,
+                    Study::prepare_release_comparison(
+                        ReleaseComparisonRequest {
+                            parameters,
+                            challenge,
+                            earlier,
+                            later,
+                            window_end,
+                        },
+                        &ctx,
+                    )
+                    .map_err(error)?,
                 )
             }
             Request::MarkedLikelihood { history, parameters } => Prepared::MarkedLikelihood(
@@ -580,7 +520,12 @@ fn events_prepare(
                 Prepared::MarkedFit(Study::prepare_marked_fit(history, fit, &ctx).map_err(error)?)
             }
             Request::MarkedOffspring { parameters, prototypes, prototype, horizon } => {
-                Prepared::MarkedOffspring(parameters, prototypes, prototype, horizon)
+                Prepared::MarkedOffspring(
+                    Study::prepare_marked_offspring(
+                        parameters, prototypes, prototype, horizon, &ctx,
+                    )
+                    .map_err(error)?,
+                )
             }
             Request::MarkedChallenge { request } => Prepared::MarkedChallenge(
                 Study::prepare_marked_challenge(request, &ctx).map_err(error)?,
@@ -592,13 +537,19 @@ fn events_prepare(
                 earlier,
                 later,
                 window_end,
-            } => Prepared::MarkedRelease(
-                parameters,
-                prototypes,
-                Study::prepare_marked_challenge(challenge, &ctx).map_err(error)?,
-                earlier,
-                later,
-                window_end,
+            } => Prepared::Release(
+                Study::prepare_marked_release_comparison(
+                    MarkedReleaseComparisonRequest {
+                        parameters,
+                        prototypes,
+                        challenge,
+                        earlier,
+                        later,
+                        window_end,
+                    },
+                    &ctx,
+                )
+                .map_err(error)?,
             ),
             Request::ExcitationQuestion { challenge, bridge, action, draw } => {
                 let discovery = discovery.clone().ok_or_else(|| {
@@ -606,15 +557,15 @@ fn events_prepare(
                         "an excitation question needs the discovered graph and its provenance",
                     )
                 })?;
-                Prepared::Question(Box::new(QuestionPlan {
-                    challenge: ChallengePlan::Catalog(
-                        Study::prepare_excitation_challenge(challenge, &ctx).map_err(error)?,
-                    ),
+                let question = ReleaseQuestion {
+                    challenge: QuestionChallenge::Catalog(challenge),
                     bridge: bridge_contract(bridge)?,
-                    discovery,
                     action: release_action(action),
                     draw: release_draw(draw),
-                }))
+                };
+                Prepared::Question(Box::new(
+                    Study::prepare_release_question(question, &discovery, &ctx).map_err(error)?,
+                ))
             }
             Request::MarkedExcitationQuestion { challenge, bridge, action, draw } => {
                 let discovery = discovery.clone().ok_or_else(|| {
@@ -622,15 +573,15 @@ fn events_prepare(
                         "an excitation question needs the discovered graph and its provenance",
                     )
                 })?;
-                Prepared::Question(Box::new(QuestionPlan {
-                    challenge: ChallengePlan::Marked(
-                        Study::prepare_marked_challenge(challenge, &ctx).map_err(error)?,
-                    ),
+                let question = ReleaseQuestion {
+                    challenge: QuestionChallenge::Marked(challenge),
                     bridge: bridge_contract(bridge)?,
-                    discovery,
                     action: release_action(action),
                     draw: release_draw(draw),
-                }))
+                };
+                Prepared::Question(Box::new(
+                    Study::prepare_release_question(question, &discovery, &ctx).map_err(error)?,
+                ))
             }
             Request::Shock { history, feature, source, target, horizon, instrument } => {
                 Prepared::Shock(
@@ -760,34 +711,14 @@ fn release_draw(wire: DrawWire) -> ReleaseDraw {
 type Executed = (Option<EventLaw>, Value, Option<Vec<u8>>, Option<Arc<AcceptedExcitation>>);
 
 fn execute_question(
-    plan: &QuestionPlan,
+    plan: &PreparedReleaseQuestion,
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Executed> {
-    let (reading, subject) = match &plan.challenge {
-        ChallengePlan::Catalog(challenge) => {
-            (challenge.execute(ctx).map_err(error)?, challenge.kernel(ctx).map_err(error)?)
-        }
-        ChallengePlan::Marked(challenge) => {
-            (challenge.execute(ctx).map_err(error)?, challenge.kernel(ctx).map_err(error)?)
-        }
-    };
-    if reading.status != antecedent::analysis::events::DiagnosticStatus::Agreed {
+    let outcome = plan.execute(ctx).map_err(error)?;
+    let reading = outcome.reading;
+    let (Some(accepted), Some(law)) = (outcome.accepted, outcome.law) else {
         return Ok((None, json!({"reading": reading, "accepted": false}), None, None));
-    }
-    let prepared = Study::prepare_excitation_question(
-        reading.clone(),
-        subject.clone(),
-        plan.bridge.clone(),
-        &plan.discovery,
-        ctx,
-    )
-    .map_err(error)?;
-    let accepted = prepared.execute(ctx).map_err(error)?;
-    let continuation = match &subject {
-        ExcitationSubject::Catalog { history, .. } => Continuation::Catalog(history),
-        ExcitationSubject::Marked { history, .. } => Continuation::Marked(history),
     };
-    let law = accepted.release_law(continuation, plan.action, plan.draw, ctx).map_err(error)?;
     let report = json!({
         "reading": reading,
         "accepted": true,
@@ -798,14 +729,6 @@ fn execute_question(
         "transported": accepted.transported,
     });
     Ok((Some(law), report, None, Some(Arc::new(accepted))))
-}
-
-fn hex_digest(bytes: &[u8; 32]) -> String {
-    bytes.iter().fold(String::with_capacity(64), |mut out, byte| {
-        use std::fmt::Write as _;
-        let _ = write!(out, "{byte:02x}");
-        out
-    })
 }
 
 fn accepted_graph(

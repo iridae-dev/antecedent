@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::Study;
-use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
+use crate::planner::lowered::{EventProcessRoute, LoweredProgram};
+use crate::planner::{PlanStage, PlanView};
 
 mod assessment;
 mod challenge;
@@ -18,7 +19,9 @@ mod discovery;
 mod dynamics;
 mod hawkes;
 mod marked;
+mod offspring;
 mod question;
+mod release;
 mod study;
 
 pub use antecedent_contract::bridge::BridgeContract;
@@ -28,8 +31,8 @@ pub use assessment::{
 };
 pub use challenge::{
     DiagnosticStatus, ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge,
-    PreparedExcitationChallenge, PreparedMarkedChallenge, ReleaseChoice,
-    compare_marked_release_times, compare_release_times,
+    MarkedReleaseComparisonRequest, PreparedExcitationChallenge, PreparedMarkedChallenge,
+    PreparedReleaseComparison, ReleaseChoice, ReleaseComparison, ReleaseComparisonRequest,
 };
 pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
@@ -43,10 +46,15 @@ pub use marked::{
     MarkedOffspring, MarkedParameters, PreparedMarkedDraw, PreparedMarkedFit,
     PreparedMarkedLikelihood,
 };
+pub use offspring::{PreparedExcitationOffspring, PreparedMarkedOffspring};
 pub use question::{
     AcceptedExcitation, Continuation, DeclaredQuantity, ExcitationSubject, ExcludedShock,
     LagCountQuery, PreparedExcitationQuestion, PreparedShock, ReleaseAction, ReleaseDraw,
     parameter_bridge,
+};
+pub use release::{
+    PreparedReleaseLaw, PreparedReleaseQuestion, QuestionChallenge, ReleaseQuestion,
+    ReleaseQuestionOutcome,
 };
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
@@ -56,6 +64,15 @@ pub use study::{
 pub(crate) const CAPABILITY: &str =
     crate::support::units_generated::FORECAST_EVENT_PROCESS.as_str();
 pub(crate) const COUNT_INTERVAL: &str = "forecast.event_count_interval";
+/// The support unit of the finite-rank marked kernel routes.
+pub(crate) const MARKED_UNIT: &str =
+    crate::support::units_generated::FORECAST_MARKED_EVENT_PROCESS.as_str();
+/// The support unit of the offspring, immigrant-challenge and release-comparison routes.
+pub(crate) const EXCITATION_UNIT: &str =
+    crate::support::units_generated::FORECAST_HAWKES_EXCITATION.as_str();
+/// The support unit of the parameter-intervention bridge and what it composes.
+pub(crate) const BRIDGE_UNIT: &str =
+    crate::support::units_generated::FORECAST_HAWKES_PARAMETER_BRIDGE.as_str();
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 /// Operation charges for one event-process invocation, shared with the Hawkes work counter.
 pub(super) const OPERATION_BUDGET: usize = 250_000_000;
@@ -550,7 +567,13 @@ impl Study {
             _ => "forecast",
         };
         let program = Arc::new(super::lowering::events::lower(
-            source, bytes, operation, CAPABILITY, None, None,
+            EventProcessRoute::Forecast,
+            source,
+            bytes,
+            operation,
+            CAPABILITY,
+            None,
+            None,
         )?);
         Ok(PreparedEventForecast {
             request: Arc::new(request),
@@ -799,6 +822,16 @@ pub fn external_execution_contract(identity: ProviderObjectIdentity) -> Executio
 
 struct PreparedKernel(Arc<LoweredProgram>);
 
+/// The support unit a route's programs run under, as the lowering annotates it.
+const fn route_unit(route: EventProcessRoute) -> &'static str {
+    match route {
+        EventProcessRoute::Forecast => CAPABILITY,
+        EventProcessRoute::Marked => MARKED_UNIT,
+        EventProcessRoute::Excitation => EXCITATION_UNIT,
+        EventProcessRoute::ParameterBridge => BRIDGE_UNIT,
+    }
+}
+
 impl PreparedKernel {
     fn new(
         source: SemanticDigest,
@@ -806,7 +839,30 @@ impl PreparedKernel {
         capability: &'static str,
     ) -> Result<Self, EventError> {
         Ok(Self(Arc::new(super::lowering::events::lower(
-            source, 0, operation, capability, None, None,
+            EventProcessRoute::Forecast,
+            source,
+            0,
+            operation,
+            capability,
+            None,
+            None,
+        )?)))
+    }
+
+    /// A program of `route`, read under that route's support unit.
+    fn on(
+        route: EventProcessRoute,
+        source: SemanticDigest,
+        operation: &'static str,
+    ) -> Result<Self, EventError> {
+        Ok(Self(Arc::new(super::lowering::events::lower(
+            route,
+            source,
+            0,
+            operation,
+            route_unit(route),
+            None,
+            None,
         )?)))
     }
 
@@ -816,11 +872,23 @@ impl PreparedKernel {
         operation: &'static str,
         contract: Option<&antecedent_design::DecisionContract>,
     ) -> Result<Self, EventError> {
+        Self::composed_on(EventProcessRoute::Forecast, source, parent, operation, contract)
+    }
+
+    /// A program of `route` composed on the parent program `parent`.
+    fn composed_on(
+        route: EventProcessRoute,
+        source: SemanticDigest,
+        parent: SemanticDigest,
+        operation: &'static str,
+        contract: Option<&antecedent_design::DecisionContract>,
+    ) -> Result<Self, EventError> {
         Ok(Self(Arc::new(super::lowering::events::lower(
+            route,
             source,
             0,
             operation,
-            CAPABILITY,
+            route_unit(route),
             Some(parent),
             contract,
         )?)))

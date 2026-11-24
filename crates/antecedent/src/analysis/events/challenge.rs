@@ -14,10 +14,13 @@ use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
 
 use super::hawkes::{self, BaselineFeature, HawkesFit, HawkesFitSpec, HawkesParameters};
-use super::marked::{self, MarkedFit, MarkedFitSpec, MarkedHistory};
+use super::marked::{
+    self, MarkPrototype, MarkedFit, MarkedFitSpec, MarkedHistory, MarkedParameters,
+};
 use super::{
     AdmissionLease, EventError, EventHistory, PreparedKernel, admit, digest, history_bytes,
 };
+use crate::planner::lowered::EventProcessRoute::Excitation;
 
 /// Outcome of the declared immigrant diagnostic.
 ///
@@ -36,6 +39,7 @@ pub enum DiagnosticStatus {
 
 /// Result of challenging one excitation edge.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ExcitationReading {
     /// [`DiagnosticStatus::Agreed`] only under the declared tolerance and interior fits.
     pub status: DiagnosticStatus,
@@ -83,6 +87,7 @@ impl ExcitationReading {
 /// agrees. This is a conditional scenario under that kernel and those
 /// diagnostics, not an identified market response.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ReleaseChoice {
     /// Earlier release time.
     pub earlier: f64,
@@ -202,18 +207,53 @@ impl crate::Study {
         ctx: &ExecutionContext,
     ) -> Result<PreparedExcitationChallenge, EventError> {
         super::super::lowering::refuse_reentry(ctx)?;
-        request.history.validate(true)?;
-        request.fit.validate(request.history.catalog.len())?;
-        request.alternative.validate(request.history.window)?;
-        if request.source >= request.history.catalog.len()
-            || request.target >= request.history.catalog.len()
-        {
-            return Err(EventError::invalid("excitation challenge type is outside the catalog"));
-        }
+        request.validate()?;
         let lease = admit(ctx, 0, history_bytes(&request.history))?;
         let source = digest("antecedent.events.excitation_challenge.v1", &request)?;
-        let plan = PreparedKernel::new(source, "excitation_challenge", super::CAPABILITY)?;
+        let plan = PreparedKernel::on(Excitation, source, "excitation_challenge")?;
         Ok(PreparedExcitationChallenge { request, plan, _lease: lease })
+    }
+}
+
+impl ExcitationChallenge {
+    pub(super) fn validate(&self) -> Result<(), EventError> {
+        self.history.validate(true)?;
+        self.fit.validate(self.history.catalog.len())?;
+        self.alternative.validate(self.history.window)?;
+        if self.source >= self.history.catalog.len() || self.target >= self.history.catalog.len() {
+            return Err(EventError::invalid("excitation challenge type is outside the catalog"));
+        }
+        Ok(())
+    }
+
+    /// Fit both immigrant models under `ctx` and judge the queried edge. The constant-baseline
+    /// fit is returned with the reading, so a caller reads the kernel the diagnostic compared.
+    pub(super) fn run(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(ExcitationReading, HawkesFit), EventError> {
+        let mut work = hawkes::Work::new(ctx);
+        let constant = hawkes::fit(&self.history, &self.fit, &mut work)?;
+        let alternative =
+            hawkes::fit_alternative(&self.history, &self.fit, &self.alternative, &mut work)?;
+        let reading = catalog_reading(
+            &constant,
+            &alternative,
+            self.source,
+            self.target,
+            self.horizon,
+            self.tolerance,
+        )?;
+        Ok((reading, constant))
+    }
+
+    /// The constant-baseline kernel a bridge question offers, from the fit `run` returned.
+    pub(super) fn subject(&self, constant: HawkesFit) -> super::ExcitationSubject {
+        super::ExcitationSubject::Catalog {
+            parameters: constant.parameters,
+            history: self.history.clone(),
+            column_cap: self.fit.column_cap,
+        }
     }
 }
 
@@ -229,22 +269,7 @@ impl PreparedExcitationChallenge {
     /// A fit fails, or the fitted kernel is not stable.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ExcitationReading, EventError> {
         let scoped = super::scoped_execution(ctx, &self.plan)?;
-        let mut work = hawkes::Work::new(&scoped);
-        let constant = hawkes::fit(&self.request.history, &self.request.fit, &mut work)?;
-        let alternative = hawkes::fit_alternative(
-            &self.request.history,
-            &self.request.fit,
-            &self.request.alternative,
-            &mut work,
-        )?;
-        catalog_reading(
-            &constant,
-            &alternative,
-            self.request.source,
-            self.request.target,
-            self.request.horizon,
-            self.request.tolerance,
-        )
+        Ok(self.request.run(&scoped)?.0)
     }
 
     /// Fit the constant-baseline kernel the diagnostic compares.
@@ -255,11 +280,7 @@ impl PreparedExcitationChallenge {
         let scoped = super::scoped_execution(ctx, &self.plan)?;
         let mut work = hawkes::Work::new(&scoped);
         let constant = hawkes::fit(&self.request.history, &self.request.fit, &mut work)?;
-        Ok(super::ExcitationSubject::Catalog {
-            parameters: constant.parameters,
-            history: self.request.history.clone(),
-            column_cap: self.request.fit.column_cap,
-        })
+        Ok(self.request.subject(constant))
     }
 }
 
@@ -300,12 +321,13 @@ fn catalog_reading(
 /// of one added event in the constant-baseline kernel. The comparison is
 /// available only when [`ExcitationReading::agreed_direct`] succeeds. It does
 /// not identify the effect of releasing. A utility over path outcomes is a
-/// decision contract on the event worlds.
+/// decision contract on the event worlds. The compiled route is
+/// [`crate::Study::prepare_release_comparison`].
 ///
 /// # Errors
 /// The diagnostic was withheld, the times are unordered, or the parameters are
 /// not the kernel the reading was computed from.
-pub fn compare_release_times(
+pub(crate) fn compare_release_times(
     parameters: &HawkesParameters,
     reading: &ExcitationReading,
     earlier: f64,
@@ -388,18 +410,56 @@ impl crate::Study {
         ctx: &ExecutionContext,
     ) -> Result<PreparedMarkedChallenge, EventError> {
         super::super::lowering::refuse_reentry(ctx)?;
-        request.history.validate()?;
-        request.fit.validate(&request.history)?;
-        request.alternative.validate(request.history.window)?;
-        if request.source >= request.history.prototypes.len()
-            || request.target >= request.history.prototypes.len()
+        request.validate()?;
+        let lease = admit(ctx, 0, 8_192 + request.history.events.len() as u64 * 64)?;
+        let source = digest("antecedent.events.marked_challenge.v1", &request)?;
+        let plan = PreparedKernel::on(Excitation, source, "marked_excitation_challenge")?;
+        Ok(PreparedMarkedChallenge { request, plan, _lease: lease })
+    }
+}
+
+impl MarkedExcitationChallenge {
+    pub(super) fn validate(&self) -> Result<(), EventError> {
+        self.history.validate()?;
+        self.fit.validate(&self.history)?;
+        self.alternative.validate(self.history.window)?;
+        if self.source >= self.history.prototypes.len()
+            || self.target >= self.history.prototypes.len()
         {
             return Err(EventError::invalid("marked challenge prototype is outside the history"));
         }
-        let lease = admit(ctx, 0, 8_192 + request.history.events.len() as u64 * 64)?;
-        let source = digest("antecedent.events.marked_challenge.v1", &request)?;
-        let plan = PreparedKernel::new(source, "marked_excitation_challenge", super::CAPABILITY)?;
-        Ok(PreparedMarkedChallenge { request, plan, _lease: lease })
+        Ok(())
+    }
+
+    /// Fit both marked models under `ctx` and judge the queried prototypes, returning the
+    /// constant-baseline fit with the reading.
+    pub(super) fn run(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<(ExcitationReading, MarkedFit), EventError> {
+        let mut work = hawkes::Work::new(ctx);
+        let constant = marked::fit(&self.history, &self.fit, &mut work)?;
+        let alternative =
+            marked::fit_alternative(&self.history, &self.fit, &self.alternative, &mut work)?;
+        let reading = marked_reading(
+            &constant,
+            &alternative,
+            self.source,
+            self.target,
+            self.horizon,
+            self.tolerance,
+        )?;
+        Ok((reading, constant))
+    }
+
+    /// The constant-baseline marked kernel a bridge question offers.
+    pub(super) fn subject(&self, constant: MarkedFit) -> super::ExcitationSubject {
+        super::ExcitationSubject::Marked {
+            parameters: constant.parameters,
+            prototypes: constant.prototypes,
+            history: self.history.clone(),
+            reproduction_cap: self.fit.reproduction_cap,
+        }
     }
 }
 
@@ -415,22 +475,7 @@ impl PreparedMarkedChallenge {
     /// A fit fails, or the fitted kernel is not stable.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ExcitationReading, EventError> {
         let scoped = super::scoped_execution(ctx, &self.plan)?;
-        let mut work = hawkes::Work::new(&scoped);
-        let constant = marked::fit(&self.request.history, &self.request.fit, &mut work)?;
-        let alternative = marked::fit_alternative(
-            &self.request.history,
-            &self.request.fit,
-            &self.request.alternative,
-            &mut work,
-        )?;
-        marked_reading(
-            &constant,
-            &alternative,
-            self.request.source,
-            self.request.target,
-            self.request.horizon,
-            self.request.tolerance,
-        )
+        Ok(self.request.run(&scoped)?.0)
     }
 
     /// Fit the constant-baseline marked kernel the diagnostic compares.
@@ -441,12 +486,7 @@ impl PreparedMarkedChallenge {
         let scoped = super::scoped_execution(ctx, &self.plan)?;
         let mut work = hawkes::Work::new(&scoped);
         let constant = marked::fit(&self.request.history, &self.request.fit, &mut work)?;
-        Ok(super::ExcitationSubject::Marked {
-            parameters: constant.parameters,
-            prototypes: constant.prototypes,
-            history: self.request.history.clone(),
-            reproduction_cap: self.request.fit.reproduction_cap,
-        })
+        Ok(self.request.subject(constant))
     }
 }
 
@@ -484,12 +524,13 @@ fn marked_reading(
 ///
 /// The comparison uses the same conditional scenario as
 /// [`compare_release_times`]: offspring of one added event, not an identified
-/// market response.
+/// market response. The compiled route is
+/// [`crate::Study::prepare_marked_release_comparison`].
 ///
 /// # Errors
 /// The diagnostic was withheld, the times are unordered, or the kernel does not
 /// match the reading.
-pub fn compare_marked_release_times(
+pub(crate) fn compare_marked_release_times(
     parameters: &super::marked::MarkedParameters,
     prototypes: &[super::marked::MarkPrototype],
     reading: &ExcitationReading,
@@ -527,6 +568,147 @@ pub fn compare_marked_release_times(
         earlier_offspring.1,
         later_offspring.1,
     ))
+}
+
+/// A release comparison with a catalog kernel: the challenge whose reading licenses it, the
+/// kernel scored, and the two release times inside the publisher's window.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseComparisonRequest {
+    /// Kernel whose offspring are scored. It must reproduce the reading's direct mass.
+    pub parameters: HawkesParameters,
+    /// The immigrant challenge whose agreed reading licenses the comparison.
+    pub challenge: ExcitationChallenge,
+    /// Earlier release time.
+    pub earlier: f64,
+    /// Later release time.
+    pub later: f64,
+    /// End of the window the publisher scores.
+    pub window_end: f64,
+}
+
+/// A release comparison with a marked kernel.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarkedReleaseComparisonRequest {
+    /// Kernel whose offspring are scored. It must reproduce the reading's direct mass.
+    pub parameters: MarkedParameters,
+    /// Prototypes the kernel is read on.
+    pub prototypes: Vec<MarkPrototype>,
+    /// The marked immigrant challenge whose agreed reading licenses the comparison.
+    pub challenge: MarkedExcitationChallenge,
+    /// Earlier release time.
+    pub earlier: f64,
+    /// Later release time.
+    pub later: f64,
+    /// End of the window the publisher scores.
+    pub window_end: f64,
+}
+
+/// The challenge reading and, when it agreed, the release comparison it licenses.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct ReleaseComparison {
+    /// The immigrant diagnostic of the challenged edge.
+    pub reading: ExcitationReading,
+    /// In-window offspring of the two releases, present only when the reading agreed.
+    pub comparison: Option<ReleaseChoice>,
+}
+
+enum Comparison {
+    Catalog(ReleaseComparisonRequest),
+    Marked(MarkedReleaseComparisonRequest),
+}
+
+/// Compiled release comparison. Execution fits the challenge, then scores the releases only
+/// under an agreed reading.
+pub struct PreparedReleaseComparison {
+    request: Comparison,
+    plan: PreparedKernel,
+    _lease: AdmissionLease,
+}
+
+impl crate::Study {
+    /// Compile a catalog release comparison before the challenge fits run.
+    ///
+    /// # Errors
+    /// Invalid challenge, unstable kernel or resource refusal.
+    pub fn prepare_release_comparison(
+        request: ReleaseComparisonRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedReleaseComparison, EventError> {
+        super::super::lowering::refuse_reentry(ctx)?;
+        request.challenge.validate()?;
+        request.parameters.validate(request.parameters.baseline.len())?;
+        let lease = admit(ctx, 0, history_bytes(&request.challenge.history))?;
+        let source = digest("antecedent.events.release_comparison.v1", &request)?;
+        let plan = PreparedKernel::on(Excitation, source, "release_comparison")?;
+        Ok(PreparedReleaseComparison { request: Comparison::Catalog(request), plan, _lease: lease })
+    }
+
+    /// Compile a marked release comparison before the challenge fits run.
+    ///
+    /// # Errors
+    /// Invalid challenge, unstable kernel or resource refusal.
+    pub fn prepare_marked_release_comparison(
+        request: MarkedReleaseComparisonRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedReleaseComparison, EventError> {
+        super::super::lowering::refuse_reentry(ctx)?;
+        request.challenge.validate()?;
+        request.parameters.validate(&request.prototypes)?;
+        let lease = admit(ctx, 0, 8_192 + request.challenge.history.events.len() as u64 * 64)?;
+        let source = digest("antecedent.events.marked_release_comparison.v1", &request)?;
+        let plan = PreparedKernel::on(Excitation, source, "marked_release_comparison")?;
+        Ok(PreparedReleaseComparison { request: Comparison::Marked(request), plan, _lease: lease })
+    }
+}
+
+impl PreparedReleaseComparison {
+    /// Inspect the compiled comparison without fitting.
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        self.plan.plan_view()
+    }
+
+    /// Fit the challenge and, when its reading agreed, compare the two releases.
+    ///
+    /// # Errors
+    /// A fit fails, the kernel does not reproduce an agreed reading, the release times are
+    /// unordered, or an unsupported release scope.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ReleaseComparison, EventError> {
+        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        match &self.request {
+            Comparison::Catalog(request) => {
+                let (reading, _) = request.challenge.run(&scoped)?;
+                let comparison = match reading.status {
+                    DiagnosticStatus::Agreed => Some(compare_release_times(
+                        &request.parameters,
+                        &reading,
+                        request.earlier,
+                        request.later,
+                        request.window_end,
+                    )?),
+                    DiagnosticStatus::Withheld => None,
+                };
+                Ok(ReleaseComparison { reading, comparison })
+            }
+            Comparison::Marked(request) => {
+                let (reading, _) = request.challenge.run(&scoped)?;
+                let comparison = match reading.status {
+                    DiagnosticStatus::Agreed => Some(compare_marked_release_times(
+                        &request.parameters,
+                        &request.prototypes,
+                        &reading,
+                        request.earlier,
+                        request.later,
+                        request.window_end,
+                    )?),
+                    DiagnosticStatus::Withheld => None,
+                };
+                Ok(ReleaseComparison { reading, comparison })
+            }
+        }
+    }
 }
 
 fn choice(

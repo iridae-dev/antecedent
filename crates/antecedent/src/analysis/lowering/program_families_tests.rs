@@ -645,6 +645,9 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::DesignBased,
     ),
     (C::JointCellsLearnerFit, R::JointCellsLearnerFit, "JointCellsLearnerFit", F::DesignBased),
+    (C::MarkedEventProcess, R::MarkedEventProcess, "MarkedEventProcess", F::Structural),
+    (C::HawkesExcitation, R::HawkesExcitation, "HawkesExcitation", F::Structural),
+    (C::HawkesParameterBridge, R::HawkesParameterBridge, "HawkesParameterBridge", F::Structural),
 ];
 
 #[test]

@@ -21,18 +21,18 @@ use antecedent_contract::{
     ScientificQuantity, SlotAvailability,
 };
 use antecedent_core::ExecutionContext;
-use antecedent_core::execution::{AdmissionLease, RngFactory};
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::identity::{ContractIdentities, SemanticDigest};
 use serde::Serialize;
 
 use super::challenge::{DiagnosticStatus, ExcitationReading};
 use super::discovery::structural_evidence;
-use super::hawkes::{self, HawkesParameters, INTERVENE};
+use super::hawkes::{self, HawkesParameters};
 use super::marked::{self, MarkPrototype, MarkedHistory, MarkedParameters};
 use super::{
-    Arrival, EventError, EventHistory, EventLaw, EventLawMeaning, EventWindow, PreparedKernel,
-    admit, digest, path_bytes, poll, validate_budget,
+    Arrival, EventError, EventHistory, EventLaw, EventWindow, PreparedKernel, admit, digest,
 };
+use crate::planner::lowered::EventProcessRoute::ParameterBridge;
 
 /// The kernel whose agreed direct mass is offered to the bridge.
 #[derive(Clone, Debug)]
@@ -107,7 +107,7 @@ struct Mass {
     lifetime_descendants: f64,
 }
 
-enum Kernel {
+pub(super) enum Kernel {
     Catalog(HawkesParameters),
     Marked(MarkedParameters, Vec<MarkPrototype>),
 }
@@ -127,9 +127,9 @@ pub struct AcceptedExcitation {
     pub lifetime_descendants: f64,
     /// The bridge carried evidence established in another scope, under a premise.
     pub transported: bool,
-    kernel: Kernel,
-    source: usize,
-    identity: SemanticDigest,
+    pub(super) kernel: Kernel,
+    pub(super) source: usize,
+    pub(super) identity: SemanticDigest,
     _lease: AdmissionLease,
 }
 
@@ -247,16 +247,17 @@ impl crate::Study {
         super::super::lowering::refuse_reentry(ctx)?;
         let lease = admit(ctx, 0, 8_192)?;
         let source = digest(
-            "antecedent.events.excitation_question.v1",
+            "antecedent.events.excitation_question.v2",
             &(
                 &reading,
-                bridge.kind.as_str(),
-                bridge.source.quantity.canonical_identity(),
-                bridge.target.quantity.canonical_identity(),
-                discovery.provenance().map(crate::accepted::StructureProvenance::digest),
+                subject_identity(&subject)?.to_hex(),
+                bridge.identity().to_hex(),
+                discovery
+                    .provenance()
+                    .map(|provenance| crate::accepted::digest_hex(&provenance.digest())),
             ),
         )?;
-        let plan = PreparedKernel::new(source, "excitation_question", super::CAPABILITY)?;
+        let plan = PreparedKernel::on(ParameterBridge, source, "excitation_question")?;
         Ok(PreparedExcitationQuestion {
             reading,
             subject,
@@ -280,49 +281,84 @@ impl PreparedExcitationQuestion {
     /// The diagnostic, the kernel, or the bridge contract does not support
     /// the question. A refusal produces no claim and no intervened law.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<AcceptedExcitation, EventError> {
-        let _scoped = super::scoped_execution(ctx, &self.plan)?;
-        let mass = offered_mass(&self.reading, &self.subject)?;
-        kernel_gate(&self.subject, &self.reading, ctx)?;
-        let (exposure, outcome) = pair_names(&self.subject, &self.reading)?;
-        let evidence = structural_evidence(&self.discovery, &exposure, &outcome)?;
-        let bridge = cite_discovery(&self.bridge, &evidence)?;
-        direct_bridge(&bridge)?;
-        let identities = ContractIdentities::new(
+        let scoped = super::scoped_execution(ctx, &self.plan)?;
+        accept(
+            &self.reading,
+            &self.subject,
+            &self.bridge,
+            &self.discovery,
             self.plan.identity(),
-            self.plan.identity(),
-            None,
-            None,
-            self.plan.identity(),
-            self.plan.identity(),
-            self.plan.identity(),
-        );
-        let claim = point_claim(&identities, &bridge.source.quantity, mass.direct);
-        let derived = derive_bridged_claim(
-            &bridge,
-            &BridgeSource { claim: &claim, quantity: &bridge.source.quantity },
+            &scoped,
         )
-        .map_err(|refusal| {
-            EventError::invalid(format!(
-                "{}: {}",
-                refusal.detail,
-                refusal.remedy.unwrap_or("the bridge names the declaration that would support it")
-            ))
-        })?;
-        Ok(AcceptedExcitation {
-            bridged_direct: derived.value,
-            conditional_direct: mass.direct,
-            horizon_descendants: mass.horizon_descendants,
-            lifetime_descendants: mass.lifetime_descendants,
-            transported: derived.transported,
-            kernel: kernel_of(&self.subject),
-            source: self.reading.source,
-            identity: self.plan.identity(),
-            _lease: admit(ctx, 0, 8_192)?,
-        })
     }
 }
 
+/// The canonical identity of the kernel a question offers: its coefficients, the history its
+/// Gram and cap are checked against, and that cap.
+fn subject_identity(subject: &ExcitationSubject) -> Result<SemanticDigest, EventError> {
+    match subject {
+        ExcitationSubject::Catalog { parameters, history, column_cap } => digest(
+            "antecedent.events.excitation_subject.catalog.v1",
+            &(parameters, history, column_cap),
+        ),
+        ExcitationSubject::Marked { parameters, prototypes, history, reproduction_cap } => digest(
+            "antecedent.events.excitation_subject.marked.v1",
+            &(parameters, prototypes, history, reproduction_cap),
+        ),
+    }
+}
+
+/// Offer the agreed direct mass of `subject` to the parameter bridge under the dispatch-scoped
+/// `ctx`, citing the accepted discovery as its structural evidence.
+pub(super) fn accept(
+    reading: &ExcitationReading,
+    subject: &ExcitationSubject,
+    bridge: &BridgeContract,
+    discovery: &crate::AcceptedGraph,
+    identity: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<AcceptedExcitation, EventError> {
+    let mass = offered_mass(reading, subject)?;
+    kernel_gate(subject, reading, ctx)?;
+    let (exposure, outcome) = pair_names(subject, reading)?;
+    let evidence = structural_evidence(discovery, &exposure, &outcome)?;
+    let bridge = cite_discovery(bridge, &evidence)?;
+    direct_bridge(&bridge)?;
+    let identities =
+        ContractIdentities::new(identity, identity, None, None, identity, identity, identity);
+    let claim = point_claim(&identities, &bridge.source.quantity, mass.direct);
+    let derived = derive_bridged_claim(
+        &bridge,
+        &BridgeSource { claim: &claim, quantity: &bridge.source.quantity },
+    )
+    .map_err(|refusal| {
+        EventError::invalid(format!(
+            "{}: {}",
+            refusal.detail,
+            refusal.remedy.unwrap_or("the bridge names the declaration that would support it")
+        ))
+    })?;
+    Ok(AcceptedExcitation {
+        bridged_direct: derived.value,
+        conditional_direct: mass.direct,
+        horizon_descendants: mass.horizon_descendants,
+        lifetime_descendants: mass.lifetime_descendants,
+        transported: derived.transported,
+        kernel: kernel_of(subject),
+        source: reading.source,
+        identity,
+        _lease: admit(ctx, 0, 8_192)?,
+    })
+}
+
 impl AcceptedExcitation {
+    /// Identity of the compiled program whose bridge accepted this excitation. A continuation
+    /// or a release study composed on it names it as its parent.
+    #[must_use]
+    pub const fn identity(&self) -> SemanticDigest {
+        self.identity
+    }
+
     /// Catalog coefficients the bridge accepted, when the kernel is a catalog.
     #[must_use]
     pub fn catalog_parameters(&self) -> Option<&HawkesParameters> {
@@ -337,7 +373,8 @@ impl AcceptedExcitation {
     /// Pass the catalog history for a catalog kernel and the marked history for
     /// a marked kernel. The law's catalog is that history, or one name per
     /// prototype. It can drive the existing paired worlds. The paths exist
-    /// only because this question was accepted.
+    /// only because this question was accepted. This compiles and runs
+    /// [`crate::Study::prepare_intervened_law`].
     ///
     /// # Errors
     /// The history does not match the accepted kernel, or the draw is outside
@@ -348,13 +385,13 @@ impl AcceptedExcitation {
         draw: ReleaseDraw,
         ctx: &ExecutionContext,
     ) -> Result<EventLaw, EventError> {
-        self.draw_intervened(continuation, draw, self.source, ctx)
+        crate::Study::prepare_intervened_law(self, continuation, draw, ctx)?.execute(ctx)
     }
 
     /// Draw one release action: now, later, or under a different mark.
     ///
     /// Each action is one added event. The excitation coefficients stay the
-    /// accepted kernel.
+    /// accepted kernel. This compiles and runs [`crate::Study::prepare_release_law`].
     ///
     /// # Errors
     /// The action is not a later time or a different mark, or the draw is
@@ -366,133 +403,7 @@ impl AcceptedExcitation {
         draw: ReleaseDraw,
         ctx: &ExecutionContext,
     ) -> Result<EventLaw, EventError> {
-        let observed_end = match continuation {
-            Continuation::Catalog(history) => history.window.end,
-            Continuation::Marked(history) => history.window.end,
-        };
-        let (release, kind) = match action {
-            ReleaseAction::Now => (observed_end, self.source),
-            ReleaseAction::Delay { release } => {
-                if release.partial_cmp(&observed_end) != Some(std::cmp::Ordering::Greater) {
-                    return Err(EventError::invalid("a delay releases after the observation"));
-                }
-                (release, self.source)
-            }
-            ReleaseAction::ChangeMark { kind, release } => {
-                if kind == self.source {
-                    return Err(EventError::invalid("changing the mark uses a different type"));
-                }
-                (release, kind)
-            }
-        };
-        self.draw_intervened(continuation, ReleaseDraw { release, ..draw }, kind, ctx)
-    }
-
-    fn draw_intervened(
-        &self,
-        continuation: Continuation<'_>,
-        draw: ReleaseDraw,
-        kind: usize,
-        ctx: &ExecutionContext,
-    ) -> Result<EventLaw, EventError> {
-        poll(ctx)?;
-        validate_budget(draw.paths, draw.max_events)?;
-        let window = release_window(draw)?;
-        let (catalog, marked_history) = match (&self.kernel, continuation) {
-            (Kernel::Catalog(parameters), Continuation::Catalog(history)) => {
-                if history.catalog.len() != parameters.baseline.len() {
-                    return Err(EventError::invalid(
-                        "intervened history catalog does not match the accepted kernel",
-                    ));
-                }
-                (history.clone(), None)
-            }
-            (Kernel::Marked(parameters, prototypes), Continuation::Marked(history)) => {
-                history.validate()?;
-                if &history.prototypes != prototypes
-                    || parameters.decay.len() != history.prototypes[0].source.len()
-                {
-                    return Err(EventError::invalid(
-                        "intervened marked history does not match the accepted kernel",
-                    ));
-                }
-                (catalog_of(history), Some(history))
-            }
-            _ => {
-                return Err(EventError::invalid(
-                    "an intervened law uses the history kind of the accepted kernel",
-                ));
-            }
-        };
-        catalog.validate(true)?;
-        if kind >= catalog.catalog.len() {
-            return Err(EventError::invalid("the release mark is outside the catalog"));
-        }
-        if draw.release <= catalog.empty_origin {
-            return Err(EventError::invalid("the added event must follow the empty origin"));
-        }
-        let mut work = hawkes::Work::new(ctx);
-        let rng = RngFactory::from_seed(draw.seed);
-        let mut paths = Vec::with_capacity(draw.paths);
-        for index in 0..draw.paths {
-            let mut path = vec![Arrival { time: draw.release, kind }];
-            let offspring = match &self.kernel {
-                Kernel::Catalog(parameters) => {
-                    let mut prefix = before_release(&catalog, draw.release);
-                    prefix.push(path[0]);
-                    hawkes::sample(
-                        &catalog,
-                        &prefix,
-                        parameters,
-                        window,
-                        (&rng, INTERVENE, index as u64),
-                        draw.max_events,
-                        &mut work,
-                    )?
-                }
-                Kernel::Marked(parameters, _) => {
-                    let marked_history = marked_history.ok_or_else(|| {
-                        EventError::invalid("marked intervention needs the marked history")
-                    })?;
-                    let mut prefix = marked_before(marked_history, draw.release);
-                    prefix.push(marked::MarkedArrival { time: draw.release, prototype: kind });
-                    marked::sample(
-                        marked_history,
-                        &prefix,
-                        parameters,
-                        window,
-                        (&rng, INTERVENE, index as u64),
-                        draw.max_events,
-                        &mut work,
-                    )?
-                    .into_iter()
-                    .map(|event| Arrival { time: event.time, kind: event.prototype })
-                    .collect()
-                }
-            };
-            path.extend(offspring);
-            paths.push(path);
-        }
-        let lease = Arc::new(admit(
-            ctx,
-            0,
-            path_bytes(draw.paths, draw.max_events.saturating_add(1)) + 8_192,
-        )?);
-        Ok(EventLaw {
-            history: Arc::new(catalog),
-            window,
-            paths: Arc::new(paths),
-            weights: None,
-            path_left: None,
-            meaning: EventLawMeaning::Intervened,
-            identity: self.identity,
-            provider: None,
-            provider_receipt: None,
-            model_fit: None,
-            refit_parameters: None,
-            release_supported: super::release_supported(super::CAPABILITY),
-            _lease: lease,
-        })
+        crate::Study::prepare_release_law(self, continuation, action, draw, ctx)?.execute(ctx)
     }
 }
 
@@ -732,13 +643,13 @@ fn point_claim(
     )
 }
 
-fn release_window(draw: ReleaseDraw) -> Result<EventWindow, EventError> {
+pub(super) fn release_window(draw: ReleaseDraw) -> Result<EventWindow, EventError> {
     let window = EventWindow { start: draw.release, end: draw.window_end };
     window.validate()?;
     Ok(window)
 }
 
-fn before_release(history: &EventHistory, release: f64) -> Vec<Arrival> {
+pub(super) fn before_release(history: &EventHistory, release: f64) -> Vec<Arrival> {
     history
         .left
         .iter()
@@ -748,7 +659,7 @@ fn before_release(history: &EventHistory, release: f64) -> Vec<Arrival> {
         .collect()
 }
 
-fn marked_before(history: &MarkedHistory, release: f64) -> Vec<marked::MarkedArrival> {
+pub(super) fn marked_before(history: &MarkedHistory, release: f64) -> Vec<marked::MarkedArrival> {
     history
         .left
         .iter()
@@ -758,7 +669,7 @@ fn marked_before(history: &MarkedHistory, release: f64) -> Vec<marked::MarkedArr
         .collect()
 }
 
-fn catalog_of(history: &MarkedHistory) -> EventHistory {
+pub(super) fn catalog_of(history: &MarkedHistory) -> EventHistory {
     EventHistory {
         catalog: (0..history.prototypes.len()).map(|index| format!("prototype-{index}")).collect(),
         time_unit: history.time_unit.clone(),
@@ -786,6 +697,7 @@ fn catalog_of(history: &MarkedHistory) -> EventHistory {
 /// excitation coefficient is not this estimand; an ordinary identified query
 /// on these counts is.
 #[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
 pub struct LagCountQuery {
     /// Exposure variable, the type the shock moves.
     pub exposure: String,
@@ -845,8 +757,18 @@ impl crate::Study {
             ));
         }
         let lease = admit(ctx, 0, 8_192)?;
-        let source = digest("antecedent.events.shock_query.v1", &shock.instrument)?;
-        let plan = PreparedKernel::new(source, "shock_query", super::CAPABILITY)?;
+        let source = digest(
+            "antecedent.events.shock_query.v2",
+            &(
+                &shock.history,
+                &shock.feature,
+                shock.source,
+                shock.target,
+                shock.horizon,
+                &shock.instrument,
+            ),
+        )?;
+        let plan = PreparedKernel::on(ParameterBridge, source, "shock_query")?;
         Ok(PreparedShock { shock, plan, _lease: lease })
     }
 }
@@ -1189,5 +1111,121 @@ mod question_tests {
             .unwrap();
         assert_eq!(law.meaning(), EventLawMeaning::Intervened);
         assert_eq!(law.paths()[0][0], crate::analysis::events::Arrival { time: 1.0, kind: 0 });
+    }
+
+    #[test]
+    fn release_law_counts_match_the_linear_intensity_means() {
+        // Only a release (type 0) excites activity (type 1): the 1 <- 0 mass is alpha with decay
+        // beta = 1, nothing excites a release, and both baselines are 0.2. On [1, 2) the release
+        // added at the end of the observation contributes alpha (1 - e^{-beta}) activity, each
+        // observed release at s contributes alpha (e^{-beta (1 - s)} - e^{-beta (2 - s)}), and a
+        // baseline release at u contributes alpha (1 - e^{-beta (2 - u)}), whose mean over the
+        // baseline rate 0.2 is 0.2 alpha (1 - (1 - e^{-beta}) / beta).
+        let ctx = ExecutionContext::for_tests(0);
+        let observed = history();
+        let accepted = ask(
+            agreed(0.4),
+            0.4,
+            None,
+            "direct_offspring",
+            "do_one_release",
+            &discovered("release", "activity"),
+        )
+        .unwrap();
+        let paths = 4000;
+        let prepared = Study::prepare_release_law(
+            &accepted,
+            Continuation::Catalog(&observed),
+            ReleaseAction::Now,
+            ReleaseDraw { release: 0.0, window_end: 2.0, paths, max_events: 64, seed: 11 },
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(prepared.plan_view().route().as_str(), "HawkesParameterBridge");
+        let law = prepared.execute(&ctx).unwrap();
+        assert_eq!(law.meaning(), EventLawMeaning::Intervened);
+        let (alpha, beta, baseline) = (0.4_f64, 1.0_f64, 0.2_f64);
+        let mut counts = [0_usize; 2];
+        for path in law.paths() {
+            assert_eq!(path[0], crate::analysis::events::Arrival { time: 1.0, kind: 0 });
+            for event in &path[1..] {
+                counts[event.kind] += 1;
+            }
+        }
+        let releases = observed
+            .events
+            .iter()
+            .filter(|event| event.kind == 0)
+            .map(|event| event.time)
+            .chain([1.0]);
+        let excited: f64 =
+            releases.map(|s| alpha * ((-beta * (1.0 - s)).exp() - (-beta * (2.0 - s)).exp())).sum();
+        let immigrant = baseline * alpha * (1.0 - (1.0 - (-beta).exp()) / beta);
+        let activity = baseline + excited + immigrant;
+        let mean = |kind: usize| counts[kind] as f64 / paths as f64;
+        // Standard errors over 4000 paths are below 0.008 for releases and 0.018 for activity.
+        assert!((mean(0) - baseline).abs() < 0.04, "releases {} against {baseline}", mean(0));
+        assert!((mean(1) - activity).abs() < 0.09, "activity {} against {activity}", mean(1));
+    }
+
+    #[test]
+    fn a_release_question_withholds_what_the_python_fixture_withholds() {
+        // The challenge of python/tests/test_events.py, compiled as one release question: the
+        // reading is withheld, so no claim and no intervened law are produced.
+        let ctx = ExecutionContext::for_tests(0);
+        let arrivals = [
+            (0.10, 0),
+            (0.16, 1),
+            (0.22, 1),
+            (0.50, 0),
+            (0.56, 1),
+            (0.62, 1),
+            (0.80, 0),
+            (0.86, 1),
+            (0.92, 1),
+        ];
+        let observed = EventHistory {
+            catalog: vec!["release".into(), "activity".into()],
+            time_unit: "hour".into(),
+            origin: "launch".into(),
+            source: "log".into(),
+            empty_origin: 0.0,
+            window: EventWindow { start: 0.0, end: 1.0 },
+            left: vec![],
+            events: arrivals
+                .iter()
+                .map(|&(time, kind)| crate::analysis::events::Arrival { time, kind })
+                .collect(),
+            gaps: vec![],
+        };
+        let challenge = crate::analysis::events::ExcitationChallenge {
+            history: observed,
+            fit: crate::analysis::events::HawkesFitSpec {
+                decay: vec![0.4, 1.7, 1.0, 0.3],
+                column_cap: 0.9,
+                iterations: 800,
+            },
+            alternative: BaselineFeature { knots: vec![0.0, 0.4], values: vec![0.0, 1.0] },
+            source: 0,
+            target: 1,
+            horizon: 1.0,
+            tolerance: 0.05,
+        };
+        let question = crate::analysis::events::ReleaseQuestion {
+            challenge: crate::analysis::events::QuestionChallenge::Catalog(challenge),
+            bridge: bridge("direct_offspring", None, "do_one_release"),
+            action: ReleaseAction::Now,
+            draw: ReleaseDraw { release: 0.0, window_end: 2.0, paths: 1, max_events: 4, seed: 7 },
+        };
+        let prepared =
+            Study::prepare_release_question(question, &discovered("release", "activity"), &ctx)
+                .unwrap();
+        assert_eq!(prepared.plan_view().route().as_str(), "HawkesParameterBridge");
+        assert_eq!(prepared.evidence().map(|digest| digest.len()), Some(64));
+        let outcome = prepared.execute(&ctx).unwrap();
+        assert_eq!(outcome.reading.status, DiagnosticStatus::Withheld);
+        assert_eq!(outcome.reading.reason, Some("immigrant-alternative fit is weakly identified"));
+        assert!(outcome.accepted.is_none());
+        assert!(outcome.law.is_none());
     }
 }

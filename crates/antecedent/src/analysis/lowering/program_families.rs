@@ -319,6 +319,14 @@ macro_rules! program_families {
             TrialAipwLearnerTransport => DesignBased, unit "transport.trial_aipw_caller_learners";
             /// Factorized joint-cell AIPW fitted with caller-supplied learners.
             JointCellsLearnerFit => DesignBased, unit "estimate.joint_cells_caller_learners";
+            /// Likelihood, fit and conditional draws of a finite-rank marked Hawkes kernel.
+            MarkedEventProcess => Structural, unit "forecast.marked_event_process";
+            /// Offspring functionals, immigrant-trend challenges and release-time comparisons of
+            /// a Hawkes excitation kernel.
+            HawkesExcitation => Structural, unit "forecast.hawkes_excitation";
+            /// An agreed Hawkes direct mass carried by the parameter-intervention bridge, with
+            /// its intervened continuations, excluded-shock handoff and release study.
+            HawkesParameterBridge => Structural, unit "forecast.hawkes_parameter_bridge";
         }
     };
 }
