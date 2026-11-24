@@ -7715,6 +7715,21 @@ pub const antecedent_core::reason_code::PREFIX: &str
 pub const antecedent_core::reason_code::REASON_CODES: &[&str]
 pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::reason_details::REASON_DETAILS: &[&str]
+pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY: &str
+pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED: &str
+pub const antecedent_core::reason_details::accepted_preferences::ADDED_RELATION_NOT_FROM_CHOICES: &str
+pub const antecedent_core::reason_details::accepted_preferences::CHOICES_CONTRADICTORY: &str
+pub const antecedent_core::reason_details::accepted_preferences::DECIDER_UNKNOWN: &str
+pub const antecedent_core::reason_details::accepted_preferences::DECLARATION_NOT_KEPT: &str
+pub const antecedent_core::reason_details::accepted_preferences::LEARNED_NOT_REPRODUCED: &str
+pub const antecedent_core::reason_details::accepted_preferences::MODEL_MISMATCH: &str
+pub const antecedent_core::reason_details::accepted_preferences::NOT_PENDING: &str
+pub const antecedent_core::reason_details::accepted_preferences::OPTIONS_MISMATCH: &str
+pub const antecedent_core::reason_details::accepted_preferences::POOLED_NOT_AVAILABLE: &str
+pub const antecedent_core::reason_details::accepted_preferences::RECORDS_MISMATCH: &str
+pub const antecedent_core::reason_details::accepted_preferences::SET_UNDETERMINED: &str
+pub const antecedent_core::reason_details::accepted_preferences::VERSION_EXHAUSTED: &str
+pub const antecedent_core::reason_details::accepted_preferences::VERSION_INVALID: &str
 pub const antecedent_core::reason_details::adaptive_inference::ANALYSIS_INVALID: &str
 pub const antecedent_core::reason_details::adaptive_inference::ANALYSIS_ROUTE_MISMATCH: &str
 pub const antecedent_core::reason_details::adaptive_inference::ANYTIME_PREMISE_CONTEXTS: &str
@@ -7972,6 +7987,46 @@ pub const antecedent_core::reason_details::chain_recovery_posterior::EMPTY_LAW: 
 pub const antecedent_core::reason_details::chain_recovery_posterior::EXTERNAL_POWER_PRIOR: &str
 pub const antecedent_core::reason_details::chain_recovery_posterior::MAPPED_PRIOR: &str
 pub const antecedent_core::reason_details::chain_recovery_posterior::NON_POSITIVE_SCALE: &str
+pub const antecedent_core::reason_details::choice_record::ANALYSIS_DATE_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::ANALYSIS_IDENTITY_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::ATTRIBUTES_DIFFER: &str
+pub const antecedent_core::reason_details::choice_record::ATTRIBUTES_MISSING: &str
+pub const antecedent_core::reason_details::choice_record::ATTRIBUTE_DUPLICATE: &str
+pub const antecedent_core::reason_details::choice_record::ATTRIBUTE_ID_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::ATTRIBUTE_UNITS_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::BELIEF_LAW_REQUIRED: &str
+pub const antecedent_core::reason_details::choice_record::BELIEF_NOT_FINITE: &str
+pub const antecedent_core::reason_details::choice_record::CHOSEN_UNAVAILABLE: &str
+pub const antecedent_core::reason_details::choice_record::CHOSEN_UNKNOWN: &str
+pub const antecedent_core::reason_details::choice_record::DECIDER_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::DRAWS_EMPTY: &str
+pub const antecedent_core::reason_details::choice_record::DRAWS_WIDTH_MISMATCH: &str
+pub const antecedent_core::reason_details::choice_record::FORECAST_SOURCE_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::MEANS_WIDTH_MISMATCH: &str
+pub const antecedent_core::reason_details::choice_record::MODEL_INVALID: &str
+pub const antecedent_core::reason_details::choice_record::OBSERVATION_ROWS_MISSING: &str
+pub const antecedent_core::reason_details::choice_record::OBSERVATION_ROW_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::OBSERVATION_ROW_DOUBLE_COUNTED: &str
+pub const antecedent_core::reason_details::choice_record::OBSERVATION_ROW_REPEATED: &str
+pub const antecedent_core::reason_details::choice_record::OPTIONS_TOO_FEW: &str
+pub const antecedent_core::reason_details::choice_record::OPTION_DUPLICATE: &str
+pub const antecedent_core::reason_details::choice_record::OPTION_ID_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::POOLING_ASSUMPTION_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::POPULATION_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::REALIZED_ASSUMPTION_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::RECORDS_MISSING: &str
+pub const antecedent_core::reason_details::choice_record::RECORD_DUPLICATE: &str
+pub const antecedent_core::reason_details::choice_record::RECORD_ID_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::SHAPE_PARAMETERS_NOT_FIXED: &str
+pub const antecedent_core::reason_details::choice_record::STATED_ASSUMPTION_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::STATED_BELIEF_NOT_EXACT: &str
+pub const antecedent_core::reason_details::choice_record::STATED_ELICITATION_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::TERM_NOT_FINITE: &str
+pub const antecedent_core::reason_details::choice_record::UNAVAILABLE_CONSTRAINT_BLANK: &str
+pub const antecedent_core::reason_details::choice_record::WEIGHTS_LENGTH_MISMATCH: &str
+pub const antecedent_core::reason_details::choice_record::WEIGHTS_SUM_INVALID: &str
+pub const antecedent_core::reason_details::choice_record::WEIGHT_NEGATIVE: &str
+pub const antecedent_core::reason_details::choice_record::WEIGHT_NOT_FINITE: &str
 pub const antecedent_core::reason_details::cluster_dml::CANCELLED: &str
 pub const antecedent_core::reason_details::cluster_dml::CLUSTER_IDS_MISSING: &str
 pub const antecedent_core::reason_details::cluster_dml::DYADIC_GIANT_COMPONENT: &str
@@ -9533,6 +9588,186 @@ pub const antecedent_core::reason_details::predictive_assessment::TARGET_MISMATC
 pub const antecedent_core::reason_details::predictive_assessment::TOO_FEW_CLUSTERS: &str
 pub const antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE: &str
 pub const antecedent_core::reason_details::predictive_assessment::WRONG_CONTRACT: &str
+pub const antecedent_core::reason_details::preference_artifact::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_artifact::CONTAINER_REFUSED: &str
+pub const antecedent_core::reason_details::preference_artifact::CONTRACT_EXPECTED: &str
+pub const antecedent_core::reason_details::preference_artifact::ENCODE_FAILED: &str
+pub const antecedent_core::reason_details::preference_artifact::IDENTITY_EXPECTED: &str
+pub const antecedent_core::reason_details::preference_artifact::IDENTITY_RESEALED: &str
+pub const antecedent_core::reason_details::preference_artifact::REPLAY_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_artifact::REPLAY_RECORDS_DIFFER: &str
+pub const antecedent_core::reason_details::preference_artifact::REPLAY_SOURCE_DIFFERS: &str
+pub const antecedent_core::reason_details::preference_artifact::RESULT_CONTRACT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_artifact::RETAINED_ARTIFACT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_artifact::SOURCE_EXPECTED: &str
+pub const antecedent_core::reason_details::preference_artifact::WIRE_MALFORMED: &str
+pub const antecedent_core::reason_details::preference_certified::ATOMS_INVALID: &str
+pub const antecedent_core::reason_details::preference_certified::ATOM_PROBABILITIES_INVALID: &str
+pub const antecedent_core::reason_details::preference_certified::ATOM_PROBABILITIES_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_certified::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_certified::ENCLOSURE_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_certified::LOGARITHM_DOMAIN: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_EMPTY: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_INCOMPLETE: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_LABELS_INVALID: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_POINT_DIMENSION: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_POINT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_POINT_OUTSIDE_SET: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_UNKNOWN_PARAMETER: &str
+pub const antecedent_core::reason_details::preference_certified::MEASURE_WEIGHTS_INVALID: &str
+pub const antecedent_core::reason_details::preference_certified::MINIMAX_REGRET_NEEDS_EXPECTATION: &str
+pub const antecedent_core::reason_details::preference_certified::MIXTURE_CRITERION_UNSUPPORTED: &str
+pub const antecedent_core::reason_details::preference_certified::OPTIONS_INVALID: &str
+pub const antecedent_core::reason_details::preference_certified::PREFERENCE_SET_EMPTY: &str
+pub const antecedent_core::reason_details::preference_certified::SOURCE_REFUSED: &str
+pub const antecedent_core::reason_details::preference_certified::STRUCTURE_INPUTS_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_choice_model::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_choice_model::CONSISTENCY_NOT_POSITIVE: &str
+pub const antecedent_core::reason_details::preference_choice_model::COVARIANCE_NOT_POSITIVE_DEFINITE: &str
+pub const antecedent_core::reason_details::preference_choice_model::DRAWS_MISSING: &str
+pub const antecedent_core::reason_details::preference_choice_model::FIT_OPTIONS_INVALID: &str
+pub const antecedent_core::reason_details::preference_choice_model::FIT_REFUSED: &str
+pub const antecedent_core::reason_details::preference_choice_model::LEVEL_INVALID: &str
+pub const antecedent_core::reason_details::preference_choice_model::MODEL_INVALID: &str
+pub const antecedent_core::reason_details::preference_choice_model::NOTHING_IDENTIFIED: &str
+pub const antecedent_core::reason_details::preference_choice_model::NOT_CONVERGED: &str
+pub const antecedent_core::reason_details::preference_choice_model::NO_DRAW_INSIDE_SET: &str
+pub const antecedent_core::reason_details::preference_choice_model::PROFILE_MULTIMODAL: &str
+pub const antecedent_core::reason_details::preference_choice_model::RANK_DEFICIENT: &str
+pub const antecedent_core::reason_details::preference_choice_model::RECORDS_INVALID: &str
+pub const antecedent_core::reason_details::preference_choice_model::SEPARATED: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_ESTIMATE_AT_BOUND: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_NOT_IDENTIFIED: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_SEARCH_BUDGET: &str
+pub const antecedent_core::reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED: &str
+pub const antecedent_core::reason_details::preference_choice_model::TOO_FEW_DECIDERS_TO_CLUSTER: &str
+pub const antecedent_core::reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING: &str
+pub const antecedent_core::reason_details::preference_compile::ATOM_KIND_NOT_COMPILED: &str
+pub const antecedent_core::reason_details::preference_compile::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_COMPLETIONS_TRUNCATED: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_KEYS_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_SAMPLING_BUDGET: &str
+pub const antecedent_core::reason_details::preference_compile::CROSS_STUDY_COVARIANCE_INVALID: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_EXPOSURE_BOUNDED: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_SAMPLING_UNDECLARED: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_UNITS_TOO_FEW: &str
+pub const antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_compile::ORDINARY_MEASURE_NOT_READ: &str
+pub const antecedent_core::reason_details::preference_compile::ORDINARY_STRUCTURES_NOT_COMPILED: &str
+pub const antecedent_core::reason_details::preference_compile::PROGRAM_CARRIES_DECISION: &str
+pub const antecedent_core::reason_details::preference_compile::ROW_PROVENANCE_UNDECLARED: &str
+pub const antecedent_core::reason_details::preference_compile::SAMPLED_MIXTURE_NOT_EXACT: &str
+pub const antecedent_core::reason_details::preference_compile::STUDIES_SHARE_EVIDENCE: &str
+pub const antecedent_core::reason_details::preference_compile::UNIT_KEY_INVALID: &str
+pub const antecedent_core::reason_details::preference_compile::UNIT_LABEL_TYPES_DIFFER: &str
+pub const antecedent_core::reason_details::preference_contract::ACTION_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_contract::ACTION_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_contract::ACTION_WITHOUT_QUANTITY: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_PROBABILITY: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_UNITS_BLANK: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_UNKNOWN_ACTION: &str
+pub const antecedent_core::reason_details::preference_contract::CONSTRAINT_UNKNOWN_ATTRIBUTE: &str
+pub const antecedent_core::reason_details::preference_contract::CRITERION_INVALID: &str
+pub const antecedent_core::reason_details::preference_contract::DECISION_CONTRACT_REFUSED: &str
+pub const antecedent_core::reason_details::preference_contract::FIXED_INPUT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_contract::FIXED_UNITS_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_contract::INPUT_COUNT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_contract::NOT_LOWERABLE: &str
+pub const antecedent_core::reason_details::preference_contract::NO_ORDINARY_FORM: &str
+pub const antecedent_core::reason_details::preference_contract::PARAMETER_COUNT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_contract::PARAMETER_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_contract::QUANTITY_INVALID: &str
+pub const antecedent_core::reason_details::preference_contract::QUANTITY_OUTSIDE_SCOPE: &str
+pub const antecedent_core::reason_details::preference_contract::QUANTITY_UNITS_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_contract::TARGET_POPULATION_BLANK: &str
+pub const antecedent_core::reason_details::preference_contract::TOO_FEW_ACTIONS: &str
+pub const antecedent_core::reason_details::preference_decision::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_decision::COEFFICIENT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_decision::CRITERION_NEEDS_CERTIFIED_ROUTE: &str
+pub const antecedent_core::reason_details::preference_decision::LINEAR_PROGRAM_INFEASIBLE: &str
+pub const antecedent_core::reason_details::preference_decision::LINEAR_PROGRAM_REFUSED: &str
+pub const antecedent_core::reason_details::preference_decision::LINEAR_PROGRAM_UNBOUNDED: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_EMPTY: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_INCOMPLETE: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_LABEL_BLANK: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_LABEL_COUNT: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_LABEL_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_ORIGIN_BLANK: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_POINT_DIMENSION: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_POINT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_POINT_OUTSIDE_SET: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_UNRESOLVED_REPEATED: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_UNRESOLVED_UNKNOWN: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_WEIGHT_COUNT: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_WEIGHT_INVALID: &str
+pub const antecedent_core::reason_details::preference_decision::MEASURE_WEIGHT_TOTAL_ZERO: &str
+pub const antecedent_core::reason_details::preference_decision::OPTIONS_INVALID: &str
+pub const antecedent_core::reason_details::preference_decision::PART_NOT_LOWERABLE: &str
+pub const antecedent_core::reason_details::preference_decision::PREFERENCE_SET_EMPTY: &str
+pub const antecedent_core::reason_details::preference_decision::SHAPE_PARAMETERS_NEED_CERTIFIED_ROUTE: &str
+pub const antecedent_core::reason_details::preference_decision::SOURCE_REFUSED: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURES_EMPTY: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITIES_EXCEED_ONE: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITIES_PARTIAL: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITIES_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITY_INVALID: &str
+pub const antecedent_core::reason_details::preference_decision::VALUE_RELATIONS_NEED_CERTIFIED_ROUTE: &str
+pub const antecedent_core::reason_details::preference_decision::WORST_CASE_OF_EXPECTED_REGRET: &str
+pub const antecedent_core::reason_details::preference_evaluation::JOINT_DRAWS_REQUIRED: &str
+pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_COUNT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_UNITS_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_UNUSED: &str
+pub const antecedent_core::reason_details::preference_model::CURVE_BREAKPOINTS_NOT_INCREASING: &str
+pub const antecedent_core::reason_details::preference_model::CURVE_BREAKPOINT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::CURVE_SLOPE_COUNT: &str
+pub const antecedent_core::reason_details::preference_model::CURVE_TOO_SHORT: &str
+pub const antecedent_core::reason_details::preference_model::EXPRESSION_CONSTANT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::EXPRESSION_TOO_DEEP: &str
+pub const antecedent_core::reason_details::preference_model::NO_ATTRIBUTES: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_ASSUMPTION_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_COUNT_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_RANGE_EMPTY: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_RANGE_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_UNITS_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_UNUSED: &str
+pub const antecedent_core::reason_details::preference_model::PARAMETER_VALUE_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_BOUND_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_COEFFICIENT_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_DUPLICATE: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_ID_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_ORIGIN_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_REPEATED_PARAMETER: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_UNKNOWN_PARAMETER: &str
+pub const antecedent_core::reason_details::preference_model::RELATION_WITHOUT_TERMS: &str
+pub const antecedent_core::reason_details::preference_model::UNKNOWN_ATTRIBUTE: &str
+pub const antecedent_core::reason_details::preference_model::UNKNOWN_PARAMETER: &str
+pub const antecedent_core::reason_details::preference_model::UTILITY_UNITS_BLANK: &str
+pub const antecedent_core::reason_details::preference_model::VALUE_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::VALUE_RELATION_ROWS_INVALID: &str
+pub const antecedent_core::reason_details::preference_model::VALUE_RELATION_TOLERANCE_INVALID: &str
+pub const antecedent_core::reason_details::preference_set_learning::CANCELLED: &str
+pub const antecedent_core::reason_details::preference_set_learning::DECLARED_SET_EMPTY: &str
+pub const antecedent_core::reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED: &str
+pub const antecedent_core::reason_details::preference_set_learning::MODEL_INVALID: &str
+pub const antecedent_core::reason_details::preference_set_learning::PROGRAM_INCONSISTENT: &str
+pub const antecedent_core::reason_details::preference_set_learning::RECORDS_INVALID: &str
+pub const antecedent_core::reason_details::preference_set_learning::REGION_BUDGET_INVALID: &str
+pub const antecedent_core::reason_details::preference_set_learning::RELATION_ID_COLLISION: &str
+pub const antecedent_core::reason_details::preference_set_learning::TOLERANCE_NEGATIVE: &str
+pub const antecedent_core::reason_details::preference_set_learning::TOLERANCE_NON_FINITE: &str
 pub const antecedent_core::reason_details::prior_composition::UNIT_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS: &str
 pub const antecedent_core::reason_details::prior_signal::ARTIFACT_NOT_IN_CATALOG: &str
@@ -9578,6 +9813,7 @@ pub const antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOP
 pub const antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_OPERATOR: &str
 pub const antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED: &str
 pub const antecedent_core::reason_details::propagation_chain::CANCELLED: &str
+pub const antecedent_core::reason_details::propagation_chain::DEFERRED_SOURCE_UNBOUND: &str
 pub const antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED: &str
 pub const antecedent_core::reason_details::propagation_chain::DRAWS_ARE_NOT_AN_ENCLOSURE: &str
 pub const antecedent_core::reason_details::propagation_chain::ENCLOSURE_IS_NOT_A_LAW: &str
@@ -10290,6 +10526,7 @@ pub const antecedent_core::reason_details::split_effect::SOURCE_NOT_CANONICAL: &
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_CLASS: &str
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED: &str
 pub const antecedent_core::reason_details::split_effect::TOO_FEW_ROWS: &str
+pub const antecedent_core::reason_details::structure_posterior::CLASS_PRIOR_NOT_READ: &str
 pub const antecedent_core::reason_details::structure_posterior::EDGE_PRIOR_PROBABILITY: &str
 pub const antecedent_core::reason_details::structured_refusals::MALFORMED_DETAIL: &str
 pub const antecedent_core::reason_details::structured_refusals::MISSING_STAGE: &str
@@ -13194,6 +13431,7 @@ pub mod antecedent_core::provider_capability
 pub mod antecedent_core::query
 pub mod antecedent_core::reason_code
 pub mod antecedent_core::reason_details
+pub mod antecedent_core::reason_details::accepted_preferences
 pub mod antecedent_core::reason_details::adaptive_inference
 pub mod antecedent_core::reason_details::adaptive_policy_search
 pub mod antecedent_core::reason_details::adaptive_transport
@@ -13209,6 +13447,7 @@ pub mod antecedent_core::reason_details::callback_protocol
 pub mod antecedent_core::reason_details::categorical_posterior
 pub mod antecedent_core::reason_details::categorical_treatment
 pub mod antecedent_core::reason_details::chain_recovery_posterior
+pub mod antecedent_core::reason_details::choice_record
 pub mod antecedent_core::reason_details::cluster_dml
 pub mod antecedent_core::reason_details::clustered_posterior
 pub mod antecedent_core::reason_details::cohort_decision
@@ -13330,6 +13569,15 @@ pub mod antecedent_core::reason_details::penalized_propensity
 pub mod antecedent_core::reason_details::planning
 pub mod antecedent_core::reason_details::policy_value
 pub mod antecedent_core::reason_details::predictive_assessment
+pub mod antecedent_core::reason_details::preference_artifact
+pub mod antecedent_core::reason_details::preference_certified
+pub mod antecedent_core::reason_details::preference_choice_model
+pub mod antecedent_core::reason_details::preference_compile
+pub mod antecedent_core::reason_details::preference_contract
+pub mod antecedent_core::reason_details::preference_decision
+pub mod antecedent_core::reason_details::preference_evaluation
+pub mod antecedent_core::reason_details::preference_model
+pub mod antecedent_core::reason_details::preference_set_learning
 pub mod antecedent_core::reason_details::prior_composition
 pub mod antecedent_core::reason_details::prior_signal
 pub mod antecedent_core::reason_details::program_binding

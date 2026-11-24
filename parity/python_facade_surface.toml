@@ -4261,3 +4261,1527 @@ rust = "antecedent::analysis::propagation_chain::compile_deferred_propagation_ch
 kind = "fn"
 status = "internal"
 reason = "The compiled preference route compiles the chain over a deferred family table; Python reaches it through Contract.compile over several prepared studies."
+
+[[entry]]
+rust = "antecedent::analysis::choice_ranking::rank_hierarchical_studies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ChoiceStudyRanking), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::choice_ranking::rank_studies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ChoiceStudyRanking), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::choice_ranking::rank_studies_with_context"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ChoiceStudyRanking), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::claim_decision_programs::compile_contract_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::claim_decision_programs::compile_decision_functional"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::claim_decision_programs::compile_identified_set_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::claim_decision_programs::compile_supplied_claim_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::compiled_local_cyclic::compile_local_cyclic"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cyclic_system_api/local.rs"
+
+[[entry]]
+rust = "antecedent::analysis::descriptive_programs::compile_descriptive"
+kind = "fn"
+status = "bound"
+python = "native:python/src/descriptive_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_choice_study_ranking"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_design_ranking"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_graph_identification"
+kind = "fn"
+status = "bound"
+python = "native:python/src/evidence_plan_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_identification_repair"
+kind = "fn"
+status = "bound"
+python = "native:python/src/bound_study_ranking_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_structure_identification"
+kind = "fn"
+status = "bound"
+python = "native:python/src/evidence_plan_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_study_addition_plan"
+kind = "fn"
+status = "bound"
+python = "native:python/src/study_planning_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_z_transport_evidence_plan"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_planning_programs::compile_z_transport_failure_snapshot"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_ranking::consume"
+kind = "fn"
+status = "bound"
+python = "native:python/src/design_ranking_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::dose_grid_functional::estimate_dose_grid_bias_aware"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DoseGridBiasAware), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::events::MemberReleaseStudy"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedExcitationChallenge"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedExcitationOffspring"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedExcitationQuestion"
+kind = "type"
+status = "missing"
+reason = "A prepared event program the compiler builds for the Rust event workflow; the Python event entries do not hold it yet."
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMarkedChallenge"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMarkedDraw"
+kind = "type"
+status = "missing"
+reason = "A prepared event program the compiler builds for the Rust event workflow; the Python event entries do not hold it yet."
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMarkedFit"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMarkedLikelihood"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMarkedOffspring"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedMemberReleaseStudy"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedReleaseComparison"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedReleaseLaw"
+kind = "type"
+status = "missing"
+reason = "A prepared event program the compiler builds for the Rust event workflow; the Python event entries do not hold it yet."
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedReleaseQuestion"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedShock"
+kind = "type"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::events::max_dense_types"
+kind = "fn"
+status = "internal"
+reason = "A size bound of the event declaration builder; it computes no result and has no Python entry of its own."
+
+[[entry]]
+rust = "antecedent::analysis::events::parameter_bridge"
+kind = "fn"
+status = "bound"
+python = "native:python/src/events_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_adaptive_policy_search"
+kind = "fn"
+status = "bound"
+python = "native:python/src/adaptive_policy_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_decision_draws_ranking"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_evidence_obligations"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_finite_action_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/attribution_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_finite_enumeration_baseline"
+kind = "fn"
+status = "bound"
+python = "native:python/src/inverse_query_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_input_functional"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_inverse_query"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_prior_signal_adaptation"
+kind = "fn"
+status = "bound"
+python = "native:python/src/prior_signal_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_sensitivity_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/sensitivity_decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_supported_input_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::evaluate_functional"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DecisionFunctionalValue), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::evaluate_inverse_query"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:InverseQueryDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::finite_enumeration_baseline"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:InverseQueryDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::msm_sensitivity::msm_ate_bounds_at"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StaticAteDag), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::msm_sensitivity::msm_ate_sensitivity"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StaticAteDag), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::chain_joint_law"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::experiment_mean_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::joint_law_of"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_learning_programs::compile_choice_model"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api/learning.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_learning_programs::compile_choice_model_relearn"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api/learning.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_learning_programs::compile_compatible_set"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api/learning.rs"
+
+[[entry]]
+rust = "antecedent::analysis::preference_learning_programs::compile_compatible_set_relearn"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api/learning.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recovery_chain::decide_chain_recovery"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ChainRecoveryIdentification), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::recovery_chain::evaluate_chain_recovery"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ChainObservationRecovery), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::repair::identification_failure_obligations"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:EvidenceObligations), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::sensitivity_decision::evaluate_sensitivity_decision"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SensitivityDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::sensitivity_range::sensitivity_vector_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/sensitivity_range_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::supplied_sensitivity_programs::compile_matched_design_sensitivity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/supplied_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::supplied_sensitivity_programs::compile_supplied_estimate_evalue"
+kind = "fn"
+status = "bound"
+python = "native:python/src/supplied_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::temporal_linear_prediction::compile_temporal_prediction"
+kind = "fn"
+status = "bound"
+python = "native:python/src/temporal_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_decision_with_accepted"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_structural_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preferences_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transport_identification::compile_transport_identification"
+kind = "fn"
+status = "missing"
+reason = "A compiled-program entry with no Python entry of its own yet; it computes nothing outside the compiler, and the program family it compiles is reached from Python only through the entries bound to that family."
+
+[[entry]]
+rust = "antecedent::analysis::transported_cohort::transport_cohort_effect"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:TransportedCohortEffect), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::transported_counterfactual::evaluate_transported_path_specific"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:TransportedPathSpecific), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::transported_measurement::transport_measurement_model"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:MeasurementModelTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::analysis::transported_measurement::transport_pooled_differential_prevalence"
+kind = "fn"
+status = "bound"
+python = "native:python/src/pooled_measurement_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::z_transport_sensitivity_program::compile_z_transport_mechanism_sensitivity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::decision_evidence::centered_fixed_cuped_totals"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointDesign), never through this path."
+
+[[entry]]
+rust = "antecedent::decision_evidence::complete_cluster_joint_contrast"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointDesign), never through this path."
+
+[[entry]]
+rust = "antecedent::design::composition_boundary::evaluate_functional_on_input"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SupportedInputDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::composition_boundary::evaluate_with_support"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SupportedInputDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::adapt_finite_scenarios"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_claims.rs"
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::adapt_graph_dependent_claims"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_claims.rs"
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::adapt_point_claim"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_claims.rs"
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::adapt_weighted_graph_atoms"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_claims.rs"
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::evaluate_adapted"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_api.rs"
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::evaluate_identified_sets"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:IdentifiedSetDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::decision_adapters::utility_interval"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:IdentifiedSetDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::decision_eval::evaluate_contract"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ContractLawDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::decision_eval::evaluate_contract_on_means"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ContractLawDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::decision_reliability::rank"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DecisionDrawsRanking), never through this path."
+
+[[entry]]
+rust = "antecedent::design::evaluate_decision"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:FiniteActionDecision), never through this path."
+
+[[entry]]
+rust = "antecedent::design::identified_under_intervention"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StructureIdentification), never through this path."
+
+[[entry]]
+rust = "antecedent::design::plan_studies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StudyAdditionPlanning), never through this path."
+
+[[entry]]
+rust = "antecedent::design::plan_z_transport_evidence"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ZTransportEvidencePlanning), never through this path."
+
+[[entry]]
+rust = "antecedent::design::prior_signal::adapt_prior_to_signal"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PriorSignalAdaptation), never through this path."
+
+[[entry]]
+rust = "antecedent::design::repair"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:IdentificationRepair), never through this path."
+
+[[entry]]
+rust = "antecedent::design::snapshot_z_transport_failure"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ZTransportEvidencePlanning), never through this path."
+
+[[entry]]
+rust = "antecedent::design::structure_identification::identifies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StructureIdentification), never through this path."
+
+[[entry]]
+rust = "antecedent::design::structure_posterior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:StructureIdentification), never through this path."
+
+[[entry]]
+rust = "antecedent::design::transported_decision_artifact::consume_transported_decision"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_response_api.rs"
+
+[[entry]]
+rust = "antecedent::discovery::observed_marginals::signed_uniform_observed_marginals"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DiscoverStatic), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::ancova::fit_ancova"
+kind = "fn"
+status = "bound"
+python = "native:python/src/experiment_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::compare_raw_adjusted"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DescriptiveComparison), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::conditional_odds_ratio"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:MatchedCaseControl), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::cyclic_likelihood::sample_cyclic_posterior"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cyclic_system_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::estimate_interference_with_context"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_interference_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::estimate_observational_exposure"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:InterferenceDag), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::estimate_sampled_recovery"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SampledObservationRecovery), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::estimate_saturation_interference"
+kind = "fn"
+status = "bound"
+python = "native:python/src/interference_saturation_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::estimate_trial_aipw_with_factories"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:TrialAipwLearnerTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::external_cyclic_fit::fit_external_feedback"
+kind = "fn"
+status = "bound"
+python = "native:python/src/external_mechanism_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::external_learner::cross_fit_aipw_with_factories"
+kind = "fn"
+status = "bound"
+python = "native:python/src/external_learner_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:RandomizedEffect), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_hybrid_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointDesign), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_invariant_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_invariant_law_streamed"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_panel_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_temporal_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_temporal_law_streamed"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_values"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::decompose_weighted_hybrid_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::decomposition::propagate_hybrid_covariance"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointDesign), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::evaluate_panel_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::evaluate_panel_programs"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::fit_panel"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::project_panel_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::project_panel_responses"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::project_temporal_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::restriction::panel_restriction_diagnostics"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::selection_uncertainty::decomposition_selection"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::stream_panel_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelResponse), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::stream_temporal_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::time_varying::evaluate_temporal_law"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::time_varying::evaluate_temporal_programs"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::joint_panel::time_varying::fit_temporal_panel"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:JointPanelTimeVarying), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::correct_detection_dependent_prevalence"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DetectionDependentPrevalenceCorrection), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::correct_exposure_misclassification"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExposureMisclassificationCorrection), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::correct_soft_exposure_effect"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SoftExposureCorrection), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::fit_repeat_codings"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:RepeatCodingsLatentClass), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::impute_exposure"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:MeasuredExposureImputation), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::measurement::pool_measured_effect"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:MeasuredExposurePooling), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::policy_value::evaluate_binary_ipw_policy"
+kind = "fn"
+status = "bound"
+python = "native:python/src/policy_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::policy_value::evaluate_multi_action_ipw_policy"
+kind = "fn"
+status = "bound"
+python = "native:python/src/policy_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::policy_value::evaluate_policy_value_scores"
+kind = "fn"
+status = "bound"
+python = "native:python/src/policy_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::policy_value::uplift_by_score_bin"
+kind = "fn"
+status = "bound"
+python = "native:python/src/policy_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::randomized_neyman::stratified_neyman_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/experiment_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::randomized_scores::bernoulli_exact_randomization_test"
+kind = "fn"
+status = "bound"
+python = "native:python/src/experiment_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::randomized_scores::cuped_ht_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/experiment_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::raw_contrast"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DescriptiveComparison), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::staggered_event_study::group_time_att"
+kind = "fn"
+status = "bound"
+python = "native:python/src/quasi_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::survival::randomized_survival_ipcw_summary"
+kind = "fn"
+status = "bound"
+python = "native:python/src/survival_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::switchback::switchback_itt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/experiment_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::transform_mean_pair"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:DescriptiveComparison), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::transport_augmented_response_grid"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:TransportResponseGrid), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::transport_augmented_response_grid_with_context"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_interference_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::trial_to_target_effect_with_context"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_interference_api.rs"
+
+[[entry]]
+rust = "antecedent::gcm::arrow_strengths"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_estimand_api.rs"
+
+[[entry]]
+rust = "antecedent::gcm::detect_mechanism_changes"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::distribution_change"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::distribution_change::distribution_change_with_frequency_weights"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::distribution_change::distribution_change_with_row_weights"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::distribution_change_robust"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::feature_relevance"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::interventional_mean"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_estimand_api.rs"
+
+[[entry]]
+rust = "antecedent::gcm::intrinsic_influence"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::nested_counterfactual"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmSimulateDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::nested_counterfactual_with_exo"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmSimulateDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::nested_hard_counterfactual"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmSimulateDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::path_decompose"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::population_do_contrast"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_estimand_api.rs"
+
+[[entry]]
+rust = "antecedent::gcm::root_cause_rank"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::sample_interventional"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmSimulateDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::sample_observational"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmSimulateDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::score_anomalies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::score_anomalies_with"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::simultaneous_hard_counterfactual"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_estimand_api.rs"
+
+[[entry]]
+rust = "antecedent::gcm::structure_change"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::structure_change::structure_change_with_refit"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::gcm::unit_change"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:GcmAttributeDag), never through this path."
+
+[[entry]]
+rust = "antecedent::identify::binary_iv_ate_bounds"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:IvBounds), never through this path."
+
+[[entry]]
+rust = "antecedent::identify::bind_mixed_source_catalog"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_mixed_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::bind_mz_transport_catalog"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_mz_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::bind_z_transport_catalog"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_admg_conditional_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_admg_conditional_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_mixed_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_mixed_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_mz_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_mz_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_observation_recovery"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recovery_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_two_source_z_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::decide_z_transport_inspecting"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::identify_catalog_transport"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ClassicalTransportIdentification), never through this path."
+
+[[entry]]
+rust = "antecedent::identify::identify_classical_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_exact_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::identify_counterfactual_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_counterfactual_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::identify_meta_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_exact_api.rs"
+
+[[entry]]
+rust = "antecedent::identify::identify_z_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_z_api.rs"
+
+[[entry]]
+rust = "antecedent::inference::apply_transport"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::apply_weighted_target_transport"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::compose_beta_power_priors"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorComposition), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::compose_external_priors"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorComposition), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::compose_gamma_power_priors"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorComposition), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::compose_with_transport"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::compose_with_weighted_target_transport"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::kernel_bandwidth_sensitivity"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ExternalPriorTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_beta_power_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorBetaSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_beta_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorBetaSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_gamma_power_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorGammaSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_gamma_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorGammaSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_linear_power_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorLinearSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::inference::select_linear_prior"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorLinearSelection), never through this path."
+
+[[entry]]
+rust = "antecedent::io::decode_analysis_result_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/artifact_api.rs"
+
+[[entry]]
+rust = "antecedent::io::decode_causal_payload_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/artifact_api.rs"
+
+[[entry]]
+rust = "antecedent::io::decode_causal_posterior_bytes"
+kind = "fn"
+status = "bound"
+python = "native:python/src/attribution_api.rs"
+
+[[entry]]
+rust = "antecedent::io::decode_model_bundle_bytes_expecting"
+kind = "fn"
+status = "bound"
+python = "native:python/src/graph_io.rs"
+
+[[entry]]
+rust = "antecedent::io::decode_prior_source_meta"
+kind = "fn"
+status = "bound"
+python = "native:python/src/prior_bank.rs"
+
+[[entry]]
+rust = "antecedent::io::joint_panel_artifact::consume_panel_execution"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_panel_api.rs"
+
+[[entry]]
+rust = "antecedent::io::load_analysis_result"
+kind = "fn"
+status = "bound"
+python = "native:python/src/artifact_api.rs"
+
+[[entry]]
+rust = "antecedent::io::mnar_candidate_source::decode_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/measured_inference_api.rs"
+
+[[entry]]
+rust = "antecedent::io::policy_program_artifact::decode_policy_program"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (bound:antecedent_io_core::policy_program_artifact::decode_policy_program_expecting), never through this path."
+
+[[entry]]
+rust = "antecedent::io::policy_program_artifact::decode_policy_program_with"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (bound:antecedent_io_core::policy_program_artifact::decode_policy_program_with_expecting), never through this path."
+
+[[entry]]
+rust = "antecedent::io::provider_envelope::open_provider_envelope"
+kind = "fn"
+status = "bound"
+python = "native:python/src/provider_api.rs"
+
+[[entry]]
+rust = "antecedent::io::release_migration::consume_previous_release_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/release_migration_api.rs"
+
+[[entry]]
+rust = "antecedent::io::release_migration::consume_previous_route_records"
+kind = "fn"
+status = "bound"
+python = "native:python/src/release_migration_api.rs"
+
+[[entry]]
+rust = "antecedent::io::replay_analysis_result"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (bound:antecedent_io::randomized_ipow_artifact::replay_analysis_result_expecting), never through this path."
+
+[[entry]]
+rust = "antecedent::io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:SampledCounterfactualTransport), never through this path."
+
+[[entry]]
+rust = "antecedent::validate::benchmark_bound"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::component_evalue_posterior_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::component_evalue_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::component_ovb_posterior_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::component_ovb_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::evalue_posterior_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::evalue_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::evalue_vector_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::linear_adjustment_fit"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::matched_sets_break_even"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::matched_sets_upper_p"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_components_fit"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_path_ovb_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_paths_fit"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_posterior_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_sensitivity_fit"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::mediation_vector_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::msm_parameter_fit"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::msm_parameter_fit_refitting_weights"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::ovb_posterior_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::ovb_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::ovb_vector_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::rosenbaum_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::rosenbaum_vector_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::target_native::finite_difference_consistency"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::target_native::local_linearity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::target_native::posterior_predictive_target_check"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::target_native::prior_sensitivity_target_check"
+kind = "fn"
+status = "bound"
+python = "native:python/src/target_validation_api.rs"
+
+[[entry]]
+rust = "antecedent::validate::z_transport_mechanism_sensitivity"
+kind = "fn"
+status = "internal"
+reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:ZTransportMechanismSensitivity), never through this path."
+
+[[entry]]
+rust = "antecedent::estimate::longitudinal_regime::evaluate_g_formula_value"
+kind = "fn"
+status = "bound"
+python = "native:python/src/regimes_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::longitudinal_regime::evaluate_regime_value"
+kind = "fn"
+status = "bound"
+python = "native:python/src/regimes_api.rs"
+
+[[entry]]
+rust = "antecedent::estimate::longitudinal_regime::evaluate_sequential_dr_value"
+kind = "fn"
+status = "bound"
+python = "native:python/src/regimes_api.rs"

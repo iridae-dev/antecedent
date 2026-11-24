@@ -134,7 +134,6 @@ impl core::clone::Clone for antecedent_data::PreparedPanel
 impl core::clone::Clone for antecedent_data::ReferencePointPolicy
 impl core::clone::Clone for antecedent_data::ResamplingPlan
 impl core::clone::Clone for antecedent_data::RowAccounting
-impl core::clone::Clone for antecedent_data::RowOrigin
 impl core::clone::Clone for antecedent_data::SamplingRegularity
 impl core::clone::Clone for antecedent_data::TabularData
 impl core::clone::Clone for antecedent_data::TimeDummyEncoding
@@ -255,7 +254,6 @@ impl core::cmp::Eq for antecedent_data::PreparationMode
 impl core::cmp::Eq for antecedent_data::PreparedPanel
 impl core::cmp::Eq for antecedent_data::ReferencePointPolicy
 impl core::cmp::Eq for antecedent_data::RowAccounting
-impl core::cmp::Eq for antecedent_data::RowOrigin
 impl core::cmp::Eq for antecedent_data::SamplingRegularity
 impl core::cmp::Eq for antecedent_data::TimeDummyEncoding
 impl core::cmp::Eq for antecedent_data::TimeIndex
@@ -380,7 +378,6 @@ impl core::cmp::PartialEq for antecedent_data::PreparedPanel
 impl core::cmp::PartialEq for antecedent_data::ReferencePointPolicy
 impl core::cmp::PartialEq for antecedent_data::ResamplingPlan
 impl core::cmp::PartialEq for antecedent_data::RowAccounting
-impl core::cmp::PartialEq for antecedent_data::RowOrigin
 impl core::cmp::PartialEq for antecedent_data::SamplingRegularity
 impl core::cmp::PartialEq for antecedent_data::TimeDummyEncoding
 impl core::cmp::PartialEq for antecedent_data::TimeIndex
@@ -558,7 +555,6 @@ impl core::fmt::Debug for antecedent_data::PreparedPanel
 impl core::fmt::Debug for antecedent_data::ReferencePointPolicy
 impl core::fmt::Debug for antecedent_data::ResamplingPlan
 impl core::fmt::Debug for antecedent_data::RowAccounting
-impl core::fmt::Debug for antecedent_data::RowOrigin
 impl core::fmt::Debug for antecedent_data::SamplingRegularity
 impl core::fmt::Debug for antecedent_data::TabularData
 impl core::fmt::Debug for antecedent_data::TimeDummyEncoding
@@ -832,7 +828,6 @@ impl core::marker::Freeze for antecedent_data::PreparedPanel [auto]
 impl core::marker::Freeze for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Freeze for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Freeze for antecedent_data::RowAccounting [auto]
-impl core::marker::Freeze for antecedent_data::RowOrigin [auto]
 impl core::marker::Freeze for antecedent_data::SamplingRegularity [auto]
 impl core::marker::Freeze for antecedent_data::TabularData [auto]
 impl core::marker::Freeze for antecedent_data::TimeDummyEncoding [auto]
@@ -982,7 +977,6 @@ impl core::marker::Send for antecedent_data::PreparedPanel [auto]
 impl core::marker::Send for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Send for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Send for antecedent_data::RowAccounting [auto]
-impl core::marker::Send for antecedent_data::RowOrigin [auto]
 impl core::marker::Send for antecedent_data::SamplingRegularity [auto]
 impl core::marker::Send for antecedent_data::TabularData [auto]
 impl core::marker::Send for antecedent_data::TimeDummyEncoding [auto]
@@ -1115,7 +1109,6 @@ impl core::marker::StructuralPartialEq for antecedent_data::PreparedPanel
 impl core::marker::StructuralPartialEq for antecedent_data::ReferencePointPolicy
 impl core::marker::StructuralPartialEq for antecedent_data::ResamplingPlan
 impl core::marker::StructuralPartialEq for antecedent_data::RowAccounting
-impl core::marker::StructuralPartialEq for antecedent_data::RowOrigin
 impl core::marker::StructuralPartialEq for antecedent_data::SamplingRegularity
 impl core::marker::StructuralPartialEq for antecedent_data::TimeDummyEncoding
 impl core::marker::StructuralPartialEq for antecedent_data::TimeIndex
@@ -1251,7 +1244,6 @@ impl core::marker::Sync for antecedent_data::PreparedPanel [auto]
 impl core::marker::Sync for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Sync for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Sync for antecedent_data::RowAccounting [auto]
-impl core::marker::Sync for antecedent_data::RowOrigin [auto]
 impl core::marker::Sync for antecedent_data::SamplingRegularity [auto]
 impl core::marker::Sync for antecedent_data::TabularData [auto]
 impl core::marker::Sync for antecedent_data::TimeDummyEncoding [auto]
@@ -1399,7 +1391,6 @@ impl core::marker::Unpin for antecedent_data::PreparedPanel [auto]
 impl core::marker::Unpin for antecedent_data::ReferencePointPolicy [auto]
 impl core::marker::Unpin for antecedent_data::ResamplingPlan [auto]
 impl core::marker::Unpin for antecedent_data::RowAccounting [auto]
-impl core::marker::Unpin for antecedent_data::RowOrigin [auto]
 impl core::marker::Unpin for antecedent_data::SamplingRegularity [auto]
 impl core::marker::Unpin for antecedent_data::TabularData [auto]
 impl core::marker::Unpin for antecedent_data::TimeDummyEncoding [auto]
@@ -1537,7 +1528,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PreparedPanel 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::RowAccounting [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::RowOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::SamplingRegularity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeDummyEncoding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeIndex [auto]
@@ -1665,7 +1655,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PreparedPanel [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ReferencePointPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ResamplingPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::RowAccounting [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_data::RowOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::SamplingRegularity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeDummyEncoding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeIndex [auto]
@@ -2231,7 +2220,6 @@ pub fn <antecedent_data::OwnedColumnarStorage>::fn columns_arc(&self) -> &alloc:
 pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest(&self) -> [u8; 32]
 pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest_with_context(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<[u8; 32], antecedent_core::execution::admission::AdmissionError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn derive(&self, schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
-pub fn <antecedent_data::OwnedColumnarStorage>::fn rows_digest(&self) -> [u8; 32]
 pub fn <antecedent_data::OwnedColumnarStorage>::fn try_new(schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn weights(&self) -> core::option::Option<&[f64]>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn with_retention(self, lease: alloc::sync::Arc<antecedent_core::execution::admission::AdmissionLease>) -> Self
@@ -2302,9 +2290,6 @@ pub fn <antecedent_data::RowAccounting>::fn rows_dropped(&self) -> usize
 pub fn <antecedent_data::RowAccounting>::fn with_denominator(self, rows: usize) -> Self
 pub fn <antecedent_data::RowAccounting>::fn with_groups(self, labels: &[alloc::sync::Arc<str>], keep: &[bool], observed: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::RowAccounting>::fn with_units(self, total: usize, dropped: usize) -> Self
-pub fn <antecedent_data::RowOrigin>::const fn table(&self) -> [u8; 32]
-pub fn <antecedent_data::RowOrigin>::const fn whole(table: [u8; 32]) -> Self
-pub fn <antecedent_data::RowOrigin>::fn rows(&self) -> core::option::Option<&[u64]>
 pub fn <antecedent_data::TabularData>::fn complete_case_mask(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn complete_case_mask_into(&self, ids: &[antecedent_core::ids::VariableId], out: &mut alloc::vec::Vec<bool>) -> core::result::Result<(), antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn discrete_column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::DiscreteColumn, antecedent_data::DataError>
@@ -2315,8 +2300,6 @@ pub fn <antecedent_data::TabularData>::fn float64_selected_into(&self, id: antec
 pub fn <antecedent_data::TabularData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
 pub fn <antecedent_data::TabularData>::fn new(storage: antecedent_data::OwnedColumnarStorage) -> Self
 pub fn <antecedent_data::TabularData>::fn project(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<(Self, antecedent_data::IdRemap), antecedent_data::DataError>
-pub fn <antecedent_data::TabularData>::fn row_origin(&self) -> core::option::Option<&antecedent_data::RowOrigin>
-pub fn <antecedent_data::TabularData>::fn select_rows(&self, rows: &[usize]) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::TabularData>::fn source(&self) -> antecedent_data::source::OwnedSource
 pub fn <antecedent_data::TabularData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
 pub fn <antecedent_data::TabularData>::fn try_from_schema_f64<'a>(schema: antecedent_core::schema::CausalSchema, columns: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError>
@@ -2737,8 +2720,6 @@ pub struct antecedent_data::PooledLaggedFrame
 pub struct antecedent_data::PreparedPanel
 pub struct antecedent_data::PreparedPanel has private fields
 pub struct antecedent_data::RowAccounting
-pub struct antecedent_data::RowOrigin
-pub struct antecedent_data::RowOrigin has private fields
 pub struct antecedent_data::TabularData
 pub struct antecedent_data::TabularData has private fields
 pub struct antecedent_data::TimeIndex
@@ -2874,7 +2855,6 @@ pub use antecedent_data::column::OwnedColumn = antecedent_data::OwnedColumn
 pub use antecedent_data::column::TimestampColumn = antecedent_data::TimestampColumn
 pub use antecedent_data::column::ValidityBitmap = antecedent_data::ValidityBitmap
 pub use antecedent_data::compile_contrast_matrix = antecedent_data::categorical::compile_contrast_matrix
-pub use antecedent_data::dataset::RowOrigin = antecedent_data::RowOrigin
 pub use antecedent_data::dataset::TabularData = antecedent_data::TabularData
 pub use antecedent_data::dataset::TimeSeriesData = antecedent_data::TimeSeriesData
 pub use antecedent_data::discrete::DiscreteColumn = antecedent_data::DiscreteColumn

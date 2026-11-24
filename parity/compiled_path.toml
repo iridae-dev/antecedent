@@ -20,7 +20,7 @@
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
-seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy"]
+seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy", "PreferenceEvaluation", "StructuralPreferenceEvaluation", "SampledStructuralEvaluation", "PreferenceDecisionResult", "CertifiedPreferenceResult", "SetLearningResult", "ChoiceModelResult", "CompiledPreferenceEvaluation"]
 
 [[row]]
 path = "antecedent::AcceptedPosterior::posterior"
@@ -4485,13 +4485,7 @@ disposition = "consume"
 path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted_expecting"
 disposition = "consume"
 
-[[row]]
-path = "antecedent::analysis::preference_decision::consume_accepted"
-disposition = "consume"
 
-[[row]]
-path = "antecedent::analysis::preference_decision::consume_decision"
-disposition = "consume"
 
 [[row]]
 path = "antecedent::analysis::design_ranking::consume"
@@ -4807,3 +4801,534 @@ path = "python/antecedent/validation.py::posterior_predictive_target"
 disposition = "deprecated"
 replacement = "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))"
 
+[[row]]
+path = "antecedent::analysis::preference_decision::CompiledPreferenceDecision::execute"
+disposition = "compiled"
+route = "PreferenceAttachedDecision"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::sampled"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::single"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::structures"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::preference_learning_programs::CompiledPreferenceChoiceModel::execute"
+disposition = "compiled"
+route = "PreferenceChoiceModel"
+
+[[row]]
+path = "antecedent::analysis::preference_learning_programs::CompiledPreferenceCompatibleSet::execute"
+disposition = "compiled"
+route = "PreferenceCompatibleSet"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffCertifiedLawDecision::execute"
+disposition = "compiled"
+route = "TradeoffCertifiedLawDecision"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffCertifiedStructuralDecision::execute"
+disposition = "compiled"
+route = "TradeoffCertifiedStructuralDecision"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffDecision::execute"
+disposition = "compiled"
+route = "TradeoffLawDecision"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffLawDecision::execute"
+disposition = "compiled"
+route = "TradeoffLawDecision"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision::execute"
+disposition = "compiled"
+route = "TradeoffStructuralDecision"
+
+[[row]]
+path = "antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures::execute"
+disposition = "compiled"
+route = "TradeoffStructuralDecision"
+
+[[row]]
+path = "antecedent_design::preference_artifact::PreferenceDecisionArtifact::evaluation"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::preference_evaluation::PreferenceEvaluation::certified"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::preference_evaluation::PreferenceEvaluation::exact"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::consume_within"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::seal"
+disposition = "kernel"
+reason = "kernel API; the compiled route that produces this artifact seals it through this same function (the facade entry is classified in this manifest)"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::seal_within"
+disposition = "kernel"
+reason = "kernel API; the bounded form of seal, which the compiled route calls through the same function"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::with_change"
+disposition = "kernel"
+reason = "kernel API; the compiled PropagationChain route re-seals a changed chain through this same recomputation (PreparedPropagationChain::with_change compiles the changed draft)"
+
+[[row]]
+path = "antecedent_io_core::PropagationChainRecordWire::with_change_within"
+disposition = "kernel"
+reason = "kernel API; the bounded form of with_change"
+
+[[row]]
+path = "antecedent_io_core::adaptive_monitoring_contract_artifact::contract_boundaries"
+disposition = "kernel"
+reason = "kernel API; derives the group-sequential boundaries an adaptive monitoring contract declares, the same function the facade's adaptive monitoring entries call"
+
+[[row]]
+path = "antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::bibliography"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::callback_result_artifact::output_values_digest"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::canonical_json::canonical_json_digest"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::capability_provenance"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::build"
+disposition = "kernel"
+reason = "kernel API; the facade's retained cohort model (analysis::cohort_decision) builds its decision source through this same function, and its compiled CohortInterval route reads that source"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::build_within"
+disposition = "kernel"
+reason = "kernel API; the bounded form of build"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::consume_with"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::consume_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::consume_with_limits"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::from_bytes"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::from_bytes_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::from_bytes_within"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::from_bytes_within_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::seal"
+disposition = "pending"
+owner = "a compiled route for finite cross-world execution (unit cross_world_execution.finite_markovian_scm): the facade CrossWorldExecution::seal and the Python seal execute through this function outside the compiler"
+
+[[row]]
+path = "antecedent_io_core::cross_world_execution_artifact::request_of"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::decode_method_provenance_section"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::digest_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::bind_column"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::bind_response"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::bind_response_to_program"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::core_contract"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::native_contract_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_binding_wire::response_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::external_claim_artifact::lineage_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::float_bits"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_dot::dag_with_names_from_dot"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_gml::dag_with_names_from_gml"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_json::dag_with_names_from_json"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::admg_with_names_from_dot"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::admg_with_names_from_gml"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::admg_with_names_from_json"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::admg_with_names_from_networkx_node_link"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::cpdag_with_names_from_dot"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::cpdag_with_names_from_gml"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::cpdag_with_names_from_json"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::cpdag_with_names_from_networkx_node_link"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_with_names_from_dot"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_with_names_from_gml"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_with_names_from_json"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_mixed::pag_with_names_from_networkx_node_link"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_networkx::dag_with_names_from_networkx_adjacency"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graph_networkx::dag_with_names_from_networkx_node_link"
+disposition = "not_scientific"
+reason = "parses a graph declaration into a graph and its node names; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::graphless_support::classify_graphless"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::interface_contract_artifact::contract_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::interface_contract_artifact::contract_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::measurement_model_wire::model_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::method_provenance"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::method_provenance::capability_ids"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::method_provenance::check_bound"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::method_provenance::linked_records"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::method_provenance::route_provenance"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::encode_policy_program"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::interventions_from_named_json"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::named_json_from_interventions"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::policy_program_callback_records"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::policy_program_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::value_expression_identity"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::inspect_provider_envelope"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::is_provider_envelope"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::open_provider_envelope_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::open_verified_provider_envelope"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::open_verified_provider_envelope_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::provider_envelope::seal_provider_envelope"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::provider_verification_artifact::receipt_from_bytes"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::provider_verification_artifact::receipt_from_bytes_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::provider_verification_artifact::receipt_to_bytes"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::provider_verification_artifact::verify_execution_requests"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::recalc_receipt_artifact::identities_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::recalc_receipt_artifact::identities_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::recalc_receipt_artifact::plan_from_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::recalc_receipt_artifact::plan_to_wire"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::recalc_receipt_artifact::stage_from_label"
+disposition = "not_scientific"
+reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact::state"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifact::from_bytes"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifact::from_bytes_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifact::seal"
+disposition = "pending"
+owner = "a compiled route for the general temporal counterfactual: the facade GeneralTemporalCounterfactual::evaluate and its Python entry execute through this function outside the compiler"
+
+[[row]]
+path = "antecedent_io_core::transport_proof::TransportProofWire::check"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::transport_proof::TransportProofWire::inspect"
+disposition = "consume"
+
+[[python]]
+path = "python/antecedent/cross_world_execution.py::seal"
+disposition = "pending"
+owner = "a compiled route for finite cross-world execution (unit cross_world_execution.finite_markovian_scm); this wrapper's native seals through CrossWorldExecutionArtifact::seal outside the compiler"
+
+[[row]]
+path = "antecedent::estimate::longitudinal_regime::evaluate_g_formula_value"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
+
+[[row]]
+path = "antecedent::estimate::longitudinal_regime::evaluate_regime_value"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
+
+[[row]]
+path = "antecedent::estimate::longitudinal_regime::evaluate_sequential_dr_value"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
+
+[[python]]
+path = "python/antecedent/regimes.py::evaluate_regime_value"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
+
+[[python]]
+path = "python/antecedent/regimes.py::evaluate_sequential_gformula"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
+
+[[python]]
+path = "python/antecedent/regimes.py::evaluate_sequential_doubly_robust"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"

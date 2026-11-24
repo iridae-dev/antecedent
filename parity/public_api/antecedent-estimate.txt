@@ -22606,7 +22606,6 @@ pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::A
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionCluster(antecedent_estimate::joint_design::cluster_decision::JointClusterLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionExperiment(antecedent_estimate::joint_design::experiment::JointExperimentalLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Excursion(antecedent_estimate::joint_design::excursion::JointExcursionLaw)
-pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::IndependentUnitBootstrap(antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::LocalComplier(antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Moments(antecedent_estimate::joint_design::compiled::JointDesignLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::StaticRegime(antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw)
