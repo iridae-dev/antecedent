@@ -262,9 +262,15 @@ pub(super) fn declare(
             .text(&input.quantity)
             .text(&input.factor);
         // An input whose overlap was judged by unit key states its basis, namespace and
-        // factors; an unkeyed input is named by its first factor alone.
-        if let Some(namespace) = &input.namespace {
-            writer.text(&input.basis).text(namespace).texts(&input.factors);
+        // factors after a presence word; an unkeyed input is named by its first factor alone
+        // and writes the absent word.
+        match &input.namespace {
+            Some(namespace) => {
+                writer.word(1).text(&input.basis).text(namespace).texts(&input.factors);
+            }
+            None => {
+                writer.word(0);
+            }
         }
     }
     writer.word(cross.len() as u64);

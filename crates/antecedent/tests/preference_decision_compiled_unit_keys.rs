@@ -265,7 +265,8 @@ fn studies_without_declarations_keep_the_table_content_judgement_and_encoding() 
                 .text(&format!("study_{index}_column_{column}"))
                 .word(index as u64)
                 .text(&quantity(variable, units, dose).canonical_identity())
-                .text(&factors[index]);
+                .text(&factors[index])
+                .word(0); // no unit key: the absent word
         }
     }
     writer.word(0); // no declared cross blocks
