@@ -325,7 +325,10 @@ fn compiled_measurement_transport_refuses_without_the_premise() {
         &ctx,
     )
     .expect_err("no premise");
-    assert_eq!(refusal.detail, "measurement_model.invariance_premise_required");
+    assert_eq!(
+        refusal.detail,
+        antecedent_core::reason_details::measurement_model::INVARIANCE_PREMISE_REQUIRED
+    );
 }
 
 fn validation(population: &str, counts: [u64; 4]) -> PopulationValidation {
@@ -483,6 +486,9 @@ mod cohort {
         ))
         .unwrap();
         let refusal = compiled.execute(&ctx()).expect_err("no declaration");
-        assert_eq!(refusal.detail, "transported_effect.shift_declaration_required");
+        assert_eq!(
+            refusal.detail,
+            antecedent_core::reason_details::transported_effect::SHIFT_DECLARATION_REQUIRED
+        );
     }
 }

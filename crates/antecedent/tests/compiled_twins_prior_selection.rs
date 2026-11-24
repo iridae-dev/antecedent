@@ -236,8 +236,9 @@ fn compiled_linear_selection_equals_the_direct_selection_bit_for_bit() {
 #[test]
 fn each_selection_names_its_route_and_its_supported_record() {
     let ctx = ctx();
-    let (source, outcomes, options) = beta_cases().remove(0);
-    let beta = Study::compile_beta_power_prior_selection(source, outcomes, options, &ctx).unwrap();
+    let (beta_source, outcomes, options) = beta_cases().remove(0);
+    let beta =
+        Study::compile_beta_power_prior_selection(beta_source, outcomes, options, &ctx).unwrap();
     let gamma = Study::compile_gamma_power_prior_selection(
         GammaSource {
             base: GammaHyperparameters { shape: 1.0, rate: 1.0 },

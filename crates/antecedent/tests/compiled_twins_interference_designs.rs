@@ -58,8 +58,8 @@ fn outcomes(assignment: &[bool]) -> Vec<f64> {
     let n = assignment.len();
     (0..n)
         .map(|unit| {
-            let treated_neighbors =
-                [(unit + n - 1) % n, (unit + 1) % n].iter().filter(|&&other| assignment[other]);
+            let neighbors = [(unit + n - 1) % n, (unit + 1) % n];
+            let treated_neighbors = neighbors.iter().filter(|&&other| assignment[other]);
             1.0 + 0.25 * unit as f64
                 + 2.0 * f64::from(u8::from(assignment[unit]))
                 + 1.5 * treated_neighbors.count() as f64

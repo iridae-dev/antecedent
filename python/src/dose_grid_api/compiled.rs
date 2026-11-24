@@ -176,9 +176,10 @@ pub(super) fn evaluate_dose_grid_bias_aware_compiled(
     let mut request: DoseGridRequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
     if request.bias_aware.is_none() {
-        return Err(value_err(
-            "dose_grid.invalid_request: the compiled bias-aware row needs a curvature bound",
-        ));
+        return Err(value_err(format!(
+            "{}: the compiled bias-aware row needs a curvature bound",
+            antecedent::reason::reason_details::dose_grid::INVALID_REQUEST
+        )));
     }
     request.dose = dose;
     request.outcome = outcome;
