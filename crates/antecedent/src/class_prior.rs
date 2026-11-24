@@ -536,6 +536,50 @@ mod tests {
         assert!(defaulted.identity_wire().is_canonical());
     }
 
+    /// `ClassPrior::identity_wire`: keyed masses are a set of pairs (sorted by key; a repeated
+    /// key is refused), inside the annotated wire as well as bare; ordered masses keep their
+    /// order; each annotation is framed and absent ones are written as absent.
+    #[test]
+    fn site_class_prior_identity_keyed_pairs_are_a_set_when_annotated() {
+        let annotated = |pairs: Vec<(u64, f64)>| {
+            ClassPrior::from_pairs(pairs)
+                .unwrap()
+                .with_assumption("assumption.declared_masses")
+                .unwrap()
+                .exact_limit(8)
+                .unwrap()
+        };
+        let base = annotated(vec![(9, 0.5), (3, 0.25), (5, 0.25)]).identity_wire();
+        assert!(base.is_canonical());
+        assert!(matches!(base, antecedent_io::ClassPriorIdentityWire::Annotated { .. }));
+        for order in [vec![(3, 0.25), (5, 0.25), (9, 0.5)], vec![(5, 0.25), (9, 0.5), (3, 0.25)]] {
+            assert_eq!(annotated(order).identity_wire(), base, "keyed masses are a set");
+        }
+        assert_ne!(annotated(vec![(9, 0.5), (3, 0.25)]).identity_wire(), base);
+        assert_ne!(annotated(vec![(9, 0.5), (3, 0.25), (5, 0.3)]).identity_wire(), base);
+        assert_ne!(
+            ClassPrior::from_pairs([(9, 0.5), (3, 0.25), (5, 0.25)]).unwrap().identity_wire(),
+            base,
+            "the annotations are part of the identity"
+        );
+        let other_assumption = ClassPrior::from_pairs([(9, 0.5), (3, 0.25), (5, 0.25)])
+            .unwrap()
+            .with_assumption("assumption.other")
+            .unwrap()
+            .exact_limit(8)
+            .unwrap();
+        assert_ne!(other_assumption.identity_wire(), base);
+        let ordered = |masses: [f64; 2]| {
+            ClassPrior::from_ordered(masses)
+                .unwrap()
+                .with_assumption("assumption.declared_masses")
+                .unwrap()
+                .identity_wire()
+        };
+        assert_ne!(ordered([0.25, 0.75]), ordered([0.75, 0.25]), "ordered masses keep order");
+        assert!(ordered([0.25, 0.75]).is_canonical());
+    }
+
     #[test]
     fn conditional_masses_are_uniform_or_keyed_within_one_class() {
         let uniform = ClassPrior::uniform("assumption.uniform_within_class").unwrap();
