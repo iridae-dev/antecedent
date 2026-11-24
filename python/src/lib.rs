@@ -86,6 +86,7 @@ mod cyclic_system_api;
 mod data_diagnostics_api;
 mod data_snapshot;
 mod decision_api;
+mod decision_claims;
 mod decision_compile_api;
 mod decision_evidence_api;
 mod decision_reliability_api;

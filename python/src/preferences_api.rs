@@ -11,12 +11,12 @@
 
 mod learning;
 
-use antecedent::analysis::inverse_query::{AtomEvidence, DistributionArtifact, MeanSource};
+use antecedent::analysis::inverse_query::{DistributionArtifact, MeanSource};
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
     ActionInput, ActionKind, Attribute, BeliefRows, CertifiedPreferenceResult, CertifiedVerdict,
-    DecisionCriterion, HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction,
-    PreferenceContract, PreferenceDecisionArtifact, PreferenceDecisionResult, PreferenceEvaluation,
+    HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction, PreferenceContract,
+    PreferenceDecisionArtifact, PreferenceDecisionResult, PreferenceEvaluation,
     PreferenceEvaluationOptions, PreferenceExpr, PreferenceMeasure, PreferenceParameter,
     PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict, RegionStatus,
     RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
@@ -35,14 +35,12 @@ use antecedent::analysis::preference_decision::{
 };
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
 use antecedent::contract::ExternalRefusal;
-use antecedent::design::decision_adapters::{
-    AdaptedClaims, ClaimProbability, SuppliedClaim, adapt_finite_scenarios,
-    adapt_graph_dependent_claims, adapt_point_claim, adapt_weighted_graph_atoms,
-};
 use antecedent::design::decision_artifact::source_digest;
-use antecedent::design::decision_contract::{SourceRepresentation, UtilityExpr};
+use antecedent::design::decision_contract::SourceRepresentation;
 use antecedent::design::decision_eval::MeanEstimate;
-use antecedent::design::decision_robustness::{AtomSupport, InputSupport};
+use antecedent::design::decision_wire::{
+    ConstraintWire, CriterionWire, kind_named, structural_name, structural_named,
+};
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::planner::PlanView;
 use antecedent::planner::lowered::CarrierDemand;
@@ -56,13 +54,12 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
+use crate::decision_claims::adapt_claims;
 use crate::distribution_api::PyJointDistributionArtifact;
+use crate::program_claims_api::PyNativeResponseClaim;
 
 /// Largest JSON declaration accepted (records may carry joint draws of every option).
 const MAX_PREFERENCE_JSON_BYTES: usize = 64 * 1024 * 1024;
-
-/// Most draw bytes the structures of one decision may copy between them.
-const MAX_CLAIM_DRAW_BYTES: usize = 512 * 1024 * 1024;
 
 /// `(result JSON, refusal JSON)`: exactly one is set.
 type Reply = (Option<String>, Option<String>);
@@ -158,35 +155,6 @@ impl From<&PreferenceExpr> for ExprWire {
             PreferenceExpr::Max(x, y) => Self::Max(b(x), b(y)),
             PreferenceExpr::Exp(a) => Self::Exp(b(a)),
             PreferenceExpr::Ln(a) => Self::Ln(b(a)),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum UtilityWire {
-    Const(f64),
-    Input(usize),
-    Neg(Box<UtilityWire>),
-    Add(Box<UtilityWire>, Box<UtilityWire>),
-    Sub(Box<UtilityWire>, Box<UtilityWire>),
-    Mul(Box<UtilityWire>, Box<UtilityWire>),
-    Min(Box<UtilityWire>, Box<UtilityWire>),
-    Max(Box<UtilityWire>, Box<UtilityWire>),
-}
-
-impl From<UtilityWire> for UtilityExpr {
-    fn from(wire: UtilityWire) -> Self {
-        let b = |e: Box<UtilityWire>| Box::new(Self::from(*e));
-        match wire {
-            UtilityWire::Const(v) => Self::Const(v),
-            UtilityWire::Input(k) => Self::Input(k),
-            UtilityWire::Neg(a) => Self::Neg(b(a)),
-            UtilityWire::Add(x, y) => Self::Add(b(x), b(y)),
-            UtilityWire::Sub(x, y) => Self::Sub(b(x), b(y)),
-            UtilityWire::Mul(x, y) => Self::Mul(b(x), b(y)),
-            UtilityWire::Min(x, y) => Self::Min(b(x), b(y)),
-            UtilityWire::Max(x, y) => Self::Max(b(x), b(y)),
         }
     }
 }
@@ -408,47 +376,6 @@ struct ActionWire {
     inputs: Vec<InputWire>,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum CriterionWire {
-    PosteriorExpectedUtility,
-    PosteriorExpectedLoss,
-    ThresholdProbability { threshold: f64 },
-    Quantile { p: f64 },
-    MinimaxOverIdentifiedSet,
-    MaximinOverStructures,
-    Regret,
-    ExpectedRegret,
-}
-
-impl From<CriterionWire> for DecisionCriterion {
-    fn from(c: CriterionWire) -> Self {
-        match c {
-            CriterionWire::PosteriorExpectedUtility => Self::PosteriorExpectedUtility,
-            CriterionWire::PosteriorExpectedLoss => Self::PosteriorExpectedLoss,
-            CriterionWire::ThresholdProbability { threshold } => {
-                Self::ThresholdProbability { threshold }
-            }
-            CriterionWire::Quantile { p } => Self::Quantile { p },
-            CriterionWire::MinimaxOverIdentifiedSet => Self::MinimaxOverIdentifiedSet,
-            CriterionWire::MaximinOverStructures => Self::MaximinOverStructures,
-            CriterionWire::Regret => Self::Regret,
-            CriterionWire::ExpectedRegret => Self::ExpectedRegret,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConstraintWire {
-    id: String,
-    expr: UtilityWire,
-    bound: f64,
-    min_probability: f64,
-    units: String,
-    applies_to: Vec<String>,
-}
-
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ContractWire {
@@ -467,33 +394,12 @@ fn quantity_from(wire: ScientificQuantityWire) -> PyResult<ScientificQuantity> {
 }
 
 fn kind_from(name: &str) -> PyResult<ActionKind> {
-    Ok(match name {
-        "intervention" => ActionKind::Intervention,
-        "policy" => ActionKind::Policy,
-        "regime" => ActionKind::Regime,
-        "study" => ActionKind::Study,
-        "external" => ActionKind::External,
-        other => return Err(crate::value_err(format!("unknown action kind {other:?}"))),
-    })
+    kind_named(name).ok_or_else(|| crate::value_err(format!("unknown action kind {name:?}")))
 }
 
 fn structural_from(name: &str) -> PyResult<StructuralPolicy> {
-    Ok(match name {
-        "require_invariant_best_action" => StructuralPolicy::RequireInvariantBestAction,
-        "maximin" => StructuralPolicy::Maximin,
-        "bayes_over_structures" => StructuralPolicy::BayesOverStructures,
-        "report_only" => StructuralPolicy::ReportOnly,
-        other => return Err(crate::value_err(format!("unknown structural policy {other:?}"))),
-    })
-}
-
-fn structural_name(policy: StructuralPolicy) -> &'static str {
-    match policy {
-        StructuralPolicy::RequireInvariantBestAction => "require_invariant_best_action",
-        StructuralPolicy::Maximin => "maximin",
-        StructuralPolicy::BayesOverStructures => "bayes_over_structures",
-        StructuralPolicy::ReportOnly => "report_only",
-    }
+    structural_named(name)
+        .ok_or_else(|| crate::value_err(format!("unknown structural policy {name:?}")))
 }
 
 fn policy_from(name: &str) -> PyResult<PreferencePolicy> {
@@ -536,18 +442,7 @@ fn contract_from(json: &str) -> PyResult<PreferenceContract> {
             Ok(PreferenceAction { id: action.id, kind: kind_from(&action.kind)?, inputs })
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let constraints = wire
-        .constraints
-        .into_iter()
-        .map(|c| HardConstraint {
-            id: c.id,
-            expr: c.expr.into(),
-            bound: c.bound,
-            min_probability: c.min_probability,
-            units: c.units,
-            applies_to: c.applies_to,
-        })
-        .collect();
+    let constraints = wire.constraints.into_iter().map(HardConstraint::from).collect();
     Ok(PreferenceContract {
         model: model_from(wire.model),
         actions,
@@ -703,177 +598,6 @@ fn mean_source_from(json: &str) -> PyResult<MeanSource> {
         causal_contract_id: wire.causal_contract_id,
         rng_id: wire.rng_id,
     })
-}
-
-// ---------------------------------------------------------------------------
-// Structures (the same claim wire `decision_robust` declares).
-// ---------------------------------------------------------------------------
-
-fn invalid_json(detail: &str, offending: Option<String>) -> String {
-    refusal(&ExternalRefusal {
-        code: antecedent::reason::reason_code!("invalid_argument"),
-        stage: "adapt",
-        detail: detail.to_owned(),
-        offending,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    })
-}
-
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProbabilityWire {
-    kind: String,
-    #[serde(default)]
-    value: Option<f64>,
-    #[serde(default)]
-    count: Option<u64>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InputSupportWire {
-    action_id: String,
-    input: usize,
-    status: String,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SupportWire {
-    overall: String,
-    #[serde(default)]
-    per_input: Vec<InputSupportWire>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ClaimWire {
-    id: String,
-    #[serde(default)]
-    probability: Option<ProbabilityWire>,
-    status: String,
-    #[serde(default)]
-    reason: Option<String>,
-    #[serde(default)]
-    support: Option<SupportWire>,
-}
-
-fn support_status(name: &str) -> Result<antecedent::query::SupportStatus, String> {
-    antecedent::query::SupportStatus::from_name(name).ok_or_else(|| {
-        invalid_json(
-            antecedent::reason::reason_details::decision_adapters::UNKNOWN_SUPPORT_STATUS,
-            Some(name.into()),
-        )
-    })
-}
-
-fn support_from(wire: Option<SupportWire>) -> Result<AtomSupport, String> {
-    let Some(wire) = wire else {
-        return Ok(AtomSupport::unassessed());
-    };
-    Ok(AtomSupport {
-        overall: support_status(&wire.overall)?,
-        per_input: wire
-            .per_input
-            .into_iter()
-            .map(|p| {
-                Ok(InputSupport {
-                    action_id: p.action_id,
-                    input: p.input,
-                    status: support_status(&p.status)?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?,
-    })
-}
-
-fn probability_from(wire: Option<ProbabilityWire>, id: &str) -> Result<ClaimProbability, String> {
-    Ok(match wire {
-        None => ClaimProbability::Unspecified,
-        Some(p) => match (p.kind.as_str(), p.value, p.count) {
-            ("unspecified", None, None) => ClaimProbability::Unspecified,
-            ("genuine", Some(value), None) => ClaimProbability::Genuine(value),
-            ("completion_count", None, Some(count)) => ClaimProbability::CompletionCount(count),
-            _ => {
-                return Err(invalid_json(
-                    antecedent::reason::reason_details::decision_adapters::INVALID_PROBABILITY,
-                    Some(id.to_owned()),
-                ));
-            }
-        },
-    })
-}
-
-fn claim_from(
-    wire: ClaimWire,
-    source: Option<&PyJointDistributionArtifact>,
-) -> Result<SuppliedClaim, String> {
-    use antecedent::reason::reason_details::decision_adapters as details;
-    let bad = |slot: &str| invalid_json(slot, Some(wire.id.clone()));
-    let evidence = match (wire.status.as_str(), source) {
-        ("evaluated", Some(source)) => AtomEvidence::Evaluated(Box::new(source.inner().clone())),
-        ("evaluated", None) => return Err(bad(details::EVALUATED_NEEDS_DRAWS)),
-        ("unidentified", _) => AtomEvidence::Unidentified,
-        ("unevaluated", _) => match wire.reason.as_deref() {
-            Some(reason) if !reason.trim().is_empty() => {
-                AtomEvidence::Unevaluated(reason.to_owned())
-            }
-            _ => return Err(bad(details::UNEVALUATED_NEEDS_REASON)),
-        },
-        _ => return Err(bad(details::UNKNOWN_CLAIM_STATUS)),
-    };
-    let probability = probability_from(wire.probability, &wire.id)?;
-    Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
-}
-
-fn adapt(
-    policy: StructuralPolicy,
-    kind: &str,
-    claims_json: &str,
-    sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
-) -> Result<AdaptedClaims, String> {
-    use antecedent::reason::reason_details::decision_adapters as details;
-    let wires: Vec<ClaimWire> = serde_json::from_str(claims_json)
-        .map_err(|e| invalid_json(details::INVALID_CLAIMS, Some(e.to_string())))?;
-    if wires.len() != sources.len() {
-        return Err(invalid_json(details::CLAIMS_SOURCES_MISMATCH, None));
-    }
-    // Each evaluated structure owns a copy of its draws: bound the total before cloning.
-    let cloned_bytes = wires
-        .iter()
-        .zip(sources)
-        .filter(|(wire, _)| wire.status == "evaluated")
-        .filter_map(|(_, source)| source.as_deref())
-        .try_fold(0usize, |total, source| {
-            total.checked_add(source.inner().draws().len().checked_mul(size_of::<f64>())?)
-        });
-    if cloned_bytes.is_none_or(|bytes| bytes > MAX_CLAIM_DRAW_BYTES) {
-        return Err(invalid_json(
-            details::CLAIM_DRAWS_TOO_LARGE,
-            Some(format!("the structures copy more than {MAX_CLAIM_DRAW_BYTES} bytes of draws")),
-        ));
-    }
-    let claims = wires
-        .into_iter()
-        .zip(sources)
-        .map(|(wire, source)| claim_from(wire, source.as_deref()))
-        .collect::<Result<Vec<_>, String>>()?;
-    match kind {
-        "point" => {
-            let Ok([claim]) = <[SuppliedClaim; 1]>::try_from(claims) else {
-                return Err(invalid_json(details::POINT_CLAIM_IS_SINGLE, None));
-            };
-            adapt_point_claim(&claim.id, claim.evidence, claim.support, policy)
-        }
-        "graph_dependent" => adapt_graph_dependent_claims(claims, policy),
-        "weighted_graph_posterior" => adapt_weighted_graph_atoms(claims, policy),
-        "finite_scenarios" => adapt_finite_scenarios(claims, policy),
-        other => return Err(invalid_json(details::UNKNOWN_CLAIM_KIND, Some(other.into()))),
-    }
-    .map_err(|e| refusal(&e.to_refusal()))
 }
 
 // ---------------------------------------------------------------------------
@@ -1271,6 +995,38 @@ fn preference_contract_describe(contract_json: &str) -> PyResult<Reply> {
     })
 }
 
+/// The description of the decision source a native claim supplies for a preference contract:
+/// the representation [`source_requirement`] names, or the refusal.
+#[pyfunction]
+fn preference_claim_source(
+    contract_json: &str,
+    claim: PyRef<'_, PyNativeResponseClaim>,
+) -> PyResult<Reply> {
+    crate::catch_ffi(|| {
+        let contract = contract_from(contract_json)?;
+        match source_requirement(&contract) {
+            Ok(requirement) => claim.decision_source_for(&requirement),
+            Err(error) => Ok((None, Some(refusal(&error)))),
+        }
+    })
+}
+
+/// The aligned joint law a native claim supplies for a preference contract; neither part when
+/// it supplies means; the refusal when it supplies neither.
+#[pyfunction]
+fn preference_claim_joint_artifact(
+    contract_json: &str,
+    claim: PyRef<'_, PyNativeResponseClaim>,
+) -> PyResult<(Option<PyJointDistributionArtifact>, Option<String>)> {
+    crate::catch_ffi(|| {
+        let contract = contract_from(contract_json)?;
+        match source_requirement(&contract) {
+            Ok(requirement) => claim.joint_artifact_for(&requirement),
+            Err(error) => Ok((None, Some(refusal(&error)))),
+        }
+    })
+}
+
 /// Decide a preference contract on aligned joint draws, by the route rule. The decision reads
 /// `cancel` at its work boundaries.
 #[pyfunction]
@@ -1354,7 +1110,13 @@ fn decide_preferences_structures(
         check_declared_size(claims_json, MAX_PREFERENCE_JSON_BYTES, "structures")?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
         let run = || -> Result<Value, String> {
-            let claims = adapt(contract.structural_policy, kind, claims_json, &sources)?;
+            let claims = adapt_claims(
+                contract.structural_policy,
+                kind,
+                claims_json,
+                &sources,
+                "structures",
+            )?;
             let evaluation = decide_across_structures_with_context(
                 &contract,
                 &claims,
@@ -2114,6 +1876,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(preference_joint_law_of, m)?)?;
     m.add_function(wrap_pyfunction!(preference_model_describe, m)?)?;
     m.add_function(wrap_pyfunction!(preference_contract_describe, m)?)?;
+    m.add_function(wrap_pyfunction!(preference_claim_source, m)?)?;
+    m.add_function(wrap_pyfunction!(preference_claim_joint_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decide_preferences_joint, m)?)?;
     m.add_function(wrap_pyfunction!(decide_preferences_means, m)?)?;
     m.add_function(wrap_pyfunction!(decide_preferences_structures, m)?)?;

@@ -136,6 +136,93 @@ def test_fixed_trade_off_reproduces_the_ordinary_decision():
     assert "treat" in result.statement
 
 
+_ORDINARY_KIND = {
+    "uniquely_optimal": "necessarily_best",
+    "no_admissible_action": "no_admissible_action",
+}
+
+
+@pytest.mark.parametrize(
+    "criterion",
+    [
+        decision.Criterion.expected_utility(),
+        decision.Criterion.expected_loss(),
+        decision.Criterion.expected_regret(),
+        decision.Criterion.threshold_probability(1.5),
+        decision.Criterion.quantile(0.5),
+        decision.Criterion.regret(),
+    ],
+)
+@pytest.mark.parametrize(
+    "constraints",
+    [
+        (),
+        (("harm_cap", 1, 0.5, "events", 1.0, ()),),
+        (
+            ("benefit_floor", 0, -2.0, "qaly", 0.5, ("treat",)),
+            ("harm_cap", 1, 0.5, "events", 1.0, ()),
+        ),
+        (("benefit_floor", 0, -2.0, "qaly", 1.0, ()), ("harm_cap", 1, 0.5, "events", 1.0, ())),
+    ],
+)
+def test_a_fixed_trade_off_decides_as_the_hand_written_contract(criterion, constraints):
+    # Constraints as (id, attribute, bound, units, min_probability, applies_to); the benefit
+    # floor reads minus the benefit.
+    def ordinary_constraint(spec):
+        cid, k, bound, units, p, applies = spec
+        expr = -decision.x(0) if k == 0 else decision.x(k)
+        return decision.Constraint(
+            cid, expr, bound=bound, units=units, min_probability=p, applies_to=applies
+        )
+
+    def preference_constraint(spec):
+        cid, k, bound, units, p, applies = spec
+        expr = -BENEFIT if k == 0 else HARM
+        return pf.constraint(
+            cid, expr, at_most=bound, units=units, min_probability=p, applies_to=applies
+        )
+
+    w = pf.fixed("harm_weight", units="qaly/event", value=1.0)
+    result = _decide(
+        _contract(
+            pf.ValueModel(BENEFIT - w * HARM, utility_units="qaly"),
+            criterion=criterion,
+            constraints=tuple(preference_constraint(c) for c in constraints),
+        )
+    )
+    utility = decision.x(0) - 1.0 * decision.x(1)
+    ordinary = require_success(
+        decision.Contract(
+            actions=(
+                decision.Action("treat", inputs=(TREAT_BENEFIT, TREAT_HARM), utility=utility),
+                decision.Action("wait", inputs=(WAIT_BENEFIT, WAIT_HARM), utility=utility),
+            ),
+            utility_units="qaly",
+            criterion=criterion,
+            target_population="target",
+            constraints=tuple(ordinary_constraint(c) for c in constraints),
+        ).evaluate(_source())
+    )
+    tie = "tied" if result.route == "exact" else "undetermined"
+    assert result.kind == _ORDINARY_KIND.get(ordinary.verdict.kind, tie)
+    assert result.selected == (
+        ordinary.selected[0] if ordinary.verdict.kind == "uniquely_optimal" else None
+    )
+    by_id = {a.id: a for a in result.actions}
+    for outcome in ordinary.actions:
+        ours = by_id[outcome.id]
+        assert ours.admissible == outcome.admissible
+        assert ours.exclusions == outcome.exclusions
+        if not outcome.admissible or ours.value_range is None:
+            continue
+        low, high = ours.value_range
+        if result.route == "exact":
+            assert low == pytest.approx(outcome.value, rel=1e-12)
+            assert high == pytest.approx(outcome.value, rel=1e-12)
+        else:
+            assert low - 1e-12 <= outcome.value <= high + 1e-12
+
+
 def test_a_range_that_crosses_the_switch_reports_where_the_choice_changes():
     model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
     result = _decide(_contract(model))

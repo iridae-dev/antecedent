@@ -4,7 +4,8 @@
 //!
 //! The ordinary contract and result artifacts and the artifacts of decisions across a
 //! preference set write these parts with the same wires, so the same part has the same bytes
-//! in every artifact.
+//! in every artifact, and a host that declares a contract part as JSON reads it with the same
+//! wire. Each wire converts to and from the decision type it carries.
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -18,14 +19,22 @@ use crate::decision_eval::ConstraintExclusion;
 /// A utility expression.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ExprWire {
+pub enum ExprWire {
+    /// [`UtilityExpr::Const`].
     Const(f64),
+    /// [`UtilityExpr::Input`].
     Input(usize),
+    /// [`UtilityExpr::Neg`].
     Neg(Box<ExprWire>),
+    /// [`UtilityExpr::Add`].
     Add(Box<ExprWire>, Box<ExprWire>),
+    /// [`UtilityExpr::Sub`].
     Sub(Box<ExprWire>, Box<ExprWire>),
+    /// [`UtilityExpr::Mul`].
     Mul(Box<ExprWire>, Box<ExprWire>),
+    /// [`UtilityExpr::Min`].
     Min(Box<ExprWire>, Box<ExprWire>),
+    /// [`UtilityExpr::Max`].
     Max(Box<ExprWire>, Box<ExprWire>),
 }
 
@@ -64,14 +73,28 @@ impl From<ExprWire> for UtilityExpr {
 /// A decision criterion.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum CriterionWire {
+pub enum CriterionWire {
+    /// [`DecisionCriterion::PosteriorExpectedUtility`].
     PosteriorExpectedUtility,
+    /// [`DecisionCriterion::PosteriorExpectedLoss`].
     PosteriorExpectedLoss,
-    ThresholdProbability { threshold: f64 },
-    Quantile { p: f64 },
+    /// [`DecisionCriterion::ThresholdProbability`].
+    ThresholdProbability {
+        /// The utility threshold.
+        threshold: f64,
+    },
+    /// [`DecisionCriterion::Quantile`].
+    Quantile {
+        /// The level.
+        p: f64,
+    },
+    /// [`DecisionCriterion::MinimaxOverIdentifiedSet`].
     MinimaxOverIdentifiedSet,
+    /// [`DecisionCriterion::MaximinOverStructures`].
     MaximinOverStructures,
+    /// [`DecisionCriterion::Regret`].
     Regret,
+    /// [`DecisionCriterion::ExpectedRegret`].
     ExpectedRegret,
 }
 
@@ -112,7 +135,7 @@ impl From<CriterionWire> for DecisionCriterion {
 /// A hard constraint.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ConstraintWire {
+pub struct ConstraintWire {
     id: String,
     expr: ExprWire,
     bound: f64,
@@ -150,7 +173,7 @@ impl From<ConstraintWire> for HardConstraint {
 /// A hard-constraint exclusion of one action.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExclusionWire {
+pub struct ExclusionWire {
     constraint_id: String,
     probability: f64,
     required: f64,
@@ -173,7 +196,8 @@ impl From<ExclusionWire> for ConstraintExclusion {
 }
 
 /// The stored name of an action kind.
-pub(crate) const fn kind_name(kind: ActionKind) -> &'static str {
+#[must_use]
+pub const fn kind_name(kind: ActionKind) -> &'static str {
     match kind {
         ActionKind::Intervention => "intervention",
         ActionKind::Policy => "policy",
@@ -184,7 +208,8 @@ pub(crate) const fn kind_name(kind: ActionKind) -> &'static str {
 }
 
 /// The action kind a stored name names; `None` for any other name.
-pub(crate) fn kind_named(name: &str) -> Option<ActionKind> {
+#[must_use]
+pub fn kind_named(name: &str) -> Option<ActionKind> {
     Some(match name {
         "intervention" => ActionKind::Intervention,
         "policy" => ActionKind::Policy,
@@ -196,7 +221,8 @@ pub(crate) fn kind_named(name: &str) -> Option<ActionKind> {
 }
 
 /// The stored name of a structural policy.
-pub(crate) const fn structural_name(policy: StructuralPolicy) -> &'static str {
+#[must_use]
+pub const fn structural_name(policy: StructuralPolicy) -> &'static str {
     match policy {
         StructuralPolicy::RequireInvariantBestAction => "require_invariant_best_action",
         StructuralPolicy::Maximin => "maximin",
@@ -206,7 +232,8 @@ pub(crate) const fn structural_name(policy: StructuralPolicy) -> &'static str {
 }
 
 /// The structural policy a stored name names; `None` for any other name.
-pub(crate) fn structural_named(name: &str) -> Option<StructuralPolicy> {
+#[must_use]
+pub fn structural_named(name: &str) -> Option<StructuralPolicy> {
     Some(match name {
         "require_invariant_best_action" => StructuralPolicy::RequireInvariantBestAction,
         "maximin" => StructuralPolicy::Maximin,

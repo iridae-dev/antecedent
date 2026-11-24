@@ -703,6 +703,14 @@ pub mod decision_artifact {
         result_to_json, source_digest,
     };
 }
+/// Serde wires of decision contract parts: the bytes every decision artifact stores them as
+/// and the JSON a host declares them in.
+pub mod decision_wire {
+    pub use antecedent_design::decision_wire::{
+        ConstraintWire, CriterionWire, ExclusionWire, ExprWire, kind_name, kind_named,
+        structural_name, structural_named,
+    };
+}
 /// Durable decision contract and the source each functional needs.
 pub mod decision_contract {
     pub use antecedent_design::decision_contract::{

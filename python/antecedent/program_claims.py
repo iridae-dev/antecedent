@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -441,13 +441,26 @@ class NativeClaim:
         outcome law. Every coordinate lacking support refuses with
         ``native_claims.no_supported_coordinate``.
         """
-        body, refusal = self._native.decision_source(json.dumps(requirement._wire()))
+        wire = json.dumps(requirement._wire())
+        return self._decision_source(
+            lambda: self._native.decision_source(wire),
+            lambda: self._native.joint_artifact(wire),
+        )
+
+    def _decision_source(
+        self,
+        describe: Callable[[], tuple[str | None, str | None]],
+        joint_artifact: Callable[[], tuple[Any, str | None]],
+    ) -> NativeDecisionSource:
+        """The source a contract needs, read through ``describe`` (the description, or the Rust
+        refusal) and, when the description names a joint law, ``joint_artifact``."""
+        body, refusal = describe()
         raise_refusal(refusal, ExternalRefusal)
         assert body is not None
         decoded = json.loads(body)
         joint = None
         if "joint_law" in decoded:
-            artifact, refusal = self._native.joint_artifact(json.dumps(requirement._wire()))
+            artifact, refusal = joint_artifact()
             raise_refusal(refusal, ExternalRefusal)
             assert artifact is not None
             joint = JointDistributionArtifact._from_native(artifact)

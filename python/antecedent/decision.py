@@ -32,7 +32,7 @@ with its registered ``reason_code``.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
@@ -68,7 +68,7 @@ from .results.sources import MeanSource
 
 if TYPE_CHECKING:
     from ._native import AteAnalysisResult
-    from .program_claims import ProgramBinding
+    from .program_claims import NativeClaim, NativeDecisionSource, ProgramBinding
     from .source_evidence import SourceEvidence
 
 RESULT_LINK_ID = "decision_result"
@@ -357,12 +357,26 @@ class Verdict:
     actions: tuple[str, ...]
 
 
+def _not_replayable(supplied: str, remedy: str) -> dict[str, Any]:
+    """The refusal to export a decision that was not evaluated on aligned joint draws."""
+    return {
+        "code": "route_not_supported",
+        "stage": "export",
+        "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
+        "offending": None,
+        "expected": "joint_draws",
+        "supplied": supplied,
+        "remedy": remedy,
+    }
+
+
 def _expr_from_wire(wire: Any) -> Expr:
     return Expr(wire)
 
 
 def _result_mean_source(
-    contract: Contract,
+    quantities: tuple[ScientificQuantity, ...],
+    decision_source: Callable[[NativeClaim], NativeDecisionSource],
     source: object,
     *,
     program: ProgramBinding | None,
@@ -370,11 +384,12 @@ def _result_mean_source(
     dose_units: str | None,
     population: str,
 ) -> MeanSource | JointDistributionArtifact | None:
-    """The mean source an analysis result makes for ``contract``, or ``None`` for other sources.
+    """The source an analysis result makes for a contract reading ``quantities``, or ``None``
+    for other sources.
 
-    Reuses the native-claim path (``program_claims.native_claim`` then
-    ``NativeClaim.as_decision_source``) so support labels, trust, snapshot identity and every
-    refusal stay Rust-owned.
+    Reuses the native-claim path (``program_claims.native_claim``, then ``decision_source``,
+    which asks the claim for the representation the contract needs) so support labels, trust,
+    snapshot identity and every refusal stay Rust-owned.
     """
     from .results._execution import ResultAPI
 
@@ -392,7 +407,6 @@ def _result_mean_source(
             raise CausalValueError(
                 "a scalar effect uses a contrast coordinate, not a response-grid program"
             )
-        quantities = tuple(q for action in contract.actions for q in action.inputs)
         declarations = {(q.units, q.population_id) for q in quantities}
         if outcome_units is None:
             if len(declarations) != 1:
@@ -440,7 +454,6 @@ def _result_mean_source(
         # A contract declares units; it does not discover them from numbers. Require
         # one outcome/population across its inputs, then let the original native
         # claim compare the full descriptors, regimes and source projection.
-        quantities = tuple(q for action in contract.actions for q in action.inputs)
         response_declarations = {(q.variable_id, q.units, q.population_id) for q in quantities}
         if outcome_units is None:
             if len(response_declarations) != 1:
@@ -458,7 +471,7 @@ def _result_mean_source(
     elif outcome_units is not None or dose_units is not None:
         raise CausalValueError("pass program= or the units, not both")
     claim = program_claims.native_claim(source, program)
-    return claim.as_decision_source(contract).source
+    return decision_source(claim).source
 
 
 @dataclass(frozen=True, slots=True)
@@ -584,7 +597,8 @@ class Contract:
         if cohort_source is not None:
             source = cohort_source()
         result_source = _result_mean_source(
-            self,
+            tuple(q for action in self.actions for q in action.inputs),
+            lambda claim: claim.as_decision_source(self),
             source,
             program=program,
             outcome_units=outcome_units,
@@ -925,15 +939,7 @@ class Decision(ScientificResult):
         """
         if isinstance(self._source, (BoundExternalClaim, MeanSource)):
             raise DecisionRefusal(
-                {
-                    "code": "route_not_supported",
-                    "stage": "export",
-                    "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
-                    "offending": None,
-                    "expected": "joint_draws",
-                    "supplied": "mean",
-                    "remedy": "export a decision evaluated on aligned joint draws",
-                }
+                _not_replayable("mean", "export a decision evaluated on aligned joint draws")
             )
         return artifact_from_receipt(
             self,

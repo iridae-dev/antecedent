@@ -58,8 +58,6 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias, get_args
 
 import numpy as np
 
-from antecedent import _reason_details
-
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -72,6 +70,8 @@ from ._native import decide_preferences_means as _decide_means
 from ._native import decide_preferences_structures as _decide_structures
 from ._native import export_preference_decision as _export_decision
 from ._native import preference_chain_joint_law as _chain_joint_law
+from ._native import preference_claim_joint_artifact as _claim_joint_artifact
+from ._native import preference_claim_source as _claim_source
 from ._native import preference_compile_across_studies as _compile_across
 from ._native import preference_compile_for_study as _compile_for_study
 from ._native import preference_contract_describe as _describe_contract
@@ -83,8 +83,9 @@ from ._native import replay_preference_decision as _replay_decision
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count, real, text
-from .decision import Constraint, ConstraintExclusion, Criterion
+from .decision import ActionKind, Constraint, ConstraintExclusion, Criterion, _not_replayable
 from .decision import Expr as _DecisionExpr
+from .decision import StructuralPolicy as StructuralPolicyKind
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, resolve_execution
 from .external import BoundExternalClaim
@@ -96,10 +97,6 @@ if TYPE_CHECKING:
     from .decision_robust import Claim
     from .program_claims import ProgramBinding
 
-ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
-StructuralPolicyKind = Literal[
-    "require_invariant_best_action", "maximin", "bayes_over_structures", "report_only"
-]
 PolicyKind = Literal[
     "require_invariant_best_action", "maximin", "minimax_regret", "weighted", "report_only"
 ]
@@ -1241,27 +1238,6 @@ class Contract:
             raise CausalTypeError("measure= is a preferences.Measure")
         return measure._wire(self._preferences()["model"]["parameters"])
 
-    def _proxy(self) -> Any:
-        """An ordinary decision contract over the same quantities, so an analysis result is read
-        exactly as :meth:`antecedent.decision.Contract.evaluate` reads it."""
-        from . import decision
-
-        needs = self._described()["needs"]
-        actions = []
-        for action in self.actions:
-            quantities = action.quantities
-            utility = reduce(lambda a, b: a + b, (decision.x(i) for i in range(len(quantities))))
-            actions.append(decision.Action(action.id, inputs=quantities, utility=utility))
-        return decision.Contract(
-            actions=tuple(actions),
-            utility_units=self._preferences()["model"]["utility_units"],
-            criterion=(
-                Criterion.expected_utility() if needs == "means" else Criterion.quantile(0.5)
-            ),
-            target_population=self.target_population,
-            horizon=self.horizon,
-        )
-
     def _source(
         self,
         source: Any,
@@ -1296,8 +1272,13 @@ class Contract:
         from .results._execution import ResultAPI
 
         if isinstance(source, ResultAPI):
+            wire = json.dumps(self._wire())
             source = _result_mean_source(
-                self._proxy(),
+                tuple(q for action in self.actions for q in action.quantities),
+                lambda claim: claim._decision_source(
+                    lambda: _claim_source(wire, claim._native),
+                    lambda: _claim_joint_artifact(wire, claim._native),
+                ),
                 source,
                 program=program,
                 outcome_units=outcome_units,
@@ -2430,15 +2411,10 @@ class PreferenceDecision(ScientificResult):
         """
         if not isinstance(self._source, JointDistributionArtifact):
             raise PreferenceRefusal(
-                {
-                    "code": "route_not_supported",
-                    "stage": "export",
-                    "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
-                    "offending": None,
-                    "expected": "joint_draws",
-                    "supplied": type(self._source).__name__,
-                    "remedy": "export a decision across preferences evaluated on aligned joint draws",
-                }
+                _not_replayable(
+                    type(self._source).__name__,
+                    "export a decision across preferences evaluated on aligned joint draws",
+                )
             )
         data, refusal = _export_decision(
             json.dumps(self._contract._wire()),
