@@ -168,6 +168,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recalc_composite_api::register(m)?;
     staleness_api::register(m)?;
     super::target_validation_api::register(m)?;
+    super::supplied_sensitivity_api::register(m)?;
     execution_attempt_api::register(m)?;
     source_evidence_api::register(m)?;
     source_projection_api::register(m)?;

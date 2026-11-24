@@ -176,6 +176,7 @@ mod finite_discrete;
 pub mod input_decision_programs;
 pub mod scope_refusals;
 mod supplied_identity;
+pub mod supplied_sensitivity_programs;
 mod supplied_terminal;
 mod targeted_refit;
 mod weighted_target;
