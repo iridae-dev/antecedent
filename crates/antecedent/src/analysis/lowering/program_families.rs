@@ -151,6 +151,81 @@ macro_rules! program_families {
             JointPanelExperiment => JointPanel, unit "joint_response.interval_readings";
             /// A design-native joint functional with its retained design proof.
             JointDesign => JointPanel, unit "joint_response.interval_readings";
+            /// A validation check of a compiled temporal structure search on the study's own data.
+            DiscoveryValidation => Discovery, unit "validate.discovery_stability";
+            /// Permutation falsification of a study's declared DAG against its retained table.
+            GraphFalsification => Structural, unit "gcm.model.graph_falsification";
+            /// The transported static path-specific counterfactual of a supplied affine
+            /// additive-noise model.
+            TransportedPathSpecific => Structural, unit "counterfactual.transported_additive";
+            /// An edge-strength or do-contrast operation of a prepared study on its own fitted
+            /// model.
+            FittedModelAttribution => Structural, unit "gcm.attribute.mechanism_refit";
+            /// A do-sampler, evaluation or nested counterfactual of a prepared study on its own
+            /// fitted model.
+            FittedModelSimulation => Structural, unit "gcm.simulate.mechanism_refit";
+            /// A process-local feedback system of declared callback mechanisms, solved by
+            /// Newton's method.
+            LocalCyclicCallback => Cyclic, unit "cyclic.general_systems";
+            /// A structural decision over supplied point, graph-dependent, weighted-atom or scenario claims.
+            SuppliedClaimDecision => PropagationChain, unit "decision.structural_robustness";
+            /// A decision over per-action identified sets of utility, supplied or enclosed from input sets.
+            IdentifiedSetDecision => PropagationChain, unit "decision.structural_robustness";
+            /// A decision contract evaluated on a declared aligned law or a grid of means.
+            ContractLawDecision => PropagationChain, unit "decision.contract";
+            /// A functional of one action's utility under a declared aligned law.
+            DecisionFunctionalValue => PropagationChain, unit "decision.functionals";
+            /// A decision or functional over several supported inputs, with support decided per action.
+            SupportedInputDecision => PropagationChain, unit "composition.boundary";
+            /// A decision over the surface of an assumption-sensitivity artifact.
+            SensitivityDecision => PropagationChain, unit "decision.sensitivity_composition";
+            /// An inverse decision query over forward evidence, or its finite-enumeration baseline.
+            InverseQueryDecision => PropagationChain, unit "decision.functional_inverse";
+            /// Ranking statements over aligned decision draws.
+            DecisionDrawsRanking => PropagationChain, unit "decision_reliability.ranking_statement";
+            /// Catalogued posterior sources adapted to a future candidate signal.
+            PriorSignalAdaptation => Planning, unit "design.prior_signal_planning";
+            /// The evidence obligations a failed identification owes.
+            EvidenceObligations => Planning, unit "design.evidence_obligations";
+            /// The Bayes action and expected regret of a finite decision problem under state draws.
+            FiniteActionDecision => PropagationChain, unit "design.evsi";
+            /// A bounded search over adaptive policy families against a response source.
+            AdaptivePolicySearch => Planning, unit "design.adaptive_policy_search";
+            /// A search for the declared studies that repair a failed identification contract.
+            IdentificationRepair => Planning, unit "design.identification_repair";
+            /// The cheapest declared studies that make a failed multi-source decision identify.
+            StudyAdditionPlanning => Planning, unit "design.study_planning";
+            /// A frozen z-transport failure and the declared evidence that would repair it.
+            ZTransportEvidencePlanning => Planning, unit "design.identification_repair";
+            /// A ranking of candidate designs under an objective over a graph posterior.
+            DesignRanking => Planning, unit "design.ranking_artifact";
+            /// Further choice studies ranked by expected value of sample information.
+            ChoiceStudyRanking => Planning, unit "design.evsi";
+            /// Identification flags of graphs and graph posteriors, with and without interventions.
+            StructureIdentification => Planning, unit "design.evidence_plan";
+            /// Classical sID, the evidence-catalog search and binding, and meta-transport identification.
+            ClassicalTransportIdentification => DesignBased, unit "transport.classical_identification";
+            /// Single-source z-transport, its catalog binding and the two-source combination.
+            ZTransportIdentification => DesignBased, unit "transport.z_identification";
+            /// Multi-source mz-transport identification and its catalog binding.
+            MzTransportIdentification => DesignBased, unit "transport.multi_source_limited_experiment";
+            /// Mixed-source proof search and its catalog binding.
+            MixedSourceIdentification => DesignBased, unit "identify.mixed_source_proof_search";
+            /// Conditional transport over a latent-confounded selection ADMG.
+            AdmgConditionalTransportIdentification => DesignBased, unit "transport.admg_conditional";
+            /// General finite counterfactual transport identification.
+            CounterfactualTransportIdentification => DesignBased, unit "counterfactual.transport_general";
+            /// Recovery of a law from one partially observed pattern law.
+            ObservationRecoveryIdentification => DesignBased, unit "recovery.binary_observation";
+            /// Recovery of an ordered response chain.
+            ChainRecoveryIdentification => DesignBased, unit "recovery.chain_observation";
+            /// The raw contrast of two arms, its comparison with an adjusted estimate, and a
+            /// mean-outcome pair on declared reporting scales.
+            DescriptiveComparison => DesignBased, unit "estimate.descriptive_comparison";
+            /// The conditional odds ratio of matched case-control sets.
+            MatchedCaseControl => DesignBased, unit "estimate.matched_case_control_odds_ratio";
+            /// A conditional prediction from a lagged linear regression of one series.
+            TemporalLinearPrediction => Associational, unit "estimate.temporal_linear_prediction";
         }
     };
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Discovery validation through the compiler.** `Study::validate_discovery` (Python `antecedent.discovery_validation`) runs the block-bootstrap, false-positive, tuning, synthetic-null, environment hold-out and regime-stability checks of a compiled temporal structure search on the study's own data, each as a compiled program with a contract and typed refusals. Selective discovery and partially observed signed-uniform marginals compile the same way.
+- **Sensitivity ranges on a prepared study's own compiled result.** `PreparedStudy::sensitivity_range` and `sensitivity_vector_range` (Python `antecedent.validation.sensitivity_range` and `sensitivity_vector_range`) compute the E-value, omitted-variable-bias, mediation, marginal sensitivity model, posterior and marginal structural model parameter ranges from what the study identified, bound to its target.
+- **Fitted-model operations on a prepared study.** `PreparedStudy::model_operation` runs edge strengths, the population do-contrast, the do-sampler, model evaluation and nested counterfactuals on the study's own fitted model; `PreparedStudy::falsify_graph` runs the permutation falsification of its declared DAG. A process-local feedback system of declared callback mechanisms (`compile_local_cyclic`) and the transported static path-specific counterfactual (`TransportedCounterfactual::compile`) also compile.
+- **Compiled decisions and planning over supplied evidence.** Decisions over supplied claims, identified sets of utility, decision contracts, inverse queries and decision draws, and the planning searches (identification repair, study addition, design and choice-study ranking, evidence obligations, adaptive policy search), compile into programs with canonical identities.
+- **Compiled transport identification and descriptive estimates.** Classical, z-, mz-, mixed-source, ADMG-conditional and counterfactual transport identification, observation and chain recovery, the descriptive comparison of two arms, the matched case-control odds ratio and the lagged linear conditional prediction each compile through their own program family.
+
+### Deprecated
+
+- Sensitivity functions that take supplied estimates or draws, the direct target-native checks, the direct fitted-model (`FittedGcm`) operations, and the other facade and Python paths that reach these computations without the compiler are deprecated in favour of the compiled replacements above. A replacement calls the same kernel and returns the same numbers; each deprecation note states any difference in the path. The direct paths are removed in 4.0.
+
 ## 3.0.0
 
 Changes since 2.4.1. The [migration guide](docs/migration.md) says who needs to act and gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.

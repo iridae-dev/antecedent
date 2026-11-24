@@ -1041,6 +1041,164 @@ impl CategoricalPosteriorLoweredParts {
     }
 }
 
+/// The six layers of a graph falsification of a study's declared DAG.
+pub(crate) struct GraphFalsificationLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl GraphFalsificationLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::GraphFalsification;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a transported static path-specific counterfactual.
+pub(crate) struct TransportedPathSpecificLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl TransportedPathSpecificLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::TransportedPathSpecific;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a fitted-model operation of a prepared study: the attribution family for
+/// edge strengths and the do-contrast, the simulation family otherwise.
+pub(crate) struct ModelOperationLoweredParts {
+    pub(crate) attribution: bool,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl ModelOperationLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = if self.attribution {
+            ProgramCell::FittedModelAttribution
+        } else {
+            ProgramCell::FittedModelSimulation
+        };
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a process-local feedback system of declared callback mechanisms.
+pub(crate) struct LocalCyclicCallbackLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl LocalCyclicCallbackLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::LocalCyclicCallback;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
 /// The six layers of a bounded fixed-shift MNAR candidate.
 pub(crate) struct MnarFixedShiftLoweredParts {
     pub(crate) scientific: ScientificProblem,
@@ -1055,6 +1213,44 @@ impl MnarFixedShiftLoweredParts {
     /// Bind all semantic layers; physical quotes do not alter scientific identity.
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::MnarFixedShift;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
+/// The six layers of a validation check of a compiled temporal structure search.
+pub(crate) struct DiscoveryValidationLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl DiscoveryValidationLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::DiscoveryValidation;
         let depth = LoweringDepth::Complete;
         let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
         writer.text(cell.as_str()).text(depth.as_str());

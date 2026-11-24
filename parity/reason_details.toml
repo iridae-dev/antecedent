@@ -522,6 +522,24 @@ codes = ["route_not_supported"]
 meaning = "A consumer retained another contract identity."
 
 [[detail]]
+id = "adaptive_policy_search.held_out_unsupported"
+family = "adaptive_policy_search"
+codes = ["adaptive_policy_heldout_unsupported"]
+meaning = "Held-out evaluation is required and the response source's design cannot supply it."
+
+[[detail]]
+id = "adaptive_policy_search.identification_unsupported"
+family = "adaptive_policy_search"
+codes = ["adaptive_policy_identification_unsupported"]
+meaning = "An identified policy effect is requested and the response source states no identification basis."
+
+[[detail]]
+id = "adaptive_policy_search.unobserved_feature"
+family = "adaptive_policy_search"
+codes = ["adaptive_policy_unobserved_feature"]
+meaning = "A policy reads a variable that is not observed when it acts."
+
+[[detail]]
 id = "adaptive_transport.arms"
 family = "adaptive_transport"
 codes = ["invalid_argument"]
@@ -4008,6 +4026,12 @@ codes = ["invalid_argument"]
 meaning = "A mean outside a scale's domain: risk_difference needs [0, 1], log_risk_ratio positive means, log_odds_ratio means inside (0, 1)."
 
 [[detail]]
+id = "descriptive_programs.reentry"
+family = "descriptive_programs"
+codes = ["public_builder_reentry"]
+meaning = "A compiled descriptive comparison or matched case-control program is compiled or run inside the lowered dispatch of another program."
+
+[[detail]]
 id = "design_ranking.bounds_exceeded"
 family = "design_ranking"
 codes = ["route_not_supported"]
@@ -5710,6 +5734,12 @@ id = "graph_falsification.invalid_permutations"
 family = "graph_falsification"
 codes = ["invalid_argument"]
 meaning = "The permutation counts are zero, the minimum exceeds the request, or ci_replicates is zero."
+
+[[detail]]
+id = "graph_falsification.lowering"
+family = "graph_falsification"
+codes = ["invalid_argument"]
+meaning = "The falsification program cannot be lowered over the study's graph and table (a size overflow)."
 
 [[detail]]
 id = "graph_falsification.node_not_static"
@@ -8668,6 +8698,36 @@ id = "mnar_fixed_shift.invalid_source"
 family = "mnar_fixed_shift"
 codes = ["invalid_argument"]
 meaning = "The source or declared design is invalid."
+
+[[detail]]
+id = "discovery_validation.not_a_search"
+family = "discovery_validation"
+codes = ["route_not_supported"]
+meaning = "A validation check runs on a study that carries no executable structure search."
+
+[[detail]]
+id = "discovery_validation.wrong_search"
+family = "discovery_validation"
+codes = ["route_not_supported"]
+meaning = "The study searches with another method than the check validates."
+
+[[detail]]
+id = "discovery_validation.wrong_modality"
+family = "discovery_validation"
+codes = ["route_not_supported"]
+meaning = "The study's data is not the modality the check reads (one series, or environments)."
+
+[[detail]]
+id = "discovery_validation.regimes_missing"
+family = "discovery_validation"
+codes = ["required_option_missing"]
+meaning = "The regime stability check needs the regime labels the search declares."
+
+[[detail]]
+id = "discovery_validation.lowering"
+family = "discovery_validation"
+codes = ["invalid_argument"]
+meaning = "The check cannot be lowered over the study's compiled search."
 
 [[detail]]
 id = "mnar_fixed_shift.lowering"
@@ -15516,6 +15576,12 @@ codes = ["route_not_supported"]
 meaning = "The estimator is not supported on the original panel (for example an initial state with no history support)."
 
 [[detail]]
+id = "temporal_linear_prediction.reentry"
+family = "temporal_linear_prediction"
+codes = ["public_builder_reentry"]
+meaning = "A compiled lagged linear prediction is compiled or run inside the lowered dispatch of another program."
+
+[[detail]]
 id = "temporal_policy_transport.history_alphabet_incompatible"
 family = "temporal_policy_transport"
 codes = ["transport_missing_evidence"]
@@ -15802,6 +15868,12 @@ id = "tier_diagnostics.unknown_scenarios_no_overlap"
 family = "tier_diagnostics"
 codes = ["diagnostic_not_available"]
 meaning = "The Unknown cell is a linear adjustment under two declared scenarios and fits no propensity score."
+
+[[detail]]
+id = "transport_identification.reentry"
+family = "transport_identification"
+codes = ["public_builder_reentry"]
+meaning = "A compiled transport identification is compiled or run inside the lowered dispatch of another program."
 
 [[detail]]
 id = "transport_revalidation.claim_target_mismatch"

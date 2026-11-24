@@ -164,6 +164,7 @@ mod missing_report;
 mod mixed_decision_api;
 mod mnar_fixed_shift_api;
 mod mnar_sensitivity_api;
+mod model_operation_api;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
 mod name_errors;
@@ -238,6 +239,7 @@ mod scenario_invariance_api;
 mod scientific_bridge_api;
 mod selective_discovery_api;
 mod sensitivity_decision_api;
+mod sensitivity_range_api;
 mod sensitivity_source_api;
 mod smoothed_dose_api;
 mod source_evidence_api;
@@ -328,14 +330,14 @@ use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 
 use antecedent::data::{DataError, TableView};
-use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
+use antecedent::design::DecisionProblem;
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
     RegimeAssignment, ScoredLink, StaticDiscoverParams, pag_definite_directed_edge_count,
     two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
-use antecedent::estimate::{CausalExprArena, TemporalLinearPredictor, TemporalMediationEstimator};
+use antecedent::estimate::{CausalExprArena, TemporalMediationEstimator};
 use antecedent::execution::{CachePolicy, KernelPolicy};
 use antecedent::gcm::fit_gcm;
 use antecedent::graph::{

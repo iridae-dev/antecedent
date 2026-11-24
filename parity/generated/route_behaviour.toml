@@ -474,6 +474,7 @@ routes = [
   { route = "antecedent.matched.replay_matched_case_control", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.matched.risk_scale_estimand", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", claim = "interval" },
   { route = "antecedent.matched.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.analysis.descriptive_programs.DescriptiveRequest.MatchedOddsRatio", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -594,6 +595,10 @@ routes = [
   { route = "antecedent.descriptive.replay_descriptive_comparison", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.descriptive.attribute_gap_to_columns", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", claim = "interval" },
   { route = "antecedent.descriptive.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.analysis.descriptive_programs.DescriptiveRequest.RawContrast", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.descriptive_programs.DescriptiveRequest.CompareRawAdjusted", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.descriptive_programs.DescriptiveRequest.TransformMeanPair", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.descriptive_programs.DescriptiveRequest.RawArmsTransform", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -4523,6 +4528,18 @@ routes = [
 ]
 
 [[record]]
+id = "estimate.temporal_linear_prediction"
+status = "supported"
+refusals = [
+  { code = "public_builder_reentry", detail = "temporal_linear_prediction.reentry" },
+]
+routes = [
+  { route = "antecedent.analysis.temporal_linear_prediction.compile_temporal_prediction", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.temporal_linear_prediction.CompiledTemporalPrediction.run", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.model.predict_conditional_summary", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
 id = "measurement.model_contract"
 status = "supported"
 refusals = [
@@ -7608,6 +7625,7 @@ refusals = [
   { code = "route_not_supported", detail = "graph_falsification.ci_test_not_frequentist" },
   { code = "diagnostic_not_available", detail = "graph_falsification.ci_p_value_missing" },
   { code = "diagnostic_not_available", detail = "graph_falsification.ci_result_count" },
+  { code = "invalid_argument", detail = "graph_falsification.lowering" },
 ]
 routes = [
   { route = "antecedent.gcm.evaluate_graph", stage = "evaluate", status = "supported", claim = "none" },
@@ -7830,6 +7848,21 @@ routes = [
   { route = "antecedent_io.measured_inference.mnar_candidate.measure_source", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "validate.discovery_stability"
+status = "supported"
+refusals = [
+  { code = "route_not_supported", detail = "discovery_validation.not_a_search" },
+  { code = "route_not_supported", detail = "discovery_validation.wrong_search" },
+  { code = "route_not_supported", detail = "discovery_validation.wrong_modality" },
+  { code = "required_option_missing", detail = "discovery_validation.regimes_missing" },
+  { code = "invalid_argument", detail = "discovery_validation.lowering" },
+]
+routes = [
+  { route = "antecedent.discovery_validation.Study.validate_discovery", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.python.discovery_validation.validate_discovery", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -8368,6 +8401,20 @@ routes = [
 ]
 
 [[record]]
+id = "design.adaptive_policy_search"
+status = "supported"
+refusals = [
+  { code = "adaptive_policy_unobserved_feature", detail = "adaptive_policy_search.unobserved_feature" },
+  { code = "adaptive_policy_identification_unsupported", detail = "adaptive_policy_search.identification_unsupported" },
+  { code = "adaptive_policy_heldout_unsupported", detail = "adaptive_policy_search.held_out_unsupported" },
+]
+routes = [
+  { route = "antecedent.analysis.input_decision_programs.compile_adaptive_policy_search", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.input_decision_programs.CompiledAdaptivePolicySearch.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.python.adaptive_policy.search", stage = "evaluate", status = "supported", claim = "none" },
+]
+
+[[record]]
 id = "design.experiment_planning"
 status = "supported"
 refusals = [
@@ -8415,4 +8462,28 @@ routes = [
   { route = "antecedent.analysis.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.Study.compile_for_planning", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.python.design.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.classical_identification"
+status = "supported"
+refusals = [
+  { code = "public_builder_reentry", detail = "transport_identification.reentry" },
+]
+routes = [
+  { route = "antecedent.analysis.transport_identification.compile_transport_identification", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_identification.CompiledTransportIdentification.identify", stage = "identify", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.z_identification"
+status = "supported"
+refusals = [
+  { code = "public_builder_reentry", detail = "transport_identification.reentry" },
+]
+routes = [
+  { route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransport", stage = "identify", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransportBinding", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransportInspecting", stage = "identify", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.TwoSourceZTransport", stage = "identify", status = "supported", claim = "none" },
 ]

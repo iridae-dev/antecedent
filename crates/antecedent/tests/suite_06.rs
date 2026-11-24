@@ -5,6 +5,10 @@
 
 #[path = "adaptive_policy_model_source.rs"]
 mod adaptive_policy_model_source;
+#[path = "compiled_twins_cell_saturated.rs"]
+mod compiled_twins_cell_saturated;
+#[path = "compiled_twins_class_identifiers.rs"]
+mod compiled_twins_class_identifiers;
 #[path = "compiled_twins_randomized.rs"]
 mod compiled_twins_randomized;
 #[cfg(feature = "calibration-internal")]

@@ -149,10 +149,28 @@ unit = "joint_response.interval_readings"
 entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
 
 [[route]]
+lowering = "FittedModelAttribution"
+unit_kind = "capability"
+unit = "gcm.attribute.mechanism_refit"
+entry = { rust = "crates/antecedent/src/analysis/model_operation.rs", python = "python/antecedent/model_operations.py" }
+
+[[route]]
+lowering = "FittedModelSimulation"
+unit_kind = "capability"
+unit = "gcm.simulate.mechanism_refit"
+entry = { rust = "crates/antecedent/src/analysis/model_operation.rs", python = "python/antecedent/model_operations.py" }
+
+[[route]]
 lowering = "EventProcess"
 unit_kind = "capability"
 unit = "forecast.event_process"
 entry = { rust = "crates/antecedent/src/analysis/events/mod.rs", python = "python/antecedent/events.py" }
+
+[[route]]
+lowering = "GraphFalsification"
+unit_kind = "capability"
+unit = "gcm.model.graph_falsification"
+entry = { rust = "crates/antecedent/src/analysis/graph_falsification.rs", python = "python/antecedent/graph_falsification.py" }
 
 [[route]]
 lowering = "MnarFixedShift"
@@ -161,10 +179,28 @@ unit = "mnar_fixed_shift.compiled_candidate"
 entry = { rust = "crates/antecedent/src/analysis/mnar_fixed_shift.rs", python = "python/antecedent/mnar_fixed_shift.py" }
 
 [[route]]
+lowering = "TransportedPathSpecific"
+unit_kind = "capability"
+unit = "counterfactual.transported_additive"
+entry = { rust = "crates/antecedent/src/analysis/compiled_transported_counterfactual.rs", python = "python/antecedent/transported_counterfactual.py" }
+
+[[route]]
+lowering = "LocalCyclicCallback"
+unit_kind = "capability"
+unit = "cyclic.general_systems"
+entry = { rust = "crates/antecedent/src/analysis/compiled_local_cyclic.rs", python = "python/antecedent/cyclic.py" }
+
+[[route]]
 lowering = "LatentSoftIntervention"
 unit_kind = "capability"
 unit = "estimate.latent_soft_intervention"
 entry = { rust = "crates/antecedent/src/analysis/latent_soft_intervention.rs", python = "python/antecedent/latent_soft_intervention.py" }
+
+[[route]]
+lowering = "TemporalLinearPrediction"
+unit_kind = "capability"
+unit = "estimate.temporal_linear_prediction"
+entry = { rust = "crates/antecedent/src/analysis/temporal_linear_prediction.rs", python = "python/antecedent/model.py" }
 
 [[route]]
 lowering = "ObservationalPolicy"
@@ -293,6 +329,54 @@ unit = "transport.temporal_path_specific"
 entry = { rust = "crates/antecedent/src/analysis/temporal_path_transport.rs", python = "python/antecedent/transport/temporal_paths.py" }
 
 [[route]]
+lowering = "ClassicalTransportIdentification"
+unit_kind = "capability"
+unit = "transport.classical_identification"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_impl/identify.py" }
+
+[[route]]
+lowering = "ZTransportIdentification"
+unit_kind = "capability"
+unit = "transport.z_identification"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_restricted.py" }
+
+[[route]]
+lowering = "MzTransportIdentification"
+unit_kind = "capability"
+unit = "transport.multi_source_limited_experiment"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_multi_source.py" }
+
+[[route]]
+lowering = "MixedSourceIdentification"
+unit_kind = "capability"
+unit = "identify.mixed_source_proof_search"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_mixed_source.py" }
+
+[[route]]
+lowering = "AdmgConditionalTransportIdentification"
+unit_kind = "capability"
+unit = "transport.admg_conditional"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_admg_conditional.py" }
+
+[[route]]
+lowering = "CounterfactualTransportIdentification"
+unit_kind = "capability"
+unit = "counterfactual.transport_general"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_counterfactual.py" }
+
+[[route]]
+lowering = "ObservationRecoveryIdentification"
+unit_kind = "capability"
+unit = "recovery.binary_observation"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/transport/_recovery.py" }
+
+[[route]]
+lowering = "ChainRecoveryIdentification"
+unit_kind = "capability"
+unit = "recovery.chain_observation"
+entry = { rust = "crates/antecedent/src/analysis/transport_identification.rs", python = "python/antecedent/recovery_chain.py" }
+
+[[route]]
 lowering = "SamplingAssumptionUnion"
 unit_kind = "capability"
 unit = "composition.sampling_assumption_union"
@@ -327,6 +411,114 @@ lowering = "ExperimentPlanning"
 unit_kind = "capability"
 unit = "design.experiment_planning"
 entry = { rust = "crates/antecedent/src/analysis/execute/compile_planning.rs", python = "python/antecedent/design/planning.py" }
+
+[[route]]
+lowering = "SuppliedClaimDecision"
+unit_kind = "capability"
+unit = "decision.structural_robustness"
+entry = { rust = "crates/antecedent/src/analysis/claim_decision_programs.rs", python = "python/antecedent/decision_robust.py" }
+
+[[route]]
+lowering = "IdentifiedSetDecision"
+unit_kind = "capability"
+unit = "decision.structural_robustness"
+entry = { rust = "crates/antecedent/src/analysis/claim_decision_programs.rs", python = "python/antecedent/decision_robust.py" }
+
+[[route]]
+lowering = "ContractLawDecision"
+unit_kind = "capability"
+unit = "decision.contract"
+entry = { rust = "crates/antecedent/src/analysis/claim_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "DecisionFunctionalValue"
+unit_kind = "capability"
+unit = "decision.functionals"
+entry = { rust = "crates/antecedent/src/analysis/claim_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "SupportedInputDecision"
+unit_kind = "capability"
+unit = "composition.boundary"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/composition.py" }
+
+[[route]]
+lowering = "SensitivityDecision"
+unit_kind = "capability"
+unit = "decision.sensitivity_composition"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/sensitivity_decision.py" }
+
+[[route]]
+lowering = "InverseQueryDecision"
+unit_kind = "capability"
+unit = "decision.functional_inverse"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/inverse_query.py" }
+
+[[route]]
+lowering = "DecisionDrawsRanking"
+unit_kind = "capability"
+unit = "decision_reliability.ranking_statement"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/decision_reliability.py" }
+
+[[route]]
+lowering = "PriorSignalAdaptation"
+unit_kind = "capability"
+unit = "design.prior_signal_planning"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/design/prior_signal.py" }
+
+[[route]]
+lowering = "EvidenceObligations"
+unit_kind = "capability"
+unit = "design.evidence_obligations"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/design/__init__.py" }
+
+[[route]]
+lowering = "FiniteActionDecision"
+unit_kind = "capability"
+unit = "design.evsi"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/design/__init__.py" }
+
+[[route]]
+lowering = "AdaptivePolicySearch"
+unit_kind = "capability"
+unit = "design.adaptive_policy_search"
+entry = { rust = "crates/antecedent/src/analysis/input_decision_programs.rs", python = "python/antecedent/adaptive_policy.py" }
+
+[[route]]
+lowering = "IdentificationRepair"
+unit_kind = "capability"
+unit = "design.identification_repair"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/design/study_ranking.py" }
+
+[[route]]
+lowering = "StudyAdditionPlanning"
+unit_kind = "capability"
+unit = "design.study_planning"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/transport/_study_planning.py" }
+
+[[route]]
+lowering = "ZTransportEvidencePlanning"
+unit_kind = "capability"
+unit = "design.identification_repair"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/transport/_impl/identify.py" }
+
+[[route]]
+lowering = "DesignRanking"
+unit_kind = "capability"
+unit = "design.ranking_artifact"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/design/ranking.py" }
+
+[[route]]
+lowering = "ChoiceStudyRanking"
+unit_kind = "capability"
+unit = "design.evsi"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/choice_inference.py" }
+
+[[route]]
+lowering = "StructureIdentification"
+unit_kind = "capability"
+unit = "design.evidence_plan"
+entry = { rust = "crates/antecedent/src/analysis/design_planning_programs.rs", python = "python/antecedent/design/plans.py" }
 
 [[route]]
 lowering = "GraphImputationEffectDecision"
@@ -405,3 +597,20 @@ lowering = "GraphImputationMarTransportDecision"
 unit_kind = "capability"
 unit = "graph_imputation.compiled_decision"
 entry = { rust = "crates/antecedent/src/analysis/graph_imputation_mar_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
+
+[[route]]
+lowering = "DescriptiveComparison"
+unit_kind = "capability"
+unit = "estimate.descriptive_comparison"
+entry = { rust = "crates/antecedent/src/analysis/descriptive_programs.rs", python = "python/antecedent/descriptive.py" }
+
+[[route]]
+lowering = "MatchedCaseControl"
+unit_kind = "capability"
+unit = "estimate.matched_case_control_odds_ratio"
+entry = { rust = "crates/antecedent/src/analysis/descriptive_programs.rs", python = "python/antecedent/matched.py" }
+[[route]]
+lowering = "DiscoveryValidation"
+unit_kind = "capability"
+unit = "validate.discovery_stability"
+entry = { rust = "crates/antecedent/src/analysis/discovery_validation.rs", python = "python/antecedent/discovery_validation.py" }

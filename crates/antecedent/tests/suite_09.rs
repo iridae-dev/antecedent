@@ -5,6 +5,8 @@
 
 #[path = "class_attribution_route.rs"]
 mod class_attribution_route;
+#[path = "compiled_twins_joint_panel.rs"]
+mod compiled_twins_joint_panel;
 #[path = "compiled_twins_longitudinal_regime.rs"]
 mod compiled_twins_longitudinal_regime;
 #[path = "compiled_twins_policy_value.rs"]

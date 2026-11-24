@@ -92,6 +92,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "adaptive_inference.within_unit_correlation_missing",
     "adaptive_inference.within_unit_variance_missing",
     "adaptive_inference.wrong_contract",
+    "adaptive_policy_search.held_out_unsupported",
+    "adaptive_policy_search.identification_unsupported",
+    "adaptive_policy_search.unobserved_feature",
     "adaptive_transport.arms",
     "adaptive_transport.assignment_below_floor",
     "adaptive_transport.assignment_monitoring_contract_missing",
@@ -680,6 +683,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "descriptive_comparison.population_not_all_observed",
     "descriptive_comparison.scale_not_supported",
     "descriptive_comparison.transform_domain",
+    "descriptive_programs.reentry",
     "design_ranking.bounds_exceeded",
     "design_ranking.contract_mismatch",
     "design_ranking.cost_units_mismatch",
@@ -714,6 +718,11 @@ pub const REASON_DETAILS: &[&str] = &[
     "discovered_transport.temporal_structure_unsupported",
     "discovered_transport.trial_compatibility_invalid",
     "discovered_transport.trial_rejects_every_member",
+    "discovery_validation.lowering",
+    "discovery_validation.not_a_search",
+    "discovery_validation.regimes_missing",
+    "discovery_validation.wrong_modality",
+    "discovery_validation.wrong_search",
     "discretized_scm.cancelled",
     "discretized_scm.composition_incoherent",
     "discretized_scm.degenerate_marginal",
@@ -972,6 +981,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "graph_falsification.empty_data",
     "graph_falsification.invalid_level",
     "graph_falsification.invalid_permutations",
+    "graph_falsification.lowering",
     "graph_falsification.node_not_static",
     "graph_falsification.too_few_nodes",
     "graph_falsification.work_limit",
@@ -2615,6 +2625,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "temporal_interval.too_many_replicates",
     "temporal_interval.unknown_units",
     "temporal_interval.unsupported_history",
+    "temporal_linear_prediction.reentry",
     "temporal_policy_transport.history_alphabet_incompatible",
     "temporal_policy_transport.horizon_mismatch",
     "temporal_policy_transport.initial_law_declared_invariant",
@@ -2663,6 +2674,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "tier_diagnostics.overlap_not_carried",
     "tier_diagnostics.unknown_scenarios_no_evalue",
     "tier_diagnostics.unknown_scenarios_no_overlap",
+    "transport_identification.reentry",
     "transport_revalidation.claim_target_mismatch",
     "transport_revalidation.duplicate_claim",
     "transport_revalidation.identity_mismatch",
@@ -2941,6 +2953,9 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("adaptive_inference.within_unit_correlation_missing", &["adaptive_contract_incomplete"]),
     ("adaptive_inference.within_unit_variance_missing", &["adaptive_contract_incomplete"]),
     ("adaptive_inference.wrong_contract", &["route_not_supported"]),
+    ("adaptive_policy_search.held_out_unsupported", &["adaptive_policy_heldout_unsupported"]),
+    ("adaptive_policy_search.identification_unsupported", &["adaptive_policy_identification_unsupported"]),
+    ("adaptive_policy_search.unobserved_feature", &["adaptive_policy_unobserved_feature"]),
     ("adaptive_transport.arms", &["invalid_argument"]),
     ("adaptive_transport.assignment_below_floor", &["adaptive_assumption_violated"]),
     ("adaptive_transport.assignment_monitoring_contract_missing", &["adaptive_contract_incomplete"]),
@@ -3529,6 +3544,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("descriptive_comparison.population_not_all_observed", &["population_not_estimable"]),
     ("descriptive_comparison.scale_not_supported", &["route_not_supported"]),
     ("descriptive_comparison.transform_domain", &["invalid_argument"]),
+    ("descriptive_programs.reentry", &["public_builder_reentry"]),
     ("design_ranking.bounds_exceeded", &["route_not_supported"]),
     ("design_ranking.contract_mismatch", &["design_signal_invalid"]),
     ("design_ranking.cost_units_mismatch", &["design_cost_units_mismatch"]),
@@ -3563,6 +3579,11 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("discovered_transport.temporal_structure_unsupported", &["discovered_structure_unresolved"]),
     ("discovered_transport.trial_compatibility_invalid", &["discovered_structure_unresolved"]),
     ("discovered_transport.trial_rejects_every_member", &["discovered_structure_unresolved"]),
+    ("discovery_validation.lowering", &["invalid_argument"]),
+    ("discovery_validation.not_a_search", &["route_not_supported"]),
+    ("discovery_validation.regimes_missing", &["required_option_missing"]),
+    ("discovery_validation.wrong_modality", &["route_not_supported"]),
+    ("discovery_validation.wrong_search", &["route_not_supported"]),
     ("discretized_scm.cancelled", &["cancelled_no_claim"]),
     ("discretized_scm.composition_incoherent", &["mechanism_composition_incoherent"]),
     ("discretized_scm.degenerate_marginal", &["route_not_supported"]),
@@ -3821,6 +3842,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("graph_falsification.empty_data", &["invalid_argument"]),
     ("graph_falsification.invalid_level", &["invalid_argument"]),
     ("graph_falsification.invalid_permutations", &["invalid_argument"]),
+    ("graph_falsification.lowering", &["invalid_argument"]),
     ("graph_falsification.node_not_static", &["route_not_supported"]),
     ("graph_falsification.too_few_nodes", &["invalid_argument"]),
     ("graph_falsification.work_limit", &[]),
@@ -5464,6 +5486,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("temporal_interval.too_many_replicates", &["route_not_supported"]),
     ("temporal_interval.unknown_units", &["route_not_supported"]),
     ("temporal_interval.unsupported_history", &["route_not_supported"]),
+    ("temporal_linear_prediction.reentry", &["public_builder_reentry"]),
     ("temporal_policy_transport.history_alphabet_incompatible", &["transport_missing_evidence"]),
     ("temporal_policy_transport.horizon_mismatch", &["route_not_supported"]),
     ("temporal_policy_transport.initial_law_declared_invariant", &["invalid_argument"]),
@@ -5512,6 +5535,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("tier_diagnostics.overlap_not_carried", &["diagnostic_not_available"]),
     ("tier_diagnostics.unknown_scenarios_no_evalue", &["diagnostic_not_available"]),
     ("tier_diagnostics.unknown_scenarios_no_overlap", &["diagnostic_not_available"]),
+    ("transport_identification.reentry", &["public_builder_reentry"]),
     ("transport_revalidation.claim_target_mismatch", &["quantity_semantics_mismatch"]),
     ("transport_revalidation.duplicate_claim", &["invalid_argument"]),
     ("transport_revalidation.identity_mismatch", &["route_not_supported"]),
@@ -5885,6 +5909,16 @@ pub mod adaptive_inference {
     pub const WITHIN_UNIT_VARIANCE_MISSING: &str = "adaptive_inference.within_unit_variance_missing";
     /// Detail `adaptive_inference.wrong_contract`.
     pub const WRONG_CONTRACT: &str = "adaptive_inference.wrong_contract";
+}
+
+/// Details in the `adaptive_policy_search` family.
+pub mod adaptive_policy_search {
+    /// Detail `adaptive_policy_search.held_out_unsupported`.
+    pub const HELD_OUT_UNSUPPORTED: &str = "adaptive_policy_search.held_out_unsupported";
+    /// Detail `adaptive_policy_search.identification_unsupported`.
+    pub const IDENTIFICATION_UNSUPPORTED: &str = "adaptive_policy_search.identification_unsupported";
+    /// Detail `adaptive_policy_search.unobserved_feature`.
+    pub const UNOBSERVED_FEATURE: &str = "adaptive_policy_search.unobserved_feature";
 }
 
 /// Details in the `adaptive_transport` family.
@@ -7251,6 +7285,12 @@ pub mod descriptive_comparison {
     pub const TRANSFORM_DOMAIN: &str = "descriptive_comparison.transform_domain";
 }
 
+/// Details in the `descriptive_programs` family.
+pub mod descriptive_programs {
+    /// Detail `descriptive_programs.reentry`.
+    pub const REENTRY: &str = "descriptive_programs.reentry";
+}
+
 /// Details in the `design_ranking` family.
 pub mod design_ranking {
     /// Detail `design_ranking.bounds_exceeded`.
@@ -7325,6 +7365,20 @@ pub mod discovered_transport {
     pub const TRIAL_COMPATIBILITY_INVALID: &str = "discovered_transport.trial_compatibility_invalid";
     /// Detail `discovered_transport.trial_rejects_every_member`.
     pub const TRIAL_REJECTS_EVERY_MEMBER: &str = "discovered_transport.trial_rejects_every_member";
+}
+
+/// Details in the `discovery_validation` family.
+pub mod discovery_validation {
+    /// Detail `discovery_validation.lowering`.
+    pub const LOWERING: &str = "discovery_validation.lowering";
+    /// Detail `discovery_validation.not_a_search`.
+    pub const NOT_A_SEARCH: &str = "discovery_validation.not_a_search";
+    /// Detail `discovery_validation.regimes_missing`.
+    pub const REGIMES_MISSING: &str = "discovery_validation.regimes_missing";
+    /// Detail `discovery_validation.wrong_modality`.
+    pub const WRONG_MODALITY: &str = "discovery_validation.wrong_modality";
+    /// Detail `discovery_validation.wrong_search`.
+    pub const WRONG_SEARCH: &str = "discovery_validation.wrong_search";
 }
 
 /// Details in the `discretized_scm` family.
@@ -7945,6 +7999,8 @@ pub mod graph_falsification {
     pub const INVALID_LEVEL: &str = "graph_falsification.invalid_level";
     /// Detail `graph_falsification.invalid_permutations`.
     pub const INVALID_PERMUTATIONS: &str = "graph_falsification.invalid_permutations";
+    /// Detail `graph_falsification.lowering`.
+    pub const LOWERING: &str = "graph_falsification.lowering";
     /// Detail `graph_falsification.node_not_static`.
     pub const NODE_NOT_STATIC: &str = "graph_falsification.node_not_static";
     /// Detail `graph_falsification.too_few_nodes`.
@@ -11633,6 +11689,12 @@ pub mod temporal_interval {
     pub const UNSUPPORTED_HISTORY: &str = "temporal_interval.unsupported_history";
 }
 
+/// Details in the `temporal_linear_prediction` family.
+pub mod temporal_linear_prediction {
+    /// Detail `temporal_linear_prediction.reentry`.
+    pub const REENTRY: &str = "temporal_linear_prediction.reentry";
+}
+
 /// Details in the `temporal_policy_transport` family.
 pub mod temporal_policy_transport {
     /// Detail `temporal_policy_transport.history_alphabet_incompatible`.
@@ -11743,6 +11805,12 @@ pub mod tier_diagnostics {
     pub const UNKNOWN_SCENARIOS_NO_EVALUE: &str = "tier_diagnostics.unknown_scenarios_no_evalue";
     /// Detail `tier_diagnostics.unknown_scenarios_no_overlap`.
     pub const UNKNOWN_SCENARIOS_NO_OVERLAP: &str = "tier_diagnostics.unknown_scenarios_no_overlap";
+}
+
+/// Details in the `transport_identification` family.
+pub mod transport_identification {
+    /// Detail `transport_identification.reentry`.
+    pub const REENTRY: &str = "transport_identification.reentry";
 }
 
 /// Details in the `transport_revalidation` family.

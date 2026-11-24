@@ -3,6 +3,10 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "compiled_twins_descriptive.rs"]
+mod compiled_twins_descriptive;
+#[path = "compiled_twins_temporal_prediction.rs"]
+mod compiled_twins_temporal_prediction;
 #[path = "period_refresh_contract.rs"]
 mod period_refresh_contract;
 #[path = "period_refresh_lifecycle.rs"]
@@ -21,6 +25,8 @@ mod temporal_cross_world_effect;
 mod temporal_derivative_effect;
 #[path = "temporal_incomplete_structure_parity.rs"]
 mod temporal_incomplete_structure_parity;
+#[path = "temporal_linear_prediction_truth.rs"]
+mod temporal_linear_prediction_truth;
 #[path = "temporal_mag_numeric.rs"]
 mod temporal_mag_numeric;
 #[path = "temporal_mediation_horizons.rs"]

@@ -20,7 +20,7 @@
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
-seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate"]
+seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport"]
 
 [[row]]
 path = "antecedent::AcceptedPosterior::posterior"
@@ -39,6 +39,16 @@ owner = "interval candidates"
 [[row]]
 path = "antecedent::EvidenceLedgerSession::pooled_interval_candidate"
 disposition = "internal"
+
+[[row]]
+path = "antecedent::analysis::graph_falsification::CompiledGraphFalsification::into_report"
+disposition = "compiled"
+route = "GraphFalsification"
+
+[[row]]
+path = "antecedent::analysis::graph_falsification::CompiledGraphFalsification::report"
+disposition = "compiled"
+route = "GraphFalsification"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate"
@@ -239,6 +249,16 @@ path = "antecedent::analysis::temporal_dependent_interval_candidate"
 disposition = "internal"
 
 [[row]]
+path = "antecedent::analysis::transport_identification::CompiledTransportIdentification::identify"
+disposition = "compiled"
+route = "ClassicalTransportIdentification"
+
+[[row]]
+path = "antecedent::gcm::evaluate_graph"
+disposition = "deprecated"
+replacement = "route:GraphFalsification"
+
+[[row]]
 path = "antecedent::discovery::discover_ci_screened_posterior"
 disposition = "deprecated"
 replacement = "route:DiscoverStatic"
@@ -395,8 +415,8 @@ replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::pool_posteriors_over_imputations"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::strategy_table::attach_static_bootstrap"
@@ -405,98 +425,97 @@ owner = "prepared-object interval and transport readings"
 
 [[row]]
 path = "antecedent_attribution::ChangeAttribution::run"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "kernel"
+reason = "kernel API; the builder declares the change the compiled GcmAttributeDag change targets run (its query is ChangeAttributionQuery::new, its sampling the ChangeEstimator fields) and calls the same distribution_change / distribution_change_robust"
 
 [[row]]
 path = "antecedent_attribution::ChangeAttribution::run_structure"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "kernel"
+reason = "kernel API; the builder declares the change the compiled GcmAttributeDag change targets run (its query is ChangeAttributionQuery::new, its sampling the ChangeEstimator fields) and calls the same structure_change"
 
 [[row]]
 path = "antecedent_attribution::anomaly::arrow_strengths"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "deprecated"
+replacement = "route:FittedModelAttribution"
 
 [[row]]
 path = "antecedent_attribution::anomaly::population_do_contrast"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "deprecated"
+replacement = "route:FittedModelAttribution"
 
 [[row]]
 path = "antecedent_attribution::anomaly::score_anomalies"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::anomaly::score_anomalies_with"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::detect_mechanism_changes"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::distribution_change"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::distribution_change::distribution_change_with_frequency_weights"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::distribution_change::distribution_change_with_row_weights"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::distribution_change_robust"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::feature_relevance"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::intrinsic_influence"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::intrinsic_influence::intrinsic_influence_with_temporal_runs"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "internal"
 
 [[row]]
 path = "antecedent_attribution::path::path_decompose"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::root_cause::root_cause_rank"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::structure_change"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::structure_change::structure_change_with_refit"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::unit_change"
-disposition = "pending"
-owner = "attribution operations"
+disposition = "deprecated"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_contract::adaptive_design::procedure_cells"
@@ -675,53 +694,53 @@ reason = "runtime, reason-code or identity helper; computes no estimate"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::abduct"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::abduct_with_rng"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::individual_treatment_effect"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::predict"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::predict_retaining_outcomes"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::CounterfactualEngine::predict_temporal"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
 path = "antecedent_counterfactual::engine::nested_counterfactual"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:FittedModelSimulation"
 
 [[row]]
 path = "antecedent_counterfactual::engine::nested_counterfactual_with_exo"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:FittedModelSimulation"
 
 [[row]]
 path = "antecedent_counterfactual::engine::nested_hard_counterfactual"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:FittedModelSimulation"
 
 [[row]]
 path = "antecedent_counterfactual::engine::simultaneous_hard_counterfactual"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_counterfactual::transported_gate::refuse_transported_counterfactual"
@@ -730,8 +749,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:TransportedPathSpecific"
 
 [[row]]
 path = "antecedent_data::EventData::align_to_grid_in"
@@ -795,13 +814,13 @@ reason = "data container or file access; computes no estimate"
 
 [[row]]
 path = "antecedent_design::BackdoorRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::DesignRanker::rank"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; DesignRanker is the ranker the compiled DesignRanking route runs (antecedent::analysis::design_planning_programs::compile_design_ranking builds it from the declared configuration and constraints)"
 
 [[row]]
 path = "antecedent_design::EvidencePlanArtifact::consume"
@@ -809,18 +828,18 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::FrontDoorRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::HedgeRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::InstrumentRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::RepairReportArtifact::consume"
@@ -832,8 +851,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::SensitivityRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::StudyPlanArtifactWire::consume_with_limits"
@@ -845,8 +864,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::TransportRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::TransportRepairFamily::try_new"
@@ -863,13 +882,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::ZTransportRepairFamily::check_regimes"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled IdentificationRepair route (antecedent::analysis::design_planning_programs::compile_identification_repair), which checks regimes through it"
 
 [[row]]
 path = "antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch::execute"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled AdaptivePolicySearch route (antecedent::analysis::input_decision_programs::compile_adaptive_policy_search), which executes through it"
 
 [[row]]
 path = "antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch::verify_replay"
@@ -877,53 +896,52 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::candidate_generation::generate_candidates"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "restates evidence obligations as unfinished study templates; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::candidate_generation::verified_unlocks"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "consume"
 
 [[row]]
 path = "antecedent_design::choice_evsi::rank_hierarchical_studies"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:ChoiceStudyRanking"
 
 [[row]]
 path = "antecedent_design::choice_evsi::rank_studies"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:ChoiceStudyRanking"
 
 [[row]]
 path = "antecedent_design::choice_evsi::rank_studies_with_context"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:ChoiceStudyRanking"
 
 [[row]]
 path = "antecedent_design::composition_boundary::check_atom_combination"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "composition legality check over declared relations or atoms; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::composition_boundary::check_composition"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "composition legality check over declared relations or atoms; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::composition_boundary::check_paired_draws"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "composition legality check over declared relations or atoms; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::composition_boundary::evaluate_functional_on_input"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SupportedInputDecision"
 
 [[row]]
 path = "antecedent_design::composition_boundary::evaluate_with_support"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SupportedInputDecision"
 
 [[row]]
 path = "antecedent_design::composition_verifiers::describe_artifact"
@@ -956,43 +974,43 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::decision::evaluate_decision"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:FiniteActionDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::adapt_finite_scenarios"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SuppliedClaimDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::adapt_graph_dependent_claims"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SuppliedClaimDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::adapt_point_claim"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SuppliedClaimDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::adapt_weighted_graph_atoms"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SuppliedClaimDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::evaluate_adapted"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SuppliedClaimDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::evaluate_identified_sets"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:IdentifiedSetDecision"
 
 [[row]]
 path = "antecedent_design::decision_adapters::utility_interval"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:IdentifiedSetDecision"
 
 [[row]]
 path = "antecedent_design::decision_artifact::contract_from_json"
@@ -1029,18 +1047,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_design::decision_eval::evaluate_contract"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:ContractLawDecision"
 
 [[row]]
 path = "antecedent_design::decision_eval::evaluate_contract_on_means"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:ContractLawDecision"
 
 [[row]]
 path = "antecedent_design::decision_eval::evaluate_functional"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:DecisionFunctionalValue"
 
 [[row]]
 path = "antecedent_design::decision_reliability::calibration::support_route"
@@ -1049,8 +1067,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_design::decision_reliability::rank"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:DecisionDrawsRanking"
 
 [[row]]
 path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::admit"
@@ -1116,48 +1134,48 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_design::identification_repair::latent_expansion"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "graph construction helper: adds one latent node per bidirected edge; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::identified_under_intervention"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:StructureIdentification"
 
 [[row]]
 path = "antecedent_design::inverse_query::evaluate_inverse_query"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:InverseQueryDecision"
 
 [[row]]
 path = "antecedent_design::inverse_query::finite_enumeration_baseline"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:InverseQueryDecision"
 
 [[row]]
 path = "antecedent_design::mutilate"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "not_scientific"
+reason = "graph construction helper: removes the edges an intervention cuts; computes no estimate, identification or ranking"
 
 [[row]]
 path = "antecedent_design::obligation_adapters::identification_failure_obligations"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:EvidenceObligations"
 
 [[row]]
 path = "antecedent_design::plan_studies"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:StudyAdditionPlanning"
 
 [[row]]
 path = "antecedent_design::plan_z_transport_evidence"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:ZTransportEvidencePlanning"
 
 [[row]]
 path = "antecedent_design::prior_signal::adapt_prior_to_signal"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:PriorSignalAdaptation"
 
 [[row]]
 path = "antecedent_design::proposal_receipt::on_arrival"
@@ -1169,8 +1187,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::repair"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:IdentificationRepair"
 
 [[row]]
 path = "antecedent_design::rollout_artifact::consume"
@@ -1182,23 +1200,23 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::sensitivity_decision::evaluate_sensitivity_decision"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:SensitivityDecision"
 
 [[row]]
 path = "antecedent_design::snapshot_z_transport_failure"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:ZTransportEvidencePlanning"
 
 [[row]]
 path = "antecedent_design::structure_identification::identifies"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:StructureIdentification"
 
 [[row]]
 path = "antecedent_design::structure_identification::structure_posterior"
-disposition = "pending"
-owner = "design planning and ranking"
+disposition = "deprecated"
+replacement = "route:StructureIdentification"
 
 [[row]]
 path = "antecedent_design::transported_decision_artifact::consume_transported_decision"
@@ -1211,113 +1229,113 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::CiScreenedPosterior::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_ci_screened_posterior)"
 
 [[row]]
 path = "antecedent_discovery::CiScreenedPosterior::screen_then_exact_marginals"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_screened_exact_marginals)"
 
 [[row]]
 path = "antecedent_discovery::DbnPosterior::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_dbn_posterior)"
 
 [[row]]
 path = "antecedent_discovery::DbnPosterior::run_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_dbn_posterior_panel)"
 
 [[row]]
 path = "antecedent_discovery::DirectLingam::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_lingam)"
 
 [[row]]
 path = "antecedent_discovery::ExactDagPosterior::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_exact_dag_posterior)"
 
 [[row]]
 path = "antecedent_discovery::Fci::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_fci)"
 
 [[row]]
 path = "antecedent_discovery::Ges::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_ges)"
 
 [[row]]
 path = "antecedent_discovery::JpcmciPlus::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_jpcmci_plus)"
 
 [[row]]
 path = "antecedent_discovery::Lpcmci::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_lpcmci)"
 
 [[row]]
 path = "antecedent_discovery::Lpcmci::run_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_lpcmci_panel)"
 
 [[row]]
 path = "antecedent_discovery::Notears::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_notears_with)"
 
 [[row]]
 path = "antecedent_discovery::OrderMcmc::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_order_mcmc)"
 
 [[row]]
 path = "antecedent_discovery::Pc::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_pc)"
 
 [[row]]
 path = "antecedent_discovery::Pcmci::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_pcmci)"
 
 [[row]]
 path = "antecedent_discovery::Pcmci::run_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_pcmci_panel)"
 
 [[row]]
 path = "antecedent_discovery::PcmciPlus::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_pcmci_plus)"
 
 [[row]]
 path = "antecedent_discovery::PcmciPlus::run_on_frame"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) runs PCMCI+ through this frame entry: PcmciPlus::run and run_panel (discovery::engines::discover_pcmci_plus, discover_pcmci_plus_panel) build the lagged frame and call it, and RPCMCI calls it per regime"
 
 [[row]]
 path = "antecedent_discovery::PcmciPlus::run_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_pcmci_plus_panel)"
 
 [[row]]
 path = "antecedent_discovery::Rfci::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_rfci)"
 
 [[row]]
 path = "antecedent_discovery::Rpcmci::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverTemporal) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_rpcmci)"
 
 [[row]]
 path = "antecedent_discovery::StructureMcmc::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled structure-discovery route (DiscoverStatic) builds this engine from the study's DiscoverySpec and runs it (discovery::engines::discover_structure_mcmc and discover_pag_mcmc)"
 
 [[row]]
 path = "antecedent_discovery::adjacency_mask::adjacency_mask_from_admg"
@@ -1356,8 +1374,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::observed_marginals::signed_uniform_observed_marginals"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent_discovery::rpcmci::two_regime_half_split"
@@ -1371,18 +1389,17 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::selective::StaticSelectiveDiscovery::outcome"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "consume"
 
 [[row]]
 path = "antecedent_discovery::selective::StaticSelectiveDiscovery::plan"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a reuse plan: compares the request's stage identities with the retained ones and runs no search, test or statistic"
 
 [[row]]
 path = "antecedent_discovery::selective::StaticSelectiveDiscovery::resume"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled selective search (DiscoverySpec::selective_static(...).resuming, route:DiscoverStatic), which resumes it on the study's data under its frozen contract"
 
 [[row]]
 path = "antecedent_discovery::selective::StaticSelectiveDiscovery::resume_with_limits"
@@ -1391,8 +1408,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::selective::StaticSelectiveDiscovery::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled selective search (DiscoverySpec::selective_static, route:DiscoverStatic), which runs it on the study's data under its frozen contract"
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::export_state"
@@ -1401,18 +1418,17 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::outcome"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "consume"
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::plan"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a reuse plan: compares the request's stage identities with the retained ones and runs no search, test or statistic"
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::resume"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled selective search (DiscoverySpec::selective_temporal(...).resuming, route:DiscoverTemporal), which resumes it on the study's data under its frozen contract"
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::resume_with_limits"
@@ -1421,23 +1437,23 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::selective::TemporalSelectiveDiscovery::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled selective search (DiscoverySpec::selective_temporal, route:DiscoverTemporal), which runs it on the study's data under its frozen contract"
 
 [[row]]
 path = "antecedent_discovery::selective::claims::request_downstream_interval"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a typed refusal: it returns an error for every input and computes no estimate, identification, structure or ranking"
 
 [[row]]
 path = "antecedent_discovery::selective::claims::request_recovery_claim"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a typed refusal: it returns an error for every input and computes no estimate, identification, structure or ranking"
 
 [[row]]
 path = "antecedent_discovery::selective::claims::request_score_search_reuse"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a typed refusal: it returns an error for every input and computes no estimate, identification, structure or ranking"
 
 [[row]]
 path = "antecedent_discovery::selective::identity::static_data_identity"
@@ -1456,13 +1472,13 @@ owner = "discovery engines"
 
 [[row]]
 path = "antecedent_discovery::selective::request_selection_diagram"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a typed refusal: it returns an error for every input and computes no estimate, identification, structure or ranking"
 
 [[row]]
 path = "antecedent_discovery::selective::reuse::SampleSplitReceipt::check_analysis_table"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "not_scientific"
+reason = "a gating check: compares the analysis table's content identity with the identity the split receipt recorded and computes no estimate, identification, structure or ranking"
 
 [[row]]
 path = "antecedent_discovery::selective::reuse::SampleSplitReceipt::verify_against_source"
@@ -1556,37 +1572,37 @@ reason = "kernel API; the type configures the compiled static estimator (Estimat
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores"
 disposition = "kernel"
-reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
+reason = "kernel API; the compiled joint-cell AIPW response route (Study with EstimatorId::CellAipw, retained prepared operation) fits its scores through it"
 
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores_sampling_weighted"
 disposition = "kernel"
-reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
+reason = "kernel API; the compiled joint-cell AIPW response route (Study with EstimatorId::CellAipw on a table with observation weights) fits its scores through it"
 
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores_with_assignment"
 disposition = "kernel"
-reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
+reason = "kernel API; the compiled joint-cell AIPW response route (Study with EstimatorId::CellAipw, one-shot run) fits its scores through it"
 
 [[row]]
 path = "antecedent_estimate::ConditionalLinearAdjustment::estimate"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the conditional linear adjustment the compiled conditional-effect routes fit through (EstimatorId::ConditionalLinearAdjustment: ConditionalDag and the class envelope routes)"
 
 [[row]]
 path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_ate"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the conditional linear adjustment the compiled conditional-effect routes fit through (EstimatorId::ConditionalLinearAdjustment: ConditionalDag and the class envelope routes)"
 
 [[row]]
 path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_with_arm_scores"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the conditional linear adjustment the compiled conditional-effect routes fit through (EstimatorId::ConditionalLinearAdjustment: ConditionalDag and the class envelope routes)"
 
 [[row]]
 path = "antecedent_estimate::ConditionalLinearAdjustment::estimate_with_means"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the conditional linear adjustment the compiled conditional-effect routes fit through (EstimatorId::ConditionalLinearAdjustment: ConditionalDag and the class envelope routes)"
 
 [[row]]
 path = "antecedent_estimate::CrossfitNuisanceCache::bounded"
@@ -1710,8 +1726,7 @@ reason = "configures the compiled estimator: builds the preparation receipt the 
 
 [[row]]
 path = "antecedent_estimate::LearnedContinuousOptions::analytic_interval_internal"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "internal"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::attach_bootstrap"
@@ -1855,48 +1870,48 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::TemporalLinearPredictor::fit"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the lagged linear predictor the compiled TemporalLinearPrediction route fits and evaluates through, with the same inputs (antecedent::analysis::temporal_linear_prediction)"
 
 [[row]]
 path = "antecedent_estimate::TemporalLinearPredictor::predict_conditional"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the lagged linear predictor the compiled TemporalLinearPrediction route fits and evaluates through, with the same inputs (antecedent::analysis::temporal_linear_prediction)"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::effect_surface"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through; effect_surface is the empty-adjustment fit the routes run, read as its three components"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::estimate"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through; estimate is estimate_with_adjustment with no adjustment and no extras"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_adjustment"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_block_bootstrap"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::estimate_with_extras"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through; estimate_with_extras is estimate_with_adjustment with no adjustment"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::prepare_shared"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through"
 
 [[row]]
 path = "antecedent_estimate::TemporalMediationEstimator::window_selection"
-disposition = "pending"
-owner = "temporal and mediation estimators"
+disposition = "kernel"
+reason = "kernel API; the type is the temporal mediation estimator the compiled temporal mediation routes (TemporalMediationDag, TemporalMediationCpdag, TemporalMediationPag and the graph-posterior mediation cells) fit through"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::estimate_streamed"
@@ -1971,13 +1986,13 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::compare_raw_adjusted"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "deprecated"
+replacement = "route:DescriptiveComparison"
 
 [[row]]
 path = "antecedent_estimate::conditional_odds_ratio"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "deprecated"
+replacement = "route:MatchedCaseControl"
 
 [[row]]
 path = "antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior"
@@ -2025,7 +2040,7 @@ owner = "dose-grid and cyclic fits"
 [[row]]
 path = "antecedent_estimate::estimate_trial_aipw_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::evaluate_chain_recovery"
@@ -2046,17 +2061,17 @@ replacement = "RandomizedEffect over the four product cells as a multi-arm desig
 [[row]]
 path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::joint_design::compiled::JointDesignRecipe::execute"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled joint design route (PreparedNativeJointDesign::compile takes the recipe), which executes through it"
 
 [[row]]
 path = "antecedent_estimate::joint_design::compiled::JointDesignRecipe::execute_native"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled joint design route (PreparedNativeJointDesign::compile takes the recipe), which executes through it"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::PanelFitOptions::identity"
@@ -2065,58 +2080,58 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_hybrid_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointDesign"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law_streamed"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_panel_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law_streamed"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_values"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::decompose_weighted_hybrid_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::decomposition::propagate_hybrid_covariance"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointDesign"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::evaluate_panel_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::evaluate_panel_programs"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::expression::compile_panel_expression"
@@ -2125,43 +2140,43 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::joint_panel::fit_panel"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::project_panel_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::project_panel_responses"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::project_temporal_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::selection_uncertainty::decomposition_selection"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::stream_panel_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelResponse"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::stream_temporal_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::time_varying::TemporalPanelSpec::identity"
@@ -2170,18 +2185,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_law"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_programs"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::time_varying::fit_temporal_panel"
-disposition = "pending"
-owner = "joint panel estimators"
+disposition = "deprecated"
+replacement = "route:JointPanelTimeVarying"
 
 [[row]]
 path = "antecedent_estimate::joint_panel::time_varying::require_coarser_contrast"
@@ -2317,8 +2332,8 @@ replacement = "RandomizedEffect with estimated_cuped (graphless row randomized_e
 
 [[row]]
 path = "antecedent_estimate::raw_contrast"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "deprecated"
+replacement = "route:DescriptiveComparison"
 
 [[row]]
 path = "antecedent_estimate::smoothed_dose::parse_smoothing_kernel"
@@ -2326,9 +2341,8 @@ disposition = "internal"
 
 [[row]]
 path = "antecedent_estimate::staggered_event_study::group_time_att"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:PanelDid"
 
 [[row]]
 path = "antecedent_estimate::survival::randomized_survival_ipcw_summary"
@@ -2344,8 +2358,8 @@ replacement = "RandomizedEffect with a Switchback design (graphless row randomiz
 
 [[row]]
 path = "antecedent_estimate::transform_mean_pair"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "deprecated"
+replacement = "route:DescriptiveComparison"
 
 [[row]]
 path = "antecedent_estimate::transport::transport_augmented_response_grid"
@@ -2430,8 +2444,8 @@ reason = "structural graph operation; computes no estimate"
 
 [[row]]
 path = "antecedent_identify::ClassicalTransportDerivation::bind_catalog_with_context"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled transport identification (TransportIdentificationRequest::CatalogBinding, route ClassicalTransportIdentification), which runs through it"
 
 [[row]]
 path = "antecedent_identify::ClassicalTransportDerivation::from_record_checked"
@@ -2439,8 +2453,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_identify::ClassicalTransportDerivation::search_catalog"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled transport identification (TransportIdentificationRequest::CatalogSearch, route ClassicalTransportIdentification), which runs through it"
 
 [[row]]
 path = "antecedent_identify::ConditionalObstructionCandidate::from_record_checked"
@@ -2488,23 +2502,23 @@ replacement = "the compiled row of route IvBounds (CausalQuery::IvBounds, Python
 
 [[row]]
 path = "antecedent_identify::bind_mixed_source_catalog"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:MixedSourceIdentification"
 
 [[row]]
 path = "antecedent_identify::bind_mz_transport_catalog"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:MzTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::bind_transport_derivation"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "not_scientific"
+reason = "stamps a transport certificate's derivation metadata onto a lowered expression, off the hash; identifies and estimates nothing (the compiled TransportMixed route calls it)"
 
 [[row]]
 path = "antecedent_identify::bind_z_transport_catalog"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ZTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::counterfactual_transport_refusal"
@@ -2512,68 +2526,68 @@ disposition = "internal"
 
 [[row]]
 path = "antecedent_identify::decide_admg_conditional_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:AdmgConditionalTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_chain_recovery"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ChainRecoveryIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_mixed_source"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:MixedSourceIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_mz_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:MzTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_observation_recovery"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ObservationRecoveryIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_two_source_z_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ZTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::decide_z_transport_inspecting"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ZTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::identify_catalog_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::identify_classical_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::identify_counterfactual_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:CounterfactualTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::identify_meta_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::identify_z_transport"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "deprecated"
+replacement = "route:ZTransportIdentification"
 
 [[row]]
 path = "antecedent_identify::lower_transport_formula"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "not_scientific"
+reason = "rewrites an already certified transport formula into expression nodes; identifies and estimates nothing (the compiled TransportMixed route calls it through lower_transport_mean)"
 
 [[row]]
 path = "antecedent_identify::mz_transport_refusal"
@@ -2597,13 +2611,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_identify::sid::cpdag_completion::enumerate_cpdag_completions"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate (lists the DAG members of a supplied CPDAG with canonical identities; deciding them is decide_cpdag_completions)"
 
 [[row]]
 path = "antecedent_identify::sid::temporal_sequence::unroll_two_slice"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "not_scientific"
+reason = "structural graph operation; computes no estimate (unrolls a lagged template into the two-slice selection diagram)"
 
 [[row]]
 path = "antecedent_identify::sid::verify_classical_transport"
@@ -3537,73 +3551,73 @@ owner = "learner-backed estimators"
 
 [[row]]
 path = "antecedent_model::KdeDoSampler::sample"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "kernel"
+reason = "kernel API; the compiled fitted-model operation ModelOperation::DoSample (DoSamplerMethod::Kde) (PreparedStudy::model_operation, program family FittedModelSimulation) runs through this type"
 
 [[row]]
 path = "antecedent_model::McmcDoSampler::sample"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "kernel"
+reason = "kernel API; the compiled fitted-model operation ModelOperation::DoSample (DoSamplerMethod::Mcmc) (PreparedStudy::model_operation, program family FittedModelSimulation) runs through this type"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit_polled"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit_with"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit_with_in"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit_with_polled"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::refit_frequency_weighted_polled"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::refit_weighted"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::refit_weighted_polled"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the registry configures the compiled mechanism program (MechanismProgram, StudyBuilder::mechanisms) whose fit and mechanism refits in the GcmAttributeDag and GcmSimulateDag routes run through it"
 
 [[row]]
 path = "antecedent_model::ModelEvaluator::evaluate"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "kernel"
+reason = "kernel API; the compiled fitted-model operation ModelOperation::ModelEvaluation (PreparedStudy::model_operation, program family FittedModelSimulation) runs through this type"
 
 [[row]]
 path = "antecedent_model::NoiseTable::randomize"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag noise-replay target (noise_table_from_columns) and the IntrinsicInfluence attribution target run through this type"
 
 [[row]]
 path = "antecedent_model::NoiseTable::sample"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled GcmSimulateDag noise-replay target (noise_table_from_columns) and the IntrinsicInfluence attribution target run through this type"
 
 [[row]]
 path = "antecedent_model::WeightingDoSampler::estimate"
-disposition = "pending"
-owner = "gcm model operations"
+disposition = "kernel"
+reason = "kernel API; the compiled fitted-model operation ModelOperation::DoSample (DoSamplerMethod::Weighting) (PreparedStudy::model_operation, program family FittedModelSimulation) runs through this type"
 
 [[row]]
 path = "antecedent_model::compile::standard_normal_log_density"
@@ -3617,18 +3631,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_model::do_sampler::interventional_mean"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_model::local_cyclic::LocalCyclicModel::abduce"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled LocalCyclicCallback program (crates/antecedent/src/analysis/compiled_local_cyclic.rs::compile_local_cyclic) runs this type's Newton solve and abduction on declared callback mechanisms"
 
 [[row]]
 path = "antecedent_model::local_cyclic::LocalCyclicModel::solve"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "kernel"
+reason = "kernel API; the compiled LocalCyclicCallback program (crates/antecedent/src/analysis/compiled_local_cyclic.rs::compile_local_cyclic) runs this type's Newton solve and abduction on declared callback mechanisms"
 
 [[row]]
 path = "antecedent_model::policy_support"
@@ -3637,13 +3651,13 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_model::sample::sample_interventional"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_model::sample::sample_observational"
-disposition = "pending"
-owner = "gcm operations"
+disposition = "deprecated"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_prob::apply_transport"
@@ -3737,13 +3751,13 @@ owner = "prior composition and transport of posteriors"
 
 [[row]]
 path = "antecedent_state::full_graph_score"
-disposition = "pending"
-owner = "kernel operations"
+disposition = "not_scientific"
+reason = "evaluates the decomposable structure score (the sum of per-node local BIC or signed-uniform scores) of one caller-given parent map from scratch, the acceptance oracle of the incremental local-score cache; it fits no effect, interval, test or posterior and ranks nothing"
 
 [[row]]
 path = "antecedent_stats::PartialCorrelation::test_one"
-disposition = "pending"
-owner = "statistics kernels"
+disposition = "kernel"
+reason = "kernel API; the type is the partial-correlation CI test the compiled discovery routes resolve by name, and test_one is the scalar test the compiled pairwise block test (pairwise_mv) runs for a one-column block"
 
 [[row]]
 path = "antecedent_stats::interference::admit_exposure_probability_work_for_shape"
@@ -3752,68 +3766,68 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_stats::measurement_error::exposure_rates_from_validation"
-disposition = "pending"
-owner = "statistics kernels"
+disposition = "not_scientific"
+reason = "constructs the declared outcome-specific misclassification-rate input of the exposure misclassification correction from validation counts (two BinaryErrorRates::from_validation_counts calls: proportions with binomial variances); it corrects nothing and estimates no effect, interval or test"
 
 [[row]]
 path = "antecedent_validate::AlphaThresholdSensitivity::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::Alpha), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::BlockBootstrapStability::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::BlockBootstrap), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::CiTestSensitivity::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::CiTest), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::EnvironmentHoldout::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::EnvironmentHoldout), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::FalsePositiveCheck::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::FalsePositive), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::LagWindowSensitivity::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::LagWindow), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::OrientationStability::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::Orientation), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::PosteriorPredictiveCheck::check_with_context"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled Bayesian routes' posterior predictive check, which runs it on the study's own prepared problem and posterior (StudyBuilder::refute through the validation suite)"
 
 [[row]]
 path = "antecedent_validate::PosteriorPredictiveCheck::for_estimator"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the compiled Bayesian executors build the posterior predictive check of the study's own estimator with it (analysis::execute::bayesian_path and the checked Bayesian routes)"
 
 [[row]]
 path = "antecedent_validate::PriorPredictiveCheck::check"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled Bayesian routes' prior predictive check, which runs it on the study's own prepared problem"
 
 [[row]]
 path = "antecedent_validate::PriorPredictiveCheck::check_with_prior"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the compiled Bayesian executors and validation suite run the prior predictive check under the prior the study's estimator fits with"
 
 [[row]]
 path = "antecedent_validate::PriorPredictiveCheck::for_estimator"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the compiled Bayesian executors build the prior predictive check of the study's own estimator with it"
 
 [[row]]
 path = "antecedent_validate::RefutationProblem::new"
@@ -3822,113 +3836,113 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_validate::RegimeStability::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::RegimeStability), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::StalenessBaseline::assess"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the compiled prepared study assesses new data against its own retained baseline with it (PreparedStudy::staleness)"
 
 [[row]]
 path = "antecedent_validate::StalenessBaseline::build"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled prepared study's staleness diagnostic, which builds it from the study's own retained data (PreparedStudy::staleness_baseline)"
 
 [[row]]
 path = "antecedent_validate::SyntheticNullCalibration::run"
-disposition = "pending"
-owner = "validation checks"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled discovery validation (route:DiscoveryValidation, DiscoveryCheck::SyntheticNull), which runs it on the study's own temporal search configuration and data (Study::validate_discovery)"
 
 [[row]]
 path = "antecedent_validate::amplify"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "not_scientific"
+reason = "Rosenbaum and Silber's amplification: the algebraic map (Gamma, Lambda) -> Delta = (Gamma Lambda - 1) / (Lambda - Gamma) between two parameterizations of one sensitivity assumption. It reads no data, estimate or interval and computes no estimate, test, identification or ranking."
 
 [[row]]
 path = "antecedent_validate::apply_conflict_and_compose"
-disposition = "pending"
-owner = "validation checks"
+disposition = "not_scientific"
+reason = "prior construction: shrinks each external source's weight by caller-supplied conflict signals and composes the prior an estimator is configured with; reads no data and returns no estimate, posterior, test or ranking (the compiled Bayesian routes compose through compose_with_conflict_policy on the study's own design)"
 
 [[row]]
 path = "antecedent_validate::benchmark_bound"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::component_evalue_posterior_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_evalue_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_ovb_posterior_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_ovb_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::mediation_components_fit"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::mediation_path_ovb_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::mediation_paths_fit"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::mediation_posterior_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::mediation_vector_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::msm_parameter_fit"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
 
 [[row]]
 path = "antecedent_validate::component_sensitivity::msm_parameter_fit_refitting_weights"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
 
 [[row]]
 path = "antecedent_validate::evalue_posterior_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::evalue_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::evalue_vector_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::linear_adjustment_fit"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::matched_sets_break_even"
@@ -3947,53 +3961,53 @@ owner = "sensitivity ranges"
 
 [[row]]
 path = "antecedent_validate::mediation_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[row]]
 path = "antecedent_validate::msm_ate_bounds_at"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::msm_ate_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::omitted_variable_bias::ovb_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::ovb_posterior_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::ovb_vector_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::predictive_assessment::distribution_drift"
-disposition = "pending"
-owner = "validation checks"
+disposition = "not_scientific"
+reason = "a labelled descriptive diagnostic: the two-sample Kolmogorov-Smirnov distance and population stability index of two caller-supplied PIT samples, with no significance level; estimates, identifies or ranks nothing"
 
 [[row]]
 path = "antecedent_validate::predictive_assessment::exact_expected_score"
-disposition = "pending"
-owner = "validation checks"
+disposition = "not_scientific"
+reason = "the expectation of a scoring rule under a caller-supplied finite truth law, by exact summation over its support; reads no data and estimates, identifies or ranks nothing"
 
 [[row]]
 path = "antecedent_validate::predictive_assessment::score_case"
-disposition = "pending"
-owner = "validation checks"
+disposition = "not_scientific"
+reason = "a proper scoring rule evaluated at one caller-supplied law and realized outcome: deterministic arithmetic that reads no data and estimates, identifies or ranks nothing"
 
 [[row]]
 path = "antecedent_validate::rosenbaum::rosenbaum_range"
@@ -4017,28 +4031,23 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_validate::target_native::finite_difference_consistency"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "route:StaticResponseDag"
 
 [[row]]
 path = "antecedent_validate::target_native::local_linearity"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "route:StaticResponseDag"
 
 [[row]]
 path = "antecedent_validate::target_native::posterior_predictive_target_check"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "route:StaticResponseDag"
 
 [[row]]
 path = "antecedent_validate::target_native::prior_sensitivity_target_check"
-disposition = "pending"
-owner = "sensitivity ranges"
-
-[[python]]
-path = "python/antecedent/adaptive_policy.py::search"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/attribution.py::attribute_distribution_change"
@@ -4091,49 +4100,9 @@ disposition = "pending"
 owner = "interval candidates"
 
 [[python]]
-path = "python/antecedent/composition.py::evaluate_with_support"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/composition.py::evaluate_functional"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/composition.py::check_composition"
-disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
-path = "python/antecedent/composition.py::check_paired_draws"
-disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
-path = "python/antecedent/composition.py::check_atom_combination"
-disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
 path = "python/antecedent/cyclic.py::PreparedCyclicSystem.posterior"
 disposition = "pending"
 owner = "dose-grid and cyclic fits"
-
-[[python]]
-path = "python/antecedent/cyclic.py::LocalCyclicModel.execute"
-disposition = "pending"
-owner = "gcm operations"
-
-[[python]]
-path = "python/antecedent/decision.py::Contract.evaluate"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/decision.py::Decision.export"
-disposition = "pending"
-owner = "decisions over supplied claims"
 
 [[python]]
 path = "python/antecedent/decision_evidence.py::JointEvidence.excursion_quantity"
@@ -4153,57 +4122,12 @@ owner = "prior composition and transport of posteriors"
 [[python]]
 path = "python/antecedent/decision_evidence.py::evaluate"
 disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
-path = "python/antecedent/decision_reliability.py::rank"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/decision_robust.py::RobustDecision.export"
-disposition = "pending"
-owner = "decisions over supplied claims"
+owner = "prior composition and transport of posteriors"
 
 [[python]]
 path = "python/antecedent/decision_robust.py::robust"
 disposition = "deprecated"
 replacement = "antecedent::PreparedStudy::compile_for_robust_decision"
-
-[[python]]
-path = "python/antecedent/decision_robust.py::IdentifiedUtility.from_inputs"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/decision_robust.py::identified_sets"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/descriptive.py::raw_vs_adjusted"
-disposition = "pending"
-owner = "raw estimators"
-
-[[python]]
-path = "python/antecedent/descriptive.py::transform_mean_pair"
-disposition = "pending"
-owner = "raw estimators"
-
-[[python]]
-path = "python/antecedent/descriptive.py::raw_reporting_transform"
-disposition = "pending"
-owner = "raw estimators"
-
-[[python]]
-path = "python/antecedent/design/plans.py::StructurePrior.from_graphs"
-disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
-path = "python/antecedent/design/prior_signal.py::adapt_prior_to_signal"
-disposition = "pending"
-owner = "decisions over supplied claims"
 
 [[python]]
 path = "python/antecedent/design/study_ranking.py::compile_for_study"
@@ -4286,16 +4210,6 @@ disposition = "deprecated"
 replacement = "route:InterferenceDag"
 
 [[python]]
-path = "python/antecedent/inverse_query.py::finite_enumeration_baseline"
-disposition = "pending"
-owner = "decisions over supplied claims"
-
-[[python]]
-path = "python/antecedent/matched.py::matched_case_control_odds_ratio"
-disposition = "pending"
-owner = "raw estimators"
-
-[[python]]
 path = "python/antecedent/measurement_exposure.py::correct_exposure_misclassification"
 disposition = "pending"
 owner = "measurement-error and observation-recovery corrections"
@@ -4356,34 +4270,9 @@ disposition = "deprecated"
 replacement = "route:PolicyValue"
 
 [[python]]
-path = "python/antecedent/predictive_assessment.py::score_case"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/predictive_assessment.py::exact_expected_score"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/predictive_assessment.py::distribution_drift"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
 path = "python/antecedent/quasi.py::estimate_group_time_att"
 disposition = "deprecated"
 replacement = "route:PanelDid"
-
-[[python]]
-path = "python/antecedent/selective_discovery.py::SelectiveDiscovery.resume"
-disposition = "pending"
-owner = "discovery engines"
-
-[[python]]
-path = "python/antecedent/selective_discovery.py::request_score_search_reuse"
-disposition = "pending"
-owner = "discovery engines"
 
 [[python]]
 path = "python/antecedent/selective_discovery.py::SplitEffect.measure"
@@ -4431,64 +4320,19 @@ disposition = "pending"
 owner = "discovery engines"
 
 [[python]]
-path = "python/antecedent/validation.py::validate_pcmci_block_bootstrap"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_pcmci_false_positive"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_pcmci_alpha_sensitivity"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_pcmci_lag_sensitivity"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_pcmci_ci_sensitivity"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_pcmci_plus_orientation"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_synthetic_null_calibration"
-disposition = "pending"
-owner = "validation checks"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_environment_holdout"
-disposition = "pending"
-owner = "discovery engines"
-
-[[python]]
-path = "python/antecedent/validation.py::validate_regime_stability"
-disposition = "pending"
-owner = "discovery engines"
-
-[[python]]
 path = "python/antecedent/validation.py::evalue"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::omitted_variable_bias"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::omitted_variable_bias_from_data"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::rosenbaum_bounds"
@@ -4497,48 +4341,48 @@ owner = "sensitivity ranges"
 
 [[python]]
 path = "python/antecedent/validation.py::evalue_vector"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::evalue_posterior"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::omitted_variable_bias_vector"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::omitted_variable_bias_posterior"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::mediation_sensitivity_vector"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[python]]
 path = "python/antecedent/validation.py::mediation_path_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[python]]
 path = "python/antecedent/validation.py::mediation_sensitivity_posterior"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[python]]
 path = "python/antecedent/validation.py::msm_parameter_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
 
 [[python]]
 path = "python/antecedent/validation.py::msm_parameter_sensitivity_refit"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:LongitudinalRegime"
 
 [[python]]
 path = "python/antecedent/validation.py::rosenbaum_bounds_vector"
@@ -4551,34 +4395,29 @@ disposition = "pending"
 owner = "sensitivity ranges"
 
 [[python]]
-path = "python/antecedent/validation.py::amplify"
-disposition = "pending"
-owner = "sensitivity ranges"
-
-[[python]]
 path = "python/antecedent/validation.py::mediation_sensitivity"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[python]]
 path = "python/antecedent/validation.py::derivative_consistency"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))"
 
 [[python]]
 path = "python/antecedent/validation.py::local_linearity"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))"
 
 [[python]]
 path = "python/antecedent/validation.py::prior_sensitivity_target"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::posterior_predictive_target"
-disposition = "pending"
-owner = "validation checks"
+disposition = "deprecated"
+replacement = "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))"
 
 [[verdict]]
 path = "python/antecedent/_batch.py::not_assessed"

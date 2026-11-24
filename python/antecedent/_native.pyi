@@ -1585,6 +1585,43 @@ class PreparedAnalysis:
         self, *, policy_json: str | None = None, seed: int = 1, threads: int | None = None
     ) -> bytes: ...
     def staleness_plan_json(self) -> str: ...
+    def sensitivity_range_bound(
+        self,
+        analysis: str,
+        *,
+        q: float = 1.0,
+        alpha: float = 0.05,
+        r2yz_extreme: float = 1.0,
+        kd: float = 1.0,
+        ky: float | None = None,
+        component: str = "indirect",
+        path: str = "indirect",
+        lambda_max: float = 2.0,
+        grid_points: int = 17,
+        decision_threshold: float | None = None,
+        tolerance: float = 1e-10,
+        level: float = 0.95,
+        draws: int = 1000,
+        numerators: list[list[str]] | None = None,
+        denominators: list[list[str]] | None = None,
+        replicates: int = 200,
+        require_completed: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    @staticmethod
+    def sensitivity_vector_range_bound(
+        analyses: list[PreparedAnalysis],
+        analysis: str,
+        *,
+        q: float = 1.0,
+        alpha: float = 0.05,
+        r2yz_extreme: float = 1.0,
+        component: str = "indirect",
+        path: str = "indirect",
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
     def refute_target_bound(
         self,
         *,
@@ -3023,6 +3060,81 @@ class ModelEvaluation:
     alpha: float
     notes: list[str]
 
+class ModelOperationAnswer:
+    kind: str
+    value: Any
+    route: CompiledRoute | None
+
+def model_operation_arrow_strengths(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+def model_operation_population_contrast(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    parent: str,
+    child: str,
+    delta: float,
+    *,
+    max_units: int | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+def model_operation_do_sample(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    method: str,
+    outcome: str,
+    interventions: dict[str, float],
+    n: int = 1000,
+    *,
+    bandwidth: float | None = None,
+    proposal_sd: float | None = None,
+    burn_in: int | None = None,
+    thin: int | None = None,
+    root_match_tolerance: float | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+def model_operation_evaluation(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    *,
+    alpha: float = 0.05,
+    n_permutations: int = 20,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+def model_operation_interventional_mean(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    interventions: dict[str, float],
+    n: int,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+def model_operation_simultaneous_counterfactual(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    outer: dict[str, float],
+    inner: dict[str, float],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
+
 class FittedGcm:
     def optimize_adaptive_policy(
         self, config_json: str, cancel: CancellationToken | None = None
@@ -3031,6 +3143,8 @@ class FittedGcm:
     n_assignments: int
     @property
     def last_route(self) -> CompiledRoute | None: ...
+    @property
+    def analyze_refits_this_model(self) -> bool: ...
     def structure_provenance(self) -> dict[str, str] | None: ...
     def mechanism_kinds(self) -> list[tuple[str, str]]: ...
     def mechanism_selection(self) -> list[dict[str, Any]]: ...
@@ -5031,6 +5145,40 @@ def validate_synthetic_null_calibration(
     threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_environment_holdout(
+    names: list[str],
+    env_columns: list[list[NDArray[np.float64]]],
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    n_discovery: int = 1,
+    seed: int = 1,
+    threads: int | None = None,
+) -> dict[str, Any]: ...
+def discovery_validation_run(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    check: str,
+    *,
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = False,
+    ci: str = "parcorr",
+    replicates: int = 20,
+    block_size: int = 20,
+    transform: str = "permute",
+    alphas: list[float] | None = None,
+    max_lags: list[int] | None = None,
+    ci_names: list[str] | None = None,
+    n_sim: int = 20,
+    n_obs: int = 100,
+    n_vars: int = 3,
+    regimes: list[int] | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> dict[str, Any]: ...
+def discovery_validation_run_environments(
     names: list[str],
     env_columns: list[list[NDArray[np.float64]]],
     *,
@@ -10505,6 +10653,17 @@ def selective_discovery_resume(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[SelectiveDiscoveryHandle | None, str | None, str | None]: ...
+def selective_discovery_compiled_resume(
+    kind: str,
+    contract_json: str,
+    names: list[str],
+    columns: list[Any],
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None, str | None, str | None]: ...
 def selective_discovery_inspect(artifact: bytes) -> tuple[str | None, str | None]: ...
 def selective_discovery_consume(
     artifact: bytes, expected_identity: str | None = None

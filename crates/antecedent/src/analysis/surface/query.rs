@@ -56,6 +56,13 @@ pub use antecedent_core::ValueExpr;
 pub use antecedent_core::{
     AllocationMethod, AnomalyReference, AttributionComponents, PopulationSelector, ShapleyConfig,
 };
+/// The fitted-model operations a prepared study runs on its own fitted model, and their
+/// targets (edge strengths, population do-contrast, do-sampler, model evaluation, nested
+/// counterfactual).
+pub use antecedent_core::{
+    ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget, ModelOperation,
+    ModelOperationFault, NestedCounterfactualTarget, PopulationDoContrastTarget,
+};
 /// Two-period and selected staggered group-time difference-in-differences queries.
 pub use antecedent_core::{
     AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,

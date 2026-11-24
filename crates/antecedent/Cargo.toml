@@ -1114,8 +1114,23 @@ path = "tests/temporal_sequential_gcomp_class_known_truth.rs"
 name = "interference_estimators_known_truth"
 path = "tests/interference_estimators_known_truth.rs"
 [[test]]
+name = "compiled_twins_graph_falsification"
+path = "tests/compiled_twins_graph_falsification.rs"
+[[test]]
+name = "compiled_twins_transported_path_specific"
+path = "tests/compiled_twins_transported_path_specific.rs"
+[[test]]
+name = "compiled_twins_local_cyclic"
+path = "tests/compiled_twins_local_cyclic.rs"
+[[test]]
 name = "compiled_twins_gcm"
 path = "tests/compiled_twins_gcm.rs"
+[[test]]
+name = "compiled_twins_gcm_attribution"
+path = "tests/compiled_twins_gcm_attribution.rs"
+[[test]]
+name = "compiled_twins_gcm_model_operations"
+path = "tests/compiled_twins_gcm_model_operations.rs"
 [[test]]
 name = "compiled_twins_interference"
 path = "tests/compiled_twins_interference.rs"
@@ -1171,8 +1186,33 @@ name = "compiled_twins_decisions"
 path = "tests/compiled_twins_decisions.rs"
 
 [[test]]
+name = "compiled_twins_claim_decisions"
+path = "tests/compiled_twins_claim_decisions.rs"
+
+[[test]]
+name = "compiled_twins_input_decisions"
+path = "tests/compiled_twins_input_decisions.rs"
+
+[[test]]
+name = "compiled_twins_design_planning"
+path = "tests/compiled_twins_design_planning.rs"
+
+[[test]]
 name = "compiled_twins_sensitivity"
 path = "tests/compiled_twins_sensitivity.rs"
+[[test]]
+name = "compiled_twins_sensitivity_ranges"
+path = "tests/compiled_twins_sensitivity_ranges.rs"
+
+[[test]]
+name = "compiled_twins_sensitivity_vectors"
+path = "tests/compiled_twins_sensitivity_vectors.rs"
+[[test]]
+name = "compiled_twins_selective_and_observed"
+path = "tests/compiled_twins_selective_and_observed.rs"
+[[test]]
+name = "compiled_twins_discovery_validation"
+path = "tests/compiled_twins_discovery_validation.rs"
 
 [[test]]
 name = "bayesian_randomized_calibration"
@@ -1442,6 +1482,9 @@ name = "joint_transport_predictive_calibration"
 
 [[test]]
 name = "sampled_temporal_path_transport_calibration"
+
+[[test]]
+name = "compiled_twins_transport_identify"
 
 [[test]]
 name = "sequential_policy_choice_calibration"

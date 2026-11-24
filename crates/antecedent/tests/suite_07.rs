@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "compiled_twins_conditional_temporal.rs"]
+mod compiled_twins_conditional_temporal;
 #[path = "refute_validator_not_applicable.rs"]
 mod refute_validator_not_applicable;
 #[path = "repeated_measures_posterior_facade.rs"]

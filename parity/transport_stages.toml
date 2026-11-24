@@ -116,6 +116,78 @@ evidence_test = "python/tests/test_transport_statistical.py"
 evidence_assertion = "test_consume_statistical_rechecks_the_point_and_rebinds_after_builder_disposal"
 
 [[routes]]
+route = "antecedent.analysis.transport_identification.compile_transport_identification"
+graph = "selection_admg"
+evidence = "classical_complete_source_experimental_family_or_finite_catalog"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "complete_in_classical_evidence_scope"
+reference = "https://arxiv.org/abs/1312.7485v1"
+limits = "The compiled program runs the kernel classical sID, the finite evidence-catalog search and binding, or meta-transport unchanged inside its dispatch after the support gate of transport.classical_identification; completeness is that of the kernel (the classical complete source-experimental family), the catalog search is sound and incomplete, and a budget stop is inconclusive."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "classical_sid_equals_the_compiled_identification"
+
+[[routes]]
+route = "antecedent.analysis.transport_identification.CompiledTransportIdentification.identify"
+graph = "selection_admg"
+evidence = "classical_complete_source_experimental_family_or_finite_catalog"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "complete_in_classical_evidence_scope"
+reference = "https://arxiv.org/abs/1312.7485v1"
+limits = "The compiled program runs the kernel classical sID, the finite evidence-catalog search and binding, or meta-transport unchanged inside its dispatch after the support gate of transport.classical_identification; completeness is that of the kernel (the classical complete source-experimental family), the catalog search is sound and incomplete, and a budget stop is inconclusive."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "catalog_search_and_binding_of_a_derivation_equal_the_compiled_identification"
+
+[[routes]]
+route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransport"
+graph = "selection_admg_with_restricted_experiments"
+evidence = "complete_joint_source_do_z_family"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
+limits = "The compiled program runs the kernel single-source TRz, its catalog binding and inspection, or the two-source combination unchanged inside its dispatch after the support gate of transport.z_identification; sound and incomplete within 4 controllable variables; a connected factor across two sources is refused, never fabricated."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "z_transport_equals_the_compiled_identification"
+
+[[routes]]
+route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransportBinding"
+graph = "selection_admg_with_restricted_experiments"
+evidence = "cited_joint_source_do_z_laws"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
+limits = "The compiled program runs the kernel single-source TRz, its catalog binding and inspection, or the two-source combination unchanged inside its dispatch after the support gate of transport.z_identification; sound and incomplete within 4 controllable variables; a connected factor across two sources is refused, never fabricated."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "a_z_transport_binding_equals_the_compiled_binding"
+
+[[routes]]
+route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.ZTransportInspecting"
+graph = "selection_admg_with_restricted_experiments"
+evidence = "cited_joint_source_do_z_laws"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
+limits = "The compiled program runs the kernel single-source TRz, its catalog binding and inspection, or the two-source combination unchanged inside its dispatch after the support gate of transport.z_identification; sound and incomplete within 4 controllable variables; a connected factor across two sources is refused, never fabricated."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "inspected_z_transport_equals_the_compiled_identification"
+
+[[routes]]
+route = "antecedent.analysis.transport_identification.TransportIdentificationRequest.TwoSourceZTransport"
+graph = "shared_causal_graph_with_two_source_selection_diagrams"
+evidence = "one_catalog_per_source_cited_joints_only"
+functional = "target_interventional_distribution"
+observation = "complete_measured_laws"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
+limits = "The compiled program runs the kernel single-source TRz, its catalog binding and inspection, or the two-source combination unchanged inside its dispatch after the support gate of transport.z_identification; sound and incomplete within 4 controllable variables; a connected factor across two sources is refused, never fabricated."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_identify.rs"
+evidence_assertion = "two_source_z_transport_equals_the_compiled_identification"
+
+[[routes]]
 route = "antecedent.transport.advanced.identify_classical"
 stage = "identify"
 status = "supported"
@@ -10897,6 +10969,14 @@ route = "antecedent.discovery.search.decision_rule"
 notes = "Frequentist structure search: a decision rule, no interval or recovery statement."
 
 [[routes]]
+route = "antecedent.discovery_validation.Study.validate_discovery"
+notes = "Validation checks of the study's own temporal search through the DiscoveryValidation program: frequencies, rates and holdout agreement are exact tabulations of the search's decisions on perturbed data, with no nominal level."
+
+[[routes]]
+route = "antecedent.python.discovery_validation.validate_discovery"
+notes = "The Python facade builds the study whose search the check validates and returns the direct validator's dictionary with the route and program identity."
+
+[[routes]]
 route = "antecedent.discovery.bootstrap_stability.frequencies"
 notes = "Selection frequencies of a resampled search; no nominal level."
 
@@ -11374,6 +11454,36 @@ guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design
 evidence_test = "crates/antecedent/tests/experiment_planning.rs"
 evidence_assertion = "compiled_plan_carries_every_assumption_in_its_identity"
 notes = "Compiles a standalone plan; no data is bound. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.input_decision_programs.compile_adaptive_policy_search"
+graph = "none_no_graph_is_identified"
+evidence = "declared_policy_families_constraints_and_response_source"
+functional = "best_policy_value_over_bounded_policy_families"
+guarantee = "bounded_policy_family_search_with_declared_constraints_and_held_out_value_no_global_optimality_certificate"
+evidence_test = "crates/antecedent/tests/compiled_twins_input_decisions.rs"
+evidence_assertion = "compiled_adaptive_policy_search_equals_the_prepared_search"
+notes = "Compiles the prepared search; nothing is evaluated. Calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.input_decision_programs.CompiledAdaptivePolicySearch.execute"
+graph = "none_no_graph_is_identified"
+evidence = "declared_policy_families_constraints_and_response_source"
+functional = "best_policy_value_over_bounded_policy_families"
+guarantee = "bounded_policy_family_search_with_declared_constraints_and_held_out_value_no_global_optimality_certificate"
+evidence_test = "crates/antecedent-design/tests/adaptive_policy_search.rs"
+evidence_assertion = "state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form_optimum"
+notes = "Runs the prepared search against the response source bound at execution. Calibration not_measured."
+
+[[routes]]
+route = "antecedent.python.adaptive_policy.search"
+graph = "none_no_graph_is_identified"
+evidence = "declared_policy_families_constraints_and_response_source"
+functional = "best_policy_value_over_bounded_policy_families"
+guarantee = "bounded_policy_family_search_with_declared_constraints_and_held_out_value_no_global_optimality_certificate"
+evidence_test = "python/tests/test_adaptive_policy.py"
+evidence_assertion = "test_state_dependent_threshold_beats_the_best_fixed_schedule_at_the_closed_form"
+notes = "The Python entry runs the compiled program. Calibration not_measured."
 
 [[routes]]
 route = "antecedent.python.design.planning.plan_experiment"

@@ -99,8 +99,8 @@ pub use local_polynomial_ratio::{
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use model_operations::{
-    ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
-    ModelOperationFault, PopulationDoContrastTarget,
+    ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget, ModelOperation,
+    ModelOperationFault, NestedCounterfactualTarget, PopulationDoContrastTarget,
 };
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::{

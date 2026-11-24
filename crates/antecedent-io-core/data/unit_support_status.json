@@ -1590,6 +1590,11 @@
       "missing_evidence": []
     },
     {
+      "id": "estimate.temporal_linear_prediction",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "measurement.model_contract",
       "status": "supported",
       "missing_evidence": []
@@ -2230,6 +2235,11 @@
       "missing_evidence": []
     },
     {
+      "id": "validate.discovery_stability",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "estimate.randomized_quantile",
       "status": "supported",
       "missing_evidence": []
@@ -2375,7 +2385,22 @@
       "missing_evidence": []
     },
     {
+      "id": "design.adaptive_policy_search",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "design.experiment_planning",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.classical_identification",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.z_identification",
       "status": "supported",
       "missing_evidence": []
     }

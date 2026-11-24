@@ -115,6 +115,12 @@ class adaptive_inference:  # noqa: N801
     WRONG_CONTRACT: Final = "adaptive_inference.wrong_contract"
 
 
+class adaptive_policy_search:  # noqa: N801
+    HELD_OUT_UNSUPPORTED: Final = "adaptive_policy_search.held_out_unsupported"
+    IDENTIFICATION_UNSUPPORTED: Final = "adaptive_policy_search.identification_unsupported"
+    UNOBSERVED_FEATURE: Final = "adaptive_policy_search.unobserved_feature"
+
+
 class adaptive_transport:  # noqa: N801
     ARMS: Final = "adaptive_transport.arms"
     ASSIGNMENT_BELOW_FLOOR: Final = "adaptive_transport.assignment_below_floor"
@@ -858,6 +864,10 @@ class descriptive_comparison:  # noqa: N801
     TRANSFORM_DOMAIN: Final = "descriptive_comparison.transform_domain"
 
 
+class descriptive_programs:  # noqa: N801
+    REENTRY: Final = "descriptive_programs.reentry"
+
+
 class design_ranking:  # noqa: N801
     BOUNDS_EXCEEDED: Final = "design_ranking.bounds_exceeded"
     CONTRACT_MISMATCH: Final = "design_ranking.contract_mismatch"
@@ -896,6 +906,14 @@ class discovered_transport:  # noqa: N801
     TEMPORAL_STRUCTURE_UNSUPPORTED: Final = "discovered_transport.temporal_structure_unsupported"
     TRIAL_COMPATIBILITY_INVALID: Final = "discovered_transport.trial_compatibility_invalid"
     TRIAL_REJECTS_EVERY_MEMBER: Final = "discovered_transport.trial_rejects_every_member"
+
+
+class discovery_validation:  # noqa: N801
+    LOWERING: Final = "discovery_validation.lowering"
+    NOT_A_SEARCH: Final = "discovery_validation.not_a_search"
+    REGIMES_MISSING: Final = "discovery_validation.regimes_missing"
+    WRONG_MODALITY: Final = "discovery_validation.wrong_modality"
+    WRONG_SEARCH: Final = "discovery_validation.wrong_search"
 
 
 class discretized_scm:  # noqa: N801
@@ -1234,6 +1252,7 @@ class graph_falsification:  # noqa: N801
     EMPTY_DATA: Final = "graph_falsification.empty_data"
     INVALID_LEVEL: Final = "graph_falsification.invalid_level"
     INVALID_PERMUTATIONS: Final = "graph_falsification.invalid_permutations"
+    LOWERING: Final = "graph_falsification.lowering"
     NODE_NOT_STATIC: Final = "graph_falsification.node_not_static"
     TOO_FEW_NODES: Final = "graph_falsification.too_few_nodes"
     WORK_LIMIT: Final = "graph_falsification.work_limit"
@@ -3297,6 +3316,10 @@ class temporal_interval:  # noqa: N801
     UNSUPPORTED_HISTORY: Final = "temporal_interval.unsupported_history"
 
 
+class temporal_linear_prediction:  # noqa: N801
+    REENTRY: Final = "temporal_linear_prediction.reentry"
+
+
 class temporal_policy_transport:  # noqa: N801
     HISTORY_ALPHABET_INCOMPATIBLE: Final = "temporal_policy_transport.history_alphabet_incompatible"
     HORIZON_MISMATCH: Final = "temporal_policy_transport.horizon_mismatch"
@@ -3357,6 +3380,10 @@ class tier_diagnostics:  # noqa: N801
     OVERLAP_NOT_CARRIED: Final = "tier_diagnostics.overlap_not_carried"
     UNKNOWN_SCENARIOS_NO_EVALUE: Final = "tier_diagnostics.unknown_scenarios_no_evalue"
     UNKNOWN_SCENARIOS_NO_OVERLAP: Final = "tier_diagnostics.unknown_scenarios_no_overlap"
+
+
+class transport_identification:  # noqa: N801
+    REENTRY: Final = "transport_identification.reentry"
 
 
 class transport_revalidation:  # noqa: N801
@@ -3695,6 +3722,9 @@ ALL: Final[tuple[str, ...]] = (
     "adaptive_inference.within_unit_correlation_missing",
     "adaptive_inference.within_unit_variance_missing",
     "adaptive_inference.wrong_contract",
+    "adaptive_policy_search.held_out_unsupported",
+    "adaptive_policy_search.identification_unsupported",
+    "adaptive_policy_search.unobserved_feature",
     "adaptive_transport.arms",
     "adaptive_transport.assignment_below_floor",
     "adaptive_transport.assignment_monitoring_contract_missing",
@@ -4283,6 +4313,7 @@ ALL: Final[tuple[str, ...]] = (
     "descriptive_comparison.population_not_all_observed",
     "descriptive_comparison.scale_not_supported",
     "descriptive_comparison.transform_domain",
+    "descriptive_programs.reentry",
     "design_ranking.bounds_exceeded",
     "design_ranking.contract_mismatch",
     "design_ranking.cost_units_mismatch",
@@ -4317,6 +4348,11 @@ ALL: Final[tuple[str, ...]] = (
     "discovered_transport.temporal_structure_unsupported",
     "discovered_transport.trial_compatibility_invalid",
     "discovered_transport.trial_rejects_every_member",
+    "discovery_validation.lowering",
+    "discovery_validation.not_a_search",
+    "discovery_validation.regimes_missing",
+    "discovery_validation.wrong_modality",
+    "discovery_validation.wrong_search",
     "discretized_scm.cancelled",
     "discretized_scm.composition_incoherent",
     "discretized_scm.degenerate_marginal",
@@ -4575,6 +4611,7 @@ ALL: Final[tuple[str, ...]] = (
     "graph_falsification.empty_data",
     "graph_falsification.invalid_level",
     "graph_falsification.invalid_permutations",
+    "graph_falsification.lowering",
     "graph_falsification.node_not_static",
     "graph_falsification.too_few_nodes",
     "graph_falsification.work_limit",
@@ -6218,6 +6255,7 @@ ALL: Final[tuple[str, ...]] = (
     "temporal_interval.too_many_replicates",
     "temporal_interval.unknown_units",
     "temporal_interval.unsupported_history",
+    "temporal_linear_prediction.reentry",
     "temporal_policy_transport.history_alphabet_incompatible",
     "temporal_policy_transport.horizon_mismatch",
     "temporal_policy_transport.initial_law_declared_invariant",
@@ -6266,6 +6304,7 @@ ALL: Final[tuple[str, ...]] = (
     "tier_diagnostics.overlap_not_carried",
     "tier_diagnostics.unknown_scenarios_no_evalue",
     "tier_diagnostics.unknown_scenarios_no_overlap",
+    "transport_identification.reentry",
     "transport_revalidation.claim_target_mismatch",
     "transport_revalidation.duplicate_claim",
     "transport_revalidation.identity_mismatch",
@@ -6547,6 +6586,11 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "adaptive_inference.within_unit_correlation_missing": ("adaptive_contract_incomplete",),
     "adaptive_inference.within_unit_variance_missing": ("adaptive_contract_incomplete",),
     "adaptive_inference.wrong_contract": ("route_not_supported",),
+    "adaptive_policy_search.held_out_unsupported": ("adaptive_policy_heldout_unsupported",),
+    "adaptive_policy_search.identification_unsupported": (
+        "adaptive_policy_identification_unsupported",
+    ),
+    "adaptive_policy_search.unobserved_feature": ("adaptive_policy_unobserved_feature",),
     "adaptive_transport.arms": ("invalid_argument",),
     "adaptive_transport.assignment_below_floor": ("adaptive_assumption_violated",),
     "adaptive_transport.assignment_monitoring_contract_missing": ("adaptive_contract_incomplete",),
@@ -7137,6 +7181,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "descriptive_comparison.population_not_all_observed": ("population_not_estimable",),
     "descriptive_comparison.scale_not_supported": ("route_not_supported",),
     "descriptive_comparison.transform_domain": ("invalid_argument",),
+    "descriptive_programs.reentry": ("public_builder_reentry",),
     "design_ranking.bounds_exceeded": ("route_not_supported",),
     "design_ranking.contract_mismatch": ("design_signal_invalid",),
     "design_ranking.cost_units_mismatch": ("design_cost_units_mismatch",),
@@ -7171,6 +7216,11 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "discovered_transport.temporal_structure_unsupported": ("discovered_structure_unresolved",),
     "discovered_transport.trial_compatibility_invalid": ("discovered_structure_unresolved",),
     "discovered_transport.trial_rejects_every_member": ("discovered_structure_unresolved",),
+    "discovery_validation.lowering": ("invalid_argument",),
+    "discovery_validation.not_a_search": ("route_not_supported",),
+    "discovery_validation.regimes_missing": ("required_option_missing",),
+    "discovery_validation.wrong_modality": ("route_not_supported",),
+    "discovery_validation.wrong_search": ("route_not_supported",),
     "discretized_scm.cancelled": ("cancelled_no_claim",),
     "discretized_scm.composition_incoherent": ("mechanism_composition_incoherent",),
     "discretized_scm.degenerate_marginal": ("route_not_supported",),
@@ -7429,6 +7479,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "graph_falsification.empty_data": ("invalid_argument",),
     "graph_falsification.invalid_level": ("invalid_argument",),
     "graph_falsification.invalid_permutations": ("invalid_argument",),
+    "graph_falsification.lowering": ("invalid_argument",),
     "graph_falsification.node_not_static": ("route_not_supported",),
     "graph_falsification.too_few_nodes": ("invalid_argument",),
     "graph_falsification.work_limit": (),
@@ -9135,6 +9186,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "temporal_interval.too_many_replicates": ("route_not_supported",),
     "temporal_interval.unknown_units": ("route_not_supported",),
     "temporal_interval.unsupported_history": ("route_not_supported",),
+    "temporal_linear_prediction.reentry": ("public_builder_reentry",),
     "temporal_policy_transport.history_alphabet_incompatible": ("transport_missing_evidence",),
     "temporal_policy_transport.horizon_mismatch": ("route_not_supported",),
     "temporal_policy_transport.initial_law_declared_invariant": ("invalid_argument",),
@@ -9183,6 +9235,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "tier_diagnostics.overlap_not_carried": ("diagnostic_not_available",),
     "tier_diagnostics.unknown_scenarios_no_evalue": ("diagnostic_not_available",),
     "tier_diagnostics.unknown_scenarios_no_overlap": ("diagnostic_not_available",),
+    "transport_identification.reentry": ("public_builder_reentry",),
     "transport_revalidation.claim_target_mismatch": ("quantity_semantics_mismatch",),
     "transport_revalidation.duplicate_claim": ("invalid_argument",),
     "transport_revalidation.identity_mismatch": ("route_not_supported",),
