@@ -22,6 +22,7 @@ use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
     HardConstraint, StructuralPolicy, UtilityExpr,
 };
+use crate::decision_eval::ConstraintExclusion;
 use crate::preference_model::{PreferenceExpr, PreferenceModelError, ValueModel};
 use crate::preference_refusal::{CERTIFIED_ROUTE, DECLARE, at, refusal};
 use crate::signal::at_stage;
@@ -275,7 +276,8 @@ impl PreferenceContract {
     /// is fixed becomes its constant). When the rewrite is the same for every action a
     /// constraint applies to, the constraint keeps its id and `applies_to`; otherwise it
     /// becomes one constraint per action, id `"{constraint}@{action}"`, applying to that
-    /// action alone, in action declaration order.
+    /// action alone, in action declaration order. The evaluations across the preference set
+    /// report an exclusion by such a part under the declared constraint id.
     ///
     /// # Errors
     /// An invalid contract; a parameter count other than the dimension or a non-finite
@@ -304,13 +306,40 @@ impl PreferenceContract {
                 utility,
             });
         }
-        let constraints = self.bound_constraints()?;
+        let constraints = self.bound_constraints()?.into_iter().map(|(c, _)| c).collect();
         self.ordinary(actions, constraints, self.criterion)
     }
 
-    fn bound_constraints(&self) -> Result<Vec<HardConstraint>, PreferenceContractError> {
+    /// Exclusions read from the contract [`Self::bind`] gives, each under the id its constraint
+    /// was declared with: a constraint split per action is reported under its own id, not the
+    /// `"{constraint}@{action}"` id of its part.
+    pub(crate) fn declared_exclusions(
+        &self,
+        exclusions: Vec<Vec<ConstraintExclusion>>,
+    ) -> Result<Vec<Vec<ConstraintExclusion>>, PreferenceContractError> {
+        let bound = self.bound_constraints()?;
+        Ok(exclusions
+            .into_iter()
+            .map(|list| {
+                list.into_iter()
+                    .map(|mut exclusion| {
+                        if let Some((_, origin)) =
+                            bound.iter().find(|(c, _)| c.id == exclusion.constraint_id)
+                        {
+                            exclusion.constraint_id.clone_from(&self.constraints[*origin].id);
+                        }
+                        exclusion
+                    })
+                    .collect()
+            })
+            .collect())
+    }
+
+    /// The constraints of [`Self::bind`], each with the index of the declared constraint it
+    /// comes from.
+    fn bound_constraints(&self) -> Result<Vec<(HardConstraint, usize)>, PreferenceContractError> {
         let mut out = Vec::new();
-        for constraint in &self.constraints {
+        for (origin, constraint) in self.constraints.iter().enumerate() {
             let mut rewritten = Vec::new();
             for action in self.actions.iter().filter(|a| {
                 constraint.applies_to.is_empty() || constraint.applies_to.contains(&a.id)
@@ -330,15 +359,18 @@ impl PreferenceContract {
                 .then(|| rewritten.first().map(|(_, expr)| expr.clone()))
                 .flatten();
             if let Some(expr) = shared {
-                out.push(HardConstraint { expr, ..constraint.clone() });
+                out.push((HardConstraint { expr, ..constraint.clone() }, origin));
             } else {
                 for (action, expr) in rewritten {
-                    out.push(HardConstraint {
-                        id: format!("{}@{action}", constraint.id),
-                        expr,
-                        applies_to: vec![action],
-                        ..constraint.clone()
-                    });
+                    out.push((
+                        HardConstraint {
+                            id: format!("{}@{action}", constraint.id),
+                            expr,
+                            applies_to: vec![action],
+                            ..constraint.clone()
+                        },
+                        origin,
+                    ));
                 }
             }
         }

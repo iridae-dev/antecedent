@@ -88,14 +88,14 @@ use antecedent_core::ExecutionContext;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 use antecedent_stats::linear_program::LpOptions;
 
-use crate::decision_contract::{DecisionCriterion, HardConstraint, StructuralPolicy};
+use crate::decision_contract::{DecisionCriterion, StructuralPolicy};
 use crate::decision_eval::{
     ConstraintExclusion, DecisionEvalError, SourceReceipt, constraint_fails, evaluate_contract,
     utility_draws,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 use crate::preference_contract::{
-    ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
+    ActionInput, PreferenceContract, PreferenceContractError, PreferencePolicy,
 };
 use crate::preference_decision::{
     MeasureOrigin, PreferenceDecisionError, PreferenceMeasure, linear_set_point,
@@ -765,7 +765,11 @@ fn read_exclusions(
         Ok(mut bound) => {
             bound.criterion = DecisionCriterion::PosteriorExpectedUtility;
             let result = evaluate_contract(&bound, artifact).map_err(E::Eval)?;
-            Ok(result.actions.into_iter().map(|outcome| outcome.exclusions).collect())
+            contract
+                .declared_exclusions(
+                    result.actions.into_iter().map(|outcome| outcome.exclusions).collect(),
+                )
+                .map_err(E::Contract)
         }
         Err(PreferenceContractError::NotLowerable { .. }) => {
             own_exclusions(contract, attributes, weights)
@@ -774,9 +778,7 @@ fn read_exclusions(
     }
 }
 
-/// Constraint exclusions evaluated on the drawn attributes, named as the bound contract would
-/// name them: a constraint whose rewrite differs between the actions it applies to becomes
-/// `"{constraint}@{action}"`.
+/// Constraint exclusions evaluated on the drawn attributes, under the declared constraint ids.
 fn own_exclusions(
     contract: &PreferenceContract,
     attributes: &[Vec<Vec<f64>>],
@@ -790,9 +792,6 @@ fn own_exclusions(
                     || constraint.applies_to.contains(&contract.actions[*a].id)
             })
             .collect();
-        let shared = applies.windows(2).all(|pair| {
-            same_rewrite(constraint, &contract.actions[pair[0]], &contract.actions[pair[1]])
-        });
         for a in applies {
             let action = &contract.actions[a];
             let mut held = 0.0;
@@ -814,11 +813,7 @@ fn own_exclusions(
             }
             if constraint_fails(constraint.min_probability, held, positive_violation) {
                 exclusions[a].push(ConstraintExclusion {
-                    constraint_id: if shared {
-                        constraint.id.clone()
-                    } else {
-                        format!("{}@{}", constraint.id, action.id)
-                    },
+                    constraint_id: constraint.id.clone(),
                     probability: held,
                     required: constraint.min_probability,
                 });
@@ -826,39 +821,6 @@ fn own_exclusions(
         }
     }
     Ok(exclusions)
-}
-
-/// What attribute `k` of an action becomes in a rewritten constraint: its quantity input
-/// number, or its fixed value.
-enum Rewritten {
-    Input(usize),
-    Fixed(f64),
-}
-
-fn rewrite_of(action: &PreferenceAction, k: usize) -> Option<Rewritten> {
-    match action.inputs.get(k)? {
-        ActionInput::Fixed { value, .. } => Some(Rewritten::Fixed(*value)),
-        ActionInput::Quantity(_) => Some(Rewritten::Input(
-            action.inputs[..k].iter().filter(|i| matches!(i, ActionInput::Quantity(_))).count(),
-        )),
-    }
-}
-
-/// Whether the constraint rewrites to the same expression for both actions. Equal constants
-/// give equal rewritten expressions, `0.0` and `-0.0` included.
-#[allow(clippy::float_cmp, reason = "the rewrite compares constants by value")]
-fn same_rewrite(
-    constraint: &HardConstraint,
-    first: &PreferenceAction,
-    second: &PreferenceAction,
-) -> bool {
-    constraint.expr.inputs_used().into_iter().all(|k| {
-        match (rewrite_of(first, k), rewrite_of(second, k)) {
-            (Some(Rewritten::Input(x)), Some(Rewritten::Input(y))) => x == y,
-            (Some(Rewritten::Fixed(x)), Some(Rewritten::Fixed(y))) => x == y,
-            _ => false,
-        }
-    })
 }
 
 // ---------------------------------------------------------------------------------------------

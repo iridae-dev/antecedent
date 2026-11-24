@@ -281,8 +281,8 @@ cap = pf.constraint("harm_cap", harm, at_most=1.0, units="events", min_probabili
 ```
 
 `pf.constraint` refuses an expression that reads a trade-off. A constraint excludes an action
-before any trade-off is considered. An excluded action keeps its exclusions, each with the
-probability it reached and the probability required. No range of trade-offs can buy an action
+before any trade-off is considered. An excluded action keeps its exclusions, each under the
+constraint's own id with the probability it reached and the probability required. No range of trade-offs can buy an action
 back into the comparison, and no constraint is turned into a penalty. When every action is
 excluded the verdict is `no_admissible_action`. A mean cannot answer a constraint probability,
 so a contract with hard constraints needs aligned joint draws.

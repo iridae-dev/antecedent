@@ -1272,36 +1272,54 @@ fn fixed_trade_offs_decide_as_a_hand_written_contract_under_every_criterion() {
 }
 
 #[test]
-fn fixed_trade_offs_exclude_under_the_users_constraint_ids() {
-    let model = fixed_model();
-    let source = three_action_law(&model);
-    for criterion in [eu(), DecisionCriterion::Quantile { p: 0.5 }] {
-        let c = three_actions(
-            model.clone(),
+fn exclusions_are_reported_under_the_declared_constraint_ids() {
+    // `C` costs a fixed 5, so the budget reads a constant for `C` and a drawn cost for `A` and
+    // `B`: the bound contract splits it per action, and every route still reports it as
+    // `budget`. `A` breaks the budget on one draw; `C` breaks it and never reaches the floor.
+    let fixed_cost = |mut c: PreferenceContract| {
+        c.actions[2].inputs[1] = ActionInput::Fixed { value: 5.0, units: "usd".into() };
+        c
+    };
+    for (name, model, criterion) in [
+        ("exact", fixed_model(), eu()),
+        ("certified", fixed_model(), DecisionCriterion::Quantile { p: 0.5 }),
+        ("not lowerable", exponential_model(), eu()),
+    ] {
+        let source = three_action_law(&model);
+        let c = fixed_cost(three_actions(
+            model,
             criterion,
             vec![budget(), benefit_floor()],
             StructuralPolicy::ReportOnly,
-        );
+        ));
+        let split: Vec<String> = c
+            .bind(&c.model.preferences.midpoint())
+            .map(|bound| bound.constraints.iter().map(|k| k.id.clone()).collect())
+            .unwrap_or_default();
+        assert!(split.is_empty() || split.contains(&"budget@C".to_owned()), "{name}");
         let evaluation = decide_preferences(&c, &source, None, options()).unwrap();
-        let exclusions: Vec<Vec<&str>> = match &evaluation {
+        let exclusions: Vec<Vec<(&str, f64)>> = match &evaluation {
             PreferenceEvaluation::Exact(result) => result
                 .actions
                 .iter()
-                .map(|a| a.exclusions.iter().map(|e| e.constraint_id.as_str()).collect())
+                .map(|a| {
+                    a.exclusions.iter().map(|e| (e.constraint_id.as_str(), e.probability)).collect()
+                })
                 .collect(),
             PreferenceEvaluation::Certified(result) => result
                 .actions
                 .iter()
-                .map(|a| a.exclusions.iter().map(|e| e.constraint_id.as_str()).collect())
+                .map(|a| {
+                    a.exclusions.iter().map(|e| (e.constraint_id.as_str(), e.probability)).collect()
+                })
                 .collect(),
         };
-        // `A` breaks the budget on one draw; `C` never reaches the benefit floor.
         assert_eq!(
             exclusions,
-            vec![vec!["budget"], vec![], vec!["benefit_floor"]],
-            "{criterion:?}"
+            vec![vec![("budget", 0.75)], vec![], vec![("budget", 0.0), ("benefit_floor", 0.0)]],
+            "{name}"
         );
-        assert_eq!(evaluation.chosen_action(), Some("B"), "{criterion:?}");
+        assert_eq!(evaluation.chosen_action(), Some("B"), "{name}");
     }
 }
 

@@ -1836,10 +1836,6 @@ struct StructureState {
     evaluated_mass: f64,
 }
 
-fn read_exclusions(result: DecisionResult) -> (Vec<bool>, Vec<Vec<ConstraintExclusion>>) {
-    result.actions.into_iter().map(|outcome| (outcome.admissible, outcome.exclusions)).unzip()
-}
-
 /// Each field lists the distinct values of the receipts, in order, joined by `+`.
 fn joined(receipts: &[&SourceReceipt]) -> SourceReceipt {
     let join = |field: fn(&SourceReceipt) -> &str| {
@@ -2176,7 +2172,7 @@ impl<'a> Prepared<'a> {
             (vec![true; n], vec![Vec::new(); n])
         } else {
             let bound = self.contract.bind(&self.interior).map_err(E::Contract)?;
-            read_exclusions(evaluate_contract(&bound, source).map_err(E::Eval)?)
+            self.read_exclusions(evaluate_contract(&bound, source).map_err(E::Eval)?)?
         };
         let identity = &source.metadata().identity;
         Ok(SourceFacts {
@@ -2272,7 +2268,7 @@ impl<'a> Prepared<'a> {
             (vec![true; n], vec![Vec::new(); n])
         } else {
             let bound = self.contract.bind(&self.interior).map_err(E::Contract)?;
-            read_exclusions(evaluate_contract_on_means(&bound, source).map_err(E::Eval)?)
+            self.read_exclusions(evaluate_contract_on_means(&bound, source).map_err(E::Eval)?)?
         };
         Ok(SourceFacts {
             coefficients,
@@ -2283,6 +2279,21 @@ impl<'a> Prepared<'a> {
             n_draws: 0,
             rounding: summation_rounding(1, magnitude),
         })
+    }
+
+    /// Admissibility and exclusions of the bound contract's result, under the declared
+    /// constraint ids.
+    fn read_exclusions(
+        &self,
+        result: DecisionResult,
+    ) -> Result<(Vec<bool>, Vec<Vec<ConstraintExclusion>>), E> {
+        let (admissible, exclusions): (Vec<bool>, Vec<Vec<ConstraintExclusion>>) = result
+            .actions
+            .into_iter()
+            .map(|outcome| (outcome.admissible, outcome.exclusions))
+            .unzip();
+        let exclusions = self.contract.declared_exclusions(exclusions).map_err(E::Contract)?;
+        Ok((admissible, exclusions))
     }
 
     fn atom_facts(&self, atom: &StructuralAtom) -> Result<AtomFacts, E> {
