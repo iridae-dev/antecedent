@@ -4248,3 +4248,9 @@ rust = "antecedent::analysis::propagation_chain::deferred_family_table"
 kind = "fn"
 status = "internal"
 reason = "The compiled preference route builds the deferred family table at compile; Python reaches it through Contract.compile over several prepared studies."
+
+[[entry]]
+rust = "antecedent::analysis::propagation_chain::compile_deferred_propagation_chain"
+kind = "fn"
+status = "internal"
+reason = "The compiled preference route compiles the chain over a deferred family table; Python reaches it through Contract.compile over several prepared studies."
