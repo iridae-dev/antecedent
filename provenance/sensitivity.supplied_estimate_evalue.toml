@@ -1,0 +1,37 @@
+feature_id = "sensitivity.supplied_estimate_evalue"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# E-values of an effect estimate, a vector of estimates or posterior draws a caller supplies
+# (computed outside the library), compiled as the SuppliedEstimateEValue program
+# (crates/antecedent/src/analysis/supplied_sensitivity_programs.rs) over the kernels of
+# crates/antecedent-validate/src/evalue_scales.rs, vector_sensitivity.rs and
+# component_sensitivity.rs. The E-value of a risk ratio RR >= 1 is RR + sqrt(RR (RR - 1)), the
+# smallest common strength of confounder associations whose Ding-VanderWeele bounding factor
+# s^2 / (2 s - 1) explains the ratio away; odds and hazard ratios convert to risk ratios by the
+# approximations VanderWeele and Ding tabulate, and a standardized mean difference d by
+# exp(0.91 d). The weakest-coordinate reading of a vector and the posterior reading (draw by draw,
+# with the joint retention probability) are written in-repo.
+papers = [
+ { title = "Sensitivity Analysis in Observational Research: Introducing the E-Value", doi = "10.7326/M16-2607", sections = ["E-value formula", "conversions of odds ratios, hazard ratios and standardized mean differences to the risk-ratio scale"] },
+ { title = "Sensitivity Analysis Without Assumptions", sections = ["The bounding factor of a confounder's associations with treatment and outcome"] },
+]
+
+implementation_deviations = [
+ "A rare-outcome odds ratio and a rare-outcome hazard ratio are read as risk ratios; a common-outcome odds ratio converts by its square root and a common-outcome hazard ratio by (1 - 0.5^sqrt(HR)) / (1 - 0.5^sqrt(1/HR)); a standardized mean difference by exp(0.91 d) with limits d -+ 1.78 / 0.91 times its standard error. These are the cited approximations; their accuracy is not assessed.",
+ "The range is tabulated on a fixed grid of confounder strengths from 1 to 10 (equal association with treatment and outcome): at each the worst-case adjusted risk ratio RR / B(s) (RR B(s) for a protective effect), capped at the null, and the adjusted limit nearest the null. The grid is repository policy.",
+ "A vector of estimates is read at its weakest coordinate (the smallest point and limit E-values, the weakest adjusted ratio at each strength); under a component model (mediation components or marginal structural model parameters) the same numbers are bound to that model's assumption. This aggregation is repository-defined.",
+ "Posterior draws are converted draw by draw; the reported E-values are those of the posterior median and the equal-tailed credible limit nearest the null (type-7 quantiles), and the retention at each strength is the joint posterior share of draws that keep the median's side of the null after the worst-case adjustment. This posterior reading is repository-defined, not from the cited works.",
+ "The program reads only the supplied estimate, limits, standard error or draws: how they were estimated, and whether their scale and outcome prevalence are as declared, is the caller's and is not checked. Every number is an assumption range of the supplied estimate; no calibration is measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/compiled_twins_supplied_sensitivity.rs (the closed form RR + sqrt(RR (RR - 1)) for harmful and protective ratios, the limit nearest the null and an interval containing it, the common odds-ratio and hazard-ratio conversions and the bounding factor at every probed strength, written in the test; the posterior median E-value and the retention counted from the draws; bit equality with the direct kernel calls)",
+ "crates/antecedent-validate/src/evalue_oracle_tests.rs (the E-value as the smallest equal-strength root of the bounding factor)",
+ "python/tests/test_compiled_twins_supplied_sensitivity.py (the Python entries against the deprecated direct functions and the closed form)",
+]
