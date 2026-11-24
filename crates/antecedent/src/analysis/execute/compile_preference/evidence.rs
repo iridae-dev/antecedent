@@ -7,7 +7,8 @@
 //! its own source unless it was taken from a larger one: a column projection declares its
 //! [`RowProvenance`] (the source table's content identity and, when the rows were selected,
 //! their original indices), so two studies that read different columns of the same rows share
-//! those rows. The content identity binds the table's columns and rows, not its schema roles or
+//! those rows. A table made by [`TabularData::project`] or [`TabularData::select_rows`]
+//! remembers that origin itself, and a study built on it uses it unless another is declared. The content identity binds the table's columns and rows, not its schema roles or
 //! the analysis compiled over it, so two studies of one table share every row whatever outcome
 //! each targets; studies of different tables share none.
 //!
@@ -35,7 +36,7 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::reason_details::{decision_evidence, preference_compile};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest, VariableId};
-use antecedent_data::{OwnedColumn, TableView, TabularData};
+use antecedent_data::{OwnedColumn, RowOrigin, TableView, TabularData};
 
 use super::outcomes::OutcomeDependence;
 use super::{BoundStudy, CANCELLED_STAGE, PreferenceRouteError, STAGE_COMPILE};
@@ -97,14 +98,30 @@ pub struct RowProvenance {
 }
 
 impl RowProvenance {
-    /// Rows taken, in order and all of them, from `source`: a column projection of it.
+    /// Rows taken, in order and all of them, from `source`: a column projection of it. When
+    /// `source` was itself derived from another table, its origin is followed, so the rows
+    /// are named in the first table that was not derived.
     #[must_use]
     pub fn of_table(source: &TabularData) -> Self {
+        source.row_origin().map_or_else(
+            || Self {
+                table: Arc::from(
+                    SemanticDigest::from_bytes(source.storage().content_digest()).to_hex(),
+                ),
+                rows: None,
+            },
+            Self::of_origin,
+        )
+    }
+
+    /// The rows a projected or row-selected table remembers it was taken from
+    /// ([`TabularData::row_origin`]). A study built on such a table uses this provenance
+    /// unless another is declared.
+    #[must_use]
+    pub fn of_origin(origin: &RowOrigin) -> Self {
         Self {
-            table: Arc::from(
-                SemanticDigest::from_bytes(source.storage().content_digest()).to_hex(),
-            ),
-            rows: None,
+            table: Arc::from(SemanticDigest::from_bytes(origin.table()).to_hex()),
+            rows: origin.rows().map(Arc::from),
         }
     }
 
@@ -257,6 +274,12 @@ impl EvidenceRows {
         provenance: Option<RowProvenance>,
         data: &DataInput,
     ) -> Result<Option<Self>, CausalError> {
+        // A projected or row-selected table remembers the table its rows came from; it is the
+        // provenance unless the caller declared another.
+        let provenance = provenance.or_else(|| match data {
+            DataInput::Tabular(table) => table.row_origin().map(RowProvenance::of_origin),
+            _ => None,
+        });
         if unit_key.is_none() && provenance.is_none() {
             return Ok(None);
         }

@@ -14,19 +14,130 @@ use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 use crate::temporal::{SamplingRegularity, TimeIndex};
 
+/// The table a derived table's rows were taken from: that table's content digest and, when
+/// rows were selected, the index in it of each derived row.
+///
+/// A column projection keeps every row in order, so the rows of two projections of one table
+/// are the same observations. A row selection names the rows it kept. Deriving again from a
+/// derived table composes the indices, so the origin is always the first table that was not
+/// itself derived.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RowOrigin {
+    table: [u8; 32],
+    rows: Option<Arc<[u64]>>,
+}
+
+impl RowOrigin {
+    /// Every row of the table whose content digest is `table`, in order.
+    #[must_use]
+    pub const fn whole(table: [u8; 32]) -> Self {
+        Self { table, rows: None }
+    }
+
+    /// Content digest ([`OwnedColumnarStorage::content_digest`]) of the source table.
+    #[must_use]
+    pub const fn table(&self) -> [u8; 32] {
+        self.table
+    }
+
+    /// Index in the source table of each row, when the rows were selected; `None` when every
+    /// row was kept in order.
+    #[must_use]
+    pub fn rows(&self) -> Option<&[u64]> {
+        self.rows.as_deref()
+    }
+
+    /// The origin of rows `selected` (indices into the rows this origin describes).
+    fn select(&self, selected: &[usize]) -> Result<Self, DataError> {
+        let rows = match &self.rows {
+            None => selected
+                .iter()
+                .map(|&row| u64::try_from(row).map_err(|_| DataError::overflow("row index")))
+                .collect::<Result<Vec<u64>, DataError>>()?,
+            Some(parent) => selected
+                .iter()
+                .map(|&row| {
+                    parent.get(row).copied().ok_or_else(|| {
+                        DataError::invalid_value("row selection", "exceeds the table")
+                    })
+                })
+                .collect::<Result<Vec<u64>, DataError>>()?,
+        };
+        Ok(Self { table: self.table, rows: Some(Arc::from(rows)) })
+    }
+}
+
 /// Tabular IID dataset.
 #[derive(Clone, Debug)]
 pub struct TabularData {
     storage: OwnedColumnarStorage,
     /// Declared unit of every row. A declaration beside the data, outside its content digest.
     unit_key: Option<Arc<crate::unit_key::UnitKey>>,
+    /// The table this one's rows were taken from, set by a projection or a row selection.
+    /// Beside the data, outside its content digest.
+    row_origin: Option<Arc<RowOrigin>>,
 }
 
 impl TabularData {
     /// Wrap owned storage.
     #[must_use]
     pub fn new(storage: OwnedColumnarStorage) -> Self {
-        Self { storage, unit_key: None }
+        Self { storage, unit_key: None, row_origin: None }
+    }
+
+    /// The table this one's rows were taken from, when it is a projection or a row selection
+    /// of another table ([`Self::project`], [`Self::select_rows`]); `None` for a table that
+    /// was not derived from another.
+    #[must_use]
+    pub fn row_origin(&self) -> Option<&RowOrigin> {
+        self.row_origin.as_deref()
+    }
+
+    /// The origin of this table's rows: the recorded origin, or every row of this table.
+    pub(crate) fn origin_of_rows(&self) -> Arc<RowOrigin> {
+        self.row_origin
+            .clone()
+            .unwrap_or_else(|| Arc::new(RowOrigin::whole(self.storage.content_digest())))
+    }
+
+    /// `derived`, whose rows are this table's rows in order, remembering their origin.
+    pub(crate) fn with_rows_of(&self, mut derived: Self) -> Self {
+        derived.row_origin = Some(self.origin_of_rows());
+        derived
+    }
+
+    /// The rows `rows` of this table, in that order (a row may repeat), with every column, the
+    /// analysis mask and the weights gathered through them. The result remembers its origin
+    /// ([`Self::row_origin`]): the index of each row in the first table that was not itself
+    /// derived from another. The declared unit key is dropped.
+    ///
+    /// # Errors
+    ///
+    /// An empty selection, a row index past the table, or gathered weights that are not a
+    /// valid weighting (no positive total over the analysis rows).
+    pub fn select_rows(&self, rows: &[usize]) -> Result<Self, DataError> {
+        if rows.is_empty() {
+            return Err(DataError::EmptySelection { context: "row selection: no rows requested" });
+        }
+        let storage = &self.storage;
+        if rows.iter().any(|&row| row >= storage.row_count()) {
+            return Err(DataError::invalid_value("row selection", "exceeds the table"));
+        }
+        let origin = self.origin_of_rows().select(rows)?;
+        let columns = (0..storage.columns().len())
+            .map(|index| {
+                let id = VariableId::from_raw(
+                    u32::try_from(index).map_err(|_| DataError::overflow("column index"))?,
+                );
+                storage.column(id)?.gather_rows(rows)
+            })
+            .collect::<Result<Vec<_>, DataError>>()?;
+        let mask = storage.analysis_mask().map(|mask| mask.gather_rows(rows)).transpose()?;
+        let weights = storage
+            .weights()
+            .map(|weights| rows.iter().map(|&row| weights[row]).collect::<Arc<[f64]>>());
+        let derived = storage.derive(storage.schema().clone(), columns, mask, weights)?;
+        Ok(Self { storage: derived, unit_key: None, row_origin: Some(Arc::new(origin)) })
     }
 
     /// This table holding `lease` for as long as it, its clones and the tables derived from
@@ -182,7 +293,11 @@ impl TabularData {
     ///
     /// A schema whose variable count is not the column count.
     pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
-        Ok(Self::new(self.storage.with_schema(schema)?))
+        let renamed = Self::new(self.storage.with_schema(schema)?);
+        Ok(match &self.row_origin {
+            Some(origin) => Self { row_origin: Some(Arc::clone(origin)), ..renamed },
+            None => renamed,
+        })
     }
 }
 

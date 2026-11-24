@@ -84,7 +84,7 @@ pub use column::{
     BooleanColumn, ColumnView, FixedVectorColumn, Float64Column, Int64Column, OwnedColumn,
     TimestampColumn, ValidityBitmap,
 };
-pub use dataset::{TabularData, TimeSeriesData};
+pub use dataset::{RowOrigin, TabularData, TimeSeriesData};
 pub use discrete::DiscreteColumn;
 pub use error::{DataError, ValidityFault};
 pub use event::EventData;

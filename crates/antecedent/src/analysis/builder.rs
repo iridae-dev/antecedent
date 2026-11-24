@@ -725,9 +725,12 @@ impl StudyBuilder {
         self
     }
 
-    /// Declare the table the study's rows were taken from, for a table that is a column
-    /// projection of a larger one: its rows are then the same observations as the rows of any
-    /// other projection of that table. Checked against the table at build.
+    /// Declare the table the study's rows were taken from: its rows are then the same
+    /// observations as the rows of any other study of that table. A table made by
+    /// `TabularData::project` or `TabularData::select_rows` remembers its origin, and the study
+    /// uses it without this declaration; declare one for a table built some other way from a
+    /// larger one. A declaration replaces the remembered origin. Checked against the table at
+    /// build.
     #[must_use]
     pub fn row_provenance(mut self, provenance: super::execute::RowProvenance) -> Self {
         self.row_provenance = Some(provenance);

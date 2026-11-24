@@ -6,9 +6,10 @@
 //! outcomes and the evidence ledger must judge, at compile, which studies share observations.
 //!
 //! * Studies without declarations keep the table-content judgement and its encoding exactly.
-//! * A column projection that declares the table it was taken from shares that table's rows with
-//!   every other projection of it, so different columns of the same rows are not distinct
-//!   evidence.
+//! * A column projection remembers the table it was taken from and shares that table's rows with
+//!   every other study of it, so different columns of the same rows are not distinct evidence;
+//!   row selections share exactly the rows they both took. A declared provenance replaces the
+//!   remembered one.
 //! * Studies of different tables keyed in one identifier space are judged by the units they
 //!   share, each unit counted once and masked rows excluded; keys in different spaces, or a key
 //!   on one study only, leave the overlap unknown and are refused.
@@ -314,37 +315,34 @@ fn projections_of_one_table_share_its_rows() {
     let (t, b, h) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
     let (benefit, _) = source.project(&[t, b]).unwrap();
     let (harm, _) = source.project(&[t, h]).unwrap();
-
-    // Undeclared, the two projections are two tables and look like distinct evidence.
-    let compiled = compile_preference_decision_across_studies(
-        &[&study(&benefit), &study(&harm)],
-        &contract(),
-        distinct(),
-        &ctx,
-    );
-    assert!(compiled.is_ok());
-
-    // Declared as projections of the source, they share its 200 rows.
-    let projected = |table: &TabularData, provenance: RowProvenance| {
-        dose_builder(table, 2, 1).row_provenance(provenance).build().unwrap()
-    };
-    let first = projected(&benefit, RowProvenance::of_table(&source));
-    let second = projected(&harm, RowProvenance::of_table(&source));
-    let refused = compile_preference_decision_across_studies(
-        &[&first, &second],
-        &contract(),
-        distinct(),
-        &ctx,
-    )
-    .unwrap_err();
-    assert_eq!(
-        refusal_of(&refused),
-        (
-            "evidence_double_counted",
-            preference_compile::STUDIES_SHARE_EVIDENCE,
-            Some("200 shared observations")
+    let same_rows = |first: &Study, second: &Study, shared: &str| {
+        let refused = compile_preference_decision_across_studies(
+            &[first, second],
+            &contract(),
+            distinct(),
+            &ctx,
         )
-    );
+        .unwrap_err();
+        assert_eq!(
+            refusal_of(&refused),
+            ("evidence_double_counted", preference_compile::STUDIES_SHARE_EVIDENCE, Some(shared))
+        );
+    };
+    let apart = |first: &Study, second: &Study| {
+        let compiled = compile_preference_decision_across_studies(
+            &[first, second],
+            &contract(),
+            distinct(),
+            &ctx,
+        );
+        assert!(compiled.is_ok(), "{compiled:?}");
+    };
+
+    // Without any declaration, the projections remember the source and share its 200 rows,
+    // with each other and with a study of the source itself.
+    let (first, second) = (study(&benefit), study(&harm));
+    same_rows(&first, &second, "200 shared observations");
+    same_rows(&dose_builder(&source, 3, 1).build().unwrap(), &second, "200 shared observations");
     let compiled = compile_preference_decision_with_shared_evidence(
         &[&first, &second],
         &contract(),
@@ -356,16 +354,29 @@ fn projections_of_one_table_share_its_rows() {
     assert_eq!(fact.inputs()[0].factor(), digest(&source));
     assert_eq!(fact.inputs()[2].factor(), digest(&source));
 
-    // Rows taken from other positions of the source are other observations.
+    // Declaring the source explicitly is the same judgement.
+    let projected = |table: &TabularData, provenance: RowProvenance| {
+        dose_builder(table, 2, 1).row_provenance(provenance).build().unwrap()
+    };
+    let declared = projected(&harm, RowProvenance::of_table(&source));
+    same_rows(&first, &declared, "200 shared observations");
+
+    // Row selections share exactly the rows both took; disjoint selections are distinct.
+    let rows_of = |rows: Vec<usize>, outcome: VariableId| {
+        let (table, _) = source.select_rows(&rows).unwrap().project(&[t, outcome]).unwrap();
+        study(&table)
+    };
+    let even = rows_of((0..200).step_by(2).collect(), b);
+    let odd = rows_of((1..200).step_by(2).collect(), h);
+    apart(&even, &odd);
+    let early = rows_of((0..150).collect(), b);
+    let late = rows_of((50..200).collect(), h);
+    same_rows(&early, &late, "100 shared observations");
+
+    // A declared provenance replaces the remembered one: rows taken from other positions of
+    // the source are other observations.
     let elsewhere = RowProvenance::new(&digest(&source), Some((200..400).collect()));
-    let second = projected(&harm, elsewhere);
-    let apart = compile_preference_decision_across_studies(
-        &[&first, &second],
-        &contract(),
-        distinct(),
-        &ctx,
-    );
-    assert!(apart.is_ok(), "{apart:?}");
+    apart(&first, &projected(&harm, elsewhere));
 
     // A row index per row, of a named table.
     let short = RowProvenance::new(&digest(&source), Some(vec![0, 1, 2]));

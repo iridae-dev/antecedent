@@ -45,7 +45,9 @@ impl TabularData {
     /// Project onto `ids` (order preserved, duplicates dropped).
     ///
     /// Column value buffers are Arc-shared when possible; schema and column ids
-    /// are rebuilt as contiguous `0..k-1`. Analysis mask and weights are retained.
+    /// are rebuilt as contiguous `0..k-1`. Analysis mask and weights are retained. The
+    /// projection keeps every row in order and remembers the table they came from
+    /// ([`TabularData::row_origin`]): this table, or the origin this table already carried.
     ///
     /// # Errors
     ///
@@ -100,7 +102,7 @@ impl TabularData {
             storage.analysis_mask().cloned(),
             storage.weights().map(std::sync::Arc::from),
         )?;
-        Ok((Self::new(new_storage), IdRemap { old_to_new }))
+        Ok((self.with_rows_of(Self::new(new_storage)), IdRemap { old_to_new }))
     }
 }
 
@@ -122,6 +124,7 @@ mod tests {
 
     use super::*;
     use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
+    use crate::dataset::RowOrigin;
     use crate::storage::OwnedColumnarStorage;
     use antecedent_core::{MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use std::sync::Arc;
@@ -193,5 +196,50 @@ mod tests {
             _ => panic!("float"),
         };
         assert_eq!(before, after);
+    }
+
+    #[test]
+    fn projection_remembers_its_source_rows_and_keeps_the_source_identity() {
+        let data = float_table(&["t", "y", "z"], 5);
+        let digest = data.storage().content_digest();
+        assert!(data.row_origin().is_none());
+        let (proj, _) = data.project(&[VariableId::from_raw(0), VariableId::from_raw(1)]).unwrap();
+        assert_eq!(data.storage().content_digest(), digest);
+        assert!(data.row_origin().is_none(), "projecting leaves the source undeclared");
+        assert_eq!(proj.row_origin(), Some(&RowOrigin::whole(digest)));
+        assert_ne!(proj.storage().content_digest(), digest);
+
+        // A projection of a projection, and a renamed projection, keep the first source.
+        let (again, _) = proj.project(&[VariableId::from_raw(1)]).unwrap();
+        assert_eq!(again.row_origin(), Some(&RowOrigin::whole(digest)));
+        let renamed = proj.with_schema(proj.schema().clone()).unwrap();
+        assert_eq!(renamed.row_origin(), Some(&RowOrigin::whole(digest)));
+        assert!(data.with_schema(data.schema().clone()).unwrap().row_origin().is_none());
+    }
+
+    #[test]
+    fn row_selection_names_the_source_rows_it_took() {
+        let data = float_table(&["t", "y"], 5);
+        let digest = data.storage().content_digest();
+        let picked = data.select_rows(&[3, 1, 1]).unwrap();
+        assert_eq!(picked.row_count(), 3);
+        let crate::column::ColumnView::Float64(column) =
+            picked.column(VariableId::from_raw(1)).unwrap()
+        else {
+            panic!("expected float64");
+        };
+        assert_eq!(column.values.as_slice(), &[103.0, 101.0, 101.0]);
+        assert_eq!(picked.row_origin().unwrap().table(), digest);
+        assert_eq!(picked.row_origin().unwrap().rows(), Some(&[3, 1, 1][..]));
+
+        // Selecting again, or projecting, composes onto the first source.
+        let again = picked.select_rows(&[2, 0]).unwrap();
+        assert_eq!(again.row_origin().unwrap().rows(), Some(&[1, 3][..]));
+        let (narrow, _) = again.project(&[VariableId::from_raw(0)]).unwrap();
+        assert_eq!(narrow.row_origin(), again.row_origin());
+        assert_eq!(narrow.row_origin().unwrap().table(), digest);
+
+        assert!(data.select_rows(&[]).is_err());
+        assert!(data.select_rows(&[5]).is_err());
     }
 }
