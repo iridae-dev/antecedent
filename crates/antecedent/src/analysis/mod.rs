@@ -626,6 +626,7 @@ pub use execute::{
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
     ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
+pub use execute::{CompiledDecisionProgram, CompiledEvsiProgram};
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,

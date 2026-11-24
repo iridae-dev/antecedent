@@ -849,7 +849,11 @@ fn decision_findings(rep: &mut Rep) -> Vec<String> {
         [CarrierDemand::Mean, CarrierDemand::ParameterPosterior, CarrierDemand::OutcomeLaw]
     {
         let name = format!("{carrier:?}");
-        match rep.study.compile_for_decision(&affine_problem(2.0), &request(carrier), &context) {
+        match rep
+            .study
+            .compile_decision_program(&affine_problem(2.0), &request(carrier), &context)
+            .map(antecedent::analysis::CompiledDecisionProgram::into_plan)
+        {
             Ok(plan) => {
                 let lowered = plan.lowered();
                 let decision = lowered.and_then(|l| l.evidence().decision());
@@ -917,7 +921,7 @@ fn decision_findings(rep: &mut Rep) -> Vec<String> {
     // A mean carries only a utility affine in the state.
     let opaque: DecisionProblem<usize, f64> =
         DecisionProblem::new(vec![0, 1], Arc::new(Quadratic), vec![]);
-    match rep.study.compile_for_decision(&opaque, &request(CarrierDemand::Mean), &context) {
+    match rep.study.compile_decision_program(&opaque, &request(CarrierDemand::Mean), &context) {
         Ok(_) => found.check(false, "a mean carried a utility that declares no affine form"),
         Err(error) => match carrier_refusal(&error) {
             Some(refusal) => found.check(
