@@ -15460,8 +15460,6 @@ pub fn <antecedent_io_core::PropagationResultWire>::fn named_entries(&self) -> a
 pub fn <antecedent_io_core::PropagationResultWire>::fn value(&self, name: &str) -> core::option::Option<f64>
 pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::projection::DecisionVerdict>
 pub fn <antecedent_io_core::ProvenanceRole>::const fn as_str(self) -> &'static str
-pub fn <antecedent_io_core::RandomizedEffectQueryWire>::fn estimated_cuped(&self) -> core::option::Option<u32>
-pub fn <antecedent_io_core::RandomizedEffectQueryWire>::fn fixed_cuped_coefficient(&self) -> core::option::Option<(u32, f64)>
 pub fn <antecedent_io_core::ReplayReport>::fn failed(&self) -> bool
 pub fn <antecedent_io_core::ReplayReport>::fn replayed(&self) -> bool
 pub fn <antecedent_io_core::RetainedClaimIdentity>::const fn new(claim_id: antecedent_core::identity::SemanticDigest) -> Self

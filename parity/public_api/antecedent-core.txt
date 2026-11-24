@@ -7599,7 +7599,6 @@ pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMeth
 pub const <antecedent_core::KernelPolicy>::SCALAR_BASELINE_ENV: &'static str
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
 pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
-pub const <antecedent_core::RandomizedEffectQuery>::ESTIMATED_SLOPE: f64
 pub const <antecedent_core::RealizationKind>::ALL: [Self; 4]
 pub const <antecedent_core::StateVersion>::ZERO: Self
 pub const <antecedent_core::StreamDomain>::Attribution: Self
@@ -12249,13 +12248,9 @@ pub fn <antecedent_core::QueryId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::QueryId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::QueryId>::const fn raw(self) -> u32
 pub fn <antecedent_core::RandomizedEffectQuery>::fn bernoulli_itt(outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
-pub fn <antecedent_core::RandomizedEffectQuery>::fn estimated_cuped(&self) -> core::option::Option<antecedent_core::VariableId>
-pub fn <antecedent_core::RandomizedEffectQuery>::fn fixed_cuped_coefficient(&self) -> core::option::Option<(antecedent_core::VariableId, f64)>
-pub fn <antecedent_core::RandomizedEffectQuery>::fn graphless_coordinate(&self) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
 pub fn <antecedent_core::RandomizedEffectQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_ancova(self, covariates: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_design(design: antecedent_core::RandomizationDesign, outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
-pub fn <antecedent_core::RandomizedEffectQuery>::fn with_estimated_cuped(self, covariate: antecedent_core::VariableId) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_exact_randomization_test(self) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_fixed_cuped(self, covariate: antecedent_core::VariableId, coefficient: f64) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_received_treatment(self, received: impl core::convert::Into<alloc::sync::Arc<[bool]>>) -> Self
@@ -15153,7 +15148,6 @@ pub variant antecedent_core::RandomizedEffectFault::CompleteTreatedCount
 pub variant antecedent_core::RandomizedEffectFault::DuplicateAssignmentUnit
 pub variant antecedent_core::RandomizedEffectFault::DuplicateOutcomeUnit
 pub variant antecedent_core::RandomizedEffectFault::EmptyUnitLabel
-pub variant antecedent_core::RandomizedEffectFault::EstimatedCupedDesign
 pub variant antecedent_core::RandomizedEffectFault::ExactTestDesign
 pub variant antecedent_core::RandomizedEffectFault::FactorialAllocation
 pub variant antecedent_core::RandomizedEffectFault::FactorialCells

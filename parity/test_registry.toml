@@ -25743,6 +25743,13 @@ path = "crates/antecedent/src/analysis/binary_policy_constraints.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "engineering-crates-antecedent-src-analysis-randomized-adjustment-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/randomized_adjustment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "engineering-crates-antecedent-src-analysis-kernel-programs-prior-composition-rs"
 crate = "antecedent"
 cargo_target = "lib"
