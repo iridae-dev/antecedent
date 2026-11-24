@@ -150,6 +150,41 @@ pub struct EvidenceLedger {
     standings_stale: bool,
 }
 
+/// The source-loss class of a result: nothing lost keeps it valid, losing so
+/// many sources that fewer than `needed` remain withdraws it, and any other
+/// loss asks for recomputation.
+const fn loss_class(any: usize, remaining: usize, needed: usize) -> Revalidation {
+    if any == 0 {
+        Revalidation::StillValid
+    } else if remaining < needed {
+        Revalidation::Withdrawn
+    } else {
+        Revalidation::Recompute
+    }
+}
+
+/// How a reclassification changes a result's status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StatusStep {
+    /// The result is withdrawn.
+    Withdraw,
+    /// The valid result needs recomputation.
+    NeedRecompute,
+    /// The status stays as it is.
+    Keep,
+}
+
+/// The status change for a result of class `current` that is now classified
+/// `class`. A withdrawal always applies, recomputation applies to a valid
+/// result, and nothing returns a result to valid.
+const fn status_step(class: Revalidation, current: Revalidation) -> StatusStep {
+    match (class, current) {
+        (Revalidation::Withdrawn, _) => StatusStep::Withdraw,
+        (Revalidation::Recompute, Revalidation::StillValid) => StatusStep::NeedRecompute,
+        _ => StatusStep::Keep,
+    }
+}
+
 impl Default for EvidenceLedger {
     fn default() -> Self {
         Self::new()
@@ -1243,35 +1278,25 @@ impl EvidenceLedger {
             }
             (permanent, any)
         };
-        // One rule, four operations: nothing lost keeps the class, losing the sources a
-        // result cannot do without withdraws it, any other loss asks for recomputation.
-        let by_loss = |any: usize, remaining: usize, needed: usize| {
-            if any == 0 {
-                Revalidation::StillValid
-            } else if remaining < needed {
-                Revalidation::Withdrawn
-            } else {
-                Revalidation::Recompute
-            }
-        };
+        // One rule, four operations: see `loss_class`.
         match operation {
             SynthesisOperation::StatisticalPooling { sources, .. } => {
                 let (permanent, any) = losses(sources);
-                by_loss(any, sources.len() - permanent, 2)
+                loss_class(any, sources.len() - permanent, 2)
             }
             SynthesisOperation::BayesianBorrowing { priors, likelihood } => {
                 let (perm_l, any_l) = losses(likelihood);
                 let (_, any_p) = losses(priors);
-                by_loss(any_l + any_p, likelihood.len() - perm_l, 1)
+                loss_class(any_l + any_p, likelihood.len() - perm_l, 1)
             }
             SynthesisOperation::CausalTransport { transported, native } => {
                 let (perm_t, any_t) = losses(transported);
                 let (_, any_n) = losses(native);
-                by_loss(any_t + any_n, transported.len() - perm_t, 1)
+                loss_class(any_t + any_n, transported.len() - perm_t, 1)
             }
             SynthesisOperation::RepeatedObservationUse { sources, .. } => {
                 let (permanent, any) = losses(sources);
-                by_loss(any, sources.len() - permanent, 1)
+                loss_class(any, sources.len() - permanent, 1)
             }
             SynthesisOperation::EvidenceReuse { .. } => Revalidation::StillValid,
         }
@@ -1297,12 +1322,10 @@ impl EvidenceLedger {
                 }
                 operation => self.source_loss_class(operation),
             };
-            let updated = match (class, &current) {
-                (Revalidation::Withdrawn, _) => ResultStatus::Withdrawn { cause },
-                (Revalidation::Recompute, ResultStatus::Valid) => {
-                    ResultStatus::NeedsRecompute { cause }
-                }
-                _ => current.clone(),
+            let updated = match status_step(class, current.revalidation()) {
+                StatusStep::Withdraw => ResultStatus::Withdrawn { cause },
+                StatusStep::NeedRecompute => ResultStatus::NeedsRecompute { cause },
+                StatusStep::Keep => current.clone(),
             };
             self.results[i].status = updated;
         }

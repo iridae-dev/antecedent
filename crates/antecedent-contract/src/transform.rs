@@ -279,19 +279,22 @@ impl TransformationReport {
                 .filter(|(_, existing)| existing.id == obligation.id)
                 .map(|(index, _)| index)
                 .collect();
-            if same_id.iter().any(|&index| obligations[index] == *obligation) {
-                continue;
-            }
-            if !obligation.is_unresolved() && !same_id.is_empty() {
-                // An earlier record with this id stays; a resolved later record
-                // cannot erase it.
-                continue;
-            }
-            if obligation.is_unresolved() {
-                // An earlier resolved record with this id no longer describes
-                // the chain; the later unresolved check replaces it.
-                obligations
-                    .retain(|existing| existing.id != obligation.id || existing.is_unresolved());
+            let unresolved = obligation.is_unresolved();
+            match obligation_merge(
+                same_id.iter().any(|&index| obligations[index] == *obligation),
+                !same_id.is_empty(),
+                unresolved,
+            ) {
+                ObligationMerge::Skip => continue,
+                ObligationMerge::ReplaceResolved => {
+                    obligations.retain(|existing| {
+                        obligation_kept_on_replace(
+                            existing.id == obligation.id,
+                            existing.is_unresolved(),
+                        )
+                    });
+                }
+                ObligationMerge::Append => {}
             }
             obligations.push(obligation.clone());
         }
@@ -301,6 +304,37 @@ impl TransformationReport {
         composed.refusal = self.refusal.clone().or_else(|| next.refusal.clone());
         composed
     }
+}
+
+/// What [`TransformationReport::compose`] does with one later obligation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ObligationMerge {
+    /// Already recorded, or a resolved record behind an earlier one with its id.
+    Skip,
+    /// Drop earlier resolved records with its id, then append it.
+    ReplaceResolved,
+    /// Append it.
+    Append,
+}
+
+/// The obligation rule of a composition, for a later record given whether an
+/// identical record is already present, whether any record with its id is, and
+/// whether it is unresolved. A resolved later record never hides an earlier one
+/// with its id; an unresolved one replaces only resolved records with its id.
+const fn obligation_merge(identical: bool, same_id: bool, unresolved: bool) -> ObligationMerge {
+    if identical || (!unresolved && same_id) {
+        ObligationMerge::Skip
+    } else if unresolved {
+        ObligationMerge::ReplaceResolved
+    } else {
+        ObligationMerge::Append
+    }
+}
+
+/// Whether an earlier record survives a later unresolved record's replacement:
+/// it has another id, or it is unresolved itself.
+const fn obligation_kept_on_replace(same_id: bool, unresolved: bool) -> bool {
+    !same_id || unresolved
 }
 
 /// Standard per-intent layer effects used by preview and apply.

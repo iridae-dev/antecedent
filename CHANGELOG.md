@@ -20,6 +20,10 @@
 - Sensitivity functions that take supplied estimates or draws, the direct target-native checks, the direct fitted-model (`FittedGcm`) operations, and the other facade and Python paths that reach these computations without the compiler are deprecated in favour of the compiled replacements above. A replacement calls the same kernel and returns the same numbers; each deprecation note states any difference in the path. The direct paths are removed in 4.0.
 - The facade's re-exports of kernel run entries are now `#[deprecated(since = "3.1.0")]` wrappers with the kernel signature, so a caller sees the warning and the compiled replacement it names; the kernel crates themselves are not deprecated. This includes `discover_and_transport` and `discover_per_population` (compiled `DiscoveredClassTransport` and `PerPopulationStructureSearch`; Python `PerPopulationDiscovery.run` in favour of `compiled_run`) and `estimate_trial_aipw_with_factories` and `fit_factorized_joint_cells_with_factories` (compiled `TrialAipwLearnerTransport` and `JointCellsLearnerFit`).
 
+### Fixed
+
+- A fresh-process recalculation plan no longer reports frozen portable scores as reused when the data snapshot was not declared when they were frozen and its data were not supplied: the score artifact is refused for missing data, as it already was for a changed snapshot.
+
 ## 3.0.0
 
 Changes since 2.4.1. The [migration guide](docs/migration.md) says who needs to act and gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.

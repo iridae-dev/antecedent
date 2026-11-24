@@ -536,11 +536,13 @@ impl HandoffReceipt {
         let retained: Arc<[Arc<str>]> = candidates
             .iter()
             .filter(|field| {
-                contiguous
-                    && (first_complete
-                        || next_complete
-                        || self.retained.iter().any(|first| first == *field))
-                    && !omitted.iter().any(|lost| lost == *field)
+                chain_retains(
+                    contiguous,
+                    first_complete,
+                    next_complete,
+                    self.retained.iter().any(|first| first == *field),
+                    omitted.iter().any(|lost| lost == *field),
+                )
             })
             .cloned()
             .collect();
@@ -562,6 +564,19 @@ impl HandoffReceipt {
             ),
         }
     }
+}
+
+/// Whether a chain of two hops establishes a field its candidate hop declared
+/// retained: the hops describe one path, either hop is complete or the first
+/// hop also retained the field, and no hop omitted it.
+const fn chain_retains(
+    contiguous: bool,
+    first_complete: bool,
+    next_complete: bool,
+    retained_by_first: bool,
+    omitted: bool,
+) -> bool {
+    contiguous && (first_complete || next_complete || retained_by_first) && !omitted
 }
 
 fn merge_unique(left: &[Arc<str>], right: &[Arc<str>]) -> Arc<[Arc<str>]> {
@@ -1242,25 +1257,72 @@ fn derived_departs_from_parents(
     }
     // A derivation may weaken a causal claim to a noncausal one but never
     // the reverse: no operation turns an association into a causal statement.
-    if parents.iter().any(|parent| parent.kind == ClaimKind::Associational)
-        && !matches!(
-            derived.kind,
-            ClaimKind::Associational | ClaimKind::Refusal | ClaimKind::Incomplete
+    if parents.iter().any(|parent| associational_derives_causal(parent.kind, derived.kind)) {
+        return Some("associational_parent_derives_causal_claim");
+    }
+    // A retarget must carry its parent's kind and reasoning unchanged, and its
+    // own checks refuse any other kind, an added identification slot and any
+    // other domain change, each with its own reason. These rules hold every
+    // other derivation to the same standing order.
+    let relay = operation == ClaimOperation::Retarget;
+    if !relay && parents.iter().any(|parent| non_value_derives_value(parent.kind, derived.kind)) {
+        return Some("non_value_parent_derives_value_claim");
+    }
+    if !relay
+        && identification_slot_added(
+            parents.iter().all(|parent| parent.reasoning.identification.is_available()),
+            derived.reasoning.identification.is_available(),
         )
     {
-        return Some("associational_parent_derives_causal_claim");
+        return Some("derived_adds_identification_slot");
     }
     if let Some(restriction) = identification_strengthened(parents, derived) {
         return Some(restriction);
     }
-    let upgrades =
-        [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
-            .into_iter()
-            .any(|axis| {
-                let status = derived.domain(axis);
-                status.is_positive() && parents.iter().any(|parent| parent.domain(axis) != status)
-            });
-    upgrades.then_some("derived_upgrades_domain")
+    let axes =
+        [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated];
+    let upgrades = axes.into_iter().any(|axis| {
+        parents.iter().any(|parent| domain_upgraded(parent.domain(axis), derived.domain(axis)))
+    });
+    if upgrades {
+        return Some("derived_upgrades_domain");
+    }
+    let departs = !relay
+        && axes.into_iter().any(|axis| {
+            parents.iter().any(|parent| domain_departs(parent.domain(axis), derived.domain(axis)))
+        });
+    departs.then_some("derived_changes_domain")
+}
+
+/// Whether a derived claim asserts a positive domain status its parent did not hold.
+fn domain_upgraded(parent: DomainStatus, derived: DomainStatus) -> bool {
+    derived.is_positive() && parent != derived
+}
+
+/// Whether a derived domain status is neither its parent's status nor unknown:
+/// any other status says something the parent did not.
+fn domain_departs(parent: DomainStatus, derived: DomainStatus) -> bool {
+    derived != parent && derived != DomainStatus::Unknown
+}
+
+/// Whether a noncausal parent derives a claim that is neither noncausal nor a
+/// refusal or an incomplete claim.
+const fn associational_derives_causal(parent: ClaimKind, derived: ClaimKind) -> bool {
+    matches!(parent, ClaimKind::Associational)
+        && !matches!(derived, ClaimKind::Associational | ClaimKind::Refusal | ClaimKind::Incomplete)
+}
+
+/// Whether a refusal or an incomplete parent, which carries no value, derives a
+/// claim that does.
+const fn non_value_derives_value(parent: ClaimKind, derived: ClaimKind) -> bool {
+    matches!(parent, ClaimKind::Refusal | ClaimKind::Incomplete)
+        && !matches!(derived, ClaimKind::Refusal | ClaimKind::Incomplete)
+}
+
+/// Whether a derived claim reports an identification slot although some parent
+/// reported none: the slot would assert identification no parent asserted.
+const fn identification_slot_added(every_parent_has_slot: bool, derived_has_slot: bool) -> bool {
+    derived_has_slot && !every_parent_has_slot
 }
 
 /// Identification-slot departures: a dropped slot, malformed masses, more
@@ -1702,6 +1764,44 @@ mod tests {
         );
         // Another noncausal claim over the same association is a supported derivation.
         assert_eq!(retarget_refusal(&parent, associational_claim(3)), None);
+    }
+
+    #[test]
+    fn a_derivation_other_than_a_relay_asserts_nothing_its_parents_did_not() {
+        use crate::reasoning::SlotAvailability;
+        let departs = |parents: &[&ClaimEnvelope], derived: &ClaimEnvelope| {
+            derived_departs_from_parents(parents, derived, ClaimOperation::Aggregate)
+        };
+        let parent = sample_claim(1, 1.0);
+        assert_eq!(departs(&[&parent], &sample_claim(2, 1.0)), None);
+        // A refusal carries no value, so nothing derived from it does.
+        let mut refusal = parent.clone();
+        refusal.kind = ClaimKind::Refusal;
+        assert_eq!(departs(&[&refusal], &parent), Some("non_value_parent_derives_value_claim"));
+        let mut refused_child = parent.clone();
+        refused_child.kind = ClaimKind::Incomplete;
+        assert_eq!(departs(&[&refusal], &refused_child), None);
+        // An identification slot no parent reported is not derived.
+        let mut no_slot = parent.clone();
+        no_slot.reasoning.identification = SlotAvailability::unavailable("fixture");
+        assert_eq!(
+            departs(&[&parent, &no_slot], &sample_claim(2, 1.0)),
+            Some("derived_adds_identification_slot")
+        );
+        // Moving between two statuses that assert nothing is still a different finding.
+        let mut contradicted = parent.clone();
+        contradicted.domains.support = DomainStatus::Contradicted;
+        let mut limited = contradicted.clone();
+        limited.domains.support = DomainStatus::Limited;
+        assert_eq!(departs(&[&contradicted], &limited), Some("derived_changes_domain"));
+        let mut unknown = contradicted.clone();
+        unknown.domains.support = DomainStatus::Unknown;
+        assert_eq!(departs(&[&contradicted], &unknown), None);
+        // A relay keeps its own reasons for these changes.
+        assert_eq!(
+            derived_departs_from_parents(&[&contradicted], &limited, ClaimOperation::Retarget),
+            None
+        );
     }
 
     fn retarget_refusal(parent: &ClaimEnvelope, child: ClaimEnvelope) -> Option<String> {
