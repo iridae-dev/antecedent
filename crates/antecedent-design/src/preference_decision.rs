@@ -65,9 +65,8 @@ pub use crate::preference_sampled::{
 };
 use crate::signal::at_stage;
 use crate::structure_aggregator::{
-    INVARIANCE_UNCHECKED, NO_EVALUATED_POSITIVE_PROBABILITY, NO_STRUCTURE_EVALUATED,
-    UNRESOLVED_MASS_CAN_CHANGE_BAYES, WORST_CASE_NEEDS_EVERY_STRUCTURE, probability_sum,
-    unassigned_probability,
+    NO_STRUCTURE_EVALUATED, StructureMasses, StructureState, missing_evidence, policy_kind,
+    probability_sum, structure_masses,
 };
 
 /// Largest number of rival-structure choices enumerated to decide whether an action is
@@ -1212,25 +1211,26 @@ pub(crate) fn across_structures(
             status,
         });
     }
-    let mass = |wanted: fn(&PreferenceAtomStatus) -> bool| -> Option<f64> {
-        has_probabilities.then(|| {
-            probability_sum(
-                summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability),
-            )
+    let states: Vec<(Option<f64>, StructureState)> = summaries
+        .iter()
+        .map(|s| {
+            let state = match s.status {
+                PreferenceAtomStatus::Evaluated(_) => StructureState::Evaluated,
+                PreferenceAtomStatus::Unidentified => StructureState::Unidentified,
+                PreferenceAtomStatus::Unevaluated(_) => StructureState::Unevaluated,
+            };
+            (s.probability, state)
         })
-    };
-    let evaluated_mass = mass(|s| matches!(s, PreferenceAtomStatus::Evaluated(_)));
-    let unidentified_mass = mass(|s| matches!(s, PreferenceAtomStatus::Unidentified));
-    let unassigned = if has_probabilities {
-        unassigned_probability(atoms.iter().filter_map(|a| a.probability))
-    } else {
-        0.0
-    };
-    let unevaluated_mass =
-        mass(|s| matches!(s, PreferenceAtomStatus::Unevaluated(_))).map(|m| m + unassigned);
-    let state = StructureState {
+        .collect();
+    let StructureMasses {
+        evaluated: evaluated_mass,
+        unidentified: unidentified_mass,
+        unevaluated: unevaluated_mass,
+    } = structure_masses(has_probabilities, &states);
+    let state = StructureFacts {
         all_evaluated: evaluated.len() == atoms.len(),
-        unresolved_mass: unidentified_mass.unwrap_or(0.0) + unevaluated_mass.unwrap_or(0.0),
+        unidentified_mass: unidentified_mass.unwrap_or(0.0),
+        unevaluated_mass: unevaluated_mass.unwrap_or(0.0),
         evaluated_mass: evaluated_mass.unwrap_or(0.0),
     };
     let (combined, verdict) = prepared.combine(policy, &evaluated, &admissible, &state)?;
@@ -1834,10 +1834,25 @@ struct Evaluated<'a> {
     verdict: PreferenceVerdict,
 }
 
-struct StructureState {
+struct StructureFacts {
     all_evaluated: bool,
-    unresolved_mass: f64,
+    unidentified_mass: f64,
+    unevaluated_mass: f64,
     evaluated_mass: f64,
+}
+
+impl StructureFacts {
+    /// The evidence the structural policy needs and does not have, as the ordinary aggregation
+    /// states it.
+    fn missing_evidence(&self, policy: StructuralPolicy) -> Option<&'static str> {
+        missing_evidence(
+            policy_kind(policy),
+            self.all_evaluated,
+            self.unidentified_mass,
+            self.unevaluated_mass,
+            self.evaluated_mass,
+        )
+    }
 }
 
 /// Each field lists the distinct values of the receipts, in order, joined by `+`.
@@ -2772,7 +2787,7 @@ impl<'a> Prepared<'a> {
         policy: StructuralPolicy,
         evaluated: &[Evaluated<'_>],
         admissible: &[bool],
-        state: &StructureState,
+        state: &StructureFacts,
     ) -> Result<(Option<PreferenceDecisionResult>, StructuralPreferenceVerdict), E> {
         if policy == StructuralPolicy::ReportOnly {
             return Ok((None, StructuralPreferenceVerdict::ReportOnly));
@@ -2823,14 +2838,8 @@ impl<'a> Prepared<'a> {
                 });
                 let verdict = if report {
                     StructuralPreferenceVerdict::Combined(PreferenceVerdict::ReportOnly)
-                } else if state.unresolved_mass > 0.0 {
-                    StructuralPreferenceVerdict::InsufficientScience(
-                        UNRESOLVED_MASS_CAN_CHANGE_BAYES.into(),
-                    )
-                } else if state.evaluated_mass <= 0.0 {
-                    StructuralPreferenceVerdict::InsufficientScience(
-                        NO_EVALUATED_POSITIVE_PROBABILITY.into(),
-                    )
+                } else if let Some(why) = state.missing_evidence(policy) {
+                    StructuralPreferenceVerdict::InsufficientScience(why.into())
                 } else {
                     StructuralPreferenceVerdict::Combined(result.verdict.clone())
                 };
@@ -2858,10 +2867,8 @@ impl<'a> Prepared<'a> {
                 });
                 let verdict = if report {
                     StructuralPreferenceVerdict::Combined(PreferenceVerdict::ReportOnly)
-                } else if !state.all_evaluated {
-                    StructuralPreferenceVerdict::InsufficientScience(
-                        WORST_CASE_NEEDS_EVERY_STRUCTURE.into(),
-                    )
+                } else if let Some(why) = state.missing_evidence(policy) {
+                    StructuralPreferenceVerdict::InsufficientScience(why.into())
                 } else {
                     StructuralPreferenceVerdict::Combined(result.verdict.clone())
                 };
@@ -2876,7 +2883,7 @@ impl<'a> Prepared<'a> {
         &self,
         evaluated: &[Evaluated<'_>],
         admissible: &[bool],
-        state: &StructureState,
+        state: &StructureFacts,
         exclusions: Vec<Vec<ConstraintExclusion>>,
         source: SourceReceipt,
         n_draws: usize,
@@ -2909,8 +2916,10 @@ impl<'a> Prepared<'a> {
         });
         let verdict = if self.contract.preference_policy == PreferencePolicy::ReportOnly {
             StructuralPreferenceVerdict::Combined(PreferenceVerdict::ReportOnly)
-        } else if !state.all_evaluated {
-            StructuralPreferenceVerdict::InsufficientScience(INVARIANCE_UNCHECKED.into())
+        } else if let Some(why) =
+            state.missing_evidence(StructuralPolicy::RequireInvariantBestAction)
+        {
+            StructuralPreferenceVerdict::InsufficientScience(why.into())
         } else if let Some(verdict) = agreement {
             StructuralPreferenceVerdict::Combined(verdict)
         } else {

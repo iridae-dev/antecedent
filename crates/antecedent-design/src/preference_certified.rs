@@ -111,9 +111,8 @@ use crate::preference_model::{
 use crate::preference_refusal::{EVALUATE, STRUCTURAL, refusal};
 use crate::signal::at_stage;
 use crate::structure_aggregator::{
-    INVARIANCE_UNCHECKED, NO_EVALUATED_POSITIVE_PROBABILITY, NO_STRUCTURE_EVALUATED,
-    UNRESOLVED_MASS_CAN_CHANGE_BAYES, WORST_CASE_NEEDS_EVERY_STRUCTURE, probability_sum,
-    unassigned_probability,
+    NO_STRUCTURE_EVALUATED, StructureMasses, StructureState, missing_evidence, policy_kind,
+    probability_sum, structure_masses,
 };
 
 /// Distance from the declared set within which a measure point is accepted.
@@ -2280,7 +2279,7 @@ fn chosen(verdict: &CertifiedVerdict) -> Option<&str> {
 
 fn invariant_over_atoms(
     summaries: &[CertifiedAtomSummary],
-    all_evaluated: bool,
+    missing: Option<&'static str>,
 ) -> StructuralCertifiedVerdict {
     let verdicts: Vec<AtomVerdict> = summaries
         .iter()
@@ -2294,8 +2293,8 @@ fn invariant_over_atoms(
     let Some(first) = verdicts.first() else {
         return StructuralCertifiedVerdict::InsufficientScience(NO_STRUCTURE_EVALUATED.into());
     };
-    if !all_evaluated {
-        return StructuralCertifiedVerdict::InsufficientScience(INVARIANCE_UNCHECKED.into());
+    if let Some(why) = missing {
+        return StructuralCertifiedVerdict::InsufficientScience(why.into());
     }
     let identical = verdicts.iter().all(|v| v.verdict == first.verdict);
     let same_choice = chosen(&first.verdict)
@@ -2441,48 +2440,50 @@ pub(crate) fn certified_structural(
         }
     }
     let (summaries, sources, probabilities) = evaluate_atoms(&setup, atoms)?;
-    let mass = |wanted: fn(&CertifiedAtomStatus) -> bool| -> Option<f64> {
-        has_probabilities.then(|| {
-            probability_sum(
-                summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability),
-            )
+    let states: Vec<(Option<f64>, StructureState)> = summaries
+        .iter()
+        .map(|s| {
+            let state = match s.status {
+                CertifiedAtomStatus::Evaluated(_) => StructureState::Evaluated,
+                CertifiedAtomStatus::Unidentified => StructureState::Unidentified,
+                CertifiedAtomStatus::Unevaluated(_) => StructureState::Unevaluated,
+            };
+            (s.probability, state)
         })
-    };
-    let evaluated_mass = mass(|s| matches!(s, CertifiedAtomStatus::Evaluated(_)));
-    let unidentified_mass = mass(|s| matches!(s, CertifiedAtomStatus::Unidentified));
-    let unassigned = if has_probabilities {
-        unassigned_probability(summaries.iter().filter_map(|s| s.probability))
-    } else {
-        0.0
-    };
-    let unevaluated_mass =
-        mass(|s| matches!(s, CertifiedAtomStatus::Unevaluated(_))).map(|m| m + unassigned);
+        .collect();
+    let StructureMasses {
+        evaluated: evaluated_mass,
+        unidentified: unidentified_mass,
+        unevaluated: unevaluated_mass,
+    } = structure_masses(has_probabilities, &states);
     let all_evaluated = sources.len() == atoms.len();
+    let missing = missing_evidence(
+        policy_kind(policy),
+        all_evaluated,
+        unidentified_mass.unwrap_or(0.0),
+        unevaluated_mass.unwrap_or(0.0),
+        evaluated_mass.unwrap_or(0.0),
+    );
     let insufficient = |why: &str| StructuralCertifiedVerdict::InsufficientScience(why.into());
     let (combined, verdict) = match policy {
         StructuralPolicy::ReportOnly => (None, StructuralCertifiedVerdict::ReportOnly),
         StructuralPolicy::RequireInvariantBestAction => {
-            (None, invariant_over_atoms(&summaries, all_evaluated))
+            (None, invariant_over_atoms(&summaries, missing))
         }
         _ if sources.is_empty() => (None, insufficient(NO_STRUCTURE_EVALUATED)),
         StructuralPolicy::Maximin => {
             let combined = setup.run(&sources, Combination::Worst)?;
-            let verdict = if all_evaluated {
-                StructuralCertifiedVerdict::Combined(combined.verdict.clone())
-            } else {
-                insufficient(WORST_CASE_NEEDS_EVERY_STRUCTURE)
+            let verdict = match missing {
+                Some(why) => insufficient(why),
+                None => StructuralCertifiedVerdict::Combined(combined.verdict.clone()),
             };
             (Some(combined), verdict)
         }
         StructuralPolicy::BayesOverStructures => {
             let combined = setup.run(&sources, Combination::Bayes(probabilities))?;
-            let unresolved = unidentified_mass.unwrap_or(0.0) + unevaluated_mass.unwrap_or(0.0);
-            let verdict = if unresolved > 0.0 {
-                insufficient(UNRESOLVED_MASS_CAN_CHANGE_BAYES)
-            } else if evaluated_mass.unwrap_or(0.0) <= 0.0 {
-                insufficient(NO_EVALUATED_POSITIVE_PROBABILITY)
-            } else {
-                StructuralCertifiedVerdict::Combined(combined.verdict.clone())
+            let verdict = match missing {
+                Some(why) => insufficient(why),
+                None => StructuralCertifiedVerdict::Combined(combined.verdict.clone()),
             };
             (Some(combined), verdict)
         }
