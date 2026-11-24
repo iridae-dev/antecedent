@@ -25253,6 +25253,33 @@ crate = "antecedent"
 cargo_target = "sampling_assumption_union_known_truth"
 path = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
 gates = ["inventory", "named"]
+[[test]]
+id = "sampling-assumption-union-cancellation"
+crate = "antecedent"
+cargo_target = "sampling_assumption_union_cancellation"
+path = "crates/antecedent/tests/sampling_assumption_union_cancellation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-class-envelopes"
+crate = "antecedent"
+cargo_target = "compiled_twins_class_envelopes"
+path = "crates/antecedent/tests/compiled_twins_class_envelopes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-mediation-summary"
+crate = "antecedent"
+cargo_target = "compiled_twins_mediation_summary"
+path = "crates/antecedent/tests/compiled_twins_mediation_summary.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-mediation-summary-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_mediation_summary.py"
+gates = ["inventory"]
 
 [[test]]
 id = "propagation-chain-known-truth"

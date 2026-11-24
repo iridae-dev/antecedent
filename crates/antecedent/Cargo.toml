@@ -1533,6 +1533,14 @@ name = "iid_sampling_assumption_union_calibration"
 
 [[test]]
 name = "sampling_assumption_union_known_truth"
+[[test]]
+name = "sampling_assumption_union_cancellation"
+
+[[test]]
+name = "compiled_twins_class_envelopes"
+
+[[test]]
+name = "compiled_twins_mediation_summary"
 
 [[test]]
 name = "propagation_chain_known_truth"
