@@ -253,7 +253,22 @@ impl PreparedZTransport {
     /// # Errors
     /// Refuses graph mismatches, connected/overlapping components, empirical
     /// interval results, cancellation, or a product larger than `max_atoms`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_z_transport (or Study::compile_z_transport_empirical) and CompiledZTransport::estimate_independent_components, which calls the same evaluation after the ZTransportEstimate unit's support gate"
+    )]
     pub fn estimate_independent_components(
+        left: &Self,
+        right: &Self,
+        max_atoms: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<ZTransportResult, IoError> {
+        Self::combine_independent_components(left, right, max_atoms, ctx)
+    }
+
+    /// The evaluation behind [`Self::estimate_independent_components`], which the compiled
+    /// `ZTransportEstimate` route calls after its support gate.
+    pub(crate) fn combine_independent_components(
         left: &Self,
         right: &Self,
         max_atoms: usize,
@@ -274,8 +289,8 @@ impl PreparedZTransport {
                 "the formulas do not share one graph and target, share a source, or do not lie in disconnected graph components",
             ));
         }
-        let left_result = left.estimate(ctx)?;
-        let right_result = right.estimate(ctx)?;
+        let left_result = left.estimate_with(None, 0, ctx)?;
+        let right_result = right.estimate_with(None, 0, ctx)?;
         ZTransportResult::combine_independent_components(&left_result, &right_result, max_atoms)
     }
 
@@ -291,7 +306,22 @@ impl PreparedZTransport {
     /// Refuses graph mismatches, a shared source, outcomes that do not factorize
     /// under the intervention, empirical interval results, cancellation, or a
     /// product larger than `max_atoms`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_z_transport (or Study::compile_z_transport_empirical) and CompiledZTransport::estimate_intervention_factorized_components, which calls the same evaluation after the ZTransportEstimate unit's support gate"
+    )]
     pub fn estimate_intervention_factorized_components(
+        left: &Self,
+        right: &Self,
+        max_atoms: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<ZTransportResult, IoError> {
+        Self::combine_factorized_components(left, right, max_atoms, ctx)
+    }
+
+    /// The evaluation behind [`Self::estimate_intervention_factorized_components`], which the
+    /// compiled `ZTransportEstimate` route calls after its support gate.
+    pub(crate) fn combine_factorized_components(
         left: &Self,
         right: &Self,
         max_atoms: usize,
@@ -312,8 +342,8 @@ impl PreparedZTransport {
                 "the formulas do not share one graph and target, share a source, or their outcomes do not factorize under the intervention",
             ));
         }
-        let left_result = left.estimate(ctx)?;
-        let right_result = right.estimate(ctx)?;
+        let left_result = left.estimate_with(None, 0, ctx)?;
+        let right_result = right.estimate_with(None, 0, ctx)?;
         ZTransportResult::combine_independent_components(&left_result, &right_result, max_atoms)
     }
 
@@ -331,6 +361,10 @@ impl PreparedZTransport {
     /// # Errors
     ///
     /// Returns an error if the checked plan or its evidence cannot be evaluated.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_z_transport (or Study::compile_z_transport_empirical) and CompiledZTransport::estimate, which calls the same evaluation after the ZTransportEstimate unit's support gate"
+    )]
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
         self.estimate_with(None, 0, ctx)
     }
@@ -343,6 +377,10 @@ impl PreparedZTransport {
     /// # Errors
     ///
     /// Returns an error if the posterior provider cannot evaluate the retained evidence.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_z_transport (or Study::compile_z_transport_empirical) and CompiledZTransport::estimate_bayesian, which calls the same evaluation after the ZTransportEstimate unit's support gate"
+    )]
     pub fn estimate_bayesian(
         &self,
         provider: antecedent_estimate::BayesianTransportLawProvider,
@@ -352,7 +390,9 @@ impl PreparedZTransport {
         self.estimate_with(Some(provider), draws, ctx)
     }
 
-    fn estimate_with(
+    /// The evaluation behind [`Self::estimate`] and [`Self::estimate_bayesian`], which the
+    /// compiled `ZTransportEstimate` route calls after its support gate.
+    pub(crate) fn estimate_with(
         &self,
         provider: Option<antecedent_estimate::BayesianTransportLawProvider>,
         draws: u32,
@@ -783,6 +823,7 @@ impl StudyBuilder {
 }
 
 #[cfg(test)]
+#[allow(deprecated, reason = "tests the deprecated direct evaluation the compiled route calls")]
 mod tests {
     use super::*;
     use antecedent_core::{

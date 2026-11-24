@@ -18,6 +18,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "the bits are compared exactly")]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

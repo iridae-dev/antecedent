@@ -484,6 +484,10 @@ pub struct WeightedTrialTransport {
 /// The refusals of [`WeightedTargetDeclaration::resolve`] and of
 /// [`antecedent_estimate::trial_to_weighted_target_effect`], including
 /// `transport_target_overlap_failed`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::tabular(table).query(CausalQuery::Transport(..)).transport_trial(..).weighted_target(declaration) (and .transport_outcome_regressions(..) for the AIPW contrast) on the TransportMixed route, which runs the same trial_to_weighted_target_effect: the published estimate and standard error are ipw and ipw_se, the payload carries the AIPW point and the estimate.transport.trial_aipw_supplied diagnostic its standard error"
+)]
 #[allow(
     clippy::too_many_arguments,
     reason = "the inputs of the trial-to-target contrast and the declared target"

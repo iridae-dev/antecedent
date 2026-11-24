@@ -23,6 +23,7 @@
     clippy::too_many_lines,
     reason = "integration test with a planted truth and a hand-composed reference"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 mod common;
 

@@ -284,6 +284,10 @@ impl ParentSetEffect {
     /// record measured this construction at this variable count, degree and analysis row count,
     /// the interval is still reported and its calibration is `not_measured` or
     /// `outside_measured_scope`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_split_parent_set_effect_source(source_artifact, ctx) and CompiledParentSetEffect::measure (route SampleSplitParentSetEffect), which replays the same source after the unit's support gate"
+    )]
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_parent_set_effect::measure(&self.source, ctx)
     }
@@ -294,6 +298,10 @@ impl ParentSetEffect {
 /// # Errors
 ///
 /// As [`ParentSetEffect::measure`], and a source that is not the canonical encoding.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_split_parent_set_effect_source(source_artifact, ctx) and CompiledParentSetEffect::measure (route SampleSplitParentSetEffect), which replays the same source after the unit's support gate"
+)]
 pub fn measure_source(
     source_artifact: &[u8],
     ctx: &ExecutionContext,

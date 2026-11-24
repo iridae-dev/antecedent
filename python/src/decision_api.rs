@@ -11,6 +11,10 @@ use antecedent::analysis::claim_decision_programs::{
 };
 use antecedent::analysis::inverse_query::{AtomEvidence, MeanSource, StructuralPolicy};
 use antecedent::contract::ExternalRefusal;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
     IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
@@ -477,6 +481,10 @@ struct Prepared {
 
 /// Parse the declaration and claims and adapt them under the contract's policy.
 /// The error is a refusal JSON.
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn prepare(
     declaration_json: &str,
     kind: &str,
@@ -735,6 +743,10 @@ fn seal(
     .map_err(|e| io_refusal(&e, "seal"))
 }
 
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn evaluate_prepared(prepared: &Prepared) -> Result<AdaptedDecision, String> {
     evaluate_adapted(&prepared.contract, &prepared.adapted)
         .map_err(|e| external_refusal_json(&e.to_refusal()))

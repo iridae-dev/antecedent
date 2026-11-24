@@ -19,13 +19,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
-pub use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
+pub use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw};
 use antecedent_graph::Admg;
 pub use antecedent_identify::{
     CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
     ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
-    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
-    verify_chain_witness,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, verify_chain_witness,
 };
 pub use antecedent_io::recovery_chain_artifact::{
     ChainGraphWire, ChainLawWire, ChainMechanismWire, ChainPlanWire, ChainQueryWire,
@@ -36,6 +35,57 @@ pub use antecedent_io::recovery_chain_artifact::{
 };
 
 use crate::error::CausalError;
+
+/// Decide whether `P(X1, X2)` is recoverable from the observed pattern law of the
+/// ordered-response m-graph, with a verified witness when it is not.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_identify::decide_chain_recovery`].
+///
+/// # Errors
+///
+/// A typed `ChainRecoveryError`: invalid query, unsupported mechanism, an
+/// unverifiable witness or a budget stop with its receipt.
+#[deprecated(
+    since = "3.1.0",
+    note = "compile_transport_identification(TransportIdentificationRequest::..) then identify"
+)]
+pub fn decide_chain_recovery(
+    graph: &antecedent_graph::admg::Admg,
+    query: &antecedent_identify::ChainRecoveryQuery,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_identify::ChainRecoveryDecision, antecedent_identify::ChainRecoveryError> {
+    antecedent_identify::decide_chain_recovery(graph, query, ctx)
+}
+
+/// Evaluate the ordered-response recovery formula of `plan` on `observed`.
+///
+/// With head axis `h` and tail axis `t`:
+/// `p(x_h, x_t) = both(x_h, x_t) / (P(R_h=1) q(x_h))`, where `q` is
+/// `P(R_h=1, R_t=1, X*_h = x_h) / P(R_h=1, X*_h = x_h)` when the tail response
+/// depends on the head variable and `P(R_h=1, R_t=1) / P(R_h=1)` otherwise.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::evaluate_chain_recovery`].
+///
+/// # Errors
+///
+/// `invalid_derivation` for a malformed plan; `transport_support_failure`
+/// (`recovery_chain.positivity`) when the head response, a complete-case cell or
+/// a required denominator has no mass.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ChainObservationRecovery program family, which runs the same kernel call after its unit's support gate"
+)]
+pub fn evaluate_chain_recovery(
+    plan: &antecedent_identify::recovery_chain::ChainRecoveryPlan,
+    observed: &antecedent_estimate::ChainPatternLaw,
+) -> Result<
+    antecedent_estimate::ChainRecoveredLaw,
+    antecedent_identify::recovery_chain::ChainRecoveryError,
+> {
+    antecedent_estimate::evaluate_chain_recovery(plan, observed)
+}
 
 /// A decided (and, when recovered, evaluated) ordered-response recovery.
 #[derive(Clone, Debug)]
@@ -62,7 +112,7 @@ impl RecoveryChain {
         variable_names: &[String],
         ctx: &ExecutionContext,
     ) -> Result<Self, ChainRecoveryError> {
-        let decision = decide_chain_recovery(graph, query, ctx)?;
+        let decision = antecedent_identify::decide_chain_recovery(graph, query, ctx)?;
         let check = match &decision {
             ChainRecoveryDecision::NonRecoverable(witness) => {
                 Some(verify_chain_witness(graph, query, witness, ctx)?)
@@ -85,6 +135,10 @@ impl RecoveryChain {
     /// # Errors
     /// `recovery_chain.nonrecoverable_witness` when the decision is nonrecoverable;
     /// `recovery_chain.positivity` when a required cell or denominator has no mass.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use RecoveryChain::recover_with_context, which compiles the evaluation as the ChainObservationRecovery program and makes the same evaluation after the recovery.chain_observation unit's support gate"
+    )]
     pub fn recover(mut self, observed: ChainPatternLaw) -> Result<Self, ChainRecoveryError> {
         let ChainRecoveryDecision::Recovered(plan) = &self.decision else {
             return Err(ChainRecoveryError::new(
@@ -92,7 +146,7 @@ impl RecoveryChain {
                 "a self-censoring edge is not recoverable for every model Markov to the m-graph; see the witness",
             ));
         };
-        let recovered = evaluate_chain_recovery(plan, &observed)?;
+        let recovered = antecedent_estimate::evaluate_chain_recovery(plan, &observed)?;
         self.observed = Some(observed);
         self.recovered = Some(recovered);
         Ok(self)

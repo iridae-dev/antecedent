@@ -1130,6 +1130,10 @@ fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpressi
 #[pyfunction]
 #[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight, seed=0, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_transport_response_grid(
     py: Python<'_>,
     identification: PyRef<'_, TransportIdentificationResult>,
@@ -1183,6 +1187,10 @@ fn estimate_transport_response_grid(
     mu0=None, mu1=None, seed=0, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_trial_transport(
     py: Python<'_>,
     identification: PyRef<'_, TransportIdentificationResult>,
@@ -1270,6 +1278,10 @@ fn estimate_trial_transport(
     covariate_names, covariates, target, *, mu0=None, mu1=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_trial_weighted_target<'py>(
     py: Python<'py>,
     identification: PyRef<'_, TransportIdentificationResult>,
@@ -1363,6 +1375,10 @@ fn estimate_trial_weighted_target<'py>(
     seed=1, work_limit=None, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_network_interference(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

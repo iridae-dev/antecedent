@@ -5,10 +5,19 @@ use super::{
     IntrinsicInfluenceResult, MechanismChangeMethod, MechanismChangeQuery, NoiseIndependence,
     PathSpecificEffectQuery, RobustChangeOptions, RootCauseRank, StructureChangeOptions,
     TabularData, TargetPopulation, UnitChangeQuery, UnitChangeResult, ValueBatch, VariableId,
-    detect_mechanism_changes, distribution_change, distribution_change_robust, feature_relevance,
-    intrinsic_influence, path_decompose, root_cause_rank, sample_do, score_anomalies,
-    score_anomalies_with, structure_change, unit_change,
+    sample_do,
 };
+use antecedent_attribution::anomaly::score_anomalies;
+use antecedent_attribution::anomaly::score_anomalies_with;
+use antecedent_attribution::detect_mechanism_changes;
+use antecedent_attribution::distribution_change;
+use antecedent_attribution::distribution_change_robust;
+use antecedent_attribution::feature_relevance;
+use antecedent_attribution::intrinsic_influence;
+use antecedent_attribution::path::path_decompose;
+use antecedent_attribution::root_cause::root_cause_rank;
+use antecedent_attribution::structure_change;
+use antecedent_attribution::unit_change;
 
 /// The anomaly query over `outcomes` with the default reference.
 fn anomaly_query(

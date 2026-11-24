@@ -846,7 +846,7 @@ impl<'a> StaticAteExecution<'a> {
             return Ok(point);
         }
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-        let filled = crate::strategy_table::attach_static_bootstrap(
+        let filled = crate::strategy_table::attach_bootstrap_to_point(
             self.estimator_id,
             StaticEstimateInput {
                 data: &self.data_est,

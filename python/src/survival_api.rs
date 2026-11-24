@@ -191,6 +191,10 @@ fn validate_ipcw_grid(
     clippy::float_cmp,
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
 )]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn randomized_survival_ipcw(
     py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
@@ -291,6 +295,10 @@ fn randomized_survival_ipcw(
 #[allow(
     clippy::float_cmp,
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
+)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
 )]
 fn randomized_cumulative_incidence_ipcw(
     py: Python<'_>,

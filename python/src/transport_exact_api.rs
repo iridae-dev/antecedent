@@ -3,6 +3,10 @@ use crate::graphs::Admg;
 use crate::transport_interference_api::parse_catalog;
 use antecedent::estimate::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent::graph::SelectionDiagram;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
 };
@@ -359,6 +363,10 @@ impl ClassicalTransportStage {
 
 #[pyfunction]
 #[pyo3(signature = (graph, selections, source, target, outcomes, treatments, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_classical_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,
@@ -414,6 +422,10 @@ fn identify_classical_transport_stage(
 
 #[pyfunction]
 #[pyo3(signature=(graph, catalog, target, outcomes, treatments, *, max_steps=100_000,max_depth=256,memory_bytes=None,cancel=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_meta_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

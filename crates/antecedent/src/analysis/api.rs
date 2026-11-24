@@ -16,9 +16,11 @@ pub use super::structure_route::{
 };
 #[allow(deprecated, reason = "the deprecated direct entry stays reachable at its 3.0.0 path")]
 pub use super::temporal_dependent_interval;
+#[allow(deprecated, reason = "the deprecated direct entry stays reachable at its 3.0.0 path")]
+pub use super::weighted_target::transport_trial_to_weighted_target;
 pub use super::weighted_target::{
     ResolvedWeightedTarget, WeightedTargetDeclaration, WeightedTargetReport, WeightedTargetSpec,
-    WeightedTrialTransport, transport_trial_to_weighted_target,
+    WeightedTrialTransport,
 };
 pub use super::{
     ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,

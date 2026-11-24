@@ -220,7 +220,7 @@ impl CompiledZTransport {
     /// unit is not supported, and the refusals of the evaluation.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<ZTransportResult, IoError> {
         self.gate(ctx)?;
-        self.prepared().estimate(ctx)
+        self.prepared().estimate_with(None, 0, ctx)
     }
 
     /// Pass the support gate and attach a finite-discrete posterior interval instead of the
@@ -236,7 +236,7 @@ impl CompiledZTransport {
         ctx: &ExecutionContext,
     ) -> Result<ZTransportResult, IoError> {
         self.gate(ctx)?;
-        self.prepared().estimate_bayesian(provider, draws, ctx)
+        self.prepared().estimate_with(Some(provider), draws, ctx)
     }
 
     /// Pass the support gate of both programs and combine two separately compiled formulas
@@ -254,7 +254,7 @@ impl CompiledZTransport {
     ) -> Result<ZTransportResult, IoError> {
         left.gate(ctx)?;
         right.gate(ctx)?;
-        PreparedZTransport::estimate_independent_components(
+        PreparedZTransport::combine_independent_components(
             left.prepared(),
             right.prepared(),
             max_atoms,
@@ -277,7 +277,7 @@ impl CompiledZTransport {
     ) -> Result<ZTransportResult, IoError> {
         left.gate(ctx)?;
         right.gate(ctx)?;
-        PreparedZTransport::estimate_intervention_factorized_components(
+        PreparedZTransport::combine_factorized_components(
             left.prepared(),
             right.prepared(),
             max_atoms,

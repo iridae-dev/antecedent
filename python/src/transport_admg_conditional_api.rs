@@ -8,6 +8,10 @@ use crate::{graphs::Admg, transport_interference_api::parse_catalog};
 use antecedent::estimate::{Assignment, ExactEvaluationLimits};
 use antecedent::execution::{SearchLimits, SearchReceipt};
 use antecedent::graph::SelectionDiagram;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     ClassicalTransportQuery, ConditionalObstructionCandidate, ConditionalTransportDecision,
     ConditionalTransportQuery, ConditionalWitnessRecord, IdentificationError,
@@ -544,6 +548,10 @@ impl PreparedAdmgConditionalTransportStage {
 #[doc(hidden)]
 #[pyo3(signature=(graph, source, target, selections, outcomes, treatments, conditioned_on, catalog, *, max_operations=4096, max_depth=24, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_admg_conditional_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

@@ -218,6 +218,10 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
     reference_budget=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn evaluate_binary_policy(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -273,6 +277,10 @@ fn evaluate_binary_policy(
     costs=vec![0.0], reference_costs=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn evaluate_binary_policy_doubly_robust(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -386,6 +394,10 @@ fn evaluate_binary_policy_doubly_robust(
     reference_budget=None
 ))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn evaluate_multi_action_policy(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -439,6 +451,10 @@ fn evaluate_multi_action_policy(
 
 /// Held-out uplift by precomputed score rank bins under known randomization.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn uplift_by_score(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

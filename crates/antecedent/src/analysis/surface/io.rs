@@ -419,8 +419,23 @@ pub mod sampled_counterfactual_transport_artifact {
     pub use antecedent_io::sampled_counterfactual_transport_artifact::{
         SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
         SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
-        sampled_counterfactual_transport_artifact,
     };
+
+    /// Estimate and seal: runs the sampled estimator on the stored derivation and
+    /// binds counts, derivation, estimate, uncertainty method and overlap.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact`].
+    ///
+    /// # Errors
+    /// The estimator's typed refusal (as `Error::Replay`) or a shape failure.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SampledCounterfactualTransport route, which calls this kernel function with the same inputs"
+    )]
+    pub fn sampled_counterfactual_transport_artifact(derivation: &antecedent_identify::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, variable_names: &[String], ctx: &antecedent_core::ExecutionContext) -> Result<(antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire, antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>{
+        antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact(derivation, request, variable_names, ctx)
+    }
 }
 /// Independent artifact of sampled observation recovery (`recovery.sampled_observation`).
 pub mod sampled_recovery_artifact {

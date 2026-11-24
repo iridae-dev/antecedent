@@ -7,6 +7,7 @@
 //! and is replayed bit for bit when it holds.
 
 #![allow(clippy::float_cmp, reason = "the declared level and replayed values are compared exactly")]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 use antecedent::analysis::sample_split_analysis::{SplitRule, discover_on_split};
 use antecedent::analysis::sample_split_effect::{
     ALPHA, CI_TEST, DISCOVERY_FRACTION, ESTIMATOR, SPLIT_STRUCTURE, estimate_effect_on_split,

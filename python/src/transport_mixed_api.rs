@@ -7,6 +7,10 @@ use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
 use antecedent::estimate::{Assignment, ExactEvaluationLimits};
 use antecedent::execution::{SearchLimits, SearchReceipt};
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     MixedQuantity, MixedSourceDecision, MixedSourceDerivation, MixedSourceQuery,
     ZTransportSourceSpec, bind_mixed_source_catalog, decide_mixed_source, render_quantity,
@@ -322,6 +326,10 @@ impl MixedSourceStage {
     /// mapping, or a sequence of them.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn prepare_exact(
         &self,
         py: Python<'_>,
@@ -534,6 +542,10 @@ impl PreparedMixedSourceStage {
 #[doc(hidden)]
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalog, *, max_operations=20_000, max_depth=16, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_mixed_source_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

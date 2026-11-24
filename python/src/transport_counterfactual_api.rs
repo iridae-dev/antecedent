@@ -16,6 +16,10 @@ use crate::transport_interference_api::parse_catalog;
 use crate::transport_z_api::to_py_json;
 use antecedent::estimate::ExactEvaluationLimits;
 use antecedent::execution::SearchLimits;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS, CounterfactualTransportDecision,
     CounterfactualTransportDerivation, CounterfactualTransportProblem,
@@ -520,6 +524,10 @@ fn parse_atoms(names: &[String], atoms: Vec<AtomTuple>) -> PyResult<Vec<Counterf
     reason = "one flat decode of each declared argument into the typed problem, then a single identification call"
 )]
 #[doc(hidden)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_counterfactual_transport_native(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

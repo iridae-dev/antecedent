@@ -8,6 +8,10 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::analysis::transported_measurement::{
     PooledDifferentialRequest, PooledRate, PopulationValidation,
     transport_pooled_differential_prevalence,
@@ -60,6 +64,10 @@ fn validation(population: String, counts: Counts) -> PopulationValidation {
 #[pyo3(signature = (sources, target_population, observed_positive, observed_total, *,
     target_validation=None, draws=4000, seed=1, threads=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn measurement_pooled_differential_transport(
     py: Python<'_>,
     sources: Vec<(String, u64, u64, u64, u64)>,

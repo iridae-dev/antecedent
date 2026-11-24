@@ -4,6 +4,10 @@
 
 use std::sync::Arc;
 
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::estimate::{
     NetworkData, NetworkEdge, estimate_saturation_interference as estimate_native,
 };
@@ -22,6 +26,10 @@ type ExposureEstimate = (f64, f64, f64, usize, usize, usize, usize, f64);
 /// cluster-saturation design. The shared Rust estimator enumerates exact support.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_saturation_interference(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

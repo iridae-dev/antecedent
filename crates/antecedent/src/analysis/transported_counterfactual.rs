@@ -34,7 +34,6 @@ pub use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
     NonRecoverableWitness, PathSpecificQuery, PathSpecificSelectionDiagram, SelectionNode,
     TransportedPathSpecificInput, TransportedPathSpecificRefusal, TransportedPathSpecificResult,
-    evaluate_transported_path_specific,
 };
 use antecedent_io::transported_counterfactual_artifact as transported_wire;
 pub use transported_wire::{
@@ -47,6 +46,34 @@ pub use transported_wire::{
 };
 
 use crate::error::CausalError;
+
+/// Evaluate the transported path-specific mean contrast `theta_T = sum_z P_T(z) G(z)`.
+///
+/// Checks, in order: model, query and law well-formedness (`invalid_argument`);
+/// the selection diagram (`selection_on_mechanism`, with the witness when the
+/// contrast is sensitive to the selected mechanism); the declared premises
+/// (`nonadditive_mechanism`, `noise_law_not_shared`,
+/// `cross_world_independence_missing`); the source and target regime evidence
+/// (`factor_missing`, the existing gate); and overlap (`overlap_failure`).
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific`].
+///
+/// # Errors
+///
+/// A boxed typed refusal in the `transported_counterfactual` namespace.
+#[deprecated(
+    since = "3.1.0",
+    note = "use antecedent::analysis::transported_counterfactual::TransportedCounterfactual::compile (program family TransportedPathSpecific)"
+)]
+pub fn evaluate_transported_path_specific(
+    input: &antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'_>,
+) -> Result<
+    antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult,
+    Box<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal>,
+> {
+    antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific(input)
+}
 
 /// A sealed or consumed transported path-specific counterfactual.
 #[derive(Clone, Debug, PartialEq)]

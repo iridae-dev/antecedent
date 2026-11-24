@@ -137,17 +137,12 @@ pub use antecedent_attribution::{
     IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult, IntrinsicMethod,
     MechanismChangeDetection, MechanismChangeMethod, NoiseIndependence, PartialStderr,
     PopulationDoContrast, RobustChangeOptions, RootCauseRank, ShapleyMethod, SourceInfluence,
-    StructureChangeOptions, UncertaintyComponent, UnitChangeResult, arrow_strengths,
-    detect_mechanism_changes, distribution_change, distribution_change_robust,
-    distribution_change_with_row_weights, feature_relevance, intrinsic_influence, path_decompose,
-    population_do_contrast, root_cause_rank, score_anomalies, score_anomalies_with,
-    structure_change, unit_change,
+    StructureChangeOptions, UncertaintyComponent, UnitChangeResult,
 };
 pub use antecedent_counterfactual::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualError,
     CounterfactualResult, CounterfactualWorld, ExogenousPosterior, NoiseInferenceKind,
-    RANK_PRESERVING_ASSUMPTION, nested_counterfactual, nested_counterfactual_with_exo,
-    nested_hard_counterfactual, simultaneous_hard_counterfactual,
+    RANK_PRESERVING_ASSUMPTION,
 };
 pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
@@ -157,9 +152,755 @@ pub use antecedent_model::{
     MechanismTyping, MechanismWorkspace, ModelError, ModelEvaluator, NodeFamilyConstraint,
     NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel, RouteDecision,
     SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule, TemporalNoise,
-    TemporalPath, TemporalPlan, ValidationSplits, WeightingDoSampler, interventional_mean,
-    policy_support, sample_interventional, sample_observational,
+    TemporalPath, TemporalPlan, ValidationSplits, WeightingDoSampler, policy_support,
 };
+
+/// Distribution-change attribution: the items of `antecedent_attribution::distribution_change`,
+/// whose run entries are deprecated wrappers of the kernel functions.
+pub mod distribution_change {
+    pub use antecedent_attribution::distribution_change::{
+        DifferenceMeasure, DistributionChangeOptions, PopulationRefit,
+    };
+
+    /// Attribute distributional change between baseline and comparison populations.
+    ///
+    /// `graph_model` supplies structure; mechanisms are fit separately on each
+    /// population subset. Only mechanism components that are ancestors of the
+    /// outcome (inclusive) participate, unless `query.components` restricts further.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::distribution_change`](fn@antecedent_attribution::distribution_change).
+    ///
+    /// # Errors
+    ///
+    /// Query validation, fit/sample failures, or Shapley size limits.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::DistributionChange ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+    )]
+    pub fn distribution_change(
+        graph_model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::DistributionChangeOptions,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::distribution_change(graph_model, data, query, options, ctx)
+    }
+
+    /// Evaluate a mechanism attribution after refitting both populations under
+    /// frequency weights (multinomial bootstrap counts). A count of zero drops that row
+    /// from the refit. Mechanism families are selected once on the unweighted
+    /// populations and held fixed, as on the Bayesian-bootstrap path.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::distribution_change::distribution_change_with_frequency_weights`].
+    ///
+    /// # Errors
+    /// Counts of the wrong length, negative or all zero, incompatible selected
+    /// mechanisms, cancellation, or attribution failures.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with an Attribute change target and Bayesian inference or bootstrap_replicates (route cell GcmAttributeDag); the route draws the row weights"
+    )]
+    pub fn distribution_change_with_frequency_weights(
+        graph_model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::DistributionChangeOptions,
+        baseline_counts: &[f64],
+        comparison_counts: &[f64],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::distribution_change::distribution_change_with_frequency_weights(
+            graph_model,
+            data,
+            query,
+            options,
+            baseline_counts,
+            comparison_counts,
+            ctx,
+        )
+    }
+
+    /// Evaluate a mechanism attribution after refitting both populations under shared
+    /// Bayesian-bootstrap row weights. Mechanism families are selected once on the
+    /// unweighted populations and held fixed for these refits.
+    ///
+    /// The two weight vectors correspond to the resolved baseline and comparison rows.
+    /// Within each population, one weight is shared by every mechanism factorization.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::distribution_change_with_row_weights`].
+    ///
+    /// # Errors
+    /// Invalid weights, incompatible selected mechanisms, or attribution failures.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with an Attribute change target and Bayesian inference or bootstrap_replicates (route cell GcmAttributeDag); the route draws the row weights"
+    )]
+    pub fn distribution_change_with_row_weights(
+        graph_model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::DistributionChangeOptions,
+        baseline_weights: &[f64],
+        comparison_weights: &[f64],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::distribution_change_with_row_weights(
+            graph_model,
+            data,
+            query,
+            options,
+            baseline_weights,
+            comparison_weights,
+            ctx,
+        )
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrappers at their earlier paths")]
+pub use distribution_change::{distribution_change, distribution_change_with_row_weights};
+
+/// Structure-change attribution: the items of `antecedent_attribution::structure_change`, whose
+/// run entries are deprecated wrappers of the kernel functions.
+pub mod structure_change {
+    pub use antecedent_attribution::structure_change::StructureChangeOptions;
+
+    /// Attribute outcome-marginal change to differing parent sets between two graphs.
+    ///
+    /// `baseline_model` and `comparison_model` must share the same variable layout.
+    /// Only nodes whose parent sets differ and that are ancestors of the outcome
+    /// (in either graph) are Shapley players; other structural diffs are reported
+    /// in `ChangeAttributionResult::unidentified`. A player swaps both its parent set and
+    /// its comparison-fitted mechanism. `ChangeAttributionResult::total_change` is the change
+    /// those players explain; `ChangeAttributionResult::observed_change` is the change measured
+    /// on the two populations, so any change outside the players shows up as
+    /// `ChangeAttributionResult::unexplained_change`.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::structure_change`](fn@antecedent_attribution::structure_change).
+    ///
+    /// # Errors
+    ///
+    /// Layout mismatch, empty players, cyclic hybrids, fit/sample failures, or
+    /// Shapley size limits.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::StructureChange ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+    )]
+    pub fn structure_change(
+        baseline_model: &antecedent_model::compile::CompiledCausalModel,
+        comparison_model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::StructureChangeOptions,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::structure_change(
+            baseline_model,
+            comparison_model,
+            data,
+            query,
+            options,
+            ctx,
+        )
+    }
+
+    /// `structure_change` with both populations' mechanisms refit under `refit`, the families of
+    /// each hybrid held at the ones selected on the unweighted populations: one replicate of the
+    /// row bootstrap (counts) or one draw of the posterior over the mechanisms (row weights).
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::structure_change::structure_change_with_refit`].
+    ///
+    /// # Errors
+    ///
+    /// As `structure_change`, and weights that do not match the resolved populations.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with an Attribute change target and Bayesian inference or bootstrap_replicates (route cell GcmAttributeDag); the route draws the row weights"
+    )]
+    pub fn structure_change_with_refit(
+        baseline_model: &antecedent_model::compile::CompiledCausalModel,
+        comparison_model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::ChangeAttributionQuery,
+        options: &antecedent_attribution::StructureChangeOptions,
+        refit: &antecedent_attribution::PopulationRefit<'_>,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::ChangeAttributionResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::structure_change::structure_change_with_refit(
+            baseline_model,
+            comparison_model,
+            data,
+            query,
+            options,
+            refit,
+            ctx,
+        )
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrapper at its earlier path")]
+pub use structure_change::structure_change;
+
+/// Sample `n_rows` observational draws from a fitted model.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_model::sample_observational`].
+///
+/// # Errors
+///
+/// Unfitted mechanisms or shape errors.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with SimulationTarget::InterventionalSample and no intervention (route cell GcmSimulateDag)"
+)]
+pub fn sample_observational(
+    model: &antecedent_model::CompiledCausalModel,
+    n_rows: usize,
+    rng: &mut antecedent_core::CausalRng,
+    ws: &mut antecedent_model::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_model::ValueBatch, antecedent_model::ModelError> {
+    antecedent_model::sample_observational(model, n_rows, rng, ws, ctx)
+}
+
+/// Sample under interventions (compiled to an overlay; model is not cloned).
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_model::sample_interventional`].
+///
+/// # Errors
+///
+/// Overlay / mechanism failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with SimulationTarget::InterventionalSample (route cell GcmSimulateDag)"
+)]
+pub fn sample_interventional(
+    model: &antecedent_model::CompiledCausalModel,
+    interventions: &[antecedent_core::intervention::Intervention],
+    n_rows: usize,
+    rng: &mut antecedent_core::CausalRng,
+    ws: &mut antecedent_model::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_model::ValueBatch, antecedent_model::ModelError> {
+    antecedent_model::sample_interventional(model, interventions, n_rows, rng, ws, ctx)
+}
+
+/// Convenience: interventional mean of a variable from ancestral sampling.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_model::interventional_mean`].
+///
+/// # Errors
+///
+/// Sampling failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with SimulationTarget::InterventionalSample (route cell GcmSimulateDag) and average the outcome column; the route's generator starts at the target's seed"
+)]
+pub fn interventional_mean(
+    model: &antecedent_model::CompiledCausalModel,
+    interventions: &[antecedent_core::intervention::Intervention],
+    outcome: antecedent_core::ids::VariableId,
+    n_draws: usize,
+    rng: &mut antecedent_core::CausalRng,
+    ws: &mut antecedent_model::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, antecedent_model::ModelError> {
+    antecedent_model::interventional_mean(model, interventions, outcome, n_draws, rng, ws, ctx)
+}
+
+/// Simultaneous hard interventions under shared abduced noise.
+///
+/// The `outer` and `inner` sets are concatenated into one world, so they must
+/// target disjoint variables: two interventions on the same variable are
+/// contradictory when simultaneous, and picking a winner silently would misreport
+/// the query. Nested queries (`Y_{x, M_{x'}}`) go through `nested_counterfactual`,
+/// which takes the frozen set explicitly.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_counterfactual::simultaneous_hard_counterfactual`].
+///
+/// # Errors
+///
+/// Engine failures, unknown outcome, or overlapping targets.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with SimulateQuery::simultaneous_world(outer, inner, outcomes) (route cell GcmSimulateDag); the declaration refuses overlapping sets"
+)]
+pub fn simultaneous_hard_counterfactual(
+    engine: &antecedent_counterfactual::CounterfactualEngine,
+    data: &antecedent_data::dataset::TabularData,
+    outer: &[antecedent_core::intervention::Intervention],
+    inner: &[antecedent_core::intervention::Intervention],
+    outcome: antecedent_core::ids::VariableId,
+    ws: &mut antecedent_model::batch::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, antecedent_counterfactual::CounterfactualError> {
+    antecedent_counterfactual::simultaneous_hard_counterfactual(
+        engine, data, outer, inner, outcome, ws, ctx,
+    )
+}
+
+/// Alias for `nested_counterfactual` (historical name).
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_counterfactual::nested_hard_counterfactual`].
+///
+/// # Errors
+///
+/// As `nested_counterfactual`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+)]
+pub fn nested_hard_counterfactual(
+    engine: &antecedent_counterfactual::CounterfactualEngine,
+    data: &antecedent_data::dataset::TabularData,
+    spec: &antecedent_counterfactual::NestedSpec<'_>,
+    ws: &mut antecedent_model::batch::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, antecedent_counterfactual::CounterfactualError> {
+    antecedent_counterfactual::nested_hard_counterfactual(engine, data, spec, ws, ctx)
+}
+
+/// `nested_counterfactual` against a caller-supplied `ExogenousPosterior`
+/// (abduct once, evaluate many nested queries).
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_counterfactual::nested_counterfactual_with_exo`].
+///
+/// # Errors
+///
+/// Unsupported intervention kinds, an invalid frozen set, or predict failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+)]
+pub fn nested_counterfactual_with_exo(
+    engine: &antecedent_counterfactual::CounterfactualEngine,
+    exo: &antecedent_counterfactual::ExogenousPosterior,
+    spec: &antecedent_counterfactual::NestedSpec<'_>,
+    ws: &mut antecedent_model::batch::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, antecedent_counterfactual::CounterfactualError> {
+    antecedent_counterfactual::nested_counterfactual_with_exo(engine, exo, spec, ws, ctx)
+}
+
+/// Nested counterfactual (twin-network) under shared abduced noise.
+///
+/// The query `Y_{inner, F_{outer}}`: the outcome under the `inner` interventions
+/// while every variable in `frozen` keeps the value it takes in the `outer` world.
+/// For the mediation contrast `Y_{x, M_{x'}}` take `outer = do(X = x')`,
+/// `inner = do(X = x)` and `frozen = {M}`.
+///
+/// 1. Abduct exogenous noise once from factual data.
+/// 2. Evaluate the **outer** world.
+/// 3. Freeze each node of `frozen` at its outer counterfactual value. Soft/stochastic
+///    outer interventions are realized first; freezes store those realized values.
+/// 4. Evaluate the **inner** world with those freezes plus `inner`. Every node that is
+///    not frozen — including nodes between an inner target and the outcome, and side
+///    paths such as a second mediator — is re-evaluated under the inner intervention.
+///
+/// Freezing more than the mediators changes the estimand (it holds every frozen path
+/// at the outer world), which is why the set is an argument rather than inferred.
+/// Supports Set, Shift, Soft, and Stochastic interventions.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_counterfactual::nested_counterfactual`].
+///
+/// # Errors
+///
+/// Unsupported intervention kinds, a frozen node that is an `inner` target or the
+/// outcome, unknown variables, abduction/predict failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+)]
+pub fn nested_counterfactual(
+    engine: &antecedent_counterfactual::CounterfactualEngine,
+    data: &antecedent_data::dataset::TabularData,
+    spec: &antecedent_counterfactual::NestedSpec<'_>,
+    ws: &mut antecedent_model::batch::MechanismWorkspace,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, antecedent_counterfactual::CounterfactualError> {
+    antecedent_counterfactual::nested_counterfactual(engine, data, spec, ws, ctx)
+}
+
+/// Per-unit change attribution: the items of `antecedent_attribution::unit_change`.
+/// The run entry is a deprecated wrapper of the kernel function.
+pub mod unit_change {
+    /// Attribute per-unit outcome change to input / mechanism components.
+    ///
+    /// Abduces exogenous noise once, then evaluates the outcome mechanism on
+    /// coalition-mixed parent values with that fixed noise (the factual-vs-reference,
+    /// counterfactual Shapley decomposition of Budhathoki, Michailidis & Janzing 2022).
+    /// Shapley values therefore attribute the real mechanism payoff, not a linear
+    /// surrogate.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::unit_change`](fn@antecedent_attribution::unit_change).
+    ///
+    /// # Errors
+    ///
+    /// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::UnitChange ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+    )]
+    pub fn unit_change(
+        model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        query: &antecedent_core::UnitChangeQuery,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<antecedent_attribution::UnitChangeResult, antecedent_attribution::AttributionError>
+    {
+        antecedent_attribution::unit_change(model, data, query, ctx)
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrapper at its earlier path")]
+pub use unit_change::unit_change;
+
+/// Rank components by absolute contribution, optionally aggregating across a
+/// graph ensemble's contribution draws.
+///
+/// When `graph_samples` and `contribution_draws` are provided, each draw column
+/// is a component contribution; weights come from the graph ensemble. Results
+/// include per-rank `graph_std`.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::root_cause_rank`].
+///
+/// # Errors
+///
+/// Shape mismatches or empty contributions.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::RootCauses ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn root_cause_rank(
+    attribution: &antecedent_attribution::ChangeAttributionResult,
+    graph_samples: Option<&antecedent_prob::graph_samples::WeightedGraphSamples>,
+    contribution_draws: Option<&antecedent_prob::posterior::PosteriorDraws>,
+    _ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<antecedent_attribution::RootCauseRank>, antecedent_attribution::AttributionError> {
+    antecedent_attribution::root_cause_rank(attribution, graph_samples, contribution_draws, _ctx)
+}
+
+/// Decompose outcome influence into directed-path shares using arrow strengths
+/// along each path (product of signed β on linear-Gaussian edges).
+///
+/// Signed products preserve cancelling paths; `total_change` is the sum of signed
+/// path shares (not absolute shares). Non-linear mechanisms are refused.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::path_decompose`].
+///
+/// # Errors
+///
+/// Missing nodes, path enumeration limits, or non-linear mechanisms on a path.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Paths ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn path_decompose(
+    model: &antecedent_model::compile::CompiledCausalModel,
+    sources: &[antecedent_core::ids::VariableId],
+    outcome: antecedent_core::ids::VariableId,
+    max_paths: usize,
+    max_len: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+{
+    antecedent_attribution::path_decompose(model, sources, outcome, max_paths, max_len, ctx)
+}
+
+/// Intrinsic causal influence: the items of `antecedent_attribution::intrinsic_influence`.
+/// The run entry is a deprecated wrapper of the kernel function.
+pub mod intrinsic_influence {
+    pub use antecedent_attribution::intrinsic_influence::{
+        ComponentStatus, ComponentUncertainty, FitResampling, INTRINSIC_MAX_EXACT_PLAYERS,
+        IntrinsicAllocation, IntrinsicBudget, IntrinsicInfluenceQuery, IntrinsicInfluenceResult,
+        IntrinsicMethod, MIN_FIT_BOOTSTRAP_REPLICATES, NoiseIndependence, PartialStderr,
+        ShapleyMethod, SourceInfluence, UncertaintyComponent,
+        intrinsic_influence_with_temporal_runs,
+    };
+
+    /// Attribute the variance of `query.target` to the exogenous noise terms of its ancestors and
+    /// itself.
+    ///
+    /// `noise` states what is known about dependence among the noise terms; `data`, when supplied
+    /// and `query.fit_bootstrap_replicates > 0`, is the sample the mechanisms were fitted on and is
+    /// resampled to measure mechanism-fitting uncertainty (each refit selects mechanisms with the
+    /// standard registry). Without data that component is reported as unquantified.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::intrinsic_influence`](fn@antecedent_attribution::intrinsic_influence).
+    ///
+    /// # Errors
+    ///
+    /// Coded refusals for undeclared or correlated noise (bidirected edges, latent common
+    /// causes), an unfitted mechanism or one whose noise is not independent across rows, a
+    /// non-continuous target, too many sources or an oversized simulation plan; invalid settings;
+    /// model or replay failures; `AttributionError::Cancelled`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::IntrinsicInfluence ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+    )]
+    pub fn intrinsic_influence(
+        model: &antecedent_model::compile::CompiledCausalModel,
+        noise: antecedent_attribution::NoiseIndependence<'_>,
+        data: Option<&antecedent_data::dataset::TabularData>,
+        query: &antecedent_attribution::IntrinsicInfluenceQuery,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_attribution::IntrinsicInfluenceResult,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::intrinsic_influence(model, noise, data, query, ctx)
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrapper at its earlier path")]
+pub use intrinsic_influence::intrinsic_influence;
+
+/// Feature relevance under interventions: the items of `antecedent_attribution::feature_relevance`.
+/// The run entry is a deprecated wrapper of the kernel function.
+pub mod feature_relevance {
+    pub use antecedent_attribution::feature_relevance::FeatureRelevanceOptions;
+
+    /// Score interventional relevance of each `feature` for `outcome` via Shapley values.
+    ///
+    /// For coalition `S`, `v(S) = E[Y | do(Xᵢ = μᵢ + δ ∀ i∈S)]` (features outside `S` free under
+    /// ancestral sampling). `δ` is the shift from each feature's empirical mean. Shapley values
+    /// `φᵢ` attribute the change from the empty intervention to intervening on all listed
+    /// features; the reported score is `|φᵢ|`.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_attribution::feature_relevance`](fn@antecedent_attribution::feature_relevance).
+    ///
+    /// # Errors
+    ///
+    /// Sampling / size failures.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::FeatureRelevance ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+    )]
+    pub fn feature_relevance(
+        model: &antecedent_model::compile::CompiledCausalModel,
+        data: &antecedent_data::dataset::TabularData,
+        outcome: antecedent_core::ids::VariableId,
+        features: &[antecedent_core::ids::VariableId],
+        options: &antecedent_attribution::FeatureRelevanceOptions,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        Vec<antecedent_attribution::FeatureRelevance>,
+        antecedent_attribution::AttributionError,
+    > {
+        antecedent_attribution::feature_relevance(model, data, outcome, features, options, ctx)
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrapper at its earlier path")]
+pub use feature_relevance::feature_relevance;
+
+/// Robust attribution via mechanism hybrids + Shapley.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::distribution_change_robust`].
+///
+/// # Errors
+///
+/// Fit / size / Shapley failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::DistributionChange ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn distribution_change_robust(
+    graph_model: &antecedent_model::compile::CompiledCausalModel,
+    data: &antecedent_data::dataset::TabularData,
+    query: &antecedent_core::ChangeAttributionQuery,
+    options: &antecedent_attribution::RobustChangeOptions,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+{
+    antecedent_attribution::distribution_change_robust(graph_model, data, query, options, ctx)
+}
+
+/// Detect which mechanisms differ between baseline and comparison populations.
+///
+/// This does **not** attribute outcome change — a changed mechanism need not
+/// drive the target.
+///
+/// Applies a Benjamini–Hochberg false-discovery-rate correction across
+/// `query.targets` by default (see
+/// `detect_mechanism_changes_with_correction` to override or disable this).
+/// `query.targets` is bounded by `query.max_targets`, i.e. the API is designed
+/// to scan multiple candidate mechanisms in a single call, so judging each
+/// target against the nominal `significance_level` independently would let the
+/// family-wise false-positive rate grow with the number of targets (≈40% at
+/// ten truly-unchanged targets and α=0.05). BH is chosen as the default
+/// because it is the same default `antecedent_discovery::PcmciPlus` uses for
+/// an analogous multi-hypothesis family (`PcmciPlus::new` sets
+/// `fdr: Some(FdrAdjustment::bh())`), and it controls FDR rather than the
+/// stricter (and more conservative) family-wise error rate, which is the
+/// usual choice when the family is a moderate, human-reviewed set of
+/// candidate mechanisms rather than a single make-or-break decision.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::detect_mechanism_changes`].
+///
+/// # Errors
+///
+/// Query / fit / stats failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::MechanismChange ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn detect_mechanism_changes(
+    graph_model: &antecedent_model::compile::CompiledCausalModel,
+    data: &antecedent_data::dataset::TabularData,
+    query: &antecedent_core::MechanismChangeQuery,
+    method: antecedent_attribution::MechanismChangeMethod,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<
+    Vec<antecedent_attribution::MechanismChangeDetection>,
+    antecedent_attribution::AttributionError,
+> {
+    antecedent_attribution::detect_mechanism_changes(graph_model, data, query, method, ctx)
+}
+
+/// `score_anomalies` under an `ExecutionContext`: rows are independent exact-Shapley
+/// problems (deterministic given the row), so they are scored in parallel up to the context's
+/// thread budget, and a cancelled context stops the run. The result does not depend on the
+/// thread count.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::score_anomalies_with`].
+///
+/// # Errors
+///
+/// As `score_anomalies`; the lowest-index failing row's error when several fail.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Anomaly ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn score_anomalies_with(
+    model: &antecedent_model::compile::CompiledCausalModel,
+    data: &antecedent_data::dataset::TabularData,
+    query: &antecedent_core::AnomalyAttributionQuery,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError> {
+    antecedent_attribution::score_anomalies_with(model, data, query, ctx)
+}
+
+/// Score anomalies and attribute them to ancestor noise terms via Shapley
+/// (Budhathoki, Minorics, Bloebaum & Janzing 2022): replace noise coordinates outside the
+/// coalition with the point-mass reference `0` and redistribute the target's IT score
+/// (see the module docs for why that is a tail probability and not a density, and for the
+/// reference distribution).
+///
+/// Runs serially; see `score_anomalies_with` for a thread budget.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::score_anomalies`].
+///
+/// # Errors
+///
+/// Size limit, out-of-range `unit_rows`, non-finite target or reconstructed values, or
+/// data/model failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study with CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Anomaly ..)) (route cell GcmAttributeDag); the route fits the standard mechanism program on the study's graph"
+)]
+pub fn score_anomalies(
+    model: &antecedent_model::compile::CompiledCausalModel,
+    data: &antecedent_data::dataset::TabularData,
+    query: &antecedent_core::AnomalyAttributionQuery,
+) -> Result<Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError> {
+    antecedent_attribution::score_anomalies(model, data, query)
+}
+
+/// Population do-contrast of parent on child: `E[Y|do(X=μ+δ/2)] − E[Y|do(X=μ−δ/2)]`.
+///
+/// Both interventional arms replay the same random stream (common random numbers), so the
+/// exogenous noise cancels in every per-draw difference. Independent streams would make a
+/// null edge read `E|N(0, 2σ²/n)| = 2σ/√(πn) > 0` — a phantom influence that shrinks only as
+/// `1/√n`.
+///
+/// This is **not** intrinsic (noise-based) causal influence.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::population_do_contrast`].
+///
+/// # Errors
+///
+/// Size / model failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::model_operation(&ModelOperation::PopulationDoContrast(..)) (program family FittedModelAttribution); the draws follow the operation's seed, which equals a direct call under a context seeded with it"
+)]
+pub fn population_do_contrast(
+    model: &antecedent_model::compile::CompiledCausalModel,
+    data: &antecedent_data::dataset::TabularData,
+    parent: antecedent_core::ids::VariableId,
+    child: antecedent_core::ids::VariableId,
+    delta: f64,
+    max_units: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_attribution::PopulationDoContrast, antecedent_attribution::AttributionError>
+{
+    antecedent_attribution::population_do_contrast(
+        model, data, parent, child, delta, max_units, ctx,
+    )
+}
+
+/// Compute arrow strengths for all edges in the compiled model: the cut-edge divergence
+/// `ArrowStrength::strength` and the variance contribution
+/// `ArrowStrength::variance_contribution` of each.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_attribution::arrow_strengths`].
+///
+/// # Errors
+///
+/// `AttributionError::InvalidInput` when an edge carries variance into a child with no noise
+/// variance of its own (the divergence is infinite) or a variance is not finite.
+///
+/// `AttributionError::NonLinearGaussianMechanism` when a child with parents is not a
+/// linear-family mechanism, or when any node's variance is not available in closed form
+/// (the strength of an edge depends on its parent's variance, so an unusable mechanism
+/// anywhere upstream makes the answer unavailable rather than approximate).
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::model_operation(&ModelOperation::ArrowStrengths(..)) on a study prepared on the DAG and table (program family FittedModelAttribution); Python: antecedent.analyze(data, graph=edges, query=antecedent.model_operations.ArrowStrengths())"
+)]
+pub fn arrow_strengths(
+    model: &antecedent_model::compile::CompiledCausalModel,
+) -> Result<Vec<antecedent_attribution::ArrowStrength>, antecedent_attribution::AttributionError> {
+    antecedent_attribution::arrow_strengths(model)
+}
 
 /// Fitted GCM plus per-node assignment records.
 #[derive(Clone, Debug)]
@@ -183,6 +924,10 @@ pub struct FittedGcm {
 /// Invalid configuration, a graph that is not a static DAG over numeric observed columns, an
 /// unknown or non-frequentist CI test, or a CI-test failure. A budget or cancellation stop is an
 /// `Incomplete` report, not an error.
+#[deprecated(
+    since = "3.1.0",
+    note = "use PreparedStudy::falsify_graph on a study prepared on the DAG and the table (program family GraphFalsification)"
+)]
 pub fn evaluate_graph(
     graph: &Dag,
     data: &TabularData,
@@ -444,7 +1189,7 @@ internal_engine! {
         ctx: &ExecutionContext,
     ) -> Result<ValueBatch, CausalError> {
         let mut ws = MechanismWorkspace::default();
-        sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
+        antecedent_model::sample::sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
     }
 }
 
@@ -1257,7 +2002,7 @@ mod tests {
         let n = 10usize;
         let (model, data) = chain_xy(n);
         let q = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100).with_unit_rows([n]);
-        let err = score_anomalies(&model, &data, &q).unwrap_err();
+        let err = antecedent_attribution::anomaly::score_anomalies(&model, &data, &q).unwrap_err();
         assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
     }
 }

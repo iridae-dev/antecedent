@@ -63,14 +63,13 @@ use antecedent_estimate::measurement::{DataBinding, MeasurementError};
 pub use antecedent_estimate::measurement_transport::{
     ErrorParameter, InvarianceDeclaration, MEASUREMENT_INVARIANCE_ASSUMPTION,
     PopulationErrorStructure, TransportBasis, TransportReceipt, TransportedCorrection,
-    TransportedMeasurementModel, transport_measurement_model,
+    TransportedMeasurementModel,
 };
 
 // Differential error pooled across validated populations and carried to the target with the
 // between-population heterogeneity propagated (the invariance premise's uncertainty).
 pub use antecedent_estimate::measurement_transport_pooled::{
     PooledDifferentialCorrection, PooledDifferentialRequest, PooledRate, PopulationValidation,
-    transport_pooled_differential_prevalence,
 };
 
 use super::StudyBuilder;
@@ -81,6 +80,57 @@ use super::composition_verification::{
 use super::measurement_model::{
     MeasurementAnalysisBinding, MeasurementEstimate, MeasurementInput, MeasurementModelRefusal,
 };
+
+/// Correct the target's recorded prevalence with sensitivity and specificity pooled across
+/// differentially validated populations.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence`].
+///
+/// # Errors
+/// Fewer than two sources, a source labelled as the target, a repeated source, an empty
+/// validation margin, a target sample with no rows or more positives than rows, fewer than
+/// 1000 draws, more than five percent of draws with a non-positive Youden index (the pooled
+/// rates leave the target unidentified), admission or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PooledDifferentialTransport route, which calls this kernel function with the same inputs"
+)]
+pub fn transport_pooled_differential_prevalence(
+    request: antecedent_estimate::measurement_transport_pooled::PooledDifferentialRequest<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<
+    antecedent_estimate::measurement_transport_pooled::PooledDifferentialCorrection,
+    antecedent_estimate::EstimationError,
+> {
+    antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence(
+        request, ctx,
+    )
+}
+
+/// Order of refusal: well-formed models, target model, declaration present, declaration
+/// names the source and target, regime unchanged, route has something to carry, error
+/// structure poolable across populations, every required parameter declared invariant.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::measurement_transport::transport_measurement_model`].
+///
+/// # Errors
+/// A coded `MeasurementError` naming the unmet premise; no model is issued.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled MeasurementModelTransport route, which calls this kernel function with the same inputs"
+)]
+pub fn transport_measurement_model(
+    models: &[antecedent_core::measurement_model::MeasurementModel],
+    structure: Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>,
+    data: &antecedent_estimate::measurement::DataBinding,
+) -> Result<
+    antecedent_estimate::measurement_transport::TransportedMeasurementModel,
+    antecedent_estimate::measurement::MeasurementError,
+> {
+    antecedent_estimate::measurement_transport::transport_measurement_model(models, structure, data)
+}
 
 /// Detail of a retained receipt identity that is not the recomputed one.
 pub const DETAIL_TRANSPORT_RECEIPT_MISMATCH: &str =
@@ -166,8 +216,12 @@ pub fn transport_measurement(
     structure: Option<&PopulationErrorStructure>,
     binding: &MeasurementAnalysisBinding,
 ) -> Result<TransportedMeasurementModel, MeasurementModelRefusal> {
-    transport_measurement_model(models, structure, &data_binding(binding))
-        .map_err(|error| lift(&error))
+    antecedent_estimate::measurement_transport::transport_measurement_model(
+        models,
+        structure,
+        &data_binding(binding),
+    )
+    .map_err(|error| lift(&error))
 }
 
 /// Recompute the transport and require its identity to be the retained one.

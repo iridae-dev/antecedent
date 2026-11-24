@@ -10,6 +10,10 @@ use std::sync::Arc;
 use antecedent::CausalError;
 use antecedent::data::TableView;
 use antecedent::execution::StreamDomain;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::gcm::{
     CounterfactualEngine, DoSampleResult, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
     ModelEvaluator, WeightingDoSampler, arrow_strengths, counterfactual_contrasts,
@@ -277,6 +281,10 @@ impl PyFittedGcm {
     /// A specialized model operation outside the central compiler: it reads the fitted
     /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
     /// calibration status.
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn arrow_strengths(&self) -> PyResult<Vec<PyArrowStrength>> {
         let strengths =
             arrow_strengths(&self.inner.model).map_err(|e| py_err(CausalError::from(e)))?;
@@ -304,6 +312,10 @@ impl PyFittedGcm {
     /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
     /// calibration status.
     #[pyo3(signature = (parent, child, delta, *, max_units=None, seed=0, threads=None))]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn population_do_contrast(
         &self,
         py: Python<'_>,
@@ -391,6 +403,10 @@ impl PyFittedGcm {
     /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
     /// calibration status.
     #[pyo3(signature = (outcome, outer, inner, *, seed=0, threads=None))]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn simultaneous_counterfactual(
         &self,
         py: Python<'_>,
@@ -422,6 +438,10 @@ impl PyFittedGcm {
     /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
     /// calibration status.
     #[pyo3(signature = (outcome, interventions, n, *, seed=0, threads=None))]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn interventional_mean(
         &self,
         py: Python<'_>,

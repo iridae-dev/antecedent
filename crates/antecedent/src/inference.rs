@@ -1278,15 +1278,12 @@ pub use antecedent_prob::TransportError;
 /// Power-prior discount chosen from out-of-sample fit, with a selection-aware interval.
 pub use antecedent_prob::{
     AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
-    LinearTarget, SelectedAlphaReport, compose_beta_power_priors, compose_gamma_power_priors,
-    default_alpha_grid, select_beta_power_prior, select_beta_prior, select_gamma_power_prior,
-    select_gamma_prior, select_linear_power_prior, select_linear_prior,
+    LinearTarget, SelectedAlphaReport, default_alpha_grid,
 };
 /// Row-weighted target populations and kernel transport weights.
 pub use antecedent_prob::{
     BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
-    WeightedTarget, apply_weighted_target_transport, check_weights_overlap,
-    compose_with_weighted_target_transport, kernel_bandwidth_sensitivity,
+    WeightedTarget, check_weights_overlap,
 };
 /// Conjugate Beta-Binomial and Gamma-Poisson count posteriors.
 pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};
@@ -1294,8 +1291,7 @@ pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};
 pub use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
 /// External prior bank: power-prior / mixture composition.
 pub use antecedent_prob::{
-    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
-    compose_external_priors_with_alphas,
+    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors_with_alphas,
 };
 /// Coordinate-name mapping of composed priors.
 pub use antecedent_prob::{CoordinateMapping, rename_coordinates};
@@ -1304,9 +1300,7 @@ pub use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 /// Weighted graph samples for effect envelopes.
 pub use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 /// Transport policy for cross-population prior transfer.
-pub use antecedent_prob::{
-    TransportAdjustment, TransportContext, TransportPolicy, apply_transport, compose_with_transport,
-};
+pub use antecedent_prob::{TransportAdjustment, TransportContext, TransportPolicy};
 /// `antecedent-stats` items at the crate root.
 pub use antecedent_stats::ConditionalIndependence;
 /// Joint-law propagation arithmetic.
@@ -1326,6 +1320,360 @@ pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
 pub use antecedent_stats::{GlmFamily, GlmOptions};
 /// Stats-layer errors.
 pub use antecedent_stats::{GlmRefusalKind, StatsError};
+
+/// The Gaussian prior composed from `sources` at the discount chosen from the target data, with
+/// the selection report. Every source takes the selected `α`; the selection (criterion, `α`,
+/// level, interval semantics) is a restriction of the composed prior, so it enters its identity.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_linear_prior`].
+///
+/// # Errors
+///
+/// As `select_linear_power_prior`, or a composition failure.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorLinearSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_linear_prior(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    baseline: &antecedent_prob::PriorSet,
+    target: antecedent_prob::LinearTarget<'_>,
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<
+    (antecedent_prob::ComposedPrior, antecedent_prob::SelectedAlphaReport),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::select_linear_prior(sources, baseline, target, options)
+}
+
+/// Choose the power-prior `α` of external Gaussian sources for a Gaussian linear target,
+/// and report the target functional's posterior with intervals that stay valid under the selection.
+///
+/// Every source takes the same `α` from the grid (the power path of
+/// `compose_external_priors_with_alphas`); a source with a mixture weight is refused.
+/// The residual variance is the baseline's: known, or Inv-Gamma. Rows are unweighted.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_linear_power_prior`].
+///
+/// # Errors
+///
+/// A design or functional of the wrong shape or with non-finite entries, a mixture-path
+/// source, an invalid composition, invalid options, or a numerically singular posterior.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorLinearSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_linear_power_prior(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    baseline: &antecedent_prob::PriorSet,
+    target: antecedent_prob::LinearTarget<'_>,
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<antecedent_prob::SelectedAlphaReport, antecedent_prob::ProbError> {
+    antecedent_prob::select_linear_power_prior(sources, baseline, target, options)
+}
+
+/// The Gamma power prior at the discount chosen from the target counts, with the report.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_gamma_prior`].
+///
+/// # Errors
+///
+/// As `select_gamma_power_prior`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorGammaSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_gamma_prior(
+    source: antecedent_prob::GammaSource,
+    counts: &[u64],
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<
+    (antecedent_prob::GammaHyperparameters, antecedent_prob::SelectedAlphaReport),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::select_gamma_prior(source, counts, options)
+}
+
+/// Choose the power-prior `α` of a source rate for a Gamma-Poisson target.
+///
+/// `counts[i]` is target observation `i`'s count over unit exposure. The reported
+/// functional is the rate `λ`.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_gamma_power_prior`].
+///
+/// # Errors
+///
+/// An invalid source or options, or fewer than two target observations.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorGammaSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_gamma_power_prior(
+    source: antecedent_prob::GammaSource,
+    counts: &[u64],
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<antecedent_prob::SelectedAlphaReport, antecedent_prob::ProbError> {
+    antecedent_prob::select_gamma_power_prior(source, counts, options)
+}
+
+/// The Beta power prior at the discount chosen from the target trials, with the selection report.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_beta_prior`].
+///
+/// # Errors
+///
+/// As `select_beta_power_prior`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorBetaSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_beta_prior(
+    source: antecedent_prob::BetaSource,
+    outcomes: &[bool],
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<
+    (antecedent_prob::BetaHyperparameters, antecedent_prob::SelectedAlphaReport),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::select_beta_prior(source, outcomes, options)
+}
+
+/// Choose the power-prior `α` of a source proportion for a Beta-Binomial target.
+///
+/// `outcomes[i]` is whether target trial `i` was a success (for the exceedance query,
+/// whether the outcome exceeded the threshold). The reported functional is the proportion
+/// `θ`.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::select_beta_power_prior`].
+///
+/// # Errors
+///
+/// An invalid source or options, or fewer than two target trials.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled PowerPriorBetaSelection route (Study::compile_*_power_prior_selection), which calls the same kernel function"
+)]
+pub fn select_beta_power_prior(
+    source: antecedent_prob::BetaSource,
+    outcomes: &[bool],
+    options: &antecedent_prob::AlphaSelectionOptions,
+) -> Result<antecedent_prob::SelectedAlphaReport, antecedent_prob::ProbError> {
+    antecedent_prob::select_beta_power_prior(source, outcomes, options)
+}
+
+/// How the transported estimate moves across a set of declared bandwidths.
+///
+/// A bandwidth whose weighting fails the overlap check is reported with its
+/// refusal message rather than dropped, so the report shows where transport
+/// stops being supported.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::kernel_bandwidth_sensitivity`].
+///
+/// # Errors
+///
+/// Empty bandwidth set, an invalid bandwidth, or invalid effects / distances.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorTransport route (Study::compile_kernel_bandwidth_sensitivity, CompiledKernelBandwidthSensitivity::sensitivity), which calls the same kernel function"
+)]
+pub fn kernel_bandwidth_sensitivity(
+    family: antecedent_prob::KernelFamily,
+    bandwidths: &[f64],
+    distances: &[f64],
+    unit_effects: &[f64],
+    min_ess_fraction: f64,
+) -> Result<Vec<antecedent_prob::BandwidthSensitivityRow>, antecedent_prob::TransportError> {
+    antecedent_prob::kernel_bandwidth_sensitivity(
+        family,
+        bandwidths,
+        distances,
+        unit_effects,
+        min_ess_fraction,
+    )
+}
+
+/// Transport toward a weighted target, then compose.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::compose_with_weighted_target_transport`].
+///
+/// # Errors
+///
+/// Overlap refusal, transport failures, or composition failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorTransport route (Study::compile_prior_weighted_target_transport, CompiledPriorWeightedTargetTransport::compose_with_weighted_target_transport), which calls the same kernel function"
+)]
+pub fn compose_with_weighted_target_transport(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    baseline: &antecedent_prob::PriorSet,
+    policy: antecedent_prob::TransportPolicy,
+    target: &antecedent_prob::WeightedTarget,
+    coef_index: Option<usize>,
+) -> Result<
+    (antecedent_prob::ComposedPrior, antecedent_prob::TargetOverlap),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::compose_with_weighted_target_transport(
+        sources, baseline, policy, target, coef_index,
+    )
+}
+
+/// Apply transport then compose (power / mixture path).
+///
+/// When transport forces α overrides, those override the source weights for
+/// composition while preserving the original requested alphas.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::compose_with_transport`].
+///
+/// # Errors
+///
+/// Transport gate / adjustment failures or composition failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorTransport route (Study::compile_prior_tag_transport, CompiledPriorTagTransport::compose_with_transport), which calls the same kernel function"
+)]
+pub fn compose_with_transport(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    baseline: &antecedent_prob::PriorSet,
+    ctx: &antecedent_prob::TransportContext<'_>,
+) -> Result<
+    (antecedent_prob::ComposedPrior, Vec<antecedent_prob::TransportOutcome>),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::compose_with_transport(sources, baseline, ctx)
+}
+
+/// Compose Gamma-Poisson count sources `(total count, exposure, α)` into one Gamma prior:
+/// `Gamma(s + Σ α S, r + Σ α E)`.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::compose_gamma_power_priors`].
+///
+/// # Errors
+///
+/// An invalid base, a negative exposure, or `α` outside `[0, 1]`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorComposition route (Study::compile_gamma_power_prior_composition, CompiledGammaPowerPriorComposition::compose), which calls the same kernel function"
+)]
+pub fn compose_gamma_power_priors(
+    base: antecedent_prob::GammaHyperparameters,
+    sources: &[(u64, f64, f64)],
+) -> Result<antecedent_prob::GammaHyperparameters, antecedent_prob::ProbError> {
+    antecedent_prob::compose_gamma_power_priors(base, sources)
+}
+
+/// Compose external Gaussian coefficient priors with a baseline.
+///
+/// * **Power path** (all `mixture_weight` are `None`):\
+///   `Λ = Λ₀ + Σ α_k Λ_k`, mean from precision-weighted average.
+/// * **Mixture path** (all weights set): moment-match\
+///   `Σ w_k N(μ_k, V_k/α_k) + (1−Σw) · baseline`. Sources with `α_k = 0` are
+///   dropped and their weight folds into leftover baseline mass.
+///
+/// Uses `weight.alpha` as both requested and applied. For conflict shrink,
+/// mutate source alphas (or call `compose_external_priors_with_alphas`) before
+/// composing.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::compose_external_priors`].
+///
+/// # Errors
+///
+/// Invalid weights, missing Gaussians, or dimension mismatch.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorComposition route (Study::compile_external_prior_composition, CompiledExternalPriorComposition::compose), which calls the same kernel function"
+)]
+pub fn compose_external_priors(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    baseline: &antecedent_prob::PriorSet,
+) -> Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError> {
+    antecedent_prob::compose_external_priors(sources, baseline)
+}
+
+/// Compose Beta-Binomial count sources `(successes, trials, α)` into one Beta prior:
+/// `Beta(a + Σ α k, b + Σ α (n − k))`.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::compose_beta_power_priors`].
+///
+/// # Errors
+///
+/// An invalid base, `successes > trials`, or `α` outside `[0, 1]`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorComposition route (Study::compile_beta_power_prior_composition, CompiledBetaPowerPriorComposition::compose), which calls the same kernel function"
+)]
+pub fn compose_beta_power_priors(
+    base: antecedent_prob::BetaHyperparameters,
+    sources: &[(u64, u64, f64)],
+) -> Result<antecedent_prob::BetaHyperparameters, antecedent_prob::ProbError> {
+    antecedent_prob::compose_beta_power_priors(base, sources)
+}
+
+/// Transport sources toward a weighted target.
+///
+/// Refuses when the weighting fails the overlap check. Otherwise each source's
+/// chosen coefficient takes the weighted mean and is widened by the sampling
+/// variance of that mean, exactly as the tag path does for caller weights, and
+/// the claim (and kernel, when declared) is recorded as assumptions.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::apply_weighted_target_transport`].
+///
+/// # Errors
+///
+/// Overlap refusal, or an invalid coefficient index / prior.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorTransport route (Study::compile_prior_weighted_target_transport, CompiledPriorWeightedTargetTransport::apply_weighted_target_transport), which calls the same kernel function"
+)]
+pub fn apply_weighted_target_transport(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    policy: antecedent_prob::TransportPolicy,
+    target: &antecedent_prob::WeightedTarget,
+    coef_index: Option<usize>,
+) -> Result<
+    (Vec<antecedent_prob::ExternalPriorSource>, antecedent_prob::TargetOverlap),
+    antecedent_prob::ProbError,
+> {
+    antecedent_prob::apply_weighted_target_transport(sources, policy, target, coef_index)
+}
+
+/// Apply transport gate / adjustment to cloned sources; return prepared sources
+/// and per-source outcomes.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_prob::apply_transport`].
+///
+/// # Errors
+///
+/// `TransportError::PolicyRequired` when populations differ without a policy,
+/// length mismatches, or invalid adjustment weights.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ExternalPriorTransport route (Study::compile_prior_tag_transport, CompiledPriorTagTransport::apply_transport), which calls the same kernel function"
+)]
+pub fn apply_transport(
+    sources: &[antecedent_prob::ExternalPriorSource],
+    ctx: &antecedent_prob::TransportContext<'_>,
+) -> Result<
+    (Vec<antecedent_prob::ExternalPriorSource>, Vec<antecedent_prob::TransportOutcome>),
+    antecedent_prob::TransportError,
+> {
+    antecedent_prob::apply_transport(sources, ctx)
+}
+
 /// Numerics for inference from adaptively collected data.
 pub mod adaptive_inference {
     pub use antecedent_stats::adaptive_inference::{

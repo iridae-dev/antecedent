@@ -17,6 +17,7 @@
     clippy::cast_lossless,
     reason = "bit-identical equality is the property under test; fixtures widen small integers"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

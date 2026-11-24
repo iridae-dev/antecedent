@@ -13,7 +13,10 @@ mod targets;
 #[cfg(test)]
 mod workspace_tests;
 
-pub use dispatch::{StaticEstimateInput, StaticEstimateWorkspaces, attach_static_bootstrap};
+pub(crate) use dispatch::attach_bootstrap_to_point;
+#[allow(deprecated, reason = "the deprecated direct entry stays reachable at its 3.0.0 path")]
+pub use dispatch::attach_static_bootstrap;
+pub use dispatch::{StaticEstimateInput, StaticEstimateWorkspaces};
 // The raw static estimate and identification entries run without a lowered program or a
 // contract; only the compiled paths inside the crate reach them.
 #[cfg(test)]

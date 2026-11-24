@@ -26,6 +26,7 @@
     clippy::type_complexity,
     reason = "end-to-end stories: one test per package, exact replays compare bits"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 #[path = "../../antecedent-estimate/tests/common/admg_conditional_scm.rs"]
 mod admg_conditional_scm;
