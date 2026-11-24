@@ -269,7 +269,21 @@ impl AdmissibleDecisionContract {
     /// invalid one, so a declaration has an identity before it is checked.
     #[must_use]
     pub fn declaration_identity(&self) -> String {
-        let base = self.contract.declaration_identity();
+        self.identity_over(&self.contract.declaration_identity())
+    }
+
+    /// Whether `stored` is this contract's identity, as this release writes it or as earlier
+    /// releases wrote it: before a constraint's `applies_to` was read as a set, a repeated
+    /// action id there changed the base contract's identity, and with it this one. The two
+    /// agree for every contract without such a repeat.
+    #[must_use]
+    pub fn accepts_identity(&self, stored: &str) -> bool {
+        self.declaration_identity() == stored
+            || self.identity_over(&self.contract.identity_with(false)) == stored
+    }
+
+    /// The identity over a base contract identity `base` and every rule.
+    fn identity_over(&self, base: &str) -> String {
         let mut support: Vec<[u8; 32]> =
             self.rules.support_rules.iter().map(encode_support_rule).collect();
         support.sort_unstable();
@@ -286,7 +300,7 @@ impl AdmissibleDecisionContract {
             .collect();
         exclusions.sort_unstable();
         let mut out = CanonicalWriter::new("antecedent.decision_contract.admissibility.v1");
-        out.text(&base);
+        out.text(base);
         out.opt_word(self.rules.default_weakest_support.map(|s| u64::from(s.severity())));
         put_list(&mut out, &support);
         put_list(&mut out, &exclusions);

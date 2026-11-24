@@ -150,7 +150,8 @@ impl ProgramSearchContract {
                 writer.word(7);
             }
         }
-        let mut constraints: Vec<_> = self.constraints.iter().map(encode_constraint).collect();
+        let mut constraints: Vec<_> =
+            self.constraints.iter().map(|constraint| encode_constraint(constraint, true)).collect();
         constraints.sort_unstable();
         put_list(&mut writer, &constraints);
         Ok(writer.finish())
