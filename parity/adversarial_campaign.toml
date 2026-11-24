@@ -168,6 +168,78 @@ kind = "bound"
 runner = "lean"
 test = "Antecedent.Generated"
 
+[[cases]]
+id = "contract.translated_compose_rule_proved"
+kind = "bound"
+runner = "aeneas"
+test = "AntecedentRust.Transform"
+
+[[cases]]
+id = "revalidation.translated_classes_proved"
+kind = "bound"
+runner = "aeneas"
+test = "AntecedentRust.Revalidation"
+
+[[cases]]
+id = "recalc.worst_is_a_join"
+kind = "bound"
+runner = "kani"
+test = "worst_is_a_join"
+
+[[cases]]
+id = "recalc.change_never_keeps_a_dependent_valid"
+kind = "bound"
+runner = "kani"
+test = "a_change_never_keeps_a_dependent_valid"
+
+[[cases]]
+id = "support.translated_severity_proved"
+kind = "bound"
+runner = "aeneas"
+test = "AntecedentRust.Support"
+
+[[cases]]
+id = "recalc.reuse_only_without_a_change"
+kind = "changing"
+runner = "rust"
+test = "recalc_reuse_only_without_a_change"
+
+[[cases]]
+id = "recalc.fresh_scores_never_reused_over_a_new_snapshot"
+kind = "invalid"
+runner = "rust"
+test = "recalc_fresh_scores_never_reused_over_a_new_snapshot"
+
+[[cases]]
+id = "recalc.unchanged_workflow_keeps_standing"
+kind = "preserving"
+runner = "rust"
+test = "recalc_unchanged_workflow_keeps_standing"
+
+[[cases]]
+id = "revalidation.raised_only_by_recomputation"
+kind = "changing"
+runner = "rust"
+test = "revalidation_raises_standing_only_by_recomputation"
+
+[[cases]]
+id = "claims.handoff_chain_never_restores_a_loss"
+kind = "changing"
+runner = "rust"
+test = "handoff_chain_never_restores_a_loss"
+
+[[cases]]
+id = "support.summary_never_better_than_label"
+kind = "bound"
+runner = "kani"
+test = "accepted_summary_is_never_better_than_a_label"
+
+[[cases]]
+id = "support.missing_evidence_never_hidden"
+kind = "bound"
+runner = "kani"
+test = "missing_evidence_is_never_hidden"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -208,9 +280,9 @@ caught_by = ["acceptance.no_expectation_never_bound", "acceptance.bound_over_all
 [[mutations]]
 id = "compose_drops_earlier_unresolved_obligation"
 file = "crates/antecedent-contract/src/transform.rs"
-old = ".retain(|existing| existing.id != obligation.id || existing.is_unresolved());"
-new = ".retain(|existing| existing.id != obligation.id);"
-caught_by = ["contract.chain_keeps_unresolved_obligations"]
+old = "    !same_id || unresolved"
+new = "    !same_id"
+caught_by = ["contract.chain_keeps_unresolved_obligations", "contract.translated_compose_rule_proved"]
 
 [[mutations]]
 id = "compose_overwrites_layer_effects"
@@ -230,3 +302,101 @@ new = """    pub const fn claim(claim_id: SemanticDigest) -> Self {
         Self {
             payload: UNUSED_FACET,"""
 caught_by = ["acceptance.claim_slot_binds_only_retained_id"]
+
+[[mutations]]
+id = "derivation_may_change_a_non_positive_domain"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "    derived != parent && derived != DomainStatus::Unknown"
+new = "    derived != parent && derived.is_positive()"
+caught_by = ["claims.translated_checks_proved"]
+
+[[mutations]]
+id = "refusal_parent_may_derive_a_value"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "        && !matches!(derived, ClaimKind::Refusal | ClaimKind::Incomplete)"
+new = "        && matches!(derived, ClaimKind::Associational)"
+caught_by = ["claims.translated_checks_proved"]
+
+[[mutations]]
+id = "derivation_may_add_an_identification_slot"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "    derived_has_slot && !every_parent_has_slot"
+new = "    derived_has_slot && every_parent_has_slot"
+caught_by = ["claims.translated_checks_proved"]
+
+[[mutations]]
+id = "handoff_chain_restores_an_omitted_field"
+file = "crates/antecedent-contract/src/claim.rs"
+old = "    contiguous && (first_complete || next_complete || retained_by_first) && !omitted"
+new = "    contiguous && (first_complete || next_complete || retained_by_first || omitted)"
+caught_by = ["claims.translated_checks_proved", "claims.handoff_chain_never_restores_a_loss"]
+
+[[mutations]]
+id = "compose_resolved_record_hides_unresolved"
+file = "crates/antecedent-contract/src/transform.rs"
+old = "    if identical || (!unresolved && same_id) {"
+new = "    if identical || same_id {"
+caught_by = ["contract.chain_keeps_unresolved_obligations", "contract.translated_compose_rule_proved"]
+
+[[mutations]]
+id = "restored_trust_keeps_old_authority"
+file = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+old = "    before != now && !trust_withdraws(now)"
+new = "    before == now && !trust_withdraws(now)"
+caught_by = ["revalidation.translated_classes_proved", "revalidation.raised_only_by_recomputation"]
+
+[[mutations]]
+id = "numerical_reasons_ignored_by_the_class"
+file = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+old = "    } else if numerical {"
+new = "    } else if false && numerical {"
+caught_by = ["revalidation.translated_classes_proved", "revalidation.raised_only_by_recomputation"]
+
+[[mutations]]
+id = "unverified_provider_holds_trust"
+file = "crates/antecedent-contract/src/composition_verification/graph.rs"
+old = "            crate::ProviderTrust::Unverified => Self::Withdrawn,"
+new = "            crate::ProviderTrust::Unverified => Self::Held,"
+caught_by = ["revalidation.translated_classes_proved"]
+
+[[mutations]]
+id = "ledger_keeps_a_result_with_too_few_sources"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+old = "    } else if remaining < needed {"
+new = "    } else if remaining + 1 < needed {"
+caught_by = ["revalidation.translated_classes_proved"]
+
+[[mutations]]
+id = "ledger_withdrawal_skips_a_recomputing_result"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+old = "        (Revalidation::Withdrawn, _) => StatusStep::Withdraw,"
+new = "        (Revalidation::Withdrawn, Revalidation::StillValid) => StatusStep::Withdraw,"
+caught_by = ["revalidation.translated_classes_proved"]
+
+[[mutations]]
+id = "removed_input_only_recomputes"
+file = "crates/antecedent-core/src/recalc.rs"
+old = "            Self::Removed => Revalidation::Withdrawn,"
+new = "            Self::Removed => Revalidation::Recompute,"
+caught_by = ["recalc.change_never_keeps_a_dependent_valid"]
+
+[[mutations]]
+id = "worst_class_takes_the_least_severe"
+file = "crates/antecedent-core/src/recalc.rs"
+old = "        self.max(other)"
+new = "        self.min(other)"
+caught_by = ["recalc.worst_is_a_join"]
+
+[[mutations]]
+id = "fresh_scores_reused_over_a_new_snapshot"
+file = "crates/antecedent-core/src/recalc.rs"
+old = "        if !resume.supplied_data && self.own_change(Stage::DataSnapshot).is_some() {"
+new = "        if !resume.supplied_data\n            && self.own_change(Stage::DataSnapshot) == Some(ChangeKind::Modified)\n        {"
+caught_by = ["recalc.fresh_scores_never_reused_over_a_new_snapshot", "recalc.reuse_only_without_a_change"]
+
+[[mutations]]
+id = "support_summary_takes_the_mildest_label"
+file = "crates/antecedent-contract/src/support_labels.rs"
+old = "    let worst = labels.iter().copied().max_by_key(|label| label.severity());"
+new = "    let worst = labels.iter().copied().min_by_key(|label| label.severity());"
+caught_by = ["support.summary_never_better_than_label", "support.missing_evidence_never_hidden"]

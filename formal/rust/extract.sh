@@ -60,4 +60,32 @@ extract() {
 extract Standing antecedent-contract \
   --start-from 'antecedent_contract::claim::domain_change_allowed' \
   --start-from 'antecedent_contract::claim::identification_status_kept_or_lowered' \
-  --include 'antecedent_core::identification'
+  --include 'antecedent_core::identification' \
+  --start-from 'antecedent_contract::claim::domain_upgraded' \
+  --start-from 'antecedent_contract::claim::domain_departs' \
+  --start-from 'antecedent_contract::claim::associational_derives_causal' \
+  --start-from 'antecedent_contract::claim::non_value_derives_value' \
+  --start-from 'antecedent_contract::claim::identification_slot_added' \
+  --start-from 'antecedent_contract::claim::chain_retains'
+
+# The obligation rule of TransformationReport::compose.
+extract Transform antecedent-contract \
+  --start-from 'antecedent_contract::transform::obligation_merge' \
+  --start-from 'antecedent_contract::transform::obligation_kept_on_replace' \
+  --start-from 'antecedent_contract::obligation::obligation_unresolved' \
+  --include 'antecedent_core::assumption::AssumptionStatus'
+
+# Revalidation classes: graph claims, provider trust and ledger results.
+extract Revalidation antecedent-contract \
+  --start-from 'antecedent_contract::composition_verification::revalidate::trust_move_is_numerical' \
+  --start-from 'antecedent_contract::composition_verification::revalidate::revalidation_class' \
+  --start-from 'antecedent_contract::composition_verification::graph::TrustStanding::of_provider' \
+  --start-from 'antecedent_contract::evidence_ledger::ledger::loss_class' \
+  --start-from 'antecedent_contract::evidence_ledger::ledger::status_step' \
+  --include 'antecedent_core::recalc::Revalidation'
+
+# The support severity order. Revalidation::worst and ChangeKind::revalidation are checked
+# by Kani instead (formal/kani/src/revalidation.rs): translating them here would define
+# Revalidation a second time beside the translation above.
+extract Support antecedent-core \
+  --start-from 'antecedent_core::response::SupportStatus::severity'

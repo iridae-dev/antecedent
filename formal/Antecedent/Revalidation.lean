@@ -16,9 +16,11 @@ result between them, and proves the standing properties the code claims:
 
 Rust counterparts (proved equal to these definitions in `formal/rust`, except
 where marked):
-* `Revalidation.worst`   ↔ `antecedent_core::recalc::Revalidation::worst`
-* `ChangeKind.revalidation` ↔ `antecedent_core::recalc::ChangeKind::revalidation`
-* `StageStatus.revalidation` ↔ `antecedent_core::recalc::StageStatus::revalidation`
+* `Revalidation.worst`   ↔ `antecedent_core::recalc::Revalidation::worst` and
+  `ChangeKind.revalidation` ↔ `antecedent_core::recalc::ChangeKind::revalidation`
+  (checked by Kani over every input in `formal/kani/src/revalidation.rs`)
+* `StageStatus.revalidation` models `antecedent_core::recalc::StageStatus::revalidation`
+  (not translated: its refusal payload holds an `Arc`; exercised on generated plans)
 * `Support.severity`     ↔ `antecedent_core::response::SupportStatus::severity`
 * `Trust.ofProvider`     ↔ `antecedent_contract::composition_verification::graph::TrustStanding::of_provider`
 * `trustMoveIsNumerical`, `trustWithdraws`, `revalidationClass` ↔
