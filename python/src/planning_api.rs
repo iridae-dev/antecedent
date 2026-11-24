@@ -420,7 +420,7 @@ fn planning_unit_support_py(request_json: &str) -> PyResult<String> {
     let request = request(request_json)?;
     let ctx = crate::py_execution_context(0, 1);
     compile_planning(&request, &ctx)
-        .map(|plan| crate::propagation_chain_api::unit_support_json(&plan.plan_view()).to_string())
+        .map(|plan| crate::errors::unit_support_value(&plan.plan_view()).to_string())
         .map_err(py_err)
 }
 

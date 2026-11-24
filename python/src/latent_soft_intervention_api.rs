@@ -12,22 +12,6 @@ use crate::errors::py_err;
 use crate::transport_common::execution_context;
 use crate::{PyCancellationToken, detach_catch};
 
-/// The support decision of the unit a compiled program's route runs under, as JSON: the unit,
-/// its status, whether it is supported and the evidence it lists as missing. `None` when no
-/// unit is bound to the route.
-pub(crate) fn unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
-    let support = view.unit_support()?;
-    Some(
-        serde_json::json!({
-            "unit": support.unit(),
-            "status": support.status().as_str(),
-            "supported": support.supported(),
-            "missing_evidence": support.missing_evidence(),
-        })
-        .to_string(),
-    )
-}
-
 fn encode(value: &impl serde::Serialize) -> PyResult<String> {
     serde_json::to_string(value).map_err(|error| crate::errors::value_err(error.to_string()))
 }
@@ -44,7 +28,7 @@ impl NativePreparedLatentSoftIntervention {
     }
 
     fn unit_support(&self) -> Option<String> {
-        unit_support_json(&self.inner.plan_view())
+        crate::errors::unit_support_json(&self.inner.plan_view())
     }
 
     #[pyo3(signature = (memory_bytes=None, cancel=None))]

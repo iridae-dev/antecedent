@@ -717,7 +717,7 @@ impl PyCompiledCyclicDecision {
     /// The support decision of the unit the program runs under, as JSON, or `None` while no
     /// unit is bound to its route.
     fn unit_support(&self) -> Option<String> {
-        crate::cyclic_system_api::unit_support_json(&self.compiled.plan_view())
+        crate::errors::unit_support_json(&self.compiled.plan_view())
     }
 
     /// The feature its portable artifact declares.

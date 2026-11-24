@@ -72,7 +72,7 @@ impl NativePreparedEventProgram {
     }
 
     fn unit_support(&self) -> Option<String> {
-        crate::latent_soft_intervention_api::unit_support_json(&plan_view_of(&self.inner))
+        crate::errors::unit_support_json(&plan_view_of(&self.inner))
     }
 
     fn inspect(&self) -> String {

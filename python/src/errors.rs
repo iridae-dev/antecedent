@@ -671,18 +671,23 @@ impl IntoCausalPyErr for antecedent::design::DesignError {
     }
 }
 
-/// The support decision of the unit a compiled program runs under, as JSON: the unit,
-/// whether it is supported and the evidence it lacks. `None` for a route no unit is bound to.
-/// A program's support decision never enters its identity.
-pub(crate) fn unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
-    view.unit_support().map(|unit| {
+/// The support decision of the unit a compiled program's route runs under, as a JSON value: the
+/// unit, its status, whether it is supported and the evidence it lists as missing; `null` while no
+/// unit is bound to the route. A program's support decision never enters its identity.
+pub(crate) fn unit_support_value(view: &antecedent::planner::PlanView) -> serde_json::Value {
+    view.unit_support().map_or(serde_json::Value::Null, |unit| {
         serde_json::json!({
             "unit": unit.unit(),
+            "status": unit.status().as_str(),
             "supported": unit.supported(),
             "missing_evidence": unit.missing_evidence(),
         })
-        .to_string()
     })
+}
+
+/// The same decision as a JSON string; `None` for a route no unit is bound to.
+pub(crate) fn unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
+    view.unit_support().map(|_| unit_support_value(view).to_string())
 }
 
 #[cfg(test)]

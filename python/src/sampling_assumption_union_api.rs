@@ -320,7 +320,7 @@ impl PySamplingAssumptionUnion {
     /// no unit is bound to the route.
     #[getter]
     fn unit_support_json(&self) -> String {
-        crate::propagation_chain_api::unit_support_json(&self.plan.plan_view()).to_string()
+        crate::errors::unit_support_value(&self.plan.plan_view()).to_string()
     }
 
     /// Seal the declaration and the result after re-executing it under the bound seed.

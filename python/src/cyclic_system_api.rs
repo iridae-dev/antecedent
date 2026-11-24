@@ -1170,20 +1170,6 @@ fn recovered_metadata(
     serde_json::json!({"source":"recovered","world":world,"origin":origin.map(origin_metadata),"draw_count":value.draws.len(),"outcome":value.outcome,"total_mass":value.total_mass,"withheld_mass":value.withheld_mass,"mixture_mean":value.mixture_mean,"mixture_variance":value.mixture_variance,"between_draw_variance":value.between_draw_variance})
 }
 
-/// The support decision of the unit a compiled cyclic program runs under, as JSON; `None` while
-/// no unit is bound to its route. Reading it changes no program identity.
-pub(crate) fn unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
-    view.unit_support().map(|unit| {
-        serde_json::json!({
-            "unit": unit.unit(),
-            "status": unit.status().as_str(),
-            "supported": unit.supported(),
-            "missing_evidence": unit.missing_evidence(),
-        })
-        .to_string()
-    })
-}
-
 #[pyclass(name = "_PreparedCyclicSystem")]
 pub(crate) struct PyPreparedCyclicSystem {
     pub(crate) inner:
@@ -1195,7 +1181,7 @@ impl PyPreparedCyclicSystem {
     /// The support decision of the unit the program runs under, as JSON, or `None` while no
     /// unit is bound to its route.
     fn unit_support(&self) -> Option<String> {
-        unit_support_json(&self.inner.plan_view())
+        crate::errors::unit_support_json(&self.inner.plan_view())
     }
 
     #[pyo3(signature = (*, max_bytes=None, cancel=None))]
@@ -1462,7 +1448,7 @@ impl PyPreparedCyclicFamily {
     /// The support decision of the unit the program runs under, as JSON, or `None` while no
     /// unit is bound to its route.
     fn unit_support(&self) -> Option<String> {
-        unit_support_json(&self.inner.plan_view())
+        crate::errors::unit_support_json(&self.inner.plan_view())
     }
 
     #[pyo3(signature = (request_json, *, max_bytes=None, cancel=None))]

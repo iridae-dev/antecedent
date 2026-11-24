@@ -916,20 +916,6 @@ fn compile(
     }
 }
 
-/// The support decision of the unit a compiled program runs under, as JSON; `None` while no
-/// unit is bound to its route. Reading it changes no program identity.
-pub(crate) fn graph_unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
-    view.unit_support().map(|unit| {
-        json!({
-            "unit": unit.unit(),
-            "status": unit.status().as_str(),
-            "supported": unit.supported(),
-            "missing_evidence": unit.missing_evidence(),
-        })
-        .to_string()
-    })
-}
-
 // -------------------------------------------------------------------------- Python handles
 
 /// A compiled decision on the graph-imputation mixture and its last execution.
@@ -955,7 +941,7 @@ impl PyGraphImputationDecision {
     /// The support decision of the unit the compiled program runs under, as JSON; `None` while
     /// no unit is bound to its route.
     fn unit_support(&self) -> Option<String> {
-        graph_unit_support_json(&self.compiled.plan_view())
+        crate::errors::unit_support_json(&self.compiled.plan_view())
     }
 
     /// Refit the graph and imputation schedule and evaluate the decision: `(json, refusal)`.
