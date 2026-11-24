@@ -65,10 +65,6 @@ name = "evsi_precision_calibration"
 path = "tests/evsi_precision_calibration.rs"
 
 [[test]]
-name = "preference_choice_model_calibration"
-path = "tests/preference_choice_model_calibration.rs"
-
-[[test]]
 name = "sequential_evaluation_interval_construction"
 path = "tests/sequential_evaluation_interval_construction.rs"
 
@@ -179,7 +175,3 @@ path = "tests/transported_decision_artifact_exact.rs"
 [[test]]
 name = "external_provider_exact"
 path = "tests/external_provider_exact.rs"
-
-[[test]]
-name = "suite_03"
-path = "tests/suite_03.rs"

@@ -1404,7 +1404,7 @@ crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/evidence_plan.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 
 [[test]]
 id = "evidence-plan-facade"
@@ -2250,7 +2250,7 @@ gates = ["inventory"]
 [[test]]
 id = "preference-choice-model-calibration"
 crate = "antecedent-design"
-cargo_target = "preference_choice_model_calibration"
+cargo_target = "decision_reliability_interval_calibration"
 path = "crates/antecedent-design/tests/preference_choice_model_calibration.rs"
 gates = ["inventory"]
 
@@ -2386,7 +2386,7 @@ id = "inverse-query-artifact"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/inverse_query_artifact.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2394,7 +2394,7 @@ id = "paired-draws-alignment"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/paired_draws_alignment.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2402,7 +2402,7 @@ id = "prior-signal"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/prior_signal.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2410,7 +2410,7 @@ id = "proposal-receipt"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/proposal_receipt.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2418,7 +2418,7 @@ id = "repair-artifact"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/repair_artifact.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2426,7 +2426,7 @@ id = "repair-facade"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/repair_facade.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2434,7 +2434,7 @@ id = "route-evidence-sequential-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/route_evidence_sequential_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2442,7 +2442,7 @@ id = "sensitivity-decision"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/sensitivity_decision.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2450,7 +2450,7 @@ id = "sequential-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/sequential_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2458,7 +2458,7 @@ id = "signal-provider"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/signal_provider.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2466,7 +2466,7 @@ id = "structured-refusals"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/structured_refusals.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2474,7 +2474,7 @@ id = "study-candidate"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/study_candidate.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2482,7 +2482,7 @@ id = "transport-sensitivity"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transport_sensitivity.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2490,7 +2490,7 @@ id = "transported-bridge"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_bridge.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2498,7 +2498,7 @@ id = "transported-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2506,7 +2506,7 @@ id = "transported-route-variants"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_route_variants.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2514,7 +2514,7 @@ id = "transported-synthesis"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_synthesis.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2522,7 +2522,7 @@ id = "transported-verify-replay"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_verify_replay.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2530,7 +2530,7 @@ id = "value-of-information"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/value_of_information.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -11670,7 +11670,7 @@ crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/decision_reliability_resources.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 
 [[test]]
 id = "audit-python-tests-test-batch-treatment-labels-py"
@@ -18768,7 +18768,7 @@ id = "adaptive-policy-search"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -24932,121 +24932,121 @@ gates = ["inventory", "named"]
 [[test]]
 id = "design-preference-model"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_model.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-model-reference"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_model_reference.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-contract"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_contract.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-choice-record"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/choice_record.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-choice-record-reference"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/choice_record_reference.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-decision"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_decision.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-decision-structural"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_decision_structural.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-certified"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_certified.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-set-learning"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_set_learning.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-set-learning-reference"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_set_learning_reference.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-choice-model"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_choice_model.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-accepted-preferences"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/accepted_preferences.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-evaluation"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_evaluation.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-artifact"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_artifact.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
 id = "design-preference-cancellation"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_cancellation.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -25301,9 +25301,9 @@ gates = ["inventory", "named"]
 [[test]]
 id = "design-preference-shape-learning"
 crate = "antecedent-design"
-cargo_target = "suite_03"
+cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/preference_shape_learning.rs"
-suite_map_line = "suite_03: choice_record, choice_record_reference, preference_contract, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_choice_model, preference_decision, preference_decision_structural, preference_certified, accepted_preferences, preference_evaluation, preference_artifact, preference_cancellation, preference_shape_learning"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
