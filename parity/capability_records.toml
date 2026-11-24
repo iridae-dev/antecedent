@@ -23765,6 +23765,7 @@ refusals = [
   { detail = "preference_contract.fixed_units_mismatch", remedy = "State the fixed value in the attribute's units." },
   { detail = "preference_contract.input_count_mismatch", remedy = "Supply one input per attribute of the value model." },
   { detail = "preference_contract.not_lowerable", remedy = "Evaluate with evaluate_preference_certified on aligned joint draws." },
+  { detail = "preference_contract.no_ordinary_form", remedy = "Evaluate the contract across its preference set, or state every trade-off as a plain number." },
   { detail = "preference_contract.parameter_count_mismatch", remedy = "Supply one value per preference parameter." },
   { detail = "preference_contract.parameter_non_finite", remedy = "Supply finite parameter values." },
   { detail = "preference_contract.quantity_invalid", remedy = "Declare a complete scientific quantity for this attribute." },
@@ -23781,6 +23782,8 @@ refusals = [
   { detail = "preference_compile.design_units_too_few", remedy = "Use a design with at least 30 clusters in each arm, 30 matched pairs or 30 switchback sequences, or decide on the arm means." },
   { detail = "preference_compile.design_not_supported", remedy = "Use a static-regime, cluster-randomized, matched-pair or switchback design." },
   { detail = "preference_compile.program_carries_decision", remedy = "Compile the design again before attaching another decision." },
+  { detail = "preference_compile.ordinary_measure_not_read", remedy = "Execute the compiled ordinary contract without a measure." },
+  { detail = "preference_compile.ordinary_structures_not_compiled", remedy = "Compile the ordinary contract with a study of one structure, or decide across the structures with decision.Structures." },
   { detail = "preference_compile.studies_share_evidence", remedy = "Declare the studies' cross-study covariance as shared evidence, or estimate the outcomes jointly in one design." },
   { detail = "preference_compile.class_prior_keys_mismatch", remedy = "Key the class masses by the member fingerprints the compile reports, with a positive total in every class, or declare a uniform measure." },
   { detail = "preference_compile.class_prior_sampling_needs_uniform", remedy = "Sample under a uniform class measure, or key every member and raise the exact limit." },
@@ -23820,7 +23823,7 @@ routes = [
   { name = "antecedent.joint_panel.PreparedNativeJointDesign.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.CompiledPreferenceDecision.execute", stage = "evaluate", status = "supported" },
   { name = "antecedent.preferences.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
-  { name = "antecedent.preferences.CompiledDecision.execute", stage = "evaluate", status = "supported" },
+  { name = "antecedent._decision_compile.CompiledDecision.execute", stage = "evaluate", status = "supported" },
 ]
 fixtures = [
   { id = "preference_decision.exact.switch_point.truth", role = "truth", intent = "Two actions with hand-derived affine values 10 - 4w and 5.5 - w on w in [0, 3]: the margin is 4.5 - 3w, the switch value is w = 1.5, both actions are possibly best, witnesses sit at w = 0 and w = 3, and the statement quotes the switch and the admissible range.", evidence_test = "crates/antecedent-design/tests/preference_decision.rs", evidence_assertion = "around_the_switch_point_the_choice_depends_on_the_preference" },
@@ -23982,6 +23985,7 @@ refusals = [
   { detail = "preference_contract.fixed_units_mismatch", remedy = "State the fixed value in the attribute's units." },
   { detail = "preference_contract.input_count_mismatch", remedy = "Supply one input per attribute of the value model." },
   { detail = "preference_contract.not_lowerable", remedy = "Evaluate with evaluate_preference_certified on aligned joint draws." },
+  { detail = "preference_contract.no_ordinary_form", remedy = "Evaluate the contract across its preference set, or state every trade-off as a plain number." },
   { detail = "preference_contract.parameter_count_mismatch", remedy = "Supply one value per preference parameter." },
   { detail = "preference_contract.parameter_non_finite", remedy = "Supply finite parameter values." },
   { detail = "preference_contract.quantity_invalid", remedy = "Declare a complete scientific quantity for this attribute." },
@@ -24060,8 +24064,8 @@ routes = [
   { name = "antecedent.preference_decision.record_decision", stage = "representation", status = "supported" },
   { name = "antecedent.preference_decision.export_decision", stage = "representation", status = "supported" },
   { name = "antecedent.preference_decision.consume_decision", stage = "consume", status = "supported" },
-  { name = "antecedent.preferences.PreferenceDecision.export", stage = "representation", status = "supported" },
-  { name = "antecedent.preferences.replay", stage = "consume", status = "supported" },
+  { name = "antecedent._decision_tradeoff_results.TradeoffDecision.export", stage = "representation", status = "supported" },
+  { name = "antecedent.decision.replay", stage = "consume", status = "supported" },
 ]
 fixtures = [
   { id = "preference_decision.artifact.both_routes_round_trip.positive", role = "positive", intent = "Decisions answered by the exact and the certified route round-trip through the container and replay on the same draws.", evidence_test = "crates/antecedent-design/tests/preference_artifact.rs", evidence_assertion = "decisions_of_both_routes_round_trip_and_replay" },
@@ -24185,8 +24189,8 @@ routes = [
   { name = "antecedent.preference_decision.analysis_options", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.analysis_belief_source", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.analysis_result_identity", stage = "prepare", status = "supported", claim = "none" },
-  { name = "antecedent.preference_learning.CompatibleSet.learn", stage = "evaluate", status = "supported" },
-  { name = "antecedent.preference_learning.Option.from_result", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.decision_learning.CompatibleSet.learn", stage = "evaluate", status = "supported" },
+  { name = "antecedent.decision_learning.Option.from_result", stage = "prepare", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "preference_learning.compatible_set.two_sided_records.truth", role = "truth", intent = "Two records on either side of the indifference value bracket one parameter at its hand-derived range, with both choices binding and the declared range narrowed.", evidence_test = "crates/antecedent-design/tests/preference_set_learning.rs", evidence_assertion = "records_on_both_sides_bracket_one_parameter" },
@@ -24332,7 +24336,7 @@ refusals = [
 ]
 routes = [
   { name = "antecedent_design.estimate_choice_model", stage = "evaluate", status = "supported", claim = "interval" },
-  { name = "antecedent.preference_learning.ChoiceModel.learn", stage = "evaluate", status = "supported", claim = "interval" },
+  { name = "antecedent.decision_learning.ChoiceModel.learn", stage = "evaluate", status = "supported", claim = "interval" },
 ]
 fixtures = [
   { id = "preference_learning.choice_model.simulated_recovery.truth", role = "truth", intent = "Two rates (4, -2) and consistency 1 are recovered within four standard errors from 2000 simulated logit choices, and the interval is labelled not_measured.", evidence_test = "crates/antecedent-design/tests/preference_choice_model.rs", evidence_assertion = "two_rates_and_consistency_are_recovered_from_simulated_choices" },
@@ -24519,13 +24523,13 @@ routes = [
   { name = "antecedent.preference_decision.decide_accepted", stage = "evaluate", status = "supported" },
   { name = "antecedent.preference_decision.export_accepted", stage = "representation", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.consume_accepted", stage = "consume", status = "supported", claim = "none" },
-  { name = "antecedent.preference_learning.AcceptedPreferences.declared", stage = "prepare", status = "supported", claim = "none" },
-  { name = "antecedent.preference_learning.CompatibleSet.accept", stage = "prepare", status = "supported" },
-  { name = "antecedent.preference_learning.ChoiceModel.accept", stage = "prepare", status = "supported", claim = "interval" },
-  { name = "antecedent.preference_learning.AcceptedPreferences.acknowledge", stage = "prepare", status = "supported", claim = "none" },
-  { name = "antecedent.preference_learning.AcceptedPreferences.relearn", stage = "prepare", status = "supported" },
-  { name = "antecedent.preference_learning.AcceptedPreferences.export", stage = "representation", status = "supported", claim = "none" },
-  { name = "antecedent.preference_learning.load", stage = "consume", status = "supported", claim = "none" },
+  { name = "antecedent.decision_learning.AcceptedPreferences.declared", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.decision_learning.CompatibleSet.accept", stage = "prepare", status = "supported" },
+  { name = "antecedent.decision_learning.ChoiceModel.accept", stage = "prepare", status = "supported", claim = "interval" },
+  { name = "antecedent.decision_learning.AcceptedPreferences.acknowledge", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.decision_learning.AcceptedPreferences.relearn", stage = "prepare", status = "supported" },
+  { name = "antecedent.decision_learning.AcceptedPreferences.export", stage = "representation", status = "supported", claim = "none" },
+  { name = "antecedent.decision_learning.load", stage = "consume", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "preference_learning.accepted_preferences.versioning.positive", role = "positive", intent = "Learning, acknowledging review items and relearning each give a new version and identity.", evidence_test = "crates/antecedent-design/tests/accepted_preferences.rs", evidence_assertion = "learning_reviewing_and_relearning_each_give_a_new_version_and_identity" },

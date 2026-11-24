@@ -12183,7 +12183,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.exact"
-route = "antecedent.preferences.CompiledDecision.execute"
+route = "antecedent._decision_compile.CompiledDecision.execute"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.compiled_python.positive"
@@ -12303,7 +12303,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.artifact"
-route = "antecedent.preferences.PreferenceDecision.export"
+route = "antecedent._decision_tradeoff_results.TradeoffDecision.export"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.certified.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.artifact.both_routes_round_trip.positive"
@@ -12318,7 +12318,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.artifact"
-route = "antecedent.preferences.replay"
+route = "antecedent.decision.replay"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.certified.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.artifact.both_routes_round_trip.positive"
@@ -12408,7 +12408,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.compatible_set"
-route = "antecedent.preference_learning.CompatibleSet.learn"
+route = "antecedent.decision_learning.CompatibleSet.learn"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_records.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.compatible_set.per_decider.positive"
@@ -12423,7 +12423,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.compatible_set"
-route = "antecedent.preference_learning.Option.from_result"
+route = "antecedent.decision_learning.Option.from_result"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_records.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.compatible_set.per_decider.positive"
@@ -12453,7 +12453,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.choice_model"
-route = "antecedent.preference_learning.ChoiceModel.learn"
+route = "antecedent.decision_learning.ChoiceModel.learn"
 algorithm_provenance = ["provenance/preference_learning.choice_model.toml", "provenance/preference_learning.choice_records.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.choice_model.clustered_covariance.positive"
@@ -12573,7 +12573,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.AcceptedPreferences.declared"
+route = "antecedent.decision_learning.AcceptedPreferences.declared"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12588,7 +12588,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.CompatibleSet.accept"
+route = "antecedent.decision_learning.CompatibleSet.accept"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12603,7 +12603,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.ChoiceModel.accept"
+route = "antecedent.decision_learning.ChoiceModel.accept"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12618,7 +12618,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.AcceptedPreferences.acknowledge"
+route = "antecedent.decision_learning.AcceptedPreferences.acknowledge"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12633,7 +12633,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.AcceptedPreferences.relearn"
+route = "antecedent.decision_learning.AcceptedPreferences.relearn"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12648,7 +12648,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.AcceptedPreferences.export"
+route = "antecedent.decision_learning.AcceptedPreferences.export"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
@@ -12663,7 +12663,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_learning.load"
+route = "antecedent.decision_learning.load"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"

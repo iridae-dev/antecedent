@@ -18091,8 +18091,8 @@ assertion_contract = "An empty parameter range and too few actions refuse with t
 
 [[capability]]
 id = "preferences.compiled_decision"
-rust = ["antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
-legacy_internal = ["antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
+rust = ["antecedent::analysis::preference_decision::compile_contract_decision_across_studies", "antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
+legacy_internal = ["antecedent::analysis::preference_decision::compile_contract_decision_across_studies", "antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Compile a decision across a preference set with the prepared studies or design that estimate its quantities: the plan shows the decision's quantities, source and ranges before fitting, what cannot be answered refuses at compile, and execution returns the decision."
@@ -18241,7 +18241,7 @@ id = "preferences.decision_artifact"
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Export a decision across a preference set and replay it by recomputation on the same joint draws."
-python = "antecedent.preferences.replay"
+python = "antecedent.decision.replay"
 required_dimensions = ["artifact", "refusal"]
 [[capability.evidence]]
 test = "python/tests/test_preferences.py::test_export_and_replay_recompute_the_decision"
@@ -18264,7 +18264,7 @@ id = "preference_learning.compatible_set"
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Learn the preference parameters compatible with recorded or stated choices."
-python = "antecedent.preference_learning.CompatibleSet.learn"
+python = "antecedent.decision_learning.CompatibleSet.learn"
 required_dimensions = ["success", "inspection"]
 supports = ["capability:preference_learning.compatible_set"]
 [[capability.evidence]]
@@ -18298,7 +18298,7 @@ id = "preference_learning.choice_model"
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Estimate preference parameters from recorded choices read as noisy, with an interval reported as not measured."
-python = "antecedent.preference_learning.ChoiceModel.learn"
+python = "antecedent.decision_learning.ChoiceModel.learn"
 required_dimensions = ["success", "refusal"]
 supports = ["capability:preference_learning.choice_model"]
 [[capability.evidence]]
@@ -18327,7 +18327,7 @@ id = "preference_learning.accepted_preferences"
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Accept learned preferences, export them and load them under a retained identity, relearning from the records."
-python = "antecedent.preference_learning.load"
+python = "antecedent.decision_learning.load"
 required_dimensions = ["artifact"]
 [[capability.evidence]]
 test = "python/tests/test_preference_learning.py::test_records_narrow_the_set_then_the_accepted_preferences_decide"
