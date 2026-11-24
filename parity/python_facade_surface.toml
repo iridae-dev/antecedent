@@ -4308,3 +4308,27 @@ rust = "antecedent::analysis::preference_decision::record_decision_with_context"
 kind = "fn"
 status = "bound"
 python = "antecedent.preferences.PreferenceDecision.export"
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::clopper_pearson"
+kind = "fn"
+status = "internal"
+reason = "The exact interval on a sampled class mass; Python reads it in PreferenceDecision.sampled_masses after Contract.compile(...).execute()."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::clopper_pearson_upper"
+kind = "fn"
+status = "internal"
+reason = "The one-sided bound on the mass where another action is best among sampled members; Python reads it in the verdicts of PreferenceDecision after Contract.compile(...).execute()."
+
+[[entry]]
+rust = "antecedent::analysis::preference_decision::decide_on_sampled_structures"
+kind = "fn"
+status = "internal"
+reason = "Executing a compiled decision whose class was sampled runs it; Python reaches it through Contract.compile(...).execute() on a study prepared with ClassPrior.uniform(...).sample(...)."
+
+[[entry]]
+rust = "antecedent::analysis::propagation_chain::deferred_family_table"
+kind = "fn"
+status = "internal"
+reason = "The compiled preference route builds the deferred family table at compile; Python reaches it through Contract.compile over several prepared studies."

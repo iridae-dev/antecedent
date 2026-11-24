@@ -1084,19 +1084,35 @@ impl core::clone::Clone for antecedent::analysis::planning::PlannedExperiment
 impl core::clone::Clone for antecedent::analysis::planning::PlanningPlan
 impl core::clone::Clone for antecedent::analysis::preference_decision::AnalysisPreferenceDecision
 impl core::clone::Clone for antecedent::analysis::preference_decision::BoundPreferenceContract
+impl core::clone::Clone for antecedent::analysis::preference_decision::ClassMember
+impl core::clone::Clone for antecedent::analysis::preference_decision::ClassSampling
+impl core::clone::Clone for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::clone::Clone for antecedent::analysis::preference_decision::ClassSize
 impl core::clone::Clone for antecedent::analysis::preference_decision::CompiledPreferenceDecision
 impl core::clone::Clone for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 impl core::clone::Clone for antecedent::analysis::preference_decision::CompiledStructure
 impl core::clone::Clone for antecedent::analysis::preference_decision::CrossStudyCovariance
 impl core::clone::Clone for antecedent::analysis::preference_decision::DemandedQuantity
 impl core::clone::Clone for antecedent::analysis::preference_decision::DesignBootstrap
+impl core::clone::Clone for antecedent::analysis::preference_decision::MassEstimate
+impl core::clone::Clone for antecedent::analysis::preference_decision::OtherBestBound
 impl core::clone::Clone for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::clone::Clone for antecedent::analysis::preference_decision::PreferenceDecisionExecution
 impl core::clone::Clone for antecedent::analysis::preference_decision::PreferenceDecisionReceipt
 impl core::clone::Clone for antecedent::analysis::preference_decision::PreferenceDemand
 impl core::clone::Clone for antecedent::analysis::preference_decision::PreferenceJointLaw
+impl core::clone::Clone for antecedent::analysis::preference_decision::RowProvenance
+impl core::clone::Clone for antecedent::analysis::preference_decision::SampledClassMass
+impl core::clone::Clone for antecedent::analysis::preference_decision::SampledMargin
+impl core::clone::Clone for antecedent::analysis::preference_decision::SampledStructuralEvaluation
+impl core::clone::Clone for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::clone::Clone for antecedent::analysis::preference_decision::SharedEvidence
 impl core::clone::Clone for antecedent::analysis::preference_decision::StructureIdentification
+impl core::clone::Clone for antecedent::analysis::preference_decision::UnitKey
+impl core::clone::Clone for antecedent::analysis::propagation_chain::ChainTableBinding
+impl core::clone::Clone for antecedent::analysis::propagation_chain::DeferredCrossBlock
+impl core::clone::Clone for antecedent::analysis::propagation_chain::DeferredFamilyTable
+impl core::clone::Clone for antecedent::analysis::propagation_chain::FamilyEstimateDecl
 impl core::clone::Clone for antecedent::analysis::propagation_chain::PropagationChainPlan
 impl core::clone::Clone for antecedent::analysis::proposal_arrival::ArrivalArtifact
 impl core::clone::Clone for antecedent::analysis::proposal_arrival::ArrivalLimits
@@ -1241,6 +1257,7 @@ impl core::clone::Clone for antecedent::analysis::typed_transported_mechanism::T
 impl core::clone::Clone for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::clone::Clone for antecedent::bootstrap_retention::RetainedBootstrap
 impl core::clone::Clone for antecedent::bootstrap_retention::SpilledBootstrap
+impl core::clone::Clone for antecedent::class_prior::ClassSamplingRequest
 impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdEffect
 impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdOptions
@@ -1549,8 +1566,13 @@ impl core::cmp::Eq for antecedent::analysis::mechanism_discrepancy::MechanismDis
 impl core::cmp::Eq for antecedent::analysis::mnar_fixed_shift::ExpectedMnarFixedShift
 impl core::cmp::Eq for antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 impl core::cmp::Eq for antecedent::analysis::observation_query::ObservationQueryRefusal
+impl core::cmp::Eq for antecedent::analysis::preference_decision::ClassSampling
+impl core::cmp::Eq for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::cmp::Eq for antecedent::analysis::preference_decision::ClassSize
 impl core::cmp::Eq for antecedent::analysis::preference_decision::DesignBootstrap
 impl core::cmp::Eq for antecedent::analysis::preference_decision::OutcomeDependence
+impl core::cmp::Eq for antecedent::analysis::preference_decision::RowProvenance
+impl core::cmp::Eq for antecedent::analysis::preference_decision::UnitKey
 impl core::cmp::Eq for antecedent::analysis::proposal_arrival::ArrivalLimits
 impl core::cmp::Eq for antecedent::analysis::proposal_arrival::ArrivalWork
 impl core::cmp::Eq for antecedent::analysis::recalc_bayesian::BayesianModel
@@ -1580,6 +1602,7 @@ impl core::cmp::Eq for antecedent::analysis::transport_handoff::TransportHandoff
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportClaimInspection
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportRevalidationInspection
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportRevalidationRefusal
+impl core::cmp::Eq for antecedent::class_prior::ClassSamplingRequest
 impl core::cmp::Eq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::Eq for antecedent::cross_world::CrossWorldOptions
 impl core::cmp::Eq for antecedent::declared::IidSampling
@@ -2093,16 +2116,32 @@ impl core::cmp::PartialEq for antecedent::analysis::observational_survival::Obse
 impl core::cmp::PartialEq for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire
 impl core::cmp::PartialEq for antecedent::analysis::planning::PlannedExperiment
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::AnalysisPreferenceDecision
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::ClassMember
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::ClassSampling
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::ClassSize
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::CrossStudyCovariance
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::DemandedQuantity
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::DesignBootstrap
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::MassEstimate
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::OtherBestBound
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::PreferenceDecisionReceipt
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::PreferenceDemand
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::PreferenceJointLaw
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::RowProvenance
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledClassMass
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledMargin
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledStructuralEvaluation
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SharedEvidence
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::StructureIdentification
+impl core::cmp::PartialEq for antecedent::analysis::preference_decision::UnitKey
+impl core::cmp::PartialEq for antecedent::analysis::propagation_chain::ChainTableBinding
+impl core::cmp::PartialEq for antecedent::analysis::propagation_chain::DeferredCrossBlock
+impl core::cmp::PartialEq for antecedent::analysis::propagation_chain::DeferredFamilyTable
+impl core::cmp::PartialEq for antecedent::analysis::propagation_chain::FamilyEstimateDecl
 impl core::cmp::PartialEq for antecedent::analysis::proposal_arrival::ArrivalLimits
 impl core::cmp::PartialEq for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl core::cmp::PartialEq for antecedent::analysis::proposal_arrival::ArrivalWork
@@ -2181,6 +2220,7 @@ impl core::cmp::PartialEq for antecedent::analysis::transported_mechanism::Mecha
 impl core::cmp::PartialEq for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
 impl core::cmp::PartialEq for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
 impl core::cmp::PartialEq for antecedent::analysis::vector_treatment::VectorTreatment
+impl core::cmp::PartialEq for antecedent::class_prior::ClassSamplingRequest
 impl core::cmp::PartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::PartialEq for antecedent::cross_world::CrossWorldOptions
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointExcursion
@@ -3503,20 +3543,36 @@ impl core::fmt::Debug for antecedent::analysis::planning::PlannedExperiment
 impl core::fmt::Debug for antecedent::analysis::planning::PlanningPlan
 impl core::fmt::Debug for antecedent::analysis::preference_decision::AnalysisPreferenceDecision
 impl core::fmt::Debug for antecedent::analysis::preference_decision::BoundPreferenceContract
+impl core::fmt::Debug for antecedent::analysis::preference_decision::ClassMember
+impl core::fmt::Debug for antecedent::analysis::preference_decision::ClassSampling
+impl core::fmt::Debug for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::fmt::Debug for antecedent::analysis::preference_decision::ClassSize
 impl core::fmt::Debug for antecedent::analysis::preference_decision::CompiledPreferenceDecision
 impl core::fmt::Debug for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 impl core::fmt::Debug for antecedent::analysis::preference_decision::CompiledStructure
 impl core::fmt::Debug for antecedent::analysis::preference_decision::CrossStudyCovariance
 impl core::fmt::Debug for antecedent::analysis::preference_decision::DemandedQuantity
 impl core::fmt::Debug for antecedent::analysis::preference_decision::DesignBootstrap
+impl core::fmt::Debug for antecedent::analysis::preference_decision::MassEstimate
+impl core::fmt::Debug for antecedent::analysis::preference_decision::OtherBestBound
 impl core::fmt::Debug for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceDecisionExecution
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceDecisionReceipt
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceDemand
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceJointLaw
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceRouteError
+impl core::fmt::Debug for antecedent::analysis::preference_decision::RowProvenance
+impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledClassMass
+impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledMargin
+impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledStructuralEvaluation
+impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::fmt::Debug for antecedent::analysis::preference_decision::SharedEvidence
 impl core::fmt::Debug for antecedent::analysis::preference_decision::StructureIdentification
+impl core::fmt::Debug for antecedent::analysis::preference_decision::UnitKey
+impl core::fmt::Debug for antecedent::analysis::propagation_chain::ChainTableBinding
+impl core::fmt::Debug for antecedent::analysis::propagation_chain::DeferredCrossBlock
+impl core::fmt::Debug for antecedent::analysis::propagation_chain::DeferredFamilyTable
+impl core::fmt::Debug for antecedent::analysis::propagation_chain::FamilyEstimateDecl
 impl core::fmt::Debug for antecedent::analysis::propagation_chain::PropagationChainPlan
 impl core::fmt::Debug for antecedent::analysis::proposal_arrival::ArrivalArtifact
 impl core::fmt::Debug for antecedent::analysis::proposal_arrival::ArrivalLimits
@@ -3673,6 +3729,7 @@ impl core::fmt::Debug for antecedent::analysis::typed_transported_mechanism::Typ
 impl core::fmt::Debug for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::fmt::Debug for antecedent::bootstrap_retention::RetainedBootstrap
 impl core::fmt::Debug for antecedent::bootstrap_retention::SpilledBootstrap
+impl core::fmt::Debug for antecedent::class_prior::ClassSamplingRequest
 impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdEffect
 impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdOptions
@@ -4106,7 +4163,10 @@ impl core::marker::Copy for antecedent::analysis::observational_policy::ActionVa
 impl core::marker::Copy for antecedent::analysis::observational_policy::ReferenceWire
 impl core::marker::Copy for antecedent::analysis::observational_survival::ArmSurvivalWire
 impl core::marker::Copy for antecedent::analysis::observational_survival::ContrastWire
+impl core::marker::Copy for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::marker::Copy for antecedent::analysis::preference_decision::ClassSize
 impl core::marker::Copy for antecedent::analysis::preference_decision::DesignBootstrap
+impl core::marker::Copy for antecedent::analysis::preference_decision::MassEstimate
 impl core::marker::Copy for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::marker::Copy for antecedent::analysis::proposal_arrival::ArrivalLimits
 impl core::marker::Copy for antecedent::analysis::recalc_bayesian::BayesianLaw
@@ -4134,6 +4194,7 @@ impl core::marker::Copy for antecedent::analysis::sample_split_analysis::SplitEf
 impl core::marker::Copy for antecedent::analysis::sample_split_parent_set_effect::ParentSetOptions
 impl core::marker::Copy for antecedent::analysis::sensitivity_source::SourceLimits
 impl core::marker::Copy for antecedent::analysis::target_validation::WithinClassDistribution
+impl core::marker::Copy for antecedent::class_prior::ClassSamplingRequest
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
@@ -5040,19 +5101,35 @@ impl core::marker::Freeze for antecedent::analysis::planning::PlannedExperiment 
 impl core::marker::Freeze for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::CompiledPreferenceDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::marker::Freeze for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::marker::Freeze for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::marker::Freeze for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::marker::Freeze for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::marker::Freeze for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::marker::Freeze for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Freeze for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Freeze for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -5235,6 +5312,7 @@ impl core::marker::Freeze for antecedent::analysis::typed_transported_mechanism:
 impl core::marker::Freeze for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Freeze for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Freeze for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::marker::Freeze for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -6288,20 +6366,36 @@ impl core::marker::Send for antecedent::analysis::planning::PlannedExperiment [a
 impl core::marker::Send for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::CompiledPreferenceDecision [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::CompiledStructure [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::marker::Send for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::marker::Send for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::marker::Send for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::marker::Send for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::marker::Send for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::marker::Send for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Send for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Send for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -6485,6 +6579,7 @@ impl core::marker::Send for antecedent::analysis::typed_transported_mechanism::T
 impl core::marker::Send for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Send for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Send for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::marker::Send for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -7091,16 +7186,31 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::observational_s
 impl core::marker::StructuralPartialEq for antecedent::analysis::observational_survival::ObservationalSurvivalSpecWire
 impl core::marker::StructuralPartialEq for antecedent::analysis::planning::PlannedExperiment
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::AnalysisPreferenceDecision
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::ClassMember
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::ClassSampling
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::ClassSamplingScheme
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::ClassSize
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::CrossStudyCovariance
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::DemandedQuantity
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::DesignBootstrap
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::MassEstimate
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::OtherBestBound
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::PreferenceDecisionReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::PreferenceDemand
-impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::PreferenceJointLaw
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::RowProvenance
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledClassMass
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledMargin
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledStructuralEvaluation
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SharedEvidence
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::StructureIdentification
+impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::UnitKey
+impl core::marker::StructuralPartialEq for antecedent::analysis::propagation_chain::ChainTableBinding
+impl core::marker::StructuralPartialEq for antecedent::analysis::propagation_chain::DeferredCrossBlock
+impl core::marker::StructuralPartialEq for antecedent::analysis::propagation_chain::DeferredFamilyTable
+impl core::marker::StructuralPartialEq for antecedent::analysis::propagation_chain::FamilyEstimateDecl
 impl core::marker::StructuralPartialEq for antecedent::analysis::proposal_arrival::ArrivalLimits
 impl core::marker::StructuralPartialEq for antecedent::analysis::proposal_arrival::ArrivalPoint
 impl core::marker::StructuralPartialEq for antecedent::analysis::proposal_arrival::ArrivalWork
@@ -7179,6 +7289,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::transported_mec
 impl core::marker::StructuralPartialEq for antecedent::analysis::transported_mechanism::TransportedMechanismReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt
 impl core::marker::StructuralPartialEq for antecedent::analysis::vector_treatment::VectorTreatment
+impl core::marker::StructuralPartialEq for antecedent::class_prior::ClassSamplingRequest
 impl core::marker::StructuralPartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::StructuralPartialEq for antecedent::cross_world::CrossWorldOptions
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointExcursion
@@ -8176,20 +8287,36 @@ impl core::marker::Sync for antecedent::analysis::planning::PlannedExperiment [a
 impl core::marker::Sync for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::CompiledPreferenceDecision [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::CompiledStructure [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::marker::Sync for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::marker::Sync for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::marker::Sync for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::marker::Sync for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::marker::Sync for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::marker::Sync for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Sync for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Sync for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -8373,6 +8500,7 @@ impl core::marker::Sync for antecedent::analysis::typed_transported_mechanism::T
 impl core::marker::Sync for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Sync for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Sync for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::marker::Sync for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -9427,20 +9555,36 @@ impl core::marker::Unpin for antecedent::analysis::planning::PlannedExperiment [
 impl core::marker::Unpin for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::CompiledPreferenceDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::CompiledStructure [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::marker::Unpin for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::marker::Unpin for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::marker::Unpin for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::marker::Unpin for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::marker::Unpin for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::marker::Unpin for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::marker::Unpin for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::marker::Unpin for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -9624,6 +9768,7 @@ impl core::marker::Unpin for antecedent::analysis::typed_transported_mechanism::
 impl core::marker::Unpin for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::marker::Unpin for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::marker::Unpin for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::marker::Unpin for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -10640,18 +10785,34 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::planning:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -10826,6 +10987,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::typed_tra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -11826,18 +11988,34 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::planning::Pl
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::planning::PlanningPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::AnalysisPreferenceDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::BoundPreferenceContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::ClassMember [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::ClassSampling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::ClassSamplingScheme [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::ClassSize [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::CompiledPreferenceEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::CrossStudyCovariance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::DemandedQuantity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::DesignBootstrap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::MassEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::OtherBestBound [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::OutcomeDependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceDecisionExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceDecisionReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceDemand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceJointLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::RowProvenance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledClassMass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledMargin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SharedEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::StructureIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::UnitKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::ChainTableBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::DeferredCrossBlock [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::DeferredFamilyTable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::FamilyEstimateDecl [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::propagation_chain::PropagationChainPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::proposal_arrival::ArrivalArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::proposal_arrival::ArrivalLimits [auto]
@@ -12012,6 +12190,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::typed_transp
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::vector_treatment::VectorTreatment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::bootstrap_retention::RetainedBootstrap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::bootstrap_retention::SpilledBootstrap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::class_prior::ClassSamplingRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::CounterfactualIdConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::CounterfactualIdEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::CounterfactualIdOptions [auto]
@@ -12786,6 +12965,7 @@ pub const antecedent::analysis::observational_policy::OBSERVATIONAL_POLICY_CALIB
 pub const antecedent::analysis::observational_survival::OBSERVATIONAL_SURVIVAL_CALIBRATION: &str
 pub const antecedent::analysis::planning::STANDALONE_PLANNING: antecedent_core::refusal::NextAttempt
 pub const antecedent::analysis::preference_decision::GRAPH_ATOM_PREFIX: &str
+pub const antecedent::analysis::preference_decision::SAMPLED_MASS_LEVEL: f64
 pub const antecedent::analysis::propagation_chain::MAX_FAMILY_TABLE_CELLS: usize
 pub const antecedent::analysis::propagation_chain_decision::MAX_CHAIN_DECISION_ARTIFACT_BYTES: usize
 pub const antecedent::analysis::propagation_chain_robust_decision::MAX_CHAIN_ROBUST_DECISION_BYTES: usize
@@ -12827,6 +13007,7 @@ pub const antecedent::analysis::typed_transported_mechanism::DETAIL_TYPED_IDENTI
 pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_INFERENCE: &str
 pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_ROUTE: &str
 pub const antecedent::analysis::typed_transported_mechanism::TYPED_TRANSPORT_SUPPORT: &str
+pub const antecedent::class_prior::DEFAULT_CLASS_EXACT_LIMIT: usize
 pub const antecedent::discovery_defaults::DEFAULT_ALPHA: f64
 pub const antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE: usize
 pub const antecedent::discovery_defaults::DEFAULT_RPCMCI_MIN_REGIME_LEN: usize
@@ -12979,9 +13160,12 @@ pub enum antecedent::analysis::latent_soft_intervention::VersionEvidence
 pub enum antecedent::analysis::matching_posterior_refusal::MatchingSetting
 pub enum antecedent::analysis::multi_level_treatment::MultiLevelTargetWire
 pub enum antecedent::analysis::native_claims::NativeDecisionSource
+pub enum antecedent::analysis::preference_decision::ClassSamplingScheme
+pub enum antecedent::analysis::preference_decision::ClassSize
 pub enum antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 pub enum antecedent::analysis::preference_decision::OutcomeDependence
 pub enum antecedent::analysis::preference_decision::PreferenceRouteError
+pub enum antecedent::analysis::preference_decision::SampledStructuralVerdict
 pub enum antecedent::analysis::preference_decision::StructureIdentification
 pub enum antecedent::analysis::recalc_adjusted::AdjustedContrast
 pub enum antecedent::analysis::recalc_adjusted::AdjustedModel
@@ -15872,6 +16056,17 @@ pub field antecedent::analysis::planning::PlannedExperiment::program_identity: a
 pub field antecedent::analysis::planning::PlannedExperiment::result: antecedent_design::planning::result::PlanningResult
 pub field antecedent::analysis::preference_decision::AnalysisPreferenceDecision::evaluation: antecedent_design::preference_evaluation::PreferenceEvaluation
 pub field antecedent::analysis::preference_decision::AnalysisPreferenceDecision::input: antecedent::analysis::native_claims::NativeDecisionInput
+pub field antecedent::analysis::preference_decision::ClassMember::fingerprint: u64
+pub field antecedent::analysis::preference_decision::ClassMember::multiplicity: usize
+pub field antecedent::analysis::preference_decision::ClassMember::sampling: core::option::Option<alloc::sync::Arc<antecedent::analysis::preference_decision::ClassSampling>>
+pub field antecedent::analysis::preference_decision::ClassSampling::assumption: core::option::Option<alloc::string::String>
+pub field antecedent::analysis::preference_decision::ClassSampling::attempts: core::option::Option<u64>
+pub field antecedent::analysis::preference_decision::ClassSampling::class_key: u64
+pub field antecedent::analysis::preference_decision::ClassSampling::class_size: antecedent::analysis::preference_decision::ClassSize
+pub field antecedent::analysis::preference_decision::ClassSampling::distinct: usize
+pub field antecedent::analysis::preference_decision::ClassSampling::drawn: usize
+pub field antecedent::analysis::preference_decision::ClassSampling::scheme: antecedent::analysis::preference_decision::ClassSamplingScheme
+pub field antecedent::analysis::preference_decision::ClassSampling::seed: u64
 pub field antecedent::analysis::preference_decision::CrossStudyCovariance::covariance: alloc::vec::Vec<f64>
 pub field antecedent::analysis::preference_decision::CrossStudyCovariance::first: usize
 pub field antecedent::analysis::preference_decision::CrossStudyCovariance::second: usize
@@ -15880,6 +16075,13 @@ pub field antecedent::analysis::preference_decision::DemandedQuantity::read_by: 
 pub field antecedent::analysis::preference_decision::DemandedQuantity::source: usize
 pub field antecedent::analysis::preference_decision::DesignBootstrap::replicates: usize
 pub field antecedent::analysis::preference_decision::DesignBootstrap::seed: u64
+pub field antecedent::analysis::preference_decision::MassEstimate::estimate: f64
+pub field antecedent::analysis::preference_decision::MassEstimate::lower: f64
+pub field antecedent::analysis::preference_decision::MassEstimate::upper: f64
+pub field antecedent::analysis::preference_decision::OtherBestBound::class_key: u64
+pub field antecedent::analysis::preference_decision::OtherBestBound::disagreeing: usize
+pub field antecedent::analysis::preference_decision::OtherBestBound::drawn: usize
+pub field antecedent::analysis::preference_decision::OtherBestBound::upper: f64
 pub field antecedent::analysis::preference_decision::PreferenceDecisionExecution::evaluation: antecedent::analysis::preference_decision::CompiledPreferenceEvaluation
 pub field antecedent::analysis::preference_decision::PreferenceDecisionExecution::inputs: alloc::vec::Vec<antecedent::analysis::native_claims::NativeDecisionInput>
 pub field antecedent::analysis::preference_decision::PreferenceDecisionExecution::mixture: core::option::Option<antecedent::result::StructuralResponseMixture>
@@ -15894,9 +16096,37 @@ pub field antecedent::analysis::preference_decision::PreferenceDemand::quantitie
 pub field antecedent::analysis::preference_decision::PreferenceDemand::representation: antecedent_design::decision_contract::SourceRepresentation
 pub field antecedent::analysis::preference_decision::PreferenceDemand::requirement: antecedent_design::decision_contract::SourceRequirement
 pub field antecedent::analysis::preference_decision::PreferenceDemand::route: antecedent_design::preference_evaluation::RouteChoice
+pub field antecedent::analysis::preference_decision::SampledClassMass::class_key: u64
+pub field antecedent::analysis::preference_decision::SampledClassMass::class_mass: f64
+pub field antecedent::analysis::preference_decision::SampledClassMass::drawn: usize
+pub field antecedent::analysis::preference_decision::SampledClassMass::identified: antecedent::analysis::preference_decision::MassEstimate
+pub field antecedent::analysis::preference_decision::SampledClassMass::unevaluated: antecedent::analysis::preference_decision::MassEstimate
+pub field antecedent::analysis::preference_decision::SampledClassMass::unidentified: antecedent::analysis::preference_decision::MassEstimate
+pub field antecedent::analysis::preference_decision::SampledMargin::first: alloc::string::String
+pub field antecedent::analysis::preference_decision::SampledMargin::margin: f64
+pub field antecedent::analysis::preference_decision::SampledMargin::second: alloc::string::String
+pub field antecedent::analysis::preference_decision::SampledMargin::standard_error: core::option::Option<f64>
+pub field antecedent::analysis::preference_decision::SampledMargin::vertex: alloc::vec::Vec<f64>
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::evaluation: antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::level: f64
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::margins: alloc::vec::Vec<antecedent::analysis::preference_decision::SampledMargin>
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::masses: alloc::vec::Vec<antecedent::analysis::preference_decision::SampledClassMass>
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::sampling: alloc::vec::Vec<antecedent::analysis::preference_decision::ClassSampling>
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::verdict: antecedent::analysis::preference_decision::SampledStructuralVerdict
 pub field antecedent::analysis::preference_decision::SharedEvidence::cross: alloc::vec::Vec<antecedent::analysis::preference_decision::CrossStudyCovariance>
 pub field antecedent::analysis::preference_decision::SharedEvidence::draws: usize
 pub field antecedent::analysis::preference_decision::SharedEvidence::seed: u64
+pub field antecedent::analysis::propagation_chain::ChainTableBinding::means: alloc::vec::Vec<f64>
+pub field antecedent::analysis::propagation_chain::ChainTableBinding::within: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::propagation_chain::DeferredCrossBlock::covariance: alloc::vec::Vec<f64>
+pub field antecedent::analysis::propagation_chain::DeferredCrossBlock::first: usize
+pub field antecedent::analysis::propagation_chain::DeferredCrossBlock::second: usize
+pub field antecedent::analysis::propagation_chain::DeferredFamilyTable::sources: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainSourceWire>
+pub field antecedent::analysis::propagation_chain::DeferredFamilyTable::table: antecedent_io_core::propagation_chain_record::wire::ChainDeferredTableWire
+pub field antecedent::analysis::propagation_chain::FamilyEstimateDecl::factors: alloc::vec::Vec<(antecedent_contract::dependence::SharedFactorKind, alloc::string::String)>
+pub field antecedent::analysis::propagation_chain::FamilyEstimateDecl::id: alloc::string::String
+pub field antecedent::analysis::propagation_chain::FamilyEstimateDecl::meaning: antecedent_contract::propagation_chain::LawMeaning
+pub field antecedent::analysis::propagation_chain::FamilyEstimateDecl::unknown_overlap: bool
 pub field antecedent::analysis::proposal_arrival::ArrivalArtifact::identity: alloc::string::String
 pub field antecedent::analysis::proposal_arrival::ArrivalArtifact::request: antecedent::analysis::proposal_arrival::ArrivalRequest
 pub field antecedent::analysis::proposal_arrival::ArrivalArtifact::result: antecedent::analysis::proposal_arrival::ArrivalPoint
@@ -16461,6 +16691,8 @@ pub field antecedent::analysis::typed_transported_mechanism::TypedTransportRecei
 pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::target_population: alloc::string::String
 pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::target_regime: alloc::string::String
 pub field antecedent::analysis::typed_transported_mechanism::TypedTransportReceipt::uncertainty_scope: &'static str
+pub field antecedent::class_prior::ClassSamplingRequest::members: usize
+pub field antecedent::class_prior::ClassSamplingRequest::seed: u64
 pub field antecedent::counterfactual_id::CounterfactualIdConsumeLimits::search: antecedent_core::search::SearchLimits
 pub field antecedent::counterfactual_id::CounterfactualIdConsumeLimits::search_memory_bytes: u64
 pub field antecedent::counterfactual_id::CounterfactualIdEffect::conditioning_probability: f64
@@ -16997,9 +17229,17 @@ pub fn <antecedent::ChoiceInferenceSession>::fn prepare_with_context(declaration
 pub fn <antecedent::ChoiceInferenceSession>::fn rank_hierarchical_studies(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn rank_studies(&self, look: usize, values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn withdraw_source(&mut self, label: &str, reason: &str) -> core::result::Result<(), antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ClassPrior>::const fn is_uniform(&self) -> bool
+pub fn <antecedent::ClassPrior>::const fn sampling(&self) -> core::option::Option<antecedent::class_prior::ClassSamplingRequest>
+pub fn <antecedent::ClassPrior>::fn assumption(&self) -> core::option::Option<&str>
+pub fn <antecedent::ClassPrior>::fn completion_limit(&self) -> usize
+pub fn <antecedent::ClassPrior>::fn exact_limit(self, limit: usize) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn from_ordered(masses: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn from_pairs(pairs: impl core::convert::Into<alloc::sync::Arc<[(u64, f64)]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn masses_for_envelope(&self, envelope: &antecedent_identify::temporal_generalized::TemporalClassEnvelope) -> core::result::Result<alloc::vec::Vec<f64>, antecedent::CausalError>
+pub fn <antecedent::ClassPrior>::fn sample(self, members: usize, seed: u64) -> core::result::Result<Self, antecedent::CausalError>
+pub fn <antecedent::ClassPrior>::fn uniform(assumption: &str) -> core::result::Result<Self, antecedent::CausalError>
+pub fn <antecedent::ClassPrior>::fn with_assumption(self, assumption: &str) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::CompileCause>::const fn kind(&self) -> &'static str
 pub fn <antecedent::CompileFailure>::const fn cause(&self) -> &antecedent::CompileCause
 pub fn <antecedent::CompileFailure>::fn message(&self) -> &str
@@ -17936,6 +18176,7 @@ pub fn <antecedent::StudyBuilder>::fn rd_design(self, config: antecedent::RdConf
 pub fn <antecedent::StudyBuilder>::fn refute(self, suite: antecedent::RefuteSuite) -> Self
 pub fn <antecedent::StudyBuilder>::fn response_options(self, options: antecedent_estimate::response::ContinuousResponseOptions) -> Self
 pub fn <antecedent::StudyBuilder>::fn retain_joint_horizons(self, on: bool) -> Self
+pub fn <antecedent::StudyBuilder>::fn row_provenance(self, provenance: antecedent::analysis::preference_decision::RowProvenance) -> Self
 pub fn <antecedent::StudyBuilder>::fn sampling_design(self, design: antecedent_core::sampling_design::SamplingDesign) -> Self
 pub fn <antecedent::StudyBuilder>::fn scenario_shared_covariance(spec: &antecedent_io::scenario_covariance_artifact::CovarianceSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn score_dependence(self, dependence: antecedent_estimate::score_dependence::ScoreDependence) -> Self
@@ -17953,6 +18194,7 @@ pub fn <antecedent::StudyBuilder>::fn transport_grid(query: antecedent::analysis
 pub fn <antecedent::StudyBuilder>::fn transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::ClassicalTransportQuery, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn transport_scenarios_empirical(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::ClassicalTransportQuery, search: antecedent::EvidenceSearch, empirical: antecedent::EmpiricalScenarioInput, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn transport_trial(self, spec: antecedent::TransportTrialSpec) -> Self
+pub fn <antecedent::StudyBuilder>::fn unit_key(self, key: antecedent::analysis::preference_decision::UnitKey) -> Self
 pub fn <antecedent::StudyBuilder>::fn weighted_target(self, declaration: antecedent::WeightedTargetDeclaration) -> Self
 pub fn <antecedent::StudyBuilder>::fn z_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::StudyBuilder>::fn z_transport_empirical(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>
@@ -19190,12 +19432,15 @@ pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn 
 pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn coordinates(&self, source: usize) -> core::option::Option<&[antecedent_contract::quantity::ScientificQuantity]>
 pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn quantities(&self) -> &[antecedent::analysis::preference_decision::DemandedQuantity]
+pub fn <antecedent::analysis::preference_decision::ClassSamplingScheme>::const fn as_str(self) -> &'static str
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn contract(&self) -> &antecedent_design::preference_contract::PreferenceContract
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn demand(&self) -> &antecedent::analysis::preference_decision::PreferenceDemand
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn dependence(&self) -> antecedent::analysis::preference_decision::OutcomeDependence
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn joint_law(&self) -> core::option::Option<&antecedent::analysis::preference_decision::PreferenceJointLaw>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn bound_identity(&self) -> &str
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn causal_bindings(&self) -> &[(alloc::string::String, alloc::string::String)]
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn chain_plan_view(&self) -> core::option::Option<antecedent::planner::PlanView>
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn class_sampling(&self) -> alloc::vec::Vec<alloc::sync::Arc<antecedent::analysis::preference_decision::ClassSampling>>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn cross_study_covariance(&self) -> &[antecedent::analysis::preference_decision::CrossStudyCovariance]
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn execute(&self, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::PreferenceDecisionExecution, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn plan_views(&self) -> alloc::vec::Vec<antecedent::planner::PlanView>
@@ -19204,21 +19449,40 @@ pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn unidentified_mass(&self) -> f64
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::const fn single(&self) -> core::option::Option<&antecedent_design::preference_evaluation::PreferenceEvaluation>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::const fn structures(&self) -> core::option::Option<&antecedent_design::preference_evaluation::StructuralPreferenceEvaluation>
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::fn sampled(&self) -> core::option::Option<&antecedent::analysis::preference_decision::SampledStructuralEvaluation>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn class_key(&self) -> core::option::Option<u64>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn identification(&self) -> &antecedent::analysis::preference_decision::StructureIdentification
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn key(&self) -> core::option::Option<u64>
+pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn member(&self) -> core::option::Option<&antecedent::analysis::preference_decision::ClassMember>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn plan_view(&self) -> core::option::Option<&antecedent::planner::PlanView>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn source(&self) -> usize
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn weight(&self) -> f64
+pub fn <antecedent::analysis::preference_decision::CompiledStructure>::fn fingerprint(&self) -> core::option::Option<u64>
 pub fn <antecedent::analysis::preference_decision::PreferenceJointLaw>::const fn fact(&self) -> &antecedent::planner::lowered::PreferenceJointLawFact
 pub fn <antecedent::analysis::preference_decision::PreferenceJointLaw>::const fn plan(&self) -> &antecedent_contract::propagation_chain::ChainPlan
+pub fn <antecedent::analysis::preference_decision::PreferenceJointLaw>::const fn program(&self) -> &antecedent::analysis::propagation_chain::PropagationChainPlan
 pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn code(&self) -> core::option::Option<&str>
 pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn compiler(&self) -> core::option::Option<&antecedent::CausalError>
 pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn refusal(&self) -> core::option::Option<&antecedent_contract::external_refusal::ExternalRefusal>
+pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn new(table: &str, rows: core::option::Option<alloc::vec::Vec<u64>>) -> Self
+pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn of_table(source: &antecedent_data::dataset::TabularData) -> Self
+pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn rows(&self) -> core::option::Option<&[u64]>
+pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn table(&self) -> &str
+pub fn <antecedent::analysis::preference_decision::SampledStructuralEvaluation>::fn statement(&self) -> alloc::string::String
+pub fn <antecedent::analysis::preference_decision::UnitKey>::const fn variable(&self) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent::analysis::preference_decision::UnitKey>::fn column(variable: antecedent_core::ids::VariableId, namespace: &str) -> Self
+pub fn <antecedent::analysis::preference_decision::UnitKey>::fn labels(namespace: &str, labels: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn <antecedent::analysis::preference_decision::UnitKey>::fn namespace(&self) -> &str
+pub fn <antecedent::analysis::propagation_chain::DeferredFamilyTable>::fn draft(&self, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire
+pub fn <antecedent::analysis::propagation_chain::FamilyEstimateDecl>::fn new(id: &str, meaning: antecedent_contract::propagation_chain::LawMeaning) -> Self
+pub fn <antecedent::analysis::propagation_chain::FamilyEstimateDecl>::fn with_factor(self, kind: antecedent_contract::dependence::SharedFactorKind, id: &str) -> Self
+pub fn <antecedent::analysis::propagation_chain::FamilyEstimateDecl>::fn with_unknown_overlap(self) -> Self
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::const fn plan(&self) -> &antecedent_contract::propagation_chain::ChainPlan
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn dependents_of(&self, source: &str) -> alloc::vec::Vec<&str>
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationChain, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn execute_bound(&self, binding: &antecedent::analysis::propagation_chain::ChainTableBinding, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationChain, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn is_deferred(&self) -> bool
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn with_change(&self, change: antecedent_io_core::propagation_chain_record::wire::ChainChangeWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>
@@ -19883,11 +20147,15 @@ pub fn <antecedent::planner::lowered::PlanningProgram>::const fn request_identit
 pub fn <antecedent::planner::lowered::PlanningProgram>::const fn simulation(&self) -> core::option::Option<antecedent::planner::lowered::SimulationQuote>
 pub fn <antecedent::planner::lowered::PlanningProgram>::fn request(&self) -> &antecedent_design::planning::request::PlanningRequest
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::const fn study(&self) -> usize
+pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn basis(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn factor(&self) -> &str
+pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn factors(&self) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn namespace(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn quantity(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn source(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn stage(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn draws(&self) -> usize
+pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn program(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn seed(&self) -> u64
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::fn cross_blocks(&self) -> &[(usize, usize)]
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::fn declaration(&self) -> &str
@@ -20446,6 +20714,8 @@ pub fn antecedent::analysis::preference_decision::analysis_belief_source(input: 
 pub fn antecedent::analysis::preference_decision::analysis_options(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent::analysis::native_claims::NativeDecisionSource) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_record::ChoiceOption>, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::analysis_result_identity(input: &antecedent::analysis::native_claims::NativeDecisionInput) -> alloc::string::String
 pub fn antecedent::analysis::preference_decision::chain_joint_law(chain: &antecedent::analysis::PropagationChain) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent::DecisionFacadeRefusal>
+pub fn antecedent::analysis::preference_decision::clopper_pearson(successes: u64, trials: u64, level: f64) -> core::option::Option<(f64, f64)>
+pub fn antecedent::analysis::preference_decision::clopper_pearson_upper(successes: u64, trials: u64, level: f64) -> core::option::Option<f64>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_prepared_studies(studies: &[&antecedent::PreparedStudy], contract: &antecedent_design::preference_contract::PreferenceContract, (dependence, cross): (antecedent::analysis::preference_decision::OutcomeDependence, &[antecedent::analysis::preference_decision::CrossStudyCovariance]), ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_studies(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, dependence: antecedent::analysis::preference_decision::OutcomeDependence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, shared: &antecedent::analysis::preference_decision::SharedEvidence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
@@ -20458,6 +20728,7 @@ pub fn antecedent::analysis::preference_decision::decide_across_structures(contr
 pub fn antecedent::analysis::preference_decision::decide_across_structures_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, claims: &antecedent_design::decision_adapters::AdaptedClaims, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_evaluation::StructuralPreferenceEvaluation, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::decide_claim(contract: &antecedent_design::preference_contract::PreferenceContract, claim: &antecedent::analysis::native_claims::NativeResponseClaim, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions) -> core::result::Result<antecedent::analysis::preference_decision::AnalysisPreferenceDecision, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::decide_claim_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, claim: &antecedent::analysis::native_claims::NativeResponseClaim, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::AnalysisPreferenceDecision, antecedent::DecisionFacadeRefusal>
+pub fn antecedent::analysis::preference_decision::decide_on_sampled_structures(contract: &antecedent_design::preference_contract::PreferenceContract, (mixture, members): (&antecedent::result::StructuralResponseMixture, &[core::option::Option<antecedent::analysis::preference_decision::ClassMember>]), (schema, context): (&antecedent_core::schema::CausalSchema, &antecedent::analysis::native_claims::NativeResponseContext), measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::SampledStructuralEvaluation, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::decide_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent::analysis::native_claims::NativeDecisionSource, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_evaluation::PreferenceEvaluation, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::experiment_arm_quantity(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, component: &str, treated: bool) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::experiment_mean_source(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence) -> core::result::Result<antecedent_design::decision_eval::MeanSource, antecedent::DecisionFacadeRefusal>
@@ -20469,6 +20740,7 @@ pub fn antecedent::analysis::preference_decision::record_decision_with_context(c
 pub fn antecedent::analysis::preference_decision::source_requirement(contract: &antecedent_design::preference_contract::PreferenceContract) -> core::result::Result<antecedent_design::decision_contract::SourceRequirement, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::structure_claims(mixture: &antecedent::result::StructuralResponseMixture, per_structure: &[(u64, &antecedent_core::response::CausalResponse)], schema: &antecedent_core::schema::CausalSchema, context: &antecedent::analysis::native_claims::NativeResponseContext, policy: antecedent_design::decision_contract::StructuralPolicy) -> core::result::Result<antecedent_design::decision_adapters::AdaptedClaims, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::propagation_chain::compile_propagation_chain(draft: antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::propagation_chain::PropagationChainPlan, antecedent_contract::propagation_chain::ChainRefusal>
+pub fn antecedent::analysis::propagation_chain::deferred_family_table(alignment: &str, estimates: &[antecedent::analysis::propagation_chain::FamilyEstimateDecl], groups: &[alloc::vec::Vec<usize>], cross: &[antecedent::analysis::propagation_chain::DeferredCrossBlock], rows: usize, seed: u64) -> core::result::Result<antecedent::analysis::propagation_chain::DeferredFamilyTable, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::proposal_arrival::execute_with_limits(r: &antecedent::analysis::proposal_arrival::ArrivalRequest, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::proposal_arrival::ArrivalLimits) -> core::result::Result<antecedent::analysis::proposal_arrival::ArrivalPoint, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::provider_callbacks::refuse_identification_evidence() -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn antecedent::analysis::provider_callbacks::refuse_interval() -> antecedent_contract::external_refusal::ExternalRefusal
@@ -22085,6 +22357,8 @@ pub struct antecedent::analysis::planning::PlanningPlan has private fields
 pub struct antecedent::analysis::preference_decision::AnalysisPreferenceDecision
 pub struct antecedent::analysis::preference_decision::BoundPreferenceContract
 pub struct antecedent::analysis::preference_decision::BoundPreferenceContract has private fields
+pub struct antecedent::analysis::preference_decision::ClassMember
+pub struct antecedent::analysis::preference_decision::ClassSampling
 pub struct antecedent::analysis::preference_decision::CompiledPreferenceDecision
 pub struct antecedent::analysis::preference_decision::CompiledPreferenceDecision has private fields
 pub struct antecedent::analysis::preference_decision::CompiledStructure
@@ -22092,12 +22366,25 @@ pub struct antecedent::analysis::preference_decision::CompiledStructure has priv
 pub struct antecedent::analysis::preference_decision::CrossStudyCovariance
 pub struct antecedent::analysis::preference_decision::DemandedQuantity
 pub struct antecedent::analysis::preference_decision::DesignBootstrap
+pub struct antecedent::analysis::preference_decision::MassEstimate
+pub struct antecedent::analysis::preference_decision::OtherBestBound
 pub struct antecedent::analysis::preference_decision::PreferenceDecisionExecution
 pub struct antecedent::analysis::preference_decision::PreferenceDecisionReceipt
 pub struct antecedent::analysis::preference_decision::PreferenceDemand
 pub struct antecedent::analysis::preference_decision::PreferenceJointLaw
 pub struct antecedent::analysis::preference_decision::PreferenceJointLaw has private fields
+pub struct antecedent::analysis::preference_decision::RowProvenance
+pub struct antecedent::analysis::preference_decision::RowProvenance has private fields
+pub struct antecedent::analysis::preference_decision::SampledClassMass
+pub struct antecedent::analysis::preference_decision::SampledMargin
+pub struct antecedent::analysis::preference_decision::SampledStructuralEvaluation
 pub struct antecedent::analysis::preference_decision::SharedEvidence
+pub struct antecedent::analysis::preference_decision::UnitKey
+pub struct antecedent::analysis::preference_decision::UnitKey has private fields
+pub struct antecedent::analysis::propagation_chain::ChainTableBinding
+pub struct antecedent::analysis::propagation_chain::DeferredCrossBlock
+pub struct antecedent::analysis::propagation_chain::DeferredFamilyTable
+pub struct antecedent::analysis::propagation_chain::FamilyEstimateDecl
 pub struct antecedent::analysis::propagation_chain::PropagationChainPlan
 pub struct antecedent::analysis::propagation_chain::PropagationChainPlan has private fields
 pub struct antecedent::analysis::proposal_arrival::ArrivalArtifact
@@ -22312,6 +22599,7 @@ pub struct antecedent::bootstrap_retention::RetainedBootstrap
 pub struct antecedent::bootstrap_retention::RetainedBootstrap has private fields
 pub struct antecedent::bootstrap_retention::SpilledBootstrap
 pub struct antecedent::bootstrap_retention::SpilledBootstrap has private fields
+pub struct antecedent::class_prior::ClassSamplingRequest
 pub struct antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 pub struct antecedent::counterfactual_id::CounterfactualIdEffect
 pub struct antecedent::counterfactual_id::CounterfactualIdEffect has private fields
@@ -24369,11 +24657,15 @@ pub use antecedent::analysis::preference_decision::ActionKind = antecedent_desig
 pub use antecedent::analysis::preference_decision::AtomChoice = antecedent_design::preference_decision::AtomChoice
 pub use antecedent::analysis::preference_decision::AtomVerdict = antecedent_design::preference_certified::AtomVerdict
 pub use antecedent::analysis::preference_decision::Attribute = antecedent_design::preference_model::Attribute
+pub use antecedent::analysis::preference_decision::BeliefRows = antecedent_design::preference_model::BeliefRows
 pub use antecedent::analysis::preference_decision::BeliefSource = antecedent_design::choice_record::BeliefSource
 pub use antecedent::analysis::preference_decision::BindingChoice = antecedent_design::preference_set_learning::BindingChoice
 pub use antecedent::analysis::preference_decision::CALIBRATION_ESTIMATOR = antecedent_design::preference_choice_model::CALIBRATION_ESTIMATOR
 pub use antecedent::analysis::preference_decision::CALIBRATION_INTERVAL_METHOD = antecedent_design::preference_choice_model::CALIBRATION_INTERVAL_METHOD
 pub use antecedent::analysis::preference_decision::CALIBRATION_QUERY = antecedent_design::preference_choice_model::CALIBRATION_QUERY
+pub use antecedent::analysis::preference_decision::CALIBRATION_SHAPE_ESTIMATOR = antecedent_design::preference_choice_model::CALIBRATION_SHAPE_ESTIMATOR
+pub use antecedent::analysis::preference_decision::CALIBRATION_SHAPE_INTERVAL_METHOD = antecedent_design::preference_choice_model::CALIBRATION_SHAPE_INTERVAL_METHOD
+pub use antecedent::analysis::preference_decision::CellStatus = antecedent_design::preference_set_learning::CellStatus
 pub use antecedent::analysis::preference_decision::CertifiedActionOutcome = antecedent_design::preference_certified::CertifiedActionOutcome
 pub use antecedent::analysis::preference_decision::CertifiedAtomStatus = antecedent_design::preference_certified::CertifiedAtomStatus
 pub use antecedent::analysis::preference_decision::CertifiedAtomSummary = antecedent_design::preference_certified::CertifiedAtomSummary
@@ -24396,12 +24688,15 @@ pub use antecedent::analysis::preference_decision::ChoiceSetFeatures = anteceden
 pub use antecedent::analysis::preference_decision::ConflictKind = antecedent_design::preference_set_learning::ConflictKind
 pub use antecedent::analysis::preference_decision::CovarianceKind = antecedent_design::preference_choice_model::CovarianceKind
 pub use antecedent::analysis::preference_decision::Curve = antecedent_design::preference_model::Curve
+pub use antecedent::analysis::preference_decision::DEFAULT_MAX_SHAPE_BOXES = antecedent_design::preference_set_learning::DEFAULT_MAX_SHAPE_BOXES
+pub use antecedent::analysis::preference_decision::DEFAULT_MIN_SHAPE_WIDTH_FRACTION = antecedent_design::preference_set_learning::DEFAULT_MIN_SHAPE_WIDTH_FRACTION
 pub use antecedent::analysis::preference_decision::DeciderOverlap = antecedent_design::preference_set_learning::DeciderOverlap
 pub use antecedent::analysis::preference_decision::DeciderSet = antecedent_design::preference_set_learning::DeciderSet
 pub use antecedent::analysis::preference_decision::DecisionCriterion = antecedent_design::decision_contract::DecisionCriterion
 pub use antecedent::analysis::preference_decision::EstimateOutcome = antecedent_design::preference_choice_model::EstimateOutcome
 pub use antecedent::analysis::preference_decision::HardConstraint = antecedent_design::decision_contract::HardConstraint
 pub use antecedent::analysis::preference_decision::LearnedPreferenceSet = antecedent_design::preference_set_learning::LearnedPreferenceSet
+pub use antecedent::analysis::preference_decision::LearnedRegion = antecedent_design::preference_set_learning::LearnedRegion
 pub use antecedent::analysis::preference_decision::LearningOptions = antecedent_design::accepted_preferences::LearningOptions
 pub use antecedent::analysis::preference_decision::LinearForm = antecedent_design::preference_model::LinearForm
 pub use antecedent::analysis::preference_decision::LinearRelation = antecedent_design::preference_model::LinearRelation
@@ -24409,6 +24704,7 @@ pub use antecedent::analysis::preference_decision::MAX_PREFERENCE_DEPTH = antece
 pub use antecedent::analysis::preference_decision::MeasureOrigin = antecedent_design::preference_decision::MeasureOrigin
 pub use antecedent::analysis::preference_decision::OptionBelief = antecedent_design::choice_record::OptionBelief
 pub use antecedent::analysis::preference_decision::ParameterEstimate = antecedent_design::preference_choice_model::ParameterEstimate
+pub use antecedent::analysis::preference_decision::ParameterIntervalMethod = antecedent_design::preference_choice_model::ParameterIntervalMethod
 pub use antecedent::analysis::preference_decision::ParameterRange = antecedent_design::preference_set_learning::ParameterRange
 pub use antecedent::analysis::preference_decision::PendingReview = antecedent_design::accepted_preferences::PendingReview
 pub use antecedent::analysis::preference_decision::Pooling = antecedent_design::choice_record::Pooling
@@ -24445,7 +24741,10 @@ pub use antecedent::analysis::preference_decision::ROUTE_AFFINE_EXPECTATION = an
 pub use antecedent::analysis::preference_decision::ROUTE_CRITERION_NOT_AFFINE = antecedent_design::preference_evaluation::ROUTE_CRITERION_NOT_AFFINE
 pub use antecedent::analysis::preference_decision::ROUTE_PART_NOT_LOWERABLE = antecedent_design::preference_evaluation::ROUTE_PART_NOT_LOWERABLE
 pub use antecedent::analysis::preference_decision::ROUTE_SHAPE_PARAMETERS = antecedent_design::preference_evaluation::ROUTE_SHAPE_PARAMETERS
+pub use antecedent::analysis::preference_decision::ROUTE_VALUE_RELATIONS = antecedent_design::preference_evaluation::ROUTE_VALUE_RELATIONS
 pub use antecedent::analysis::preference_decision::ROUTE_WORST_CASE_OF_EXPECTED_REGRET = antecedent_design::preference_evaluation::ROUTE_WORST_CASE_OF_EXPECTED_REGRET
+pub use antecedent::analysis::preference_decision::RangeBasis = antecedent_design::preference_set_learning::RangeBasis
+pub use antecedent::analysis::preference_decision::RegionCell = antecedent_design::preference_set_learning::RegionCell
 pub use antecedent::analysis::preference_decision::RegionStatus = antecedent_design::preference_certified::RegionStatus
 pub use antecedent::analysis::preference_decision::RelationOrigin = antecedent_design::preference_model::RelationOrigin
 pub use antecedent::analysis::preference_decision::RelationSense = antecedent_design::preference_model::RelationSense
@@ -24454,6 +24753,7 @@ pub use antecedent::analysis::preference_decision::SetLearningError = antecedent
 pub use antecedent::analysis::preference_decision::SetLearningOptions = antecedent_design::preference_set_learning::SetLearningOptions
 pub use antecedent::analysis::preference_decision::SetLearningResult = antecedent_design::preference_set_learning::SetLearningResult
 pub use antecedent::analysis::preference_decision::SetOutcome = antecedent_design::preference_set_learning::SetOutcome
+pub use antecedent::analysis::preference_decision::ShapeSearchOptions = antecedent_stats::ShapeSearchOptions
 pub use antecedent::analysis::preference_decision::StructuralCertifiedResult = antecedent_design::preference_certified::StructuralCertifiedResult
 pub use antecedent::analysis::preference_decision::StructuralCertifiedVerdict = antecedent_design::preference_certified::StructuralCertifiedVerdict
 pub use antecedent::analysis::preference_decision::StructuralPolicy = antecedent_design::decision_contract::StructuralPolicy
@@ -24462,9 +24762,12 @@ pub use antecedent::analysis::preference_decision::StructuralPreferenceResult = 
 pub use antecedent::analysis::preference_decision::StructuralPreferenceVerdict = antecedent_design::preference_decision::StructuralPreferenceVerdict
 pub use antecedent::analysis::preference_decision::SwitchThreshold = antecedent_design::preference_decision::SwitchThreshold
 pub use antecedent::analysis::preference_decision::UnavailableOption = antecedent_design::choice_record::UnavailableOption
+pub use antecedent::analysis::preference_decision::UndeterminedSet = antecedent_design::preference_set_learning::UndeterminedSet
 pub use antecedent::analysis::preference_decision::ValueModel = antecedent_design::preference_model::ValueModel
+pub use antecedent::analysis::preference_decision::ValueRelation = antecedent_design::preference_model::ValueRelation
 pub use antecedent::analysis::preference_decision::calibration_basis = antecedent_design::preference_choice_model::calibration_basis
 pub use antecedent::analysis::preference_decision::choice_features = antecedent_design::choice_record::choice_features
+pub use antecedent::analysis::preference_decision::choice_features_at = antecedent_design::choice_record::choice_features_at
 pub use antecedent::analysis::preference_decision::decide_preferences = antecedent_design::preference_evaluation::decide_preferences
 pub use antecedent::analysis::preference_decision::decide_preferences_on_means = antecedent_design::preference_evaluation::decide_preferences_on_means
 pub use antecedent::analysis::preference_decision::decide_preferences_on_means_with_context = antecedent_design::preference_evaluation::decide_preferences_on_means_with_context
@@ -24483,6 +24786,7 @@ pub use antecedent::analysis::preference_decision::learn_compatible_set_accepted
 pub use antecedent::analysis::preference_decision::learn_compatible_set_with_context = antecedent_design::preference_set_learning::learn_compatible_set_with_context
 pub use antecedent::analysis::preference_decision::preference_route = antecedent_design::preference_evaluation::preference_route
 pub use antecedent::analysis::preference_decision::shape = antecedent_design::preference_model::shape
+pub use antecedent::analysis::preference_decision::shape_calibration_basis = antecedent_design::preference_choice_model::shape_calibration_basis
 pub use antecedent::analysis::preflight_design = antecedent::analysis::api::preflight_design
 pub use antecedent::analysis::prepare_component_feedback = antecedent::analysis::cyclic_component_composition::prepare_component_feedback
 pub use antecedent::analysis::prepare_component_feedback_with_ledger = antecedent::analysis::cyclic_component_composition::prepare_component_feedback_with_ledger
@@ -24505,6 +24809,8 @@ pub use antecedent::analysis::propagate_transported_spread_aligned = antecedent:
 pub use antecedent::analysis::propagation_chain::ChainAuthority = antecedent::analysis::ChainAuthority
 pub use antecedent::analysis::propagation_chain::ChainChangeWire = antecedent_io::propagation_chain_record::ChainChangeWire
 pub use antecedent::analysis::propagation_chain::ChainCoefficientWire = antecedent_io::propagation_chain_record::ChainCoefficientWire
+pub use antecedent::analysis::propagation_chain::ChainDeclaredBlockWire = antecedent_io::propagation_chain_record::ChainDeclaredBlockWire
+pub use antecedent::analysis::propagation_chain::ChainDeferredTableWire = antecedent_io::propagation_chain_record::ChainDeferredTableWire
 pub use antecedent::analysis::propagation_chain::ChainExprTermWire = antecedent_io::propagation_chain_record::ChainExprTermWire
 pub use antecedent::analysis::propagation_chain::ChainFactorWire = antecedent_io::propagation_chain_record::ChainFactorWire
 pub use antecedent::analysis::propagation_chain::ChainOpWire = antecedent_io::propagation_chain_record::ChainOpWire
@@ -27849,6 +28155,7 @@ pub variant antecedent::StructuralAggregationPolicy::SameEstimandWeightedMean
 pub variant antecedent::StructuralWeightBasis::CallerSuppliedClassPrior
 pub variant antecedent::StructuralWeightBasis::CompletionEnumeration
 pub variant antecedent::StructuralWeightBasis::PosteriorProbability
+pub variant antecedent::StructuralWeightBasis::PosteriorWithDeclaredClassPrior
 pub variant antecedent::StructureSource::Accepted
 pub variant antecedent::StructureSource::Discovered
 pub variant antecedent::StructureSource::Explicit
@@ -28344,6 +28651,11 @@ pub variant antecedent::analysis::multi_level_treatment::MultiLevelTargetWire::F
 pub variant antecedent::analysis::multi_level_treatment::MultiLevelTargetWire::PairwiseSubpopulation
 pub variant antecedent::analysis::native_claims::NativeDecisionSource::JointLaw(alloc::boxed::Box<antecedent_io_core::distribution_artifact::DistributionArtifact>)
 pub variant antecedent::analysis::native_claims::NativeDecisionSource::Mean(antecedent_design::decision_eval::MeanSource)
+pub variant antecedent::analysis::preference_decision::ClassSamplingScheme::CircleEndpointRejection
+pub variant antecedent::analysis::preference_decision::ClassSamplingScheme::CliquePicking
+pub variant antecedent::analysis::preference_decision::ClassSize::AtLeast(u128)
+pub variant antecedent::analysis::preference_decision::ClassSize::Exact(u128)
+pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Sampled(alloc::boxed::Box<antecedent::analysis::preference_decision::SampledStructuralEvaluation>)
 pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Single(antecedent_design::preference_evaluation::PreferenceEvaluation)
 pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Structures(antecedent_design::preference_evaluation::StructuralPreferenceEvaluation)
 pub variant antecedent::analysis::preference_decision::OutcomeDependence::DistinctEvidence { draws: usize, seed: u64 }
@@ -28352,6 +28664,9 @@ pub variant antecedent::analysis::preference_decision::OutcomeDependence::Undecl
 pub variant antecedent::analysis::preference_decision::PreferenceRouteError::Compiler(alloc::boxed::Box<antecedent::CausalError>)
 pub variant antecedent::analysis::preference_decision::PreferenceRouteError::Design(alloc::boxed::Box<antecedent::analysis::joint_panel::JointPanelError>)
 pub variant antecedent::analysis::preference_decision::PreferenceRouteError::Refused(alloc::boxed::Box<antecedent_contract::external_refusal::ExternalRefusal>)
+pub variant antecedent::analysis::preference_decision::SampledStructuralVerdict::OnSampledMeasure { best_on_sampled_measure: core::option::Option<alloc::string::String>, candidates: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent::analysis::preference_decision::SampledStructuralVerdict::PerSampledMember { best_on_every_sampled_member: core::option::Option<alloc::string::String>, other_best: alloc::vec::Vec<antecedent::analysis::preference_decision::OtherBestBound> }
+pub variant antecedent::analysis::preference_decision::SampledStructuralVerdict::ReportOnly
 pub variant antecedent::analysis::preference_decision::StructureIdentification::Identified(antecedent_core::identification::IdentificationStatus)
 pub variant antecedent::analysis::preference_decision::StructureIdentification::IdentifiedAtPreparation
 pub variant antecedent::analysis::preference_decision::StructureIdentification::NotIdentified(alloc::string::String)

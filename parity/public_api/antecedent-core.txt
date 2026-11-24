@@ -7624,6 +7624,7 @@ pub const antecedent_core::reason_details::accepted_preferences::MODEL_MISMATCH:
 pub const antecedent_core::reason_details::accepted_preferences::NOT_PENDING: &str
 pub const antecedent_core::reason_details::accepted_preferences::OPTIONS_MISMATCH: &str
 pub const antecedent_core::reason_details::accepted_preferences::POOLED_NOT_AVAILABLE: &str
+pub const antecedent_core::reason_details::accepted_preferences::SET_UNDETERMINED: &str
 pub const antecedent_core::reason_details::accepted_preferences::VERSION_EXHAUSTED: &str
 pub const antecedent_core::reason_details::accepted_preferences::VERSION_INVALID: &str
 pub const antecedent_core::reason_details::adaptive_inference::ANALYSIS_INVALID: &str
@@ -9466,19 +9467,27 @@ pub const antecedent_core::reason_details::preference_choice_model::MODEL_INVALI
 pub const antecedent_core::reason_details::preference_choice_model::NOTHING_IDENTIFIED: &str
 pub const antecedent_core::reason_details::preference_choice_model::NOT_CONVERGED: &str
 pub const antecedent_core::reason_details::preference_choice_model::NO_DRAW_INSIDE_SET: &str
+pub const antecedent_core::reason_details::preference_choice_model::PROFILE_MULTIMODAL: &str
 pub const antecedent_core::reason_details::preference_choice_model::RANK_DEFICIENT: &str
 pub const antecedent_core::reason_details::preference_choice_model::RECORDS_INVALID: &str
 pub const antecedent_core::reason_details::preference_choice_model::SEPARATED: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_ESTIMATE_AT_BOUND: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_NOT_IDENTIFIED: &str
+pub const antecedent_core::reason_details::preference_choice_model::SHAPE_SEARCH_BUDGET: &str
 pub const antecedent_core::reason_details::preference_choice_model::STATED_AND_RECORDED_MIXED: &str
 pub const antecedent_core::reason_details::preference_choice_model::UNIT_OF_ACCOUNT_MISSING: &str
 pub const antecedent_core::reason_details::preference_compile::ATOM_KIND_NOT_COMPILED: &str
 pub const antecedent_core::reason_details::preference_compile::CLASS_COMPLETIONS_TRUNCATED: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_KEYS_MISMATCH: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: &str
+pub const antecedent_core::reason_details::preference_compile::CLASS_SAMPLING_BUDGET: &str
 pub const antecedent_core::reason_details::preference_compile::CROSS_STUDY_COVARIANCE_INVALID: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_EXPOSURE_BOUNDED: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_LAW_NOT_ALIGNED: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::preference_compile::PROGRAM_CARRIES_DECISION: &str
 pub const antecedent_core::reason_details::preference_compile::STUDIES_SHARE_EVIDENCE: &str
+pub const antecedent_core::reason_details::preference_compile::UNIT_KEY_INVALID: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_DUPLICATE: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_ID_BLANK: &str
 pub const antecedent_core::reason_details::preference_contract::ACTION_WITHOUT_QUANTITY: &str
@@ -9535,6 +9544,7 @@ pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBAB
 pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITIES_PARTIAL: &str
 pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITIES_REQUIRED: &str
 pub const antecedent_core::reason_details::preference_decision::STRUCTURE_PROBABILITY_INVALID: &str
+pub const antecedent_core::reason_details::preference_decision::VALUE_RELATIONS_NEED_CERTIFIED_ROUTE: &str
 pub const antecedent_core::reason_details::preference_decision::WORST_CASE_OF_EXPECTED_REGRET: &str
 pub const antecedent_core::reason_details::preference_evaluation::JOINT_DRAWS_REQUIRED: &str
 pub const antecedent_core::reason_details::preference_model::ATTRIBUTE_COUNT_MISMATCH: &str
@@ -9570,12 +9580,15 @@ pub const antecedent_core::reason_details::preference_model::UNKNOWN_ATTRIBUTE: 
 pub const antecedent_core::reason_details::preference_model::UNKNOWN_PARAMETER: &str
 pub const antecedent_core::reason_details::preference_model::UTILITY_UNITS_BLANK: &str
 pub const antecedent_core::reason_details::preference_model::VALUE_NON_FINITE: &str
+pub const antecedent_core::reason_details::preference_model::VALUE_RELATION_ROWS_INVALID: &str
+pub const antecedent_core::reason_details::preference_model::VALUE_RELATION_TOLERANCE_INVALID: &str
 pub const antecedent_core::reason_details::preference_set_learning::CANCELLED: &str
 pub const antecedent_core::reason_details::preference_set_learning::DECLARED_SET_EMPTY: &str
 pub const antecedent_core::reason_details::preference_set_learning::LINEAR_PROGRAM_REFUSED: &str
 pub const antecedent_core::reason_details::preference_set_learning::MODEL_INVALID: &str
 pub const antecedent_core::reason_details::preference_set_learning::PROGRAM_INCONSISTENT: &str
 pub const antecedent_core::reason_details::preference_set_learning::RECORDS_INVALID: &str
+pub const antecedent_core::reason_details::preference_set_learning::REGION_BUDGET_INVALID: &str
 pub const antecedent_core::reason_details::preference_set_learning::RELATION_ID_COLLISION: &str
 pub const antecedent_core::reason_details::preference_set_learning::TOLERANCE_NEGATIVE: &str
 pub const antecedent_core::reason_details::preference_set_learning::TOLERANCE_NON_FINITE: &str
@@ -9617,6 +9630,7 @@ pub const antecedent_core::reason_details::program_binding::NO_IDENTIFIED_REQUES
 pub const antecedent_core::reason_details::program_binding::POPULATION_MISMATCH: &str
 pub const antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH: &str
 pub const antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION: &str
+pub const antecedent_core::reason_details::propagation_chain::DEFERRED_SOURCE_UNBOUND: &str
 pub const antecedent_core::reason_details::proposal_arrival::ASSIGNMENT_MISMATCH: &str
 pub const antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_CHANGED: &str
 pub const antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_MISSING: &str
@@ -10270,6 +10284,7 @@ pub const antecedent_core::reason_details::split_effect::SOURCE_NOT_CANONICAL: &
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_CLASS: &str
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED: &str
 pub const antecedent_core::reason_details::split_effect::TOO_FEW_ROWS: &str
+pub const antecedent_core::reason_details::structure_posterior::CLASS_PRIOR_NOT_READ: &str
 pub const antecedent_core::reason_details::structure_posterior::EDGE_PRIOR_PROBABILITY: &str
 pub const antecedent_core::reason_details::structured_refusals::MALFORMED_DETAIL: &str
 pub const antecedent_core::reason_details::structured_refusals::MISSING_STAGE: &str
@@ -13276,6 +13291,7 @@ pub mod antecedent_core::reason_details::preference_model
 pub mod antecedent_core::reason_details::preference_set_learning
 pub mod antecedent_core::reason_details::prior_signal
 pub mod antecedent_core::reason_details::program_binding
+pub mod antecedent_core::reason_details::propagation_chain
 pub mod antecedent_core::reason_details::proposal_arrival
 pub mod antecedent_core::reason_details::proposal_receipt
 pub mod antecedent_core::reason_details::provider_capability_negotiation

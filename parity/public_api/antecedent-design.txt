@@ -710,6 +710,7 @@ impl core::clone::Clone for antecedent_design::preference_choice_model::ChoiceMo
 impl core::clone::Clone for antecedent_design::preference_choice_model::CovarianceKind
 impl core::clone::Clone for antecedent_design::preference_choice_model::EstimateOutcome
 impl core::clone::Clone for antecedent_design::preference_choice_model::ParameterEstimate
+impl core::clone::Clone for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::clone::Clone for antecedent_design::preference_contract::ActionInput
 impl core::clone::Clone for antecedent_design::preference_contract::PreferenceAction
 impl core::clone::Clone for antecedent_design::preference_contract::PreferenceContract
@@ -738,6 +739,7 @@ impl core::clone::Clone for antecedent_design::preference_evaluation::Preference
 impl core::clone::Clone for antecedent_design::preference_evaluation::RouteChoice
 impl core::clone::Clone for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
 impl core::clone::Clone for antecedent_design::preference_model::Attribute
+impl core::clone::Clone for antecedent_design::preference_model::BeliefRows
 impl core::clone::Clone for antecedent_design::preference_model::Curve
 impl core::clone::Clone for antecedent_design::preference_model::LinearForm
 impl core::clone::Clone for antecedent_design::preference_model::LinearRelation
@@ -749,17 +751,23 @@ impl core::clone::Clone for antecedent_design::preference_model::PreferenceSet
 impl core::clone::Clone for antecedent_design::preference_model::RelationOrigin
 impl core::clone::Clone for antecedent_design::preference_model::RelationSense
 impl core::clone::Clone for antecedent_design::preference_model::ValueModel
+impl core::clone::Clone for antecedent_design::preference_model::ValueRelation
 impl core::clone::Clone for antecedent_design::preference_set_learning::BindingChoice
+impl core::clone::Clone for antecedent_design::preference_set_learning::CellStatus
 impl core::clone::Clone for antecedent_design::preference_set_learning::ChoiceConflict
 impl core::clone::Clone for antecedent_design::preference_set_learning::ConflictKind
 impl core::clone::Clone for antecedent_design::preference_set_learning::DeciderOverlap
 impl core::clone::Clone for antecedent_design::preference_set_learning::DeciderSet
 impl core::clone::Clone for antecedent_design::preference_set_learning::LearnedPreferenceSet
+impl core::clone::Clone for antecedent_design::preference_set_learning::LearnedRegion
 impl core::clone::Clone for antecedent_design::preference_set_learning::ParameterRange
+impl core::clone::Clone for antecedent_design::preference_set_learning::RangeBasis
+impl core::clone::Clone for antecedent_design::preference_set_learning::RegionCell
 impl core::clone::Clone for antecedent_design::preference_set_learning::SetLearningError
 impl core::clone::Clone for antecedent_design::preference_set_learning::SetLearningOptions
 impl core::clone::Clone for antecedent_design::preference_set_learning::SetLearningResult
 impl core::clone::Clone for antecedent_design::preference_set_learning::SetOutcome
+impl core::clone::Clone for antecedent_design::preference_set_learning::UndeterminedSet
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::clone::Clone for antecedent_design::prior_signal::CandidateSignalSource
 impl core::clone::Clone for antecedent_design::prior_signal::NativeSignalFamily
@@ -1197,6 +1205,7 @@ impl core::cmp::Eq for antecedent_design::planning::PlanningRefusal
 impl core::cmp::Eq for antecedent_design::planning::SimulationSpec
 impl core::cmp::Eq for antecedent_design::planning::TestSidedness
 impl core::cmp::Eq for antecedent_design::preference_choice_model::CovarianceKind
+impl core::cmp::Eq for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::cmp::Eq for antecedent_design::preference_contract::PreferenceContractError
 impl core::cmp::Eq for antecedent_design::preference_contract::PreferencePolicy
 impl core::cmp::Eq for antecedent_design::preference_decision::MeasureOrigin
@@ -1207,7 +1216,9 @@ impl core::cmp::Eq for antecedent_design::preference_model::PreferenceModelError
 impl core::cmp::Eq for antecedent_design::preference_model::RelationOrigin
 impl core::cmp::Eq for antecedent_design::preference_model::RelationSense
 impl core::cmp::Eq for antecedent_design::preference_set_learning::BindingChoice
+impl core::cmp::Eq for antecedent_design::preference_set_learning::CellStatus
 impl core::cmp::Eq for antecedent_design::preference_set_learning::ConflictKind
+impl core::cmp::Eq for antecedent_design::preference_set_learning::RangeBasis
 impl core::cmp::Eq for antecedent_design::prior_signal::PriorSignalError
 impl core::cmp::Eq for antecedent_design::prior_signal::TransportPolicyDecl
 impl core::cmp::Eq for antecedent_design::program_search::OperationalReason
@@ -1851,6 +1862,7 @@ impl core::cmp::PartialEq for antecedent_design::preference_choice_model::Choice
 impl core::cmp::PartialEq for antecedent_design::preference_choice_model::CovarianceKind
 impl core::cmp::PartialEq for antecedent_design::preference_choice_model::EstimateOutcome
 impl core::cmp::PartialEq for antecedent_design::preference_choice_model::ParameterEstimate
+impl core::cmp::PartialEq for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::cmp::PartialEq for antecedent_design::preference_contract::ActionInput
 impl core::cmp::PartialEq for antecedent_design::preference_contract::PreferenceAction
 impl core::cmp::PartialEq for antecedent_design::preference_contract::PreferenceContract
@@ -1879,6 +1891,7 @@ impl core::cmp::PartialEq for antecedent_design::preference_evaluation::Preferen
 impl core::cmp::PartialEq for antecedent_design::preference_evaluation::RouteChoice
 impl core::cmp::PartialEq for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
 impl core::cmp::PartialEq for antecedent_design::preference_model::Attribute
+impl core::cmp::PartialEq for antecedent_design::preference_model::BeliefRows
 impl core::cmp::PartialEq for antecedent_design::preference_model::Curve
 impl core::cmp::PartialEq for antecedent_design::preference_model::LinearForm
 impl core::cmp::PartialEq for antecedent_design::preference_model::LinearRelation
@@ -1890,17 +1903,23 @@ impl core::cmp::PartialEq for antecedent_design::preference_model::PreferenceSet
 impl core::cmp::PartialEq for antecedent_design::preference_model::RelationOrigin
 impl core::cmp::PartialEq for antecedent_design::preference_model::RelationSense
 impl core::cmp::PartialEq for antecedent_design::preference_model::ValueModel
+impl core::cmp::PartialEq for antecedent_design::preference_model::ValueRelation
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::BindingChoice
+impl core::cmp::PartialEq for antecedent_design::preference_set_learning::CellStatus
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::ChoiceConflict
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::ConflictKind
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::DeciderOverlap
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::DeciderSet
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::LearnedPreferenceSet
+impl core::cmp::PartialEq for antecedent_design::preference_set_learning::LearnedRegion
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::ParameterRange
+impl core::cmp::PartialEq for antecedent_design::preference_set_learning::RangeBasis
+impl core::cmp::PartialEq for antecedent_design::preference_set_learning::RegionCell
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::SetLearningError
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::SetLearningOptions
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::SetLearningResult
 impl core::cmp::PartialEq for antecedent_design::preference_set_learning::SetOutcome
+impl core::cmp::PartialEq for antecedent_design::preference_set_learning::UndeterminedSet
 impl core::cmp::PartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::cmp::PartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -2836,6 +2855,7 @@ impl core::fmt::Debug for antecedent_design::preference_choice_model::ChoiceMode
 impl core::fmt::Debug for antecedent_design::preference_choice_model::CovarianceKind
 impl core::fmt::Debug for antecedent_design::preference_choice_model::EstimateOutcome
 impl core::fmt::Debug for antecedent_design::preference_choice_model::ParameterEstimate
+impl core::fmt::Debug for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::fmt::Debug for antecedent_design::preference_contract::ActionInput
 impl core::fmt::Debug for antecedent_design::preference_contract::PreferenceAction
 impl core::fmt::Debug for antecedent_design::preference_contract::PreferenceContract
@@ -2864,6 +2884,7 @@ impl core::fmt::Debug for antecedent_design::preference_evaluation::PreferenceRo
 impl core::fmt::Debug for antecedent_design::preference_evaluation::RouteChoice
 impl core::fmt::Debug for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
 impl core::fmt::Debug for antecedent_design::preference_model::Attribute
+impl core::fmt::Debug for antecedent_design::preference_model::BeliefRows
 impl core::fmt::Debug for antecedent_design::preference_model::Curve
 impl core::fmt::Debug for antecedent_design::preference_model::LinearForm
 impl core::fmt::Debug for antecedent_design::preference_model::LinearRelation
@@ -2875,17 +2896,23 @@ impl core::fmt::Debug for antecedent_design::preference_model::PreferenceSet
 impl core::fmt::Debug for antecedent_design::preference_model::RelationOrigin
 impl core::fmt::Debug for antecedent_design::preference_model::RelationSense
 impl core::fmt::Debug for antecedent_design::preference_model::ValueModel
+impl core::fmt::Debug for antecedent_design::preference_model::ValueRelation
 impl core::fmt::Debug for antecedent_design::preference_set_learning::BindingChoice
+impl core::fmt::Debug for antecedent_design::preference_set_learning::CellStatus
 impl core::fmt::Debug for antecedent_design::preference_set_learning::ChoiceConflict
 impl core::fmt::Debug for antecedent_design::preference_set_learning::ConflictKind
 impl core::fmt::Debug for antecedent_design::preference_set_learning::DeciderOverlap
 impl core::fmt::Debug for antecedent_design::preference_set_learning::DeciderSet
 impl core::fmt::Debug for antecedent_design::preference_set_learning::LearnedPreferenceSet
+impl core::fmt::Debug for antecedent_design::preference_set_learning::LearnedRegion
 impl core::fmt::Debug for antecedent_design::preference_set_learning::ParameterRange
+impl core::fmt::Debug for antecedent_design::preference_set_learning::RangeBasis
+impl core::fmt::Debug for antecedent_design::preference_set_learning::RegionCell
 impl core::fmt::Debug for antecedent_design::preference_set_learning::SetLearningError
 impl core::fmt::Debug for antecedent_design::preference_set_learning::SetLearningOptions
 impl core::fmt::Debug for antecedent_design::preference_set_learning::SetLearningResult
 impl core::fmt::Debug for antecedent_design::preference_set_learning::SetOutcome
+impl core::fmt::Debug for antecedent_design::preference_set_learning::UndeterminedSet
 impl core::fmt::Debug for antecedent_design::prior_signal::CandidateSignalPrior
 impl core::fmt::Debug for antecedent_design::prior_signal::NativeSignalFamily
 impl core::fmt::Debug for antecedent_design::prior_signal::PriorSignalDiagnostics
@@ -3370,13 +3397,16 @@ impl core::marker::Copy for antecedent_design::planning::TestSidedness
 impl core::marker::Copy for antecedent_design::preference_certified::CertifiedOptions
 impl core::marker::Copy for antecedent_design::preference_choice_model::ChoiceModelOptions
 impl core::marker::Copy for antecedent_design::preference_choice_model::CovarianceKind
+impl core::marker::Copy for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::marker::Copy for antecedent_design::preference_contract::PreferencePolicy
 impl core::marker::Copy for antecedent_design::preference_decision::PreferenceDecisionOptions
 impl core::marker::Copy for antecedent_design::preference_evaluation::PreferenceEvaluationOptions
 impl core::marker::Copy for antecedent_design::preference_evaluation::PreferenceRoute
 impl core::marker::Copy for antecedent_design::preference_evaluation::RouteChoice
 impl core::marker::Copy for antecedent_design::preference_model::RelationSense
+impl core::marker::Copy for antecedent_design::preference_set_learning::CellStatus
 impl core::marker::Copy for antecedent_design::preference_set_learning::ConflictKind
+impl core::marker::Copy for antecedent_design::preference_set_learning::RangeBasis
 impl core::marker::Copy for antecedent_design::preference_set_learning::SetLearningOptions
 impl core::marker::Copy for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::Copy for antecedent_design::prior_signal::SourceToTarget
@@ -4026,6 +4056,7 @@ impl core::marker::Freeze for antecedent_design::preference_choice_model::Choice
 impl core::marker::Freeze for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::marker::Freeze for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::marker::Freeze for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::marker::Freeze for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::marker::Freeze for antecedent_design::preference_contract::ActionInput [auto]
 impl core::marker::Freeze for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::marker::Freeze for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -4054,6 +4085,7 @@ impl core::marker::Freeze for antecedent_design::preference_evaluation::Preferen
 impl core::marker::Freeze for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::marker::Freeze for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::Attribute [auto]
+impl core::marker::Freeze for antecedent_design::preference_model::BeliefRows [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::Curve [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::LinearForm [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::LinearRelation [auto]
@@ -4065,17 +4097,23 @@ impl core::marker::Freeze for antecedent_design::preference_model::PreferenceSet
 impl core::marker::Freeze for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::RelationSense [auto]
 impl core::marker::Freeze for antecedent_design::preference_model::ValueModel [auto]
+impl core::marker::Freeze for antecedent_design::preference_model::ValueRelation [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::marker::Freeze for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::marker::Freeze for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::marker::Freeze for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::marker::Freeze for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::marker::Freeze for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::marker::Freeze for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Freeze for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -4897,6 +4935,7 @@ impl core::marker::Send for antecedent_design::preference_choice_model::ChoiceMo
 impl core::marker::Send for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::marker::Send for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::marker::Send for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::marker::Send for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::marker::Send for antecedent_design::preference_contract::ActionInput [auto]
 impl core::marker::Send for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::marker::Send for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -4925,6 +4964,7 @@ impl core::marker::Send for antecedent_design::preference_evaluation::Preference
 impl core::marker::Send for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::marker::Send for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::marker::Send for antecedent_design::preference_model::Attribute [auto]
+impl core::marker::Send for antecedent_design::preference_model::BeliefRows [auto]
 impl core::marker::Send for antecedent_design::preference_model::Curve [auto]
 impl core::marker::Send for antecedent_design::preference_model::LinearForm [auto]
 impl core::marker::Send for antecedent_design::preference_model::LinearRelation [auto]
@@ -4936,17 +4976,23 @@ impl core::marker::Send for antecedent_design::preference_model::PreferenceSet [
 impl core::marker::Send for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::marker::Send for antecedent_design::preference_model::RelationSense [auto]
 impl core::marker::Send for antecedent_design::preference_model::ValueModel [auto]
+impl core::marker::Send for antecedent_design::preference_model::ValueRelation [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::marker::Send for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::marker::Send for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::marker::Send for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::marker::Send for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::marker::Send for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::marker::Send for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Send for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Send for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -5698,6 +5744,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::preference_choice_
 impl core::marker::StructuralPartialEq for antecedent_design::preference_choice_model::CovarianceKind
 impl core::marker::StructuralPartialEq for antecedent_design::preference_choice_model::EstimateOutcome
 impl core::marker::StructuralPartialEq for antecedent_design::preference_choice_model::ParameterEstimate
+impl core::marker::StructuralPartialEq for antecedent_design::preference_choice_model::ParameterIntervalMethod
 impl core::marker::StructuralPartialEq for antecedent_design::preference_contract::ActionInput
 impl core::marker::StructuralPartialEq for antecedent_design::preference_contract::PreferenceAction
 impl core::marker::StructuralPartialEq for antecedent_design::preference_contract::PreferenceContract
@@ -5726,6 +5773,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::preference_evaluat
 impl core::marker::StructuralPartialEq for antecedent_design::preference_evaluation::RouteChoice
 impl core::marker::StructuralPartialEq for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::Attribute
+impl core::marker::StructuralPartialEq for antecedent_design::preference_model::BeliefRows
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::Curve
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::LinearForm
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::LinearRelation
@@ -5737,17 +5785,23 @@ impl core::marker::StructuralPartialEq for antecedent_design::preference_model::
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::RelationOrigin
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::RelationSense
 impl core::marker::StructuralPartialEq for antecedent_design::preference_model::ValueModel
+impl core::marker::StructuralPartialEq for antecedent_design::preference_model::ValueRelation
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::BindingChoice
+impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::CellStatus
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::ChoiceConflict
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::ConflictKind
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::DeciderOverlap
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::DeciderSet
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::LearnedPreferenceSet
+impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::LearnedRegion
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::ParameterRange
+impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::RangeBasis
+impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::RegionCell
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::SetLearningError
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::SetLearningOptions
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::SetLearningResult
 impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::SetOutcome
+impl core::marker::StructuralPartialEq for antecedent_design::preference_set_learning::UndeterminedSet
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::NativeSignalFamily
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_design::prior_signal::PriorSignalError
@@ -6534,6 +6588,7 @@ impl core::marker::Sync for antecedent_design::preference_choice_model::ChoiceMo
 impl core::marker::Sync for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::marker::Sync for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::marker::Sync for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::marker::Sync for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::marker::Sync for antecedent_design::preference_contract::ActionInput [auto]
 impl core::marker::Sync for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::marker::Sync for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -6562,6 +6617,7 @@ impl core::marker::Sync for antecedent_design::preference_evaluation::Preference
 impl core::marker::Sync for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::marker::Sync for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::marker::Sync for antecedent_design::preference_model::Attribute [auto]
+impl core::marker::Sync for antecedent_design::preference_model::BeliefRows [auto]
 impl core::marker::Sync for antecedent_design::preference_model::Curve [auto]
 impl core::marker::Sync for antecedent_design::preference_model::LinearForm [auto]
 impl core::marker::Sync for antecedent_design::preference_model::LinearRelation [auto]
@@ -6573,17 +6629,23 @@ impl core::marker::Sync for antecedent_design::preference_model::PreferenceSet [
 impl core::marker::Sync for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::marker::Sync for antecedent_design::preference_model::RelationSense [auto]
 impl core::marker::Sync for antecedent_design::preference_model::ValueModel [auto]
+impl core::marker::Sync for antecedent_design::preference_model::ValueRelation [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::marker::Sync for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::marker::Sync for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::marker::Sync for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::marker::Sync for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::marker::Sync for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::marker::Sync for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Sync for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -7406,6 +7468,7 @@ impl core::marker::Unpin for antecedent_design::preference_choice_model::ChoiceM
 impl core::marker::Unpin for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::marker::Unpin for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::marker::Unpin for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::marker::Unpin for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::marker::Unpin for antecedent_design::preference_contract::ActionInput [auto]
 impl core::marker::Unpin for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::marker::Unpin for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -7434,6 +7497,7 @@ impl core::marker::Unpin for antecedent_design::preference_evaluation::Preferenc
 impl core::marker::Unpin for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::marker::Unpin for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::Attribute [auto]
+impl core::marker::Unpin for antecedent_design::preference_model::BeliefRows [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::Curve [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::LinearForm [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::LinearRelation [auto]
@@ -7445,17 +7509,23 @@ impl core::marker::Unpin for antecedent_design::preference_model::PreferenceSet 
 impl core::marker::Unpin for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::RelationSense [auto]
 impl core::marker::Unpin for antecedent_design::preference_model::ValueModel [auto]
+impl core::marker::Unpin for antecedent_design::preference_model::ValueRelation [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::marker::Unpin for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::marker::Unpin for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::marker::Unpin for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::marker::Unpin for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::marker::Unpin for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::marker::Unpin for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalPrior [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::CandidateSignalSource [auto]
 impl core::marker::Unpin for antecedent_design::prior_signal::NativeSignalFamily [auto]
@@ -8274,6 +8344,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_c
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_contract::ActionInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -8302,6 +8373,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::Attribute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::BeliefRows [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::Curve [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::LinearForm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::LinearRelation [auto]
@@ -8313,17 +8385,23 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_m
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::RelationSense [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::ValueModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_model::ValueRelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -9135,6 +9213,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_choi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_choice_model::CovarianceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_choice_model::EstimateOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_choice_model::ParameterEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_choice_model::ParameterIntervalMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_contract::ActionInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_contract::PreferenceAction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_contract::PreferenceContract [auto]
@@ -9163,6 +9242,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_eval
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_evaluation::RouteChoice [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::Attribute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::BeliefRows [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::Curve [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::LinearForm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::LinearRelation [auto]
@@ -9174,17 +9254,23 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_mode
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::RelationOrigin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::RelationSense [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::ValueModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_model::ValueRelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::BindingChoice [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::CellStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::ChoiceConflict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::ConflictKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::DeciderOverlap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::DeciderSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::LearnedPreferenceSet [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::LearnedRegion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::ParameterRange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::RangeBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::RegionCell [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::SetLearningError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::SetLearningOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::SetLearningResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::SetOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_set_learning::UndeterminedSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::NativeSignalFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::prior_signal::PriorSignalError [auto]
@@ -10122,16 +10208,21 @@ pub const antecedent_design::preference_choice_model::ASSUMPTION_LOGIT_CHOICE: &
 pub const antecedent_design::preference_choice_model::CALIBRATION_ESTIMATOR: &str
 pub const antecedent_design::preference_choice_model::CALIBRATION_INTERVAL_METHOD: &str
 pub const antecedent_design::preference_choice_model::CALIBRATION_QUERY: &str
+pub const antecedent_design::preference_choice_model::CALIBRATION_SHAPE_ESTIMATOR: &str
+pub const antecedent_design::preference_choice_model::CALIBRATION_SHAPE_INTERVAL_METHOD: &str
 pub const antecedent_design::preference_choice_model::DIFFERENCE_RELATIVE_TOLERANCE: f64
 pub const antecedent_design::preference_choice_model::SET_TOLERANCE: f64
 pub const antecedent_design::preference_evaluation::ROUTE_AFFINE_EXPECTATION: &str
 pub const antecedent_design::preference_evaluation::ROUTE_CRITERION_NOT_AFFINE: &str
 pub const antecedent_design::preference_evaluation::ROUTE_PART_NOT_LOWERABLE: &str
 pub const antecedent_design::preference_evaluation::ROUTE_SHAPE_PARAMETERS: &str
+pub const antecedent_design::preference_evaluation::ROUTE_VALUE_RELATIONS: &str
 pub const antecedent_design::preference_evaluation::ROUTE_WORST_CASE_OF_EXPECTED_REGRET: &str
 pub const antecedent_design::preference_model::MAX_PREFERENCE_DEPTH: usize
 pub const antecedent_design::preference_set_learning::ASSUMPTION_CHOICES_OPTIMAL: &str
 pub const antecedent_design::preference_set_learning::COEFFICIENT_RELATIVE_THRESHOLD: f64
+pub const antecedent_design::preference_set_learning::DEFAULT_MAX_SHAPE_BOXES: usize
+pub const antecedent_design::preference_set_learning::DEFAULT_MIN_SHAPE_WIDTH_FRACTION: f64
 pub const antecedent_design::preference_set_learning::SMALLEST_CONFLICT_SUBSET_BUDGET: usize
 pub const antecedent_design::program_search::selection::procedure::MAX_SELECTION_REPETITIONS: usize
 pub const antecedent_design::repair::REPAIR_DEFAULT_DEPTH: usize
@@ -10381,6 +10472,7 @@ pub enum antecedent_design::preference_certified::StructuralCertifiedVerdict
 pub enum antecedent_design::preference_choice_model::ChoiceModelError
 pub enum antecedent_design::preference_choice_model::CovarianceKind
 pub enum antecedent_design::preference_choice_model::EstimateOutcome
+pub enum antecedent_design::preference_choice_model::ParameterIntervalMethod
 pub enum antecedent_design::preference_contract::ActionInput
 pub enum antecedent_design::preference_contract::PreferenceContractError
 pub enum antecedent_design::preference_contract::PreferencePolicy
@@ -10398,7 +10490,9 @@ pub enum antecedent_design::preference_model::PreferenceExpr
 pub enum antecedent_design::preference_model::PreferenceModelError
 pub enum antecedent_design::preference_model::RelationOrigin
 pub enum antecedent_design::preference_model::RelationSense
+pub enum antecedent_design::preference_set_learning::CellStatus
 pub enum antecedent_design::preference_set_learning::ConflictKind
+pub enum antecedent_design::preference_set_learning::RangeBasis
 pub enum antecedent_design::preference_set_learning::SetLearningError
 pub enum antecedent_design::preference_set_learning::SetOutcome
 pub enum antecedent_design::prior_signal::CandidateSignalSource
@@ -12249,17 +12343,20 @@ pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::not_l
 pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::null_log_likelihood: f64
 pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::parameters: alloc::vec::Vec<antecedent_design::preference_choice_model::ParameterEstimate>
 pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::records_digest: alloc::string::String
+pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::shape_parameters: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::preference_choice_model::ChoiceModelEstimate::share_outside_declared: f64
 pub field antecedent_design::preference_choice_model::ChoiceModelOptions::fit: antecedent_stats::glm::conditional_logit::ConditionalLogitOptions
 pub field antecedent_design::preference_choice_model::ChoiceModelOptions::level: f64
 pub field antecedent_design::preference_choice_model::ChoiceModelOptions::n_draws: usize
 pub field antecedent_design::preference_choice_model::ChoiceModelOptions::seed: u64
+pub field antecedent_design::preference_choice_model::ChoiceModelOptions::shape_search: antecedent_stats::glm::nonlinear_conditional_logit::ShapeSearchOptions
 pub field antecedent_design::preference_choice_model::ChoiceModelResult::per_decider: alloc::vec::Vec<(alloc::string::String, antecedent_design::preference_choice_model::EstimateOutcome)>
 pub field antecedent_design::preference_choice_model::ChoiceModelResult::pooled: core::option::Option<alloc::boxed::Box<antecedent_design::preference_choice_model::ChoiceModelEstimate>>
 pub field antecedent_design::preference_choice_model::ParameterEstimate::declared: (f64, f64)
 pub field antecedent_design::preference_choice_model::ParameterEstimate::estimate: f64
 pub field antecedent_design::preference_choice_model::ParameterEstimate::inside_declared: bool
 pub field antecedent_design::preference_choice_model::ParameterEstimate::interval: (f64, f64)
+pub field antecedent_design::preference_choice_model::ParameterEstimate::interval_method: antecedent_design::preference_choice_model::ParameterIntervalMethod
 pub field antecedent_design::preference_choice_model::ParameterEstimate::parameter_id: alloc::string::String
 pub field antecedent_design::preference_choice_model::ParameterEstimate::standard_error: f64
 pub field antecedent_design::preference_contract::PreferenceAction::id: alloc::string::String
@@ -12337,6 +12434,8 @@ pub field antecedent_design::preference_evaluation::RouteChoice::reason: &'stati
 pub field antecedent_design::preference_evaluation::RouteChoice::route: antecedent_design::preference_evaluation::PreferenceRoute
 pub field antecedent_design::preference_model::Attribute::id: alloc::string::String
 pub field antecedent_design::preference_model::Attribute::units: alloc::string::String
+pub field antecedent_design::preference_model::BeliefRows::rows: alloc::vec::Vec<f64>
+pub field antecedent_design::preference_model::BeliefRows::weights: alloc::vec::Vec<f64>
 pub field antecedent_design::preference_model::Curve::attribute: usize
 pub field antecedent_design::preference_model::Curve::breakpoints: alloc::vec::Vec<f64>
 pub field antecedent_design::preference_model::Curve::slopes: alloc::vec::Vec<usize>
@@ -12357,10 +12456,16 @@ pub field antecedent_design::preference_model::PreferenceRows::rhs: alloc::vec::
 pub field antecedent_design::preference_model::PreferenceRows::row_relation: alloc::vec::Vec<usize>
 pub field antecedent_design::preference_model::PreferenceSet::parameters: alloc::vec::Vec<antecedent_design::preference_model::PreferenceParameter>
 pub field antecedent_design::preference_model::PreferenceSet::relations: alloc::vec::Vec<antecedent_design::preference_model::LinearRelation>
+pub field antecedent_design::preference_model::PreferenceSet::value_relations: alloc::vec::Vec<antecedent_design::preference_model::ValueRelation>
 pub field antecedent_design::preference_model::ValueModel::attributes: alloc::vec::Vec<antecedent_design::preference_model::Attribute>
 pub field antecedent_design::preference_model::ValueModel::preferences: antecedent_design::preference_model::PreferenceSet
 pub field antecedent_design::preference_model::ValueModel::utility_units: alloc::string::String
 pub field antecedent_design::preference_model::ValueModel::value: antecedent_design::preference_model::PreferenceExpr
+pub field antecedent_design::preference_model::ValueRelation::chosen: antecedent_design::preference_model::BeliefRows
+pub field antecedent_design::preference_model::ValueRelation::id: alloc::string::String
+pub field antecedent_design::preference_model::ValueRelation::origin: antecedent_design::preference_model::RelationOrigin
+pub field antecedent_design::preference_model::ValueRelation::rejected: antecedent_design::preference_model::BeliefRows
+pub field antecedent_design::preference_model::ValueRelation::tolerance: f64
 pub field antecedent_design::preference_set_learning::BindingChoice::record_id: alloc::string::String
 pub field antecedent_design::preference_set_learning::BindingChoice::rejected_option: alloc::string::String
 pub field antecedent_design::preference_set_learning::ChoiceConflict::kind: antecedent_design::preference_set_learning::ConflictKind
@@ -12378,19 +12483,39 @@ pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::mode
 pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::n_records: usize
 pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::ranges: alloc::vec::Vec<antecedent_design::preference_set_learning::ParameterRange>
 pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::records_digest: alloc::string::String
+pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::region: core::option::Option<antecedent_design::preference_set_learning::LearnedRegion>
 pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::set: antecedent_design::preference_model::PreferenceSet
 pub field antecedent_design::preference_set_learning::LearnedPreferenceSet::tolerance: f64
+pub field antecedent_design::preference_set_learning::LearnedRegion::boxes_used: usize
+pub field antecedent_design::preference_set_learning::LearnedRegion::budget_exhausted: bool
+pub field antecedent_design::preference_set_learning::LearnedRegion::cells: alloc::vec::Vec<antecedent_design::preference_set_learning::RegionCell>
+pub field antecedent_design::preference_set_learning::LearnedRegion::linear_parameters: alloc::vec::Vec<usize>
+pub field antecedent_design::preference_set_learning::LearnedRegion::min_width_fraction: f64
+pub field antecedent_design::preference_set_learning::LearnedRegion::shape_parameters: alloc::vec::Vec<usize>
+pub field antecedent_design::preference_set_learning::ParameterRange::basis: antecedent_design::preference_set_learning::RangeBasis
 pub field antecedent_design::preference_set_learning::ParameterRange::declared: (f64, f64)
 pub field antecedent_design::preference_set_learning::ParameterRange::learned: (f64, f64)
 pub field antecedent_design::preference_set_learning::ParameterRange::narrowed: bool
 pub field antecedent_design::preference_set_learning::ParameterRange::parameter_id: alloc::string::String
 pub field antecedent_design::preference_set_learning::ParameterRange::varied_in_records: bool
+pub field antecedent_design::preference_set_learning::RegionCell::linear_outer: alloc::vec::Vec<(f64, f64)>
+pub field antecedent_design::preference_set_learning::RegionCell::shape_lower: alloc::vec::Vec<f64>
+pub field antecedent_design::preference_set_learning::RegionCell::shape_upper: alloc::vec::Vec<f64>
+pub field antecedent_design::preference_set_learning::RegionCell::status: antecedent_design::preference_set_learning::CellStatus
 pub field antecedent_design::preference_set_learning::SetLearningOptions::conflict_search_size: usize
 pub field antecedent_design::preference_set_learning::SetLearningOptions::lp: antecedent_stats::linear_program::LpOptions
+pub field antecedent_design::preference_set_learning::SetLearningOptions::max_boxes: usize
+pub field antecedent_design::preference_set_learning::SetLearningOptions::min_width_fraction: f64
 pub field antecedent_design::preference_set_learning::SetLearningOptions::tolerance: f64
 pub field antecedent_design::preference_set_learning::SetLearningResult::overlap: core::option::Option<antecedent_design::preference_set_learning::DeciderOverlap>
 pub field antecedent_design::preference_set_learning::SetLearningResult::per_decider: alloc::vec::Vec<antecedent_design::preference_set_learning::DeciderSet>
 pub field antecedent_design::preference_set_learning::SetLearningResult::pooled: core::option::Option<antecedent_design::preference_set_learning::SetOutcome>
+pub field antecedent_design::preference_set_learning::UndeterminedSet::decider: core::option::Option<alloc::string::String>
+pub field antecedent_design::preference_set_learning::UndeterminedSet::model_identity: alloc::string::String
+pub field antecedent_design::preference_set_learning::UndeterminedSet::n_records: usize
+pub field antecedent_design::preference_set_learning::UndeterminedSet::records_digest: alloc::string::String
+pub field antecedent_design::preference_set_learning::UndeterminedSet::region: antecedent_design::preference_set_learning::LearnedRegion
+pub field antecedent_design::preference_set_learning::UndeterminedSet::tolerance: f64
 pub field antecedent_design::prior_signal::CandidateSignalPrior::diagnostics: antecedent_design::prior_signal::PriorSignalDiagnostics
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior: antecedent_design::DecisionPrior<f64>
 pub field antecedent_design::prior_signal::CandidateSignalPrior::prior_id: alloc::string::String
@@ -13861,6 +13986,7 @@ pub fn <antecedent_design::preference_evaluation::PreferenceEvaluation>::fn unde
 pub fn <antecedent_design::preference_evaluation::PreferenceEvaluationError>::fn detail(&self) -> &'static str
 pub fn <antecedent_design::preference_evaluation::PreferenceEvaluationError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::preference_evaluation::StructuralPreferenceEvaluation>::fn route(&self) -> antecedent_design::preference_evaluation::PreferenceRoute
+pub fn <antecedent_design::preference_model::BeliefRows>::fn width(&self) -> usize
 pub fn <antecedent_design::preference_model::Curve>::fn accelerating(&self, id_prefix: &str) -> alloc::vec::Vec<antecedent_design::preference_model::LinearRelation>
 pub fn <antecedent_design::preference_model::Curve>::fn decreasing(&self, id_prefix: &str) -> alloc::vec::Vec<antecedent_design::preference_model::LinearRelation>
 pub fn <antecedent_design::preference_model::Curve>::fn diminishing(&self, id_prefix: &str) -> alloc::vec::Vec<antecedent_design::preference_model::LinearRelation>
@@ -13872,6 +13998,7 @@ pub fn <antecedent_design::preference_model::PreferenceExpr>::fn bind_attribute(
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn bind_parameters(&self, parameters: &[f64]) -> core::result::Result<Self, antecedent_design::preference_model::PreferenceModelError>
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn difference(left: Self, right: Self) -> Self
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn evaluate(&self, attributes: &[f64], parameters: &[f64]) -> core::result::Result<f64, antecedent_design::preference_model::PreferenceModelError>
+pub fn <antecedent_design::preference_model::PreferenceExpr>::fn evaluate_with_gradient(&self, attributes: &[f64], parameters: &[f64]) -> core::result::Result<(f64, alloc::vec::Vec<f64>), antecedent_design::preference_model::PreferenceModelError>
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn exp(inner: Self) -> Self
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn is_affine_in_attributes(&self) -> bool
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn ln(inner: Self) -> Self
@@ -13884,17 +14011,20 @@ pub fn <antecedent_design::preference_model::PreferenceExpr>::fn sum(left: Self,
 pub fn <antecedent_design::preference_model::PreferenceExpr>::fn to_utility_expr(&self, attribute_to_input: &[core::option::Option<usize>]) -> core::option::Option<antecedent_design::UtilityExpr>
 pub fn <antecedent_design::preference_model::PreferenceModelError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::preference_model::PreferenceModelError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::preference_model::PreferenceSet>::const fn new(parameters: alloc::vec::Vec<antecedent_design::preference_model::PreferenceParameter>, relations: alloc::vec::Vec<antecedent_design::preference_model::LinearRelation>) -> Self
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn bounds(&self) -> alloc::vec::Vec<(f64, f64)>
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn contains(&self, parameters: &[f64], tolerance: f64) -> bool
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn dimension(&self) -> usize
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn inequality_rows(&self) -> antecedent_design::preference_model::PreferenceRows
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn midpoint(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_design::preference_model::PreferenceSet>::fn validate(&self) -> core::result::Result<(), antecedent_design::preference_model::PreferenceModelError>
+pub fn <antecedent_design::preference_model::ValueModel>::fn contains(&self, parameters: &[f64], tolerance: f64) -> bool
 pub fn <antecedent_design::preference_model::ValueModel>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::preference_model::PreferenceModelError>
 pub fn <antecedent_design::preference_model::ValueModel>::fn linear_form(&self) -> core::option::Option<antecedent_design::preference_model::LinearForm>
 pub fn <antecedent_design::preference_model::ValueModel>::fn shape_parameters(&self) -> alloc::vec::Vec<usize>
 pub fn <antecedent_design::preference_model::ValueModel>::fn validate(&self) -> core::result::Result<(), antecedent_design::preference_model::PreferenceModelError>
 pub fn <antecedent_design::preference_model::ValueModel>::fn value_at(&self, attributes: &[f64], parameters: &[f64]) -> core::result::Result<f64, antecedent_design::preference_model::PreferenceModelError>
+pub fn <antecedent_design::preference_model::ValueModel>::fn value_relation_gap(&self, relation: &antecedent_design::preference_model::ValueRelation, parameters: &[f64]) -> core::result::Result<f64, antecedent_design::preference_model::PreferenceModelError>
 pub fn <antecedent_design::preference_set_learning::SetLearningError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::preference_set_learning::SetLearningError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::prior_signal::PriorSignalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
@@ -14105,6 +14235,7 @@ pub fn antecedent_design::choice_evsi::rank_hierarchical_studies(prior: &anteced
 pub fn antecedent_design::choice_evsi::rank_studies(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::choice_evsi::rank_studies_with_context(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::choice_record::choice_features(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet) -> core::result::Result<antecedent_design::choice_record::ChoiceFeatures, antecedent_design::choice_record::ChoiceRecordError>
+pub fn antecedent_design::choice_record::choice_features_at(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet, parameters: &[f64]) -> core::result::Result<antecedent_design::choice_record::ChoiceFeatures, antecedent_design::choice_record::ChoiceRecordError>
 pub fn antecedent_design::cohort_decision_input::cohort_decision_input(id: &str, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<antecedent_design::composition_boundary::DecisionInput, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent_design::cohort_decision_input::cohort_forward_claim(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> core::result::Result<antecedent_design::inverse_query::ForwardClaim, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn antecedent_design::cohort_decision_input::cohort_mean_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> antecedent_design::decision_eval::MeanSource
@@ -14242,6 +14373,7 @@ pub fn antecedent_design::preference_certified::evaluate_preference_certified_wi
 pub fn antecedent_design::preference_choice_model::calibration_basis(kind: antecedent_design::preference_choice_model::CovarianceKind, learnable: usize, records: u64, level: f64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent_design::preference_choice_model::estimate_choice_model(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet, options: antecedent_design::preference_choice_model::ChoiceModelOptions) -> core::result::Result<antecedent_design::preference_choice_model::ChoiceModelResult, antecedent_design::preference_choice_model::ChoiceModelError>
 pub fn antecedent_design::preference_choice_model::estimate_choice_model_with_context(model: &antecedent_design::preference_model::ValueModel, records: &antecedent_design::choice_record::ChoiceRecordSet, options: antecedent_design::preference_choice_model::ChoiceModelOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_choice_model::ChoiceModelResult, antecedent_design::preference_choice_model::ChoiceModelError>
+pub fn antecedent_design::preference_choice_model::shape_calibration_basis(kind: antecedent_design::preference_choice_model::CovarianceKind, learnable: usize, shape: usize, records: u64, level: f64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent_design::preference_decision::evaluate_preference_contract(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions) -> core::result::Result<antecedent_design::preference_decision::PreferenceDecisionResult, antecedent_design::preference_decision::PreferenceDecisionError>
 pub fn antecedent_design::preference_decision::evaluate_preference_contract_on_means(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_design::decision_eval::MeanSource, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions) -> core::result::Result<antecedent_design::preference_decision::PreferenceDecisionResult, antecedent_design::preference_decision::PreferenceDecisionError>
 pub fn antecedent_design::preference_decision::evaluate_preference_contract_on_means_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_design::decision_eval::MeanSource, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_decision::PreferenceDecisionResult, antecedent_design::preference_decision::PreferenceDecisionError>
@@ -14882,6 +15014,7 @@ pub struct antecedent_design::preference_decision::SwitchThreshold
 pub struct antecedent_design::preference_evaluation::PreferenceEvaluationOptions
 pub struct antecedent_design::preference_evaluation::RouteChoice
 pub struct antecedent_design::preference_model::Attribute
+pub struct antecedent_design::preference_model::BeliefRows
 pub struct antecedent_design::preference_model::Curve
 pub struct antecedent_design::preference_model::LinearForm
 pub struct antecedent_design::preference_model::LinearRelation
@@ -14889,14 +15022,18 @@ pub struct antecedent_design::preference_model::PreferenceParameter
 pub struct antecedent_design::preference_model::PreferenceRows
 pub struct antecedent_design::preference_model::PreferenceSet
 pub struct antecedent_design::preference_model::ValueModel
+pub struct antecedent_design::preference_model::ValueRelation
 pub struct antecedent_design::preference_set_learning::BindingChoice
 pub struct antecedent_design::preference_set_learning::ChoiceConflict
 pub struct antecedent_design::preference_set_learning::DeciderOverlap
 pub struct antecedent_design::preference_set_learning::DeciderSet
 pub struct antecedent_design::preference_set_learning::LearnedPreferenceSet
+pub struct antecedent_design::preference_set_learning::LearnedRegion
 pub struct antecedent_design::preference_set_learning::ParameterRange
+pub struct antecedent_design::preference_set_learning::RegionCell
 pub struct antecedent_design::preference_set_learning::SetLearningOptions
 pub struct antecedent_design::preference_set_learning::SetLearningResult
+pub struct antecedent_design::preference_set_learning::UndeterminedSet
 pub struct antecedent_design::prior_signal::CandidateSignalPrior
 pub struct antecedent_design::prior_signal::PriorSignalDiagnostics
 pub struct antecedent_design::prior_signal::PriorSignalRequest
@@ -15609,6 +15746,7 @@ pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::O
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::PooledNotAvailable
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::RepeatedItem { item: antecedent_design::accepted_preferences::PendingReview }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::SetLearning(antecedent_design::preference_set_learning::SetLearningError)
+pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::Undetermined { decider: core::option::Option<alloc::string::String>, boundary_boxes: usize }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::VersionExhausted
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::VersionInvalid { version: u32 }
 pub variant antecedent_design::accepted_preferences::LearningOptions::ChoiceEstimate(antecedent_design::preference_choice_model::ChoiceModelOptions)
@@ -16436,14 +16574,21 @@ pub variant antecedent_design::preference_choice_model::ChoiceModelError::NoDraw
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::NoUnitOfAccount { decider: core::option::Option<alloc::string::String> }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::NotConverged { decider: core::option::Option<alloc::string::String>, iterations: usize, gradient_norm: f64 }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::NothingIdentified { decider: core::option::Option<alloc::string::String> }
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::ProfileMultimodal { decider: core::option::Option<alloc::string::String>, parameter: alloc::string::String, modes: (f64, f64) }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::RankDeficient { decider: core::option::Option<alloc::string::String>, unit_of_account: bool, parameters: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::Records(antecedent_design::choice_record::ChoiceRecordError)
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::Separated { decider: core::option::Option<alloc::string::String> }
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::SeparatedAtShape { decider: core::option::Option<alloc::string::String>, shape: alloc::vec::Vec<(alloc::string::String, f64)> }
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::ShapeEstimateAtBound { decider: core::option::Option<alloc::string::String>, parameter: alloc::string::String, estimate: f64, interval: (f64, f64) }
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::ShapeNotIdentified { decider: core::option::Option<alloc::string::String>, parameter: alloc::string::String, profile_range: f64 }
+pub variant antecedent_design::preference_choice_model::ChoiceModelError::ShapeSearchBudget { decider: core::option::Option<alloc::string::String>, dimensions: usize, limit: usize }
 pub variant antecedent_design::preference_choice_model::ChoiceModelError::StatedAndRecordedMixed { decider: core::option::Option<alloc::string::String>, stated: usize, recorded: usize }
 pub variant antecedent_design::preference_choice_model::CovarianceKind::ClusteredByDecider
 pub variant antecedent_design::preference_choice_model::CovarianceKind::Model
 pub variant antecedent_design::preference_choice_model::EstimateOutcome::Estimated(alloc::boxed::Box<antecedent_design::preference_choice_model::ChoiceModelEstimate>)
 pub variant antecedent_design::preference_choice_model::EstimateOutcome::Refused(antecedent_design::preference_choice_model::ChoiceModelError)
+pub variant antecedent_design::preference_choice_model::ParameterIntervalMethod::ProfileLikelihood
+pub variant antecedent_design::preference_choice_model::ParameterIntervalMethod::Wald
 pub variant antecedent_design::preference_contract::ActionInput::Fixed { value: f64, units: alloc::string::String }
 pub variant antecedent_design::preference_contract::ActionInput::Quantity(antecedent_contract::quantity::ScientificQuantity)
 pub variant antecedent_design::preference_contract::PreferenceContractError::BlankActionId { position: usize }
@@ -16478,6 +16623,7 @@ pub variant antecedent_design::preference_contract::PreferencePolicy::Weighted
 pub variant antecedent_design::preference_decision::CertifiedRouteReason::Criterion(antecedent_design::DecisionCriterion)
 pub variant antecedent_design::preference_decision::CertifiedRouteReason::PartNotLowerable
 pub variant antecedent_design::preference_decision::CertifiedRouteReason::ShapeParameters { parameters: alloc::vec::Vec<alloc::string::String> }
+pub variant antecedent_design::preference_decision::CertifiedRouteReason::ValueRelations { relations: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_design::preference_decision::CertifiedRouteReason::WorstCaseOfExpectedRegret
 pub variant antecedent_design::preference_decision::MeasureOrigin::ChoiceEstimate { estimate_identity: alloc::string::String }
 pub variant antecedent_design::preference_decision::MeasureOrigin::Declared { assumption_id: alloc::string::String }
@@ -16583,25 +16729,34 @@ pub variant antecedent_design::preference_model::PreferenceModelError::UnknownAt
 pub variant antecedent_design::preference_model::PreferenceModelError::UnknownParameter { index: usize }
 pub variant antecedent_design::preference_model::PreferenceModelError::UnusedAttribute { attribute: alloc::string::String }
 pub variant antecedent_design::preference_model::PreferenceModelError::UnusedParameter { parameter: alloc::string::String }
+pub variant antecedent_design::preference_model::PreferenceModelError::ValueRelationRowsInvalid { relation: alloc::string::String }
+pub variant antecedent_design::preference_model::PreferenceModelError::ValueRelationToleranceInvalid { relation: alloc::string::String }
 pub variant antecedent_design::preference_model::RelationOrigin::Choice { record_id: alloc::string::String, rejected_option: alloc::string::String }
 pub variant antecedent_design::preference_model::RelationOrigin::Declared
 pub variant antecedent_design::preference_model::RelationOrigin::ShapeRule
 pub variant antecedent_design::preference_model::RelationSense::AtLeast
 pub variant antecedent_design::preference_model::RelationSense::AtMost
 pub variant antecedent_design::preference_model::RelationSense::Equal
+pub variant antecedent_design::preference_set_learning::CellStatus::Boundary
+pub variant antecedent_design::preference_set_learning::CellStatus::Inside
 pub variant antecedent_design::preference_set_learning::ConflictKind::Irreducible
+pub variant antecedent_design::preference_set_learning::ConflictKind::NotMinimised
 pub variant antecedent_design::preference_set_learning::ConflictKind::Smallest
+pub variant antecedent_design::preference_set_learning::RangeBasis::Enclosure
+pub variant antecedent_design::preference_set_learning::RangeBasis::LinearProgram
 pub variant antecedent_design::preference_set_learning::SetLearningError::Cancelled
 pub variant antecedent_design::preference_set_learning::SetLearningError::DeclaredSetEmpty
 pub variant antecedent_design::preference_set_learning::SetLearningError::Lp(antecedent_stats::linear_program::LpError)
 pub variant antecedent_design::preference_set_learning::SetLearningError::Model(antecedent_design::preference_model::PreferenceModelError)
 pub variant antecedent_design::preference_set_learning::SetLearningError::ProgramInconsistent { stage: &'static str }
 pub variant antecedent_design::preference_set_learning::SetLearningError::Records(antecedent_design::choice_record::ChoiceRecordError)
+pub variant antecedent_design::preference_set_learning::SetLearningError::RegionBudgetInvalid { option: &'static str }
 pub variant antecedent_design::preference_set_learning::SetLearningError::RelationIdCollision { id: alloc::string::String }
 pub variant antecedent_design::preference_set_learning::SetLearningError::ToleranceNegative { tolerance: f64 }
 pub variant antecedent_design::preference_set_learning::SetLearningError::ToleranceNonFinite
 pub variant antecedent_design::preference_set_learning::SetOutcome::Contradictory(antecedent_design::preference_set_learning::ChoiceConflict)
 pub variant antecedent_design::preference_set_learning::SetOutcome::Learned(antecedent_design::preference_set_learning::LearnedPreferenceSet)
+pub variant antecedent_design::preference_set_learning::SetOutcome::Undetermined(antecedent_design::preference_set_learning::UndeterminedSet)
 pub variant antecedent_design::prior_signal::CandidateSignalSource::CoefficientPriorOnly
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Native(antecedent_design::prior_signal::NativeSignalFamily)
 pub variant antecedent_design::prior_signal::CandidateSignalSource::Provider(alloc::sync::Arc<dyn antecedent_design::signal::SignalProvider>)

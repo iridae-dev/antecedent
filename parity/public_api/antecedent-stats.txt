@@ -145,6 +145,9 @@ impl core::clone::Clone for antecedent_stats::MultinomialFit
 impl core::clone::Clone for antecedent_stats::MultipleTestingMethod
 impl core::clone::Clone for antecedent_stats::MultivariatePartialCorrelation
 impl core::clone::Clone for antecedent_stats::NbAlphaPolicy
+impl core::clone::Clone for antecedent_stats::NonlinearChoiceError
+impl core::clone::Clone for antecedent_stats::NonlinearConditionalLogitFit
+impl core::clone::Clone for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::clone::Clone for antecedent_stats::ObservationProbabilityFit
 impl core::clone::Clone for antecedent_stats::OracleCi
 impl core::clone::Clone for antecedent_stats::PairStructure
@@ -171,6 +174,8 @@ impl core::clone::Clone for antecedent_stats::RegressionCi
 impl core::clone::Clone for antecedent_stats::RidgeIntercept
 impl core::clone::Clone for antecedent_stats::RobustPartialCorrelation
 impl core::clone::Clone for antecedent_stats::RoughnessPenalty
+impl core::clone::Clone for antecedent_stats::ShapeProfile
+impl core::clone::Clone for antecedent_stats::ShapeSearchOptions
 impl core::clone::Clone for antecedent_stats::SignificanceMethod
 impl core::clone::Clone for antecedent_stats::SmoothSpec
 impl core::clone::Clone for antecedent_stats::SparseDiscreteCi
@@ -185,6 +190,7 @@ impl core::clone::Clone for antecedent_stats::TauPrior
 impl core::clone::Clone for antecedent_stats::TwoSlsFit
 impl core::clone::Clone for antecedent_stats::TwoSlsMomentFit
 impl core::clone::Clone for antecedent_stats::UnaryFn
+impl core::clone::Clone for antecedent_stats::UtilityNotEvaluable
 impl core::clone::Clone for antecedent_stats::ValueBounds
 impl core::clone::Clone for antecedent_stats::ValueFunctional
 impl core::clone::Clone for antecedent_stats::WeightedPartialCorrelation
@@ -387,6 +393,7 @@ impl core::cmp::Eq for antecedent_stats::RidgeIntercept
 impl core::cmp::Eq for antecedent_stats::RoughnessPenalty
 impl core::cmp::Eq for antecedent_stats::SignificanceMethod
 impl core::cmp::Eq for antecedent_stats::StatsError
+impl core::cmp::Eq for antecedent_stats::UtilityNotEvaluable
 impl core::cmp::Eq for antecedent_stats::ValueFunctional
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::Attribution
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::CapacityError
@@ -488,6 +495,9 @@ impl core::cmp::PartialEq for antecedent_stats::MixtureMoments
 impl core::cmp::PartialEq for antecedent_stats::MomentSummary
 impl core::cmp::PartialEq for antecedent_stats::MultipleTestingMethod
 impl core::cmp::PartialEq for antecedent_stats::NbAlphaPolicy
+impl core::cmp::PartialEq for antecedent_stats::NonlinearChoiceError
+impl core::cmp::PartialEq for antecedent_stats::NonlinearConditionalLogitFit
+impl core::cmp::PartialEq for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::cmp::PartialEq for antecedent_stats::ObservationProbabilityFit
 impl core::cmp::PartialEq for antecedent_stats::PairStructure
 impl core::cmp::PartialEq for antecedent_stats::PairedMoments
@@ -504,6 +514,8 @@ impl core::cmp::PartialEq for antecedent_stats::RecordedContrast
 impl core::cmp::PartialEq for antecedent_stats::RecordedSmooth
 impl core::cmp::PartialEq for antecedent_stats::RidgeIntercept
 impl core::cmp::PartialEq for antecedent_stats::RoughnessPenalty
+impl core::cmp::PartialEq for antecedent_stats::ShapeProfile
+impl core::cmp::PartialEq for antecedent_stats::ShapeSearchOptions
 impl core::cmp::PartialEq for antecedent_stats::SignificanceMethod
 impl core::cmp::PartialEq for antecedent_stats::SmoothSpec
 impl core::cmp::PartialEq for antecedent_stats::StageOp
@@ -514,6 +526,7 @@ impl core::cmp::PartialEq for antecedent_stats::StatsError
 impl core::cmp::PartialEq for antecedent_stats::SynthesisError
 impl core::cmp::PartialEq for antecedent_stats::TauPrior
 impl core::cmp::PartialEq for antecedent_stats::UnaryFn
+impl core::cmp::PartialEq for antecedent_stats::UtilityNotEvaluable
 impl core::cmp::PartialEq for antecedent_stats::ValueBounds
 impl core::cmp::PartialEq for antecedent_stats::ValueFunctional
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -724,6 +737,7 @@ impl core::default::Default for antecedent_stats::MixedKnnDependence
 impl core::default::Default for antecedent_stats::MultipleTestingMethod
 impl core::default::Default for antecedent_stats::MultivariatePartialCorrelation
 impl core::default::Default for antecedent_stats::NbAlphaPolicy
+impl core::default::Default for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::default::Default for antecedent_stats::OracleCi
 impl core::default::Default for antecedent_stats::PairwiseMultivariateCi
 impl core::default::Default for antecedent_stats::PartialCorrelation
@@ -733,6 +747,7 @@ impl core::default::Default for antecedent_stats::PropensityWorkspace
 impl core::default::Default for antecedent_stats::RegressionCi
 impl core::default::Default for antecedent_stats::RobustPartialCorrelation
 impl core::default::Default for antecedent_stats::RoughnessPenalty
+impl core::default::Default for antecedent_stats::ShapeSearchOptions
 impl core::default::Default for antecedent_stats::StandardizationRecord
 impl core::default::Default for antecedent_stats::SymbolicCmi
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceBudget
@@ -746,6 +761,7 @@ impl core::default::Default for antecedent_stats::measurement_error::LatentClass
 impl core::error::Error for antecedent_stats::ChainError
 impl core::error::Error for antecedent_stats::ConditionalLogitError
 impl core::error::Error for antecedent_stats::JointLawError
+impl core::error::Error for antecedent_stats::NonlinearChoiceError
 impl core::error::Error for antecedent_stats::StatsError
 impl core::error::Error for antecedent_stats::SynthesisError
 impl core::error::Error for antecedent_stats::adaptive_inference::AdaptiveInferenceError
@@ -844,6 +860,9 @@ impl core::fmt::Debug for antecedent_stats::MultinomialFit
 impl core::fmt::Debug for antecedent_stats::MultipleTestingMethod
 impl core::fmt::Debug for antecedent_stats::MultivariatePartialCorrelation
 impl core::fmt::Debug for antecedent_stats::NbAlphaPolicy
+impl core::fmt::Debug for antecedent_stats::NonlinearChoiceError
+impl core::fmt::Debug for antecedent_stats::NonlinearConditionalLogitFit
+impl core::fmt::Debug for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::fmt::Debug for antecedent_stats::ObservationProbabilityFit
 impl core::fmt::Debug for antecedent_stats::OracleCi
 impl core::fmt::Debug for antecedent_stats::PairStructure
@@ -870,6 +889,8 @@ impl core::fmt::Debug for antecedent_stats::RegressionCi
 impl core::fmt::Debug for antecedent_stats::RidgeIntercept
 impl core::fmt::Debug for antecedent_stats::RobustPartialCorrelation
 impl core::fmt::Debug for antecedent_stats::RoughnessPenalty
+impl core::fmt::Debug for antecedent_stats::ShapeProfile
+impl core::fmt::Debug for antecedent_stats::ShapeSearchOptions
 impl core::fmt::Debug for antecedent_stats::SignificanceMethod
 impl core::fmt::Debug for antecedent_stats::SmoothSpec
 impl core::fmt::Debug for antecedent_stats::SparseDiscreteCi
@@ -884,6 +905,7 @@ impl core::fmt::Debug for antecedent_stats::TauPrior
 impl core::fmt::Debug for antecedent_stats::TwoSlsFit
 impl core::fmt::Debug for antecedent_stats::TwoSlsMomentFit
 impl core::fmt::Debug for antecedent_stats::UnaryFn
+impl core::fmt::Debug for antecedent_stats::UtilityNotEvaluable
 impl core::fmt::Debug for antecedent_stats::ValueBounds
 impl core::fmt::Debug for antecedent_stats::ValueFunctional
 impl core::fmt::Debug for antecedent_stats::WeightedPartialCorrelation
@@ -1068,6 +1090,7 @@ impl core::fmt::Debug for antecedent_stats::synthesis_transport::TransportedSynt
 impl core::fmt::Display for antecedent_stats::ChainError
 impl core::fmt::Display for antecedent_stats::ConditionalLogitError
 impl core::fmt::Display for antecedent_stats::JointLawError
+impl core::fmt::Display for antecedent_stats::NonlinearChoiceError
 impl core::fmt::Display for antecedent_stats::StatsError
 impl core::fmt::Display for antecedent_stats::SynthesisError
 impl core::fmt::Display for antecedent_stats::adaptive_inference::AdaptiveInferenceError
@@ -1142,6 +1165,7 @@ impl core::marker::Copy for antecedent_stats::MixtureMoments
 impl core::marker::Copy for antecedent_stats::MomentSummary
 impl core::marker::Copy for antecedent_stats::MultipleTestingMethod
 impl core::marker::Copy for antecedent_stats::NbAlphaPolicy
+impl core::marker::Copy for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::marker::Copy for antecedent_stats::PairStructure
 impl core::marker::Copy for antecedent_stats::PairedMoments
 impl core::marker::Copy for antecedent_stats::PermutationTestResult
@@ -1153,9 +1177,11 @@ impl core::marker::Copy for antecedent_stats::RandomizationContrast
 impl core::marker::Copy for antecedent_stats::RandomizationMean
 impl core::marker::Copy for antecedent_stats::RidgeIntercept
 impl core::marker::Copy for antecedent_stats::RoughnessPenalty
+impl core::marker::Copy for antecedent_stats::ShapeSearchOptions
 impl core::marker::Copy for antecedent_stats::SignificanceMethod
 impl core::marker::Copy for antecedent_stats::StandardizedColumn
 impl core::marker::Copy for antecedent_stats::UnaryFn
+impl core::marker::Copy for antecedent_stats::UtilityNotEvaluable
 impl core::marker::Copy for antecedent_stats::ValueBounds
 impl core::marker::Copy for antecedent_stats::ValueFunctional
 impl core::marker::Copy for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -1336,6 +1362,9 @@ impl core::marker::Freeze for antecedent_stats::MultinomialFit [auto]
 impl core::marker::Freeze for antecedent_stats::MultipleTestingMethod [auto]
 impl core::marker::Freeze for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::NbAlphaPolicy [auto]
+impl core::marker::Freeze for antecedent_stats::NonlinearChoiceError [auto]
+impl core::marker::Freeze for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::marker::Freeze for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::marker::Freeze for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::marker::Freeze for antecedent_stats::OracleCi [auto]
 impl core::marker::Freeze for antecedent_stats::PairStructure [auto]
@@ -1362,6 +1391,8 @@ impl core::marker::Freeze for antecedent_stats::RegressionCi [auto]
 impl core::marker::Freeze for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Freeze for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Freeze for antecedent_stats::RoughnessPenalty [auto]
+impl core::marker::Freeze for antecedent_stats::ShapeProfile [auto]
+impl core::marker::Freeze for antecedent_stats::ShapeSearchOptions [auto]
 impl core::marker::Freeze for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Freeze for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Freeze for antecedent_stats::SparseDiscreteCi [auto]
@@ -1376,6 +1407,7 @@ impl core::marker::Freeze for antecedent_stats::TauPrior [auto]
 impl core::marker::Freeze for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Freeze for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Freeze for antecedent_stats::UnaryFn [auto]
+impl core::marker::Freeze for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::marker::Freeze for antecedent_stats::ValueBounds [auto]
 impl core::marker::Freeze for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Freeze for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -1647,6 +1679,9 @@ impl core::marker::Send for antecedent_stats::MultinomialFit [auto]
 impl core::marker::Send for antecedent_stats::MultipleTestingMethod [auto]
 impl core::marker::Send for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::marker::Send for antecedent_stats::NbAlphaPolicy [auto]
+impl core::marker::Send for antecedent_stats::NonlinearChoiceError [auto]
+impl core::marker::Send for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::marker::Send for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::marker::Send for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::marker::Send for antecedent_stats::OracleCi [auto]
 impl core::marker::Send for antecedent_stats::PairStructure [auto]
@@ -1673,6 +1708,8 @@ impl core::marker::Send for antecedent_stats::RegressionCi [auto]
 impl core::marker::Send for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Send for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Send for antecedent_stats::RoughnessPenalty [auto]
+impl core::marker::Send for antecedent_stats::ShapeProfile [auto]
+impl core::marker::Send for antecedent_stats::ShapeSearchOptions [auto]
 impl core::marker::Send for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Send for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Send for antecedent_stats::SparseDiscreteCi [auto]
@@ -1687,6 +1724,7 @@ impl core::marker::Send for antecedent_stats::TauPrior [auto]
 impl core::marker::Send for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Send for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Send for antecedent_stats::UnaryFn [auto]
+impl core::marker::Send for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::marker::Send for antecedent_stats::ValueBounds [auto]
 impl core::marker::Send for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Send for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -1931,6 +1969,9 @@ impl core::marker::StructuralPartialEq for antecedent_stats::MixtureMoments
 impl core::marker::StructuralPartialEq for antecedent_stats::MomentSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::MultipleTestingMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::NbAlphaPolicy
+impl core::marker::StructuralPartialEq for antecedent_stats::NonlinearChoiceError
+impl core::marker::StructuralPartialEq for antecedent_stats::NonlinearConditionalLogitFit
+impl core::marker::StructuralPartialEq for antecedent_stats::NonlinearConditionalLogitOptions
 impl core::marker::StructuralPartialEq for antecedent_stats::ObservationProbabilityFit
 impl core::marker::StructuralPartialEq for antecedent_stats::PairStructure
 impl core::marker::StructuralPartialEq for antecedent_stats::PairedMoments
@@ -1947,6 +1988,8 @@ impl core::marker::StructuralPartialEq for antecedent_stats::RecordedContrast
 impl core::marker::StructuralPartialEq for antecedent_stats::RecordedSmooth
 impl core::marker::StructuralPartialEq for antecedent_stats::RidgeIntercept
 impl core::marker::StructuralPartialEq for antecedent_stats::RoughnessPenalty
+impl core::marker::StructuralPartialEq for antecedent_stats::ShapeProfile
+impl core::marker::StructuralPartialEq for antecedent_stats::ShapeSearchOptions
 impl core::marker::StructuralPartialEq for antecedent_stats::SignificanceMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::SmoothSpec
 impl core::marker::StructuralPartialEq for antecedent_stats::StageOp
@@ -1957,6 +2000,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::StatsError
 impl core::marker::StructuralPartialEq for antecedent_stats::SynthesisError
 impl core::marker::StructuralPartialEq for antecedent_stats::TauPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::UnaryFn
+impl core::marker::StructuralPartialEq for antecedent_stats::UtilityNotEvaluable
 impl core::marker::StructuralPartialEq for antecedent_stats::ValueBounds
 impl core::marker::StructuralPartialEq for antecedent_stats::ValueFunctional
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -2223,6 +2267,9 @@ impl core::marker::Sync for antecedent_stats::MultinomialFit [auto]
 impl core::marker::Sync for antecedent_stats::MultipleTestingMethod [auto]
 impl core::marker::Sync for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::NbAlphaPolicy [auto]
+impl core::marker::Sync for antecedent_stats::NonlinearChoiceError [auto]
+impl core::marker::Sync for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::marker::Sync for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::marker::Sync for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::marker::Sync for antecedent_stats::OracleCi [auto]
 impl core::marker::Sync for antecedent_stats::PairStructure [auto]
@@ -2249,6 +2296,8 @@ impl core::marker::Sync for antecedent_stats::RegressionCi [auto]
 impl core::marker::Sync for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Sync for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Sync for antecedent_stats::RoughnessPenalty [auto]
+impl core::marker::Sync for antecedent_stats::ShapeProfile [auto]
+impl core::marker::Sync for antecedent_stats::ShapeSearchOptions [auto]
 impl core::marker::Sync for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Sync for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Sync for antecedent_stats::SparseDiscreteCi [auto]
@@ -2263,6 +2312,7 @@ impl core::marker::Sync for antecedent_stats::TauPrior [auto]
 impl core::marker::Sync for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Sync for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Sync for antecedent_stats::UnaryFn [auto]
+impl core::marker::Sync for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::marker::Sync for antecedent_stats::ValueBounds [auto]
 impl core::marker::Sync for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Sync for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -2535,6 +2585,9 @@ impl core::marker::Unpin for antecedent_stats::MultinomialFit [auto]
 impl core::marker::Unpin for antecedent_stats::MultipleTestingMethod [auto]
 impl core::marker::Unpin for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::NbAlphaPolicy [auto]
+impl core::marker::Unpin for antecedent_stats::NonlinearChoiceError [auto]
+impl core::marker::Unpin for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::marker::Unpin for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::marker::Unpin for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::marker::Unpin for antecedent_stats::OracleCi [auto]
 impl core::marker::Unpin for antecedent_stats::PairStructure [auto]
@@ -2561,6 +2614,8 @@ impl core::marker::Unpin for antecedent_stats::RegressionCi [auto]
 impl core::marker::Unpin for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Unpin for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::marker::Unpin for antecedent_stats::RoughnessPenalty [auto]
+impl core::marker::Unpin for antecedent_stats::ShapeProfile [auto]
+impl core::marker::Unpin for antecedent_stats::ShapeSearchOptions [auto]
 impl core::marker::Unpin for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Unpin for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Unpin for antecedent_stats::SparseDiscreteCi [auto]
@@ -2575,6 +2630,7 @@ impl core::marker::Unpin for antecedent_stats::TauPrior [auto]
 impl core::marker::Unpin for antecedent_stats::TwoSlsFit [auto]
 impl core::marker::Unpin for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::marker::Unpin for antecedent_stats::UnaryFn [auto]
+impl core::marker::Unpin for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::marker::Unpin for antecedent_stats::ValueBounds [auto]
 impl core::marker::Unpin for antecedent_stats::ValueFunctional [auto]
 impl core::marker::Unpin for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -2848,6 +2904,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::MultinomialFi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::MultipleTestingMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::NbAlphaPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::NonlinearChoiceError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::OracleCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::PairStructure [auto]
@@ -2874,6 +2933,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RegressionCi 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RidgeIntercept [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RoughnessPenalty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ShapeProfile [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ShapeSearchOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
@@ -2888,6 +2949,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TauPrior [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::UnaryFn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ValueFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -3160,6 +3222,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::MultinomialFit [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::MultipleTestingMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::MultivariatePartialCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::NbAlphaPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::NonlinearChoiceError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::NonlinearConditionalLogitFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::NonlinearConditionalLogitOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ObservationProbabilityFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::OracleCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::PairStructure [auto]
@@ -3186,6 +3251,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RegressionCi [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RidgeIntercept [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RoughnessPenalty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ShapeProfile [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ShapeSearchOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
@@ -3200,6 +3267,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TauPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::TwoSlsMomentFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::UnaryFn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::UtilityNotEvaluable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueBounds [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::ValueFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::WeightedPartialCorrelation [auto]
@@ -3617,6 +3685,7 @@ pub const antecedent_stats::MAX_EXPRESSION_TERMS: usize
 pub const antecedent_stats::MAX_MULTIWAY_WORK: u64
 pub const antecedent_stats::MIXTURE_EQUAL_TAIL_CONSTRUCTION: &str
 pub const antecedent_stats::NORMAL_APPROXIMATION_CONSTRUCTION: &str
+pub const antecedent_stats::SOBOL_DIMENSIONS: usize
 pub const antecedent_stats::UNCALIBRATED_SPREAD_LABEL: &str
 pub const antecedent_stats::adaptive_inference::DERIVED_NOT_MEASURED: &str
 pub const antecedent_stats::adaptive_inference::EXACT_BETA_TRIALS: u64
@@ -3705,6 +3774,7 @@ pub enum antecedent_stats::MatchingDistance
 pub enum antecedent_stats::MeanPrior
 pub enum antecedent_stats::MultipleTestingMethod
 pub enum antecedent_stats::NbAlphaPolicy
+pub enum antecedent_stats::NonlinearChoiceError
 pub enum antecedent_stats::PairStructure
 pub enum antecedent_stats::QuantileRule
 pub enum antecedent_stats::RidgeIntercept
@@ -4030,6 +4100,19 @@ pub field antecedent_stats::MultinomialFit::iterations: u32
 pub field antecedent_stats::MultinomialFit::n_categories: usize
 pub field antecedent_stats::MultinomialFit::ncols: usize
 pub field antecedent_stats::MultinomialFit::separated: bool
+pub field antecedent_stats::NonlinearConditionalLogitFit::cluster_covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_stats::NonlinearConditionalLogitFit::consistency: f64
+pub field antecedent_stats::NonlinearConditionalLogitFit::covariance: alloc::vec::Vec<f64>
+pub field antecedent_stats::NonlinearConditionalLogitFit::information: alloc::vec::Vec<f64>
+pub field antecedent_stats::NonlinearConditionalLogitFit::linear: alloc::vec::Vec<f64>
+pub field antecedent_stats::NonlinearConditionalLogitFit::log_likelihood: f64
+pub field antecedent_stats::NonlinearConditionalLogitFit::null_log_likelihood: f64
+pub field antecedent_stats::NonlinearConditionalLogitFit::profile_evaluations: usize
+pub field antecedent_stats::NonlinearConditionalLogitFit::profiles: alloc::vec::Vec<antecedent_stats::ShapeProfile>
+pub field antecedent_stats::NonlinearConditionalLogitFit::shape: alloc::vec::Vec<f64>
+pub field antecedent_stats::NonlinearConditionalLogitOptions::fit: antecedent_stats::ConditionalLogitOptions
+pub field antecedent_stats::NonlinearConditionalLogitOptions::level: f64
+pub field antecedent_stats::NonlinearConditionalLogitOptions::search: antecedent_stats::ShapeSearchOptions
 pub field antecedent_stats::ObservationProbabilityFit::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::ObservationProbabilityFit::probabilities: alloc::vec::Vec<f64>
 pub field antecedent_stats::ObservationProbabilityFit::probability_floor: f64
@@ -4105,6 +4188,15 @@ pub field antecedent_stats::RecordedSmooth::knots: alloc::sync::Arc<[f64]>
 pub field antecedent_stats::RecordedSmooth::lambda: f64
 pub field antecedent_stats::RecordedSmooth::n_basis: usize
 pub field antecedent_stats::RecordedSmooth::variable: core::option::Option<antecedent_core::ids::VariableId>
+pub field antecedent_stats::ShapeProfile::interval: (f64, f64)
+pub field antecedent_stats::ShapeProfile::log_likelihood: alloc::vec::Vec<f64>
+pub field antecedent_stats::ShapeProfile::lower_truncated: bool
+pub field antecedent_stats::ShapeProfile::upper_truncated: bool
+pub field antecedent_stats::ShapeProfile::values: alloc::vec::Vec<f64>
+pub field antecedent_stats::ShapeSearchOptions::grid_points: usize
+pub field antecedent_stats::ShapeSearchOptions::max_dimensions: usize
+pub field antecedent_stats::ShapeSearchOptions::max_refinements: usize
+pub field antecedent_stats::ShapeSearchOptions::profile_points: usize
 pub field antecedent_stats::SmoothSpec::auto_lambda: bool
 pub field antecedent_stats::SmoothSpec::knots: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_stats::SmoothSpec::lambda: f64
@@ -4887,6 +4979,7 @@ pub fn <antecedent_stats::MixedKnnDependence>::fn new(k: usize) -> Self
 pub fn <antecedent_stats::MultinomialFit>::fn require_ok(&self) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn <antecedent_stats::MultivariatePartialCorrelation>::fn new() -> Self
 pub fn <antecedent_stats::MultivariatePartialCorrelation>::fn test_blocks(&self, columns: &[&[f64]], blocks: &antecedent_stats::BlockTest<'_>, significance: antecedent_stats::SignificanceMethod, workspace: &mut antecedent_stats::CiWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::CiResult, antecedent_stats::StatsError>
+pub fn <antecedent_stats::NonlinearChoiceError>::fn detail(&self) -> &'static str
 pub fn <antecedent_stats::ObservationProbabilityFit>::fn probability_at(&self, covariates: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn <antecedent_stats::OracleCi>::fn new(dependent_pairs: impl core::convert::Into<alloc::sync::Arc<[(usize, usize)]>>) -> Self
 pub fn <antecedent_stats::PairStructure>::const fn as_str(self) -> &'static str
@@ -5269,6 +5362,7 @@ pub fn antecedent_stats::fit_logistic_weighted(design: antecedent_stats::GlmDesi
 pub fn antecedent_stats::fit_logit_laplace(design: antecedent_stats::GlmDesignRef<'_>, weights: core::option::Option<&[f64]>, precision: f64, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::GlmLaplaceFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_multinomial_logit(design: antecedent_stats::MultinomialDesignRef<'_>, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::MultinomialFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_multinomial_logit_weighted(design: antecedent_stats::MultinomialDesignRef<'_>, weights: core::option::Option<&[f64]>, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::MultinomialFit, antecedent_stats::StatsError>
+pub fn antecedent_stats::fit_nonlinear_conditional_logit(utility: &dyn antecedent_stats::ChoiceUtility, bounds: &[(f64, f64)], options: antecedent_stats::NonlinearConditionalLogitOptions, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<antecedent_stats::NonlinearConditionalLogitFit, antecedent_stats::NonlinearChoiceError>
 pub fn antecedent_stats::fit_observation_logistic(indicator: &[f64], covariates_colmajor: &[f64], ncols: usize, probability_floor: f64) -> core::result::Result<antecedent_stats::ObservationProbabilityFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_observation_logistic_admitting(indicator: &[f64], covariates_colmajor: &[f64], ncols: usize, probability_floor: f64, admit_saturation: bool) -> core::result::Result<antecedent_stats::ObservationProbabilityFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, treatment: &[f64], backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::PropensityWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::PropensityFit, antecedent_stats::StatsError>
@@ -5542,6 +5636,8 @@ pub struct antecedent_stats::MultinomialDesignRef<'a>
 pub struct antecedent_stats::MultinomialFit
 pub struct antecedent_stats::MultivariatePartialCorrelation
 pub struct antecedent_stats::MultivariatePartialCorrelation has private fields
+pub struct antecedent_stats::NonlinearConditionalLogitFit
+pub struct antecedent_stats::NonlinearConditionalLogitOptions
 pub struct antecedent_stats::ObservationProbabilityFit
 pub struct antecedent_stats::OracleCi
 pub struct antecedent_stats::PairedMoments
@@ -5568,6 +5664,8 @@ pub struct antecedent_stats::RegressionCi
 pub struct antecedent_stats::RegressionCi has private fields
 pub struct antecedent_stats::RobustPartialCorrelation
 pub struct antecedent_stats::RobustPartialCorrelation has private fields
+pub struct antecedent_stats::ShapeProfile
+pub struct antecedent_stats::ShapeSearchOptions
 pub struct antecedent_stats::SmoothSpec
 pub struct antecedent_stats::SparseDiscreteCi
 pub struct antecedent_stats::SparseDiscreteCi has private fields
@@ -5578,6 +5676,7 @@ pub struct antecedent_stats::SymbolicCmi
 pub struct antecedent_stats::TauPrior
 pub struct antecedent_stats::TwoSlsFit
 pub struct antecedent_stats::TwoSlsMomentFit
+pub struct antecedent_stats::UtilityNotEvaluable
 pub struct antecedent_stats::ValueBounds
 pub struct antecedent_stats::WeightedPartialCorrelation
 pub struct antecedent_stats::adaptive_inference::AdaptiveEstimate
@@ -5746,8 +5845,16 @@ pub struct antecedent_stats::synthesis_transport::TransportAwareSummary
 pub struct antecedent_stats::synthesis_transport::TransportedBorrowing
 pub struct antecedent_stats::synthesis_transport::TransportedPooled
 pub struct antecedent_stats::synthesis_transport::TransportedPriorUpdate
+pub trait antecedent_stats::ChoiceUtility
 pub trait antecedent_stats::ConditionalIndependence
 pub trait antecedent_stats::DenseLinearAlgebra: core::marker::Send + core::marker::Sync
+pub trait fn fn antecedent_stats::ChoiceUtility::chosen(&self) -> &[usize]
+pub trait fn fn antecedent_stats::ChoiceUtility::clusters(&self) -> core::option::Option<&[u32]>
+pub trait fn fn antecedent_stats::ChoiceUtility::features(&self, shape: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::UtilityNotEvaluable>
+pub trait fn fn antecedent_stats::ChoiceUtility::n_linear(&self) -> usize
+pub trait fn fn antecedent_stats::ChoiceUtility::n_shape(&self) -> usize
+pub trait fn fn antecedent_stats::ChoiceUtility::set_starts(&self) -> &[usize]
+pub trait fn fn antecedent_stats::ChoiceUtility::shape_jacobian(&self, shape: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::UtilityNotEvaluable>
 pub trait fn fn antecedent_stats::ConditionalIndependence::attainable_p(&self) -> antecedent_stats::ci::AttainableP {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::covariance_session<'a>(&self, _columns: &'a [&'a [f64]], _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<antecedent_stats::ci::CovarianceCiSession<'a>> {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::min_attainable_p(&self, significance: antecedent_stats::SignificanceMethod) -> f64 {default}
@@ -6043,6 +6150,7 @@ pub use antecedent_stats::gam::fit_gam_fixed_weighted_design = antecedent_stats:
 pub use antecedent_stats::gam::fit_gam_weighted = antecedent_stats::fit_gam_weighted
 pub use antecedent_stats::gam::fit_gam_weighted_design = antecedent_stats::fit_gam_weighted_design
 pub use antecedent_stats::gaussian_kl = antecedent_stats::divergence::gaussian_kl
+pub use antecedent_stats::glm::ChoiceUtility = antecedent_stats::ChoiceUtility
 pub use antecedent_stats::glm::ConditionalLogitDesign = antecedent_stats::ConditionalLogitDesign
 pub use antecedent_stats::glm::ConditionalLogitError = antecedent_stats::ConditionalLogitError
 pub use antecedent_stats::glm::ConditionalLogitFit = antecedent_stats::ConditionalLogitFit
@@ -6056,6 +6164,13 @@ pub use antecedent_stats::glm::GlmOptions = antecedent_stats::GlmOptions
 pub use antecedent_stats::glm::MultinomialDesignRef = antecedent_stats::MultinomialDesignRef
 pub use antecedent_stats::glm::MultinomialFit = antecedent_stats::MultinomialFit
 pub use antecedent_stats::glm::NbAlphaPolicy = antecedent_stats::NbAlphaPolicy
+pub use antecedent_stats::glm::NonlinearChoiceError = antecedent_stats::NonlinearChoiceError
+pub use antecedent_stats::glm::NonlinearConditionalLogitFit = antecedent_stats::NonlinearConditionalLogitFit
+pub use antecedent_stats::glm::NonlinearConditionalLogitOptions = antecedent_stats::NonlinearConditionalLogitOptions
+pub use antecedent_stats::glm::SOBOL_DIMENSIONS = antecedent_stats::SOBOL_DIMENSIONS
+pub use antecedent_stats::glm::ShapeProfile = antecedent_stats::ShapeProfile
+pub use antecedent_stats::glm::ShapeSearchOptions = antecedent_stats::ShapeSearchOptions
+pub use antecedent_stats::glm::UtilityNotEvaluable = antecedent_stats::UtilityNotEvaluable
 pub use antecedent_stats::glm::conditional_logit_log_likelihood = antecedent_stats::conditional_logit_log_likelihood
 pub use antecedent_stats::glm::fit_conditional_logit = antecedent_stats::fit_conditional_logit
 pub use antecedent_stats::glm::fit_conditional_logit_with_context = antecedent_stats::fit_conditional_logit_with_context
@@ -6067,6 +6182,7 @@ pub use antecedent_stats::glm::fit_logistic_weighted = antecedent_stats::fit_log
 pub use antecedent_stats::glm::fit_logit_laplace = antecedent_stats::fit_logit_laplace
 pub use antecedent_stats::glm::fit_multinomial_logit = antecedent_stats::fit_multinomial_logit
 pub use antecedent_stats::glm::fit_multinomial_logit_weighted = antecedent_stats::fit_multinomial_logit_weighted
+pub use antecedent_stats::glm::fit_nonlinear_conditional_logit = antecedent_stats::fit_nonlinear_conditional_logit
 pub use antecedent_stats::gram::accumulate_xtx_xty_row = antecedent_stats::accumulate_xtx_xty_row
 pub use antecedent_stats::gram::chol_log_det = antecedent_stats::chol_log_det
 pub use antecedent_stats::gram::chol_solve = antecedent_stats::chol_solve
@@ -6392,6 +6508,19 @@ pub variant antecedent_stats::MultipleTestingMethod::Holm
 pub variant antecedent_stats::NbAlphaPolicy::Fixed(f64)
 pub variant antecedent_stats::NbAlphaPolicy::MethodOfMoments
 pub variant antecedent_stats::NbAlphaPolicy::NestedMle { max_outer: u32, tol_alpha: f64 }
+pub variant antecedent_stats::NonlinearChoiceError::BoundsInvalid { dimension: usize }
+pub variant antecedent_stats::NonlinearChoiceError::Cancelled
+pub variant antecedent_stats::NonlinearChoiceError::ConsistencyNotPositive { consistency: f64 }
+pub variant antecedent_stats::NonlinearChoiceError::Design(antecedent_stats::ConditionalLogitError)
+pub variant antecedent_stats::NonlinearChoiceError::InvalidOptions
+pub variant antecedent_stats::NonlinearChoiceError::NotConverged { iterations: usize, gradient_norm: f64 }
+pub variant antecedent_stats::NonlinearChoiceError::ProfileMultimodal { dimension: usize, modes: (f64, f64) }
+pub variant antecedent_stats::NonlinearChoiceError::RankDeficient { columns: alloc::vec::Vec<usize> }
+pub variant antecedent_stats::NonlinearChoiceError::Separated { shape: alloc::vec::Vec<f64> }
+pub variant antecedent_stats::NonlinearChoiceError::ShapeEstimateAtBound { dimension: usize, estimate: f64, interval: (f64, f64) }
+pub variant antecedent_stats::NonlinearChoiceError::ShapeNotIdentified { dimension: usize, profile_range: f64 }
+pub variant antecedent_stats::NonlinearChoiceError::ShapeSearchBudget { dimensions: usize, limit: usize }
+pub variant antecedent_stats::NonlinearChoiceError::UtilityNotEvaluable { shape: alloc::vec::Vec<f64> }
 pub variant antecedent_stats::PairStructure::Submodular
 pub variant antecedent_stats::PairStructure::Supermodular
 pub variant antecedent_stats::QuantileRule::ExchangeableRank
