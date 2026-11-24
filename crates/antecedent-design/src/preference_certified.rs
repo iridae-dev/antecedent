@@ -34,6 +34,15 @@
 //! enclosures prove that action better than every admissible rival by more than the tie
 //! tolerance everywhere in the box; a box is never labelled from a point evaluation.
 //!
+//! Before any box is examined, the linear program of the exact route checks that the declared
+//! ranges and linear relations admit a point; relations that conflict only jointly, or leave a
+//! gap narrower than the smallest box, are refused as an empty set rather than kept as boundary
+//! boxes. An equality relation is solved for one of its parameters (taken in order of relation
+//! id; the pivot is the parameter of positive width with the largest `|coefficient| * width`
+//! that no earlier solved equality reads): that parameter is not subdivided, its interval on a
+//! box is the outward-rounded enclosure of its solution, and its declared range is checked as two
+//! relations, so a box can lie wholly inside an equality.
+//!
 //! Relations between parameters are checked per box with the same arithmetic: a box whose
 //! relation left side is proven to violate some relation everywhere is dropped; a box on which
 //! some relation is neither proven satisfied nor proven violated is kept and flagged as touching
@@ -41,13 +50,17 @@
 //! parameters: the expected value of the chosen option minus that of the rejected one, at least
 //! minus its tolerance) is checked the same way, its gap enclosed by evaluating the model
 //! expression on the recorded rows of both options. That enclosure need not be tight, so a box on
-//! which a value relation is undecided is split further even when an action is certified on it. Fractions are volume fractions of the kept boxes relative to their
-//! total volume, measured relative to the declared ranges, with a fixed parameter (zero width)
-//! contributing no dimension; a boundary box counts in full, although part of it may lie
-//! outside the set. Splitting is deterministic: the undecided box of largest volume (ties: the
-//! lexicographically smallest lower corner) is split at the midpoint of the parameter whose
-//! width is largest relative to its declared range, until every box is decided, the box budget
-//! is spent, or every width is at most the minimum fraction of its declared range.
+//! which a value relation is undecided is split further even when an action is certified on it.
+//! With value relations, a choosing verdict (necessarily best, worst-case or minimax-regret
+//! choice) also needs the set shown to hold a point: a kept box wholly inside every relation, or
+//! a point the model's membership test accepts (the set check's point or a kept box's centre);
+//! otherwise the verdict is undetermined. Fractions are volume fractions of the kept boxes
+//! relative to their total volume, measured relative to the declared ranges, with a fixed or
+//! solved parameter contributing no dimension; a boundary box counts in full, although part of
+//! it may lie outside the set. Splitting is deterministic: the undecided box of largest volume
+//! (ties: the lexicographically smallest lower corner) is split at the midpoint of the parameter
+//! whose width is largest relative to its declared range, until every box is decided, the box
+//! budget is spent, or every width is at most the minimum fraction of its declared range.
 //!
 //! Hard constraints never read parameters. Their exclusions are read once: from the ordinary
 //! contract bound at the midpoint of the declared ranges and evaluated by
@@ -63,6 +76,7 @@ use std::collections::BinaryHeap;
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
+use antecedent_stats::linear_program::LpOptions;
 
 use crate::decision_contract::{DecisionCriterion, HardConstraint, StructuralPolicy};
 use crate::decision_eval::{
@@ -73,12 +87,17 @@ use crate::decision_structural::{AtomEvidence, StructuralAtom};
 use crate::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
 };
-use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
+use crate::preference_decision::{
+    MeasureOrigin, PreferenceDecisionError, PreferenceMeasure, linear_set_point,
+};
 use crate::preference_enclosure::{
     EncloseFailure, Fit, Interval, Queued, affine, enclose, left_inverse, lexicographic,
     linear_relation_fit, measure_box, split_box, value_relation_fit, weighted_sum,
 };
-use crate::preference_model::{LinearForm, PreferenceModelError, ValueModel};
+use crate::preference_model::{
+    LinearForm, LinearRelation, PreferenceModelError, PreferenceSet, RelationOrigin, RelationSense,
+    ValueModel,
+};
 use crate::preference_refusal::{EVALUATE, STRUCTURAL, refusal};
 use crate::signal::at_stage;
 use crate::structure_aggregator::{
@@ -101,7 +120,9 @@ pub struct CertifiedOptions {
     pub min_width_fraction: f64,
     /// A box is certified for an action only when the action's criterion is proven better
     /// than every admissible rival's by more than this; finite and non-negative. Also the
-    /// margin by which a worst-case, regret or measure-weighted value must lead.
+    /// margin by which a worst-case, regret or measure-weighted value must lead. Box enclosures
+    /// are outward-rounded, so this is the whole margin there; a measure point's scores are
+    /// floating evaluations, and a lead there must also exceed twice their rounding bound.
     pub tie_tolerance: f64,
 }
 
@@ -387,6 +408,10 @@ pub enum PreferenceCertifiedError {
     /// The relations exclude every box of the declared ranges.
     #[error("the relations exclude every parameter value of the declared ranges")]
     EmptyPreferenceSet,
+    /// The linear program that checks whether the declared ranges and linear relations admit a
+    /// point refused.
+    #[error("set check: {0}")]
+    SetProgram(PreferenceDecisionError),
     /// A logarithm's argument reaches zero or below on a box: the model is not defined there.
     #[error("the logarithm in the value of {action} is undefined on part of the box")]
     LogarithmDomain {
@@ -430,8 +455,8 @@ pub enum PreferenceCertifiedError {
 }
 
 impl PreferenceCertifiedError {
-    /// Stable detail id, prefixed `preference_certified.`; a contract, model or source refusal
-    /// keeps its own detail, the detail the returned refusal carries.
+    /// Stable detail id, prefixed `preference_certified.`; a contract, model, source or set-check
+    /// refusal keeps its own detail, the detail the returned refusal carries.
     #[must_use]
     pub fn detail(&self) -> &'static str {
         use antecedent_core::reason_details;
@@ -470,6 +495,7 @@ impl PreferenceCertifiedError {
                 reason_details::preference_certified::MEASURE_LABELS_INVALID
             }
             Self::EmptyPreferenceSet => reason_details::preference_certified::PREFERENCE_SET_EMPTY,
+            Self::SetProgram(inner) => inner.detail(),
             Self::LogarithmDomain { .. } => reason_details::preference_certified::LOGARITHM_DOMAIN,
             Self::NonFiniteEnclosure { .. } => {
                 reason_details::preference_certified::ENCLOSURE_NON_FINITE
@@ -820,6 +846,127 @@ fn same_rewrite(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Equality relations
+// ---------------------------------------------------------------------------------------------
+
+/// An equality relation solved for one parameter:
+/// `theta_pivot = (bound - sum_k c_k theta_k) / coefficient`, every `k` a parameter that is
+/// subdivided.
+#[derive(Clone, Debug)]
+struct Elimination {
+    pivot: usize,
+    coefficient: f64,
+    others: Vec<(usize, f64)>,
+    bound: f64,
+}
+
+impl Elimination {
+    /// Outward-rounded enclosure of the solved parameter over the intervals of the others.
+    fn derive(&self, params: &[Interval]) -> Result<Interval, EncloseFailure> {
+        let mut sum = Interval::point(0.0);
+        for (k, c) in &self.others {
+            let value = params.get(*k).copied().ok_or(EncloseFailure::NonFinite)?;
+            sum = sum.plus(value.scale(*c)?)?;
+        }
+        let reciprocal = 1.0 / self.coefficient;
+        Interval::point(self.bound).minus(sum)?.times(Interval::rounded(reciprocal, reciprocal)?)
+    }
+
+    /// The solved parameter at a point of the others.
+    fn at(&self, point: &[f64]) -> f64 {
+        let sum: f64 =
+            self.others.iter().map(|(k, c)| c * point.get(*k).copied().unwrap_or(0.0)).sum();
+        (self.bound - sum) / self.coefficient
+    }
+}
+
+/// How the subdivision reads the relations of a set.
+struct RelationPlan {
+    /// Relations checked on each box: every relation not solved, then the declared range of each
+    /// solved parameter as two relations.
+    relations: Vec<LinearRelation>,
+    /// Solved equalities, in the order they are applied.
+    eliminations: Vec<Elimination>,
+    /// The subdivided box: the declared ranges, a solved parameter held at the lower end of its
+    /// range with zero width (it contributes no dimension).
+    subdivided: Vec<(f64, f64)>,
+}
+
+/// Solve equality relations for one parameter each, so the subdivision runs over the set's own
+/// dimensions and a box can lie wholly inside an equality. Equalities are taken in order of
+/// their ids. One is solved when none of its parameters has been solved for and it has a
+/// parameter of positive declared width that no solved equality reads; the pivot is the one with
+/// the largest `|coefficient| * width` (the lowest index on ties). The pivot's declared range
+/// becomes two relations on its solution. Any other equality stays a relation checked per box.
+fn relation_plan(set: &PreferenceSet) -> RelationPlan {
+    let declared = set.bounds();
+    let width = |j: usize| declared.get(j).map_or(0.0, |(l, u)| u - l);
+    let mut order: Vec<usize> = (0..set.relations.len())
+        .filter(|i| set.relations[*i].sense == RelationSense::Equal)
+        .collect();
+    order.sort_by(|a, b| set.relations[*a].id.cmp(&set.relations[*b].id));
+    let mut solved = vec![false; set.relations.len()];
+    let mut pivots: Vec<usize> = Vec::new();
+    let mut read: Vec<usize> = Vec::new();
+    let mut eliminations = Vec::new();
+    for index in order {
+        let relation = &set.relations[index];
+        if relation.terms.iter().any(|(j, _)| pivots.contains(j)) {
+            continue;
+        }
+        let mut pivot: Option<(usize, f64, f64)> = None;
+        for &(j, c) in &relation.terms {
+            let score = c.abs() * width(j);
+            if score.is_nan() || score <= 0.0 || read.contains(&j) {
+                continue;
+            }
+            let better = pivot.is_none_or(|(p, _, best)| {
+                score > best || (score.total_cmp(&best).is_eq() && j < p)
+            });
+            if better {
+                pivot = Some((j, c, score));
+            }
+        }
+        let Some((p, coefficient, _)) = pivot else { continue };
+        solved[index] = true;
+        pivots.push(p);
+        read.extend(relation.terms.iter().map(|(j, _)| *j));
+        eliminations.push(Elimination {
+            pivot: p,
+            coefficient,
+            others: relation.terms.iter().filter(|(j, _)| *j != p).copied().collect(),
+            bound: relation.bound,
+        });
+    }
+    let mut relations: Vec<LinearRelation> = set
+        .relations
+        .iter()
+        .zip(&solved)
+        .filter(|(_, solved)| !**solved)
+        .map(|(relation, _)| relation.clone())
+        .collect();
+    let mut subdivided = declared.clone();
+    for elimination in &eliminations {
+        let p = elimination.pivot;
+        let (lower, upper) = declared[p];
+        let id = &set.parameters[p].id;
+        for (sense, bound, end) in
+            [(RelationSense::AtLeast, lower, "lower"), (RelationSense::AtMost, upper, "upper")]
+        {
+            relations.push(LinearRelation {
+                id: format!("{id}.{end}"),
+                terms: vec![(p, 1.0)],
+                sense,
+                bound,
+                origin: RelationOrigin::Declared,
+            });
+        }
+        subdivided[p] = (lower, lower);
+    }
+    RelationPlan { relations, eliminations, subdivided }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Box evaluation
 // ---------------------------------------------------------------------------------------------
 
@@ -851,6 +998,8 @@ struct Examined {
     /// Some value relation is undecided on the box: its enclosure need not contain a point of
     /// the set, so a certified action does not stop the box from being split.
     value_boundary: bool,
+    /// Every parameter's interval on the box, solved parameters included.
+    params: Vec<Interval>,
     eval: BoxEval,
     best: Option<usize>,
     candidates: Vec<usize>,
@@ -863,8 +1012,17 @@ struct Engine<'a> {
     combination: Combination,
     admissible: Vec<bool>,
     options: CertifiedOptions,
-    /// Declared `(lower, upper)` per parameter.
+    /// `(lower, upper)` per parameter of the subdivided box: the declared range, or a zero-width
+    /// range at its lower end for a parameter solved from an equality.
     declared: Vec<(f64, f64)>,
+    /// Declared `(lower, upper)` per parameter.
+    ranges: Vec<(f64, f64)>,
+    /// Linear relations checked on each box.
+    relations: Vec<LinearRelation>,
+    /// Equalities solved for one parameter each, applied in order.
+    eliminations: Vec<Elimination>,
+    /// A point of the declared ranges and linear relations.
+    interior: &'a [f64],
     /// The caller's execution context, when the run is cancellable.
     ctx: Option<&'a ExecutionContext>,
 }
@@ -893,8 +1051,8 @@ impl Engine<'_> {
     ) -> Result<(Fit, bool), PreferenceCertifiedError> {
         let set = &self.contract.model.preferences;
         let linear =
-            linear_relation_fit(&set.relations, params).map_err(|(failure, position)| {
-                box_refusal(failure, &set.relations[position].id, lower, upper)
+            linear_relation_fit(&self.relations, params).map_err(|(failure, position)| {
+                box_refusal(failure, &self.relations[position].id, lower, upper)
             })?;
         let boundary = match linear {
             Fit::Outside => return Ok((Fit::Outside, false)),
@@ -1177,13 +1335,53 @@ impl Engine<'_> {
         measure_box(&self.declared, lower, upper)
     }
 
+    /// Every parameter's interval on the box `lower..upper` of subdivided coordinates: the box's
+    /// own sides, and for a parameter solved from an equality the enclosure of its solution.
+    fn params(
+        &self,
+        lower: &[f64],
+        upper: &[f64],
+    ) -> Result<Vec<Interval>, PreferenceCertifiedError> {
+        let mut params: Vec<Interval> =
+            lower.iter().zip(upper).map(|(l, u)| Interval { lo: *l, hi: *u }).collect();
+        for elimination in &self.eliminations {
+            let subject = &self.contract.model.preferences.parameters[elimination.pivot].id;
+            params[elimination.pivot] = elimination
+                .derive(&params)
+                .map_err(|failure| box_refusal(failure, subject, lower, upper))?;
+        }
+        Ok(params)
+    }
+
+    /// The point at the centre of the box, solved parameters at their solution.
+    fn centre(&self, lower: &[f64], upper: &[f64]) -> Vec<f64> {
+        let mut point: Vec<f64> = lower.iter().zip(upper).map(|(l, u)| 0.5 * l + 0.5 * u).collect();
+        for elimination in &self.eliminations {
+            point[elimination.pivot] = elimination.at(&point);
+        }
+        point
+    }
+
+    /// The box as reported: subdivided coordinates as they are, a solved parameter's enclosure
+    /// cut to its declared range.
+    fn reported(&self, item: &Examined) -> (Vec<f64>, Vec<f64>) {
+        let mut lower = item.lower.clone();
+        let mut upper = item.upper.clone();
+        for elimination in &self.eliminations {
+            let j = elimination.pivot;
+            let (low, high) = self.ranges[j];
+            lower[j] = item.params[j].lo.clamp(low, high);
+            upper[j] = item.params[j].hi.clamp(low, high);
+        }
+        (lower, upper)
+    }
+
     fn examine(
         &self,
         lower: Vec<f64>,
         upper: Vec<f64>,
     ) -> Result<Option<Examined>, PreferenceCertifiedError> {
-        let params: Vec<Interval> =
-            lower.iter().zip(&upper).map(|(l, u)| Interval { lo: *l, hi: *u }).collect();
+        let params = self.params(&lower, &upper)?;
         let (fit, value_boundary) = self.relation_fit(&params, &lower, &upper)?;
         let boundary = match fit {
             Fit::Outside => return Ok(None),
@@ -1198,6 +1396,7 @@ impl Engine<'_> {
             upper,
             boundary,
             value_boundary,
+            params,
             eval,
             best,
             candidates,
@@ -1374,6 +1573,49 @@ impl Engine<'_> {
     }
 }
 
+impl Engine<'_> {
+    /// Bound on the floating error of one action's score at a point: `2 (n + 1) eps` times the
+    /// weighted mean magnitude of its per-draw values over the `n` draws, the largest over
+    /// admissible actions and sources. A threshold probability is a sum of weights, so its
+    /// magnitude is one.
+    fn point_rounding(&self, point: &[f64]) -> Result<f64, PreferenceCertifiedError> {
+        let probability =
+            matches!(self.criterion(), DecisionCriterion::ThresholdProbability { .. });
+        let admissible = self.admissible_indices();
+        let mut largest = 0.0_f64;
+        for source in self.sources {
+            let mut magnitude = 0.0_f64;
+            for &a in &admissible {
+                let own = if probability {
+                    1.0
+                } else {
+                    let mut total = 0.0;
+                    for (row, weight) in source.attributes[a].iter().zip(&source.weights) {
+                        let value = self
+                            .contract
+                            .model
+                            .value
+                            .evaluate(row, point)
+                            .map_err(PreferenceCertifiedError::Model)?;
+                        total += weight * value.abs();
+                    }
+                    total
+                };
+                magnitude = magnitude.max(own);
+            }
+            largest = largest.max(summation_rounding(source.weights.len(), magnitude));
+        }
+        Ok(largest)
+    }
+}
+
+/// Bound on the floating error of a weighted sum of `n` terms whose weighted magnitudes sum to
+/// `magnitude`: `2 (n + 1) eps magnitude`.
+#[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^53")]
+fn summation_rounding(n: usize, magnitude: f64) -> f64 {
+    2.0 * (n as f64 + 1.0) * f64::EPSILON * magnitude
+}
+
 fn draws_of(utilities: &[Option<Vec<Interval>>], a: usize) -> Result<&[Interval], EncloseFailure> {
     utilities.get(a).and_then(Option::as_deref).ok_or(EncloseFailure::NonFinite)
 }
@@ -1413,7 +1655,7 @@ fn tally(engine: &Engine<'_>, kept: &[Examined]) -> Result<Tally, PreferenceCert
     for item in kept.iter().filter(|item| !item.boundary) {
         let center: Vec<f64> =
             item.lower.iter().zip(&item.upper).map(|(l, u)| 0.5 * l + 0.5 * u).collect();
-        let params: Vec<Interval> = center.iter().map(|c| Interval::point(*c)).collect();
+        let params = engine.params(&center, &center)?;
         centers.push(engine.evaluate_box(&params, &center, &center)?);
     }
     let admissible = engine.admissible_indices();
@@ -1479,7 +1721,52 @@ fn ids(contract: &PreferenceContract, indices: impl IntoIterator<Item = usize>) 
     indices.into_iter().map(|a| contract.actions[a].id.clone()).collect()
 }
 
+/// Whether the kept boxes are known to hold a point of the set. The declared ranges and linear
+/// relations admit a point (checked before subdividing), so without value relations they do.
+/// With value relations a box wholly inside every relation holds one, and so does a point the
+/// model's own membership test accepts: the point found by the set check or the centre of a kept
+/// box.
+fn set_witnessed(engine: &Engine<'_>, kept: &[Examined]) -> bool {
+    let model = &engine.contract.model;
+    if model.preferences.value_relations.is_empty() || kept.iter().any(|item| !item.boundary) {
+        return true;
+    }
+    let accepted = |point: &[f64]| {
+        let scale = point.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+        model.contains(point, MEASURE_SET_TOLERANCE * (1.0 + scale))
+    };
+    accepted(engine.interior)
+        || kept.iter().any(|item| accepted(&engine.centre(&item.lower, &item.upper)))
+}
+
 fn subdivision_verdict(engine: &Engine<'_>, kept: &[Examined], tally: &Tally) -> CertifiedVerdict {
+    let contract = engine.contract;
+    let verdict = policy_verdict(engine, kept, tally);
+    let choosing = matches!(
+        verdict,
+        CertifiedVerdict::NecessarilyBest(_)
+            | CertifiedVerdict::WorstCaseChoice(_)
+            | CertifiedVerdict::MinimaxRegretChoice(_)
+    );
+    if choosing && !set_witnessed(engine, kept) {
+        // Every kept box may lie outside the value relations: a choice over a set not shown to
+        // hold a point is not made.
+        let n = contract.actions.len();
+        let mut possible = vec![false; n];
+        for item in kept {
+            for a in &item.candidates {
+                possible[*a] = true;
+            }
+        }
+        return CertifiedVerdict::Undetermined {
+            candidates: ids(contract, (0..n).filter(|a| possible[*a])),
+            undecided_fraction: tally.undecided_fraction,
+        };
+    }
+    verdict
+}
+
+fn policy_verdict(engine: &Engine<'_>, kept: &[Examined], tally: &Tally) -> CertifiedVerdict {
     let contract = engine.contract;
     let tie = engine.options.tie_tolerance;
     let undetermined = |candidates: Vec<usize>| CertifiedVerdict::Undetermined {
@@ -1546,7 +1833,8 @@ fn weighted_policy(
     measure: &PreferenceMeasure,
 ) -> Result<MeasureSummary, PreferenceCertifiedError> {
     let n = engine.contract.actions.len();
-    let tie = engine.options.tie_tolerance;
+    let declared_tie = engine.options.tie_tolerance;
+    let mut tie = declared_tie;
     let admissible = engine.admissible_indices();
     let mut value: Vec<Option<f64>> = (0..n).map(|a| engine.admissible[a].then_some(0.0)).collect();
     let mut share = value.clone();
@@ -1558,9 +1846,13 @@ fn weighted_policy(
                 *total += weight * score;
             }
         }
+        // Point scores are floating evaluations, not enclosures: a lead counts only beyond the
+        // rounding of two scores at this point.
+        let point_tie = declared_tie.max(2.0 * engine.point_rounding(point)?);
+        tie = tie.max(point_tie);
         let leads = |a: usize| {
             admissible.iter().all(|&b| {
-                b == a || matches!((scores[a], scores[b]), (Some(x), Some(y)) if x > y + tie)
+                b == a || matches!((scores[a], scores[b]), (Some(x), Some(y)) if x > y + point_tie)
             })
         };
         if let Some(leader) = admissible.iter().copied().find(|&a| leads(a))
@@ -1603,7 +1895,7 @@ fn subdivided(
 ) -> Result<Subdivided, PreferenceCertifiedError> {
     let contract = engine.contract;
     let sign = orientation(contract.criterion);
-    let (mut kept, boxes_examined) = engine.subdivide()?;
+    let (kept, boxes_examined) = engine.subdivide()?;
     let tally = tally(engine, &kept)?;
     for (a, outcome) in actions.iter_mut().enumerate() {
         outcome.best_fraction = tally.best_fraction[a];
@@ -1612,21 +1904,24 @@ fn subdivided(
         outcome.worst_case_regret_bounds = tally.regret[a];
     }
     let verdict = subdivision_verdict(engine, &kept, &tally);
-    kept.sort_by(|x, y| {
-        lexicographic(&x.lower, &y.lower).then_with(|| lexicographic(&x.upper, &y.upper))
-    });
-    let regions = kept
+    let mut regions: Vec<CertifiedRegion> = kept
         .into_iter()
-        .map(|item| CertifiedRegion {
-            status: match item.best {
-                Some(a) => RegionStatus::Best(contract.actions[a].id.clone()),
-                None => RegionStatus::Undecided { candidates: ids(contract, item.candidates) },
-            },
-            lower: item.lower,
-            upper: item.upper,
-            touches_relation_boundary: item.boundary,
+        .map(|item| {
+            let (lower, upper) = engine.reported(&item);
+            CertifiedRegion {
+                status: match item.best {
+                    Some(a) => RegionStatus::Best(contract.actions[a].id.clone()),
+                    None => RegionStatus::Undecided { candidates: ids(contract, item.candidates) },
+                },
+                lower,
+                upper,
+                touches_relation_boundary: item.boundary,
+            }
         })
         .collect();
+    regions.sort_by(|x, y| {
+        lexicographic(&x.lower, &y.lower).then_with(|| lexicographic(&x.upper, &y.upper))
+    });
     Ok(Subdivided {
         regions,
         undecided_fraction: tally.undecided_fraction,
@@ -1641,6 +1936,8 @@ struct Setup<'c> {
     identity: String,
     measure: Option<&'c PreferenceMeasure>,
     options: CertifiedOptions,
+    /// A point of the declared ranges and linear relations.
+    interior: Vec<f64>,
     ctx: Option<&'c ExecutionContext>,
 }
 
@@ -1740,6 +2037,11 @@ impl<'c> Setup<'c> {
         {
             return Err(E::MinimaxRegretNeedsExpectation);
         }
+        // Relations that conflict only jointly, or leave a gap narrower than the smallest box,
+        // never prove a box outside: the linear program decides whether any point remains.
+        let interior = linear_set_point(&contract.model.preferences, LpOptions::default())
+            .map_err(E::SetProgram)?
+            .ok_or(E::EmptyPreferenceSet)?;
         let measure = if contract.preference_policy == PreferencePolicy::Weighted {
             let measure = measure.ok_or(E::MeasureRequired)?;
             validate_measure(measure, &contract.model)?;
@@ -1748,7 +2050,7 @@ impl<'c> Setup<'c> {
             None
         };
         let identity = contract.identity().map_err(E::Contract)?;
-        Ok(Self { contract, identity, measure, options, ctx })
+        Ok(Self { contract, identity, measure, options, interior, ctx })
     }
 
     fn assumptions(&self) -> Vec<String> {
@@ -1797,13 +2099,18 @@ impl<'c> Setup<'c> {
                 measure_share: None,
             })
             .collect();
+        let plan = relation_plan(&contract.model.preferences);
         let engine = Engine {
             contract,
             sources,
             combination,
             admissible,
             options: self.options,
-            declared: contract.model.preferences.bounds(),
+            declared: plan.subdivided,
+            ranges: contract.model.preferences.bounds(),
+            relations: plan.relations,
+            eliminations: plan.eliminations,
+            interior: &self.interior,
             ctx: self.ctx,
         };
         let sign = orientation(contract.criterion);
@@ -1867,7 +2174,8 @@ impl<'c> Setup<'c> {
 /// `ThresholdProbability`, `Quantile` or `Regret`. Policies:
 /// - `RequireInvariantBestAction`: `NecessarilyBest` when every kept box is certified for the
 ///   same action; `PreferenceDependent` when at least two actions are each certified on some
-///   box wholly inside the relations; otherwise `Undetermined`.
+///   box wholly inside the relations; otherwise `Undetermined`. With value relations a choosing
+///   verdict also needs the set shown to hold a point (see the module documentation).
 /// - `Maximin`: compares the enclosures of each action's worst value over the set and chooses
 ///   only when one lies above every rival's by more than the tie tolerance.
 /// - `MinimaxRegret`: expectation criteria only; compares worst-case regret enclosures built
@@ -1876,7 +2184,10 @@ impl<'c> Setup<'c> {
 ///   exactly, through [`PreferenceContract::bind`] and [`evaluate_contract`] when the bound value
 ///   can be lowered and otherwise by evaluating the model on each draw with the same criterion
 ///   rules; no boxes are examined. A point counts toward an action's share when the action leads
-///   every admissible rival there by more than the tie tolerance.
+///   every admissible rival there by more than the tie tolerance, or by more than twice the
+///   rounding bound of the point's scores (`2 (n + 1) eps` times the weighted mean magnitude of
+///   the per-draw values) when that is larger; the measure-weighted values are compared with the
+///   largest of these.
 /// - `ReportOnly`: everything computed, verdict `ReportOnly`.
 ///
 /// A measure is read only under the `Weighted` policy. Excluded actions take part in no
@@ -1884,10 +2195,11 @@ impl<'c> Setup<'c> {
 ///
 /// # Errors
 /// An invalid contract; a criterion that needs structure inputs; options out of range;
-/// `MinimaxRegret` with a criterion that is not an expectation; under `Weighted`, a missing,
-/// incomplete or invalid measure; a source that cannot answer the contract; relations that
-/// exclude every box; a logarithm undefined or an enclosure non-finite on an examined box; a
-/// model value that cannot be evaluated at a measure point.
+/// `MinimaxRegret` with a criterion that is not an expectation; declared ranges and linear
+/// relations that admit no point, or a refusal of the linear program that checks them; under
+/// `Weighted`, a missing, incomplete or invalid measure; a source that cannot answer the
+/// contract; relations that exclude every box; a logarithm undefined or an enclosure non-finite
+/// on an examined box; a model value that cannot be evaluated at a measure point.
 pub fn evaluate_preference_certified(
     contract: &PreferenceContract,
     source: &DistributionArtifact,
@@ -1976,10 +2288,26 @@ fn invariant_over_atoms(
     let identical = verdicts.iter().all(|v| v.verdict == first.verdict);
     let same_choice = chosen(&first.verdict)
         .is_some_and(|action| verdicts.iter().all(|v| chosen(&v.verdict) == Some(action)));
-    if identical || same_choice {
-        StructuralCertifiedVerdict::Combined(first.verdict.clone())
-    } else {
-        StructuralCertifiedVerdict::StructuresDisagree(verdicts)
+    if !(identical || same_choice) {
+        return StructuralCertifiedVerdict::StructuresDisagree(verdicts);
+    }
+    // Measure choices of one action agree with the smallest share, as on the exact route.
+    let smallest = verdicts
+        .iter()
+        .map(|v| match &v.verdict {
+            CertifiedVerdict::MeasureChoice { share, .. } => Some(*share),
+            _ => None,
+        })
+        .collect::<Option<Vec<f64>>>()
+        .and_then(|shares| shares.into_iter().reduce(f64::min));
+    match (&first.verdict, smallest) {
+        (CertifiedVerdict::MeasureChoice { action, .. }, Some(share)) => {
+            StructuralCertifiedVerdict::Combined(CertifiedVerdict::MeasureChoice {
+                action: action.clone(),
+                share,
+            })
+        }
+        _ => StructuralCertifiedVerdict::Combined(first.verdict.clone()),
     }
 }
 
@@ -2030,8 +2358,9 @@ fn evaluate_atoms<'s>(
 /// whose source cannot answer the contract is kept as unevaluated with the registered reason
 /// code. The contract's structural policy then combines them:
 /// - `RequireInvariantBestAction`: every structure must be evaluated and every structure's
-///   verdict must be the same or choose the same action; otherwise the structures' verdicts are
-///   listed as a disagreement, or the claim is insufficient science.
+///   verdict must be the same or choose the same action (measure choices of one action combine
+///   with the smallest share); otherwise the structures' verdicts are listed as a disagreement,
+///   or the claim is insufficient science.
 /// - `Maximin`: one joint subdivision whose score on a box is the worst over structures of each
 ///   structure's enclosure; a choice needs every structure evaluated.
 /// - `BayesOverStructures`: needs a probability on every structure; one joint subdivision whose
@@ -2160,7 +2489,7 @@ pub(crate) fn certified_structural(
 impl PreferenceCertifiedError {
     /// Structured refusal for a failure of the certified evaluation across a preference set.
     ///
-    /// A contract, value-model or source refusal keeps its own refusal.
+    /// A contract, value-model, source or set-check refusal keeps its own refusal.
     #[must_use]
     #[allow(clippy::too_many_lines, reason = "one arm per certified-evaluation failure")]
     pub fn to_refusal(&self) -> ExternalRefusal {
@@ -2244,6 +2573,7 @@ impl PreferenceCertifiedError {
             Self::EmptyPreferenceSet => {
                 invalid(EVALUATE, "widen the declared ranges or remove a relation").build()
             }
+            Self::SetProgram(error) => at_stage(error.to_refusal(), EVALUATE),
             Self::LogarithmDomain { action, lower, upper } => invalid(
                 EVALUATE,
                 "keep the logarithm's argument positive: narrow the ranges or change the value",

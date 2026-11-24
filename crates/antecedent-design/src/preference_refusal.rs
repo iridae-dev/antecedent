@@ -262,6 +262,38 @@ mod tests {
     }
 
     #[test]
+    fn refusals_of_too_few_clusters_and_foreign_learned_preferences_are_registered() {
+        let value = ChoiceModelError::TooFewDecidersToCluster {
+            decider: None,
+            deciders: 3,
+            coefficients: 2,
+            required: 5,
+        }
+        .to_refusal();
+        registered(&value, "estimate");
+        assert_eq!(value.supplied.as_deref(), Some("3"));
+        registered(
+            &AcceptedPreferencesError::DeclarationNotKept { part: "relations" }.to_refusal(),
+            "accept",
+        );
+        registered(
+            &AcceptedPreferencesError::RecordsMismatch { expected: "a".into(), found: "b".into() }
+                .to_refusal(),
+            "accept",
+        );
+        let nested = PreferenceCertifiedError::SetProgram(PreferenceDecisionError::Lp(
+            antecedent_stats::linear_program::LpError::BoundsLength {
+                variables: 1,
+                lower: 0,
+                upper: 0,
+            },
+        ))
+        .to_refusal();
+        registered(&nested, "evaluate");
+        assert_eq!(nested.detail, reason_details::preference_decision::LINEAR_PROGRAM_REFUSED);
+    }
+
+    #[test]
     fn evaluation_and_artifact_refusals_are_registered() {
         let value =
             PreferenceEvaluationError::JointDrawsRequired { reason: "criterion" }.to_refusal();

@@ -20,6 +20,15 @@
 //! (what someone said they would choose, not what they chose), their count comes last.
 //! Parameter items come in model parameter order and the set-wide items after them.
 //!
+//! A learned basis is accepted only when it belongs to the declared model: the learned set keeps
+//! the declared parameters with their ranges, ids, units and assumptions and every declared
+//! relation, an estimate's parameter entries carry the declared ranges, and the records the
+//! caller supplies are the records the basis was learned from (the same digest). The number of
+//! stated comparisons is counted from those records, never taken from the caller.
+//!
+//! [`decide_with_accepted`] builds the contract over the accepted model and passes the accepted
+//! measure (an estimate's) to the route-choosing evaluation.
+//!
 //! The handle retains everything needed to replay the learning (the declared model, the learning
 //! options and the decision-maker selected), so a stored handle can be relearned from the same
 //! records and compared. A learned set is an assumption range, never a probability; only an
@@ -32,8 +41,9 @@ use std::collections::BTreeSet;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
-use crate::choice_record::ChoiceRecordSet;
+use crate::choice_record::{ChoiceRecordSet, Pooling};
 use crate::decision_contract::{DecisionCriterion, HardConstraint, StructuralPolicy};
 use crate::preference_choice_model::{
     ChoiceModelError, ChoiceModelEstimate, ChoiceModelOptions, EstimateOutcome, estimate_all,
@@ -42,6 +52,10 @@ use crate::preference_contract::{PreferenceAction, PreferenceContract, Preferenc
 use crate::preference_decision::PreferenceMeasure;
 use crate::preference_model::{PreferenceModelError, ValueModel};
 use crate::preference_refusal::{ACCEPT, refusal};
+use crate::preference_route_choice::{
+    PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, decide_on_draws,
+    decide_preferences,
+};
 use crate::preference_set_learning::{
     ChoiceConflict, LearnedPreferenceSet, SetLearningError, SetLearningOptions, SetOutcome, learn,
 };
@@ -164,6 +178,23 @@ pub enum AcceptedPreferencesError {
         /// Which option differs.
         option: &'static str,
     },
+    /// The learned object does not keep what the declared model declares: a learned set without
+    /// the declared parameters, ranges or relations, or an estimate whose parameter entries name
+    /// other parameters or ranges.
+    #[error("the learned preferences do not keep the declared {part}")]
+    DeclarationNotKept {
+        /// What is not kept: `parameters`, `relations`, `value_relations` or
+        /// `estimate_parameters`.
+        part: &'static str,
+    },
+    /// The records supplied are not the records the learned object was learned from.
+    #[error("the records are not the ones the preferences were learned from")]
+    RecordsMismatch {
+        /// Digest the learned object names.
+        expected: String,
+        /// Digest of the supplied records in the learned object's scope.
+        found: String,
+    },
     /// The compatible-set learner refused its input.
     #[error("compatible set: {0}")]
     SetLearning(SetLearningError),
@@ -232,6 +263,10 @@ impl AcceptedPreferencesError {
             Self::Model(inner) => inner.detail(),
             Self::ModelMismatch { .. } => reason_details::accepted_preferences::MODEL_MISMATCH,
             Self::OptionsMismatch { .. } => reason_details::accepted_preferences::OPTIONS_MISMATCH,
+            Self::DeclarationNotKept { .. } => {
+                reason_details::accepted_preferences::DECLARATION_NOT_KEPT
+            }
+            Self::RecordsMismatch { .. } => reason_details::accepted_preferences::RECORDS_MISMATCH,
             Self::SetLearning(inner) => inner.detail(),
             Self::ChoiceModel(inner) => inner.detail(),
             Self::PooledNotAvailable => reason_details::accepted_preferences::POOLED_NOT_AVAILABLE,
@@ -268,22 +303,26 @@ impl AcceptedPreferences {
         ))
     }
 
-    /// Accept a compatible set learned from `model` with `options`. Version 1.
+    /// Accept a compatible set learned from `model` and `records` with `options`. Version 1.
     ///
-    /// The learned set does not carry its records, so `stated_comparisons` states how many of
-    /// the records it was learned from (in the selected scope) are stated comparisons; a
-    /// positive count is a pending review item. [`learn_compatible_set_accepted`] counts them
-    /// from the records.
+    /// `records` must be the records the set was learned from: the digest of the records in the
+    /// set's scope (the named decider's records for a per-decider set, every record otherwise)
+    /// must be the set's records digest. The number of stated comparisons among them is counted
+    /// here; a positive count is a pending review item.
     ///
     /// # Errors
-    /// An invalid model; a learned set whose model identity is not `model`'s; options whose
-    /// tolerance differs from the one the set was learned with.
+    /// An invalid model; a learned set whose model identity is not `model`'s; a learned set that
+    /// does not keep the declared parameters, ranges or relations; options whose tolerance
+    /// differs from the one the set was learned with; records other than the ones the set was
+    /// learned from.
     pub fn from_compatible_set(
         model: &ValueModel,
         learned: LearnedPreferenceSet,
         options: SetLearningOptions,
-        stated_comparisons: usize,
+        records: &ChoiceRecordSet,
     ) -> Result<Self, AcceptedPreferencesError> {
+        check_records(&learned.records_digest, records, learned.decider.as_deref())?;
+        let stated_comparisons = stated_in_scope(records, learned.decider.as_deref());
         Self::from_parts(
             model.clone(),
             PreferenceBasis::CompatibleSet(Box::new(learned)),
@@ -294,21 +333,25 @@ impl AcceptedPreferences {
         )
     }
 
-    /// Accept an estimate made from `model` with `options`. Version 1.
+    /// Accept an estimate made from `model` and `records` with `options`. Version 1.
     ///
-    /// The estimate does not carry its records, so `stated_comparisons` states how many of the
-    /// records it was made from (in the selected scope) are stated comparisons; a positive
-    /// count is a pending review item. [`estimate_accepted`] counts them from the records.
+    /// `records` must be the records the estimate was made from: their digest must be the
+    /// estimate's records digest. The number of stated comparisons among them, in the
+    /// estimate's scope (the named decider's records, or every record for the pooled fit), is
+    /// counted here; a positive count is a pending review item.
     ///
     /// # Errors
-    /// An invalid model; an estimate whose model identity is not `model`'s; options whose
-    /// level differs from the estimate's.
+    /// An invalid model; an estimate whose model identity is not `model`'s; an estimate whose
+    /// parameter entries name other parameters or ranges than the declared ones; options whose
+    /// level differs from the estimate's; records other than the ones the estimate was made from.
     pub fn from_estimate(
         model: &ValueModel,
         estimate: ChoiceModelEstimate,
         options: ChoiceModelOptions,
-        stated_comparisons: usize,
+        records: &ChoiceRecordSet,
     ) -> Result<Self, AcceptedPreferencesError> {
+        check_records(&estimate.records_digest, records, None)?;
+        let stated_comparisons = stated_in_scope(records, estimate.decider.as_deref());
         Self::from_parts(
             model.clone(),
             PreferenceBasis::ChoiceEstimate(Box::new(estimate)),
@@ -320,9 +363,9 @@ impl AcceptedPreferences {
     }
 
     /// Rebuild a handle from its retained parts, checking that they belong together: the basis
-    /// belongs to the model, the options match the basis, a declared basis counts no stated
-    /// comparisons, the version is at least one and every acknowledged item arises from the
-    /// basis, once.
+    /// belongs to the model and keeps its declarations, the options match the basis, a declared
+    /// basis counts no stated comparisons, the version is at least one and every acknowledged
+    /// item arises from the basis, once.
     pub(crate) fn from_parts(
         declared: ValueModel,
         basis: PreferenceBasis,
@@ -333,6 +376,7 @@ impl AcceptedPreferences {
     ) -> Result<Self, AcceptedPreferencesError> {
         let declared_identity = declared.identity().map_err(E::Model)?;
         check_basis(&declared_identity, &basis, learning.as_ref())?;
+        check_declarations(&declared, &basis)?;
         if matches!(basis, PreferenceBasis::Declared) && stated_comparisons > 0 {
             return Err(E::OptionsMismatch { option: "stated_comparisons" });
         }
@@ -359,7 +403,7 @@ impl AcceptedPreferences {
             }
             PreferenceBasis::Declared | PreferenceBasis::ChoiceEstimate(_) => declared.clone(),
         };
-        let identity = crate::preference_artifact::accepted_identity(
+        let identity = crate::accepted_preferences_artifact::accepted_identity(
             &declared_identity,
             &basis,
             learning.options.as_ref(),
@@ -664,12 +708,7 @@ fn accept_learned(
     ctx: Option<&ExecutionContext>,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let learned = select_learned(model, records, decider, options, ctx)?;
-    AcceptedPreferences::from_compatible_set(
-        model,
-        learned,
-        options,
-        stated_in_scope(records, decider),
-    )
+    AcceptedPreferences::from_compatible_set(model, learned, options, records)
 }
 
 /// Estimate from `model` and `records` and accept the estimate. `decider: None` selects the
@@ -710,7 +749,38 @@ fn accept_estimate(
     ctx: Option<&ExecutionContext>,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let estimate = select_estimate(model, records, decider, options, ctx)?;
-    AcceptedPreferences::from_estimate(model, estimate, options, stated_in_scope(records, decider))
+    AcceptedPreferences::from_estimate(model, estimate, options, records)
+}
+
+/// Decide with accepted preferences: the contract is built over the accepted model, and the
+/// accepted measure (an estimate's) is passed when there is one.
+///
+/// # Errors
+/// As [`decide_preferences`].
+pub fn decide_with_accepted(
+    accepted: &AcceptedPreferences,
+    parts: PreferenceContractParts,
+    source: &DistributionArtifact,
+    options: PreferenceEvaluationOptions,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    let contract = accepted.contract(parts);
+    decide_preferences(&contract, source, accepted.measure(), options)
+}
+
+/// [`decide_with_accepted`] under an execution context: the route that answers reads the
+/// context's cancellation token at its work boundaries.
+///
+/// # Errors
+/// As [`decide_with_accepted`]; a cancelled run is the answering route's `Cancelled` refusal.
+pub fn decide_with_accepted_with_context(
+    accepted: &AcceptedPreferences,
+    parts: PreferenceContractParts,
+    source: &DistributionArtifact,
+    options: PreferenceEvaluationOptions,
+    ctx: &ExecutionContext,
+) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
+    let contract = accepted.contract(parts);
+    decide_on_draws(&contract, source, accepted.measure(), options, Some(ctx))
 }
 
 /// How a basis was learned: the options, and the number of stated comparisons among the
@@ -832,6 +902,76 @@ fn check_basis(
     }
 }
 
+/// The digest of the records in a learned object's scope must be the digest it names: the named
+/// decider's records alone for a per-decider compatible set (`decider`), every record otherwise.
+fn check_records(
+    expected: &str,
+    records: &ChoiceRecordSet,
+    decider: Option<&str>,
+) -> Result<(), AcceptedPreferencesError> {
+    let digest = match decider {
+        None => records.digest(),
+        Some(name) => ChoiceRecordSet {
+            attributes: records.attributes.clone(),
+            population: records.population.clone(),
+            records: records.records.iter().filter(|r| r.decider == name).cloned().collect(),
+            pooling: Pooling::PerDecider,
+        }
+        .digest(),
+    };
+    let found = digest.map_err(|error| E::SetLearning(SetLearningError::Records(error)))?;
+    if found == expected {
+        Ok(())
+    } else {
+        Err(E::RecordsMismatch { expected: expected.to_owned(), found })
+    }
+}
+
+/// A learned basis keeps what the declared model declares. A learned set keeps the declared
+/// parameters exactly (ids, units, ranges and assumptions, in order), every declared linear
+/// relation and every declared value relation; the relations it adds come from the records. An
+/// estimate's parameter entries name declared parameters with their declared ranges, and its
+/// not-learnable parameters are declared ones.
+fn check_declarations(
+    declared: &ValueModel,
+    basis: &PreferenceBasis,
+) -> Result<(), AcceptedPreferencesError> {
+    let parameters = &declared.preferences.parameters;
+    match basis {
+        PreferenceBasis::Declared => Ok(()),
+        PreferenceBasis::CompatibleSet(learned) => {
+            let set = &learned.set;
+            if &set.parameters != parameters {
+                return Err(E::DeclarationNotKept { part: "parameters" });
+            }
+            if !declared.preferences.relations.iter().all(|r| set.relations.contains(r)) {
+                return Err(E::DeclarationNotKept { part: "relations" });
+            }
+            if !declared.preferences.value_relations.iter().all(|r| set.value_relations.contains(r))
+            {
+                return Err(E::DeclarationNotKept { part: "value_relations" });
+            }
+            Ok(())
+        }
+        PreferenceBasis::ChoiceEstimate(estimate) => {
+            let entries_kept = estimate.parameters.iter().all(|entry| {
+                parameters.iter().any(|p| {
+                    p.id == entry.parameter_id
+                        && p.lower.total_cmp(&entry.declared.0).is_eq()
+                        && p.upper.total_cmp(&entry.declared.1).is_eq()
+                })
+            });
+            let not_learnable_kept =
+                estimate.not_learnable.iter().all(|id| parameters.iter().any(|p| &p.id == id));
+            if entries_kept && not_learnable_kept {
+                Ok(())
+            } else {
+                Err(E::DeclarationNotKept { part: "estimate_parameters" })
+            }
+        }
+    }
+}
+
 /// Every review item the basis raises, before acknowledgements, in the documented order.
 ///
 /// A parameter the declaration fixes (`lower == upper`) is a value stated outright: it raises
@@ -949,6 +1089,18 @@ impl AcceptedPreferencesError {
             )
             .offending(*option)
             .build(),
+            Self::DeclarationNotKept { part } => unsatisfied(
+                "accept the learned preferences as the learner returned them, under the model \
+                 they were learned from",
+            )
+            .offending(*part)
+            .build(),
+            Self::RecordsMismatch { expected, found } => {
+                unsatisfied("supply the records the preferences were learned from")
+                    .expected(expected.clone())
+                    .supplied(found.clone())
+                    .build()
+            }
             Self::PooledNotAvailable => {
                 invalid("name the decider whose preferences to accept").build()
             }

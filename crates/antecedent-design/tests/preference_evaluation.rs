@@ -959,3 +959,46 @@ fn declared_ranges_decide_without_records_accepted_preferences_or_a_measure() {
     let error = decide(PreferencePolicy::Weighted).unwrap_err();
     assert_eq!(error.detail(), reason_details::preference_decision::MEASURE_REQUIRED);
 }
+
+/// Non-test source lines of a module, comments dropped.
+fn code_lines(source: &str) -> Vec<&str> {
+    let code = source.split("#[cfg(test)]").next().unwrap_or(source);
+    code.lines().filter(|line| !line.trim_start().starts_with("//")).collect()
+}
+
+#[test]
+fn the_explicit_route_and_its_record_read_no_preference_learning_code() {
+    let learning = [
+        "accepted_preferences",
+        "choice_record",
+        "preference_choice_model",
+        "preference_set_learning",
+    ];
+    let explicit = [
+        ("preference_model", include_str!("../src/preference_model.rs")),
+        ("preference_contract", include_str!("../src/preference_contract.rs")),
+        ("preference_enclosure", include_str!("../src/preference_enclosure.rs")),
+        ("preference_decision", include_str!("../src/preference_decision.rs")),
+        ("preference_certified", include_str!("../src/preference_certified.rs")),
+        ("preference_route_choice", include_str!("../src/preference_route_choice.rs")),
+        ("preference_decision_artifact", include_str!("../src/preference_decision_artifact.rs")),
+    ];
+    for (name, source) in explicit {
+        for line in code_lines(source) {
+            for module in learning {
+                assert!(
+                    !line.contains(&format!("crate::{module}")),
+                    "{name} reads {module}: {line}"
+                );
+            }
+        }
+    }
+    // The shared artifact refusal names the refusal of accepted preferences and nothing else
+    // that learns.
+    let error = code_lines(include_str!("../src/preference_artifact_error.rs"));
+    let reads: Vec<&&str> = error
+        .iter()
+        .filter(|line| learning.iter().any(|m| line.contains(&format!("crate::{m}"))))
+        .collect();
+    assert_eq!(reads, vec![&"use crate::accepted_preferences::AcceptedPreferencesError;"]);
+}

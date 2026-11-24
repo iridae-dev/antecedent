@@ -11,8 +11,9 @@
 //! certified route on a mean source is refused, naming the joint draws it needs.
 //!
 //! [`PreferenceEvaluation`] carries the result of whichever route answered, with accessors for
-//! the facts both routes share. [`decide_with_accepted`] builds the contract over accepted
-//! preferences and passes the accepted measure when there is one.
+//! the facts both routes share. Deciding with accepted (possibly learned) preferences lives with
+//! the accepted preferences; this module reads no code that learns preferences from recorded
+//! choices, so the explicit route chooser stands on its own.
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,7 +21,6 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
-use crate::accepted_preferences::{AcceptedPreferences, PreferenceContractParts};
 use crate::decision_contract::DecisionCriterion;
 use crate::decision_eval::MeanSource;
 use crate::decision_structural::StructuralAtom;
@@ -504,36 +504,6 @@ fn decide_structural(
     certified_structural(contract, atoms, measure, options.certified, ctx)
         .map(|result| StructuralPreferenceEvaluation::Certified(Box::new(result)))
         .map_err(E::Certified)
-}
-
-/// Decide with accepted preferences: the contract is built over the accepted model, and the
-/// accepted measure (an estimate's) is passed when there is one.
-///
-/// # Errors
-/// As [`decide_preferences`].
-pub fn decide_with_accepted(
-    accepted: &AcceptedPreferences,
-    parts: PreferenceContractParts,
-    source: &DistributionArtifact,
-    options: PreferenceEvaluationOptions,
-) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
-    let contract = accepted.contract(parts);
-    decide_preferences(&contract, source, accepted.measure(), options)
-}
-
-/// [`decide_with_accepted`] under an execution context, as [`decide_preferences_with_context`].
-///
-/// # Errors
-/// As [`decide_preferences_with_context`].
-pub fn decide_with_accepted_with_context(
-    accepted: &AcceptedPreferences,
-    parts: PreferenceContractParts,
-    source: &DistributionArtifact,
-    options: PreferenceEvaluationOptions,
-    ctx: &ExecutionContext,
-) -> Result<PreferenceEvaluation, PreferenceEvaluationError> {
-    let contract = accepted.contract(parts);
-    decide_on_draws(&contract, source, accepted.measure(), options, Some(ctx))
 }
 
 impl PreferenceEvaluationError {

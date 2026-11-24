@@ -41,20 +41,33 @@
 //! free parameter whose term differs in no record is not learnable: it is left out of the fit,
 //! listed in [`ChoiceModelEstimate::not_learnable`] and marked unresolved in the measure.
 //!
-//! Covariance. Clustered by decider (the sandwich with per-decider score sums) when the fit holds
-//! at least two decision-makers, the inverse observed information otherwise; the result says
-//! which. The standard error of `theta_k` is the delta-method value
-//! `sqrt(V_kk - 2 theta_k V_k0 + theta_k^2 V_00) / beta_0`, and the interval is
+//! Covariance. The inverse observed information when the fit holds one decision-maker. With
+//! several, records of one decision-maker are not independent, so the covariance is clustered by
+//! decider: the sandwich with per-decider score sums, multiplied by `C / (C - 1)` for `C`
+//! deciders (the finite-cluster correction recommended for maximum-likelihood estimators by
+//! Cameron and Miller, 2015, *A Practitioner's Guide to Cluster-Robust Inference*). The `C`
+//! cluster score sums add up to the score, which is zero at the estimate, so the sandwich has at
+//! most `C - 1` degrees of freedom; it is used only when `C - 1` is at least
+//! [`CLUSTER_DEGREES_PER_PARAMETER`] times the number of coefficients `q`, that is
+//! `C >= 2 q + 1`. Fewer deciders are refused ([`ChoiceModelError::TooFewDecidersToCluster`]);
+//! the model covariance is never substituted, since it would treat dependent records as
+//! independent. The result says which covariance it uses. The standard error of `theta_k` is the
+//! delta-method value `sqrt(V_kk - 2 theta_k V_k0 + theta_k^2 V_00) / beta_0`, and the interval is
 //! `theta_hat +- z * se` with `z` the two-sided normal quantile at the level.
 //!
 //! Measure. Draws `beta = beta_hat + L z`, with `L` the Cholesky factor of the chosen covariance
 //! and `z` standard normal from the seeded generator, give
 //! `theta_k = beta_k / beta_0`. A draw is kept when `beta_0 > 0` and its point lies in the
-//! declared set with the unresolved coordinates ignored: each learnable coordinate must lie in
-//! its declared range, and a relation is checked only when none of its terms touches an
-//! unresolved parameter (both within [`SET_TOLERANCE`]). Fixed parameters sit at their fixed
-//! value; unresolved parameters sit at the midpoint of their declared range, a placeholder the
-//! measure says nothing about.
+//! declared set: each learnable coordinate must lie in its declared range, every relation none of
+//! whose terms touches an unresolved parameter must hold (both within [`SET_TOLERANCE`]), and the
+//! point must pass the check a measure point with these unresolved parameters passes when the
+//! measure is read by an evaluation: some value of the unresolved parameters in their declared
+//! ranges completes it to a point of the ranges and linear relations (a small linear program over
+//! the slice through the draw). A kept draw is therefore never refused by the evaluation that
+//! reads the measure, and every dropped draw counts in the share drawn outside the declared set; a
+//! draw whose slice program refuses is dropped. Fixed parameters sit at their fixed value;
+//! unresolved parameters sit at the midpoint of their declared range, a placeholder the measure
+//! says nothing about.
 //!
 //! Shape parameters. When the value is not affine in some free parameters (a risk attitude inside
 //! an exponential, a breakpoint inside a kink), `V = F(theta_S) + sum_k theta_k T_k(theta_S)` and
@@ -92,6 +105,7 @@ use antecedent_io_core::calibration::{CalibrationBasisWire, calibration_slot};
 use antecedent_io_core::contract_section::CalibrationStatus;
 use antecedent_io_core::distribution_artifact::DistributionCalibration;
 use antecedent_kernels::{cholesky_spd_into, gauss_jordan_solve, norm_inv, standard_normal};
+use antecedent_stats::linear_program::LpOptions;
 use antecedent_stats::{
     ChoiceUtility, ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitOptions,
     NonlinearChoiceError, NonlinearConditionalLogitFit, NonlinearConditionalLogitOptions,
@@ -103,7 +117,7 @@ use crate::choice_record::{
     ChoiceRecordError, ChoiceRecordSet, ChoiceSetFeatures, Pooling, ShapeData, choice_features,
     shape_data,
 };
-use crate::preference_decision::{MeasureOrigin, PreferenceMeasure};
+use crate::preference_decision::{MeasureOrigin, PreferenceMeasure, measure_point_accepted};
 use crate::preference_model::{PreferenceModelError, RelationSense, ValueModel};
 use crate::preference_refusal::{COMPATIBLE_SET, ESTIMATE, refusal};
 use crate::signal::at_stage;
@@ -229,6 +243,16 @@ fn interval_calibration(basis: &CalibrationBasis) -> DistributionCalibration {
     }
 }
 
+/// Degrees of freedom of the clustered covariance required per estimated coefficient: with `C`
+/// deciders and `q` coefficients the clustered covariance is used only when
+/// `C - 1 >= CLUSTER_DEGREES_PER_PARAMETER * q`.
+pub const CLUSTER_DEGREES_PER_PARAMETER: usize = 2;
+
+/// Smallest number of deciders whose clustered covariance is used for `q` coefficients.
+const fn clusters_required(q: usize) -> usize {
+    CLUSTER_DEGREES_PER_PARAMETER * q + 1
+}
+
 /// An earlier column takes part in a dependency when its share of the dependent column, after
 /// least-squares projection, exceeds this fraction of the dependent column's norm.
 const INVOLVED_RELATIVE: f64 = 1e-6;
@@ -277,8 +301,8 @@ pub enum ParameterIntervalMethod {
 pub enum CovarianceKind {
     /// Inverse observed information (one decision-maker in the fit).
     Model,
-    /// Sandwich with per-decider score sums (at least two decision-makers in the fit); no
-    /// small-sample multiplier is applied.
+    /// Sandwich with per-decider score sums times `C / (C - 1)` for `C` decision-makers; used
+    /// only when `C >= 2 q + 1` for `q` coefficients.
     ClusteredByDecider,
 }
 
@@ -360,7 +384,9 @@ pub struct ChoiceModelEstimate {
     /// `unresolved` lists the not-learnable parameter indices, whose coordinates (the declared
     /// midpoint) are placeholders.
     pub measure: PreferenceMeasure,
-    /// Share of draws dropped because `beta_0 <= 0` or the point lies outside the declared set.
+    /// Share of draws dropped because `beta_0 <= 0` or the point lies outside the declared set,
+    /// including draws that no value of the unresolved parameters completes to a point of the
+    /// set.
     pub share_outside_declared: f64,
     /// Sorted, distinct: parameter assumptions, the record set's assumptions and
     /// [`ASSUMPTION_LOGIT_CHOICE`].
@@ -469,6 +495,20 @@ pub enum ChoiceModelError {
         /// The fit's refusal.
         error: ConditionalLogitError,
     },
+    /// The records come from several decision-makers, so the covariance must be clustered by
+    /// decider, but there are too few of them for the clustered covariance of this many
+    /// coefficients: its degrees of freedom (one fewer than the deciders) must be at least
+    /// [`CLUSTER_DEGREES_PER_PARAMETER`] per coefficient.
+    TooFewDecidersToCluster {
+        /// The decision-maker, `None` for the pooled fit.
+        decider: Option<String>,
+        /// Distinct decision-makers in the fit.
+        deciders: usize,
+        /// Coefficients estimated.
+        coefficients: usize,
+        /// Decision-makers required.
+        required: usize,
+    },
     /// The chosen covariance has no Cholesky factor.
     CovarianceNotPositiveDefinite {
         /// The decision-maker, `None` for the pooled fit.
@@ -565,6 +605,9 @@ impl ChoiceModelError {
             }
             Self::NotConverged { .. } => reason_details::preference_choice_model::NOT_CONVERGED,
             Self::Fit { .. } => reason_details::preference_choice_model::FIT_REFUSED,
+            Self::TooFewDecidersToCluster { .. } => {
+                reason_details::preference_choice_model::TOO_FEW_DECIDERS_TO_CLUSTER
+            }
             Self::CovarianceNotPositiveDefinite { .. } => {
                 reason_details::preference_choice_model::COVARIANCE_NOT_POSITIVE_DEFINITE
             }
@@ -643,6 +686,11 @@ impl fmt::Display for ChoiceModelError {
             Self::Fit { decider, error } => {
                 write!(f, "{}: conditional logit fit refused: {error}", who(decider.as_deref()))
             }
+            Self::TooFewDecidersToCluster { decider, deciders, coefficients, required } => write!(
+                f,
+                "{}: {deciders} decision-makers are too few to cluster the covariance of {coefficients} coefficients; at least {required} are needed",
+                who(decider.as_deref())
+            ),
             Self::CovarianceNotPositiveDefinite { decider, kind } => write!(
                 f,
                 "{}: the {kind:?} covariance is not positive definite",
@@ -1028,12 +1076,13 @@ impl Context<'_> {
         if consistency.is_nan() || consistency <= 0.0 {
             return Err(ChoiceModelError::ConsistencyNotPositive { decider: owned(), consistency });
         }
-        let (kind, covariance) = match fit.cluster_covariance {
-            Some(clustered) if design.n_deciders >= 2 => {
-                (CovarianceKind::ClusteredByDecider, clustered)
-            }
-            _ => (CovarianceKind::Model, fit.covariance),
-        };
+        let (kind, covariance) = chosen_covariance(
+            design.n_deciders,
+            p,
+            fit.cluster_covariance,
+            fit.covariance,
+            decider,
+        )?;
         let mut chol = vec![0.0; p * p];
         if cholesky_spd_into(&covariance, p, &mut chol).is_err() {
             return Err(ChoiceModelError::CovarianceNotPositiveDefinite { decider: owned(), kind });
@@ -1264,13 +1313,21 @@ impl Context<'_> {
                     RelationSense::Equal => (lhs - relation.bound).abs() <= SET_TOLERANCE,
                 }
             });
-            if in_ranges && in_relations {
+            if in_ranges && in_relations && self.accepted(&point, unresolved) {
                 points.push(point);
             } else {
                 dropped += 1;
             }
         }
         Ok(MeasureDraws { points, dropped })
+    }
+
+    /// Whether an evaluation reading the measure accepts `point` with `unresolved` left open:
+    /// the same check, so the two agree by construction. A refusal of the slice's linear
+    /// program drops the point.
+    fn accepted(&self, point: &[f64], unresolved: &[usize]) -> bool {
+        measure_point_accepted(&self.model.preferences, point, unresolved, LpOptions::default())
+            .unwrap_or(false)
     }
 }
 
@@ -1384,11 +1441,14 @@ impl Context<'_> {
             return Err(ChoiceModelError::NoUnitOfAccount { decider: owned() });
         }
         let n_deciders = deciders.len();
-        let (kind, covariance) = match fit.cluster_covariance.clone() {
-            Some(clustered) if n_deciders >= 2 => (CovarianceKind::ClusteredByDecider, clustered),
-            _ => (CovarianceKind::Model, fit.covariance.clone()),
-        };
         let q = 1 + learnable.len() + fitted.len();
+        let (kind, covariance) = chosen_covariance(
+            n_deciders,
+            q,
+            fit.cluster_covariance.clone(),
+            fit.covariance.clone(),
+            decider,
+        )?;
         let mut chol = vec![0.0; q * q];
         if cholesky_spd_into(&covariance, q, &mut chol).is_err() {
             return Err(ChoiceModelError::CovarianceNotPositiveDefinite { decider: owned(), kind });
@@ -1671,13 +1731,41 @@ impl Context<'_> {
                         .value_relation_gap(relation, &point)
                         .is_ok_and(|gap| gap >= -relation.tolerance - SET_TOLERANCE)
                 });
-            if in_ranges && in_relations && in_values {
+            if in_ranges && in_relations && in_values && self.accepted(&point, unresolved) {
                 points.push(point);
             } else {
                 dropped += 1;
             }
         }
         Ok(MeasureDraws { points, dropped })
+    }
+}
+
+/// The covariance a fit with `deciders` decision-makers and `q` coefficients uses: the model
+/// covariance for one decision-maker; the clustered covariance for several, when there are at
+/// least [`clusters_required`] of them; otherwise a refusal. The fits are given clusters exactly
+/// when there are at least two decision-makers, so `clustered` is present then.
+fn chosen_covariance(
+    deciders: usize,
+    q: usize,
+    clustered: Option<Vec<f64>>,
+    model: Vec<f64>,
+    decider: Option<&str>,
+) -> Result<(CovarianceKind, Vec<f64>), ChoiceModelError> {
+    if deciders < 2 {
+        return Ok((CovarianceKind::Model, model));
+    }
+    let required = clusters_required(q);
+    match clustered {
+        Some(clustered) if deciders >= required => {
+            Ok((CovarianceKind::ClusteredByDecider, clustered))
+        }
+        _ => Err(ChoiceModelError::TooFewDecidersToCluster {
+            decider: decider.map(str::to_owned),
+            deciders,
+            coefficients: q,
+            required,
+        }),
     }
 }
 
@@ -1898,6 +1986,21 @@ impl ChoiceModelError {
             Self::Fit { decider, error } => fit(decider.clone(), COMPATIBLE_SET)
                 .supplied(format!("{}: {error}", error.detail()))
                 .build(),
+            Self::TooFewDecidersToCluster { decider, deciders, coefficients, required } => refusal(
+                antecedent_core::reason_code!("uncertainty_representation_insufficient"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .offending_opt(decider.clone())
+            .expected(format!(
+                "at least {required} decision-makers for {coefficients} coefficients"
+            ))
+            .supplied(deciders.to_string())
+            .remedy(
+                "record choices from more decision-makers, fit each decision-maker \
+                     separately, or use the compatible-set method",
+            )
+            .build(),
             Self::CovarianceNotPositiveDefinite { decider, kind } => {
                 fit(decider.clone(), "record more choices, or use the compatible-set method")
                     .supplied(format!("{kind:?}"))

@@ -399,7 +399,7 @@ fn estimate_review_items_follow_parameter_order() {
     let mut flagged = (**estimate).clone();
     flagged.parameters[0].inside_declared = false;
     flagged.share_outside_declared = 0.25;
-    let flagged = AcceptedPreferences::from_estimate(&model, flagged, quick(), 0).unwrap();
+    let flagged = AcceptedPreferences::from_estimate(&model, flagged, quick(), &records).unwrap();
     let dropped = PendingReview::DrawsOutsideDeclared { share: 0.25 };
     assert_eq!(flagged.pending(), vec![outside.clone(), not_learnable.clone(), dropped.clone()]);
 
@@ -484,8 +484,9 @@ fn a_learned_object_of_another_model_or_other_options_is_refused() {
 
     let mut other = model.clone();
     other.preferences.parameters[0].upper = 5.0;
-    let error = AcceptedPreferences::from_compatible_set(&other, (**set).clone(), tolerant(), 0)
-        .unwrap_err();
+    let error =
+        AcceptedPreferences::from_compatible_set(&other, (**set).clone(), tolerant(), &records)
+            .unwrap_err();
     assert_eq!(
         error,
         E::ModelMismatch { expected: other.identity().unwrap(), found: model.identity().unwrap() }
@@ -496,30 +497,37 @@ fn a_learned_object_of_another_model_or_other_options_is_refused() {
         &model,
         (**set).clone(),
         SetLearningOptions::default(),
-        0,
+        &records,
     )
     .unwrap_err();
     assert_eq!(error, E::OptionsMismatch { option: "tolerance" });
     assert_eq!(error.detail(), reason_details::accepted_preferences::OPTIONS_MISMATCH);
     let accepted =
-        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), 0).unwrap();
+        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), &records)
+            .unwrap();
     assert_eq!(accepted.identity(), learned.identity());
-    // The count of stated comparisons is part of what was accepted.
-    let stated =
-        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), 1).unwrap();
-    assert_ne!(stated.identity(), learned.identity());
-    assert_eq!(stated.stated_comparisons(), 1);
 
     let cost = cost_model((0.0, 3.0), None);
-    let estimated = estimate_accepted(&cost, &simulated(&cost, 200, 5), None, quick()).unwrap();
+    let estimate_records = simulated(&cost, 200, 5);
+    let estimated = estimate_accepted(&cost, &estimate_records, None, quick()).unwrap();
     let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
     let wider = cost_model((0.0, 4.0), None);
-    let error =
-        AcceptedPreferences::from_estimate(&wider, (**estimate).clone(), quick(), 0).unwrap_err();
+    let error = AcceptedPreferences::from_estimate(
+        &wider,
+        (**estimate).clone(),
+        quick(),
+        &estimate_records,
+    )
+    .unwrap_err();
     assert!(matches!(error, E::ModelMismatch { .. }));
     let other_level = ChoiceModelOptions { level: 0.9, ..quick() };
-    let error = AcceptedPreferences::from_estimate(&cost, (**estimate).clone(), other_level, 0)
-        .unwrap_err();
+    let error = AcceptedPreferences::from_estimate(
+        &cost,
+        (**estimate).clone(),
+        other_level,
+        &estimate_records,
+    )
+    .unwrap_err();
     assert_eq!(error, E::OptionsMismatch { option: "level" });
 }
 
@@ -646,10 +654,12 @@ fn stated_comparisons_among_the_records_are_a_review_item() {
             .any(|item| matches!(item, PendingReview::StatedComparisonsUsed { .. }))
     );
 
-    // A learned set accepted directly states its count; the same count gives the same handle.
+    // A learned set accepted directly counts from its records; the same records give the same
+    // handle.
     let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
     let direct =
-        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), 1).unwrap();
+        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), &records)
+            .unwrap();
     assert_eq!(direct.identity(), learned.identity());
     assert_eq!(direct.pending(), learned.pending());
 }
@@ -691,14 +701,97 @@ fn an_estimate_from_stated_comparisons_raises_the_same_item() {
     );
     let relearned = estimated.relearn_estimate(&records, None, quick()).unwrap();
     assert_eq!(relearned.stated_comparisons(), 300);
+    // Accepting the estimate directly counts the statements again: they cannot be left out.
     let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
-    let unstated =
-        AcceptedPreferences::from_estimate(&model, (**estimate).clone(), quick(), 0).unwrap();
-    assert!(
-        !unstated
-            .pending()
-            .iter()
-            .any(|item| matches!(item, PendingReview::StatedComparisonsUsed { .. }))
+    let direct =
+        AcceptedPreferences::from_estimate(&model, (**estimate).clone(), quick(), &records)
+            .unwrap();
+    assert_eq!(direct.stated_comparisons(), 300);
+    assert_eq!(direct.identity(), estimated.identity());
+}
+
+#[test]
+fn a_learned_set_that_drops_a_declaration_is_refused() {
+    let mut model = rate_model();
+    model.preferences.relations.push(antecedent_design::preference_model::LinearRelation {
+        id: "t1_floor".to_owned(),
+        terms: vec![(1, 1.0)],
+        sense: antecedent_design::preference_model::RelationSense::AtLeast,
+        bound: -3.0,
+        origin: RelationOrigin::Declared,
+    });
+    let records = rate_records(pooled());
+    let learned = learn_compatible_set_accepted(&model, &records, None, tolerant()).unwrap();
+    let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
+    let accept = |edited: &antecedent_design::preference_set_learning::LearnedPreferenceSet| {
+        AcceptedPreferences::from_compatible_set(&model, edited.clone(), tolerant(), &records)
+    };
+    assert_eq!(accept(set).unwrap().identity(), learned.identity());
+
+    // A declared relation removed: the handle would decide over a wider set than declared.
+    let mut dropped = (**set).clone();
+    dropped.set.relations.retain(|r| r.id != "t1_floor");
+    let error = accept(&dropped).unwrap_err();
+    assert_eq!(error, E::DeclarationNotKept { part: "relations" });
+    assert_eq!(error.detail(), reason_details::accepted_preferences::DECLARATION_NOT_KEPT);
+    // A declared range widened.
+    let mut widened = (**set).clone();
+    widened.set.parameters[1].upper = 9.0;
+    assert_eq!(accept(&widened).unwrap_err(), E::DeclarationNotKept { part: "parameters" });
+
+    // An estimate whose entry claims another declared range.
+    let cost = cost_model((0.0, 3.0), None);
+    let estimate_records = simulated(&cost, 200, 5);
+    let estimated = estimate_accepted(&cost, &estimate_records, None, quick()).unwrap();
+    let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
+    let mut claimed = (**estimate).clone();
+    claimed.parameters[0].declared = (0.0, 30.0);
+    assert_eq!(
+        AcceptedPreferences::from_estimate(&cost, claimed, quick(), &estimate_records).unwrap_err(),
+        E::DeclarationNotKept { part: "estimate_parameters" }
     );
-    assert_ne!(unstated.identity(), estimated.identity());
+}
+
+#[test]
+fn the_stated_comparison_count_is_read_from_the_records() {
+    let model = rate_model();
+    let mut records = rate_records(pooled());
+    records.records[0].belief_source = BeliefSource::Stated {
+        elicitation_id: "elicitation-1".to_owned(),
+        assumption_id: "assumption.statements_reflect_preferences".to_owned(),
+    };
+    let learned = learn_compatible_set_accepted(&model, &records, None, tolerant()).unwrap();
+    assert_eq!(learned.stated_comparisons(), 1);
+    let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
+
+    // The count cannot be suppressed: it is counted from the records the set was learned from.
+    let accepted =
+        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), &records)
+            .unwrap();
+    assert_eq!(accepted.stated_comparisons(), 1);
+    assert!(accepted.pending().contains(&PendingReview::StatedComparisonsUsed { count: 1 }));
+    assert_eq!(accepted.identity(), learned.identity());
+
+    // Other records (here the same choices read as recorded forecasts) are not the ones the set
+    // was learned from.
+    let recorded = rate_records(pooled());
+    let error =
+        AcceptedPreferences::from_compatible_set(&model, (**set).clone(), tolerant(), &recorded)
+            .unwrap_err();
+    assert!(matches!(error, E::RecordsMismatch { .. }), "{error:?}");
+    assert_eq!(error.detail(), reason_details::accepted_preferences::RECORDS_MISMATCH);
+
+    // A per-decider set is checked against that decider's records.
+    let per_decider = ChoiceRecordSet { pooling: Pooling::PerDecider, ..records.clone() };
+    let own =
+        learn_compatible_set_accepted(&model, &per_decider, Some("panel"), tolerant()).unwrap();
+    let PreferenceBasis::CompatibleSet(own_set) = own.basis() else { panic!("compatible set") };
+    let accepted = AcceptedPreferences::from_compatible_set(
+        &model,
+        (**own_set).clone(),
+        tolerant(),
+        &per_decider,
+    )
+    .unwrap();
+    assert_eq!(accepted.stated_comparisons(), 1);
 }

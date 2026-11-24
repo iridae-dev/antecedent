@@ -296,7 +296,11 @@ pub struct PreferenceDecisionResult {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PreferenceDecisionOptions {
     /// Margins within this distance of zero, in criterion units, count as ties; finite and
-    /// non-negative.
+    /// non-negative. When the numerical error bound of the margins is larger (the rounding of the
+    /// expected values, which grows with the magnitude of the per-draw values, plus the
+    /// linear-program tolerances scaled by the margin's slope over the declared ranges), that
+    /// bound is the tie tolerance instead, so no verdict rests on a difference below the
+    /// precision the margins are computed with.
     pub tie_tolerance: f64,
     /// Largest number of candidate bases vertex enumeration may solve.
     pub vertex_cap: usize,
@@ -1343,37 +1347,94 @@ fn prepare_measure(
     unresolved.sort_unstable();
     let mut slices = Vec::with_capacity(count);
     for (index, point) in measure.points.iter().enumerate() {
-        let tolerance =
-            lp.feasibility_tolerance * (1.0 + point.iter().fold(0.0_f64, |m, v| m.max(v.abs())));
         if unresolved.is_empty() {
-            if !set.contains(point, tolerance) {
+            if !set.contains(point, point_tolerance(point, lp)) {
                 return Err(E::MeasurePointOutsideSet { index });
             }
             slices.push(None);
             continue;
         }
-        let mut lower = region.lower.clone();
-        let mut upper = region.upper.clone();
-        for j in (0..dimension).filter(|j| !unresolved.contains(j)) {
-            if point[j] < region.lower[j] - tolerance || point[j] > region.upper[j] + tolerance {
-                return Err(E::MeasurePointOutsideSet { index });
-            }
-            let fixed = point[j].clamp(region.lower[j], region.upper[j]);
-            lower[j] = fixed;
-            upper[j] = fixed;
+        match measure_slice(region, point, &unresolved, lp)? {
+            Some(slice) => slices.push(Some(slice)),
+            None => return Err(E::MeasurePointOutsideSet { index }),
         }
-        let slice = Region {
-            rows: region.rows.clone(),
-            lower,
-            upper,
-            cancellation: region.cancellation.clone(),
-        };
-        if slice.feasible(&[], lp)?.is_none() {
-            return Err(E::MeasurePointOutsideSet { index });
-        }
-        slices.push(Some(slice));
     }
     Ok(PreparedMeasure { points: measure.points.clone(), weights, unresolved, slices })
+}
+
+/// How far a measure point may lie outside a range or relation: the linear programs'
+/// feasibility tolerance relative to the point's largest coordinate.
+fn point_tolerance(point: &[f64], lp: LpOptions) -> f64 {
+    lp.feasibility_tolerance * (1.0 + point.iter().fold(0.0_f64, |m, v| m.max(v.abs())))
+}
+
+/// The slice of `region` through `point`: every coordinate outside `unresolved` fixed at its
+/// value (clamped into its declared range), the unresolved coordinates free in theirs. `None`
+/// when a fixed coordinate lies outside its declared range by more than the point tolerance or
+/// when the slice holds no point of the relations.
+fn measure_slice(
+    region: &Region,
+    point: &[f64],
+    unresolved: &[usize],
+    lp: LpOptions,
+) -> Result<Option<Region>, E> {
+    let tolerance = point_tolerance(point, lp);
+    let mut lower = region.lower.clone();
+    let mut upper = region.upper.clone();
+    for j in (0..region.dimension()).filter(|j| !unresolved.contains(j)) {
+        let value = point[j];
+        if value < region.lower[j] - tolerance || value > region.upper[j] + tolerance {
+            return Ok(None);
+        }
+        let fixed = value.clamp(region.lower[j], region.upper[j]);
+        lower[j] = fixed;
+        upper[j] = fixed;
+    }
+    let slice = Region {
+        rows: region.rows.clone(),
+        lower,
+        upper,
+        cancellation: region.cancellation.clone(),
+    };
+    Ok(slice.feasible(&[], lp)?.is_some().then_some(slice))
+}
+
+/// Whether reading `point` as a measure point with the parameters `unresolved` left open
+/// accepts it: with nothing unresolved, the point lies in the declared ranges and linear
+/// relations within the point tolerance; otherwise some value of the unresolved parameters in
+/// their declared ranges completes it to such a point. This is the check a measure over the set
+/// passes when it is read, so a learner that keeps only accepted points produces a measure the
+/// evaluation accepts. A point of the wrong length or with a non-finite coordinate is not
+/// accepted.
+///
+/// # Errors
+/// A refusal of the slice's linear program.
+pub(crate) fn measure_point_accepted(
+    set: &PreferenceSet,
+    point: &[f64],
+    unresolved: &[usize],
+    lp: LpOptions,
+) -> Result<bool, PreferenceDecisionError> {
+    if point.len() != set.dimension() || point.iter().any(|v| !v.is_finite()) {
+        return Ok(false);
+    }
+    if unresolved.is_empty() {
+        return Ok(set.contains(point, point_tolerance(point, lp)));
+    }
+    Ok(measure_slice(&Region::of(set), point, unresolved, lp)?.is_some())
+}
+
+/// A point of the declared ranges cut by the linear relations of `set`, from the linear program
+/// this route reads every set with, or `None` when the ranges and relations admit no point.
+/// Value relations are not read.
+///
+/// # Errors
+/// A refusal of the linear program.
+pub(crate) fn linear_set_point(
+    set: &PreferenceSet,
+    lp: LpOptions,
+) -> Result<Option<Vec<f64>>, PreferenceDecisionError> {
+    Region::of(set).feasible(&[], lp)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1631,6 +1692,8 @@ struct Analysis {
     share: Vec<Option<f64>>,
     measure_value: Vec<Option<f64>>,
     unresolved_share: Option<f64>,
+    /// Margins within this distance of zero count as ties (see `Prepared::tie_tolerance`).
+    tolerance: f64,
 }
 
 /// How each admissible action stands against its rivals over the whole region, read from the
@@ -1687,6 +1750,13 @@ impl Standing {
     }
 }
 
+/// Bound on the floating error of a weighted sum of `n` terms whose weighted magnitudes sum to
+/// `magnitude`: `2 (n + 1) eps magnitude`.
+#[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^53")]
+fn summation_rounding(n: usize, magnitude: f64) -> f64 {
+    2.0 * (n as f64 + 1.0) * f64::EPSILON * magnitude
+}
+
 /// The unique best index by `score`, or every index within `tolerance` of the best.
 fn pick(
     active: &[usize],
@@ -1722,6 +1792,10 @@ struct SourceFacts {
     exclusions: Vec<Vec<ConstraintExclusion>>,
     receipt: SourceReceipt,
     n_draws: usize,
+    /// Bound on the floating error of any action's expected value at a point of the declared
+    /// box: `2 (n + 1) eps` times the expectation of the parts' magnitudes over the draws
+    /// (`n = 1` for a mean source).
+    rounding: f64,
 }
 
 enum AtomFacts {
@@ -1831,8 +1905,9 @@ fn agreed(evaluated: &[Evaluated<'_>], order: &[String]) -> Option<PreferenceVer
 /// Ranges over structures: lowest of the lows and highest of the highs. The standing of each
 /// action is read from the combined margins, so an action is never beaten (uniquely best,
 /// dominated by a rival) across structures exactly when it is in every structure.
-fn combine_invariant(analyses: &[&Analysis], admissible: &[bool], tolerance: f64) -> Analysis {
+fn combine_invariant(analyses: &[&Analysis], admissible: &[bool], declared: f64) -> Analysis {
     let n = admissible.len();
+    let tolerance = analyses.iter().map(|a| a.tolerance).fold(declared, f64::max);
     let mut value = vec![None; n];
     let mut margins = MarginTable::new(n);
     let mut possibly = vec![Some(false); n];
@@ -1889,6 +1964,7 @@ fn combine_invariant(analyses: &[&Analysis], admissible: &[bool], tolerance: f64
         share: vec![None; n],
         measure_value: vec![None; n],
         unresolved_share: None,
+        tolerance,
     }
 }
 
@@ -2052,11 +2128,14 @@ impl<'a> Prepared<'a> {
     fn draw_facts(&self, source: &DistributionArtifact) -> Result<SourceFacts, E> {
         let draws = utility_draws(&self.terms, source).map_err(E::Eval)?;
         let k = self.parts();
+        let reach = self.part_reach();
         let mut coefficients = Vec::with_capacity(self.contract.actions.len());
         let mut terms = Vec::with_capacity(self.contract.actions.len());
+        let mut magnitude = 0.0_f64;
         for (a, action) in self.contract.actions.iter().enumerate() {
             let mut row = Vec::with_capacity(k);
             let mut parts = Vec::with_capacity(k);
+            let mut own = 0.0;
             for j in 0..k {
                 let values: Vec<f64> =
                     draws.utilities[a * k + j].iter().map(|v| self.sign * v).collect();
@@ -2064,12 +2143,16 @@ impl<'a> Prepared<'a> {
                 if !mean.is_finite() {
                     return Err(E::NonFiniteCoefficient { action: action.id.clone() });
                 }
+                own += reach[j]
+                    * values.iter().zip(&draws.weights).map(|(v, w)| v.abs() * w).sum::<f64>();
                 row.push(mean);
                 parts.push(values);
             }
+            magnitude = magnitude.max(own);
             coefficients.push(row);
             terms.push(parts);
         }
+        let rounding = summation_rounding(draws.weights.len(), magnitude);
         let (admissible, exclusions) = if self.contract.constraints.is_empty() {
             let n = self.contract.actions.len();
             (vec![true; n], vec![Vec::new(); n])
@@ -2090,7 +2173,55 @@ impl<'a> Prepared<'a> {
                 causal_contract_id: identity.causal_contract_id.clone(),
             },
             n_draws: draws.weights.len(),
+            rounding,
         })
+    }
+
+    /// `reach[0] = 1` for the fixed part and `reach[j + 1]` the largest magnitude of parameter
+    /// `j` over its declared range: the factor each part's magnitude is multiplied by in an
+    /// action's value at a point of the declared box.
+    fn part_reach(&self) -> Vec<f64> {
+        std::iter::once(1.0)
+            .chain(
+                self.region.lower.iter().zip(&self.region.upper).map(|(l, u)| l.abs().max(u.abs())),
+            )
+            .collect()
+    }
+
+    /// The largest `sum_j |c_j| reach_j` over coefficient rows: a bound on the magnitude of an
+    /// action's value at a point of the declared box.
+    fn coefficient_magnitude<'r>(&self, rows: impl IntoIterator<Item = &'r Vec<f64>>) -> f64 {
+        let reach = self.part_reach();
+        rows.into_iter()
+            .map(|row| row.iter().zip(&reach).map(|(c, r)| c.abs() * r).sum::<f64>())
+            .fold(0.0_f64, f64::max)
+    }
+
+    /// Margins within this distance of zero count as ties: the declared tie tolerance, or the
+    /// numerical error bound of a margin when it is larger. The bound is the rounding of two
+    /// actions' expected values (`rounding` each) plus the error of a margin read at a
+    /// linear-program point that may lie up to the feasibility tolerance outside the set and short
+    /// of optimal by the optimality tolerance: `(feasibility + optimality)` times twice the
+    /// largest `sum_j |c_aj| (1 + max(|lower_j|, |upper_j|))` over admissible pieces. Both terms
+    /// scale with the coefficients and the parameter ranges, so a verdict at a large utility
+    /// scale does not rest on differences below the precision the margins are computed with.
+    fn tie_tolerance(&self, pieces: &[Vec<Vec<f64>>], admissible: &[bool], rounding: f64) -> f64 {
+        let lp = self.options.lp;
+        let reach = self.part_reach();
+        let slope = pieces
+            .iter()
+            .zip(admissible)
+            .filter(|(_, admitted)| **admitted)
+            .flat_map(|(own, _)| own.iter())
+            .map(|f| f[1..].iter().zip(&reach[1..]).map(|(c, r)| c.abs() * (1.0 + r)).sum::<f64>())
+            .fold(0.0_f64, f64::max);
+        let program = (lp.feasibility_tolerance + lp.optimality_tolerance) * 2.0 * slope;
+        let numerical = 2.0 * rounding + program;
+        if numerical.is_finite() {
+            self.options.tie_tolerance.max(numerical)
+        } else {
+            self.options.tie_tolerance
+        }
     }
 
     fn mean_facts(&self, source: &MeanSource) -> Result<SourceFacts, E> {
@@ -2106,13 +2237,16 @@ impl<'a> Prepared<'a> {
         }
         let result = evaluate_contract_on_means(&self.terms, source).map_err(E::Eval)?;
         let k = self.parts();
+        let reach = self.part_reach();
         let mut coefficients = Vec::with_capacity(self.contract.actions.len());
+        let mut magnitude = 0.0_f64;
         for (a, action) in self.contract.actions.iter().enumerate() {
             let row: Vec<f64> =
                 (0..k).map(|j| self.sign * result.actions[a * k + j].expected_utility).collect();
             if row.iter().any(|v| !v.is_finite()) {
                 return Err(E::NonFiniteCoefficient { action: action.id.clone() });
             }
+            magnitude = magnitude.max(row.iter().zip(&reach).map(|(c, r)| c.abs() * r).sum());
             coefficients.push(row);
         }
         let (admissible, exclusions) = if self.contract.constraints.is_empty() {
@@ -2129,6 +2263,7 @@ impl<'a> Prepared<'a> {
             exclusions,
             receipt: result.source,
             n_draws: 0,
+            rounding: summation_rounding(1, magnitude),
         })
     }
 
@@ -2156,7 +2291,7 @@ impl<'a> Prepared<'a> {
     ) -> Result<(PreferenceDecisionResult, Analysis), E> {
         let pieces: Vec<Vec<Vec<f64>>> =
             facts.coefficients.iter().map(|c| vec![c.clone()]).collect();
-        let analysis = self.analyse(&pieces, admissible)?;
+        let analysis = self.analyse(&pieces, admissible, facts.rounding)?;
         let mut result = self.assemble(Assembly {
             analysis: &analysis,
             admissible,
@@ -2171,10 +2306,15 @@ impl<'a> Prepared<'a> {
     }
 
     /// Analyse scores `g_a = min over pieces[a]` of affine functions over the region.
-    fn analyse(&self, pieces: &[Vec<Vec<f64>>], admissible: &[bool]) -> Result<Analysis, E> {
+    fn analyse(
+        &self,
+        pieces: &[Vec<Vec<f64>>],
+        admissible: &[bool],
+        rounding: f64,
+    ) -> Result<Analysis, E> {
         let n = pieces.len();
         let lp = self.options.lp;
-        let tolerance = self.options.tie_tolerance;
+        let tolerance = self.tie_tolerance(pieces, admissible, rounding);
         let active: Vec<usize> = (0..n).filter(|&a| admissible[a]).collect();
         let mut value = vec![None; n];
         for &a in &active {
@@ -2213,7 +2353,7 @@ impl<'a> Prepared<'a> {
         }
         let (share, measure_value, unresolved_share) = match &self.measure {
             None => (vec![None; n], vec![None; n], None),
-            Some(measure) => self.measure_summary(measure, pieces, &active)?,
+            Some(measure) => self.measure_summary(measure, pieces, &active, tolerance)?,
         };
         Ok(Analysis {
             value,
@@ -2224,6 +2364,7 @@ impl<'a> Prepared<'a> {
             share,
             measure_value,
             unresolved_share,
+            tolerance,
         })
     }
 
@@ -2278,9 +2419,9 @@ impl<'a> Prepared<'a> {
         measure: &PreparedMeasure,
         pieces: &[Vec<Vec<f64>>],
         active: &[usize],
+        tolerance: f64,
     ) -> Result<(Vec<Option<f64>>, Vec<Option<f64>>, Option<f64>), E> {
         let n = pieces.len();
-        let tolerance = self.options.tie_tolerance;
         let mut share = vec![0.0; n];
         let mut totals = vec![0.0; n];
         let mut unresolved = 0.0;
@@ -2394,7 +2535,7 @@ impl<'a> Prepared<'a> {
             list.into_iter().map(|a| self.contract.actions[a].id.clone()).collect()
         };
         let id = |a: usize| self.contract.actions[a].id.clone();
-        let tolerance = self.options.tie_tolerance;
+        let tolerance = analysis.tolerance;
         let active: Vec<usize> = (0..admissible.len()).filter(|&a| admissible[a]).collect();
         if active.is_empty() {
             return PreferenceVerdict::NoAdmissibleAction;
@@ -2513,7 +2654,7 @@ impl<'a> Prepared<'a> {
     fn assemble(&self, parts: Assembly<'_>) -> PreferenceDecisionResult {
         let Assembly { analysis, admissible, exclusions, coefficients, pieces, source, n_draws } =
             parts;
-        let tolerance = self.options.tie_tolerance;
+        let tolerance = analysis.tolerance;
         let n = admissible.len();
         let actions = self
             .contract
@@ -2628,7 +2769,15 @@ impl<'a> Prepared<'a> {
                     }
                 }
                 let pieces: Vec<Vec<Vec<f64>>> = mixture.iter().map(|c| vec![c.clone()]).collect();
-                let analysis = self.analyse(&pieces, admissible)?;
+                // The mixture adds one product and one sum per structure to each coefficient.
+                let rounding = evaluated.iter().map(|e| e.facts.rounding).fold(0.0, f64::max)
+                    + summation_rounding(
+                        evaluated.len(),
+                        self.coefficient_magnitude(
+                            evaluated.iter().flat_map(|e| e.facts.coefficients.iter()),
+                        ),
+                    );
+                let analysis = self.analyse(&pieces, admissible, rounding)?;
                 let result = self.assemble(Assembly {
                     analysis: &analysis,
                     admissible,
@@ -2662,7 +2811,8 @@ impl<'a> Prepared<'a> {
                             .collect::<Vec<_>>()
                     })
                     .collect();
-                let analysis = self.analyse(&pieces, admissible)?;
+                let rounding = evaluated.iter().map(|e| e.facts.rounding).fold(0.0, f64::max);
+                let analysis = self.analyse(&pieces, admissible, rounding)?;
                 let result = self.assemble(Assembly {
                     analysis: &analysis,
                     admissible,

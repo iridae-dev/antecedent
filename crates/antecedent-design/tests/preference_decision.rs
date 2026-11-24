@@ -974,3 +974,32 @@ fn statements_never_call_a_range_or_share_a_probability() {
         }
     }
 }
+
+#[test]
+fn a_margin_below_the_rounding_of_large_expected_values_is_a_tie() {
+    // E[benefit | A] = 1e9 + 2.5 exactly; B's fixed benefit lies four representable steps above
+    // it, far below the rounding of expected values of this size.
+    let value = P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1)));
+    let decide = |mean_of_a: [f64; 4], fixed_b: f64| {
+        let model = model_with(vec![parameter("w", 0.0, 1.0)], value.clone());
+        let mut contract = contract_for(
+            model,
+            &["A", "B"],
+            "outcome",
+            PreferencePolicy::RequireInvariantBestAction,
+        );
+        contract.actions[1].inputs[0] =
+            ActionInput::Fixed { value: fixed_b, units: "events".into() };
+        let arms = vec![vec![mean_of_a.to_vec(), vec![1.0; 4]], vec![vec![0.0; 4], vec![1.0; 4]]];
+        let source = law(&contract.model, &arms, None);
+        evaluate_preference_contract(&contract, &source, None, options()).unwrap()
+    };
+    let mean: f64 = 1e9 + 2.5;
+    let above = mean.next_up().next_up().next_up().next_up();
+    let large = decide([1e9 + 1.0, 1e9 + 2.0, 1e9 + 3.0, 1e9 + 4.0], above);
+    assert_eq!(large.verdict, PreferenceVerdict::Tied(vec!["A".into(), "B".into()]));
+    assert!(large.actions.iter().all(|a| !a.uniquely_best && a.dominated_by.is_empty()));
+    // The same lead at unit scale is a lead.
+    let unit = decide([1.0, 2.0, 3.0, 4.0], 2.5 + 1e-6);
+    assert_eq!(unit.verdict, PreferenceVerdict::NecessarilyBest("B".into()));
+}

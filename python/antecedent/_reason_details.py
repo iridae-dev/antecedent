@@ -13,10 +13,12 @@ class accepted_preferences:  # noqa: N801
     ACKNOWLEDGE_REPEATED: Final = "accepted_preferences.acknowledge_repeated"
     CHOICES_CONTRADICTORY: Final = "accepted_preferences.choices_contradictory"
     DECIDER_UNKNOWN: Final = "accepted_preferences.decider_unknown"
+    DECLARATION_NOT_KEPT: Final = "accepted_preferences.declaration_not_kept"
     MODEL_MISMATCH: Final = "accepted_preferences.model_mismatch"
     NOT_PENDING: Final = "accepted_preferences.not_pending"
     OPTIONS_MISMATCH: Final = "accepted_preferences.options_mismatch"
     POOLED_NOT_AVAILABLE: Final = "accepted_preferences.pooled_not_available"
+    RECORDS_MISMATCH: Final = "accepted_preferences.records_mismatch"
     SET_UNDETERMINED: Final = "accepted_preferences.set_undetermined"
     VERSION_EXHAUSTED: Final = "accepted_preferences.version_exhausted"
     VERSION_INVALID: Final = "accepted_preferences.version_invalid"
@@ -2386,11 +2388,14 @@ class preference_choice_model:  # noqa: N801
     SHAPE_NOT_IDENTIFIED: Final = "preference_choice_model.shape_not_identified"
     SHAPE_SEARCH_BUDGET: Final = "preference_choice_model.shape_search_budget"
     STATED_AND_RECORDED_MIXED: Final = "preference_choice_model.stated_and_recorded_mixed"
+    TOO_FEW_DECIDERS_TO_CLUSTER: Final = "preference_choice_model.too_few_deciders_to_cluster"
     UNIT_OF_ACCOUNT_MISSING: Final = "preference_choice_model.unit_of_account_missing"
 
 
 class preference_compile:  # noqa: N801
+    ANALYSIS_REFUSED: Final = "preference_compile.analysis_refused"
     ATOM_KIND_NOT_COMPILED: Final = "preference_compile.atom_kind_not_compiled"
+    CANCELLED: Final = "preference_compile.cancelled"
     CLASS_COMPLETIONS_TRUNCATED: Final = "preference_compile.class_completions_truncated"
     CLASS_PRIOR_KEYS_MISMATCH: Final = "preference_compile.class_prior_keys_mismatch"
     CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: Final = (
@@ -2402,9 +2407,12 @@ class preference_compile:  # noqa: N801
     DESIGN_NOT_SUPPORTED: Final = "preference_compile.design_not_supported"
     DESIGN_SAMPLING_UNDECLARED: Final = "preference_compile.design_sampling_undeclared"
     DESIGN_UNITS_TOO_FEW: Final = "preference_compile.design_units_too_few"
+    EXECUTED_PROGRAM_MISMATCH: Final = "preference_compile.executed_program_mismatch"
     PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
+    SAMPLED_MIXTURE_NOT_EXACT: Final = "preference_compile.sampled_mixture_not_exact"
     STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
     UNIT_KEY_INVALID: Final = "preference_compile.unit_key_invalid"
+    UNIT_LABEL_TYPES_DIFFER: Final = "preference_compile.unit_label_types_differ"
 
 
 class preference_contract:  # noqa: N801
@@ -3765,10 +3773,12 @@ ALL: Final[tuple[str, ...]] = (
     "accepted_preferences.acknowledge_repeated",
     "accepted_preferences.choices_contradictory",
     "accepted_preferences.decider_unknown",
+    "accepted_preferences.declaration_not_kept",
     "accepted_preferences.model_mismatch",
     "accepted_preferences.not_pending",
     "accepted_preferences.options_mismatch",
     "accepted_preferences.pooled_not_available",
+    "accepted_preferences.records_mismatch",
     "accepted_preferences.set_undetermined",
     "accepted_preferences.version_exhausted",
     "accepted_preferences.version_invalid",
@@ -5620,8 +5630,11 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.shape_not_identified",
     "preference_choice_model.shape_search_budget",
     "preference_choice_model.stated_and_recorded_mixed",
+    "preference_choice_model.too_few_deciders_to_cluster",
     "preference_choice_model.unit_of_account_missing",
+    "preference_compile.analysis_refused",
     "preference_compile.atom_kind_not_compiled",
+    "preference_compile.cancelled",
     "preference_compile.class_completions_truncated",
     "preference_compile.class_prior_keys_mismatch",
     "preference_compile.class_prior_sampling_needs_uniform",
@@ -5631,9 +5644,12 @@ ALL: Final[tuple[str, ...]] = (
     "preference_compile.design_not_supported",
     "preference_compile.design_sampling_undeclared",
     "preference_compile.design_units_too_few",
+    "preference_compile.executed_program_mismatch",
     "preference_compile.program_carries_decision",
+    "preference_compile.sampled_mixture_not_exact",
     "preference_compile.studies_share_evidence",
     "preference_compile.unit_key_invalid",
+    "preference_compile.unit_label_types_differ",
     "preference_contract.action_duplicate",
     "preference_contract.action_id_blank",
     "preference_contract.action_without_quantity",
@@ -6740,10 +6756,12 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "accepted_preferences.acknowledge_repeated": ("invalid_argument",),
     "accepted_preferences.choices_contradictory": ("decision_contract_unsatisfied",),
     "accepted_preferences.decider_unknown": ("invalid_argument",),
+    "accepted_preferences.declaration_not_kept": ("decision_contract_unsatisfied",),
     "accepted_preferences.model_mismatch": ("decision_contract_unsatisfied",),
     "accepted_preferences.not_pending": ("invalid_argument",),
     "accepted_preferences.options_mismatch": ("decision_contract_unsatisfied",),
     "accepted_preferences.pooled_not_available": ("invalid_argument",),
+    "accepted_preferences.records_mismatch": ("decision_contract_unsatisfied",),
     "accepted_preferences.set_undetermined": ("decision_contract_unsatisfied",),
     "accepted_preferences.version_exhausted": ("invalid_argument",),
     "accepted_preferences.version_invalid": ("invalid_argument",),
@@ -8658,8 +8676,24 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_choice_model.shape_not_identified": ("design_rank_deficient",),
     "preference_choice_model.shape_search_budget": ("invalid_argument",),
     "preference_choice_model.stated_and_recorded_mixed": ("route_not_supported",),
+    "preference_choice_model.too_few_deciders_to_cluster": (
+        "uncertainty_representation_insufficient",
+    ),
     "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
+    "preference_compile.analysis_refused": (
+        "effect_not_identified",
+        "route_not_supported",
+        "invalid_argument",
+        "schema_mismatch",
+        "unknown_variable",
+        "required_option_missing",
+        "glm_fit_refused",
+        "design_rank_deficient",
+        "too_few_clusters",
+        "execution_resource_limit",
+    ),
     "preference_compile.atom_kind_not_compiled": ("route_not_supported",),
+    "preference_compile.cancelled": ("cancelled_no_claim",),
     "preference_compile.class_completions_truncated": ("route_not_supported",),
     "preference_compile.class_prior_keys_mismatch": ("invalid_argument",),
     "preference_compile.class_prior_sampling_needs_uniform": ("invalid_argument",),
@@ -8669,9 +8703,12 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_compile.design_not_supported": ("route_not_supported",),
     "preference_compile.design_sampling_undeclared": ("joint_law_required",),
     "preference_compile.design_units_too_few": ("too_few_clusters",),
+    "preference_compile.executed_program_mismatch": ("route_not_lowered",),
     "preference_compile.program_carries_decision": ("invalid_argument",),
+    "preference_compile.sampled_mixture_not_exact": ("route_not_supported",),
     "preference_compile.studies_share_evidence": ("evidence_double_counted",),
     "preference_compile.unit_key_invalid": ("invalid_argument",),
+    "preference_compile.unit_label_types_differ": ("evidence_overlap_unknown",),
     "preference_contract.action_duplicate": ("invalid_argument",),
     "preference_contract.action_id_blank": ("invalid_argument",),
     "preference_contract.action_without_quantity": ("invalid_argument",),

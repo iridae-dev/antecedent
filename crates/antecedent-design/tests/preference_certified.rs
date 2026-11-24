@@ -20,8 +20,8 @@ use antecedent_design::preference_contract::{
 };
 use antecedent_design::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use antecedent_design::preference_model::{
-    Attribute, LinearRelation, PreferenceExpr as P, PreferenceParameter, PreferenceSet,
-    RelationOrigin, RelationSense, ValueModel,
+    Attribute, BeliefRows, LinearRelation, PreferenceExpr as P, PreferenceParameter, PreferenceSet,
+    RelationOrigin, RelationSense, ValueModel, ValueRelation,
 };
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -1157,4 +1157,276 @@ fn the_remaining_detail_ids_are_stable() {
     for (error, detail) in cases {
         assert_eq!(error.detail(), detail);
     }
+}
+
+// -------------------------------------------------------------------------------------------
+// The set must hold a point before anything is chosen over it
+// -------------------------------------------------------------------------------------------
+
+/// `value = x0 + t x1` with `A` paying 10 and `B` nothing on `x0`, so `A` leads everywhere, under
+/// the median (a criterion only the certified route answers).
+fn dominated_contract(relations: Vec<LinearRelation>) -> PreferenceContract {
+    let value = P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1)));
+    contract(
+        model(2, vec![parameter("t", 0.0, 1.0)], relations, value),
+        vec![action("A", vec![q("a"), fixed(1.0)]), action("B", vec![q("b"), fixed(1.0)])],
+        DecisionCriterion::Quantile { p: 0.5 },
+        PreferencePolicy::RequireInvariantBestAction,
+    )
+}
+
+fn dominated_law() -> DistributionArtifact {
+    law(&["a", "b"], &[&[10.0, 0.0], &[10.0, 0.0]], None)
+}
+
+#[test]
+fn relations_that_conflict_only_jointly_are_an_empty_set() {
+    // Each relation alone keeps part of [0, 1]; together they keep nothing, yet no box is ever
+    // proven outside one relation by its own enclosure.
+    let contract = dominated_contract(vec![
+        relation("high", vec![(0, 1.0)], RelationSense::AtLeast, 0.6),
+        relation("low", vec![(0, 1.0)], RelationSense::AtMost, 0.4),
+    ]);
+    let error =
+        evaluate_preference_certified(&contract, &dominated_law(), None, budget(64)).unwrap_err();
+    assert_eq!(error, E::EmptyPreferenceSet);
+    // The relations conflict wherever they sit relative to the other.
+    let swapped = dominated_contract(vec![
+        relation("low", vec![(0, 1.0)], RelationSense::AtMost, 0.4),
+        relation("high", vec![(0, 1.0)], RelationSense::AtLeast, 0.6),
+    ]);
+    assert_eq!(
+        evaluate_preference_certified(&swapped, &dominated_law(), None, budget(64)).unwrap_err(),
+        E::EmptyPreferenceSet
+    );
+}
+
+#[test]
+fn a_gap_narrower_than_the_smallest_box_is_an_empty_set() {
+    // `t >= 0.5 + 1e-7` and `t <= 0.5`: no box of the subdivision is narrower than the gap.
+    let contract = dominated_contract(vec![
+        relation("above", vec![(0, 1.0)], RelationSense::AtLeast, 0.5 + 1e-7),
+        relation("below", vec![(0, 1.0)], RelationSense::AtMost, 0.5),
+    ]);
+    let options =
+        CertifiedOptions { max_boxes: 4096, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
+    let error =
+        evaluate_preference_certified(&contract, &dominated_law(), None, options).unwrap_err();
+    assert_eq!(error, E::EmptyPreferenceSet);
+    // Relations that touch leave a point, and the dominant action is chosen there.
+    let touching = dominated_contract(vec![
+        relation("above", vec![(0, 1.0)], RelationSense::AtLeast, 0.5),
+        relation("below", vec![(0, 1.0)], RelationSense::AtMost, 0.5),
+    ]);
+    let result = evaluate_preference_certified(&touching, &dominated_law(), None, options).unwrap();
+    assert_eq!(result.verdict, CertifiedVerdict::NecessarilyBest("A".into()));
+}
+
+/// `value = x0 - s x1` with value relations `s >= low` and `s <= high`: a recorded choice of a
+/// zero bundle over `(low, 1)` and of `(high, 1)` over a zero bundle.
+fn value_relation_contract(low: f64, high: f64) -> PreferenceContract {
+    let rows = |x0: f64, x1: f64| BeliefRows { rows: vec![x0, x1], weights: vec![1.0] };
+    let relation = |id: &str, chosen: BeliefRows, rejected: BeliefRows| ValueRelation {
+        id: id.into(),
+        origin: RelationOrigin::Choice { record_id: id.into(), rejected_option: "other".into() },
+        chosen,
+        rejected,
+        tolerance: 0.0,
+    };
+    let preferences = PreferenceSet {
+        parameters: vec![parameter("s", 0.0, 1.0)],
+        relations: vec![],
+        value_relations: vec![
+            relation("at-least", rows(0.0, 0.0), rows(low, 1.0)),
+            relation("at-most", rows(high, 1.0), rows(0.0, 0.0)),
+        ],
+    };
+    let model = ValueModel {
+        attributes: (0..2)
+            .map(|k| Attribute { id: format!("x{k}"), units: UNITS.into() })
+            .collect(),
+        preferences,
+        value: P::difference(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1))),
+        utility_units: UNITS.into(),
+    };
+    contract(
+        model,
+        vec![action("A", vec![q("a"), fixed(0.0)]), action("B", vec![q("b"), fixed(0.0)])],
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::RequireInvariantBestAction,
+    )
+}
+
+#[test]
+fn value_relations_that_leave_no_point_choose_nothing() {
+    // `s >= 0.5 + 1e-8` and `s <= 0.5`: the boxes next to 0.5 stay undecided against both
+    // relations down to the smallest width and are kept, but no point satisfies both.
+    let options =
+        CertifiedOptions { max_boxes: 4096, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
+    let conflicting = value_relation_contract(0.5 + 1e-8, 0.5);
+    let result =
+        evaluate_preference_certified(&conflicting, &dominated_law(), None, options).unwrap();
+    assert!(result.regions.iter().all(|r| r.touches_relation_boundary));
+    let CertifiedVerdict::Undetermined { candidates, .. } = &result.verdict else {
+        panic!("{:?}", result.verdict)
+    };
+    assert_eq!(candidates, &vec!["A".to_owned()]);
+    for policy in [PreferencePolicy::Maximin, PreferencePolicy::MinimaxRegret] {
+        let mut contract = conflicting.clone();
+        contract.preference_policy = policy;
+        let result =
+            evaluate_preference_certified(&contract, &dominated_law(), None, options).unwrap();
+        assert!(matches!(result.verdict, CertifiedVerdict::Undetermined { .. }), "{policy:?}");
+    }
+    // Relations that leave `[0.4, 0.6]` hold a box wholly inside, so the choice stands.
+    let open = value_relation_contract(0.4, 0.6);
+    let result = evaluate_preference_certified(&open, &dominated_law(), None, options).unwrap();
+    assert_eq!(result.verdict, CertifiedVerdict::NecessarilyBest("A".into()));
+}
+
+// -------------------------------------------------------------------------------------------
+// Equality relations
+// -------------------------------------------------------------------------------------------
+
+#[test]
+fn an_equality_relation_gives_the_verdict_of_the_reduced_model() {
+    // `a + b = 1` with value `a x0 + b x1`: A pays x0 and leads iff a > 1/2.
+    let equality = two_weight_contract(vec![relation(
+        "budget",
+        vec![(0, 1.0), (1, 1.0)],
+        RelationSense::Equal,
+        1.0,
+    )]);
+    // The same set with `b = 1 - a` substituted: value `x1 + a (x0 - x1)`.
+    let reduced = contract(
+        model(
+            2,
+            vec![parameter("a", 0.0, 1.0)],
+            vec![],
+            P::sum(
+                P::Attribute(1),
+                P::product(P::Parameter(0), P::difference(P::Attribute(0), P::Attribute(1))),
+            ),
+        ),
+        vec![action("A", vec![q("one"), fixed(0.0)]), action("B", vec![fixed(0.0), q("one")])],
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::RequireInvariantBestAction,
+    );
+    let source = law(&["one"], &[&[1.0]], None);
+    let solved = evaluate_preference_certified(&equality, &source, None, budget(257)).unwrap();
+    let direct = evaluate_preference_certified(&reduced, &source, None, budget(257)).unwrap();
+    let dependent =
+        CertifiedVerdict::PreferenceDependent { certified_somewhere: vec!["A".into(), "B".into()] };
+    assert_eq!(direct.verdict, dependent);
+    assert_eq!(solved.verdict, dependent);
+    assert!(solved.regions.iter().any(|r| !r.touches_relation_boundary));
+    // Each action is best on half of the set in both readings.
+    for result in [&solved, &direct] {
+        let a = outcome(result, "A").best_fraction;
+        assert!(a <= 0.5 + 1e-12 && a >= 0.5 - result.undecided_fraction - 1e-12, "{a}");
+    }
+    // Every reported box keeps both coordinates in their declared ranges and on the equality.
+    for region in &solved.regions {
+        for j in 0..2 {
+            assert!(region.lower[j] >= 0.0 && region.upper[j] <= 1.0, "{region:?}");
+        }
+        assert!(region.lower[0] + region.upper[1] <= 1.0 + 1e-12);
+        assert!(region.upper[0] + region.lower[1] >= 1.0 - 1e-12);
+    }
+    let points: Vec<Vec<f64>> =
+        (0..=200).map(|i| f64::from(i) / 200.0).map(|a| vec![a, 1.0 - a]).collect();
+    assert!(assert_sound(&equality, &source, &solved, &points) > 0);
+}
+
+// -------------------------------------------------------------------------------------------
+// Ties at a large utility scale
+// -------------------------------------------------------------------------------------------
+
+#[test]
+fn a_measure_lead_below_the_rounding_of_large_scores_is_a_tie() {
+    // E[a] = 1e9 + 2.5 exactly; B's fixed value lies four representable steps above it, far
+    // below the rounding of scores of this size.
+    let mean: f64 = 1e9 + 2.5;
+    let above = mean.next_up().next_up().next_up().next_up();
+    let value = P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1)));
+    let weighted = contract(
+        model(2, vec![parameter("t", 0.0, 1.0)], vec![], value),
+        vec![action("A", vec![q("a"), q("ones")]), action("B", vec![fixed(above), q("ones")])],
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::Weighted,
+    );
+    let source = law(
+        &["a", "ones"],
+        &[&[1e9 + 1.0, 1.0], &[1e9 + 2.0, 1.0], &[1e9 + 3.0, 1.0], &[1e9 + 4.0, 1.0]],
+        None,
+    );
+    let measure = PreferenceMeasure {
+        points: vec![vec![0.5]],
+        weights: None,
+        labels: None,
+        origin: MeasureOrigin::Declared { assumption_id: "panel-view".into() },
+        unresolved: vec![],
+    };
+    let result =
+        evaluate_preference_certified(&weighted, &source, Some(&measure), budget(8)).unwrap();
+    assert!(
+        matches!(&result.verdict, CertifiedVerdict::Undetermined { candidates, .. }
+            if candidates == &vec!["A".to_owned(), "B".to_owned()]),
+        "{:?}",
+        result.verdict
+    );
+    assert_eq!(outcome(&result, "B").measure_share, Some(0.0));
+    // The same lead at unit scale is a lead.
+    let small = contract(
+        model(
+            2,
+            vec![parameter("t", 0.0, 1.0)],
+            vec![],
+            P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1))),
+        ),
+        vec![action("A", vec![q("a"), q("ones")]), action("B", vec![fixed(2.5 + 1e-6), q("ones")])],
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::Weighted,
+    );
+    let unit = law(&["a", "ones"], &[&[1.0, 1.0], &[2.0, 1.0], &[3.0, 1.0], &[4.0, 1.0]], None);
+    let result = evaluate_preference_certified(&small, &unit, Some(&measure), budget(8)).unwrap();
+    assert_eq!(result.verdict, CertifiedVerdict::MeasureChoice { action: "B".into(), share: 1.0 });
+}
+
+// -------------------------------------------------------------------------------------------
+// Measure choices across structures
+// -------------------------------------------------------------------------------------------
+
+#[test]
+fn an_invariant_measure_choice_reports_the_smallest_share_over_structures() {
+    // Under structure one A leads at w = 0.2 and 0.5 (share 0.5); under the other A leads at
+    // every point (share 1).
+    let mut contract = affine_contract(
+        2.0,
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::Weighted,
+    );
+    contract.structural_policy = StructuralPolicy::RequireInvariantBestAction;
+    let measure = PreferenceMeasure {
+        points: vec![vec![0.2], vec![0.5], vec![1.8]],
+        weights: Some(vec![1.0, 1.0, 2.0]),
+        labels: None,
+        origin: MeasureOrigin::Declared { assumption_id: "panel-view".into() },
+        unresolved: vec![],
+    };
+    let leading = law(&["a_gain", "a_cost", "b_gain", "b_cost"], &[&[20.0, 1.0, 6.0, 1.0]], None);
+    let atoms = vec![
+        atom("leading", None, evaluated(leading)),
+        atom("split", None, evaluated(affine_law())),
+    ];
+    let result =
+        evaluate_preference_certified_structural(&contract, &atoms, Some(&measure), budget(8))
+            .unwrap();
+    let StructuralCertifiedVerdict::Combined(CertifiedVerdict::MeasureChoice { action, share }) =
+        &result.verdict
+    else {
+        panic!("{:?}", result.verdict)
+    };
+    assert_eq!(action, "A");
+    assert!((share - 0.5).abs() < 1e-12, "{share}");
 }

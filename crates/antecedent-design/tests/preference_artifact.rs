@@ -354,7 +354,8 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
     let mut edited = (**set).clone();
     edited.ranges[0].learned.1 += 0.5;
-    let edited = AcceptedPreferences::from_compatible_set(&model, edited, tolerant(), 0).unwrap();
+    let edited =
+        AcceptedPreferences::from_compatible_set(&model, edited, tolerant(), &records).unwrap();
     let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
     assert_eq!(error, E::ReplayMismatch { field: "ranges" });
     assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_MISMATCH);
@@ -370,15 +371,15 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
     let mut edited = (**estimate).clone();
     edited.consistency *= 1.01;
-    let edited = AcceptedPreferences::from_estimate(&model, edited, quick(), 0).unwrap();
+    let edited = AcceptedPreferences::from_estimate(&model, edited, quick(), &records).unwrap();
     let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
     assert_eq!(error, E::ReplayMismatch { field: "consistency" });
 
-    // A stated count the records do not reproduce.
-    let miscounted =
-        AcceptedPreferences::from_estimate(&model, (**estimate).clone(), quick(), 3).unwrap();
-    let error = AcceptedPreferencesArtifact::new(miscounted).replay(&records).unwrap_err();
-    assert_eq!(error, E::ReplayMismatch { field: "stated_comparisons" });
+    // The stated count is read from the records an estimate was made from, so an estimate is
+    // accepted only with those records.
+    let error = AcceptedPreferences::from_estimate(&model, (**estimate).clone(), quick(), &changed)
+        .unwrap_err();
+    assert!(matches!(error, AcceptedPreferencesError::RecordsMismatch { .. }), "{error:?}");
 }
 
 #[test]

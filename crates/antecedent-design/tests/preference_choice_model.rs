@@ -373,7 +373,8 @@ fn a_term_that_never_differs_is_not_learnable_and_unresolved() {
         shared: &[1],
     };
     let mut model = fixed_weight_model();
-    // Ignored: it touches the unresolved parameter, whose placeholder midpoint violates it.
+    // Read through the slice of each draw: some per_harm in its range satisfies it, although the
+    // placeholder midpoint does not.
     model.preferences.relations.push(LinearRelation {
         id: "net_benefit_non_negative".to_owned(),
         terms: vec![(1, 1.0), (2, 1.0)],
@@ -746,13 +747,16 @@ fn fit_budget_covariance_and_declared_set_refusals() {
         reason_details::preference_choice_model::NOT_CONVERGED
     );
 
-    // Two clusters' scores sum to the zero gradient, so the sandwich has rank one.
+    // Two clusters' scores sum to the zero gradient, so the sandwich has rank one: too few
+    // deciders to cluster two coefficients.
     let two_deciders = record_set(&model, simulated, pooled());
     assert_eq!(
         estimate_choice_model(&model, &two_deciders, quick()).unwrap_err(),
-        ChoiceModelError::CovarianceNotPositiveDefinite {
+        ChoiceModelError::TooFewDecidersToCluster {
             decider: None,
-            kind: CovarianceKind::ClusteredByDecider,
+            deciders: 2,
+            coefficients: 2,
+            required: 5,
         }
     );
 
@@ -875,4 +879,93 @@ fn stated_and_recorded_choices_are_never_fitted_together() {
     let recorded_only = record_set(&model, recorded, pooled());
     let estimate = pooled_estimate(estimate_choice_model(&model, &recorded_only, quick()).unwrap());
     assert!(!estimate.assumptions.iter().any(|a| a == "assumption.stated_reflects_acted"));
+}
+
+#[test]
+fn the_covariance_is_clustered_only_with_enough_deciders() {
+    // Two coefficients (consistency and one rate) need at least 2 * 2 + 1 = 5 deciders.
+    let value = |x: &[f64]| 4.0 * x[0] - x[1];
+    let simulation = one_rate_simulation(&value);
+    let model = one_rate_model(0.0, 50.0);
+    let fit_with = |deciders: usize| {
+        let simulated = simulate(&simulation, &mut Xorshift::new(41), 600, "r", &|r| {
+            format!("d{}", r % deciders)
+        });
+        estimate_choice_model(&model, &record_set(&model, simulated, pooled()), quick())
+    };
+    for deciders in [2, 3, 4] {
+        let error = fit_with(deciders).unwrap_err();
+        assert_eq!(
+            error,
+            ChoiceModelError::TooFewDecidersToCluster {
+                decider: None,
+                deciders,
+                coefficients: 2,
+                required: 5,
+            }
+        );
+        assert_eq!(
+            error.detail(),
+            reason_details::preference_choice_model::TOO_FEW_DECIDERS_TO_CLUSTER
+        );
+    }
+    for deciders in [5, 12] {
+        let estimate = pooled_estimate(fit_with(deciders).unwrap());
+        assert_eq!(estimate.covariance_kind, CovarianceKind::ClusteredByDecider);
+        assert_eq!(estimate.n_deciders, deciders);
+    }
+    // One decider's records are read with the model covariance.
+    let single_decider = simulate(&simulation, &mut Xorshift::new(41), 600, "r", &single);
+    let estimate = pooled_estimate(
+        estimate_choice_model(&model, &record_set(&model, single_decider, pooled()), quick())
+            .unwrap(),
+    );
+    assert_eq!(estimate.covariance_kind, CovarianceKind::Model);
+}
+
+#[test]
+fn draws_are_kept_only_where_the_unresolved_parameters_can_complete_them() {
+    // `per_harm` never differs within a record, so it is unresolved; `per_benefit +
+    // per_harm >= 1.5` with `per_harm <= 1` needs `per_benefit >= 0.5`, and the estimate of
+    // `per_benefit` sits near 0.5.
+    let value = |x: &[f64]| 0.5 * x[0] - x[2];
+    let simulation = Simulation {
+        scales: &[4.0, 2.0, 2.0],
+        value: &value,
+        lambda: 1.0,
+        n_options: 3,
+        shared: &[1],
+    };
+    let mut model = model(
+        three_attributes(),
+        vec![
+            parameter("cost_weight", -1.0, -1.0),
+            parameter("per_benefit", 0.0, 1.0),
+            parameter("per_harm", 0.0, 1.0),
+        ],
+        add(
+            add(mul(E::Parameter(0), E::Attribute(2)), mul(E::Parameter(1), E::Attribute(0))),
+            mul(E::Parameter(2), E::Attribute(1)),
+        ),
+    );
+    model.preferences.relations.push(LinearRelation {
+        id: "joint_floor".to_owned(),
+        terms: vec![(1, 1.0), (2, 1.0)],
+        sense: RelationSense::AtLeast,
+        bound: 1.5,
+        origin: RelationOrigin::Declared,
+    });
+    let records = record_set(
+        &model,
+        simulate(&simulation, &mut Xorshift::new(23), 300, "r", &single),
+        pooled(),
+    );
+    let estimate = pooled_estimate(estimate_choice_model(&model, &records, quick()).unwrap());
+    assert_eq!(estimate.measure.unresolved, vec![2]);
+    assert!(!estimate.measure.points.is_empty());
+    assert!(estimate.measure.points.iter().all(|p| p[1] >= 0.5 - 1e-9));
+    // Every draw below 0.5 is counted as drawn outside the declared set.
+    assert!(estimate.share_outside_declared > 0.1, "{}", estimate.share_outside_declared);
+    // The evaluation that reads the measure accepts every kept point.
+    estimate.measure.validate(&model.preferences).unwrap();
 }

@@ -30,6 +30,12 @@ codes = ["invalid_argument"]
 meaning = "The named decider has no outcome in the records; name a decider the records hold."
 
 [[detail]]
+id = "accepted_preferences.declaration_not_kept"
+family = "accepted_preferences"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The learned set drops or changes a declared parameter, range, linear relation or value relation, or an estimate's entries name other parameters or ranges; accept preferences learned under the declared model."
+
+[[detail]]
 id = "accepted_preferences.model_mismatch"
 family = "accepted_preferences"
 codes = ["decision_contract_unsatisfied"]
@@ -52,6 +58,12 @@ id = "accepted_preferences.pooled_not_available"
 family = "accepted_preferences"
 codes = ["invalid_argument"]
 meaning = "No decider is named but the records are read per decider; name the decider whose preferences to accept."
+
+[[detail]]
+id = "accepted_preferences.records_mismatch"
+family = "accepted_preferences"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The records supplied with the learned preferences are not the ones they were learned from (the digests differ); supply the records the set or estimate was learned from."
 
 [[detail]]
 id = "accepted_preferences.set_undetermined"
@@ -11058,6 +11070,12 @@ codes = ["route_not_supported"]
 meaning = "One fit would mix stated comparisons with recorded choices, which do not share a noise scale; fit them separately or use the compatible-set method."
 
 [[detail]]
+id = "preference_choice_model.too_few_deciders_to_cluster"
+family = "preference_choice_model"
+codes = ["uncertainty_representation_insufficient"]
+meaning = "The records come from more than one but fewer than 2q+1 decision-makers, too few to cluster the covariance of q coefficients; the model covariance is not substituted. Record choices from more decision-makers or from one."
+
+[[detail]]
 id = "preference_choice_model.unit_of_account_missing"
 family = "preference_choice_model"
 codes = ["design_rank_deficient"]
@@ -11628,10 +11646,22 @@ codes = ["invalid_argument"]
 meaning = "The tolerance of a value relation is negative or not finite; supply a finite, non-negative tolerance."
 
 [[detail]]
+id = "preference_compile.analysis_refused"
+family = "preference_compile"
+codes = ["effect_not_identified", "route_not_supported", "invalid_argument", "schema_mismatch", "unknown_variable", "required_option_missing", "glm_fit_refused", "design_rank_deficient", "too_few_clusters", "execution_resource_limit"]
+meaning = "The study or design behind a compiled preference decision refused while compiling or fitting the decision's plans; the message names the analysis error and the code is that error's own."
+
+[[detail]]
 id = "preference_compile.atom_kind_not_compiled"
 family = "preference_compile"
 codes = ["route_not_supported"]
 meaning = "A graph posterior's atoms are of a kind the single-graph compiler cannot compile for the bound query (lagged temporal atoms, or a structure its route does not support); the refusal names the kind."
+
+[[detail]]
+id = "preference_compile.cancelled"
+family = "preference_compile"
+codes = ["cancelled_no_claim"]
+meaning = "Compiling or executing a compiled preference decision was cancelled; nothing is fitted or decided and the stop is not a verdict."
 
 [[detail]]
 id = "preference_compile.class_completions_truncated"
@@ -11688,10 +11718,22 @@ codes = ["too_few_clusters"]
 meaning = "The design has too few independent units for an independent-unit bootstrap law: it needs at least 30 clusters in each arm, 30 matched pairs or 30 switchback sequences."
 
 [[detail]]
+id = "preference_compile.executed_program_mismatch"
+family = "preference_compile"
+codes = ["route_not_lowered"]
+meaning = "An executed result reports a lowered program identity other than the decision program its compiled plan states; execute the compiled decision's own prepared studies."
+
+[[detail]]
 id = "preference_compile.program_carries_decision"
 family = "preference_compile"
 codes = ["invalid_argument"]
 meaning = "The compiled program already carries a decision in layer four; compile the design again before attaching another."
+
+[[detail]]
+id = "preference_compile.sampled_mixture_not_exact"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "A mixture whose class members were sampled was read under a structural policy other than report-only; a sample supports no minimum and no verdict over every member, so report the sampled shares or enumerate the class."
 
 [[detail]]
 id = "preference_compile.studies_share_evidence"
@@ -11704,6 +11746,12 @@ id = "preference_compile.unit_key_invalid"
 family = "preference_compile"
 codes = ["invalid_argument"]
 meaning = "A study's unit key column is its treatment or its outcome; a key names the units the rows observe, so name a column that identifies them."
+
+[[detail]]
+id = "preference_compile.unit_label_types_differ"
+family = "preference_compile"
+codes = ["evidence_overlap_unknown"]
+meaning = "Two studies keyed in one identifier space carry unit labels of different types, so their units cannot be compared; key both studies by labels of one type."
 
 [[detail]]
 id = "preference_set_learning.cancelled"
