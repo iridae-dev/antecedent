@@ -89,6 +89,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "antecedent-design"
+version = "3.0.0"
+dependencies = [
+ "antecedent-contract",
+ "antecedent-core",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-io-core",
+ "antecedent-kernels",
+ "antecedent-prob",
+ "antecedent-stats",
+ "ciborium",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "antecedent-discovery"
 version = "3.0.0"
 dependencies = [

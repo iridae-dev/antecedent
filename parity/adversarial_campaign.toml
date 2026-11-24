@@ -208,6 +208,18 @@ runner = "rust"
 test = "value_encoding_is_injective"
 
 [[cases]]
+id = "identity_sites.graph_exhaustive_three_nodes_dag"
+kind = "bound"
+runner = "rust"
+test = "graph_identity_exhaustive_three_nodes_dag"
+
+[[cases]]
+id = "identity_sites.graph_exhaustive_three_nodes_admg"
+kind = "bound"
+runner = "rust"
+test = "graph_identity_exhaustive_three_nodes_admg"
+
+[[cases]]
 id = "identity_sites.dag_dense_order_bound"
 kind = "bound"
 runner = "kani"

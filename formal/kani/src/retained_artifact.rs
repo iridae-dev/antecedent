@@ -28,6 +28,13 @@ fn facet_digest_any(_bound: &BoundIdentity) -> SemanticDigest {
     any_digest()
 }
 
+/// The refusal message is formatted text no property reads; formatting it makes CBMC model the
+/// allocator and the formatting machinery for hours. The stub returns an empty message, so the
+/// proof covers the refusal's code and the control flow, not its wording.
+fn format_nothing(_arguments: std::fmt::Arguments<'_>) -> String {
+    String::new()
+}
+
 /// The artifact slot binds exactly when the presented digest equals the retained one, for every
 /// pair of digests.
 #[kani::proof]
@@ -45,6 +52,7 @@ fn artifact_binds_only_the_retained_digest() {
 #[kani::proof]
 #[kani::stub(antecedent_io_core::retained_artifact::artifact_identity, artifact_identity_any)]
 #[kani::stub(antecedent_io_core::bound_identity::facet_digest, facet_digest_any)]
+#[kani::stub(std::fmt::format, format_nothing)]
 #[kani::unwind(33)]
 fn loader_runs_only_after_binding() {
     let bytes: [u8; 4] = kani::any();

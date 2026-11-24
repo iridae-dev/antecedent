@@ -777,6 +777,7 @@ trusted = [
     "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of bind_artifact_identity and load_expecting",
     "the Kani stubs of artifact_identity and facet_digest are arbitrary values, so no property of BLAKE3 is used",
     "BLAKE3-256 equality of the recomputed artifact digest is artifact equality (collision resistance), as for every other identity",
+    "loader_runs_only_after_binding stubs std::fmt::format with an empty message: the proof covers the refusal's code and control flow, not the wording of its message",
 ]
 limitations = [
     "That every listed bound form is load_expecting around its loader, or binds before it reads, is checked structurally by scripts/check_retained_artifact_loaders.py, not machine-checked; six io-core loaders are also exercised against the real digest by the adversarial campaign (production_loaders_bind_the_retained_bytes) and every loader file carries a unit test of its bound forms.",

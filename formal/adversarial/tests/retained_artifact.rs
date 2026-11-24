@@ -130,10 +130,9 @@ proptest! {
             Ok(())
         });
         prop_assert!(!read, "the loader read bytes that are not the retained artifact");
-        prop_assert!(matches!(
-            outcome,
-            Err(IoError::Refused { code: "external_binding_mismatch", .. })
-        ));
+        let refused =
+            matches!(outcome, Err(IoError::Refused { code: "external_binding_mismatch", .. }));
+        prop_assert!(refused, "other bytes are refused as external_binding_mismatch");
     }
 
     /// Each production loader's bound form, given the identity of the bytes, returns what the

@@ -86,7 +86,11 @@ pub fn multiset_laws<T: Clone + Debug + PartialEq, I: PartialEq + Debug>(
     identity: impl Fn(&[T]) -> Option<I>,
 ) -> TestCaseResult {
     let base = skip_if_refused(identity(items))?;
-    prop_assert_eq!(&base, &skip_if_refused(identity(shuffled))?, "a reordering changed a multiset");
+    prop_assert_eq!(
+        &base,
+        &skip_if_refused(identity(shuffled))?,
+        "a reordering changed a multiset"
+    );
     if let Some(first) = items.first() {
         let mut repeated = items.to_vec();
         repeated.push(first.clone());

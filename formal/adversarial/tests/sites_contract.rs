@@ -494,10 +494,13 @@ mod callback {
             identity(&declaration)
         });
         let levels: Vec<String> = ["high", "low", "mid"].map(String::from).to_vec();
+        // An output is never categorical; an input may be, and its levels are the set.
         check_canonical_set(&levels, |listed| {
             let mut declaration = gaussian();
-            declaration.support = SupportDomain::Categorical { levels: listed.to_vec() };
-            declaration.quantity.units = "category".into();
+            let mut categorical = input("group");
+            categorical.support = SupportDomain::Categorical { levels: listed.to_vec() };
+            categorical.quantity.units = "category".into();
+            declaration.inputs = vec![categorical];
             identity(&declaration)
         });
     }
