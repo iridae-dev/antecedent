@@ -1,0 +1,31 @@
+feature_id = "transport.trial_aipw_caller_learners"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled trial-to-target AIPW transport fitted with caller-supplied learners
+# (crates/antecedent/src/analysis/compiled_trial_aipw_learners.rs). The route decides the
+# transport by sID, binds the diagram, query, options, declared learners and rows into a lowered
+# program and evaluates the cross-fitted augmented inverse-odds score of the learned trial route
+# (provenance/transport.learned_continuous_trial.toml) through
+# estimate_trial_aipw_with_factories, with the caller's factories in place of the library
+# learners; it adds no estimator of its own.
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population (Dahabreh, Robertson, Steingrimsson, Stuart, Hernan, 2020)", sections = ["Section 5.3, equation (4): doubly robust estimator DR1 (augmented inverse odds weighting)"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)", sections = ["Section 3.1, Definition 3.1: cross-fitting with a K-fold partition"] },
+]
+
+implementation_deviations = [
+  "The source outcome regression and the source membership probability are fitted by caller factories the library does not verify; the estimate records them as unverified (external_nuisances_unverified) and keeps each fold model's provenance.",
+  "Caller learners run without joint outer bootstrap replicates: the route is point-only, calibration is reported as not_measured, and the run carries the calibration label of the declared learners, so the learned_trial_aipw coverage records measured with the library learners never annotate it.",
+  "The certificate, feature, row, randomization, sampling and fold refusals are those of the library-learner route and are decided before any learner is fitted.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs (with the library learners handed over as caller factories, the compiled contrast on a noise-free trial is exactly the planted 2 and equals the library-learner route; the twin of the direct factory entry)",
+  "crates/antecedent-estimate/src/learned_trial.rs (caller_factories_match_trial_nuisances_and_are_marked_unverified)",
+]
