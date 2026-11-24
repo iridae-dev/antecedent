@@ -280,3 +280,49 @@ fn an_empirical_table_at_the_law_returns_the_enumerated_point_with_a_nominal_int
         assert!(upper - lower < 0.1, "10 000 units give a narrow interval");
     }
 }
+
+#[test]
+fn a_posterior_interval_on_an_empirical_table_at_the_law_keeps_the_enumerated_point() {
+    // The posterior interval replaces only the interval: the point is still the plug-in
+    // evaluation of the frozen formula, which equals the enumerated truth on a table at the law.
+    let joint = source_joint();
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "a probability in [0, 1] scaled by 10 000 and rounded to a count"
+    )]
+    let counts: Vec<u64> = joint.iter().map(|p| (p * 10_000.0).round() as u64).collect();
+    let frequencies: Vec<f64> = counts.iter().map(|count| *count as f64 / 10_000.0).collect();
+    let ctx = ExecutionContext::for_tests(5);
+    for provider in [
+        antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
+        antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet,
+    ] {
+        for x in [false, true] {
+            let prepared = StudyBuilder::z_transport_empirical(
+                diagram(),
+                functional(),
+                law(frequencies.clone(), Some(counts.clone())),
+                Assignment::from_pairs([(X, Value::Bool(x))]),
+                ExactEvaluationLimits::default(),
+                &ctx,
+            )
+            .unwrap();
+            let result = prepared.estimate_bayesian(provider, 399, &ctx).unwrap();
+            let risk = y_risk(&result);
+            assert!(
+                (risk - truth(x)).abs() < 1e-12,
+                "posterior-route P*(Y=1 | do(X={x})) = {risk}"
+            );
+            assert_eq!(
+                result.interval_reason(),
+                antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED
+            );
+            let (outcome, lower, upper) = result.mean_intervals()[0];
+            assert_eq!(outcome, Y);
+            let target = truth(x);
+            assert!(lower <= target && target <= upper, "[{lower}, {upper}] around {target}");
+            assert!(upper - lower < 0.1, "10 000 units give a narrow posterior interval");
+        }
+    }
+}
