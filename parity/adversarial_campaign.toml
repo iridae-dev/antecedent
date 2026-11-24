@@ -39,6 +39,12 @@ command = ["lake", "build"]
 directory = "."
 command = ["bash", "-c", "bash formal/rust/extract.sh && cd formal/rust && lake build"]
 
+# The in-crate site tests of the facade crate (unit tests named `site_*`): the compiled
+# surface's program identities and question digests are private, so no public crate reaches them.
+[runners.facade]
+directory = "."
+command = ["cargo", "test", "-p", "antecedent", "--lib", "--no-fail-fast", "--", "site_"]
+
 [[cases]]
 id = "identity.permutation_keeps_digest"
 kind = "preserving"

@@ -119,7 +119,10 @@ def check(root: Path = REPO_ROOT) -> int:
     for error in errors:
         print(f"identity_sites: {error}", file=sys.stderr)
     if not errors:
-        print(f"identity_sites: {len(_load(root)[0]['sites'])} sites resolve")
+        sites = _load(root)[0]["sites"]
+        checked = sum(site["status"] == "checked" for site in sites)
+        print(f"identity_sites: {len(sites)} sites resolve; {checked} checked "
+              f"({100 * checked // len(sites)}%), {len(sites) - checked} listed")
     return 1 if errors else 0
 
 

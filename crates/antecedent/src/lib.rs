@@ -288,4 +288,6 @@ pub use support::{
 // `antecedent::identify`, `antecedent::review`, `antecedent::validate`, `antecedent::planner`.
 
 #[cfg(test)]
+pub(crate) mod identity_laws;
+#[cfg(test)]
 mod tests;
