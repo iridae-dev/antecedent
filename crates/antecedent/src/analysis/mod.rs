@@ -290,6 +290,7 @@ mod transport_scenarios;
 pub mod transport_sensitivity;
 pub mod transported_cohort;
 pub mod transported_constructors;
+pub mod compiled_local_cyclic;
 pub mod compiled_transported_counterfactual;
 pub mod transported_counterfactual;
 pub mod transported_measurement;

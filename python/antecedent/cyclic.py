@@ -2454,6 +2454,11 @@ class LocalCyclicModel:
         Initialization is numerical. It supplies neither uniqueness nor an
         equilibrium selection law, and no probabilistic root selection is made.
         Rust checks residuals, derivative shapes, cancellation and call budgets.
+
+        Each mechanism runs as a declared runtime callback through the compiled
+        ``LocalCyclicCallback`` program, gated on the ``cyclic.general_systems``
+        support unit; the program commits to the callbacks' declarations, never
+        their code.
         """
         assert execution is not None
         limits = _limits(execution)
