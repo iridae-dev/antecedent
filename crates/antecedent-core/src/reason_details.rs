@@ -1883,6 +1883,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_compile.design_sampling_undeclared",
     "preference_compile.design_units_too_few",
     "preference_compile.executed_program_mismatch",
+    "preference_compile.ordinary_measure_not_read",
+    "preference_compile.ordinary_structures_not_compiled",
     "preference_compile.program_carries_decision",
     "preference_compile.sampled_mixture_not_exact",
     "preference_compile.studies_share_evidence",
@@ -1903,6 +1905,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_contract.fixed_input_non_finite",
     "preference_contract.fixed_units_mismatch",
     "preference_contract.input_count_mismatch",
+    "preference_contract.no_ordinary_form",
     "preference_contract.not_lowerable",
     "preference_contract.parameter_count_mismatch",
     "preference_contract.parameter_non_finite",
@@ -4868,6 +4871,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_compile.design_sampling_undeclared", &["joint_law_required"]),
     ("preference_compile.design_units_too_few", &["too_few_clusters"]),
     ("preference_compile.executed_program_mismatch", &["route_not_lowered"]),
+    ("preference_compile.ordinary_measure_not_read", &["option_not_applicable"]),
+    ("preference_compile.ordinary_structures_not_compiled", &["route_not_supported"]),
     ("preference_compile.program_carries_decision", &["invalid_argument"]),
     ("preference_compile.sampled_mixture_not_exact", &["route_not_supported"]),
     ("preference_compile.studies_share_evidence", &["evidence_double_counted"]),
@@ -4888,6 +4893,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_contract.fixed_input_non_finite", &["invalid_argument"]),
     ("preference_contract.fixed_units_mismatch", &["quantity_semantics_mismatch"]),
     ("preference_contract.input_count_mismatch", &["invalid_argument"]),
+    ("preference_contract.no_ordinary_form", &["route_not_supported"]),
     ("preference_contract.not_lowerable", &["route_not_supported"]),
     ("preference_contract.parameter_count_mismatch", &["invalid_argument"]),
     ("preference_contract.parameter_non_finite", &["invalid_argument"]),
@@ -10271,6 +10277,10 @@ pub mod preference_compile {
     pub const DESIGN_UNITS_TOO_FEW: &str = "preference_compile.design_units_too_few";
     /// Detail `preference_compile.executed_program_mismatch`.
     pub const EXECUTED_PROGRAM_MISMATCH: &str = "preference_compile.executed_program_mismatch";
+    /// Detail `preference_compile.ordinary_measure_not_read`.
+    pub const ORDINARY_MEASURE_NOT_READ: &str = "preference_compile.ordinary_measure_not_read";
+    /// Detail `preference_compile.ordinary_structures_not_compiled`.
+    pub const ORDINARY_STRUCTURES_NOT_COMPILED: &str = "preference_compile.ordinary_structures_not_compiled";
     /// Detail `preference_compile.program_carries_decision`.
     pub const PROGRAM_CARRIES_DECISION: &str = "preference_compile.program_carries_decision";
     /// Detail `preference_compile.sampled_mixture_not_exact`.
@@ -10315,6 +10325,8 @@ pub mod preference_contract {
     pub const FIXED_UNITS_MISMATCH: &str = "preference_contract.fixed_units_mismatch";
     /// Detail `preference_contract.input_count_mismatch`.
     pub const INPUT_COUNT_MISMATCH: &str = "preference_contract.input_count_mismatch";
+    /// Detail `preference_contract.no_ordinary_form`.
+    pub const NO_ORDINARY_FORM: &str = "preference_contract.no_ordinary_form";
     /// Detail `preference_contract.not_lowerable`.
     pub const NOT_LOWERABLE: &str = "preference_contract.not_lowerable";
     /// Detail `preference_contract.parameter_count_mismatch`.

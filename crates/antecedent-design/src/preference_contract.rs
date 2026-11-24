@@ -310,6 +310,27 @@ impl PreferenceContract {
         self.ordinary(actions, constraints, self.criterion)
     }
 
+    /// The ordinary [`DecisionContract`] that states this decision, when one exists.
+    ///
+    /// One exists exactly when the value model declares no preference parameter (every
+    /// trade-off is a plain number inside the value) and the value has an ordinary form: it is
+    /// the contract [`Self::bind`] gives at the empty parameter point, so the evaluators of
+    /// ordinary contracts read it unchanged. A named parameter, even one with a single admissible
+    /// value, keeps the decision a decision across a preference set.
+    ///
+    /// # Errors
+    /// An invalid contract; a value model that declares preference parameters
+    /// (`no_ordinary_form`); a value that still holds `Exp` or `Ln` of a quantity attribute
+    /// (`not_lowerable`).
+    pub fn ordinary_contract(&self) -> Result<DecisionContract, PreferenceContractError> {
+        self.validate()?;
+        let parameters = self.model.preferences.dimension();
+        if parameters > 0 {
+            return Err(PreferenceContractError::NoOrdinaryForm { parameters });
+        }
+        self.bind(&[])
+    }
+
     /// Exclusions read from the contract [`Self::bind`] gives, each under the id its constraint
     /// was declared with: a constraint split per action is reported under its own id, not the
     /// `"{constraint}@{action}"` id of its part.
@@ -743,6 +764,16 @@ pub enum PreferenceContractError {
         /// Action id.
         action: String,
     },
+    /// The value model declares preference parameters, so no single ordinary contract states
+    /// the decision.
+    #[error(
+        "the value model declares {parameters} preference parameter(s); an ordinary contract \
+         declares none"
+    )]
+    NoOrdinaryForm {
+        /// Number of declared preference parameters.
+        parameters: usize,
+    },
 }
 
 impl PreferenceContractError {
@@ -807,6 +838,7 @@ impl PreferenceContractError {
                 reason_details::preference_contract::PARAMETER_NON_FINITE
             }
             Self::NotLowerable { .. } => reason_details::preference_contract::NOT_LOWERABLE,
+            Self::NoOrdinaryForm { .. } => reason_details::preference_contract::NO_ORDINARY_FORM,
         }
     }
 }
@@ -930,6 +962,18 @@ impl PreferenceContractError {
             )
             .offending(action.clone())
             .remedy(CERTIFIED_ROUTE)
+            .build(),
+            Self::NoOrdinaryForm { parameters } => refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                DECLARE,
+                self.detail(),
+            )
+            .remedy(
+                "evaluate the contract across its preference set, or state every trade-off as a \
+                 plain number",
+            )
+            .expected("0")
+            .supplied(parameters.to_string())
             .build(),
         }
     }

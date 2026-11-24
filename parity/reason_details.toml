@@ -11184,6 +11184,12 @@ codes = ["invalid_argument"]
 meaning = "An action does not give one input per attribute of the value model; supply one input per attribute."
 
 [[detail]]
+id = "preference_contract.no_ordinary_form"
+family = "preference_contract"
+codes = ["route_not_supported"]
+meaning = "The value model declares preference parameters, so no single ordinary decision contract states the decision; evaluate it across its preference set, or state every trade-off as a plain number."
+
+[[detail]]
 id = "preference_contract.not_lowerable"
 family = "preference_contract"
 codes = ["route_not_supported"]
@@ -11728,6 +11734,18 @@ id = "preference_compile.executed_program_mismatch"
 family = "preference_compile"
 codes = ["route_not_lowered"]
 meaning = "An executed result reports a lowered program identity other than the decision program its compiled plan states; execute the compiled decision's own prepared studies."
+
+[[detail]]
+id = "preference_compile.ordinary_measure_not_read"
+family = "preference_compile"
+codes = ["option_not_applicable"]
+meaning = "A measure over a preference set was given to the execution of a compiled ordinary decision contract, which declares no trade-off parameters for a measure to weigh; execute it without a measure."
+
+[[detail]]
+id = "preference_compile.ordinary_structures_not_compiled"
+family = "preference_compile"
+codes = ["route_not_supported"]
+meaning = "An ordinary decision contract was compiled with a study over a graph posterior; the compiled route decides an ordinary contract on the source of one structure, so compile it with a study of one structure or decide across the structures' responses with the structural decision evaluators."
 
 [[detail]]
 id = "preference_compile.program_carries_decision"

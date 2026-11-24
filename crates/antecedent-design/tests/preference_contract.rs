@@ -540,6 +540,45 @@ fn a_degenerate_contract_with_one_quantity_per_action_binds_and_probes() {
     assert!(close(bound.actions[1].utility.evaluate(&[12.0]).unwrap(), 3.0 - 12.0 - 1.0));
 }
 
+/// The model of [`model_with`] with no preference parameters and no relations.
+fn plain_model(value: P) -> ValueModel {
+    ValueModel { preferences: PreferenceSet::new(vec![], vec![]), ..model_with(value) }
+}
+
+#[test]
+fn an_ordinary_contract_exists_exactly_when_no_trade_off_is_named() {
+    // `2 * benefit - 0.5 * cost`: every trade-off is a plain number.
+    let plain = contract_with(plain_model(P::difference(
+        P::product(P::Const(2.0), shape::rate(0)),
+        P::product(P::Const(0.5), shape::rate(1)),
+    )));
+    let ordinary = plain.ordinary_contract().unwrap();
+    assert_eq!(ordinary.validate(), Ok(()));
+    assert_eq!(Ok(ordinary), plain.bind(&[]));
+
+    // One named trade-off, even with a single admissible value, has no ordinary form.
+    let mut named = plain.clone();
+    named.model.preferences = PreferenceSet::new(vec![parameter("w_benefit", 2.0, 2.0)], vec![]);
+    named.model.value = P::difference(
+        P::product(P::Parameter(0), shape::rate(0)),
+        P::product(P::Const(0.5), shape::rate(1)),
+    );
+    assert_eq!(named.validate(), Ok(()));
+    let refused = named.ordinary_contract().unwrap_err();
+    assert_eq!(refused, E::NoOrdinaryForm { parameters: 1 });
+    assert_eq!(refused.detail(), reason_details::preference_contract::NO_ORDINARY_FORM);
+    assert!(!refused.to_string().is_empty());
+
+    // An exponential of a quantity attribute has no decision-utility form.
+    let curved = contract_with(plain_model(P::difference(
+        P::exp(P::product(P::Const(0.5), P::Attribute(0))),
+        P::Attribute(1),
+    )));
+    let refused = curved.ordinary_contract().unwrap_err();
+    assert_eq!(refused, E::NotLowerable { action: "treat".into() });
+    assert_eq!(refused.detail(), reason_details::preference_contract::NOT_LOWERABLE);
+}
+
 /// Contracts that between them reach every criterion, structural policy, action kind and
 /// expression operator the identity encodes.
 fn identity_cases() -> Vec<PreferenceContract> {

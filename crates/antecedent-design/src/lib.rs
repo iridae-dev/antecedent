@@ -29,6 +29,7 @@ pub mod decision_refusal;
 pub mod decision_reliability;
 pub mod decision_robust_artifact;
 pub mod decision_robustness;
+pub mod decision_standing;
 pub mod decision_structural;
 pub mod decision_structural_artifact;
 pub mod decision_wire;
