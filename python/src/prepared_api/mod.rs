@@ -22,6 +22,7 @@ mod contract;
 mod controls;
 mod execute;
 mod frame;
+mod graph_falsification;
 mod identification;
 mod inspect;
 mod operation_detail;

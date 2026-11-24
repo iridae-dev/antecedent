@@ -22,7 +22,10 @@ fn var_name(names: &[String], id: VariableId) -> String {
     names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("V{}", id.raw()))
 }
 
-fn graph_falsification_json(report: &GraphFalsificationReport, names: &[String]) -> String {
+pub(crate) fn graph_falsification_json(
+    report: &GraphFalsificationReport,
+    names: &[String],
+) -> String {
     let outcome = match report.outcome {
         GraphFalsificationOutcome::Rejected => "rejected",
         GraphFalsificationOutcome::NotRejected => "not_rejected",
@@ -85,6 +88,30 @@ fn graph_falsification_json(report: &GraphFalsificationReport, names: &[String])
     .to_string()
 }
 
+/// The test settings of one falsification, defaults filled in.
+pub(crate) fn falsification_config(
+    ci_test: &str,
+    (alpha, significance): (f64, f64),
+    (n_permutations, min_permutations): (usize, usize),
+    max_equivalent_share: Option<f64>,
+    max_ci_tests: Option<usize>,
+    ci_replicates: u32,
+    permutation_seed: Option<u64>,
+) -> GraphFalsificationConfig {
+    let defaults = GraphFalsificationConfig::default();
+    GraphFalsificationConfig {
+        ci_test: Arc::from(ci_test),
+        alpha,
+        significance,
+        n_permutations,
+        min_permutations,
+        max_equivalent_share,
+        max_ci_tests: max_ci_tests.unwrap_or(defaults.max_ci_tests),
+        ci_replicates,
+        seed: permutation_seed,
+    }
+}
+
 /// Falsify a graph against data by graph-node permutation; returns the report as JSON.
 ///
 /// No fitted mechanisms are involved. This is not the shuffled-outcome likelihood diagnostic.
@@ -114,18 +141,15 @@ fn evaluate_graph_py(
     let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let g = dag_from_named_edges(data.schema(), &edges)?;
-        let defaults = GraphFalsificationConfig::default();
-        let config = GraphFalsificationConfig {
-            ci_test: Arc::from(ci_test),
-            alpha,
-            significance,
-            n_permutations,
-            min_permutations,
+        let config = falsification_config(
+            ci_test,
+            (alpha, significance),
+            (n_permutations, min_permutations),
             max_equivalent_share,
-            max_ci_tests: max_ci_tests.unwrap_or(defaults.max_ci_tests),
+            max_ci_tests,
             ci_replicates,
-            seed: permutation_seed,
-        };
+            permutation_seed,
+        );
         let mut ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         crate::apply_cancel(&mut ctx, cancel);
         let report = facade_evaluate_graph(&g, &data, &config, &ctx).map_err(py_err)?;

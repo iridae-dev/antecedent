@@ -22,6 +22,7 @@ mod decision;
 mod design_based;
 mod discovery;
 pub(crate) mod events;
+pub(crate) mod graph_falsification;
 pub(crate) mod graph_imputation;
 mod graph_posterior;
 pub(crate) mod joint_panel;
