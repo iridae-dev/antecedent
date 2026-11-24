@@ -78,6 +78,23 @@ fn chain_table(n: usize, seed: u64) -> TabularData {
         .unwrap()
 }
 
+/// `z -> y <- t` with independent uniform causes: a collider, so the posterior concentrates on
+/// one graph that is its own Markov equivalence class.
+fn collider_table(n: usize, seed: u64) -> TabularData {
+    let mut rng = CausalRng::from_seed(seed);
+    let mut uniform = || 2.0 * rng.next_f64() - 1.0;
+    let (mut z, mut t, mut y) = (Vec::new(), Vec::new(), Vec::new());
+    for _ in 0..n {
+        let zi = uniform();
+        let ti = uniform();
+        y.push(1.2 * zi + 1.2 * ti + 0.5 * uniform());
+        z.push(zi);
+        t.push(ti);
+    }
+    TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
 fn lag1_series(n: usize, seed: u64) -> TimeSeriesData {
     let mut rng = CausalRng::from_seed(seed);
     let mut normal = || {
@@ -126,6 +143,10 @@ fn temporal_params(max_lag: u32) -> DiscoverParams {
 const SCHEDULE: GraphMcmcSchedule =
     GraphMcmcSchedule { n_chains: 2, n_warmup: 60, n_draws: 200, thin: 1 };
 
+/// Long enough for the convergence gate of structure MCMC on a three-variable collider.
+const GATED_SCHEDULE: GraphMcmcSchedule =
+    GraphMcmcSchedule { n_chains: 4, n_warmup: 1000, n_draws: 4000, thin: 1 };
+
 /// Run a study through the compiler and return its stamped execution.
 fn run(study: &Study) -> CompiledExecution {
     CompiledExecution::run(study, &ctx()).unwrap()
@@ -163,25 +184,15 @@ fn posterior(execution: &CompiledExecution) -> GraphPosterior {
     found
 }
 
-/// The direct sampler's posterior equals the compiled one, or both refuse it: a sampler that
-/// always applies its convergence gate refuses chains that disagree, and the compiled route runs
-/// the same engine.
-fn same_posterior_or_refusal(
-    direct: Result<GraphPosterior, antecedent::CausalError>,
-    study: &Study,
-) {
-    match (direct, CompiledExecution::run(study, &ctx())) {
-        (Ok(direct), Ok(compiled)) => same_posterior(&posterior(&compiled), &direct),
-        (Err(direct), Err(compiled)) => {
-            assert!(direct.to_string().contains("diagnostics gate refused"), "{direct}");
-            assert!(compiled.to_string().contains(&direct.to_string()), "{compiled}");
-        }
-        (direct, compiled) => panic!(
-            "the twins disagree: direct {:?}, compiled {:?}",
-            direct.map(|_| ()),
-            compiled.map(|_| ())
-        ),
-    }
+/// The direct sampler and the compiled route both refuse the posterior, with the engine's gate
+/// refusal: a sampler that always applies its convergence gate refuses chains that disagree, and
+/// the compiled route runs the same engine.
+fn same_refusal(direct: Result<GraphPosterior, antecedent::CausalError>, study: &Study) {
+    let direct = direct.map(|_| ()).expect_err("the direct engine refuses the posterior");
+    let compiled =
+        CompiledExecution::run(study, &ctx()).map(|_| ()).expect_err("the compiled route refuses");
+    assert!(direct.to_string().contains("diagnostics gate refused"), "{direct}");
+    assert!(compiled.to_string().contains(&direct.to_string()), "{compiled}");
 }
 
 fn static_study(data: &TabularData, spec: DiscoverySpec) -> Study {
@@ -404,41 +415,48 @@ fn structure_posteriors_match_their_engines() {
             &direct,
         );
 
-        // Structure MCMC always applies its convergence gate. On this fixture its chains settle
-        // in different orientations of Markov-equivalent complete DAGs, so the engine refuses
-        // the posterior; the compiled route reaches the same engine and refuses it the same way.
-        same_posterior_or_refusal(
-            antecedent::discovery::discover_structure_mcmc(
-                &data,
-                &three(),
-                &params,
-                &SCHEDULE,
-                &ctx(),
-            ),
-            &static_study(&data, DiscoverySpec::structure_mcmc(params.clone(), SCHEDULE)),
+        // Structure MCMC and the CI-screened posterior always apply their convergence gate. On
+        // a collider (its own Markov equivalence class) the chains agree, the gate accepts, and
+        // the compiled routes return the engines' posteriors.
+        let collider = collider_table(300, 5);
+        let direct = antecedent::discovery::discover_structure_mcmc(
+            &collider,
+            &three(),
+            &params,
+            &GATED_SCHEDULE,
+            &ctx(),
+        )
+        .unwrap();
+        same_posterior(
+            &posterior(&run(&static_study(
+                &collider,
+                DiscoverySpec::structure_mcmc(params.clone(), GATED_SCHEDULE),
+            ))),
+            &direct,
         );
-
         let screen = static_params();
-        same_posterior_or_refusal(
-            antecedent::discovery::discover_ci_screened_posterior(
-                &data,
-                &three(),
-                &params,
-                &screen,
-                &SCHEDULE,
-                antecedent::discovery::CiSoftWeight::None,
-                &ctx(),
-            ),
-            &static_study(
-                &data,
+        let direct = antecedent::discovery::discover_ci_screened_posterior(
+            &collider,
+            &three(),
+            &params,
+            &screen,
+            &GATED_SCHEDULE,
+            antecedent::discovery::CiSoftWeight::None,
+            &ctx(),
+        )
+        .unwrap();
+        same_posterior(
+            &posterior(&run(&static_study(
+                &collider,
                 DiscoverySpec::ci_screened_posterior(
                     params.clone(),
                     screen.clone(),
-                    SCHEDULE,
+                    GATED_SCHEDULE,
                     antecedent::discovery::CiSoftWeight::None,
                     "parcorr",
                 ),
-            ),
+            ))),
+            &direct,
         );
 
         // Edge marginals: the exact ones and the screened ones.
@@ -485,6 +503,51 @@ fn structure_posteriors_match_their_engines() {
     });
 }
 
+/// The gated samplers refuse a posterior whose chains disagree, and the compiled routes reach the
+/// same engines and refuse it the same way.
+#[test]
+fn gated_samplers_refuse_like_their_engines() {
+    on_large_stack("twin-gated-refusal", || {
+        let data = chain_table(300, 5);
+        let params = BayesianDiscoverParams::default();
+        // Structure MCMC always applies its convergence gate. On this fixture its chains settle
+        // in different orientations of Markov-equivalent complete DAGs, so the engine refuses
+        // the posterior; the compiled route reaches the same engine and refuses it the same way.
+        same_refusal(
+            antecedent::discovery::discover_structure_mcmc(
+                &data,
+                &three(),
+                &params,
+                &SCHEDULE,
+                &ctx(),
+            ),
+            &static_study(&data, DiscoverySpec::structure_mcmc(params.clone(), SCHEDULE)),
+        );
+
+        let screen = static_params();
+        same_refusal(
+            antecedent::discovery::discover_ci_screened_posterior(
+                &data,
+                &three(),
+                &params,
+                &screen,
+                &SCHEDULE,
+                antecedent::discovery::CiSoftWeight::None,
+                &ctx(),
+            ),
+            &static_study(
+                &data,
+                DiscoverySpec::ci_screened_posterior(
+                    params.clone(),
+                    screen.clone(),
+                    SCHEDULE,
+                    antecedent::discovery::CiSoftWeight::None,
+                    "parcorr",
+                ),
+            ),
+        );
+    });
+}
 #[test]
 fn the_dbn_template_posterior_matches_its_engine() {
     on_large_stack("twin-dbn", || {
