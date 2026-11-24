@@ -246,6 +246,21 @@ impl PreparedExcitationChallenge {
             self.request.tolerance,
         )
     }
+
+    /// Fit the constant-baseline kernel the diagnostic compares.
+    ///
+    /// # Errors
+    /// The optimizer fails, or the fitted kernel is not stable.
+    pub fn kernel(&self, ctx: &ExecutionContext) -> Result<super::ExcitationSubject, EventError> {
+        let scoped = super::scoped_execution(ctx, self.plan.identity(), super::CAPABILITY)?;
+        let mut work = hawkes::Work::new(&scoped);
+        let constant = hawkes::fit(&self.request.history, &self.request.fit, &mut work)?;
+        Ok(super::ExcitationSubject::Catalog {
+            parameters: constant.parameters,
+            history: self.request.history.clone(),
+            column_cap: self.request.fit.column_cap,
+        })
+    }
 }
 
 fn catalog_reading(
@@ -416,6 +431,22 @@ impl PreparedMarkedChallenge {
             self.request.horizon,
             self.request.tolerance,
         )
+    }
+
+    /// Fit the constant-baseline marked kernel the diagnostic compares.
+    ///
+    /// # Errors
+    /// The optimizer fails, or the fitted kernel is not stable.
+    pub fn kernel(&self, ctx: &ExecutionContext) -> Result<super::ExcitationSubject, EventError> {
+        let scoped = super::scoped_execution(ctx, self.plan.identity(), super::CAPABILITY)?;
+        let mut work = hawkes::Work::new(&scoped);
+        let constant = marked::fit(&self.request.history, &self.request.fit, &mut work)?;
+        Ok(super::ExcitationSubject::Marked {
+            parameters: constant.parameters,
+            prototypes: constant.prototypes,
+            history: self.request.history.clone(),
+            reproduction_cap: self.request.fit.reproduction_cap,
+        })
     }
 }
 

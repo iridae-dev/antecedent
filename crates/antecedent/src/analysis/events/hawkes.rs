@@ -320,6 +320,14 @@ impl Likelihood {
     }
 }
 
+pub(super) fn singular_gram(
+    history: &EventHistory,
+    decay: &[f64],
+    work: &mut Work<'_>,
+) -> Result<bool, EventError> {
+    Likelihood::new(history, decay, work)?.weak_information(work)
+}
+
 pub(super) fn log_likelihood(
     history: &EventHistory,
     parameters: &HawkesParameters,

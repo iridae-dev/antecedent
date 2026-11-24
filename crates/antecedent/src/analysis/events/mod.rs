@@ -13,12 +13,14 @@ use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
 
 mod assessment;
 mod challenge;
+mod discovery;
 mod dynamics;
 mod hawkes;
 mod marked;
 mod question;
 mod study;
 
+pub use antecedent_contract::bridge::BridgeContract;
 pub use assessment::{
     CountCoverageCandidate, ForecastAssessment, ForecastAssessmentRequest, ForecastOrigin,
     ForecastScore, PreparedForecastAssessment, PublishedCountInterval, ReliabilityBin,
@@ -41,7 +43,9 @@ pub use marked::{
     PreparedMarkedLikelihood,
 };
 pub use question::{
-    AcceptedExcitation, Continuation, ExcitationSubject, PreparedExcitationQuestion, ReleaseDraw,
+    AcceptedExcitation, Continuation, DeclaredQuantity, ExcitationSubject, ExcludedShock,
+    LagCountQuery, PreparedExcitationQuestion, PreparedShock, ReleaseAction, ReleaseDraw,
+    parameter_bridge,
 };
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,

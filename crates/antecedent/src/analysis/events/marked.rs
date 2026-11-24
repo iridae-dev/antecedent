@@ -655,6 +655,15 @@ fn finish(
     })
 }
 
+pub(super) fn singular_gram(
+    history: &MarkedHistory,
+    decay: &[f64],
+    work: &mut hawkes::Work<'_>,
+) -> Result<bool, EventError> {
+    let likelihood = MarkedLikelihood::new(history, decay, None, work)?;
+    weak_marked(&likelihood, &history.prototypes, false, work)
+}
+
 fn weak_marked(
     likelihood: &MarkedLikelihood,
     prototypes: &[MarkPrototype],
