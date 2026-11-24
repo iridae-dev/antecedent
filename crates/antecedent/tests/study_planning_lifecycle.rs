@@ -8,6 +8,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
+
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
 #[path = "../../antecedent-estimate/tests/common/mixed_fixture.rs"]

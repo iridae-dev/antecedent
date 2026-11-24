@@ -125,6 +125,10 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
 
 /// CUPED covariate residualization with a known-propensity HT contrast.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_cuped_effect(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -149,6 +153,10 @@ fn estimate_cuped_effect(
 
 /// Stratified complete-randomization effect with a conservative variance bound.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_stratified_effect(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -169,6 +177,10 @@ fn estimate_stratified_effect(
 
 /// Exact Bernoulli randomization test of the sharp no-effect null.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn exact_randomization_test(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -190,6 +202,10 @@ fn exact_randomization_test(
 
 /// Horvitz--Thompson switchback ITT with independent-sequence sandwich variance.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_switchback_effect(
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
@@ -220,6 +236,10 @@ fn estimate_switchback_effect(
 
 /// OLS ANCOVA treatment coefficient with an HC0 independent-row sandwich SE.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_ancova_effect(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

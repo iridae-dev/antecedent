@@ -12,6 +12,7 @@
     clippy::type_complexity,
     reason = "mutation tables of boxed closures; bit-exact replay is the property under test"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

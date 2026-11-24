@@ -17,6 +17,10 @@ use antecedent::design::{
 };
 use antecedent::estimate::ExactEvaluationLimits;
 use antecedent::graph::SelectionDiagram;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     ComponentFactorization, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
     ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence,
@@ -262,6 +266,10 @@ impl ZTransportStage {
 
     /// Prepare the exact or empirical plugin point route on the checked proof.
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn prepare(
         &self,
         py: Python<'_>,
@@ -315,6 +323,10 @@ impl ZTransportStage {
     /// Decide the bounded theorem against the actual complete catalog.
     /// A missing experiment is reported separately from a checked obstruction.
     #[pyo3(signature=(catalog, *, max_steps=None, max_depth=None, memory_bytes=None, cancel=None))]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn decide(
         &self,
         py: Python<'_>,
@@ -701,6 +713,10 @@ impl ZTransportProposalStage {
     #[pyo3(signature=(catalog, laws, assignments, provider_snapshot, *, empirical=false,
         max_operations=10_000_000, max_depth=256, max_support_rows=None, memory_bytes=None, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn receive(
         &self,
         py: Python<'_>,
@@ -1255,6 +1271,10 @@ fn consume_z_transport_failure_snapshot(
 #[pyfunction]
 #[pyo3(signature=(graph, selections, source, target, outcomes, treatments, controllable, experiment_assignment, *, max_steps=100_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_z_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,
@@ -1330,6 +1350,10 @@ pub(crate) fn intervention_assignments(
 #[pyfunction]
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalogs, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn decide_two_source_z_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

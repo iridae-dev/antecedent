@@ -275,6 +275,11 @@ path = "antecedent::analysis::sample_split_analysis::SplitDiscovery::outcome"
 disposition = "consume"
 
 [[row]]
+path = "antecedent::analysis::recovery_chain::RecoveryChain::recover"
+disposition = "deprecated"
+replacement = "route:ChainObservationRecovery"
+
+[[row]]
 path = "antecedent::analysis::sample_split_effect::SplitEffect::measure"
 disposition = "deprecated"
 replacement = "route:SampleSplitEffect"
@@ -494,57 +499,57 @@ disposition = "kernel"
 reason = "kernel API; the builder declares the change the compiled GcmAttributeDag change targets run (its query is ChangeAttributionQuery::new, its sampling the ChangeEstimator fields) and calls the same structure_change"
 
 [[row]]
-path = "antecedent_attribution::anomaly::arrow_strengths"
+path = "antecedent::gcm::arrow_strengths"
 disposition = "deprecated"
 replacement = "route:FittedModelAttribution"
 
 [[row]]
-path = "antecedent_attribution::anomaly::population_do_contrast"
+path = "antecedent::gcm::population_do_contrast"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::anomaly::score_anomalies"
+path = "antecedent::gcm::score_anomalies"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::anomaly::score_anomalies_with"
+path = "antecedent::gcm::score_anomalies_with"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::detect_mechanism_changes"
+path = "antecedent::gcm::detect_mechanism_changes"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::distribution_change"
+path = "antecedent::gcm::distribution_change::distribution_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::distribution_change::distribution_change_with_frequency_weights"
+path = "antecedent::gcm::distribution_change::distribution_change_with_frequency_weights"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::distribution_change::distribution_change_with_row_weights"
+path = "antecedent::gcm::distribution_change::distribution_change_with_row_weights"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::distribution_change_robust"
+path = "antecedent::gcm::distribution_change_robust"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::feature_relevance"
+path = "antecedent::gcm::feature_relevance::feature_relevance"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::intrinsic_influence"
+path = "antecedent::gcm::intrinsic_influence::intrinsic_influence"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -553,27 +558,27 @@ path = "antecedent_attribution::intrinsic_influence::intrinsic_influence_with_te
 disposition = "internal"
 
 [[row]]
-path = "antecedent_attribution::path::path_decompose"
+path = "antecedent::gcm::path_decompose"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::root_cause::root_cause_rank"
+path = "antecedent::gcm::root_cause_rank"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::structure_change"
+path = "antecedent::gcm::structure_change::structure_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::structure_change::structure_change_with_refit"
+path = "antecedent::gcm::structure_change::structure_change_with_refit"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent_attribution::unit_change"
+path = "antecedent::gcm::unit_change::unit_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -783,22 +788,22 @@ disposition = "kernel"
 reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect and temporal-counterfactual targets and the compiled Counterfactual query run through this engine (crates/antecedent/src/gcm.rs counterfactual_policy / counterfactual_temporal_policy, crates/antecedent/src/gcm/counterfactual_engine.rs)"
 
 [[row]]
-path = "antecedent_counterfactual::engine::nested_counterfactual"
+path = "antecedent::gcm::nested_counterfactual"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
 [[row]]
-path = "antecedent_counterfactual::engine::nested_counterfactual_with_exo"
+path = "antecedent::gcm::nested_counterfactual_with_exo"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
 [[row]]
-path = "antecedent_counterfactual::engine::nested_hard_counterfactual"
+path = "antecedent::gcm::nested_hard_counterfactual"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
 [[row]]
-path = "antecedent_counterfactual::engine::simultaneous_hard_counterfactual"
+path = "antecedent::gcm::simultaneous_hard_counterfactual"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
@@ -808,7 +813,7 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific"
+path = "antecedent::analysis::transported_counterfactual::evaluate_transported_path_specific"
 disposition = "deprecated"
 replacement = "route:TransportedPathSpecific"
 
@@ -964,17 +969,17 @@ path = "antecedent_design::candidate_generation::verified_unlocks"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::choice_evsi::rank_hierarchical_studies"
+path = "antecedent::analysis::choice_ranking::rank_hierarchical_studies"
 disposition = "deprecated"
 replacement = "route:ChoiceStudyRanking"
 
 [[row]]
-path = "antecedent_design::choice_evsi::rank_studies"
+path = "antecedent::analysis::choice_ranking::rank_studies"
 disposition = "deprecated"
 replacement = "route:ChoiceStudyRanking"
 
 [[row]]
-path = "antecedent_design::choice_evsi::rank_studies_with_context"
+path = "antecedent::analysis::choice_ranking::rank_studies_with_context"
 disposition = "deprecated"
 replacement = "route:ChoiceStudyRanking"
 
@@ -994,12 +999,12 @@ disposition = "not_scientific"
 reason = "composition legality check over declared relations or atoms; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::composition_boundary::evaluate_functional_on_input"
+path = "antecedent::design::composition_boundary::evaluate_functional_on_input"
 disposition = "deprecated"
 replacement = "route:SupportedInputDecision"
 
 [[row]]
-path = "antecedent_design::composition_boundary::evaluate_with_support"
+path = "antecedent::design::composition_boundary::evaluate_with_support"
 disposition = "deprecated"
 replacement = "route:SupportedInputDecision"
 
@@ -1033,42 +1038,42 @@ path = "antecedent_design::composition_verifiers::standard_consumer"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::decision::evaluate_decision"
+path = "antecedent::design::evaluate_decision"
 disposition = "deprecated"
 replacement = "route:FiniteActionDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::adapt_finite_scenarios"
+path = "antecedent::design::decision_adapters::adapt_finite_scenarios"
 disposition = "deprecated"
 replacement = "route:SuppliedClaimDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::adapt_graph_dependent_claims"
+path = "antecedent::design::decision_adapters::adapt_graph_dependent_claims"
 disposition = "deprecated"
 replacement = "route:SuppliedClaimDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::adapt_point_claim"
+path = "antecedent::design::decision_adapters::adapt_point_claim"
 disposition = "deprecated"
 replacement = "route:SuppliedClaimDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::adapt_weighted_graph_atoms"
+path = "antecedent::design::decision_adapters::adapt_weighted_graph_atoms"
 disposition = "deprecated"
 replacement = "route:SuppliedClaimDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::evaluate_adapted"
+path = "antecedent::design::decision_adapters::evaluate_adapted"
 disposition = "deprecated"
 replacement = "route:SuppliedClaimDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::evaluate_identified_sets"
+path = "antecedent::design::decision_adapters::evaluate_identified_sets"
 disposition = "deprecated"
 replacement = "route:IdentifiedSetDecision"
 
 [[row]]
-path = "antecedent_design::decision_adapters::utility_interval"
+path = "antecedent::design::decision_adapters::utility_interval"
 disposition = "deprecated"
 replacement = "route:IdentifiedSetDecision"
 
@@ -1106,17 +1111,17 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::decision_eval::evaluate_contract"
+path = "antecedent::design::decision_eval::evaluate_contract"
 disposition = "deprecated"
 replacement = "route:ContractLawDecision"
 
 [[row]]
-path = "antecedent_design::decision_eval::evaluate_contract_on_means"
+path = "antecedent::design::decision_eval::evaluate_contract_on_means"
 disposition = "deprecated"
 replacement = "route:ContractLawDecision"
 
 [[row]]
-path = "antecedent_design::decision_eval::evaluate_functional"
+path = "antecedent::analysis::inverse_query::evaluate_functional"
 disposition = "deprecated"
 replacement = "route:DecisionFunctionalValue"
 
@@ -1126,7 +1131,7 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::decision_reliability::rank"
+path = "antecedent::design::decision_reliability::rank"
 disposition = "deprecated"
 replacement = "route:DecisionDrawsRanking"
 
@@ -1198,17 +1203,17 @@ disposition = "not_scientific"
 reason = "graph construction helper: adds one latent node per bidirected edge; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::identified_under_intervention"
+path = "antecedent::design::identified_under_intervention"
 disposition = "deprecated"
 replacement = "route:StructureIdentification"
 
 [[row]]
-path = "antecedent_design::inverse_query::evaluate_inverse_query"
+path = "antecedent::analysis::inverse_query::evaluate_inverse_query"
 disposition = "deprecated"
 replacement = "route:InverseQueryDecision"
 
 [[row]]
-path = "antecedent_design::inverse_query::finite_enumeration_baseline"
+path = "antecedent::analysis::inverse_query::finite_enumeration_baseline"
 disposition = "deprecated"
 replacement = "route:InverseQueryDecision"
 
@@ -1218,22 +1223,22 @@ disposition = "not_scientific"
 reason = "graph construction helper: removes the edges an intervention cuts; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::obligation_adapters::identification_failure_obligations"
+path = "antecedent::analysis::repair::identification_failure_obligations"
 disposition = "deprecated"
 replacement = "route:EvidenceObligations"
 
 [[row]]
-path = "antecedent_design::plan_studies"
+path = "antecedent::design::plan_studies"
 disposition = "deprecated"
 replacement = "route:StudyAdditionPlanning"
 
 [[row]]
-path = "antecedent_design::plan_z_transport_evidence"
+path = "antecedent::design::plan_z_transport_evidence"
 disposition = "deprecated"
 replacement = "route:ZTransportEvidencePlanning"
 
 [[row]]
-path = "antecedent_design::prior_signal::adapt_prior_to_signal"
+path = "antecedent::design::prior_signal::adapt_prior_to_signal"
 disposition = "deprecated"
 replacement = "route:PriorSignalAdaptation"
 
@@ -1246,7 +1251,7 @@ path = "antecedent_design::proposal_receipt::verify"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::repair"
+path = "antecedent::design::repair::repair"
 disposition = "deprecated"
 replacement = "route:IdentificationRepair"
 
@@ -1259,22 +1264,22 @@ path = "antecedent_design::sensitivity_decision::contract_from_artifact"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::sensitivity_decision::evaluate_sensitivity_decision"
+path = "antecedent::analysis::sensitivity_decision::evaluate_sensitivity_decision"
 disposition = "deprecated"
 replacement = "route:SensitivityDecision"
 
 [[row]]
-path = "antecedent_design::snapshot_z_transport_failure"
+path = "antecedent::design::snapshot_z_transport_failure"
 disposition = "deprecated"
 replacement = "route:ZTransportEvidencePlanning"
 
 [[row]]
-path = "antecedent_design::structure_identification::identifies"
+path = "antecedent::design::structure_identification::identifies"
 disposition = "deprecated"
 replacement = "route:StructureIdentification"
 
 [[row]]
-path = "antecedent_design::structure_identification::structure_posterior"
+path = "antecedent::design::structure_posterior"
 disposition = "deprecated"
 replacement = "route:StructureIdentification"
 
@@ -1433,7 +1438,7 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_discovery::observed_marginals::signed_uniform_observed_marginals"
+path = "antecedent::discovery::observed_marginals::signed_uniform_observed_marginals"
 disposition = "deprecated"
 replacement = "route:DiscoverStatic"
 
@@ -2034,7 +2039,7 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::ancova::fit_ancova"
+path = "antecedent::estimate::ancova::fit_ancova"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
@@ -2044,17 +2049,17 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::compare_raw_adjusted"
+path = "antecedent::estimate::compare_raw_adjusted"
 disposition = "deprecated"
 replacement = "route:DescriptiveComparison"
 
 [[row]]
-path = "antecedent_estimate::conditional_odds_ratio"
+path = "antecedent::estimate::conditional_odds_ratio"
 disposition = "deprecated"
 replacement = "route:MatchedCaseControl"
 
 [[row]]
-path = "antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior"
+path = "antecedent::estimate::cyclic_likelihood::sample_cyclic_posterior"
 disposition = "deprecated"
 replacement = "route:CyclicFamily"
 
@@ -2064,32 +2069,32 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware"
+path = "antecedent::analysis::dose_grid_functional::estimate_dose_grid_bias_aware"
 disposition = "deprecated"
 replacement = "route:DoseGridBiasAware"
 
 [[row]]
-path = "antecedent_estimate::estimate_interference_with_context"
+path = "antecedent::estimate::estimate_interference_with_context"
 disposition = "deprecated"
 replacement = "route:InterferenceDag"
 
 [[row]]
-path = "antecedent_estimate::estimate_observational_exposure"
+path = "antecedent::estimate::estimate_observational_exposure"
 disposition = "deprecated"
 replacement = "route:InterferenceDag"
 
 [[row]]
-path = "antecedent_estimate::estimate_sampled_recovery"
+path = "antecedent::estimate::estimate_sampled_recovery"
 disposition = "deprecated"
 replacement = "route:SampledObservationRecovery"
 
 [[row]]
-path = "antecedent_estimate::estimate_saturation_interference"
+path = "antecedent::estimate::estimate_saturation_interference"
 disposition = "deprecated"
 replacement = "route:InterferenceDag"
 
 [[row]]
-path = "antecedent_estimate::estimate_smoothed_dose_with_factories"
+path = "antecedent::estimate::estimate_smoothed_dose_with_factories"
 disposition = "deprecated"
 replacement = "route:SmoothedDoseLearnerTransport"
 
@@ -2099,17 +2104,17 @@ disposition = "deprecated"
 replacement = "route:TrialAipwLearnerTransport"
 
 [[row]]
-path = "antecedent_estimate::evaluate_chain_recovery"
+path = "antecedent::analysis::recovery_chain::evaluate_chain_recovery"
 disposition = "deprecated"
 replacement = "route:ChainObservationRecovery"
 
 [[row]]
-path = "antecedent_estimate::external_cyclic_fit::fit_external_feedback"
+path = "antecedent::estimate::external_cyclic_fit::fit_external_feedback"
 disposition = "deprecated"
 replacement = "route:ExternalFeedbackFit"
 
 [[row]]
-path = "antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2"
+path = "antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
@@ -2134,57 +2139,57 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_hybrid_law"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_hybrid_law"
 disposition = "deprecated"
 replacement = "route:JointDesign"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_invariant_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_invariant_law_streamed"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_invariant_law_streamed"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_panel_law"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_panel_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_temporal_law"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_temporal_law_streamed"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_temporal_law_streamed"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_values"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_values"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::decompose_weighted_hybrid_law"
+path = "antecedent::estimate::joint_panel::decomposition::decompose_weighted_hybrid_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::decomposition::propagate_hybrid_covariance"
+path = "antecedent::estimate::joint_panel::decomposition::propagate_hybrid_covariance"
 disposition = "deprecated"
 replacement = "route:JointDesign"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::evaluate_panel_law"
+path = "antecedent::estimate::joint_panel::evaluate_panel_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::evaluate_panel_programs"
+path = "antecedent::estimate::joint_panel::evaluate_panel_programs"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
@@ -2194,42 +2199,42 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::fit_panel"
+path = "antecedent::estimate::joint_panel::fit_panel"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::project_panel_law"
+path = "antecedent::estimate::joint_panel::project_panel_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::project_panel_responses"
+path = "antecedent::estimate::joint_panel::project_panel_responses"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::project_temporal_law"
+path = "antecedent::estimate::joint_panel::project_temporal_law"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics"
+path = "antecedent::estimate::joint_panel::restriction::panel_restriction_diagnostics"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::selection_uncertainty::decomposition_selection"
+path = "antecedent::estimate::joint_panel::selection_uncertainty::decomposition_selection"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::stream_panel_law"
+path = "antecedent::estimate::joint_panel::stream_panel_law"
 disposition = "deprecated"
 replacement = "route:JointPanelResponse"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::stream_temporal_law"
+path = "antecedent::estimate::joint_panel::stream_temporal_law"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
@@ -2239,17 +2244,17 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_law"
+path = "antecedent::estimate::joint_panel::time_varying::evaluate_temporal_law"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::time_varying::evaluate_temporal_programs"
+path = "antecedent::estimate::joint_panel::time_varying::evaluate_temporal_programs"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
 [[row]]
-path = "antecedent_estimate::joint_panel::time_varying::fit_temporal_panel"
+path = "antecedent::estimate::joint_panel::time_varying::fit_temporal_panel"
 disposition = "deprecated"
 replacement = "route:JointPanelTimeVarying"
 
@@ -2274,22 +2279,22 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::measurement::correct_detection_dependent_prevalence"
+path = "antecedent::estimate::measurement::correct_detection_dependent_prevalence"
 disposition = "deprecated"
 replacement = "route:DetectionDependentPrevalenceCorrection"
 
 [[row]]
-path = "antecedent_estimate::measurement::correct_exposure_misclassification"
+path = "antecedent::estimate::measurement::correct_exposure_misclassification"
 disposition = "deprecated"
 replacement = "route:ExposureMisclassificationCorrection"
 
 [[row]]
-path = "antecedent_estimate::measurement::correct_soft_exposure_effect"
+path = "antecedent::estimate::measurement::correct_soft_exposure_effect"
 disposition = "deprecated"
 replacement = "route:SoftExposureCorrection"
 
 [[row]]
-path = "antecedent_estimate::measurement::exposure_routes::fit_repeat_codings"
+path = "antecedent::estimate::measurement::fit_repeat_codings"
 disposition = "deprecated"
 replacement = "route:RepeatCodingsLatentClass"
 
@@ -2299,22 +2304,22 @@ disposition = "not_scientific"
 reason = "measurement-instrument diagnostic: bins stated exposure probabilities against repeat codings and reports the agreement gaps; no effect or prevalence is estimated and nothing is gated on it"
 
 [[row]]
-path = "antecedent_estimate::measurement::impute_exposure"
+path = "antecedent::estimate::measurement::impute_exposure"
 disposition = "deprecated"
 replacement = "route:MeasuredExposureImputation"
 
 [[row]]
-path = "antecedent_estimate::measurement::measured_exposure::pool_measured_effect"
+path = "antecedent::estimate::measurement::pool_measured_effect"
 disposition = "deprecated"
 replacement = "route:MeasuredExposurePooling"
 
 [[row]]
-path = "antecedent_estimate::measurement_transport::transport_measurement_model"
+path = "antecedent::analysis::transported_measurement::transport_measurement_model"
 disposition = "deprecated"
 replacement = "route:MeasurementModelTransport"
 
 [[row]]
-path = "antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence"
+path = "antecedent::analysis::transported_measurement::transport_pooled_differential_prevalence"
 disposition = "deprecated"
 replacement = "route:PooledDifferentialTransport"
 
@@ -2334,22 +2339,22 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_estimate::policy_value::evaluate_binary_ipw_policy"
+path = "antecedent::estimate::policy_value::evaluate_binary_ipw_policy"
 disposition = "deprecated"
 replacement = "route:PolicyValue"
 
 [[row]]
-path = "antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy"
+path = "antecedent::estimate::policy_value::evaluate_multi_action_ipw_policy"
 disposition = "deprecated"
 replacement = "route:PolicyValue"
 
 [[row]]
-path = "antecedent_estimate::policy_value::evaluate_policy_value_scores"
+path = "antecedent::estimate::policy_value::evaluate_policy_value_scores"
 disposition = "deprecated"
 replacement = "route:PolicyValue"
 
 [[row]]
-path = "antecedent_estimate::policy_value::uplift_by_score_bin"
+path = "antecedent::estimate::policy_value::uplift_by_score_bin"
 disposition = "deprecated"
 replacement = "route:PolicyValue"
 
@@ -2364,22 +2369,22 @@ disposition = "deprecated"
 replacement = "route:JointDesign"
 
 [[row]]
-path = "antecedent_estimate::randomized_neyman::stratified_neyman_effect"
+path = "antecedent::estimate::randomized_neyman::stratified_neyman_effect"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[row]]
-path = "antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test"
+path = "antecedent::estimate::randomized_scores::bernoulli_exact_randomization_test"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[row]]
-path = "antecedent_estimate::randomized_scores::cuped_ht_effect"
+path = "antecedent::estimate::randomized_scores::cuped_ht_effect"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[row]]
-path = "antecedent_estimate::raw_contrast"
+path = "antecedent::estimate::raw_contrast"
 disposition = "deprecated"
 replacement = "route:DescriptiveComparison"
 
@@ -2388,37 +2393,37 @@ path = "antecedent_estimate::smoothed_dose::parse_smoothing_kernel"
 disposition = "internal"
 
 [[row]]
-path = "antecedent_estimate::staggered_event_study::group_time_att"
+path = "antecedent::estimate::staggered_event_study::group_time_att"
 disposition = "deprecated"
 replacement = "route:PanelDid"
 
 [[row]]
-path = "antecedent_estimate::survival::randomized_survival_ipcw_summary"
+path = "antecedent::estimate::survival::randomized_survival_ipcw_summary"
 disposition = "deprecated"
 replacement = "route:Survival"
 
 [[row]]
-path = "antecedent_estimate::switchback::switchback_itt"
+path = "antecedent::estimate::switchback::switchback_itt"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[row]]
-path = "antecedent_estimate::transform_mean_pair"
+path = "antecedent::estimate::transform_mean_pair"
 disposition = "deprecated"
 replacement = "route:DescriptiveComparison"
 
 [[row]]
-path = "antecedent_estimate::transport::transport_augmented_response_grid"
+path = "antecedent::estimate::transport_augmented_response_grid"
 disposition = "deprecated"
 replacement = "route:TransportResponseGrid"
 
 [[row]]
-path = "antecedent_estimate::transport::transport_augmented_response_grid_with_context"
+path = "antecedent::estimate::transport_augmented_response_grid_with_context"
 disposition = "deprecated"
 replacement = "route:TransportResponseGrid"
 
 [[row]]
-path = "antecedent_estimate::transport::trial_to_target_effect_with_context"
+path = "antecedent::estimate::trial_to_target_effect_with_context"
 disposition = "deprecated"
 replacement = "route:TransportMixed"
 
@@ -2540,17 +2545,17 @@ path = "antecedent_identify::admg_conditional_refusal"
 disposition = "internal"
 
 [[row]]
-path = "antecedent_identify::binary_iv_ate_bounds"
+path = "antecedent::identify::binary_iv_ate_bounds"
 disposition = "deprecated"
 replacement = "route:IvBounds"
 
 [[row]]
-path = "antecedent_identify::bind_mixed_source_catalog"
+path = "antecedent::identify::bind_mixed_source_catalog"
 disposition = "deprecated"
 replacement = "route:MixedSourceIdentification"
 
 [[row]]
-path = "antecedent_identify::bind_mz_transport_catalog"
+path = "antecedent::identify::bind_mz_transport_catalog"
 disposition = "deprecated"
 replacement = "route:MzTransportIdentification"
 
@@ -2560,7 +2565,7 @@ disposition = "not_scientific"
 reason = "stamps a transport certificate's derivation metadata onto a lowered expression, off the hash; identifies and estimates nothing (the compiled TransportMixed route calls it)"
 
 [[row]]
-path = "antecedent_identify::bind_z_transport_catalog"
+path = "antecedent::identify::bind_z_transport_catalog"
 disposition = "deprecated"
 replacement = "route:ZTransportIdentification"
 
@@ -2569,62 +2574,62 @@ path = "antecedent_identify::counterfactual_transport_refusal"
 disposition = "internal"
 
 [[row]]
-path = "antecedent_identify::decide_admg_conditional_transport"
+path = "antecedent::identify::decide_admg_conditional_transport"
 disposition = "deprecated"
 replacement = "route:AdmgConditionalTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_chain_recovery"
+path = "antecedent::analysis::recovery_chain::decide_chain_recovery"
 disposition = "deprecated"
 replacement = "route:ChainRecoveryIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_mixed_source"
+path = "antecedent::identify::decide_mixed_source"
 disposition = "deprecated"
 replacement = "route:MixedSourceIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_mz_transport"
+path = "antecedent::identify::decide_mz_transport"
 disposition = "deprecated"
 replacement = "route:MzTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_observation_recovery"
+path = "antecedent::identify::decide_observation_recovery"
 disposition = "deprecated"
 replacement = "route:ObservationRecoveryIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_two_source_z_transport"
+path = "antecedent::identify::decide_two_source_z_transport"
 disposition = "deprecated"
 replacement = "route:ZTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::decide_z_transport_inspecting"
+path = "antecedent::identify::decide_z_transport_inspecting"
 disposition = "deprecated"
 replacement = "route:ZTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::identify_catalog_transport"
+path = "antecedent::identify::identify_catalog_transport"
 disposition = "deprecated"
 replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::identify_classical_transport"
+path = "antecedent::identify::identify_classical_transport"
 disposition = "deprecated"
 replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::identify_counterfactual_transport"
+path = "antecedent::identify::identify_counterfactual_transport"
 disposition = "deprecated"
 replacement = "route:CounterfactualTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::identify_meta_transport"
+path = "antecedent::identify::identify_meta_transport"
 disposition = "deprecated"
 replacement = "route:ClassicalTransportIdentification"
 
 [[row]]
-path = "antecedent_identify::identify_z_transport"
+path = "antecedent::identify::identify_z_transport"
 disposition = "deprecated"
 replacement = "route:ZTransportIdentification"
 
@@ -2850,8 +2855,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::execute"
-disposition = "deprecated"
-replacement = "route:ExternalFeedbackEquilibrium"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled ExternalFeedbackEquilibrium family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::export"
@@ -2882,8 +2887,8 @@ reason = "kernel API; the compiled JointTransportEffectDecision and JointTranspo
 
 [[row]]
 path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured"
-disposition = "deprecated"
-replacement = "route:JointBayesianTransport"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled JointBayesianTransport family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport::measure"
@@ -2917,13 +2922,13 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build"
-disposition = "deprecated"
-replacement = "route:LearnedJointTransport"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled LearnedJointTransport family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured"
-disposition = "deprecated"
-replacement = "route:LearnedJointTransport"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled LearnedJointTransport family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport::measure"
@@ -2987,13 +2992,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build"
-disposition = "deprecated"
-replacement = "route:NestedMarkovFisherInterval"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled NestedMarkovFisherInterval family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build_measured"
-disposition = "deprecated"
-replacement = "route:NestedMarkovFisherInterval"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled NestedMarkovFisherInterval family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher::measure"
@@ -3010,13 +3015,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build"
-disposition = "deprecated"
-replacement = "route:NestedMarkovPosterior"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled NestedMarkovPosterior family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build_measured"
-disposition = "deprecated"
-replacement = "route:NestedMarkovPosterior"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled NestedMarkovPosterior family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior::measure"
@@ -3088,8 +3093,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::measure"
-disposition = "deprecated"
-replacement = "route:SampledCounterfactualTransportInterval"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled SampledCounterfactualTransportInterval family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::sampled_counterfactual_transport::CompiledSampledCounterfactualTransportInterval::measure"
@@ -3101,7 +3106,7 @@ path = "antecedent_io::sampled_counterfactual_transport_artifact::consume_sample
 disposition = "consume"
 
 [[row]]
-path = "antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact"
+path = "antecedent::io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact"
 disposition = "deprecated"
 replacement = "route:SampledCounterfactualTransport"
 
@@ -3119,8 +3124,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::measure"
-disposition = "deprecated"
-replacement = "route:MeasuredSampledObservationRecovery"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled MeasuredSampledObservationRecovery family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery::measure"
@@ -3129,13 +3134,13 @@ route = "MeasuredSampledObservationRecovery"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute"
-disposition = "deprecated"
-replacement = "route:SharedScenarioCovariance"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled SharedScenarioCovariance family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute_within"
-disposition = "deprecated"
-replacement = "route:SharedScenarioCovariance"
+disposition = "kernel"
+reason = "kernel API; the wire type declares the input the compiled SharedScenarioCovariance family reads, and that family's handle calls this method after its unit's support gate"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::consume_with_limits"
@@ -3603,7 +3608,7 @@ path = "antecedent_learn::FittedEffect::predict"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories"
+path = "antecedent::estimate::external_learner::cross_fit_aipw_with_factories"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
@@ -3618,7 +3623,7 @@ disposition = "not_scientific"
 reason = "support diagnostic: compares each target feature's range and rows with the retained model's fitted box; computes no estimate, identification or ranking (the compiled TransportedCohortEffect route reports the same assessment in its receipt)"
 
 [[row]]
-path = "antecedent_learn::transported_effect::transport_cohort_effect"
+path = "antecedent::analysis::transported_cohort::transport_cohort_effect"
 disposition = "deprecated"
 replacement = "route:TransportedCohortEffect"
 
@@ -3703,7 +3708,7 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_model::do_sampler::interventional_mean"
+path = "antecedent::gcm::interventional_mean"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
@@ -3723,22 +3728,22 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_model::sample::sample_interventional"
+path = "antecedent::gcm::sample_interventional"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
 [[row]]
-path = "antecedent_model::sample::sample_observational"
+path = "antecedent::gcm::sample_observational"
 disposition = "deprecated"
 replacement = "route:GcmSimulateDag"
 
 [[row]]
-path = "antecedent_prob::apply_transport"
+path = "antecedent::inference::apply_transport"
 disposition = "deprecated"
 replacement = "route:ExternalPriorTransport"
 
 [[row]]
-path = "antecedent_prob::apply_weighted_target_transport"
+path = "antecedent::inference::apply_weighted_target_transport"
 disposition = "deprecated"
 replacement = "route:ExternalPriorTransport"
 
@@ -3748,12 +3753,12 @@ disposition = "not_scientific"
 reason = "overlap diagnostic of a declared row weighting (positivity, Kish effective sample size, largest single-row share against the absolute and fractional ESS floors); the compiled weighted-target routes run it as their gate (analysis::weighted_target, analysis::targeted_refit, antecedent_estimate::transport_weighted_target) and it computes no estimate"
 
 [[row]]
-path = "antecedent_prob::compose_beta_power_priors"
+path = "antecedent::inference::compose_beta_power_priors"
 disposition = "deprecated"
 replacement = "route:ExternalPriorComposition"
 
 [[row]]
-path = "antecedent_prob::compose_external_priors"
+path = "antecedent::inference::compose_external_priors"
 disposition = "deprecated"
 replacement = "route:ExternalPriorComposition"
 
@@ -3763,17 +3768,17 @@ disposition = "kernel"
 reason = "kernel API; composes declared sources at explicit requested and applied discounts. The compiled Bayesian study runs it for its data-bound conflict re-shrink (the compiled execute paths call inference::resolve_bayesian_prior_with_conflict -> resolve_unscaled_prior -> antecedent_validate::compose_with_conflict_policy -> estimate_conflict_signals and apply_conflict_and_compose), the compiled ExternalPriorTransport and PowerPriorLinearSelection families compose through it, and the Python bindings re-run it only to verify a declared composed prior (python/src/prior_bank.rs apply_owned_composed_prior)"
 
 [[row]]
-path = "antecedent_prob::compose_gamma_power_priors"
+path = "antecedent::inference::compose_gamma_power_priors"
 disposition = "deprecated"
 replacement = "route:ExternalPriorComposition"
 
 [[row]]
-path = "antecedent_prob::compose_with_transport"
+path = "antecedent::inference::compose_with_transport"
 disposition = "deprecated"
 replacement = "route:ExternalPriorTransport"
 
 [[row]]
-path = "antecedent_prob::compose_with_weighted_target_transport"
+path = "antecedent::inference::compose_with_weighted_target_transport"
 disposition = "deprecated"
 replacement = "route:ExternalPriorTransport"
 
@@ -3788,37 +3793,37 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_prob::kernel_bandwidth_sensitivity"
+path = "antecedent::inference::kernel_bandwidth_sensitivity"
 disposition = "deprecated"
 replacement = "route:ExternalPriorTransport"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_beta_power_prior"
+path = "antecedent::inference::select_beta_power_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorBetaSelection"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_beta_prior"
+path = "antecedent::inference::select_beta_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorBetaSelection"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_gamma_power_prior"
+path = "antecedent::inference::select_gamma_power_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorGammaSelection"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_gamma_prior"
+path = "antecedent::inference::select_gamma_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorGammaSelection"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_linear_power_prior"
+path = "antecedent::inference::select_linear_power_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorLinearSelection"
 
 [[row]]
-path = "antecedent_prob::power_prior_alpha::select_linear_prior"
+path = "antecedent::inference::select_linear_prior"
 disposition = "deprecated"
 replacement = "route:PowerPriorLinearSelection"
 
@@ -3938,132 +3943,132 @@ disposition = "not_scientific"
 reason = "prior construction: shrinks each external source's weight by caller-supplied conflict signals and composes the prior an estimator is configured with; reads no data and returns no estimate, posterior, test or ranking (the compiled Bayesian routes compose through compose_with_conflict_policy on the study's own design)"
 
 [[row]]
-path = "antecedent_validate::benchmark_bound"
+path = "antecedent::validate::benchmark_bound"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::component_evalue_posterior_range"
+path = "antecedent::validate::component_evalue_posterior_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_evalue_range"
+path = "antecedent::validate::component_evalue_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_ovb_posterior_range"
+path = "antecedent::validate::component_ovb_posterior_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_ovb_range"
+path = "antecedent::validate::component_ovb_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::mediation_components_fit"
+path = "antecedent::validate::mediation_components_fit"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::mediation_path_ovb_range"
+path = "antecedent::validate::mediation_path_ovb_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::mediation_paths_fit"
+path = "antecedent::validate::mediation_paths_fit"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::mediation_posterior_range"
+path = "antecedent::validate::mediation_posterior_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::mediation_vector_range"
+path = "antecedent::validate::mediation_vector_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::msm_parameter_fit"
+path = "antecedent::validate::msm_parameter_fit"
 disposition = "deprecated"
 replacement = "route:LongitudinalRegime"
 
 [[row]]
-path = "antecedent_validate::component_sensitivity::msm_parameter_fit_refitting_weights"
+path = "antecedent::validate::msm_parameter_fit_refitting_weights"
 disposition = "deprecated"
 replacement = "route:LongitudinalRegime"
 
 [[row]]
-path = "antecedent_validate::evalue_posterior_range"
+path = "antecedent::validate::evalue_posterior_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::evalue_range"
+path = "antecedent::validate::evalue_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::evalue_vector_range"
+path = "antecedent::validate::evalue_vector_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::linear_adjustment_fit"
+path = "antecedent::validate::linear_adjustment_fit"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::matched_sets_break_even"
+path = "antecedent::validate::matched_sets_break_even"
 disposition = "deprecated"
 replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
-path = "antecedent_validate::matched_sets_upper_p"
+path = "antecedent::validate::matched_sets_upper_p"
 disposition = "deprecated"
 replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
-path = "antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity"
+path = "antecedent::validate::z_transport_mechanism_sensitivity"
 disposition = "deprecated"
 replacement = "route:ZTransportMechanismSensitivity"
 
 [[row]]
-path = "antecedent_validate::mediation_range"
+path = "antecedent::validate::mediation_range"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::mediation_sensitivity::mediation_sensitivity_fit"
+path = "antecedent::validate::mediation_sensitivity_fit"
 disposition = "deprecated"
 replacement = "route:StaticMediationDag"
 
 [[row]]
-path = "antecedent_validate::msm_ate_bounds_at"
+path = "antecedent::analysis::msm_sensitivity::msm_ate_bounds_at"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::msm_ate_sensitivity"
+path = "antecedent::analysis::msm_sensitivity::msm_ate_sensitivity"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::omitted_variable_bias::ovb_range"
+path = "antecedent::validate::ovb_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::ovb_posterior_range"
+path = "antecedent::validate::ovb_posterior_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[row]]
-path = "antecedent_validate::ovb_vector_range"
+path = "antecedent::validate::ovb_vector_range"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
@@ -4083,12 +4088,12 @@ disposition = "not_scientific"
 reason = "a proper scoring rule evaluated at one caller-supplied law and realized outcome: deterministic arithmetic that reads no data and estimates, identifies or ranks nothing"
 
 [[row]]
-path = "antecedent_validate::rosenbaum::rosenbaum_range"
+path = "antecedent::validate::rosenbaum_range"
 disposition = "deprecated"
 replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
-path = "antecedent_validate::rosenbaum_vector_range"
+path = "antecedent::validate::rosenbaum_vector_range"
 disposition = "deprecated"
 replacement = "route:MatchedDesignSensitivity"
 
@@ -4103,22 +4108,22 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_validate::target_native::finite_difference_consistency"
+path = "antecedent::validate::target_native::finite_difference_consistency"
 disposition = "deprecated"
 replacement = "route:StaticResponseDag"
 
 [[row]]
-path = "antecedent_validate::target_native::local_linearity"
+path = "antecedent::validate::target_native::local_linearity"
 disposition = "deprecated"
 replacement = "route:StaticResponseDag"
 
 [[row]]
-path = "antecedent_validate::target_native::posterior_predictive_target_check"
+path = "antecedent::validate::target_native::posterior_predictive_target_check"
 disposition = "deprecated"
 replacement = "route:StaticResponseDag"
 
 [[row]]
-path = "antecedent_validate::target_native::prior_sensitivity_target_check"
+path = "antecedent::validate::target_native::prior_sensitivity_target_check"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 

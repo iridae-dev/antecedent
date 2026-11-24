@@ -9,6 +9,10 @@
 use std::sync::Arc;
 
 use antecedent::data::TableView;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::gcm::{
     GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
     GraphUninformativeReason, evaluate_graph as facade_evaluate_graph,
@@ -119,6 +123,10 @@ pub(crate) fn falsification_config(
 #[pyo3(
     name = "evaluate_graph",
     signature = (names, columns, edges, *, ci_test="parcorr", alpha=0.05, significance=0.05, n_permutations=200, min_permutations=20, max_equivalent_share=None, max_ci_tests=None, ci_replicates=199, permutation_seed=None, seed=0, threads=None, cancel=None)
+)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
 )]
 fn evaluate_graph_py(
     py: Python<'_>,

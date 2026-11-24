@@ -12,6 +12,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
+
 use antecedent::analysis::transported_measurement::{
     DETAIL_TRANSPORT_RECEIPT_MISMATCH, ErrorParameter, InvarianceDeclaration,
     PopulationErrorStructure, TransportBasis, transport_measurement,

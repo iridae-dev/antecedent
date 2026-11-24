@@ -16,11 +16,19 @@ use antecedent::analysis::target_validation::{
 };
 use antecedent::prelude::VariableId;
 use antecedent::validate::rosenbaum::{DEFAULT_GAMMA_GRID, MatchedSet, MatchedSetScore};
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::validate::target_native::{
     DerivativeCheckPoint, PosteriorPredictiveTarget, PriorSensitivityTarget,
     finite_difference_consistency, local_linearity, posterior_predictive_target_check,
     prior_sensitivity_target_check,
 };
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::validate::{
     AssumptionRange, ComponentModel, EffectInterval, EffectScale, LinearAdjustmentSummary,
     MediationComponent, MediationComponents, MediationPath, MediationPosterior, MsmWeightPeriod,
@@ -164,6 +172,10 @@ pub(crate) fn scalar_target(source: Option<&str>, labels: &[&str]) -> PyResult<R
 /// E-values of a ratio estimate (or a standardized mean difference) as an assumption range.
 #[pyfunction]
 #[pyo3(signature = (estimate, *, lower=None, upper=None, standard_error=None, scale="risk_ratio", target_source=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_evalue(
     estimate: f64,
     lower: Option<f64>,
@@ -244,6 +256,10 @@ fn same_length(what: &str, lengths: &[usize]) -> PyResult<()> {
     scale="risk_ratio", family="conditional_effect", temporal=false, target_source=None,
     model=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_evalue_vector(
     estimates: Vec<f64>,
     labels: Vec<String>,
@@ -301,6 +317,10 @@ fn sensitivity_evalue_vector(
 #[pyo3(signature = (draws, labels, *, scale="risk_ratio", level=0.95,
     family="conditional_effect", temporal=false, target_source=None, model=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_evalue_posterior(
     draws: Vec<Vec<f64>>,
     labels: Vec<String>,
@@ -341,6 +361,10 @@ fn sensitivity_evalue_posterior(
     r2yz_extreme=1.0, family="conditional_effect", temporal=false, target_source=None,
     model=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_ovb_vector(
     estimates: Vec<f64>,
     standard_errors: Vec<f64>,
@@ -389,6 +413,10 @@ fn sensitivity_ovb_vector(
 #[pyo3(signature = (coefficients, bias_scale, labels, *, level=0.95, r2yz_extreme=1.0,
     family="conditional_effect", temporal=false, target_source=None, model=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_ovb_posterior(
     coefficients: Vec<Vec<f64>>,
     bias_scale: Vec<Vec<f64>>,
@@ -418,6 +446,10 @@ fn sensitivity_ovb_posterior(
 #[pyo3(signature = (differences, labels, *, gammas=None, alpha=0.05,
     family="conditional_effect", temporal=false, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_rosenbaum_vector(
     py: Python<'_>,
     differences: Vec<Vec<f64>>,
@@ -473,6 +505,10 @@ fn sensitivity_omitted_variable_bias(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn ovb_json(
     summary: &LinearAdjustmentSummary,
     q: f64,
@@ -520,6 +556,10 @@ fn ovb_json(
 #[pyfunction]
 #[pyo3(signature = (outcome, treatment, covariates, covariate_names, *, q=1.0, alpha=0.05, r2yz_extreme=1.0, kd=1.0, ky=None, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_omitted_variable_bias_fit(
     outcome: Vec<f64>,
     treatment: Vec<f64>,
@@ -547,6 +587,10 @@ fn sensitivity_omitted_variable_bias_fit(
 /// Rosenbaum signed-rank bounds of matched-pair differences.
 #[pyfunction]
 #[pyo3(signature = (differences, *, gammas=None, alpha=0.05, target_source=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_rosenbaum(
     py: Python<'_>,
     differences: Vec<f64>,
@@ -575,6 +619,10 @@ fn sensitivity_rosenbaum(
 /// Rosenbaum bounds for matched sets with several controls (separable approximation).
 #[pyfunction]
 #[pyo3(signature = (sets, *, score="aligned_ranks", gammas=None, alpha=0.05))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_matched_sets(
     sets: Vec<(Vec<f64>, usize)>,
     score: &str,
@@ -626,6 +674,10 @@ fn sensitivity_amplify(gamma: f64, lam: f64) -> Option<f64> {
 /// Mediation sensitivity to mediator-outcome confounding, fitted on columns.
 #[pyfunction]
 #[pyo3(signature = (treatment, mediator, outcome, covariates, *, target_source=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_mediation(
     treatment: Vec<f64>,
     mediator: Vec<f64>,
@@ -677,6 +729,10 @@ pub(crate) fn components_json(
 #[pyo3(signature = (treatment, mediator, outcomes, covariates, labels, *, component="indirect",
     temporal=false, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_mediation_vector(
     treatment: Vec<f64>,
     mediator: Vec<f64>,
@@ -709,6 +765,10 @@ fn sensitivity_mediation_vector(
 #[pyo3(signature = (treatment, mediator, outcomes, covariates, labels, *, path="indirect",
     q=1.0, alpha=0.05, r2yz_extreme=1.0, temporal=false, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_mediation_paths(
     treatment: Vec<f64>,
     mediator: Vec<f64>,
@@ -769,6 +829,10 @@ fn sensitivity_mediation_paths(
 #[pyo3(signature = (beta_mediator, sigma_total, sigma_mediator, rho_tilde, total_effect, labels,
     *, component="indirect", level=0.95, temporal=false, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_mediation_posterior(
     beta_mediator: Vec<Vec<f64>>,
     sigma_total: Vec<Vec<f64>>,
@@ -800,6 +864,10 @@ fn sensitivity_mediation_posterior(
 #[pyo3(signature = (outcome, exposures, weights, labels, *, q=1.0, alpha=0.05,
     r2yz_extreme=1.0, temporal=false, target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_msm_parameters(
     outcome: Vec<f64>,
     exposures: Vec<Vec<f64>>,
@@ -845,6 +913,10 @@ fn sensitivity_msm_parameters(
     replicates=200, seed=1, q=1.0, alpha=0.05, r2yz_extreme=1.0, temporal=false,
     target_source=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn sensitivity_msm_parameters_refit(
     outcome: Vec<f64>,
     exposures: Vec<Vec<f64>>,
@@ -937,6 +1009,10 @@ fn call_response(response: &Bound<'_, PyAny>, x: f64) -> Result<f64, ValidationE
 /// Reported derivatives against Richardson-extrapolated central differences of a response.
 #[pyfunction]
 #[pyo3(signature = (response, points, reported, *, step=1e-2, tolerance=1e-4))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn target_derivative_consistency(
     response: Bound<'_, PyAny>,
     points: Vec<f64>,
@@ -978,6 +1054,10 @@ fn derivative_target(points: &[f64]) -> PyResult<RefutationTarget> {
 /// Second-difference curvature of a response relative to its slope over `step`.
 #[pyfunction]
 #[pyo3(signature = (response, points, *, step=1e-1, tolerance=0.1, slope_floor=1e-12))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn target_local_linearity(
     response: Bound<'_, PyAny>,
     points: Vec<f64>,
@@ -1008,6 +1088,10 @@ fn rows_of(draws: &[Vec<f64>], k: usize, what: &str) -> PyResult<Vec<f64>> {
 /// Prior sensitivity of the posterior of a whole target vector.
 #[pyfunction]
 #[pyo3(signature = (labels, baseline, alternatives, *, tolerance=0.5, family="world_valued", temporal=false))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn target_prior_sensitivity(
     labels: Vec<String>,
     baseline: Vec<Vec<f64>>,
@@ -1036,6 +1120,10 @@ fn target_prior_sensitivity(
 /// Posterior-predictive check of a target quantity.
 #[pyfunction]
 #[pyo3(signature = (labels, observed, draws, replicated, *, alpha=0.05, family="world_valued", temporal=false))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn target_posterior_predictive(
     labels: Vec<String>,
     observed: Vec<f64>,

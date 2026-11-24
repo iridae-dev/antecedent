@@ -5,8 +5,8 @@ use super::{
     MechanismWorkspace, ModelError, NestedCounterfactualQuery, SelectionPolicy, TableView,
     TabularData, Value, VariableId, contrast_outcome_nodes, contrasts_from_abduction,
     fit_gcm_counterfactual, fit_gcm_with, ite_from_abduction, map_mechanism_fit,
-    nested_counterfactual_with_exo,
 };
+use antecedent_counterfactual::engine::nested_counterfactual_with_exo;
 
 /// The mechanism families selected on one table, by graph, kept so that refits on resamples
 /// of that table condition on the selection instead of repeating it. A resample repeats rows,

@@ -25,8 +25,9 @@ use antecedent_estimate::OutcomePriorSource;
 use crate::error::CausalError;
 use crate::inference::{
     AlphaSelectionOptions, ComposedPrior, ExternalPriorSource, LinearTarget, PriorSet,
-    SelectedAlphaReport, outcome_prior_source_from_composed, select_linear_prior,
+    SelectedAlphaReport, outcome_prior_source_from_composed,
 };
+use antecedent_prob::power_prior_alpha::select_linear_prior;
 
 /// External sources and the rule that selects their common discount from the study's table.
 #[derive(Clone, Debug)]

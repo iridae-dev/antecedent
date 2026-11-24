@@ -13,6 +13,10 @@ use antecedent::estimate::{
 use antecedent::execution::SearchLimits;
 use antecedent::graph::{DenseNodeId, NodeRef};
 use antecedent::identify::recovery::MISSING_LEVEL;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
     RecoveryDecision, RecoveryDerivation, RecoveryDetail, RecoveryError, RecoveryLimits,
@@ -765,6 +769,10 @@ fn effect_graph_for(
 #[doc(hidden)]
 #[pyo3(signature=(graph, population, observed_regime, partially_observed, fully_observed, catalog, *, effect_outcomes=None, effect_treatments=None, effect_graph=None, max_operations=50_000, max_depth=32, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_observation_recovery_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

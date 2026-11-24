@@ -926,7 +926,23 @@ fn estimate_static_effect_default(
 /// # Errors
 ///
 /// An id with no attachable bootstrap, preparation failure, or bootstrap failure.
+#[deprecated(
+    since = "3.1.0",
+    note = "run the study with bootstrap_replicates on the compiled StaticAteDag route, whose uncertainty stage attaches this bootstrap to the same point estimate; the compiled result also carries the interval's calibration basis and coverage key"
+)]
 pub fn attach_static_bootstrap(
+    estimator: EstimatorId,
+    input: StaticEstimateInput<'_>,
+    point: EffectEstimate,
+    ctx: &ExecutionContext,
+    workspaces: &mut StaticEstimateWorkspaces,
+) -> Result<EffectEstimate, CausalError> {
+    attach_bootstrap_to_point(estimator, input, point, ctx, workspaces)
+}
+
+/// The attachment behind [`attach_static_bootstrap`], which the compiled static route's
+/// uncertainty stage calls.
+pub(crate) fn attach_bootstrap_to_point(
     estimator: EstimatorId,
     input: StaticEstimateInput<'_>,
     point: EffectEstimate,

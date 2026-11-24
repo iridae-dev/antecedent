@@ -27,6 +27,7 @@
     clippy::too_many_lines,
     reason = "bounded simulation sizes, small indices and one design table per test"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 mod common;
 

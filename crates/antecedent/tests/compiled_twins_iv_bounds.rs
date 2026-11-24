@@ -18,6 +18,7 @@
     clippy::float_cmp,
     reason = "fixture counts convert exactly and the bits are compared exactly; the direct entry under comparison is deprecated"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use antecedent::identify::{BinaryIvLaw, binary_iv_ate_bounds};
 use antecedent::{CausalQuery, IvBoundsQuery, RefuteSuite, Study};

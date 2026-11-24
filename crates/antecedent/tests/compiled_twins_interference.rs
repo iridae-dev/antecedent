@@ -16,6 +16,7 @@
     reason = "integration test builds fixtures from small nonnegative counts and calls the direct entries it compares"
 )]
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

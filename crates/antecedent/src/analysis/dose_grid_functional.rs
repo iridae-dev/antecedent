@@ -23,7 +23,6 @@
 
 pub use antecedent_estimate::dose_grid_functional::{
     BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, IntervalCalibration,
-    estimate_dose_grid_bias_aware,
 };
 pub use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_FEATURE, DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED,
@@ -38,6 +37,35 @@ pub use antecedent_io::dose_grid_functional_artifact::{
 };
 
 use crate::error::CausalError;
+
+/// Evaluate the row with bias-aware intervals and, for a grid, a simultaneous band.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware`].
+///
+/// # Errors
+/// The ordinary refusals of the row; a curvature bound that is negative or not finite; fewer
+/// than two band replicates for a grid; a singular local fit; admission or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled DoseGridBiasAware route, which calls this kernel function with the same inputs"
+)]
+pub fn estimate_dose_grid_bias_aware(
+    request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>,
+    curvature_bound: f64,
+    band_replicates: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<
+    antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid,
+    antecedent_estimate::EstimationError,
+> {
+    antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware(
+        request,
+        curvature_bound,
+        band_replicates,
+        ctx,
+    )
+}
 
 /// A sealed or consumed dose-grid functional answer.
 #[derive(Clone, Debug, PartialEq)]

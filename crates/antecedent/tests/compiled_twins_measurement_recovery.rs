@@ -24,6 +24,7 @@
     clippy::cast_precision_loss,
     reason = "the bits are compared exactly; fixture counts and indices are small"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
 mod recovery_scm;

@@ -21,9 +21,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::choice_ranking::{
-    ChoiceEvsiError, rank_hierarchical_studies, rank_studies_with_context,
-};
+use super::choice_ranking::ChoiceEvsiError;
 pub use super::choice_ranking::{EvsiMethod, StudyCandidate, StudyRank};
 use antecedent_contract::adaptive_design::{
     CellStatus, InferenceParadigm, ProcedureCell, procedure_status,
@@ -33,6 +31,8 @@ pub use antecedent_contract::adaptive_design::{
     RetainedChoiceSource,
 };
 use antecedent_core::ExecutionContext;
+use antecedent_design::choice_evsi::rank_hierarchical_studies;
+use antecedent_design::choice_evsi::rank_studies_with_context;
 pub use antecedent_estimate::choice_inference::{
     ChoiceKernel, ChoiceOperatingCharacteristics, ChoiceProcedureSpec, ChoiceStoppingRule,
 };

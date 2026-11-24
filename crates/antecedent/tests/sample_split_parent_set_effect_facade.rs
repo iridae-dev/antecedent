@@ -9,6 +9,7 @@
 //! undirected edge at the treatment is refused with that edge named, never completed.
 
 #![allow(clippy::float_cmp, reason = "the declared level and replayed values are compared exactly")]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 use antecedent::analysis::sample_split_analysis::{SplitRule, split_rows};
 use antecedent::analysis::sample_split_parent_set_effect::{
     DISCOVERY_FRACTION, Knowledge, LINEAR_ESTIMATOR, LOG_LINEAR_ESTIMATOR, PARENT_SET_STRUCTURE,

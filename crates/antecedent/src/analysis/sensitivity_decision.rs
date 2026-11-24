@@ -38,7 +38,6 @@ pub use antecedent_design::sensitivity_decision::{
     SensitivityDecisionError, SensitivityDecisionResult, SensitivityDecisionSpec,
     SensitivityIdentity, SensitivityOutcome, SensitivityParts, SensitivityProvenance,
     SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm, contract_from_artifact,
-    evaluate_sensitivity_decision,
 };
 pub use antecedent_io::sensitivity_artifact::{
     MAX_SENSITIVITY_ACTIONS, MAX_SENSITIVITY_ARTIFACT_BYTES, MAX_SENSITIVITY_GRID_POINTS,
@@ -51,6 +50,40 @@ pub use antecedent_io::sensitivity_artifact::{
 use antecedent_design::decision_contract::DecisionContract;
 
 use super::PreparedZTransport;
+
+/// Evaluate `contract` over the surface of `artifact`.
+///
+/// Every evaluated grid point and range-vertex scenario becomes one structural atom of
+/// `evaluate_structural`, so the contract's `StructuralPolicy` decides how the
+/// assumption scenarios are combined (invariant best action, worst case, or Bayes over
+/// declared genuine weights). The result also classifies the decision along the
+/// coordinate (see `SensitivityOutcome`).
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::sensitivity_decision::evaluate_sensitivity_decision`].
+///
+/// # Errors
+/// Refuses (a) a requested sampling composition that is not supported
+/// (`composition_not_supported`, code `route_not_supported`); (b) an invalid contract, an
+/// unsupported criterion, unlike units or an input the surface does not carry, weights on
+/// a ranged surface, a weight count that does not match the grid, and `Bayes` without
+/// genuine weights (`wrong_contract`, code `decision_contract_unsatisfied`); (c) an
+/// unsupported grid point inside the evaluated range (`unsupported_coordinate`, code
+/// `quantity_semantics_mismatch`); (d) a malformed or empty range (`invalid_surface`).
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled SensitivityDecision route, which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_sensitivity_decision(
+    contract: &antecedent_design::DecisionContract,
+    artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact,
+    spec: &antecedent_design::sensitivity_decision::SensitivityDecisionSpec,
+) -> Result<
+    antecedent_design::sensitivity_decision::SensitivityDecisionResult,
+    antecedent_design::sensitivity_decision::SensitivityDecisionError,
+> {
+    antecedent_design::sensitivity_decision::evaluate_sensitivity_decision(contract, artifact, spec)
+}
 
 impl PreparedZTransport {
     /// Run the joint mechanism sensitivity of the retained checked formula and
@@ -101,7 +134,7 @@ pub fn decide(
     artifact: &SensitivityArtifact,
     spec: &SensitivityDecisionSpec,
 ) -> Result<SensitivityDecisionResult, SensitivityDecisionError> {
-    evaluate_sensitivity_decision(contract, artifact, spec)
+    antecedent_design::sensitivity_decision::evaluate_sensitivity_decision(contract, artifact, spec)
 }
 
 /// Serialize an artifact through the bounded sectioned container.

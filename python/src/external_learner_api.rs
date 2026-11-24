@@ -181,6 +181,10 @@ impl FittedPredictor for PythonPredictor {
 #[pyfunction]
 #[pyo3(signature = (outcome, treatment, design, y, t, fold_ids, *, weights=None, seed=1, cancel=None, memory_limit_bytes=None))]
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn external_aipw_crossfit(
     py: Python<'_>,
     outcome: Py<PyAny>,

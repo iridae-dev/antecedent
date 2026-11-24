@@ -17,6 +17,7 @@
     clippy::cast_possible_truncation,
     reason = "bit-identical equality is the property under test; fixtures convert small nonnegative integers"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

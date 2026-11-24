@@ -29,7 +29,6 @@ pub use antecedent_contract::{
     EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRegime,
 };
 use antecedent_core::ExecutionContext;
-pub use antecedent_design::obligation_adapters::identification_failure_obligations;
 pub use antecedent_design::{
     BackdoorRepairFamily, DurableStudyCandidate, ExpectedEvidence, FamilyVerdict,
     FrontDoorRepairFamily, HedgeRepairFamily, InstrumentRepairFamily, LatentCause,
@@ -39,6 +38,63 @@ pub use antecedent_design::{
     StudyCandidateError, StudyCostDeclaration, StudyKind, TransportRepairFamily, UnitRules,
     ZTransportRepairFamily, latent_expansion,
 };
+
+/// The evidence that would resolve a failed identification, one verified
+/// obligation per route, each retaining the proof step it was derived from.
+///
+/// `graph` is the structure the identification ran on (bidirected edges become
+/// unmeasured common causes, one past the largest graph variable each), and
+/// `observed` the variables measured jointly with the treatment and the outcome
+/// in `population`. The routes are:
+///
+/// * back-door: one joint observational law over the treatment, the outcome and
+///   the first admissible adjustment set (`BackdoorRepairFamily`);
+/// * front-door: one joint law over the treatment, the outcome and a mediator
+///   set the criterion accepts (`FrontDoorRepairFamily`);
+/// * instrument: a joint law with an instrument, with its relevance, exclusion
+///   and effect restriction as `EstablishAssumption` obligations that no study
+///   satisfies, or the search for an instrument when the graph has none
+///   (`InstrumentRepairFamily`);
+/// * hedge: experiments on the treatment and on the hedge nodes that identify the
+///   effect through a surrogate (`HedgeRepairFamily`);
+/// * sensitivity: the confounder to measure when `sensitivity` reports a
+///   conclusion an unmeasured confounder would overturn
+///   (`SensitivityRepairFamily`);
+/// * panel: repeated measurement, when back-door adjustment needs variables that
+///   are not observed.
+///
+/// A route whose observed law already identifies the effect contributes nothing.
+/// The query must be an average effect; other queries owe nothing here.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::obligation_adapters::identification_failure_obligations`].
+///
+/// # Errors
+/// `identification_repair.not_a_failure` when `result` is identified, and
+/// `identification_repair.invalid_request` for a graph or variables the
+/// identifiers cannot read.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled EvidenceObligations route, which calls this kernel function with the same inputs"
+)]
+pub fn identification_failure_obligations(
+    result: &antecedent_identify::result::IdentificationResult,
+    graph: &antecedent_graph::admg::Admg,
+    observed: &[antecedent_core::ids::VariableId],
+    population: &str,
+    sensitivity: Option<&antecedent_design::SensitivityFinding>,
+) -> Result<
+    Vec<antecedent_contract::evidence_obligation::EvidenceObligation>,
+    antecedent_design::RepairError,
+> {
+    antecedent_design::obligation_adapters::identification_failure_obligations(
+        result,
+        graph,
+        observed,
+        population,
+        sensitivity,
+    )
+}
 
 /// The unresolved evidence obligations of a failed contract, each with its
 /// source proof step. A study never satisfies an

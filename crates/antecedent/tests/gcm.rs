@@ -6,6 +6,7 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::path::PathBuf;
 use std::sync::Arc;

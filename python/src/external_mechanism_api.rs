@@ -6,6 +6,10 @@
 //! caller-supplied resolver callable that maps a recorded specification (a dict) to an
 //! implementation object, and the native layer verifies the object against the record
 //! before running it.
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::estimate::external_cyclic_fit::{ExternalFitPolicy, fit_external_feedback};
 use antecedent::gcm::continuous_cyclic::{OdePolicy, TimedClamp};
 use antecedent::gcm::external_mechanism::{
@@ -339,6 +343,10 @@ struct FitRequest {
 /// Fit the declared scalars of a system; the fit as JSON.
 #[pyfunction]
 #[pyo3(signature = (request_json, resolver=None, *, max_bytes=None, cancel=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn external_fit(
     py: Python<'_>,
     request_json: &str,

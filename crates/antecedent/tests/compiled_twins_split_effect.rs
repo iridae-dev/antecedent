@@ -14,6 +14,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "the bits are compared exactly")]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use antecedent::Study;
 use antecedent::analysis::sample_split_effect::{estimate_effect_on_split, measure_source};

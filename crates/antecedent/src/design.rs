@@ -53,7 +53,7 @@ pub use antecedent_design::{
     DesignObjective, DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec,
     EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
     MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, PreposteriorAnalysis, RankedCandidate,
-    SamplingPlan, ScoreEvaluation, ScoredDesignRanking, Utility, evaluate_decision,
+    SamplingPlan, ScoreEvaluation, ScoredDesignRanking, Utility,
 };
 /// Candidate studies generated from verified obligations, the plan of options that
 /// close an identification gap, and the derived structure of a graph posterior.
@@ -62,8 +62,7 @@ pub use antecedent_design::{
     DurableStudyCandidate, EvidencePlan, EvidencePlanArtifact, EvidencePlanArtifactError,
     GraphPosteriorSample, GridUtility, PlanOption, PlanOutcome, PlanValue, PlanValueBasis,
     RepairReport, StudyDeclarations, StudyKind, UnmatchedObligation, UnverifiedStudy,
-    VerifiedUnlocks, generate_candidates, identified_under_intervention, mutilate,
-    structure_posterior, verified_unlocks,
+    VerifiedUnlocks, generate_candidates, mutilate, verified_unlocks,
 };
 use antecedent_design::{ObjectiveChannel, ObjectiveScorer};
 /// Study planning over the mz-transport and mixed-source catalogs: declared
@@ -73,9 +72,115 @@ pub use antecedent_design::{
     StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlan,
     StudyPlanArtifactWire, StudyPlanConsumeLimits, StudyPlanError, StudyPlanLimits,
     StudyPlanProposal, StudyPlanResult, StudyPlanRoute, StudyPlanStop, StudyProposal,
-    StudySubsetOutcome, plan_studies,
+    StudySubsetOutcome,
 };
 pub use antecedent_stats::adaptive_inference::group_sequential::SpendingFunction;
+
+/// The posterior with each structure flagged by running the ID algorithm on it.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::structure_posterior`].
+///
+/// # Errors
+/// An empty or invalid posterior (a non-finite, negative or all-zero weight), or
+/// any refusal of `identifies`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled StructureIdentification route, which calls this kernel function with the same inputs"
+)]
+pub fn structure_posterior(
+    samples: &[antecedent_design::GraphPosteriorSample],
+    treatment: antecedent_core::ids::VariableId,
+    outcome: antecedent_core::ids::VariableId,
+) -> Result<
+    antecedent_prob::graph_samples::WeightedGraphSamples,
+    antecedent_design::StructureIdentificationError,
+> {
+    antecedent_design::structure_posterior(samples, treatment, outcome)
+}
+
+/// Compile the declared candidates and plan the cheapest subset of at most
+/// three that would make the failed mz-transport or mixed-source decision identify, under one
+/// shared search budget (see `antecedent_identify::plan_study_additions`).
+/// The result is invariant to candidate and source declaration order.
+///
+/// The declared bounds (plan limits, at most 16 candidates, at most 8 level
+/// combinations per candidate) are checked before any candidate is compiled.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::plan_studies`].
+///
+/// # Errors
+/// Every `StudyPlanRefusal` of the planner, plus
+/// `study_plan.invalid_candidate` for a declaration that does not compile
+/// (empty or overlapping margin, a variable outside the graph, levels that do
+/// not assign every intervention or leave the declared domain, no recruitment
+/// declaration, or a level label `id#k` that a base regime already uses).
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled StudyAdditionPlanning route, which calls this kernel function with the same inputs"
+)]
+pub fn plan_studies(
+    graph: &antecedent_graph::admg::Admg,
+    route: &antecedent_identify::StudyPlanRoute,
+    catalog: &antecedent_core::EvidenceCatalog,
+    candidates: &[antecedent_design::StudyCandidate],
+    limits: antecedent_identify::StudyPlanLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_design::StudyPlanResult, antecedent_design::StudyPlanError> {
+    antecedent_design::plan_studies(graph, route, catalog, candidates, limits, ctx)
+}
+
+/// Per-structure identification after an experiment that sets `targets`: the ID
+/// algorithm on each structure's `mutilate`d graph. This is the flag vector the
+/// ranker's `identified_under_intervention` expects.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::identified_under_intervention`].
+///
+/// # Errors
+/// As `structure_posterior`, and an unknown target.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled StructureIdentification route, which calls this kernel function with the same inputs"
+)]
+pub fn identified_under_intervention(
+    samples: &[antecedent_design::GraphPosteriorSample],
+    treatment: antecedent_core::ids::VariableId,
+    outcome: antecedent_core::ids::VariableId,
+    targets: &[antecedent_core::ids::VariableId],
+) -> Result<
+    Vec<antecedent_prob::graph_samples::GraphIdentFlag>,
+    antecedent_design::StructureIdentificationError,
+> {
+    antecedent_design::identified_under_intervention(samples, treatment, outcome, targets)
+}
+
+/// Evaluate the Bayes action and its expected regret under equally weighted draws of
+/// the decision state.
+///
+/// Constraints define the admissible actions (minimum satisfaction plus `1e-12` at
+/// least `chance_threshold`); inadmissible actions are excluded from both the choice
+/// and the perfect-information benchmark.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::evaluate_decision`].
+///
+/// # Errors
+///
+/// Utility callback failures, empty actions or draws, and
+/// `DesignError::NoAdmissibleAction` when no action meets the threshold (there is
+/// no decision to value, so no number is fabricated).
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled FiniteActionDecision route, which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_decision<A, O>(
+    problem: &antecedent_design::DecisionProblem<A, O>,
+    outcomes: &[O],
+) -> Result<antecedent_design::DecisionEvaluation, antecedent_design::DesignError> {
+    antecedent_design::evaluate_decision(problem, outcomes)
+}
 
 /// Obligations inspected before the existing ranker runs.
 ///
@@ -664,16 +769,108 @@ where
 pub use antecedent_design::StructureIdentificationError;
 /// Candidate transport-evidence additions and their portable design records.
 pub use antecedent_design::TransportEvidenceCandidate;
-/// `antecedent-design` items at the crate root.
-pub use antecedent_design::repair;
 /// The theorem routes of a failed identification, as repair families.
 pub use antecedent_design::{FailureRoutes, failure_routes};
 /// Failure snapshots and evidence-arrival checks for bounded z-transport.
 pub use antecedent_design::{
     ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
     ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal, ZTransportProposalWire,
-    plan_z_transport_evidence, snapshot_z_transport_failure,
 };
+
+/// Capture an explicit failed outcome from the currently supported identifier
+/// under the caller's identification limits and execution context.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::snapshot_z_transport_failure`].
+///
+/// # Errors
+/// The query binds to available evidence (there is no failure to snapshot), an
+/// invalid catalog, or an identification error that is not a classified
+/// refusal (an unsupported input or exhausted budget is a snapshot status, not
+/// an error).
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ZTransportEvidencePlanning route, which calls this kernel function with the same inputs"
+)]
+pub fn snapshot_z_transport_failure(
+    diagram: &antecedent_graph::selection::SelectionDiagram,
+    query: &antecedent_identify::ZTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    limits: antecedent_identify::sid::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_design::ZTransportFailureSnapshot, antecedent_design::ZTransportPlanningError>
+{
+    antecedent_design::snapshot_z_transport_failure(diagram, query, catalog, limits, ctx)
+}
+
+/// Identification repair: the items of `antecedent_design::repair`.
+/// The run entry is a deprecated wrapper of the kernel function.
+pub mod repair {
+    pub use antecedent_design::repair::{
+        BackdoorRepairFamily, FailedContract, FamilyVerdict, REPAIR_DEFAULT_DEPTH,
+        REPAIR_MAX_MEMORY_BYTES, REPAIR_MAX_OPERATIONS, RepairCancelled, RepairClassification,
+        RepairDerivation, RepairError, RepairFamily, RepairLimits, RepairObjective, RepairOutcome,
+        RepairReceipt, RepairReport, TransportRepairFamily,
+    };
+
+    /// Apply hypothetical study evidence to a failed contract and report which
+    /// candidates and bounded subsets repair it, under one declared budget.
+    ///
+    /// Candidates are validated first (an invalid or infeasible candidate is an
+    /// `invalid` outcome and never searched); the rest are searched in semantic-id
+    /// order, by subset size, so the result does not depend on declaration order.
+    /// A subset is `verified_sufficient` only when the family's theorem checker
+    /// identifies the hypothetical evidence and its derivation re-verifies, and no
+    /// unresolved assumption obligation (never satisfiable by a study) remains.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::repair`](fn@antecedent_design::repair).
+    ///
+    /// # Errors
+    /// `identification_repair.bounds_exceeded` for a request beyond the declared
+    /// bounds, `identification_repair.cost_units_mismatch` when cost ranking
+    /// compares different unit labels, and `identification_repair.budget` when the
+    /// budget is stopped before the search is entered. A stop during the search is
+    /// a report, never an error.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled IdentificationRepair route, which calls this kernel function with the same inputs"
+    )]
+    pub fn repair(
+        family: &dyn antecedent_design::RepairFamily,
+        candidates: &[antecedent_design::DurableStudyCandidate],
+        objective: antecedent_design::RepairObjective,
+        limits: antecedent_design::RepairLimits,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<antecedent_design::RepairReport, antecedent_design::RepairError> {
+        antecedent_design::repair(family, candidates, objective, limits, ctx)
+    }
+}
+
+#[allow(deprecated, reason = "re-exports the deprecated wrapper at its earlier path")]
+pub use repair::repair;
+
+/// Evaluate up to `spec.max_evaluated` candidates against the frozen failure
+/// and rank only checked proposals. The receipt names every candidate that was
+/// and was not evaluated.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_design::plan_z_transport_evidence`].
+///
+/// # Errors
+/// A zero evaluation budget, or cancellation before the plan completes.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled ZTransportEvidencePlanning route, which calls this kernel function with the same inputs"
+)]
+pub fn plan_z_transport_evidence(
+    snapshot: &std::sync::Arc<antecedent_design::ZTransportFailureSnapshot>,
+    spec: &antecedent_design::ZTransportPlanSpec,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_design::ZTransportPlanResult, antecedent_design::ZTransportPlanningError> {
+    antecedent_design::plan_z_transport_evidence(snapshot, spec, ctx)
+}
+
 /// The composition boundary: what a decision input carries and what may be combined with what.
 pub mod composition_boundary {
     pub use antecedent_design::composition_boundary::{
@@ -683,17 +880,258 @@ pub mod composition_boundary {
         NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef, RouteKind, ScalarClaim,
         SupportPolicy, SupportedDecision, SupportedVerdict, TrustEvidence, TrustRequirement,
         UnsupportedActionPolicy, check_atom_combination, check_composition, check_paired_draws,
-        evaluate_functional_on_input, evaluate_with_support,
     };
+
+    /// Evaluate `contract` over `inputs`, deciding support per action.
+    ///
+    /// Each action is assigned to the first input whose support map covers every
+    /// coordinate it reads at or above the policy's weakest status and whose
+    /// representation can answer it (a mean or scalar answers only an affine utility
+    /// of non-outcome inputs). The actions assigned to one input are evaluated
+    /// together by the existing evaluator (`evaluate_contract` or
+    /// `evaluate_contract_on_means`), with hard constraints narrowed to those
+    /// actions. Actions no input can answer are reported with a reason and left out
+    /// of the comparison under `UnsupportedActionPolicy::CompareSupported`. When
+    /// actions come from several inputs, values are compared by the criterion,
+    /// regret and perfect-information values are withheld, and a criterion that
+    /// needs state-by-state alignment refuses.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::composition_boundary::evaluate_with_support`].
+    ///
+    /// # Errors
+    /// An invalid contract or input set; any unevaluated action under
+    /// `RequireAllActions`; a state-aligned criterion across several sources; and
+    /// any refusal of the underlying evaluator (a mean source with a hard
+    /// constraint, a non-joint draw alignment, a non-outcome meaning).
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SupportedInputDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_with_support(
+        contract: &antecedent_design::DecisionContract,
+        inputs: &[antecedent_design::composition_boundary::DecisionInput],
+        policy: &antecedent_design::composition_boundary::SupportPolicy,
+    ) -> Result<
+        antecedent_design::composition_boundary::SupportedDecision,
+        antecedent_design::composition_boundary::BoundaryError,
+    > {
+        antecedent_design::composition_boundary::evaluate_with_support(contract, inputs, policy)
+    }
+
+    /// Compute `functional` of one action's utility from one input.
+    ///
+    /// A joint law answers through `evaluate_functional`. A mean or scalar answers
+    /// only the expectation of an affine utility over non-outcome inputs; a
+    /// probability, quantile, variance, tail expectation, nonlinear utility or
+    /// outcome-law input is refused, never approximated from a mean.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::composition_boundary::evaluate_functional_on_input`].
+    ///
+    /// # Errors
+    /// An unknown action, a coordinate below `weakest`, a functional a mean cannot
+    /// answer, and any refusal of the joint-law evaluator.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SupportedInputDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_functional_on_input(
+        contract: &antecedent_design::DecisionContract,
+        action_id: &str,
+        functional: antecedent_design::DecisionFunctional,
+        input: &antecedent_design::composition_boundary::DecisionInput,
+        weakest: antecedent_core::response::SupportStatus,
+    ) -> Result<
+        antecedent_design::decision_eval::FunctionalValue,
+        antecedent_design::composition_boundary::BoundaryError,
+    > {
+        antecedent_design::composition_boundary::evaluate_functional_on_input(
+            contract, action_id, functional, input, weakest,
+        )
+    }
 }
 /// Adapters from claim types to decision inputs under a declared policy.
 pub mod decision_adapters {
     pub use antecedent_design::decision_adapters::{
         AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
-        IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
-        adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
-        utility_interval,
+        IdentifiedVerdict, SuppliedClaim,
     };
+
+    /// Interval of an action's utility given an identified set for each input.
+    ///
+    /// This is an outer enclosure by interval arithmetic: it contains every value
+    /// the utility can take, and is sharp when each input appears once in the
+    /// expression. An input that appears twice may widen it.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::utility_interval`].
+    ///
+    /// # Errors
+    /// An unknown action, a count of intervals different from the action's inputs,
+    /// an invalid contract, or an interval that is not finite.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled IdentifiedSetDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn utility_interval(
+        contract: &antecedent_design::DecisionContract,
+        action_id: &str,
+        inputs: &[antecedent_core::response::IdentifiedSet<f64>],
+    ) -> Result<
+        antecedent_core::response::IdentifiedSet<f64>,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::utility_interval(contract, action_id, inputs)
+    }
+
+    /// Decide over per-action identified sets of utility.
+    ///
+    /// Intervals are read in the contract's units. `PosteriorExpectedLoss` and
+    /// `MinimaxOverIdentifiedSet` read them as losses. Under
+    /// `RequireInvariantBestAction` an action is chosen only if its interval beats
+    /// every other eligible action's interval entirely (strictly); otherwise the
+    /// possibly optimal actions are listed. Under `Maximin`, or for the
+    /// `MaximinOverStructures` and `MinimaxOverIdentifiedSet` criteria, the best
+    /// worst case wins; the `Regret` criterion under `Maximin` picks the smallest
+    /// maximum regret. `ReportOnly` returns the intervals.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::evaluate_identified_sets`].
+    ///
+    /// # Errors
+    /// An invalid contract, a utility interval for an unknown, repeated or
+    /// missing action, a non-finite or inverted interval, `BayesOverStructures`
+    /// (an identified set has no probability law) and criteria that need a
+    /// distribution (`ThresholdProbability`, `Quantile`, `ExpectedRegret`).
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled IdentifiedSetDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_identified_sets(
+        contract: &antecedent_design::decision_contract::AdmissibleDecisionContract,
+        utilities: &[antecedent_design::decision_adapters::IdentifiedUtility],
+    ) -> Result<
+        antecedent_design::decision_adapters::IdentifiedSetDecision,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::evaluate_identified_sets(contract, utilities)
+    }
+
+    /// Evaluate adapted claims under the contract and assess their robustness.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::evaluate_adapted`].
+    ///
+    /// # Errors
+    /// A policy that differs from the one the claims were adapted under, and any
+    /// refusal of the structural evaluation or the robustness assessment.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SuppliedClaimDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_adapted(
+        contract: &antecedent_design::decision_contract::AdmissibleDecisionContract,
+        adapted: &antecedent_design::decision_adapters::AdaptedClaims,
+    ) -> Result<
+        antecedent_design::decision_adapters::AdaptedDecision,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::evaluate_adapted(contract, adapted)
+    }
+
+    /// Adapt weighted graph-posterior atoms. With genuine probabilities for every
+    /// atom the claims are credible; without them they are a structural envelope.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::adapt_weighted_graph_atoms`].
+    ///
+    /// # Errors
+    /// Empty, repeated or blank identities; probabilities for some atoms only;
+    /// completion counts or missing probabilities under `BayesOverStructures`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SuppliedClaimDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn adapt_weighted_graph_atoms(
+        claims: Vec<antecedent_design::decision_adapters::SuppliedClaim>,
+        policy: antecedent_design::StructuralPolicy,
+    ) -> Result<
+        antecedent_design::decision_adapters::AdaptedClaims,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::adapt_weighted_graph_atoms(claims, policy)
+    }
+
+    /// Adapt one point claim (a single exact law or answer).
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::adapt_point_claim`].
+    ///
+    /// # Errors
+    /// A blank identity, or `BayesOverStructures`, which needs genuine structure
+    /// probabilities a single claim does not supply.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SuppliedClaimDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn adapt_point_claim(
+        id: &str,
+        evidence: antecedent_design::decision_structural::AtomEvidence,
+        support: antecedent_design::decision_robustness::AtomSupport,
+        policy: antecedent_design::StructuralPolicy,
+    ) -> Result<
+        antecedent_design::decision_adapters::AdaptedClaims,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::adapt_point_claim(id, evidence, support, policy)
+    }
+
+    /// Adapt graph-dependent claims: one answer per graph, no probabilities.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::adapt_graph_dependent_claims`].
+    ///
+    /// # Errors
+    /// Empty, repeated or blank identities; a genuine probability on any graph; and
+    /// `BayesOverStructures`, which needs probabilities graph-dependent claims do not
+    /// have (completion counts are named in the refusal).
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SuppliedClaimDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn adapt_graph_dependent_claims(
+        claims: Vec<antecedent_design::decision_adapters::SuppliedClaim>,
+        policy: antecedent_design::StructuralPolicy,
+    ) -> Result<
+        antecedent_design::decision_adapters::AdaptedClaims,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::adapt_graph_dependent_claims(claims, policy)
+    }
+
+    /// Adapt a finite set of supplied scenarios. Declared weights are weights the
+    /// caller asserts as probabilities; scenarios are always read as a structural
+    /// envelope, never as a posterior.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_adapters::adapt_finite_scenarios`].
+    ///
+    /// # Errors
+    /// As `adapt_weighted_graph_atoms`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled SuppliedClaimDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn adapt_finite_scenarios(
+        claims: Vec<antecedent_design::decision_adapters::SuppliedClaim>,
+        policy: antecedent_design::StructuralPolicy,
+    ) -> Result<
+        antecedent_design::decision_adapters::AdaptedClaims,
+        antecedent_design::decision_adapters::AdapterError,
+    > {
+        antecedent_design::decision_adapters::adapt_finite_scenarios(claims, policy)
+    }
 }
 /// Portable decision contract and decision result artifacts.
 pub mod decision_artifact {
@@ -713,15 +1151,93 @@ pub mod decision_contract {
 /// Evaluate a `DecisionContract` on an aligned joint distribution artifact.
 pub mod decision_eval {
     pub use antecedent_design::decision_eval::{
-        ActionOutcome, DecisionEvalError, DecisionResult, MeanEstimate, Verdict, evaluate_contract,
-        evaluate_contract_on_means,
+        ActionOutcome, DecisionEvalError, DecisionResult, MeanEstimate, Verdict,
     };
+
+    /// Evaluate `contract` on a `MeanSource`.
+    ///
+    /// Exact only for affine utilities, whose expectation is the utility of the
+    /// means. `DecisionContract::source_requirement` is the classification of that
+    /// demand. The result's criterion label names the source's posterior mean or
+    /// frequentist point estimate, so the same numbers do not share a label. No
+    /// sampling error is claimed (`standard_error` is `None`), regret and the value
+    /// of perfect information are unavailable, and the verdict is indistinguishable
+    /// only on exactly equal values.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_eval::evaluate_contract_on_means`].
+    ///
+    /// # Errors
+    /// Refuses an invalid contract, a demand a mean cannot answer, an unknown
+    /// coordinate, a coordinate named twice (the first would silently win), an input
+    /// whose functional is `outcome` (a mean grid is not an outcome law), and a
+    /// non-finite utility.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled ContractLawDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_contract_on_means(
+        contract: &antecedent_design::DecisionContract,
+        source: &antecedent_design::decision_eval::MeanSource,
+    ) -> Result<
+        antecedent_design::decision_eval::DecisionResult,
+        antecedent_design::decision_eval::DecisionEvalError,
+    > {
+        antecedent_design::decision_eval::evaluate_contract_on_means(contract, source)
+    }
+
+    /// Evaluate `contract` on `source`.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_eval::evaluate_contract`].
+    ///
+    /// # Errors
+    /// Refuses an invalid contract, non-joint draws, a missing or masked
+    /// coordinate, a source meaning that cannot answer an outcome-law input, and
+    /// criteria that need structure inputs.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled ContractLawDecision route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_contract(
+        contract: &antecedent_design::DecisionContract,
+        source: &antecedent_io_core::distribution_artifact::DistributionArtifact,
+    ) -> Result<
+        antecedent_design::decision_eval::DecisionResult,
+        antecedent_design::decision_eval::DecisionEvalError,
+    > {
+        antecedent_design::decision_eval::evaluate_contract(contract, source)
+    }
 }
 /// Reliability of sampled and adaptively selected decisions.
 pub mod decision_reliability {
     pub use antecedent_design::decision_reliability::{
-        RankingRequest, ReliabilityError, rank, support_route,
+        RankingRequest, ReliabilityError, support_route,
     };
+
+    /// Rank the candidates of a carrier.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::decision_reliability::rank`].
+    ///
+    /// # Errors
+    /// Anything `DecisionDraws::validate` refuses, fewer than two candidates, an unknown
+    /// baseline, a `k` outside the candidate count, rank tables (two `u32` ranks per
+    /// candidate-draw cell) the context's memory budget does not admit, or cancellation.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled DecisionDrawsRanking route, which calls this kernel function with the same inputs"
+    )]
+    pub fn rank(
+        draws: &antecedent_design::decision_reliability::DecisionDraws,
+        request: &antecedent_design::decision_reliability::RankingRequest,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_design::decision_reliability::RankingReport,
+        antecedent_design::decision_reliability::ReliabilityError,
+    > {
+        antecedent_design::decision_reliability::rank(draws, request, ctx)
+    }
 }
 /// Durable admissible decision contract and robust decision result artifacts.
 pub mod decision_robust_artifact {
@@ -757,8 +1273,42 @@ pub mod functional_source {
 pub mod prior_signal {
     pub use antecedent_design::prior_signal::{
         CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
-        PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
+        PriorSourceInput, SourceToTarget, TransportPolicyDecl,
     };
+
+    /// Adapt compatible prior sources and a future candidate signal into a prior and
+    /// provider for preposterior analysis.
+    ///
+    /// Sources are processed in canonical artifact-id order, so the result does not
+    /// depend on the order they were supplied in. Each source's draws are mapped to the
+    /// target coordinate, tempered by its prior strength, its location moved toward the
+    /// pooled weighted mean (`weight`) by its conflict shrinkage, and resampled by deterministic stratified quantiles
+    /// into `resolution` equally weighted draws in proportion to the effective weights.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::prior_signal::adapt_prior_to_signal`].
+    ///
+    /// # Errors
+    ///
+    /// A signal that is only a coefficient prior or unlock list, an artifact missing
+    /// from or incompatible with the catalog, invalid weights, strength, shrinkage or
+    /// maps, missing lineage, a population change without transport policy, observation
+    /// reuse between a source and the candidate or between sources, or an invalid
+    /// resolution.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled PriorSignalAdaptation route, which calls this kernel function with the same inputs"
+    )]
+    pub fn adapt_prior_to_signal(
+        catalog: &antecedent_io_core::prior_bank::PriorCatalog,
+        target: &antecedent_io_core::prior_bank::TargetDesign,
+        request: &antecedent_design::prior_signal::PriorSignalRequest,
+    ) -> Result<
+        antecedent_design::prior_signal::CandidateSignalPrior,
+        antecedent_design::prior_signal::PriorSignalError,
+    > {
+        antecedent_design::prior_signal::adapt_prior_to_signal(catalog, target, request)
+    }
 }
 /// Exhaustive bounded program search over checked response quantities.
 pub mod program_search {
@@ -811,7 +1361,31 @@ pub mod source_projection_artifact {
 }
 /// Identification flags of a graph posterior, derived rather than declared.
 pub mod structure_identification {
-    pub use antecedent_design::structure_identification::{GraphIdentFlag, identifies};
+    pub use antecedent_design::structure_identification::GraphIdentFlag;
+
+    /// Whether the complete ID algorithm identifies `P(outcome | do(treatment))` in
+    /// `graph`.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_design::structure_identification::identifies`].
+    ///
+    /// # Errors
+    /// Unknown variables, or a budget stop of the identifier (never read as
+    /// non-identification).
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled StructureIdentification route, which calls this kernel function with the same inputs"
+    )]
+    pub fn identifies(
+        graph: &antecedent_graph::admg::Admg,
+        treatment: antecedent_core::ids::VariableId,
+        outcome: antecedent_core::ids::VariableId,
+    ) -> Result<
+        antecedent_prob::graph_samples::GraphIdentFlag,
+        antecedent_design::StructureIdentificationError,
+    > {
+        antecedent_design::structure_identification::identifies(graph, treatment, outcome)
+    }
 }
 /// Portable transported decision artifact (`transported_decision_v1`).
 pub mod transported_decision_artifact {

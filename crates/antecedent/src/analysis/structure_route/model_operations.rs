@@ -35,7 +35,7 @@ use crate::gcm::{ArrowStrength, FittedGcm, PopulationDoContrast};
 ///
 /// A non-linear mechanism anywhere the strengths read, or a degenerate noise variance.
 pub(crate) fn run_arrow_strengths(fitted: &FittedGcm) -> Result<Vec<ArrowStrength>, CausalError> {
-    crate::gcm::arrow_strengths(&fitted.model).map_err(CausalError::from)
+    antecedent_attribution::anomaly::arrow_strengths(&fitted.model).map_err(CausalError::from)
 }
 
 /// Population do-contrast of the target's parent on its child over the study's rows.
@@ -56,7 +56,7 @@ pub(crate) fn run_population_do_contrast(
     let cap = target.max_units.unwrap_or_else(|| data.row_count());
     let mut seeded = ctx.clone();
     seeded.rng = RngFactory::from_seed(target.seed);
-    crate::gcm::population_do_contrast(
+    antecedent_attribution::anomaly::population_do_contrast(
         &fitted.model,
         data,
         target.parent,
@@ -161,5 +161,6 @@ pub(crate) fn run_nested_counterfactual(
         frozen: &target.frozen,
         outcome: target.outcome,
     };
-    crate::gcm::nested_counterfactual(&engine, data, &spec, &mut ws, ctx).map_err(CausalError::from)
+    antecedent_counterfactual::engine::nested_counterfactual(&engine, data, &spec, &mut ws, ctx)
+        .map_err(CausalError::from)
 }

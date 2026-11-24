@@ -213,6 +213,10 @@ impl SplitEffect {
     /// The refusals of [`estimate_effect_on_split`]. Where no current attesting, non-boundary
     /// record measured this construction at this analysis row count, the interval is still
     /// reported and its calibration is `not_measured` or `outside_measured_scope`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_split_effect_source(source_artifact, ctx) and CompiledSplitEffect::measure (route SampleSplitEffect), which replays the same source after the unit's support gate"
+    )]
     pub fn measure(&self, ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         split_effect::measure(&self.source, ctx)
     }
@@ -223,6 +227,10 @@ impl SplitEffect {
 /// # Errors
 ///
 /// As [`SplitEffect::measure`], and a source that is not the canonical encoding.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_split_effect_source(source_artifact, ctx) and CompiledSplitEffect::measure (route SampleSplitEffect), which replays the same source after the unit's support gate"
+)]
 pub fn measure_source(
     source_artifact: &[u8],
     ctx: &ExecutionContext,

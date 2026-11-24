@@ -868,6 +868,10 @@ pub fn discover_dbn_posterior_panel(
 /// # Errors
 ///
 /// No posterior, or posteriors that do not pool.
+#[deprecated(
+    since = "3.1.0",
+    note = "discover over the multiply imputed tables through a Study (route DiscoverStatic), whose pooled posterior is this equal-weight mixture of the per-imputation posteriors"
+)]
 pub fn pool_posteriors_over_imputations(
     posteriors: &[GraphPosterior],
 ) -> Result<GraphPosterior, CausalError> {
@@ -940,7 +944,39 @@ pub mod temporal_admg_atoms {
 
 /// Signed-uniform structural graph probabilities for a partially observed table.
 pub mod observed_marginals {
-    pub use antecedent_discovery::observed_marginals::{
-        ObservedMarginals, signed_uniform_observed_marginals,
-    };
+    pub use antecedent_discovery::observed_marginals::ObservedMarginals;
+
+    /// Integrate the last column's absent cells. Each completed table contributes its
+    /// full graph normalizer divided by the *joint* proposal density of its missing
+    /// cells. Flat averaging would instead condition on the imputation law. The other
+    /// columns must be complete and in the order given by `variables`.
+    ///
+    /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+    /// names. This forwards to [`antecedent_discovery::observed_marginals::signed_uniform_observed_marginals`].
+    ///
+    /// # Errors
+    /// Refuses unsupported shapes, invalid inputs, unusable proposal fits, cancellation,
+    /// and unresolved integration. The error diagnostic is empirical, not a guaranteed
+    /// absolute error bound. Starting at 64 draws, the fixed schedule quadruples the sample until
+    /// the effective sample size reaches 16 and the maximum edge MCSE is at most 0.01. The last
+    /// check uses the supplied draw limit. The seed fixes the entire sequence of completions.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled DiscoverStatic route, which calls this kernel function with the same inputs"
+    )]
+    pub fn signed_uniform_observed_marginals(
+        table: &antecedent_data::dataset::TabularData,
+        variables: &[antecedent_core::ids::VariableId],
+        prior: &antecedent_discovery::GraphPrior,
+        seed: u64,
+        draws: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_discovery::observed_marginals::ObservedMarginals,
+        antecedent_discovery::DiscoveryError,
+    > {
+        antecedent_discovery::observed_marginals::signed_uniform_observed_marginals(
+            table, variables, prior, seed, draws, ctx,
+        )
+    }
 }

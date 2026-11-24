@@ -21,6 +21,7 @@
     deprecated,
     reason = "the twins call the direct facade entries the compiled routes replace"
 )]
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
 
 use std::sync::Arc;
 

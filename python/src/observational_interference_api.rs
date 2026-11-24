@@ -2,6 +2,10 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::estimate::{
     NetworkData, NetworkEdge, ObservationalExposureSpec,
     estimate_observational_exposure as estimate_native,
@@ -19,6 +23,10 @@ type ObservationalExposureResult = (f64, f64, f64, usize, usize, usize, usize, f
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn estimate_observational_network_exposure(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

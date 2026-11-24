@@ -355,6 +355,10 @@ fn difference_in_differences(
 /// Staggered-adoption group-time ATT against never-treated units. Requires a
 /// balanced panel; reports points and group sizes only.
 #[pyfunction]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn group_time_att(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,

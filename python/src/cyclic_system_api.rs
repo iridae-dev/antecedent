@@ -110,6 +110,10 @@ fn consume_cyclic_system(
 
 #[pyfunction]
 #[pyo3(signature = (request_json, prior_sd, chains, warmup, draws, proposal_scale, seed, *, max_bytes=None, cancel=None))]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn cyclic_parameter_posterior(
     py: Python<'_>,
     request_json: &str,

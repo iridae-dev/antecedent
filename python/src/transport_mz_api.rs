@@ -7,6 +7,10 @@ use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
 use antecedent::estimate::{Assignment, ExactEvaluationLimits};
 use antecedent::execution::SearchLimits;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::identify::{
     MzTransportDecision, MzTransportQuery, MzTransportRoute, ZTransportSourceSpec,
     bind_mz_transport_catalog, decide_mz_transport,
@@ -274,6 +278,10 @@ struct MultiSourceZTransportStage {
 
 impl MultiSourceZTransportStage {
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        deprecated,
+        reason = "the Python binding of the deprecated direct path; the Python function warns"
+    )]
     fn prepare(
         &self,
         py: Python<'_>,
@@ -545,6 +553,10 @@ impl PreparedMultiSourceZTransportStage {
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalog, *, max_operations=4096, max_depth=24, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 #[doc(hidden)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn identify_multi_source_z_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

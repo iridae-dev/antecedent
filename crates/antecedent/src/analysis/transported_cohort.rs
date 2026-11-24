@@ -61,7 +61,7 @@ use antecedent_core::ExecutionContext;
 pub use antecedent_learn::transported_effect::{
     FeatureOverlap, OverlapAssessment, SELECTION_SHIFT_ASSUMPTION, SelectionShiftDeclaration,
     TRANSPORTED_POINT_SCOPE, TargetCohort, TransportRefusal, TransportedCohortEffect,
-    TransportedInference, TransportedRequest, assess_overlap, transport_cohort_effect,
+    TransportedInference, TransportedRequest, assess_overlap,
 };
 
 use super::cohort_decision::{
@@ -71,6 +71,46 @@ use super::cohort_decision::{
 use super::composition_verification::{
     ClaimStanding, CompositionNode, library_transported_node, library_transported_standing,
 };
+
+/// Apply `effect` to a cohort from a different population under a declared shift.
+///
+/// Order of refusal: cohort shape, the model's support contract and identity link, strict
+/// feature schema, the shift declaration, overlap (disjoint feature, then rows outside),
+/// prediction. `feature_names` are the model's feature names aligned with
+/// `FittedEffect::features`; `model_identity` is the retained model's identity and is
+/// bound into the result.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_learn::transported_effect::transport_cohort_effect`].
+///
+/// # Errors
+/// A `TransportRefusal` naming the unmet premise; no value is issued.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled TransportedCohortEffect route, which calls this kernel function with the same inputs"
+)]
+pub fn transport_cohort_effect(
+    effect: &antecedent_learn::FittedEffect,
+    feature_names: &[String],
+    model_identity: &str,
+    model_population: &str,
+    cohort: &antecedent_learn::transported_effect::TargetCohort,
+    shift: Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<
+    antecedent_learn::transported_effect::TransportedCohortEffect,
+    antecedent_learn::transported_effect::TransportRefusal,
+> {
+    antecedent_learn::transported_effect::transport_cohort_effect(
+        effect,
+        feature_names,
+        model_identity,
+        model_population,
+        cohort,
+        shift,
+        ctx,
+    )
+}
 
 /// Route label of this transport in a [`TransportedCohortReceipt`].
 pub const COHORT_TRANSPORT_ROUTE: &str = "cohort_effect";
@@ -365,7 +405,7 @@ pub fn transport_cohort_effect_from_result(
         ));
     };
     let target = numeric_cohort(cohort)?;
-    let issued = transport_cohort_effect(
+    let issued = antecedent_learn::transported_effect::transport_cohort_effect(
         &effect,
         &model.features(),
         model.retained().identity(),
