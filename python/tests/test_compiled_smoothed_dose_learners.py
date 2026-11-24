@@ -33,7 +33,7 @@ from antecedent.extensibility import (
 from antecedent.external_learners import ExternalLearner, Learners
 from antecedent.outcomes import require_success
 from antecedent.transport import advanced
-from antecedent.transport._smoothed_dose import (
+from antecedent.transport._smoothed_dose_learners import (
     PORTABLE_PREDICTION_MAP,
     SmoothedDoseLearnersEstimate,
     analyze_smoothed_dose,
