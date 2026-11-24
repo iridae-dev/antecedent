@@ -358,6 +358,47 @@ impl LabelOrder {
         };
         pairs.iter().map(|&(a, b)| Ok((at(a)?, at(b)?))).collect()
     }
+
+    /// [`Self::remap`], each pair oriented to `a <= b` when `orient`, then sorted ascending.
+    ///
+    /// The sort is two stable counting passes over the label positions (by the second
+    /// component, then by the first), `O(nodes + pairs)`: no comparison sort, so the static
+    /// identity path runs no loop longer than the node or pair count and no recursion. The
+    /// result is the ascending order of the pairs, the same as any sort of them.
+    fn remap_sorted(&self, pairs: &[(u32, u32)], orient: bool) -> Result<Vec<(u32, u32)>, IoError> {
+        let mut mapped = self.remap(pairs)?;
+        if orient {
+            for pair in &mut mapped {
+                if pair.0 > pair.1 {
+                    *pair = (pair.1, pair.0);
+                }
+            }
+        }
+        let by_second = counting_sort(&mapped, self.position.len(), |pair| pair.1);
+        Ok(counting_sort(&by_second, self.position.len(), |pair| pair.0))
+    }
+}
+
+/// Stable counting sort of `pairs` by `key`, every key below `keys`.
+fn counting_sort(
+    pairs: &[(u32, u32)],
+    keys: usize,
+    key: impl Fn((u32, u32)) -> u32,
+) -> Vec<(u32, u32)> {
+    let mut start = vec![0usize; keys + 1];
+    for &pair in pairs {
+        start[key(pair) as usize + 1] += 1;
+    }
+    for index in 0..keys {
+        start[index + 1] += start[index];
+    }
+    let mut sorted = vec![(0u32, 0u32); pairs.len()];
+    for &pair in pairs {
+        let slot = &mut start[key(pair) as usize];
+        sorted[*slot] = pair;
+        *slot += 1;
+    }
+    sorted
 }
 
 /// Temporal CPDAG / PAG identity: lagged edges plus contemporaneous marks.
@@ -515,8 +556,7 @@ pub fn canonical_temporal_dag_wire(graph: &TemporalDag) -> Result<TemporalGraphW
 pub fn dag_identity(dag: &Dag) -> Result<GraphIdentityWire, IoError> {
     let wire = dag_to_wire(dag)?;
     let order = LabelOrder::of(dag.nodes())?;
-    let mut directed = order.remap(&wire.edges)?;
-    directed.sort_unstable();
+    let directed = order.remap_sorted(&wire.edges, false)?;
     if schema_aligned(&order.nodes) {
         return Ok(GraphIdentityWire::Dag(DagWire {
             node_count: wire.node_count,
@@ -541,15 +581,8 @@ pub fn dag_identity(dag: &Dag) -> Result<GraphIdentityWire, IoError> {
 pub fn admg_identity(admg: &Admg) -> Result<GraphIdentityWire, IoError> {
     let wire = admg_to_wire(admg)?;
     let order = LabelOrder::of(admg.nodes())?;
-    let mut directed = order.remap(&wire.directed)?;
-    directed.sort_unstable();
-    let mut bidirected = order.remap(&wire.bidirected)?;
-    for pair in &mut bidirected {
-        if pair.0 > pair.1 {
-            *pair = (pair.1, pair.0);
-        }
-    }
-    bidirected.sort_unstable();
+    let directed = order.remap_sorted(&wire.directed, false)?;
+    let mut bidirected = order.remap_sorted(&wire.bidirected, true)?;
     bidirected.dedup();
     if schema_aligned(&order.nodes) {
         return Ok(GraphIdentityWire::Admg(AdmgWire {
@@ -1043,5 +1076,240 @@ fn posterior_atom_graph_wire(
             };
             Ok(PosteriorAtomGraphWire::Static(wire))
         }
+    }
+}
+
+#[cfg(test)]
+mod static_identity_bytes {
+    //! The static DAG and ADMG identities are byte-identical to the comparison-sort encoder
+    //! they replaced (`git show 20006cae18:crates/antecedent-io-core/src/identity/graph.rs`,
+    //! `dag_identity` and `admg_identity`), reproduced here as the reference.
+
+    use antecedent_graph::DenseNodeId;
+
+    use super::{
+        Admg, AdmgWire, Dag, DagWire, GraphIdentityWire, IdentityNodeWire, IoError, LabelOrder,
+        LabeledStaticGraphIdentityWire, NodeRef, VariableId, admg_identity, admg_to_wire,
+        dag_identity, dag_to_wire, schema_aligned, to_cbor,
+    };
+
+    fn reference_dag(dag: &Dag) -> Result<GraphIdentityWire, IoError> {
+        let wire = dag_to_wire(dag)?;
+        let order = LabelOrder::of(dag.nodes())?;
+        let mut directed = order.remap(&wire.edges)?;
+        directed.sort_unstable();
+        if schema_aligned(&order.nodes) {
+            return Ok(GraphIdentityWire::Dag(DagWire {
+                node_count: wire.node_count,
+                edges: directed,
+            }));
+        }
+        Ok(GraphIdentityWire::LabeledDag(LabeledStaticGraphIdentityWire {
+            nodes: order.nodes,
+            directed,
+            bidirected: Vec::new(),
+        }))
+    }
+
+    fn reference_admg(admg: &Admg) -> Result<GraphIdentityWire, IoError> {
+        let wire = admg_to_wire(admg)?;
+        let order = LabelOrder::of(admg.nodes())?;
+        let mut directed = order.remap(&wire.directed)?;
+        directed.sort_unstable();
+        let mut bidirected = order.remap(&wire.bidirected)?;
+        for pair in &mut bidirected {
+            if pair.0 > pair.1 {
+                *pair = (pair.1, pair.0);
+            }
+        }
+        bidirected.sort_unstable();
+        bidirected.dedup();
+        if schema_aligned(&order.nodes) {
+            return Ok(GraphIdentityWire::Admg(AdmgWire {
+                node_count: wire.node_count,
+                directed,
+                bidirected,
+            }));
+        }
+        Ok(GraphIdentityWire::LabeledAdmg(LabeledStaticGraphIdentityWire {
+            nodes: order.nodes,
+            directed,
+            bidirected,
+        }))
+    }
+
+    /// Deterministic xorshift stream.
+    struct Stream(u64);
+
+    impl Stream {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn below(&mut self, bound: usize) -> usize {
+            usize::try_from(self.next() % bound as u64).unwrap()
+        }
+
+        fn shuffle<T>(&mut self, items: &mut [T]) {
+            for index in (1..items.len()).rev() {
+                items.swap(index, self.below(index + 1));
+            }
+        }
+    }
+
+    fn dense(index: usize) -> DenseNodeId {
+        DenseNodeId::from_raw(u32::try_from(index).unwrap())
+    }
+
+    /// Labels for `count` nodes: schema-aligned, sparse static, or with unfolded slots.
+    fn labels(stream: &mut Stream, count: usize) -> Vec<NodeRef> {
+        let mut variables: Vec<u32> = if stream.below(3) == 0 {
+            (0..u32::try_from(count).unwrap()).collect()
+        } else {
+            let mut pool: Vec<u32> = (0..u32::try_from(count * 3 + 1).unwrap()).collect();
+            stream.shuffle(&mut pool);
+            pool.truncate(count);
+            pool
+        };
+        stream.shuffle(&mut variables);
+        let unfolded = stream.below(4) == 0;
+        variables
+            .into_iter()
+            .map(|variable| {
+                if unfolded && stream.below(3) == 0 {
+                    NodeRef::Unfolded {
+                        variable: VariableId::from_raw(variable),
+                        offset: -i32::try_from(stream.below(3)).unwrap(),
+                    }
+                } else {
+                    NodeRef::Static(VariableId::from_raw(variable))
+                }
+            })
+            .collect()
+    }
+
+    /// Directed pairs acyclic along a random topological order, in random insertion order.
+    fn directed_pairs(stream: &mut Stream, count: usize, density: usize) -> Vec<(usize, usize)> {
+        let mut topo: Vec<usize> = (0..count).collect();
+        stream.shuffle(&mut topo);
+        let mut pairs = Vec::new();
+        for i in 0..count {
+            for j in i + 1..count {
+                if stream.below(100) < density {
+                    pairs.push((topo[i], topo[j]));
+                }
+            }
+        }
+        stream.shuffle(&mut pairs);
+        pairs
+    }
+
+    fn random_dag(stream: &mut Stream, count: usize, density: usize) -> Dag {
+        let mut dag = Dag::empty();
+        for node in labels(stream, count) {
+            dag.add_node(node).unwrap();
+        }
+        for (from, to) in directed_pairs(stream, count, density) {
+            dag.insert_directed(dense(from), dense(to)).unwrap();
+        }
+        dag
+    }
+
+    fn random_admg(stream: &mut Stream, count: usize, density: usize) -> Admg {
+        let mut admg = Admg::empty();
+        for node in labels(stream, count) {
+            admg.add_node(node).unwrap();
+        }
+        for (from, to) in directed_pairs(stream, count, density) {
+            admg.insert_directed(dense(from), dense(to)).unwrap();
+        }
+        for a in 0..count {
+            for b in a + 1..count {
+                if stream.below(100) < density {
+                    let (a, b) = if stream.below(2) == 0 { (a, b) } else { (b, a) };
+                    admg.insert_bidirected(dense(a), dense(b)).unwrap();
+                }
+            }
+        }
+        admg
+    }
+
+    #[test]
+    fn static_identities_are_byte_identical_to_the_comparison_sort_encoder() {
+        let mut stream = Stream(0x9e37_79b9_7f4a_7c15);
+        // Sizes on both sides of the graph crate's edge-index threshold (64 nodes).
+        for count in [0, 1, 2, 3, 4, 5, 7, 12, 30, 63, 64, 65, 66, 150] {
+            for density in [0, 10, 35, 80] {
+                let rounds = if count > 30 { 2 } else { 12 };
+                for _ in 0..rounds {
+                    let dag = random_dag(&mut stream, count, density);
+                    let (encoded, reference) =
+                        (dag_identity(&dag).unwrap(), reference_dag(&dag).unwrap());
+                    assert_eq!(encoded, reference);
+                    assert_eq!(to_cbor(&encoded).unwrap(), to_cbor(&reference).unwrap());
+                    assert!(encoded.is_canonical());
+                    let admg = random_admg(&mut stream, count, density);
+                    let (encoded, reference) =
+                        (admg_identity(&admg).unwrap(), reference_admg(&admg).unwrap());
+                    assert_eq!(encoded, reference);
+                    assert_eq!(to_cbor(&encoded).unwrap(), to_cbor(&reference).unwrap());
+                    assert!(encoded.is_canonical());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn static_identities_match_hand_derived_wires() {
+        let node = |variable: u32| NodeRef::Static(VariableId::from_raw(variable));
+        let label = |variable: u32| IdentityNodeWire::Static { variable };
+
+        // Aligned labels in dense order 2, 0, 1: variable order puts dense 1, 2, 0 at 0, 1, 2,
+        // so 2 -> 0 is (2, 0) and 0 -> 1 is (0, 1).
+        let mut dag = Dag::empty();
+        for variable in [2, 0, 1] {
+            dag.add_node(node(variable)).unwrap();
+        }
+        dag.insert_directed(dense(0), dense(1)).unwrap();
+        dag.insert_directed(dense(1), dense(2)).unwrap();
+        assert_eq!(
+            dag_identity(&dag).unwrap(),
+            GraphIdentityWire::Dag(DagWire { node_count: 3, edges: vec![(0, 1), (2, 0)] })
+        );
+
+        // Variables 5, 3 with 5 -> 3: labelled, 3 first.
+        let mut dag = Dag::empty();
+        dag.add_node(node(5)).unwrap();
+        dag.add_node(node(3)).unwrap();
+        dag.insert_directed(dense(0), dense(1)).unwrap();
+        assert_eq!(
+            dag_identity(&dag).unwrap(),
+            GraphIdentityWire::LabeledDag(LabeledStaticGraphIdentityWire {
+                nodes: vec![label(3), label(5)],
+                directed: vec![(1, 0)],
+                bidirected: Vec::new(),
+            })
+        );
+
+        // Variables 1, 7, 4 with 1 -> 4, 7 -> 4, 7 <-> 1, 4 <-> 7; positions 1:0, 4:1, 7:2.
+        let mut admg = Admg::empty();
+        for variable in [1, 7, 4] {
+            admg.add_node(node(variable)).unwrap();
+        }
+        admg.insert_directed(dense(0), dense(2)).unwrap();
+        admg.insert_directed(dense(1), dense(2)).unwrap();
+        admg.insert_bidirected(dense(1), dense(0)).unwrap();
+        admg.insert_bidirected(dense(2), dense(1)).unwrap();
+        assert_eq!(
+            admg_identity(&admg).unwrap(),
+            GraphIdentityWire::LabeledAdmg(LabeledStaticGraphIdentityWire {
+                nodes: vec![label(1), label(4), label(7)],
+                directed: vec![(0, 1), (2, 1)],
+                bidirected: vec![(0, 2), (1, 2)],
+            })
+        );
     }
 }
