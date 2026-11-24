@@ -16,7 +16,9 @@ mutation did not apply or a runner could not run); undetected and unexecuted bot
 the campaign. Each mutated file is restored, and the run fails if any is left changed.
 
 The `aeneas` runner retranslates Rust and needs AENEAS_DIR (formal/rust/extract.sh); the
-`kani` runner needs cargo kani at the pinned version (formal/toolchain.toml).
+`kani` runner needs cargo kani at the pinned version (formal/toolchain.toml) and checks one named
+harness per invocation under its timeout; the `python` runner runs in the pinned interpreter the
+review digests are bound under, with the extension already built into that environment.
 """
 
 from __future__ import annotations
@@ -124,19 +126,34 @@ def run_cases(root: Path, campaign: dict, only: set[str] | None = None) -> dict[
     outcomes: dict[str, str] = {}
     for runner, cases in by_runner.items():
         spec = runners[runner]
-        try:
-            proc = subprocess.run(spec["command"], cwd=root / spec["directory"], capture_output=True, text=True)
-        except OSError as error:
-            print(f"adversarial: runner {runner} could not start: {error}", file=sys.stderr)
-            outcomes.update({c["id"]: "not run" for c in cases})
-            continue
-        output = proc.stdout + proc.stderr
-        names = _outcomes(runner, output, proc.returncode, [c["test"] for c in cases])
-        for case in cases:
-            outcomes[case["id"]] = names[case["test"]]
-        if proc.returncode != 0 and all(names[c["test"]] == "not run" for c in cases):
-            print(f"adversarial: runner {runner} failed before running its cases:\n{output[-3000:]}", file=sys.stderr)
+        # A runner with `case_args` runs one invocation per case (a Kani harness each, under the
+        # runner's `timeout`); otherwise one invocation runs every case of the runner.
+        groups = [[case] for case in cases] if "case_args" in spec else [cases]
+        for group in groups:
+            outcomes.update(_run_group(root, runner, spec, group))
     return outcomes
+
+
+def _run_group(root: Path, runner: str, spec: dict, cases: list[dict]) -> dict[str, str]:
+    command = list(spec["command"])
+    if "case_args" in spec:
+        command += [arg.format(test=cases[0]["test"]) for arg in spec["case_args"]]
+    try:
+        proc = subprocess.run(
+            command, cwd=root / spec["directory"], capture_output=True, text=True, timeout=spec.get("timeout")
+        )
+    except OSError as error:
+        print(f"adversarial: runner {runner} could not start: {error}", file=sys.stderr)
+        return {c["id"]: "not run" for c in cases}
+    except subprocess.TimeoutExpired:
+        names = ", ".join(c["test"] for c in cases)
+        print(f"adversarial: runner {runner} exceeded {spec['timeout']} s on {names}", file=sys.stderr)
+        return {c["id"]: "not run" for c in cases}
+    output = proc.stdout + proc.stderr
+    names = _outcomes(runner, output, proc.returncode, [c["test"] for c in cases])
+    if proc.returncode != 0 and all(names[c["test"]] == "not run" for c in cases):
+        print(f"adversarial: runner {runner} failed before running its cases:\n{output[-3000:]}", file=sys.stderr)
+    return {case["id"]: names[case["test"]] for case in cases}
 
 
 def run(root: Path = REPO_ROOT, mutations: bool = False, runners: set[str] | None = None) -> int:

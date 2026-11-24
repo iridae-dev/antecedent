@@ -21,11 +21,14 @@ command = ["cargo", "test", "--no-fail-fast"]
 
 [runners.python]
 directory = "python"
-command = ["uv", "run", "--project", ".", "python", "-m", "pytest", "-rA", "-p", "no:cacheprovider", "tests/test_adversarial_ledger_identity.py"]
+command = ["uv", "run", "--project", ".", "--python", "3.12.13", "python", "-m", "pytest", "-rA", "-p", "no:cacheprovider", "tests/test_adversarial_ledger_identity.py"]
 
+# One harness per invocation (case_args), each bounded by the timeout in seconds.
 [runners.kani]
 directory = "formal/kani"
 command = ["cargo", "kani"]
+case_args = ["--harness", "{test}"]
+timeout = 900
 
 [runners.lean]
 directory = "formal"
