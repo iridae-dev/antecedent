@@ -356,16 +356,6 @@ class Criterion:
         return cls(kind, threshold=args.get("threshold"), p=args.get("p"))
 
 
-# The refusals of an ordinary form that send a value contract to the trade-off engine: a value
-# that names a trade-off, and a value the ordinary utility language cannot state (exp or ln of
-# an attribute).
-_TRADEOFF_ENGINE_DETAILS = frozenset(
-    {
-        _reason_details.preference_contract.NO_ORDINARY_FORM,
-        _reason_details.preference_contract.NOT_LOWERABLE,
-    }
-)
-
 _VALUE_UTILITY = (
     "Action.utility reads inputs by position (decision.x(i)); a value over attributes goes in "
     "Contract(value=decision.Value(...))"
@@ -807,14 +797,14 @@ class Contract:
         described = self._describe()
         if described.get("ordinary") is not None:
             return "ordinary"
+        # Natively decided: a value that names a trade-off, or one the ordinary utility language
+        # cannot state (exp or ln of an attribute), is decided across trade-offs. Any other
+        # refusal of the ordinary form is a fault of the declaration and is raised.
+        if described.get("decided_across_preferences"):
+            return "tradeoff"
         refusal = described.get("ordinary_refusal")
         if isinstance(refusal, str):
             refusal = json.loads(refusal)
-        detail = refusal.get("detail") if isinstance(refusal, Mapping) else None
-        if detail in _TRADEOFF_ENGINE_DETAILS:
-            return "tradeoff"
-        # Any other refusal of the ordinary form is a fault of the declaration, not a reason to
-        # decide it across trade-offs.
         if isinstance(refusal, Mapping):
             raise PreferenceRefusal(refusal)
         raise CausalUnsupportedError(

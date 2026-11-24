@@ -16,10 +16,10 @@ use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
     ActionInput, ActionKind, Attribute, BeliefRows, CertifiedPreferenceResult, CertifiedVerdict,
     HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction, PreferenceContract,
-    PreferenceDecisionArtifact, PreferenceDecisionResult, PreferenceEvaluation,
-    PreferenceEvaluationOptions, PreferenceExpr, PreferenceMeasure, PreferenceParameter,
-    PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict, RegionStatus,
-    RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
+    PreferenceContractError, PreferenceDecisionArtifact, PreferenceDecisionResult,
+    PreferenceEvaluation, PreferenceEvaluationOptions, PreferenceExpr, PreferenceMeasure,
+    PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict,
+    RegionStatus, RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
     StructuralPreferenceEvaluation, StructuralPreferenceResult, StructuralPreferenceVerdict,
     ValueModel, ValueRelation, chain_joint_law, decide_across_structures_with_context,
     decide_preferences_on_means_with_context, decide_preferences_with_context,
@@ -978,23 +978,33 @@ fn preference_model_describe(model_json: &str) -> PyResult<Reply> {
 }
 
 /// The ordinary contract that states `contract`, in the declaration JSON of an ordinary
-/// contract, or `null` with the refusal that says why none does.
-fn ordinary_form(contract: &PreferenceContract) -> (Value, Value) {
+/// contract, or `null` with the refusal that says why none does; and whether the decision
+/// across the preference set answers it instead: when the value names a trade-off, or when the
+/// ordinary utility language cannot state the value.
+fn ordinary_form(contract: &PreferenceContract) -> (Value, Value, bool) {
     match contract.ordinary_contract() {
         Ok(ordinary) => match contract_to_json(&ordinary) {
-            Ok(text) => (serde_json::from_str(&text).unwrap_or(Value::Null), Value::Null),
+            Ok(text) => (serde_json::from_str(&text).unwrap_or(Value::Null), Value::Null, false),
             Err(error) => (
                 Value::Null,
                 serde_json::from_str(&crate::decision_api::io_refusal(&error, "describe"))
                     .unwrap_or(Value::Null),
+                false,
             ),
         },
-        Err(error) => (Value::Null, refusal_value(&error.to_refusal())),
+        Err(error) => {
+            let across = matches!(
+                error,
+                PreferenceContractError::NoOrdinaryForm { .. }
+                    | PreferenceContractError::NotLowerable { .. }
+            );
+            (Value::Null, refusal_value(&error.to_refusal()), across)
+        }
     }
 }
 
 /// Validate a preference contract; returns `{identity, route, route_reason, needs, ordinary,
-/// ordinary_refusal}` (`needs` is `means` or `joint_draws`; `ordinary` is the ordinary
+/// ordinary_refusal, decided_across_preferences}` (`needs` is `means` or `joint_draws`; `ordinary` is the ordinary
 /// contract that states the decision when its value names no trade-off, else `null` with
 /// `ordinary_refusal` saying why) or a refusal.
 #[pyfunction]
@@ -1006,10 +1016,11 @@ fn preference_contract_describe(contract_json: &str) -> PyResult<Reply> {
             let choice = preference_route(&contract).map_err(|e| refusal(&e.to_refusal()))?;
             let requirement = source_requirement(&contract).map_err(|e| refusal(&e))?;
             let means = requirement.any_of.contains(&SourceRepresentation::Mean);
-            let (ordinary, ordinary_refusal) = ordinary_form(&contract);
+            let (ordinary, ordinary_refusal, across) = ordinary_form(&contract);
             Ok(json!({
                 "ordinary": ordinary,
                 "ordinary_refusal": ordinary_refusal,
+                "decided_across_preferences": across,
                 "identity": identity,
                 "route": match choice.route {
                     PreferenceRoute::Exact => "exact",
