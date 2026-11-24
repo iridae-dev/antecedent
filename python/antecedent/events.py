@@ -102,14 +102,23 @@ def prepare(
     *,
     source: EventResult | None = None,
     receipt: ProviderVerificationReceipt | None = None,
+    graph: Any | None = None,
+    provenance: Mapping[str, str] | None = None,
     execution: Execution | None = None,
 ) -> PreparedEventProgram:
-    """Compile a forecast, likelihood, worlds, assessment, update or future study.
+    """Compile a forecast, likelihood, worlds, assessment, update, future study,
+    offspring functional, excitation challenge, marked fit, excitation question,
+    excluded shock, or release study.
 
-    For world composition, pass a retained event result as `source`. Decision
-    contracts accept an existing decision.Contract or its native JSON declaration.
-    ``execution`` supplies the memory limit and cancellation of the compile; the
-    random streams are the seeds the request declares.
+    For world composition, pass a retained event result as `source`. An
+    excitation question takes the discovered graph and the provenance map from
+    the compiled search. The question fits the challenge and offers that
+    constant-baseline kernel; the bridge evidence is the discovery provenance. A release
+    study takes the question result as `source` and prices only the catalog
+    kernel the bridge kept. Decision contracts accept an existing
+    decision.Contract or its native JSON declaration. ``execution`` supplies the
+    memory limit and cancellation of the compile; the random streams are the
+    seeds the request declares.
     """
     declaration = dict(request)
     if declaration.get("contract") is not None:
@@ -122,6 +131,8 @@ def prepare(
         _wire(declaration),
         None if source is None else source._native,
         None if receipt is None else receipt._native_value,
+        graph,
+        None if provenance is None else dict(provenance),
         **_controls(execution),
     )
     return PreparedEventProgram(native)
@@ -133,10 +144,19 @@ def replay(
     *,
     source: EventResult | None = None,
     receipt: ProviderVerificationReceipt | None = None,
+    graph: Any | None = None,
+    provenance: Mapping[str, str] | None = None,
     execution: Execution | None = None,
 ) -> EventResult:
     """Recompile and execute a forecast or world request under an expected identity."""
-    plan = prepare(request, source=source, receipt=receipt, execution=execution)
+    plan = prepare(
+        request,
+        source=source,
+        receipt=receipt,
+        graph=graph,
+        provenance=provenance,
+        execution=execution,
+    )
     if plan._native.replay_identity() != expected_program:
         detail = _reason_details.events.INVALID_REQUEST
         raise EventRefusal(detail, f"{detail}: replay program identity changed")

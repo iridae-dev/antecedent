@@ -251,7 +251,9 @@ impl CompiledWorlds {
             || !p.check_step
             || p.output_every != 1
             || p.steps.saturating_mul(2).saturating_add(1) > MAX_SDE_KNOTS
-            || request.worlds.len() >= 16
+            // The SDE compiler retains at most 64 worlds, including the baseline
+            // this composer adds. The cell-product check below is the execution budget.
+            || request.worlds.len() + 1 > 64
             || !(1..=128).contains(&request.outputs.len())
             || !(1..=64).contains(&request.bindings.len())
         {
@@ -627,7 +629,9 @@ fn paired_standard_error(
     mean: f64,
 ) -> Result<Option<f64>, EventError> {
     let group_count = match law.meaning() {
-        EventLawMeaning::Fixed | EventLawMeaning::PlugIn => deltas.len(),
+        EventLawMeaning::Fixed | EventLawMeaning::PlugIn | EventLawMeaning::Intervened => {
+            deltas.len()
+        }
         EventLawMeaning::RecursiveRefit => {
             law.refit_parameters().map_or(0, <[super::HawkesParameters]>::len)
         }

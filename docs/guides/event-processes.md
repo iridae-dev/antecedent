@@ -4,6 +4,38 @@ An event forecast represents arrivals by type on a named continuous clock. A com
 
 Choose the observation window and record the complete history from an explicit empty origin. Native likelihood treats the forecast cutoff as the first instant outside the observed window. Gaps and ties in native timestamps need a separate observation model. Branching and decay arrays use target rows and source columns. Excitation describes predictive association. World effects come from the declared causal equations and bindings.
 
+A dense catalog is limited by the likelihood build. One build charges `(events + 1) * types²` against the operation budget, and the catalog cap is the largest type count for which a build at the event cap uses at most half that budget. A forecast can still be refused when its fit or simulation exceeds the budget. The composer accepts as many intervention worlds as the SDE retains, 63 plus the baseline, and refuses when the grid's cell product exceeds its execution budget.
+
+## Horizon and lifetime offspring
+
+The branching entry `α` is the expected number of direct children over the whole future. On a finite horizon `H` the direct contribution of an exponential kernel is `α (1 - exp(-β H))`. A release at time `t` scored through a window that ends at `T` uses the remaining horizon `T - t`, so a later release excites less of that window.
+
+Lifetime descendants, excluding the initiating event, are the matching column of `(I - A)^{-1} - I`. The resolvent itself counts the initiator. Descendants inside a finite horizon come from the linear filter ODE. They are not the resolvent of the horizon-discounted matrix `α (1 - exp(-β H))`, which would give every generation the full horizon.
+
+`HawkesParameters::excitation_offspring` reports all four quantities as functionals of the conditional intensity.
+
+## Finite-rank marks
+
+A marked history replaces the catalog with prototypes. Each prototype carries nonnegative source features, target features and a reference mass. With fixed decays the ground intensity is linear in the baseline and in the excitation coefficients. The fit does not project onto a spectral-radius constraint: that constraint is not a simple function of the coefficients. It projects onto a reproduction cap, the largest lifetime direct-child count allowed for any declared prototype, strictly below one. The cap is sufficient for stability and is generally stricter than `ρ < 1`, as the catalog column cap is. Declared parameters are checked with the spectral witness of the prototype branching matrix.
+
+The rank and the basis are capped by the same dense-feature allowance as the catalog. The prototype count is capped by the cost of that spectral witness.
+
+## Immigrant diagnostic
+
+An excitation mass is a conditional intensity. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The diagnostic agrees when the horizon-specific direct masses differ by at most the caller's tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `agreed_direct` withholds the mass.
+
+Agreement is not an identification result. A latent trend can enter both fits, and the tolerance is declared rather than derived from an uncertainty test. A causal reading still needs an identification strategy, or explicit structural assumptions, and the evidence that supports them.
+
+`compare_release_times` runs only after the diagnostic agrees. It scores the constant-baseline kernel's offspring of one added event over each remaining horizon. That is a conditional scenario under the agreed diagnostic, not an identified response to the release. A utility over path outcomes is still a decision contract on the event worlds.
+
+## Parameter bridge and an intervened law
+
+An agreed direct mass can be offered to the parameter-intervention bridge. The source and target functionals must be `direct_offspring`, the map must be an identity or an affine map, and the evidence is the provenance digest of an accepted discovery that orients the exposure into the outcome. A reverse edge, a symmetric edge, a confounder, or an edge the discovery left unoriented refuses. A lead on the kernel, a symmetric kernel, a singular Gram, or an active stability cap refuses before the bridge is asked. The fitted regime stays `observational` and the response names a different regime. `derive_bridged_claim` then carries that one mean. Horizon and lifetime descendants are reported beside it and are not the bridged value. A withheld diagnostic produces no law.
+
+The release action is one added event: now, at a later time, or under a different mark. `release_law` draws the offspring of that event. A marked history becomes a catalog with one name per prototype, so the existing paired worlds and decision contract can read the paths. Those paths are a conditional scenario under the kernel the bridge kept. They are not, by themselves, the utility of releasing.
+
+A shock that moves the exposure and is excluded from the outcome leaves the Hawkes model. The result is a lag-count query — the exposure, the outcome, the horizon, and the instrument — and it does not return an excitation coefficient. An ordinary identified query can take that lag. The observation study sets `release_information` only when every hypothesis is the catalog kernel the bridge kept. A marked kernel is not priced that way.
+
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
 ## Python workflow

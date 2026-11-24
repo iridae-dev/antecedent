@@ -89,3 +89,146 @@ def test_off_grid_event_path_composes_with_existing_distribution():
     assert result.report()["grid"][0]["mean"] == pytest.approx(
         (expected_coarse - expected_refined) / 2.0
     )
+
+
+def test_horizon_offspring_is_not_the_lifetime_mass_or_the_discounted_resolvent():
+    horizon = 2.0
+    alpha = 0.4
+    report = events.prepare(
+        {
+            "operation": "offspring",
+            "parameters": {"baseline": [0.5], "branching": [alpha], "decay": [1.0]},
+            "source": 0,
+            "horizon": horizon,
+        }
+    ).execute().report()
+    direct = alpha * (1.0 - math.exp(-horizon))
+    lifetime = alpha / (1.0 - alpha)
+    exact = lifetime * (1.0 - math.exp(-(1.0 - alpha) * horizon))
+    discounted = direct / (1.0 - direct)
+    assert report["direct"][0] == pytest.approx(direct)
+    assert report["lifetime_descendants"][0] == pytest.approx(lifetime)
+    assert report["horizon_descendants"][0] == pytest.approx(exact)
+    assert abs(report["horizon_descendants"][0] - discounted) > 1e-3
+
+
+def _pair_history() -> dict:
+    return {
+        "catalog": ["release", "activity"],
+        "time_unit": "hour",
+        "origin": "launch",
+        "source": "log",
+        "empty_origin": 0.0,
+        "window": {"start": 0.0, "end": 1.0},
+        "left": [],
+        "events": [
+            {"time": 0.10, "kind": 0},
+            {"time": 0.16, "kind": 1},
+            {"time": 0.22, "kind": 1},
+            {"time": 0.50, "kind": 0},
+            {"time": 0.56, "kind": 1},
+            {"time": 0.62, "kind": 1},
+            {"time": 0.80, "kind": 0},
+            {"time": 0.86, "kind": 1},
+            {"time": 0.92, "kind": 1},
+        ],
+    }
+
+
+def _provenance() -> dict[str, str]:
+    digest = "01" * 32
+    return {
+        "method": "pc",
+        "inference": "frequentist",
+        "discovered_class": "dag",
+        "query": digest,
+        "search_bounds": "alpha=0.05;max_cond_size=1;max_lag=1;schedule=none",
+        "data_snapshot": "02" * 32,
+        "program": "03" * 32,
+        "claim": "04" * 32,
+        "review": "accepted",
+        "resolved_marks": "0",
+    }
+
+
+def test_excluded_shock_returns_a_lag_query_without_an_excitation_coefficient():
+    report = events.prepare(
+        {
+            "operation": "shock",
+            "history": _pair_history(),
+            "feature": {"knots": [0.0, 0.4], "values": [0.0, 1.0]},
+            "source": 0,
+            "target": 1,
+            "horizon": 1.0,
+            "instrument": "launch_window",
+        }
+    ).execute().report()
+    assert report == {
+        "exposure": "release",
+        "outcome": "activity",
+        "horizon": 1.0,
+        "instrument": "launch_window",
+    }
+
+
+def test_excitation_question_uses_the_discovery_provenance():
+    from antecedent import Dag
+
+    question = {
+        "operation": "excitation_question",
+        "challenge": {
+            "history": _pair_history(),
+            "fit": {
+                "decay": [0.4, 1.7, 1.0, 0.3],
+                "column_cap": 0.9,
+                "iterations": 800,
+            },
+            "alternative": {"knots": [0.0, 0.4], "values": [0.0, 1.0]},
+            "source": 0,
+            "target": 1,
+            "horizon": 1.0,
+            "tolerance": 0.05,
+        },
+        "bridge": {
+            "source": {
+                "variable_id": "edge.release_to_activity",
+                "variable_name": "direct offspring",
+                "units": "count",
+                "population_id": "observed_stream",
+                "regime_id": "observational",
+                "horizon": 1,
+                "functional_id": "direct_offspring",
+            },
+            "target": {
+                "variable_id": "edge.release_to_activity",
+                "variable_name": "direct offspring",
+                "units": "count",
+                "population_id": "observed_stream",
+                "regime_id": "do_one_release",
+                "horizon": 1,
+                "functional_id": "direct_offspring",
+            },
+            "slope": 2.0,
+            "intercept": 0.0,
+            "statement": "one added event yields this direct mass under the declared kernel",
+        },
+        "action": {"kind": "now"},
+        "draw": {
+            "release": 0.0,
+            "window_end": 2.0,
+            "paths": 1,
+            "max_events": 4,
+            "seed": 7,
+        },
+    }
+    with pytest.raises(ValueError, match="discovered graph"):
+        events.prepare(question)
+    graph = Dag.from_edges(["release", "activity"], [("release", "activity")])
+    plan = events.prepare(question, graph=graph, provenance=_provenance())
+    evidence = plan.inspect()["evidence"]
+    assert isinstance(evidence, str) and len(evidence) == 64
+    report = plan.execute().report()
+    assert report["accepted"] is False
+    assert report["reading"]["status"] == "withheld"
+    assert report["reading"]["reason"] == "immigrant-alternative fit is weakly identified"
+    assert "bridged_direct" not in report

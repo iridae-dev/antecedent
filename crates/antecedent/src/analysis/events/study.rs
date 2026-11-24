@@ -121,6 +121,8 @@ pub struct EventStudyValue {
     pub decision_time: f64,
     /// Whether this route has earned release support.
     pub release_supported: bool,
+    /// The signal prices the release only when every hypothesis is the kernel the bridge kept.
+    pub release_information: bool,
 }
 
 /// Compiled actual-observation update and continuation forecast.
@@ -144,6 +146,7 @@ pub struct PreparedEventStudy {
     cost: Option<f64>,
     prior_identity: String,
     plan: PreparedKernel,
+    release_information: bool,
     _lease: AdmissionLease,
 }
 
@@ -291,8 +294,40 @@ impl crate::Study {
             cost,
             prior_identity,
             plan,
+            release_information: false,
             _lease: lease,
         })
+    }
+
+    /// Compile the same study only when the belief is the kernel a bridge kept.
+    ///
+    /// # Errors
+    /// A hypothesis is not that kernel, the kernel is marked, or the study declaration is invalid.
+    pub fn prepare_release_study(
+        accepted: &super::question::AcceptedExcitation,
+        prior: EventBelief,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: DecisionContract,
+        study_cost: Option<(StudyCostSpec, CostToUtilityMap)>,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedEventStudy, EventError> {
+        let Some(parameters) = accepted.catalog_parameters() else {
+            return Err(EventError::Fit(
+                "the observation study prices a catalog kernel the bridge kept",
+            ));
+        };
+        if prior.hypotheses.iter().any(|hypothesis| {
+            hypothesis.parameters.baseline != parameters.baseline
+                || hypothesis.parameters.branching != parameters.branching
+                || hypothesis.parameters.decay != parameters.decay
+        }) {
+            return Err(EventError::Fit("value of information uses the kernel the bridge kept"));
+        }
+        let mut prepared =
+            Self::prepare_event_study(prior, request, worlds, contract, study_cost, ctx)?;
+        prepared.release_information = true;
+        Ok(prepared)
     }
 }
 
@@ -562,6 +597,7 @@ impl PreparedEventStudy {
             prior: self.prior_identity.clone(),
             decision_time: r.decision_time,
             release_supported: release_supported(CAPABILITY),
+            release_information: self.release_information,
         })
     }
 }
