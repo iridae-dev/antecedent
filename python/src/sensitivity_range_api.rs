@@ -258,6 +258,20 @@ fn outcome_json(
             "alpha": alpha,
             "range": range_json(range),
         }),
+        SensitivityRangeOutcome::MsmParameterPosterior { posterior, evalue, range } => {
+            let mut wire = match evalue {
+                Some(summary) => posterior_evalue_json!(summary, level),
+                None => json!({ "level": level }),
+            };
+            wire["coefficients"] = json!(posterior.coefficients);
+            wire["sigma"] = json!(posterior.sigma);
+            wire["estimate"] = json!(posterior.estimates);
+            wire["exposure_scale"] = json!(posterior.exposure_scale);
+            wire["dof"] = json!(posterior.dof);
+            wire["weights"] = json!(posterior.weights);
+            wire["range"] = range_json(range);
+            wire
+        }
         _ => json!({}),
     }
 }
@@ -391,6 +405,12 @@ fn scalar_request(
         }
         "msm_parameters" => SensitivityRangeRequest::MsmParameters { q, alpha, r2yz_extreme },
         "msm_parameter_evalue" => SensitivityRangeRequest::MsmParameterEValue,
+        "msm_parameter_evalue_posterior" => {
+            SensitivityRangeRequest::MsmParameterEValuePosterior { level, draws }
+        }
+        "msm_parameters_ovb_posterior" => {
+            SensitivityRangeRequest::MsmParametersOvbPosterior { level, r2yz_extreme, draws }
+        }
         "msm_parameters_refit" => {
             let (numerator, denominator) = refit.ok_or_else(|| {
                 value_err("msm_parameters_refit declares the numerators and denominators")
@@ -408,7 +428,8 @@ fn scalar_request(
                  mediation, mediation_component, mediation_path, marginal_sensitivity, \
                  evalue_posterior, omitted_variable_bias_posterior, mediation_posterior, \
                  mediation_component_evalue_posterior, mediation_component_ovb_posterior, \
-                 msm_parameters, msm_parameter_evalue or msm_parameters_refit"
+                 msm_parameters, msm_parameter_evalue, msm_parameters_refit, \
+                 msm_parameter_evalue_posterior or msm_parameters_ovb_posterior"
             )));
         }
     })
