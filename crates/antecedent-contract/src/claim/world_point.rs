@@ -658,8 +658,13 @@ pub fn compose_checked_world_points(
         for identity in refs.iter() {
             writer.text(identity.domain.as_str()).bytes(identity.digest.as_bytes());
         }
-        writer.word(parent.claim.evidence.len() as u64);
-        for item in parent.claim.evidence.iter() {
+        // A parent's evidence references are a set: the order and repetition a claim lists
+        // them in never reach the proof identity (the result's evidence is their union).
+        let mut items: Vec<&Arc<str>> = parent.claim.evidence.iter().collect();
+        items.sort_unstable();
+        items.dedup();
+        writer.word(items.len() as u64);
+        for item in items {
             writer.text(item);
             evidence.insert(Arc::clone(item));
         }

@@ -220,16 +220,22 @@ impl FrameContents {
     }
 }
 
-/// Four 64-bit lanes that add one 256-bit row digest at a time.
+/// Eight 64-bit lanes that add one 512-bit row digest at a time.
 ///
 /// The sum does not depend on the order rows arrive in, so an executor that
 /// streams rows in file order and a frame listed in id order agree. A repeated
-/// row is added twice and changes the sum.
+/// row is added twice and changes the sum: the frame is a multiset of rows.
+///
+/// An additive multiset hash is only as hard to collide as its width: crafted row
+/// sets whose digests sum alike are found by generalized-birthday search far below
+/// the width's birthday bound. The fingerprint is compared in memory between frames
+/// an executor ran, never persisted, and each row adds a 512-bit digest (two
+/// domain-separated BLAKE3 outputs) so that search is out of reach.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-struct Lanes([u64; 4]);
+struct Lanes([u64; 8]);
 
 impl Lanes {
-    fn add(&mut self, digest: [u8; 32]) {
+    fn add(&mut self, digest: [u8; 64]) {
         for (lane, chunk) in self.0.iter_mut().zip(digest.chunks_exact(8)) {
             let mut word = [0_u8; 8];
             word.copy_from_slice(chunk);
@@ -239,11 +245,15 @@ impl Lanes {
 
     /// Add a row from its numeric ids with a fast, non-cryptographic mixer.
     fn add_mixed(&mut self, tag: u64, first: u64, second: u64) {
-        const SALT: [u64; 4] = [
+        const SALT: [u64; 8] = [
             0x243F_6A88_85A3_08D3,
             0x1319_8A2E_0370_7344,
             0xA409_3822_299F_31D0,
             0x082E_FA98_EC4E_6C89,
+            0x4528_21E6_38D0_1377,
+            0xBE54_66CF_34E9_0C6C,
+            0xC0AC_29B7_C97C_50DD,
+            0x3F84_D5B5_B547_0917,
         ];
         let mut hash = mix64(tag);
         hash = mix64(hash ^ first);
@@ -301,12 +311,18 @@ pub fn value_row_id(row: u64, values: impl IntoIterator<Item = f64>) -> String {
     format!("{row}:{:016x}", u64::from_le_bytes(head))
 }
 
-fn row_digest(tag: &str, parts: &[&str]) -> [u8; 32] {
+/// A 512-bit digest of one row: the framed parts under `tag`, then the same stream with one
+/// more word, so the two halves are independent BLAKE3 outputs.
+fn row_digest(tag: &str, parts: &[&str]) -> [u8; 64] {
     let mut writer = CanonicalWriter::new(tag);
     for part in parts {
         writer.text(part);
     }
-    writer.finish()
+    let mut out = [0_u8; 64];
+    out[..32].copy_from_slice(&writer.finish());
+    writer.word(1);
+    out[32..].copy_from_slice(&writer.finish());
+    out
 }
 
 /// Streaming account of the rows a rewrite carried.
