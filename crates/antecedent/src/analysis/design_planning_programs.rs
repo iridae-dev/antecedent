@@ -17,7 +17,7 @@
 //! reports what it did not examine, and a ranking is advisory and runs no analysis.
 //!
 //! A refusal of the kernel is returned unchanged as [`TerminalError::Kernel`]; the compiler's
-//! own refusals (re-entry, cancellation, a release build's support gate, an evaluation context
+//! own refusals (re-entry, a release build's support gate, an evaluation context
 //! other than the compiled one) are [`TerminalError::Refused`].
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -160,7 +160,7 @@ compiled_terminal! {
 /// obligations, every candidate, the objective and the limits. Nothing is searched at compile.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_identification_repair(
     contract: impl Into<RepairContract>,
     candidates: Vec<DurableStudyCandidate>,
@@ -249,7 +249,7 @@ compiled_terminal! {
 /// Compile a study-addition plan.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_study_addition_plan(
     graph: Admg,
     route: StudyPlanRoute,
@@ -329,7 +329,7 @@ compiled_terminal! {
 /// Compile the capture of a failed z-transport identification.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_z_transport_failure_snapshot(
     diagram: SelectionDiagram,
     query: ZTransportQuery,
@@ -395,7 +395,7 @@ compiled_terminal! {
 /// Compile the assessment of `spec`'s candidates against the frozen `snapshot`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_z_transport_evidence_plan(
     snapshot: Arc<ZTransportFailureSnapshot>,
     spec: ZTransportPlanSpec,
@@ -486,7 +486,7 @@ compiled_terminal! {
 /// unlock lists and flags). Nothing is scored at compile.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_design_ranking<A, O>(
     ranker: &DesignRanker,
     objective: DesignObjective,
@@ -593,7 +593,7 @@ compiled_terminal! {
 /// Compile the ranking of `candidates` by EVSI net of cost under `posterior`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_choice_study_ranking(
     posterior: ChoicePosterior,
     values: Vec<f64>,
@@ -698,7 +698,7 @@ fn structure_spec(question: [u8; 32], plan_id: &'static str, atoms: usize) -> Te
 /// `graph`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_graph_identification(
     graph: Admg,
     treatment: VariableId,
@@ -746,7 +746,7 @@ compiled_terminal! {
 /// `interventions` are declared, of each structure after an experiment that sets them.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_structure_identification(
     samples: Vec<GraphPosteriorSample>,
     treatment: VariableId,

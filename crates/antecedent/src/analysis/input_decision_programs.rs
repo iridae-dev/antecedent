@@ -17,7 +17,7 @@
 //! | [`compile_adaptive_policy_search`] | `AdaptivePolicySearch` | `PreparedAdaptivePolicySearch::execute` |
 //!
 //! A refusal of the kernel is returned unchanged as [`TerminalError::Kernel`]; the compiler's
-//! own refusals (re-entry, cancellation, a release build's support gate) are
+//! own refusals (re-entry, a release build's support gate) are
 //! [`TerminalError::Refused`].
 //!
 //! A declared input that is a live callback (a utility or constraint of a finite decision
@@ -487,7 +487,7 @@ compiled_terminal! {
 /// Compile the decision of `contract` over `inputs` under the support `policy`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_supported_input_decision(
     contract: DecisionContract,
     inputs: Vec<DecisionInput>,
@@ -549,7 +549,7 @@ compiled_terminal! {
 /// `weakest`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_input_functional(
     contract: DecisionContract,
     action_id: &str,
@@ -625,7 +625,7 @@ compiled_terminal! {
 /// Compile the decision of `contract` over the surface of `artifact`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_sensitivity_decision(
     contract: DecisionContract,
     artifact: SensitivityArtifact,
@@ -690,7 +690,7 @@ compiled_terminal! {
 /// Compile the inverse `query` over `evidence`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_inverse_query(
     query: InverseQuery,
     evidence: ForwardEvidence,
@@ -745,7 +745,7 @@ compiled_terminal! {
 /// Compile the classification of each enumerated action by its forward mean against `target`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_finite_enumeration_baseline(
     points: Vec<EnumeratedForwardValue>,
     target: f64,
@@ -807,7 +807,7 @@ compiled_terminal! {
 /// Compile the ranking statements of `draws` under `request`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_decision_draws_ranking(
     draws: DecisionDraws,
     request: RankingRequest,
@@ -933,7 +933,7 @@ fn prior_signal_digest(
 /// Compile the adaptation of `catalog`'s sources named in `request` to its future signal.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_prior_signal_adaptation(
     catalog: PriorCatalog,
     target: TargetDesign,
@@ -990,7 +990,7 @@ compiled_terminal! {
 /// Compile the evidence obligations a failed identification `result` owes on `graph`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_evidence_obligations(
     result: IdentificationResult,
     graph: Admg,
@@ -1097,7 +1097,7 @@ impl<A, O> std::fmt::Debug for CompiledFiniteActionDecision<A, O> {
 /// draws `outcomes`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_finite_action_decision<A, O>(
     problem: DecisionProblem<A, O>,
     outcomes: Vec<O>,
@@ -1209,7 +1209,7 @@ impl CompiledProgramHandle for CompiledAdaptivePolicySearch {
 /// carries the source's identity.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_adaptive_policy_search(
     search: PreparedAdaptivePolicySearch,
     ctx: &ExecutionContext,

@@ -41,9 +41,10 @@ const NOT_DESIGN_BASED: &str =
 
 /// A refusal of a compiled program over supplied evidence.
 ///
-/// The compiler refuses before the kernel runs (re-entry inside a lowered dispatch,
-/// cancellation, or a release build's support gate); otherwise a refusal is the kernel's own
-/// error, unchanged, so a caller that matched the direct path's error matches it here.
+/// The compiler refuses before the kernel runs (re-entry inside a lowered dispatch, or a
+/// release build's support gate); otherwise a refusal is the kernel's own error, unchanged, so a
+/// caller that matched the direct path's error matches it here. Cancellation is the kernel's to
+/// refuse, with its own typed stop, as on the direct path.
 #[derive(Debug)]
 pub enum TerminalError<E> {
     /// The compiler refused the program.
@@ -160,15 +161,13 @@ impl Reading {
     }
 }
 
-/// Refuse a compile inside a lowered dispatch or after cancellation.
+/// Refuse a compile inside a lowered dispatch. A cancelled context compiles: the kernel refuses
+/// it when the program runs, with the same typed stop the direct path returns.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub(crate) fn admit_compile(ctx: &ExecutionContext) -> Result<(), CausalError> {
     crate::analysis::lowering::refuse_reentry(ctx)?;
-    if ctx.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: "compile" });
-    }
     Ok(())
 }
 
@@ -242,20 +241,17 @@ pub(crate) fn lower(spec: TerminalSpec) -> Result<Arc<LoweredProgram>, CausalErr
     ))
 }
 
-/// Enter `handle`'s execution: scope the context to its program, pass the support gate of its
-/// route, and refuse a cancelled context.
+/// Enter `handle`'s execution: scope the context to its program and pass the support gate of
+/// its route. Cancellation is left to the kernel, which refuses it with its own typed stop.
 ///
 /// # Errors
-/// A release build's refusal of a route whose unit is not supported, or cancellation.
+/// A release build's refusal of a route whose unit is not supported.
 pub(crate) fn enter<H: CompiledProgramHandle>(
     ctx: &ExecutionContext,
     handle: &H,
 ) -> Result<ExecutionContext, CausalError> {
     let scoped = ctx.enter_lowered_dispatch(handle.lowered().identity());
     gate_program(&scoped, handle).map_err(CausalError::from)?;
-    if scoped.cancellation.is_cancelled() {
-        return Err(CausalError::Cancelled { stage: "supplied_terminal" });
-    }
     Ok(scoped)
 }
 
@@ -302,7 +298,7 @@ macro_rules! compiled_terminal {
                 self.lowered.identity()
             }
 
-            /// Enter execution: scope the context, pass the support gate, refuse cancellation.
+            /// Enter execution: scope the context and pass the support gate.
             fn enter(
                 &self,
                 ctx: &antecedent_core::ExecutionContext,

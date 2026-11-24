@@ -17,7 +17,7 @@
 //! action declared by its inputs is the outer enclosure `utility_interval` computes.
 //!
 //! A refusal of the kernel is returned unchanged as [`TerminalError::Kernel`]; the compiler's
-//! own refusals (re-entry, cancellation, a release build's support gate) are
+//! own refusals (re-entry, a release build's support gate) are
 //! [`TerminalError::Refused`].
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -146,7 +146,7 @@ compiled_terminal! {
 /// every claim.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_supplied_claim_decision(
     contract: AdmissibleDecisionContract,
     claims: SuppliedClaimSet,
@@ -291,7 +291,7 @@ compiled_terminal! {
 /// Compile a decision over an identified-set carrier.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_identified_set_decision(
     contract: AdmissibleDecisionContract,
     carrier: IdentifiedSetCarrier,
@@ -434,7 +434,7 @@ compiled_terminal! {
 /// Compile the evaluation of `contract` on `source`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_contract_decision(
     contract: DecisionContract,
     source: ContractSource,
@@ -511,7 +511,7 @@ compiled_terminal! {
 /// Compile `functional` of `action_id`'s utility under `law`.
 ///
 /// # Errors
-/// `public_builder_reentry` inside a lowered dispatch, or cancellation.
+/// `public_builder_reentry` inside a lowered dispatch.
 pub fn compile_decision_functional(
     contract: DecisionContract,
     action_id: &str,
