@@ -327,6 +327,97 @@ pub(crate) fn linear_relation_fit(
     Ok(if boundary { Fit::Boundary } else { Fit::Inside })
 }
 
+/// Enclosure `(lower, upper)` of the exact real `sum + error`, where `error` is the exact
+/// rounding error of a round-to-nearest operation whose result is `value`: the end on the side
+/// of a non-zero error moves one representable step outward; an exact result stays a point.
+fn residual_enclosure(value: f64, error: f64) -> (f64, f64) {
+    if error > 0.0 {
+        (value, value.next_up())
+    } else if error < 0.0 {
+        (value.next_down(), value)
+    } else {
+        (value, value)
+    }
+}
+
+/// Enclosure of the exact sum `a + b`: the rounding error is recovered exactly by the two-sum
+/// transformation, which holds for finite operands whose sum does not overflow.
+fn exact_sum(a: f64, b: f64) -> Result<(f64, f64), EncloseFailure> {
+    let sum = a + b;
+    if !sum.is_finite() {
+        return Err(EncloseFailure::NonFinite);
+    }
+    let b_part = sum - a;
+    let error = (a - (sum - b_part)) + (b - b_part);
+    Ok(residual_enclosure(sum, error))
+}
+
+/// Enclosure of the exact product `a * b`: the rounding error is recovered exactly by a fused
+/// multiply-add, which holds when the product neither overflows nor comes within `2^106` of the
+/// subnormal range (below that the error itself may not be representable); such a small product
+/// is widened by one step on each side unless a factor is exactly zero.
+fn exact_product(a: f64, b: f64) -> Result<(f64, f64), EncloseFailure> {
+    let product = a * b;
+    if !product.is_finite() {
+        return Err(EncloseFailure::NonFinite);
+    }
+    if a == 0.0 || b == 0.0 {
+        return Ok((0.0, 0.0));
+    }
+    let representable_error = f64::MIN_POSITIVE * 2.0_f64.powi(106);
+    if product.abs() < representable_error {
+        return Ok((product.next_down(), product.next_up()));
+    }
+    Ok(residual_enclosure(product, a.mul_add(b, -product)))
+}
+
+/// Interval sum whose ends move outward only when the floating result of an end is inexact.
+fn tight_plus(x: Interval, y: Interval) -> Result<Interval, EncloseFailure> {
+    let (lo, _) = exact_sum(x.lo, y.lo)?;
+    let (_, hi) = exact_sum(x.hi, y.hi)?;
+    Interval::checked(lo, hi)
+}
+
+/// Interval product whose ends move outward only when a floating corner product is inexact.
+fn tight_times(x: Interval, y: Interval) -> Result<Interval, EncloseFailure> {
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for (a, b) in [(x.lo, y.lo), (x.lo, y.hi), (x.hi, y.lo), (x.hi, y.hi)] {
+        let (low, high) = exact_product(a, b)?;
+        lo = lo.min(low);
+        hi = hi.max(high);
+    }
+    Interval::checked(lo, hi)
+}
+
+/// Whether every linear relation is proven satisfied on the box with no tolerance. Unlike
+/// [`linear_relation_fit`], an end of an intermediate result moves outward only when its floating
+/// operation is inexact (the exact rounding error, recovered by error-free transformations, is
+/// non-zero), so a relation that holds with equality at a point whose sums and products are
+/// representable, such as `t >= 0.5` at `t = 0.5`, is proven satisfied there.
+pub(crate) fn linear_relations_hold(
+    relations: &[LinearRelation],
+    params: &[Interval],
+) -> Result<bool, EncloseFailure> {
+    for relation in relations {
+        let mut lhs = Interval::point(0.0);
+        for (j, coefficient) in &relation.terms {
+            let parameter = params.get(*j).copied().ok_or(EncloseFailure::NonFinite)?;
+            lhs = tight_plus(lhs, tight_times(parameter, Interval::point(*coefficient))?)?;
+        }
+        let bound = relation.bound;
+        let satisfied = match relation.sense {
+            RelationSense::AtLeast => lhs.lo >= bound,
+            RelationSense::AtMost => lhs.hi <= bound,
+            RelationSense::Equal => lhs.lo >= bound && lhs.hi <= bound,
+        };
+        if !satisfied {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Enclosure of `sum_i w_i v(row_i)` over the rows of one belief, with every parameter ranging
 /// over its interval.
 pub(crate) fn expectation(

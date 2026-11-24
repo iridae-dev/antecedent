@@ -35,9 +35,10 @@
 //! tolerance everywhere in the box; a box is never labelled from a point evaluation.
 //!
 //! Before any box is examined, the linear program of the exact route checks that the declared
-//! ranges and linear relations admit a point; relations that conflict only jointly, or leave a
-//! gap narrower than the smallest box, are refused as an empty set rather than kept as boundary
-//! boxes. An equality relation is solved for one of its parameters (taken in order of relation
+//! ranges and linear relations admit a point; relations that conflict only jointly by more than
+//! its feasibility tolerance are refused as an empty set rather than kept as boundary boxes. A
+//! gap narrower than that tolerance passes this check, so it proves nothing about membership:
+//! see the witness rule below. An equality relation is solved for one of its parameters (taken in order of relation
 //! id; the pivot is the parameter of positive width with the largest `|coefficient| * width`
 //! that no earlier solved equality reads): that parameter is not subdivided, its interval on a
 //! box is the outward-rounded enclosure of its solution, and its declared range is checked as two
@@ -51,10 +52,19 @@
 //! minus its tolerance) is checked the same way, its gap enclosed by evaluating the model
 //! expression on the recorded rows of both options. That enclosure need not be tight, so a box on
 //! which a value relation is undecided is split further even when an action is certified on it.
-//! With value relations, a choosing verdict (necessarily best, worst-case or minimax-regret
-//! choice) also needs the set shown to hold a point: a kept box wholly inside every relation, or
-//! a point the model's membership test accepts (the set check's point or a kept box's centre);
-//! otherwise the verdict is undetermined. Fractions are volume fractions of the kept boxes
+//!
+//! What a choosing verdict guarantees: a necessarily-best, worst-case or minimax-regret choice
+//! is made only when the set is proven to hold a point, by a witness: a kept box wholly inside
+//! every relation, or a point (the set check's point, then the centre of each kept box) inside
+//! the subdivided box at which every relation is proven satisfied with no tolerance. At a point,
+//! linear relations are evaluated in interval arithmetic whose ends move outward only when an
+//! operation is inexact (its exact rounding error, recovered by error-free transformations, is
+//! non-zero), so touching bounds such as `t >= 0.5` and `t <= 0.5` are proven at `t = 0.5`; a
+//! solved parameter is the enclosure of its solution; value relations use their outward-rounded
+//! gap enclosure. Without a witness the verdict is undetermined: neither a choice nor a claim
+//! that the set is empty, since a set left with only boundary boxes may be empty or may be a thin
+//! set whose points the arithmetic cannot exhibit. A set is refused as empty only when the linear
+//! program finds it infeasible or every box is proven outside some relation. Fractions are volume fractions of the kept boxes
 //! relative to their total volume, measured relative to the declared ranges, with a fixed or
 //! solved parameter contributing no dimension; a boundary box counts in full, although part of
 //! it may lie outside the set. Splitting is deterministic: the undecided box of largest volume
@@ -92,7 +102,8 @@ use crate::preference_decision::{
 };
 use crate::preference_enclosure::{
     EncloseFailure, Fit, Interval, Queued, affine, enclose, left_inverse, lexicographic,
-    linear_relation_fit, measure_box, split_box, value_relation_fit, weighted_sum,
+    linear_relation_fit, linear_relations_hold, measure_box, split_box, value_relation_fit,
+    weighted_sum,
 };
 use crate::preference_model::{
     LinearForm, LinearRelation, PreferenceModelError, PreferenceSet, RelationOrigin, RelationSense,
@@ -120,9 +131,9 @@ pub struct CertifiedOptions {
     pub min_width_fraction: f64,
     /// A box is certified for an action only when the action's criterion is proven better
     /// than every admissible rival's by more than this; finite and non-negative. Also the
-    /// margin by which a worst-case, regret or measure-weighted value must lead. Box enclosures
-    /// are outward-rounded, so this is the whole margin there; a measure point's scores are
-    /// floating evaluations, and a lead there must also exceed twice their rounding bound.
+    /// margin by which a worst-case, regret or measure-weighted value must lead. Every lead is
+    /// read from an outward-rounded enclosure (of a box, or of a measure point with degenerate
+    /// parameter intervals), so this is the whole margin.
     pub tie_tolerance: f64,
 }
 
@@ -257,6 +268,11 @@ pub struct CertifiedPreferenceResult {
     pub source: SourceReceipt,
     /// Number of draws read (summed over combined structures).
     pub n_draws: usize,
+    /// The tie tolerance the verdict applied: the declared one on boxes, whose enclosures are
+    /// outward-rounded; under the `Weighted` policy, the declared one plus the largest width of a
+    /// measure-weighted margin enclosure, the numerical resolution of the measure-point
+    /// evaluation.
+    pub effective_tie_tolerance: f64,
 }
 
 /// What became of one structure.
@@ -1362,6 +1378,39 @@ impl Engine<'_> {
         point
     }
 
+    /// Whether a point of the set is proven to exist at `point` (subdivided coordinates; a solved
+    /// parameter is replaced by the enclosure of its solution): every linear relation holds with
+    /// no tolerance and every value relation's gap enclosure is at least minus its tolerance. A
+    /// failed enclosure is no proof.
+    fn point_witnessed(&self, point: &[f64]) -> bool {
+        // Subdivided coordinates must lie in the subdivided box (a solved parameter's declared
+        // range is checked as two relations).
+        let in_box = self.declared.iter().enumerate().all(|(j, (lower, upper))| {
+            self.eliminations.iter().any(|e| e.pivot == j)
+                || point.get(j).is_some_and(|v| lower <= v && v <= upper)
+        });
+        if !in_box {
+            return false;
+        }
+        let Ok(params) = self.params(point, point) else {
+            return false;
+        };
+        if !linear_relations_hold(&self.relations, &params).unwrap_or(false) {
+            return false;
+        }
+        let model = &self.contract.model;
+        model.preferences.value_relations.iter().all(|relation| {
+            matches!(value_relation_fit(&model.value, relation, &params), Ok(Fit::Inside))
+        })
+    }
+
+    /// Score and margin enclosures at one full parameter point, every parameter (a solved one
+    /// included) the degenerate interval of its coordinate.
+    fn point_eval(&self, point: &[f64]) -> Result<BoxEval, PreferenceCertifiedError> {
+        let params: Vec<Interval> = point.iter().copied().map(Interval::point).collect();
+        self.evaluate_box(&params, point, point)
+    }
+
     /// The box as reported: subdivided coordinates as they are, a solved parameter's enclosure
     /// cut to its declared range.
     fn reported(&self, item: &Examined) -> (Vec<f64>, Vec<f64>) {
@@ -1573,49 +1622,6 @@ impl Engine<'_> {
     }
 }
 
-impl Engine<'_> {
-    /// Bound on the floating error of one action's score at a point: `2 (n + 1) eps` times the
-    /// weighted mean magnitude of its per-draw values over the `n` draws, the largest over
-    /// admissible actions and sources. A threshold probability is a sum of weights, so its
-    /// magnitude is one.
-    fn point_rounding(&self, point: &[f64]) -> Result<f64, PreferenceCertifiedError> {
-        let probability =
-            matches!(self.criterion(), DecisionCriterion::ThresholdProbability { .. });
-        let admissible = self.admissible_indices();
-        let mut largest = 0.0_f64;
-        for source in self.sources {
-            let mut magnitude = 0.0_f64;
-            for &a in &admissible {
-                let own = if probability {
-                    1.0
-                } else {
-                    let mut total = 0.0;
-                    for (row, weight) in source.attributes[a].iter().zip(&source.weights) {
-                        let value = self
-                            .contract
-                            .model
-                            .value
-                            .evaluate(row, point)
-                            .map_err(PreferenceCertifiedError::Model)?;
-                        total += weight * value.abs();
-                    }
-                    total
-                };
-                magnitude = magnitude.max(own);
-            }
-            largest = largest.max(summation_rounding(source.weights.len(), magnitude));
-        }
-        Ok(largest)
-    }
-}
-
-/// Bound on the floating error of a weighted sum of `n` terms whose weighted magnitudes sum to
-/// `magnitude`: `2 (n + 1) eps magnitude`.
-#[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^53")]
-fn summation_rounding(n: usize, magnitude: f64) -> f64 {
-    2.0 * (n as f64 + 1.0) * f64::EPSILON * magnitude
-}
-
 fn draws_of(utilities: &[Option<Vec<Interval>>], a: usize) -> Result<&[Interval], EncloseFailure> {
     utilities.get(a).and_then(Option::as_deref).ok_or(EncloseFailure::NonFinite)
 }
@@ -1721,22 +1727,19 @@ fn ids(contract: &PreferenceContract, indices: impl IntoIterator<Item = usize>) 
     indices.into_iter().map(|a| contract.actions[a].id.clone()).collect()
 }
 
-/// Whether the kept boxes are known to hold a point of the set. The declared ranges and linear
-/// relations admit a point (checked before subdividing), so without value relations they do.
-/// With value relations a box wholly inside every relation holds one, and so does a point the
-/// model's own membership test accepts: the point found by the set check or the centre of a kept
-/// box.
+/// Whether the set is proven to hold a point. The linear program that checks the set before
+/// subdividing works to a feasibility tolerance, so its point is evidence, not proof. A witness
+/// is a kept box wholly inside every relation, or a point (the set check's point, then the centre
+/// of each kept box) at which every relation is proven satisfied with no tolerance: linear
+/// relations in arithmetic whose ends move outward only on an inexact operation, a parameter
+/// solved from an equality as the enclosure of its solution, value relations by their outward-
+/// rounded gap enclosure.
 fn set_witnessed(engine: &Engine<'_>, kept: &[Examined]) -> bool {
-    let model = &engine.contract.model;
-    if model.preferences.value_relations.is_empty() || kept.iter().any(|item| !item.boundary) {
+    if kept.iter().any(|item| !item.boundary) {
         return true;
     }
-    let accepted = |point: &[f64]| {
-        let scale = point.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-        model.contains(point, MEASURE_SET_TOLERANCE * (1.0 + scale))
-    };
-    accepted(engine.interior)
-        || kept.iter().any(|item| accepted(&engine.centre(&item.lower, &item.upper)))
+    engine.point_witnessed(engine.interior)
+        || kept.iter().any(|item| engine.point_witnessed(&engine.centre(&item.lower, &item.upper)))
 }
 
 fn subdivision_verdict(engine: &Engine<'_>, kept: &[Examined], tally: &Tally) -> CertifiedVerdict {
@@ -1820,6 +1823,9 @@ struct MeasureSummary {
     value: Vec<Option<f64>>,
     share: Vec<Option<f64>>,
     verdict: CertifiedVerdict,
+    /// The declared tie tolerance plus the largest width of a measure-weighted margin
+    /// enclosure.
+    effective_tie_tolerance: f64,
 }
 
 fn measure_weights(measure: &PreferenceMeasure) -> Vec<f64> {
@@ -1833,11 +1839,18 @@ fn weighted_policy(
     measure: &PreferenceMeasure,
 ) -> Result<MeasureSummary, PreferenceCertifiedError> {
     let n = engine.contract.actions.len();
-    let declared_tie = engine.options.tie_tolerance;
-    let mut tie = declared_tie;
+    let tie = engine.options.tie_tolerance;
     let admissible = engine.admissible_indices();
     let mut value: Vec<Option<f64>> = (0..n).map(|a| engine.admissible[a].then_some(0.0)).collect();
     let mut share = value.clone();
+    // Measure-weighted margin enclosures: `totals[a][b]` encloses the measure-weighted
+    // `score_a - score_b`.
+    let mut totals: Vec<Vec<Option<Interval>>> = vec![vec![None; n]; n];
+    for &a in &admissible {
+        for &b in admissible.iter().filter(|b| **b != a) {
+            totals[a][b] = Some(Interval::point(0.0));
+        }
+    }
     for (point, weight) in measure.points.iter().zip(measure_weights(measure)) {
         engine.observe()?;
         let scores = engine.point_scores(point)?;
@@ -1846,14 +1859,25 @@ fn weighted_policy(
                 *total += weight * score;
             }
         }
-        // Point scores are floating evaluations, not enclosures: a lead counts only beyond the
-        // rounding of two scores at this point.
-        let point_tie = declared_tie.max(2.0 * engine.point_rounding(point)?);
-        tie = tie.max(point_tie);
+        // Point scores are floating evaluations, and a lead between two of them can be pure
+        // rounding when a value cancels large terms; a lead counts only when the outward-rounded
+        // enclosure of the margin at the point proves it.
+        let eval = engine.point_eval(point)?;
+        let fail =
+            |failure, a: usize| box_refusal(failure, &engine.contract.actions[a].id, point, point);
+        for &a in &admissible {
+            for &b in admissible.iter().filter(|b| **b != a) {
+                let margin =
+                    eval.margins[a][b].ok_or_else(|| fail(EncloseFailure::NonFinite, a))?;
+                if let Some(total) = totals[a][b].as_mut() {
+                    *total = total
+                        .plus(margin.scale(weight).map_err(|f| fail(f, a))?)
+                        .map_err(|f| fail(f, a))?;
+                }
+            }
+        }
         let leads = |a: usize| {
-            admissible.iter().all(|&b| {
-                b == a || matches!((scores[a], scores[b]), (Some(x), Some(y)) if x > y + point_tie)
-            })
+            admissible.iter().all(|&b| b == a || eval.margins[a][b].is_some_and(|m| m.lo > tie))
         };
         if let Some(leader) = admissible.iter().copied().find(|&a| leads(a))
             && let Some(slot) = share[leader].as_mut()
@@ -1861,19 +1885,33 @@ fn weighted_policy(
             *slot += weight;
         }
     }
-    let point_enclosures: Vec<Option<(f64, f64)>> =
-        value.iter().map(|v| v.map(|x| (x, x))).collect();
-    let verdict = match dominant(&point_enclosures, tie) {
-        Ok(a) => CertifiedVerdict::MeasureChoice {
+    let proven = |a: usize, b: usize| totals[a][b].is_some_and(|m| m.lo > tie);
+    let resolution = totals
+        .iter()
+        .flatten()
+        .flatten()
+        .fold(0.0_f64, |widest, margin| widest.max(margin.hi - margin.lo));
+    let verdict = match admissible
+        .iter()
+        .copied()
+        .find(|&a| admissible.iter().all(|&b| b == a || proven(a, b)))
+    {
+        Some(a) => CertifiedVerdict::MeasureChoice {
             action: engine.contract.actions[a].id.clone(),
             share: share[a].unwrap_or(0.0),
         },
-        Err(candidates) => CertifiedVerdict::Undetermined {
-            candidates: ids(engine.contract, candidates),
+        None => CertifiedVerdict::Undetermined {
+            candidates: ids(
+                engine.contract,
+                admissible
+                    .iter()
+                    .copied()
+                    .filter(|&a| !admissible.iter().any(|&b| b != a && proven(b, a))),
+            ),
             undecided_fraction: 0.0,
         },
     };
-    Ok(MeasureSummary { value, share, verdict })
+    Ok(MeasureSummary { value, share, verdict, effective_tie_tolerance: tie + resolution })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1886,6 +1924,7 @@ struct Subdivided {
     undecided_fraction: f64,
     boxes_examined: usize,
     verdict: CertifiedVerdict,
+    effective_tie_tolerance: f64,
 }
 
 /// Subdivide, fill the per-action enclosures and fractions, and decide.
@@ -1927,6 +1966,7 @@ fn subdivided(
         undecided_fraction: tally.undecided_fraction,
         boxes_examined,
         verdict,
+        effective_tie_tolerance: engine.options.tie_tolerance,
     })
 }
 
@@ -2121,6 +2161,7 @@ impl<'c> Setup<'c> {
                 undecided_fraction: 0.0,
                 boxes_examined: 0,
                 verdict: CertifiedVerdict::NoAdmissibleAction,
+                effective_tie_tolerance: self.options.tie_tolerance,
             },
             Some(measure) => {
                 let summary = weighted_policy(&engine, measure)?;
@@ -2133,6 +2174,7 @@ impl<'c> Setup<'c> {
                     undecided_fraction: 0.0,
                     boxes_examined: 0,
                     verdict: summary.verdict,
+                    effective_tie_tolerance: summary.effective_tie_tolerance,
                 }
             }
             None => subdivided(&engine, &mut actions)?,
@@ -2163,6 +2205,7 @@ impl<'c> Setup<'c> {
                 |s| s.receipt.clone(),
             ),
             n_draws: sources.iter().map(|s| s.weights.len()).sum(),
+            effective_tie_tolerance: outcome.effective_tie_tolerance,
         })
     }
 }
@@ -2183,11 +2226,13 @@ impl<'c> Setup<'c> {
 /// - `Weighted`: needs a measure with every parameter resolved; each measure point is evaluated
 ///   exactly, through [`PreferenceContract::bind`] and [`evaluate_contract`] when the bound value
 ///   can be lowered and otherwise by evaluating the model on each draw with the same criterion
-///   rules; no boxes are examined. A point counts toward an action's share when the action leads
-///   every admissible rival there by more than the tie tolerance, or by more than twice the
-///   rounding bound of the point's scores (`2 (n + 1) eps` times the weighted mean magnitude of
-///   the per-draw values) when that is larger; the measure-weighted values are compared with the
-///   largest of these.
+///   rules, for the reported values; no boxes are examined. Leads are read from enclosures, not
+///   from those floating values, since a value that cancels large terms can lead by pure
+///   rounding: each point is also evaluated in outward-rounded interval arithmetic with every
+///   parameter a degenerate interval, and a point counts toward an action's share when the
+///   lower end of its margin enclosure over every admissible rival exceeds the tie tolerance.
+///   The measure-weighted margin enclosures (outward-rounded weighted sums of the point
+///   enclosures) decide the choice the same way.
 /// - `ReportOnly`: everything computed, verdict `ReportOnly`.
 ///
 /// A measure is read only under the `Weighted` policy. Excluded actions take part in no

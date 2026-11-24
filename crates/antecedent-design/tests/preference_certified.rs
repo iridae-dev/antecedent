@@ -1430,3 +1430,120 @@ fn an_invariant_measure_choice_reports_the_smallest_share_over_structures() {
     assert_eq!(action, "A");
     assert!((share - 0.5).abs() < 1e-12, "{share}");
 }
+
+// -------------------------------------------------------------------------------------------
+// Witnessed membership
+// -------------------------------------------------------------------------------------------
+
+/// The discount contract (soon leads for every `d < 5/7`) with `d` held between `floor` and
+/// `ceiling` by two declared relations.
+fn pinched_discount(floor: f64, ceiling: f64) -> PreferenceContract {
+    let mut contract = discount_contract(PreferencePolicy::RequireInvariantBestAction, false);
+    contract.model.preferences = PreferenceSet::new(
+        vec![parameter("d", 0.5, 1.0)],
+        vec![
+            relation("floor", vec![(0, 1.0)], RelationSense::AtLeast, floor),
+            relation("ceiling", vec![(0, 1.0)], RelationSense::AtMost, ceiling),
+        ],
+    );
+    contract
+}
+
+fn pinched_options() -> CertifiedOptions {
+    CertifiedOptions { max_boxes: 4001, min_width_fraction: 1e-4, tie_tolerance: 1e-9 }
+}
+
+#[test]
+fn a_gap_below_the_feasibility_tolerance_is_undetermined_not_a_choice() {
+    // `d >= 0.6 + gap` and `d <= 0.6` hold nowhere, but the gap is below the set check's
+    // feasibility tolerance: every kept box touches both relations and soon is certified on each.
+    // No point of the set is witnessed, so no choice is made and the set is not called empty.
+    for gap in [1e-10, 1e-13] {
+        let contract = pinched_discount(0.6 + gap, 0.6);
+        let result =
+            evaluate_preference_certified(&contract, &discount_law(), None, pinched_options())
+                .unwrap();
+        assert!(!result.regions.is_empty(), "gap {gap}");
+        assert!(result.regions.iter().all(|r| r.touches_relation_boundary), "gap {gap}");
+        let CertifiedVerdict::Undetermined { candidates, .. } = &result.verdict else {
+            panic!("gap {gap}: {:?}", result.verdict)
+        };
+        assert_eq!(candidates, &vec!["soon".to_owned()], "gap {gap}");
+    }
+}
+
+#[test]
+fn a_thin_but_non_empty_set_keeps_its_choice() {
+    // Touching bounds: the set is the single point d = 0.6, proven at that point with no
+    // tolerance; soon leads there (0.6 < 5/7).
+    let touching = pinched_discount(0.6, 0.6);
+    let result =
+        evaluate_preference_certified(&touching, &discount_law(), None, pinched_options()).unwrap();
+    assert!(result.regions.iter().all(|r| r.touches_relation_boundary));
+    assert_eq!(result.verdict, CertifiedVerdict::NecessarilyBest("soon".into()));
+    // An equality is solved for its parameter, so its box lies wholly inside the set.
+    let mut equality = discount_contract(PreferencePolicy::RequireInvariantBestAction, false);
+    equality.model.preferences = PreferenceSet::new(
+        vec![parameter("d", 0.5, 1.0)],
+        vec![relation("pinned", vec![(0, 1.0)], RelationSense::Equal, 0.6)],
+    );
+    let result =
+        evaluate_preference_certified(&equality, &discount_law(), None, pinched_options()).unwrap();
+    assert_eq!(result.verdict, CertifiedVerdict::NecessarilyBest("soon".into()));
+}
+
+// -------------------------------------------------------------------------------------------
+// Measure points with cancellation
+// -------------------------------------------------------------------------------------------
+
+/// `value = gain - w cost` at the single measure point `w = 1 + 2^-52`; B pays `b_gain` with no
+/// cost.
+fn cancelling_choice(a_gain: f64, a_cost: f64, b_gain: f64) -> CertifiedPreferenceResult {
+    let contract = affine_contract(
+        2.0,
+        DecisionCriterion::PosteriorExpectedUtility,
+        PreferencePolicy::Weighted,
+    );
+    let measure = PreferenceMeasure {
+        points: vec![vec![1.0 + f64::EPSILON]],
+        weights: None,
+        labels: None,
+        origin: MeasureOrigin::Declared { assumption_id: "panel-view".into() },
+        unresolved: vec![],
+    };
+    let source =
+        law(&["a_gain", "a_cost", "b_gain", "b_cost"], &[&[a_gain, a_cost, b_gain, 0.0]], None);
+    evaluate_preference_certified(&contract, &source, Some(&measure), budget(8)).unwrap()
+}
+
+#[test]
+fn a_lead_that_is_pure_rounding_does_not_count_toward_a_measure_share() {
+    // A = (1e9 + 1) - w 1e9 = 1 - 1e9 2^-52 exactly, and B pays that exact value (representable:
+    // 1 - 1953125 2^-43). The floating value of A cancels terms near 1e9 and lands about 1.6e-8
+    // below B's, far above the tie tolerance and above any rounding bound scaled by the final
+    // values (about 1e-15); the outward-rounded margin at the point contains zero.
+    let exact = 1.0 - 1_953_125.0 * 2.0_f64.powi(-43);
+    let result = cancelling_choice(1e9 + 1.0, 1e9, exact);
+    let a = outcome(&result, "A").measure_value.unwrap();
+    let b = outcome(&result, "B").measure_value.unwrap();
+    assert!(b - a > 1e-8, "the floating lead is present: {a} {b}");
+    assert_eq!(outcome(&result, "A").measure_share, Some(0.0));
+    assert_eq!(outcome(&result, "B").measure_share, Some(0.0));
+    assert_eq!(
+        result.verdict,
+        CertifiedVerdict::Undetermined {
+            candidates: vec!["A".into(), "B".into()],
+            undecided_fraction: 0.0
+        }
+    );
+    assert!(result.effective_tie_tolerance > 1e-8, "{}", result.effective_tie_tolerance);
+}
+
+#[test]
+fn a_unit_scale_measure_lead_still_counts() {
+    // A = 2 - w = 1 - 2^-52, B = 0.5: a lead of one half, decided as before.
+    let result = cancelling_choice(2.0, 1.0, 0.5);
+    assert_eq!(result.verdict, CertifiedVerdict::MeasureChoice { action: "A".into(), share: 1.0 });
+    assert_eq!(outcome(&result, "A").measure_share, Some(1.0));
+    assert!(result.effective_tie_tolerance >= 1e-9 && result.effective_tie_tolerance < 1e-8);
+}
