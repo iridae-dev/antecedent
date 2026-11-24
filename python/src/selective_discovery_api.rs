@@ -8,6 +8,7 @@
 //!
 //! No recovery, error-control or interval statement is produced.
 
+mod compiled;
 mod per_population;
 mod sample_split;
 
@@ -1211,6 +1212,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(selective_discovery_inspect, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_consume, module)?)?;
     module.add_function(wrap_pyfunction!(selective_discovery_score_search_refusal, module)?)?;
+    compiled::register(module)?;
     per_population::register(module)?;
     sample_split::register(module)?;
     Ok(())

@@ -76,7 +76,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -139,6 +139,8 @@ __all__ = [
     "inspect_selective_discovery_artifact",
     "replace",
     "request_score_search_reuse",
+    "CompiledResume",
+    "resume_compiled",
     "revalidate_after_discovery",
 ]
 
@@ -696,6 +698,10 @@ class SelectiveDiscovery(ScientificResult):
                 data, another contract, an unusable receipt or a replay that diverges;
                 ``route_not_supported`` for a retained-identity mismatch.
         """
+        _deprecation.direct_path_deprecated(
+            "antecedent.selective_discovery.SelectiveDiscovery.resume",
+            "antecedent.selective_discovery.resume_compiled(contract, data, artifact)",
+        )
         artifact = container_bytes(artifact)
         kind = _kind_of(contract)
         if not isinstance(artifact, (bytes, bytearray, memoryview)):
@@ -1985,3 +1991,51 @@ def revalidate_after_discovery(
         current_identity=str(wire["current_identity"]),
         identity=str(wire["identity"]),
     )
+
+
+@dataclass(frozen=True)
+class CompiledResume:
+    """A selective search resumed through the compiled structure-discovery route."""
+
+    outcome: Outcome
+    """The outcome the resumed search retained."""
+    report: RunReport
+    """What the resumed request reused and computed."""
+    program: str | None
+    """Identity of the lowered program that ran the search."""
+
+
+def resume_compiled(
+    contract: StaticContract | TemporalContract,
+    data: Mapping[str, Any],
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    execution: Execution | None = None,
+) -> CompiledResume:
+    """Resume a selective search from an exported artifact through the compiler.
+
+    The study searches with ``contract``'s selective search resumed from the artifact's state and
+    runs as the DiscoverStatic or DiscoverTemporal program of its algorithm, with the adapter the
+    direct :meth:`SelectiveDiscovery.resume` runs: the outcome and the run report are the same.
+    An unusable artifact is refused as :class:`SelectiveDiscoveryRefusal`; a refusal of the search
+    itself is raised as the compiler's error.
+    """
+    artifact = container_bytes(artifact)
+    if not isinstance(artifact, (bytes, bytearray, memoryview)):
+        raise CausalTypeError("artifact must be bytes")
+    kind = _kind_of(contract)
+    policy = _policy(execution)
+    outcome, report, program, refusal = policy._call(
+        _native.selective_discovery_compiled_resume,
+        kind,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(contract.variables),
+        _columns(contract, data),
+        bytes(artifact),
+        expected_identity,
+        **_controls(policy),
+    )
+    _raise(refusal)
+    assert outcome is not None and report is not None
+    return CompiledResume(_outcome(outcome, tuple(contract.variables)), _report(report), program)

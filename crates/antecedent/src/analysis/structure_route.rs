@@ -77,6 +77,9 @@ enum SearchParams {
         /// Screening search.
         screen: StaticDiscoverParams,
     },
+    /// A selective search: the frozen contract of a static or temporal selective adapter,
+    /// optionally resumed from a retained portable state.
+    Selective(Arc<selective_route::SelectiveSearch>),
 }
 
 /// The executable configuration of a structure search.
@@ -96,6 +99,8 @@ pub struct DiscoverySpec {
     regimes: Option<RegimeAssignment>,
     min_regime_len: Option<usize>,
     missing: Option<MissingPolicy>,
+    /// The draw limit of exact signed-uniform marginals over a partially observed last column.
+    observed_draws: Option<usize>,
 }
 
 fn saturating_u32(value: usize) -> u32 {
@@ -136,6 +141,7 @@ impl DiscoverySpec {
     fn new(method: DiscoveryMethod, search: SearchParams, ci_label: impl Into<Arc<str>>) -> Self {
         let max_lag = match &search {
             SearchParams::Temporal(params) => params.max_lag,
+            SearchParams::Selective(selective) => selective.max_lag(),
             SearchParams::Static(_) | SearchParams::Bayesian(_) | SearchParams::Screened { .. } => {
                 0
             }
@@ -149,6 +155,7 @@ impl DiscoverySpec {
             regimes: None,
             min_regime_len: None,
             missing: None,
+            observed_draws: None,
         }
     }
 
@@ -294,6 +301,25 @@ impl DiscoverySpec {
             SearchParams::Bayesian(params),
             "none",
         )
+    }
+
+    /// Exact signed-uniform edge marginals over a table whose last searched column may be
+    /// partially observed.
+    ///
+    /// The missing cells of the last column are integrated by importance sampling of completed
+    /// tables (`antecedent_discovery::observed_marginals::signed_uniform_observed_marginals`):
+    /// the schedule starts at 64 completions and quadruples until the effective sample size
+    /// reaches 16 and the largest edge Monte Carlo standard error is at most 0.01, up to
+    /// `draws` completions. The completions are seeded by the run's master seed. The other
+    /// columns must be complete and the missingness ignorable for the structural model. A
+    /// fully observed table returns the exact marginals with no completion drawn.
+    ///
+    /// Only the exact edge marginals under the Gaussian signed-uniform score take a draw limit;
+    /// any other search refuses it when it runs. A search without it is unchanged.
+    #[must_use]
+    pub fn with_observed_marginal_draws(mut self, draws: usize) -> Self {
+        self.observed_draws = Some(draws);
+        self
     }
 
     /// Order MCMC DAG posterior.
@@ -455,9 +481,10 @@ impl DiscoverySpec {
     pub(crate) const fn temporal_params(&self) -> Option<&DiscoverParams> {
         match &self.search {
             SearchParams::Temporal(params) => Some(params),
-            SearchParams::Static(_) | SearchParams::Bayesian(_) | SearchParams::Screened { .. } => {
-                None
-            }
+            SearchParams::Static(_)
+            | SearchParams::Bayesian(_)
+            | SearchParams::Screened { .. }
+            | SearchParams::Selective(_) => None,
         }
     }
 
@@ -544,6 +571,10 @@ impl DiscoverySpec {
             SearchParams::Screened { screen, .. } => {
                 (screen.alpha, saturating_u32(screen.max_cond_size))
             }
+            SearchParams::Selective(selective) => {
+                let constraints = selective.constraints();
+                (constraints.alpha, saturating_u32(constraints.max_cond_size))
+            }
             // A posterior that tests nothing has no significance level; zero states it.
             SearchParams::Bayesian(_) => (0.0, 0),
         };
@@ -628,6 +659,7 @@ impl DiscoverySpec {
                     .text(&format!("{:?}", bayesian.score_family));
                 static_params(&mut writer, screen);
             }
+            SearchParams::Selective(selective) => selective.write(&mut writer),
         }
         // The historical Insert-Turn-Delete search is a different program.
         if uses_ges(&self.method) {
@@ -641,7 +673,7 @@ impl DiscoverySpec {
             SearchParams::Screened { bayesian, .. } => {
                 bayesian.score_family == antecedent_state::GraphScoreFamily::GaussianBic
             }
-            SearchParams::Temporal(_) => false,
+            SearchParams::Temporal(_) | SearchParams::Selective(_) => false,
         };
         if gaussian_score && uses_dag_bic(&self.method) {
             writer.text("antecedent.discovery.gaussian_bic.coefficients_and_variance.v2");
@@ -664,6 +696,10 @@ impl DiscoverySpec {
         }
         writer.opt_word(self.min_regime_len.map(|value| value as u64));
         writer.opt_text(self.missing.map(MissingPolicy::name));
+        // Written only when declared: a search without it keeps the digest it always had.
+        if let Some(draws) = self.observed_draws {
+            writer.text("observed_marginals.signed_uniform.importance").word(draws as u64);
+        }
         writer.finish()
     }
 
@@ -886,6 +922,13 @@ pub enum DiscoveredStructure {
     Stability(StructureStability),
     /// The sampling distribution of regime PCMCI: one table per labelled regime.
     RegimeStability(Vec<(antecedent_core::RegimeId, StructureStability)>),
+    /// Exact signed-uniform edge marginals with a partially observed last column integrated
+    /// out ([`DiscoverySpec::with_observed_marginal_draws`]).
+    ObservedMarginals(antecedent_discovery::observed_marginals::ObservedMarginals),
+    /// A selective search: the outcome its adapter retained, what the request reused, and the
+    /// portable state to resume from ([`DiscoverySpec::selective_static`],
+    /// [`DiscoverySpec::selective_temporal`]).
+    Selective(Box<SelectiveSearchResult>),
 }
 
 impl DiscoveredStructure {
@@ -908,6 +951,8 @@ impl DiscoveredStructure {
                 "exact_dag_marginals"
             }),
             Self::Stability(_) | Self::RegimeStability(_) => Some("bootstrap_stability"),
+            Self::ObservedMarginals(_) => Some("signed_uniform_observed_marginals"),
+            Self::Selective(_) => Some("selective_discovery"),
         }
     }
 
@@ -926,7 +971,9 @@ impl DiscoveredStructure {
             | Self::Posterior(_)
             | Self::EdgeMarginals(_)
             | Self::Stability(_)
-            | Self::RegimeStability(_) => 0,
+            | Self::RegimeStability(_)
+            | Self::ObservedMarginals(_)
+            | Self::Selective(_) => 0,
         };
         count as u64
     }
@@ -986,12 +1033,23 @@ impl DiscoveredStructure {
                     AcceptedGraph::accept(result.review.clone())?
                 }
             }
-            Self::Regimes(_) | Self::Posterior(_) | Self::EdgeMarginals(_) => {
+            Self::Regimes(_)
+            | Self::Posterior(_)
+            | Self::EdgeMarginals(_)
+            | Self::ObservedMarginals(_) => {
                 return Err(crate::unsupported_reason!(
                     "route_not_supported",
                     "a regime collection, structure posterior or edge marginals is not one \
                      structure; analyse a posterior with StudyBuilder::graph_posterior, or \
                      accept one regime's graph"
+                ));
+            }
+            Self::Selective(_) => {
+                return Err(crate::unsupported_reason!(
+                    "route_not_supported",
+                    "a selective outcome becomes a graph through its own acceptance: declare \
+                     the acceptance and any completion with \
+                     analysis::selective_discovery::accepted_graph_stage_identity"
                 ));
             }
             Self::Stability(_) | Self::RegimeStability(_) => {
@@ -1136,6 +1194,9 @@ impl DiscoverData<'_> {
 }
 
 mod discovery_route;
+mod selective_route;
+
+pub use selective_route::SelectiveSearchResult;
 
 pub use discovery_route::panel_of_units;
 pub(crate) use discovery_route::{admit, discovery_quote, run_discovery};
