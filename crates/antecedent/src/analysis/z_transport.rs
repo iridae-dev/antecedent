@@ -783,7 +783,7 @@ impl StudyBuilder {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use antecedent_core::{
         DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
@@ -799,7 +799,9 @@ mod tests {
     };
     use std::sync::Arc;
 
-    fn fixture(
+    /// The checked surrogate fixture: diagram, bound functional, laws and request. Shared with
+    /// the compiled family's identity tests.
+    pub(in crate::analysis) fn fixture(
         empirical: bool,
     ) -> (SelectionDiagram, BoundZTransportFunctional, ExactTransportData, Assignment) {
         fixture_with_environments(empirical, false)

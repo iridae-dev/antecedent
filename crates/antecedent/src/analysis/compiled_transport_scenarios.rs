@@ -19,13 +19,19 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
+use antecedent_core::{
+    CanonicalEncode, CanonicalWriter, ExecutionContext, SemanticDigest, VariableId,
+};
 use antecedent_estimate::StatisticalTransportInput;
 use antecedent_estimate::transport_scenarios::ScenarioSetReport;
-use antecedent_expr::ExactTransportData;
+use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
+use antecedent_identify::sid::scenarios::{
+    ScenarioDecisionLimits, ScenarioQuestion, TransportScenarioSet,
+};
 
 use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{Canonical, SetOf};
 use super::transport_scenarios::PreparedTransportScenarios;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -60,31 +66,139 @@ pub struct TransportScenariosRun {
     pub calibration: &'static str,
 }
 
+/// Everything the scenario set's question declares, in canonical form: every scenario (the
+/// set keeps them in name order) with its graph's canonical identity, its selection targets
+/// and its weight; the shared coordinate schema; the question; the decision limits; the target
+/// request (sorted by variable); the evaluation limits; the provider; and every retained plan.
+/// The per-scenario derivations follow from these and are not written.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one question: the set, the question, both limits, the request, the provider and \
+              the retained plans"
+)]
+fn question_digest(
+    set: &TransportScenarioSet,
+    question: &ScenarioQuestion,
+    decision_limits: &ScenarioDecisionLimits,
+    request: &Assignment,
+    limits: ExactEvaluationLimits,
+    provider: &str,
+    plans: &[(Arc<str>, String)],
+) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.transport_scenario_set.question.v2");
+    writer.word(set.scenarios().len() as u64);
+    for scenario in set.scenarios() {
+        writer.text(&scenario.name);
+        Canonical::encode(scenario.diagram.causal_graph(), &mut writer);
+        // A set: the identification reads selection targets as a set of nodes, so their order
+        // and repetitions do not enter the identity.
+        Canonical::encode(&SetOf(scenario.diagram.selection_targets()), &mut writer);
+        writer.opt_real(scenario.weight);
+    }
+    writer.word(set.schema().len() as u64);
+    for coordinate in set.schema() {
+        CanonicalEncode::encode(&coordinate.variable, &mut writer);
+        writer.text(&coordinate.name);
+        CanonicalEncode::encode(&coordinate.domain, &mut writer);
+        writer.opt_text(coordinate.unit.as_deref());
+    }
+    // Ordered: outcomes, treatments and conditioned coordinates are kept in declared order.
+    let ids = |writer: &mut CanonicalWriter, list: &[VariableId]| {
+        writer.u32s(&list.iter().map(|id| id.raw()).collect::<Vec<_>>());
+    };
+    let base = question.base();
+    match question {
+        ScenarioQuestion::Classical(_) => {
+            writer.text("classical");
+        }
+        ScenarioQuestion::Conditional(_) => {
+            writer.text("conditional");
+        }
+    }
+    ids(&mut writer, &base.outcomes[..]);
+    ids(&mut writer, &base.treatments[..]);
+    writer.text(&base.source).text(&base.target);
+    ids(&mut writer, question.conditioned_on());
+    writer
+        .word(decision_limits.budget.operations as u64)
+        .word(decision_limits.budget.depth as u64)
+        .opt_word(decision_limits.memory_limit_bytes);
+    write_assignment(&mut writer, request);
+    writer.word(limits.operations as u64).word(limits.depth as u64).text(provider);
+    writer.word(plans.len() as u64);
+    for (scenario, plan) in plans {
+        writer.text(scenario).text(plan);
+    }
+    writer.finish()
+}
+
+/// An assignment's entries in the order it keeps them (sorted by variable), each value by its
+/// canonical encoding.
+fn write_assignment(writer: &mut CanonicalWriter, assignment: &Assignment) {
+    writer.word(assignment.entries().len() as u64);
+    for (variable, value) in assignment.entries() {
+        CanonicalEncode::encode(variable, writer);
+        CanonicalEncode::encode(value, writer);
+    }
+}
+
+/// The laws the plans evaluate, by their content identities in retained order, and the samples
+/// an empirical plug-in fitted them from: each sample's population, regime, snapshot,
+/// intervention world and every column (sorted by variable) cell by cell.
+fn source_digest(
+    data: &ExactTransportData,
+    empirical: Option<&StatisticalTransportInput>,
+) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.transport_scenario_set.laws.v2");
+    writer.word(data.law_identities().len() as u64);
+    for identity in data.law_identities() {
+        writer.bytes(identity.as_bytes());
+    }
+    let Some(input) = empirical else {
+        writer.word(0);
+        return writer.finish();
+    };
+    writer.word(1).word(input.supplied.len() as u64);
+    for law in &input.supplied {
+        writer.bytes(law.content_identity().as_bytes());
+    }
+    writer.word(input.samples.len() as u64);
+    for sample in &input.samples {
+        writer
+            .text(&sample.population)
+            .word(u64::from(sample.regime.raw()))
+            .text(&sample.snapshot_identity)
+            .word(sample.interventions.len() as u64);
+        for intervention in sample.interventions.iter() {
+            CanonicalEncode::encode(&intervention.variable, &mut writer);
+            CanonicalEncode::encode(&intervention.value, &mut writer);
+        }
+        writer.word(sample.columns.len() as u64);
+        for (variable, column) in &sample.columns {
+            CanonicalEncode::encode(variable, &mut writer);
+            writer.word(column.len() as u64);
+            for cell in column {
+                writer.opt_real(*cell);
+            }
+        }
+    }
+    writer.finish()
+}
+
 fn lower(prepared: &PreparedTransportScenarios) -> Result<Arc<LoweredProgram>, CausalError> {
     let set = prepared.prepared();
-    let mut question = CanonicalWriter::new("antecedent.transport_scenario_set.question.v1");
-    // The declared inputs of the decision, not its per-scenario derivations: those carry an
-    // expression arena whose hash-map index prints in no fixed order, and they follow from the
-    // set, the question and the limits written here.
     let decision = set.decision();
-    question
-        .text(&format!("{:?}", (&decision.set, &decision.question, &decision.limits)))
-        .text(&format!("{:?}", set.request()));
-    question.text(&format!("{:?}", set.limits())).text(set.provider());
-    for (scenario, plan) in set.plan_summary() {
-        question.text(&scenario).text(&plan);
-    }
-    let question = question.finish();
+    let question = question_digest(
+        &decision.set,
+        &decision.question,
+        &decision.limits,
+        set.request(),
+        set.limits(),
+        set.provider(),
+        &set.plan_summary(),
+    );
     let data = set.data();
-    let mut source = CanonicalWriter::new("antecedent.transport_scenario_set.laws.v1");
-    source.word(data.law_identities().len() as u64);
-    for identity in data.law_identities() {
-        source.bytes(identity.as_bytes());
-    }
-    if let Some(input) = set.empirical_input() {
-        source.text(&format!("{input:?}"));
-    }
-    let source = source.finish();
+    let source = source_digest(data, set.empirical_input());
     let scenarios = set.plan_summary().len() as u64;
     PointProgram {
         cell: ProgramCell::TransportScenarioSet,
@@ -205,5 +319,89 @@ impl CompiledTransportScenarios {
     /// As [`PreparedTransportScenarios::export`].
     pub fn export(&self, run: &TransportScenariosRun) -> Result<Vec<u8>, CausalError> {
         Ok(self.prepared.export(&run.report)?)
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_core::{SearchLimits, Value, VariableDomain};
+    use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
+    use antecedent_identify::ClassicalTransportQuery;
+    use antecedent_identify::sid::scenarios::{ScenarioCoordinate, TransportScenario};
+
+    use super::*;
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    fn scenario(name: &str, selections: &[u32]) -> TransportScenario {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
+        TransportScenario {
+            name: Arc::from(name),
+            diagram: SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections))
+                .unwrap(),
+            weight: None,
+            coordinates: [(0, "z"), (1, "x"), (2, "y")]
+                .into_iter()
+                .map(|(id, name)| ScenarioCoordinate {
+                    variable: v(id),
+                    name: Arc::from(name),
+                    domain: VariableDomain::Binary,
+                    unit: None,
+                })
+                .collect(),
+        }
+    }
+
+    fn digest(scenarios: Vec<TransportScenario>, outcomes: &[u32], level: f64) -> [u8; 32] {
+        let set = TransportScenarioSet::try_new(scenarios).unwrap();
+        let question = ScenarioQuestion::Classical(ClassicalTransportQuery {
+            outcomes: outcomes.iter().copied().map(v).collect(),
+            treatments: Arc::from([v(1)]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        });
+        let limits = ScenarioDecisionLimits {
+            budget: SearchLimits { operations: 1000, depth: 16 },
+            memory_limit_bytes: None,
+        };
+        let request = Assignment::from_pairs([(v(1), Value::f64(level))]);
+        question_digest(
+            &set,
+            &question,
+            &limits,
+            &request,
+            ExactEvaluationLimits::default(),
+            "provider",
+            &[(Arc::from("direct"), "compiled".to_owned())],
+        )
+    }
+
+    fn pair() -> Vec<TransportScenario> {
+        vec![scenario("direct", &[]), scenario("shift", &[0, 2])]
+    }
+
+    #[test]
+    fn the_scenario_question_identity_is_canonical() {
+        let base = digest(pair(), &[2, 0], 1.0);
+        assert_eq!(base, digest(pair(), &[2, 0], 1.0), "repeatable");
+        assert_ne!(base, digest(pair(), &[2, 0], 2.0), "a changed request");
+        assert_ne!(base, digest(pair(), &[0, 2], 1.0), "outcomes are ordered");
+        assert_ne!(digest(pair(), &[2, 0], 0.0), digest(pair(), &[2, 0], -0.0), "reals by bits");
+        let reordered = vec![scenario("shift", &[2, 0]), scenario("direct", &[])];
+        assert_eq!(base, digest(reordered, &[2, 0], 1.0), "selections and scenarios are sets");
+    }
+
+    #[test]
+    fn the_scenario_source_identity_binds_the_samples() {
+        let empty = ExactTransportData::try_new(Vec::new(), 1).unwrap();
+        assert_eq!(source_digest(&empty, None), source_digest(&empty, None));
+        let input = StatisticalTransportInput::default();
+        assert_ne!(source_digest(&empty, None), source_digest(&empty, Some(&input)));
     }
 }

@@ -27,10 +27,13 @@ use antecedent_estimate::{
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{TransportIdentification, TransportIdentifier};
+use antecedent_io::smoothed_dose_artifact::SmoothedDoseQueryWire;
+use antecedent_io::{TransportIdentificationWire, transport_identification_to_wire};
 
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::LearnerFactories;
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{Canonical, SetOf, Wire};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
@@ -119,17 +122,40 @@ fn source_digest(input: &SmoothedDoseInput) -> [u8; 32] {
     writer.finish()
 }
 
+/// The declared question: the selection diagram (the graph's canonical identity and the
+/// selection targets as a set), the query and the options in their wire forms (grid doses in
+/// declared order, reals exact), the transport certificate's wire form, and the declared
+/// identity of the caller's learner factories, which are runtime callbacks.
+fn question_digest(
+    diagram: &SelectionDiagram,
+    query: &SmoothedDoseTransportQuery,
+    options: &SmoothedDoseOptions,
+    identification: &TransportIdentificationWire,
+    learners: &str,
+) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.smoothed_dose_caller_learners.question.v2");
+    Canonical::encode(diagram.causal_graph(), &mut writer);
+    // A set: identification reads the selection targets as a node set.
+    Canonical::encode(&SetOf(diagram.selection_targets()), &mut writer);
+    Canonical::encode(&Wire(&SmoothedDoseQueryWire::from_query(query)), &mut writer);
+    Canonical::encode(&Wire(options), &mut writer);
+    Canonical::encode(&Wire(identification), &mut writer);
+    writer.note_runtime_callback();
+    writer.text("learners").text(learners);
+    writer.finish()
+}
+
 fn lower(
     request: &SmoothedDoseLearnersRequest,
     identification: &TransportIdentification,
 ) -> Result<Arc<LoweredProgram>, CausalError> {
-    let mut question = CanonicalWriter::new("antecedent.smoothed_dose_caller_learners.question.v1");
-    question
-        .text(&format!("{:?}", request.query))
-        .text(&format!("{:?}", request.options))
-        .text(&format!("{identification:?}"))
-        .text(request.learners.identity());
-    let question = question.finish();
+    let question = question_digest(
+        &request.diagram,
+        &request.query,
+        &request.options,
+        &transport_identification_to_wire(identification),
+        request.learners.identity(),
+    );
     let source = source_digest(&request.input);
     let rows = request.input.source.len() as u64;
     let columns = 4 + request.input.covariates.len() as u64;
@@ -238,5 +264,67 @@ impl CompiledSmoothedDoseLearners {
             claim: "point_only",
             calibration: "not_measured",
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_core::{SmoothingKernel, VariableId};
+    use antecedent_graph::{Admg, DenseNodeId};
+    use antecedent_io::NotCertifiedCertificateWire;
+
+    use super::*;
+
+    fn diagram(selections: &[u32]) -> SelectionDiagram {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let selections = selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+        SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections)).unwrap()
+    }
+
+    fn query(grid: &[f64]) -> SmoothedDoseTransportQuery {
+        SmoothedDoseTransportQuery {
+            outcome: VariableId::from_raw(2),
+            dose: VariableId::from_raw(1),
+            source_population: Arc::from("trial"),
+            target_population: Arc::from("target"),
+            grid: Arc::from(grid),
+            bandwidth: 0.5,
+            kernel: SmoothingKernel::Epanechnikov,
+            dose_support: (0.0, 2.0),
+            density_provenance: Arc::from("known"),
+        }
+    }
+
+    fn digest(selections: &[u32], grid: &[f64], learners: &str) -> [u8; 32] {
+        let identification =
+            TransportIdentificationWire::NotCertified(NotCertifiedCertificateWire {
+                reason: "fixture".into(),
+                witness: Vec::new(),
+                message: "fixture".into(),
+            });
+        question_digest(
+            &diagram(selections),
+            &query(grid),
+            &SmoothedDoseOptions::default(),
+            &identification,
+            learners,
+        )
+    }
+
+    #[test]
+    fn the_smoothed_dose_question_identity_is_canonical() {
+        let base = digest(&[0, 2], &[0.5, 1.0], "learners");
+        assert_eq!(base, digest(&[0, 2], &[0.5, 1.0], "learners"), "repeatable");
+        assert_ne!(base, digest(&[0, 2], &[0.5, 1.0], "other"), "changed learners");
+        assert_ne!(base, digest(&[0, 2], &[1.0, 0.5], "learners"), "the grid is ordered");
+        assert_eq!(base, digest(&[2, 0], &[0.5, 1.0], "learners"), "selections are a set");
+        assert_ne!(
+            digest(&[0], &[0.0, 1.0], "learners"),
+            digest(&[0], &[-0.0, 1.0], "learners"),
+            "reals by bits"
+        );
     }
 }
