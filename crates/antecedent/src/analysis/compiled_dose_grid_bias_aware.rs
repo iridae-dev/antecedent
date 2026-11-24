@@ -427,7 +427,7 @@ impl Study {
         let mut band_ctx = ctx.clone();
         band_ctx.rng = antecedent_core::RngFactory::from_seed(band_seed);
         let run = compiled.evaluate(&band_ctx)?;
-        let artifact = DoseGridArtifactWire::seal_bias_aware_fit(request, run.fit.clone())?;
+        let artifact = DoseGridArtifactWire::seal_bias_aware_fit(request, &run.fit)?;
         Ok(SealedDoseGridBiasAware {
             sealed: DoseGridFunctional::from_artifact(artifact),
             run,

@@ -1015,7 +1015,7 @@ impl DoseGridArtifactWire {
     /// the default consumer bounds.
     pub fn seal_bias_aware_fit(
         request: DoseGridRequestWire,
-        fit: BiasAwareDoseGrid,
+        fit: &BiasAwareDoseGrid,
     ) -> Result<Self, DoseGridArtifactError> {
         request.check_bias_aware()?;
         let declared = request.bias_aware.ok_or(DoseGridArtifactError::UnsupportedSemantics(
@@ -1026,7 +1026,7 @@ impl DoseGridArtifactWire {
         }
         let design = request.design()?;
         let functional = request.functional()?;
-        let section = bias_aware_section(&fit);
+        let section = bias_aware_section(fit);
         let result = request.finish(&fit.row, Some(section), functional, design)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {

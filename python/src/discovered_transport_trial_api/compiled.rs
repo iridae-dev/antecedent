@@ -81,6 +81,22 @@ fn stage_body(run: &DiscoveredClassTransportRun) -> PyResult<StageBody> {
     })
 }
 
+/// The stage without its tables, which are read off the GIL.
+enum Declared {
+    Envelope,
+    Estimate,
+    Trial(antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions),
+    Set(
+        antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions,
+        TransportOutcomeSupport,
+    ),
+    Replay(
+        Vec<u8>,
+        antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions,
+        TransportOutcomeSupport,
+    ),
+}
+
 /// Run a transport request over the class a static selective search returns, through the
 /// compiled `DiscoveredClassTransport` program.
 ///
@@ -137,21 +153,6 @@ fn discovered_class_transport_compiled(
         (Some(lower), Some(upper)) => Ok(TransportOutcomeSupport { lower, upper }),
         _ => Err(value_err("the confidence-set stages need support_lower and support_upper")),
     };
-    // The stage without its tables, which are read off the GIL.
-    enum Declared {
-        Envelope,
-        Estimate,
-        Trial(antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions),
-        Set(
-            antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions,
-            TransportOutcomeSupport,
-        ),
-        Replay(
-            Vec<u8>,
-            antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions,
-            TransportOutcomeSupport,
-        ),
-    }
     let declared = match stage {
         "envelope" => Declared::Envelope,
         "estimate" => Declared::Estimate,

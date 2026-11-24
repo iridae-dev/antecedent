@@ -408,7 +408,7 @@ fn p_z(c: f64, d: f64, target: bool) -> f64 {
 
 fn study_table(rows: usize, target: bool, seed: u64) -> TabularData {
     let mut rng = Lcg(seed);
-    let mut columns = vec![Vec::with_capacity(rows); 8];
+    let mut columns: Vec<Vec<f64>> = (0..8).map(|_| Vec::with_capacity(rows)).collect();
     for _ in 0..rows {
         let (c, d, l, x) =
             (rng.bernoulli(0.5), rng.bernoulli(0.5), rng.bernoulli(0.5), rng.bernoulli(0.5));
@@ -967,6 +967,6 @@ fn a_transport_refusal_keeps_the_discovery() {
     on_large_stack("refusal-keeps-discovery", || {
         let run = compiled_run(envelope_request(chain3(), noise(3, 60, 1), vec![v(9)], 2, 64));
         assert!(matches!(run.transport, Err(DiscoveredTransportError::Refused(_))));
-        assert!(run.outcome.structure.edges().len() == 2);
+        assert_eq!(run.outcome.structure.edges().len(), 2);
     });
 }

@@ -603,9 +603,9 @@ pub fn root_cause_rank(
     attribution: &antecedent_attribution::ChangeAttributionResult,
     graph_samples: Option<&antecedent_prob::graph_samples::WeightedGraphSamples>,
     contribution_draws: Option<&antecedent_prob::posterior::PosteriorDraws>,
-    _ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<antecedent_attribution::RootCauseRank>, antecedent_attribution::AttributionError> {
-    antecedent_attribution::root_cause_rank(attribution, graph_samples, contribution_draws, _ctx)
+    antecedent_attribution::root_cause_rank(attribution, graph_samples, contribution_draws, ctx)
 }
 
 /// Decompose outcome influence into directed-path shares using arrow strengths

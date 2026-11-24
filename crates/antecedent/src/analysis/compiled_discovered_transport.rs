@@ -530,6 +530,52 @@ fn evaluator(stage: &DiscoveredClassStage) -> &'static str {
     }
 }
 
+/// The bootstrap the stage's kernel runs on its evidence, if it runs one.
+fn resampling_plan(evidence: &DiscoveredClassEvidence) -> Option<ResamplingPlan> {
+    let replicates = evidence.bootstrap_replicates;
+    if replicates == 0 {
+        return None;
+    }
+    Some(match evidence.block_length {
+        Some(_) => ResamplingPlan {
+            method: ResamplingMethod::BlockBootstrap,
+            replicates,
+            unit: ResampleUnit::CalendarBlock,
+        },
+        None => ResamplingPlan {
+            method: ResamplingMethod::Bootstrap,
+            replicates,
+            unit: ResampleUnit::Row,
+        },
+    })
+}
+
+/// The read of the searched and evidence rows and the transport request over the class.
+fn physical_layer(
+    plan_id: &str,
+    rows: u64,
+    columns: u64,
+    design: DesignShape,
+) -> Result<PhysicalLayer, CausalError> {
+    let operator = |effect: PhysicalEffect, bytes: Option<u64>| {
+        let declared = PhysicalOperator::declare(effect);
+        let declared = match bytes {
+            Some(bytes) => declared.estimates(ByteEstimates::absent().with_output(bytes)),
+            None => declared,
+        };
+        declared.build().map_err(|_| CausalError::Compile {
+            message: format!("{plan_id}: a physical operator cannot be declared"),
+        })
+    };
+    Ok(PhysicalLayer {
+        operators: Arc::from([
+            operator(PhysicalEffect::Read, Some(rows.saturating_mul(columns).saturating_mul(8)))?,
+            operator(PhysicalEffect::Transport, None)?,
+        ]),
+        design,
+    })
+}
+
 fn lower(
     request: &DiscoveredClassTransportRequest,
     search_program: SemanticDigest,
@@ -576,21 +622,7 @@ fn lower(
             role: EvidenceRole::Observations,
             digest: Some(evidence.target.digest()),
         });
-        let replicates = evidence.evidence.bootstrap_replicates;
-        if replicates > 0 {
-            resampling = Some(match evidence.evidence.block_length {
-                Some(_) => ResamplingPlan {
-                    method: ResamplingMethod::BlockBootstrap,
-                    replicates,
-                    unit: ResampleUnit::CalendarBlock,
-                },
-                None => ResamplingPlan {
-                    method: ResamplingMethod::Bootstrap,
-                    replicates,
-                    unit: ResampleUnit::Row,
-                },
-            });
-        }
+        resampling = resampling_plan(evidence.evidence);
     }
     let design = DesignShape::quoted(rows, columns, true);
     let plan_id = plan_id(&request.stage);
@@ -630,23 +662,7 @@ fn lower(
         planning: None,
         chain: None,
     };
-    let operator = |effect: PhysicalEffect, bytes: Option<u64>| {
-        let declared = PhysicalOperator::declare(effect);
-        let declared = match bytes {
-            Some(bytes) => declared.estimates(ByteEstimates::absent().with_output(bytes)),
-            None => declared,
-        };
-        declared.build().map_err(|_| CausalError::Compile {
-            message: format!("{plan_id}: a physical operator cannot be declared"),
-        })
-    };
-    let physical = PhysicalLayer {
-        operators: Arc::from([
-            operator(PhysicalEffect::Read, Some(rows.saturating_mul(columns).saturating_mul(8)))?,
-            operator(PhysicalEffect::Transport, None)?,
-        ]),
-        design,
-    };
+    let physical = physical_layer(&plan_id, rows, columns, design)?;
     let identification = IdentificationLayer::PerExecution {
         reason: "every member of the discovered class is identified each time the program runs",
     };

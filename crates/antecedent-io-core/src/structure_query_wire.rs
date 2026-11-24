@@ -1136,6 +1136,25 @@ fn interventions_from_wire(interventions: &[InterventionWire]) -> Arc<[Intervent
     interventions.iter().map(InterventionWire::to_domain).collect::<Vec<_>>().into()
 }
 
+/// The refusal to decode a simulation that ran on in-process callbacks: only the callbacks'
+/// declaration digest was recorded, so the query cannot be rebuilt.
+fn in_process_refusal(target: &str, callbacks: &[String]) -> IoError {
+    let refusal = antecedent_core::Portability::RuntimeBound { callbacks: callbacks.to_vec() }
+        .export_refusal()
+        .map_or_else(
+            || ("policy_callback_not_portable", String::new()),
+            |refusal| (refusal.code, refusal.message),
+        );
+    IoError::Refused {
+        code: refusal.0,
+        message: format!(
+            "{}; the {target} simulation ran in the process that held the callback and its \
+             record keeps only the callbacks' declaration digest",
+            refusal.1
+        ),
+    }
+}
+
 impl SimulateQueryWire {
     /// Encode.
     ///
@@ -1331,21 +1350,7 @@ impl SimulateQueryWire {
                 })
             }
             SimulationTargetWire::InProcess { target, callbacks, .. } => {
-                let refusal =
-                    antecedent_core::Portability::RuntimeBound { callbacks: callbacks.clone() }
-                        .export_refusal()
-                        .map_or_else(
-                            || ("policy_callback_not_portable", String::new()),
-                            |refusal| (refusal.code, refusal.message),
-                        );
-                return Err(IoError::Refused {
-                    code: refusal.0,
-                    message: format!(
-                        "{}; the {target} simulation ran in the process that held the callback \
-                         and its record keeps only the callbacks' declaration digest",
-                        refusal.1
-                    ),
-                });
+                return Err(in_process_refusal(target, callbacks));
             }
         };
         let query = SimulateQuery { target };

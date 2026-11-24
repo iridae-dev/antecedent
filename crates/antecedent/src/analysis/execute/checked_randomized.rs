@@ -143,7 +143,7 @@ impl CheckedRandomizedOperation {
         query.validate()?;
         let adjustment = study.declared.randomized_adjustment.as_ref();
         if let Some(adjustment) = adjustment {
-            randomized_adjustment::check(query, adjustment)?;
+            randomized_adjustment::check(query, *adjustment)?;
         }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial

@@ -112,13 +112,13 @@ pub(crate) fn graphless_coordinate(
 /// and an estimated slope are two adjustments, so the pair is refused.
 pub(crate) fn check(
     query: &RandomizedEffectQuery,
-    adjustment: &RandomizedAdjustment,
+    adjustment: RandomizedAdjustment,
 ) -> Result<(), CausalError> {
     match adjustment {
         RandomizedAdjustment::EstimatedCuped { covariate } => {
             if !matches!(query.design, RandomizationDesign::Bernoulli)
                 || query.estimand != RandomizedEstimand::IntentionToTreat
-                || *covariate == query.outcome
+                || covariate == query.outcome
                 || query.fixed_cuped.is_some()
                 || !query.ancova_covariates.is_empty()
                 || query.received_treatment.is_some()
@@ -158,7 +158,7 @@ pub(crate) fn admit(study: &crate::Study) -> Result<(), CausalError> {
             "a randomized adjustment is read by a RandomizedEffectQuery study only"
         ));
     };
-    check(query, adjustment)?;
+    check(query, *adjustment)?;
     if study.settings.inference.is_bayesian() {
         return Err(crate::unsupported_reason!(
             "option_not_applicable",
@@ -209,16 +209,16 @@ mod tests {
     fn the_adjustment_composes_with_no_other_declaration() {
         let adjustment =
             RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(1) };
-        assert!(check(&bernoulli(), &adjustment).is_ok());
+        assert!(check(&bernoulli(), adjustment).is_ok());
         for refused in [
             bernoulli().with_fixed_cuped(VariableId::from_raw(1), 1.3),
             bernoulli().with_ancova(vec![VariableId::from_raw(2)]),
             bernoulli().with_received_treatment(vec![true, false, true, false]),
             bernoulli().with_exact_randomization_test(),
         ] {
-            assert!(check(&refused, &adjustment).is_err(), "{refused:?}");
+            assert!(check(&refused, adjustment).is_err(), "{refused:?}");
         }
         let outcome = RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(0) };
-        assert!(check(&bernoulli(), &outcome).is_err());
+        assert!(check(&bernoulli(), outcome).is_err());
     }
 }
