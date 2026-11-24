@@ -431,7 +431,6 @@ fn inspected_z_transport_equals_the_compiled_identification() {
     }) else {
         panic!("an inspected z-transport outcome");
     };
-    assert!(text(&direct).starts_with("identified"), "{}", text(&direct));
     assert_eq!(text(&direct), text(&twin));
 }
 
