@@ -67,9 +67,6 @@ pub enum RandomizedShape {
     BernoulliCace,
     /// Independent Bernoulli assignment with a fixed pre-assignment covariate adjustment.
     BernoulliCuped,
-    /// Independent Bernoulli assignment with a pre-assignment covariate whose slope is estimated
-    /// from the rows (same-sample CUPED).
-    BernoulliEstimatedCuped,
     /// Independent Bernoulli assignment with fitted ANCOVA covariates.
     BernoulliAncova,
     /// Complete randomization.
@@ -625,8 +622,10 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
         EstimatorId::RandomizedFixedCupedHt => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::BernoulliCuped]))
         }
+        // Same-sample CUPED is read as its own facet (`Facet::EstimatedCuped`), which no
+        // published shape names: the estimator lists no shape and answers that facet alone.
         EstimatorId::RandomizedEstimatedCupedHt => {
-            frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::BernoulliEstimatedCuped]))
+            frequentist(RANDOMIZED, DesignTarget::Randomized(&[]))
         }
         EstimatorId::RandomizedClusterFixedCuped => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::ClusterCuped]))
@@ -998,6 +997,10 @@ pub fn inference_mismatch(estimator: EstimatorId, requested_bayesian: bool) -> S
 enum Facet {
     None,
     Randomized(RandomizedShape),
+    /// Independent Bernoulli assignment with a pre-assignment covariate whose slope is estimated
+    /// from the rows (same-sample CUPED), which only `EstimatorId::RandomizedEstimatedCupedHt`
+    /// answers.
+    EstimatedCuped,
     Policy(PolicyShape),
     Longitudinal(LongitudinalRegimeMethod),
     TemporalDesign(TemporalDesignShape),
@@ -1011,6 +1014,17 @@ enum Facet {
     },
 }
 
+/// The facet of a randomized query: its published shape, or same-sample CUPED on Bernoulli rows.
+fn randomized_facet(query: &antecedent_core::RandomizedEffectQuery) -> Facet {
+    if matches!(query.design, RandomizationDesign::Bernoulli)
+        && query.received_treatment.is_none()
+        && query.estimated_cuped().is_some()
+    {
+        return Facet::EstimatedCuped;
+    }
+    Facet::Randomized(randomized_shape(query))
+}
+
 fn randomized_shape(query: &antecedent_core::RandomizedEffectQuery) -> RandomizedShape {
     match &query.design {
         RandomizationDesign::Bernoulli => {
@@ -1018,8 +1032,6 @@ fn randomized_shape(query: &antecedent_core::RandomizedEffectQuery) -> Randomize
                 R::BernoulliCace
             } else if query.fixed_cuped_coefficient().is_some() {
                 R::BernoulliCuped
-            } else if query.estimated_cuped().is_some() {
-                R::BernoulliEstimatedCuped
             } else if !query.ancova_covariates.is_empty() {
                 R::BernoulliAncova
             } else {
@@ -1051,9 +1063,7 @@ fn response_shape(functional: &ResponseFunctional) -> ResponseShape {
 
 fn facet_of(query: &CausalQuery, site: Option<Site>) -> Facet {
     match query {
-        CausalQuery::RandomizedEffect(randomized) => {
-            Facet::Randomized(randomized_shape(randomized))
-        }
+        CausalQuery::RandomizedEffect(randomized) => randomized_facet(randomized),
         CausalQuery::PolicyValue(policy) => Facet::Policy(if policy.multi_action.is_some() {
             PolicyShape::MultiAction
         } else if policy.mu0.is_empty() {
@@ -1110,6 +1120,32 @@ fn design_mismatch(
     )
 }
 
+/// How a refusal names the same-sample CUPED facet and the estimator that answers it.
+const ESTIMATED_CUPED_SHAPE: &str = "BernoulliEstimatedCuped";
+
+/// The designs a randomized estimator answers, listed as a refusal names them: its published
+/// shapes, or the same-sample CUPED facet.
+struct RandomizedTargets {
+    estimator: EstimatorId,
+    allowed: &'static [RandomizedShape],
+}
+
+impl std::fmt::Debug for RandomizedTargets {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.estimator == EstimatorId::RandomizedEstimatedCupedHt {
+            return write!(f, "[{ESTIMATED_CUPED_SHAPE}]");
+        }
+        self.allowed.fmt(f)
+    }
+}
+
+const fn randomized_targets(
+    estimator: EstimatorId,
+    allowed: &'static [RandomizedShape],
+) -> RandomizedTargets {
+    RandomizedTargets { estimator, allowed }
+}
+
 fn check_design(
     estimator: EstimatorId,
     target: EstimatorTarget,
@@ -1120,7 +1156,20 @@ fn check_design(
         (DesignTarget::Randomized(allowed), Facet::Randomized(shape))
             if !allowed.contains(shape) =>
         {
-            Err(design_mismatch(estimator, &format!("{shape:?}"), &allowed))
+            Err(design_mismatch(
+                estimator,
+                &format!("{shape:?}"),
+                &randomized_targets(estimator, allowed),
+            ))
+        }
+        (DesignTarget::Randomized(allowed), Facet::EstimatedCuped)
+            if estimator != EstimatorId::RandomizedEstimatedCupedHt =>
+        {
+            Err(design_mismatch(
+                estimator,
+                ESTIMATED_CUPED_SHAPE,
+                &randomized_targets(estimator, allowed),
+            ))
         }
         (DesignTarget::Policy(allowed), Facet::Policy(shape)) if !allowed.contains(shape) => {
             Err(design_mismatch(estimator, &format!("{shape:?}"), &allowed))

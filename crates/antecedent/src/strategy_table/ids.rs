@@ -452,8 +452,6 @@ pub enum EstimatorId {
     ContinuousDoseKernel,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
-    /// Bernoulli ITT residualized by the pooled slope of a declared pre-assignment covariate.
-    RandomizedEstimatedCupedHt,
     /// Complete cluster-randomized ITT over cluster totals adjusted by a fixed pre-assignment covariate.
     RandomizedClusterFixedCuped,
     /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
@@ -557,6 +555,8 @@ pub enum EstimatorId {
     IvBoundsSharp,
     /// Bayesian-bootstrap posterior of the same bounds' endpoints (unsupported, uncalibrated).
     BayesianIvBounds,
+    /// Bernoulli ITT residualized by the pooled slope of a declared pre-assignment covariate.
+    RandomizedEstimatedCupedHt,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
