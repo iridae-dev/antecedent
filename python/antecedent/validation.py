@@ -1442,6 +1442,10 @@ def derivative_consistency(
 ) -> TargetCheck:
     """Reported derivatives against Richardson-extrapolated central differences of the
     fitted ``response`` callable."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.derivative_consistency",
+        "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))",
+    )
     wire = json.loads(
         _target_derivative_consistency(
             response,
@@ -1463,6 +1467,10 @@ def local_linearity(
     slope_floor: float = 1e-12,
 ) -> TargetCheck:
     """How far the fitted ``response`` bends over ``step`` relative to its slope."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.local_linearity",
+        "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))",
+    )
     wire = json.loads(
         _target_local_linearity(
             response,
@@ -1519,6 +1527,10 @@ def posterior_predictive_target(
     were observed. The alpha threshold is a diagnostic convention, not a calibrated
     frequentist significance test, and the finite-draw uncertainty is not reported.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.posterior_predictive_target",
+        "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))",
+    )
     wire = json.loads(
         _target_posterior_predictive(
             [str(label) for label in labels],

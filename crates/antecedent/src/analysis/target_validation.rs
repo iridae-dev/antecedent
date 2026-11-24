@@ -1102,6 +1102,8 @@ fn lagged_nodes(graph: &TemporalDag, variable: VariableId) -> Vec<(DenseNodeId, 
 mod common_cause;
 mod controls;
 mod derivative;
+#[cfg(test)]
+mod native_twin_tests;
 mod panel;
 mod predictive;
 mod refit;
