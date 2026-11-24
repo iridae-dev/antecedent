@@ -180,26 +180,6 @@ def _verdict_action(verdict: Mapping[str, Any]) -> str | None:
     return None if action is None else str(action)
 
 
-_STATEMENTS = {
-    "necessarily_best": "Action {action} is preferred for every admissible value of the declared trade-offs.",
-    "never_beaten": "Action {action} is never beaten over the declared trade-offs; it ties {ties} somewhere.",
-    "preference_dependent": "The preferred action depends on the declared trade-offs: {actions} are each preferred somewhere.",
-    "worst_case_choice": "Action {action} has the best worst-case value over the declared trade-offs.",
-    "minimax_regret_choice": "Action {action} has the smallest worst-case regret over the declared trade-offs.",
-    "measure_choice": "Action {action} has the best value weighted by the supplied measure.",
-    "tied": "Actions {actions} tie across the declared trade-offs.",
-    "undetermined": "The certified subdivision does not settle the choice among {actions}.",
-    "report_only": "No action is chosen: the answer across the declared trade-offs is reported only.",
-    "no_admissible_action": "Every action is excluded by a hard constraint.",
-    "structures_disagree": "The evaluated structures give different verdicts, so no action is preferred across structures.",
-    "insufficient_science": "No action is chosen across structures: {reason}.",
-    "best_on_sampled_measure": "On the sampled class members, action {action} is preferred; this is a Monte Carlo estimate, not a claim that it is best for every member.",
-    "undetermined_on_sampled_measure": "On the sampled class members no action is chosen; still in contention: {actions}.",
-    "best_on_every_sampled_member": "Action {action} is best on every sampled class member; no verdict over every member is given.",
-    "per_sampled_member": "The sampled class members do not all choose one action; no verdict over every member is given.",
-}
-
-
 class TradeoffDecision(DecisionResult):
     """The decision across the admissible trade-offs (and structures, when supplied).
 
@@ -285,19 +265,8 @@ class TradeoffDecision(DecisionResult):
     @property
     def statement(self) -> str:
         """The verdict in plain words."""
-        stated = self._body.get("statement")
-        if isinstance(stated, str) and stated:
-            return stated
-        verdict = self._verdict
-        actions = ", ".join(verdict.get("actions") or verdict.get("candidates") or ())
-        template = _STATEMENTS.get(self.kind, "Verdict {kind}.")
-        return template.format(
-            action=verdict.get("action"),
-            actions=actions,
-            ties=", ".join(verdict.get("ties_with") or ()),
-            reason=verdict.get("reason"),
-            kind=self.kind,
-        )
+        # The statement is computed natively with the verdict; no sentence is written here.
+        return str(self._body["statement"])
 
     def explain(self) -> str:
         """The statement, followed by the route and the assumptions it stands on."""

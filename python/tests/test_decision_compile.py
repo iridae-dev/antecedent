@@ -381,3 +381,18 @@ def test_ordinary_compile_over_graph_posterior():
     assert refused.value.detail == (
         reason_details.preference_compile.ORDINARY_STRUCTURES_NOT_COMPILED
     )
+
+
+@pytest.mark.parametrize("form", ["ordinary", "tradeoff"])
+def test_an_analysis_error_behind_a_compiled_decision_is_the_analysis_own(form):
+    # A memory budget the response curve cannot fit in is the analysis's own resource error,
+    # raised as the analysis raises it, not a refusal of the decision.
+    from antecedent.errors import CausalResourceError
+
+    contract = _hand_dose_contract() if form == "ordinary" else _dose_contract()
+    compiled = require_success(contract.compile(_prepared(_dose_table())))
+    starved = ant.Execution(seed=11, limits=ant.ResourceLimits(memory_bytes=1))
+    with pytest.raises(CausalResourceError) as raised:
+        require_success(compiled.execute(execution=starved))
+    assert not isinstance(raised.value, decision.DecisionRefusal)
+    assert "memory budget" in str(raised.value)
