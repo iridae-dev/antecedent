@@ -3524,7 +3524,7 @@ concern = ""
 [[sites]]
 id = "io_core.observation_query_artifact.draw_quantities"
 file = "crates/antecedent-io-core/src/observation_query_artifact.rs"
-item = "fn:draw_quantities#0"
+item = "fn:draw_quantities_named#0"
 feeds = "ScientificQuantity coordinates (regime_id, conditioning) of the redrawn-draws DistributionArtifact, hashed in its identity and persisted"
 released = true
 status = "checked"

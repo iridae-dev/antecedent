@@ -559,16 +559,8 @@ fn regime_id_of(mut pairs: Vec<(String, String)>, naming: RegimeNaming) -> Strin
 }
 
 /// The quantity coordinates of redrawn draws: one per queried functional of the
-/// outcome, at the composition's population, under the intervened regime, with
-/// the recorded values as conditioning.
-fn draw_quantities(
-    spec: &ComposedModelSpec,
-    target: &RedrawTargetWire,
-    functionals: &[String],
-) -> Vec<ScientificQuantity> {
-    draw_quantities_named(spec, target, functionals, RegimeNaming::Framed)
-}
-
+/// outcome, at the composition's population, under the intervened regime (named as
+/// `naming` writes it), with the recorded values as conditioning.
 fn draw_quantities_named(
     spec: &ComposedModelSpec,
     target: &RedrawTargetWire,
