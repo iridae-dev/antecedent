@@ -3217,7 +3217,7 @@
     "An uncertainty requirement is met only by a supplied claim of exactly its own kind (none accepts any); the kind is a label supplied by the caller and is not verified against how the claim was produced.",
     "The contract identity is a canonical digest that ignores the order of rules and exclusions; a contract without rules keeps the earlier decision_contract_v1 bytes, so the wrapper adds no wire change for existing contracts."
    ],
-   "digest": "5eea6cb1c812801b1e97c5d159e86b4f8afdf619d3e6d7caeb537bc87b88dd70",
+   "digest": "ff81cf7ba154b543eae29e9b69a7bb93f46c2ab02f1efe1e574abe7641f26da3",
    "id": "decision.admissibility",
    "review": "none",
    "scope_limits": [],
@@ -3240,7 +3240,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "d6f4c24bfcb8553fbb0ef46f7348156f8b49823992d5744006e7bf9c4ffb2559",
+   "digest": "b257c236d0fba43a07fe4433f5f14d61d8fd6394ffdc6d0f9b4712049e219136",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3323,7 +3323,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "5500bcf5321039995e9b55a05bd9c4c2eb2d99ba421a67ab8c5e00a4c2f9f9d8",
+   "digest": "23fa076bb849b59d5dd9cca5c3e0ca53ad855dafae587d2f28407b0b3ab5ce97",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -9911,12 +9911,16 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "ALAN G. HAWKES"
+     ],
      "doi": "10.1093/biomet/58.1.83",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Mutually exciting processes"
      ],
-     "title": "Spectra of some self-exciting and mutually exciting point processes"
+     "title": "Spectra of some self-exciting and mutually exciting point processes",
+     "year": 1971
     },
     {
      "authors": [
@@ -9932,12 +9936,16 @@
      "year": 1974
     },
     {
+     "authors": [
+      "Y. Ogata"
+     ],
      "doi": "10.1109/TIT.1981.1056305",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Thinning algorithm for multivariate processes"
      ],
-     "title": "On Lewis' simulation method for point processes"
+     "title": "On Lewis' simulation method for point processes",
+     "year": 1981
     }
    ]
   },
