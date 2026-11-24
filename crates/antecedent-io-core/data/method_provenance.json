@@ -3010,7 +3010,7 @@
     "An uncertainty requirement is met only by a supplied claim of exactly its own kind (none accepts any); the kind is a label supplied by the caller and is not verified against how the claim was produced.",
     "The contract identity is a canonical digest that ignores the order of rules and exclusions; a contract without rules keeps the earlier decision_contract_v1 bytes, so the wrapper adds no wire change for existing contracts."
    ],
-   "digest": "8a0308cd7f4e34dc460167fa38cf9aad922228f18473d85987bd324fee1f7f9b",
+   "digest": "46a7203390f332d999467c570381bd190ec294e70db4dfc36fca1b9dad648154",
    "id": "decision.admissibility",
    "review": "none",
    "scope_limits": [],
@@ -3033,7 +3033,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "e3da9283067bfc822c21337407bad5ecf6295855fa4248701188a5632a5650c1",
+   "digest": "8d35045ceed26155fa629560217f26e88db8ad086eb5878e04fef740b82baec0",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3116,7 +3116,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "cebb058711285a6d74983cde63e786c19b2b522d6a2ec515d4065d062757584a",
+   "digest": "108a6e5b411bdb0302add01b4b9df24466d6ba4adabac08f9a8bc0c0ffb820f3",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -3137,7 +3137,7 @@
    "deviations": [
     "Verdicts range over supplied or checked structural members only; no completeness over graphs outside the supplied members is claimed."
    ],
-   "digest": "ac851ac317fa1d1a2ab6162b7bd36af47833c23dae57c8131ed244fee9285bbd",
+   "digest": "ddb0c322c78b3f27273e576211fd830ef52a625e3a0c1f41f2207f33e513f582",
    "id": "decision.robust_verdicts",
    "review": "none",
    "scope_limits": [],
@@ -3182,7 +3182,7 @@
     "Bayes choice is withheld if any positive probability has unresolved payoffs, including an omitted remainder below total mass one. Zero-probability atoms cannot exclude an action. Quantiles and maximum regrets cannot be aggregated by a probability-weighted mean of per-structure values and are refused for this policy.",
     "Minimax over an identified set reads the contract's utilities as losses and chooses the smallest worst-case expected loss; this is a stated convention, not a cited theorem."
    ],
-   "digest": "e8489504ce1304479f6208a3d1ba04dbd50289e7b0783b07c713ce3be2a3ec34",
+   "digest": "3e9245dd7083d7d4b6027e247b2ae1e8882bceabbbbb3563657eb3dd5a1d25be",
    "id": "decision.structural_policy",
    "review": "none",
    "scope_limits": [],
