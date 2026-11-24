@@ -19,10 +19,6 @@ use crate::preference_model::{
     BeliefRows, LinearRelation, PreferenceExpr, RelationSense, ValueRelation,
 };
 
-/// Relative roundoff tolerance the decision layer uses when comparing cumulative weights with
-/// a quantile level.
-const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
-
 /// Why an enclosure could not be formed.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum EncloseFailure {
@@ -176,24 +172,6 @@ pub(crate) fn affine(
         }
     }
     Ok(total)
-}
-
-/// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF, with the decision
-/// layer's mass tolerance.
-pub(crate) fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
-    let mut order: Vec<usize> = (0..values.len()).collect();
-    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
-    let mut cumulative = 0.0;
-    for &index in &order {
-        if weights[index] <= 0.0 {
-            continue;
-        }
-        cumulative += weights[index];
-        if cumulative >= p || (cumulative - p).abs() <= MASS_TOLERANCE * cumulative.max(p) {
-            return Some(values[index]);
-        }
-    }
-    order.iter().rev().find(|&&i| weights[i] > 0.0).map(|&index| values[index])
 }
 
 /// A box waiting to be split. Larger volume first, then the smaller lower corner.

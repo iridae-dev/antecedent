@@ -90,8 +90,8 @@ use antecedent_stats::linear_program::LpOptions;
 
 use crate::decision_contract::{DecisionCriterion, StructuralPolicy};
 use crate::decision_eval::{
-    ConstraintExclusion, DecisionEvalError, SourceReceipt, constraint_fails, evaluate_contract,
-    utility_draws,
+    ConstraintExclusion, DecisionEvalError, SourceReceipt, constraint_fails, criterion_value,
+    evaluate_contract, left_inverse, utility_draws,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 use crate::preference_contract::{
@@ -101,9 +101,8 @@ use crate::preference_decision::{
     MeasureOrigin, PreferenceDecisionError, PreferenceMeasure, linear_set_point,
 };
 use crate::preference_enclosure::{
-    EncloseFailure, Fit, Interval, Queued, affine, enclose, left_inverse, lexicographic,
-    linear_relation_fit, linear_relations_hold, measure_box, split_box, value_relation_fit,
-    weighted_sum,
+    EncloseFailure, Fit, Interval, Queued, affine, enclose, lexicographic, linear_relation_fit,
+    linear_relations_hold, measure_box, split_box, value_relation_fit, weighted_sum,
 };
 use crate::preference_model::{
     LinearForm, LinearRelation, PreferenceModelError, PreferenceSet, RelationOrigin, RelationSense,
@@ -1547,32 +1546,24 @@ impl Engine<'_> {
         let best: Vec<f64> = (0..weights.len())
             .map(|i| admissible.iter().map(|a| utilities[*a][i]).fold(f64::NEG_INFINITY, f64::max))
             .collect();
-        let mean = |values: &[f64]| -> f64 {
-            values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, w)| v * w).sum()
-        };
+        let criterion = self.criterion();
         let mut scores = vec![None; n];
         for &a in &admissible {
             let utility = &utilities[a];
             let regret: Vec<f64> = utility.iter().zip(&best).map(|(u, top)| top - u).collect();
-            let score = match self.criterion() {
-                DecisionCriterion::PosteriorExpectedUtility => mean(utility),
-                DecisionCriterion::PosteriorExpectedLoss => -mean(utility),
-                DecisionCriterion::ThresholdProbability { threshold } => {
-                    let reached: Vec<f64> =
-                        utility.iter().map(|u| f64::from(u8::from(*u >= threshold))).collect();
-                    mean(&reached)
-                }
-                DecisionCriterion::Quantile { p } => left_inverse(utility, weights, p)
-                    .ok_or(PreferenceCertifiedError::Model(PreferenceModelError::NonFiniteValue))?,
-                DecisionCriterion::Regret => -regret
-                    .iter()
-                    .zip(weights)
-                    .filter(|(_, w)| **w > 0.0)
-                    .fold(0.0, |top: f64, (r, _)| top.max(*r)),
-                DecisionCriterion::ExpectedRegret => -mean(&regret),
-                DecisionCriterion::MinimaxOverIdentifiedSet
-                | DecisionCriterion::MaximinOverStructures => {
-                    return Err(PreferenceCertifiedError::StructureInputsRequired);
+            let value = criterion_value(criterion, utility, Some(&regret), weights)
+                .map_err(PreferenceCertifiedError::Eval)?;
+            let score = match (criterion, value) {
+                (
+                    DecisionCriterion::MinimaxOverIdentifiedSet
+                    | DecisionCriterion::MaximinOverStructures,
+                    _,
+                ) => return Err(PreferenceCertifiedError::StructureInputsRequired),
+                (_, Some(value)) => orientation(criterion) * value,
+                (_, None) => {
+                    return Err(PreferenceCertifiedError::Model(
+                        PreferenceModelError::NonFiniteValue,
+                    ));
                 }
             };
             if !score.is_finite() {
