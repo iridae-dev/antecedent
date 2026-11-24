@@ -188,7 +188,8 @@ pub struct AnalysisPreferenceDecision {
 /// The certified route needs aligned joint draws. The exact route needs the expectation of
 /// every part of the model's linear form; the requirement is the one the ordinary decision
 /// contract of those parts ([`PreferenceContract::term_contract`]) states, so a part affine in
-/// the attributes is answered by means and any other part needs draws.
+/// the attributes is answered by means and any other part needs draws. A hard constraint is a
+/// probability a mean cannot answer, so a contract with any constraint needs draws.
 ///
 /// # Errors
 /// An invalid contract, and a refusal of the ordinary term contract.
@@ -199,12 +200,20 @@ pub fn source_requirement(
     if choice.route == PreferenceRoute::Certified {
         return Ok(joint_draws());
     }
-    match contract.term_contract().map_err(|e| e.to_refusal())? {
+    let mut requirement = match contract.term_contract().map_err(|e| e.to_refusal())? {
         Some(terms) => {
-            Ok(terms.source_requirement().map_err(|e| e.to_refusal())?.unwrap_or_else(joint_draws))
+            terms.source_requirement().map_err(|e| e.to_refusal())?.unwrap_or_else(joint_draws)
         }
-        None => Ok(joint_draws()),
+        None => joint_draws(),
+    };
+    // The term contract carries no constraints; the mean evaluator refuses every one of them.
+    if !contract.constraints.is_empty() {
+        requirement.any_of.retain(|r| *r != SourceRepresentation::Mean);
+        if requirement.any_of.is_empty() {
+            requirement = joint_draws();
+        }
     }
+    Ok(requirement)
 }
 
 fn joint_draws() -> SourceRequirement {
