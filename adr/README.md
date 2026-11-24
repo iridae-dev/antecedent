@@ -33,3 +33,4 @@ compatibility analysis where applicable. See [how Antecedent works](../docs/conc
 | [0026](0026-internal-contract-versions.md) | Internal contract versions (identity, uncertainty, cyclic solutions, retention, threads, data backends, artifact migration) |
 | [0027](0027-rust-verification-route.md) | Rust verification route (Aeneas and Charon first, Kani second; Verus and Creusot not adopted) |
 | [0028](0028-one-compiled-path.md) | One compiled path (one support model; kernel API vs analysis surface; type-and-method bypass gate) |
+| [0029](0029-operation-records.md) | Operation records (one generated-where-possible description per verified operation, keyed by its Rust path) |

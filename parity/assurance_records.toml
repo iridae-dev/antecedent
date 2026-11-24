@@ -1,8 +1,9 @@
 # Assurance records: machine-checked properties of Antecedent operations.
 #
 # Read and checked by scripts/assurance.py. Each record states one proposition, its
-# scope, what its checks trust, the operation it is about (the operation-record fields),
-# and its checks, each of one kind:
+# scope, what its checks trust, the operations it is about (`operations`: their defining
+# Rust paths, each described by its record in parity/operation_records.toml), and its
+# checks, each of one kind:
 #
 #   machine_checked_proof    a Lean theorem about a specification
 #   verified_implementation  a Lean theorem about the production Rust as Charon and Aeneas
@@ -31,26 +32,13 @@ limitations = [
     "The order on domain statuses puts unknown below every other status and leaves distinct non-unknown statuses incomparable; it says nothing about which of two different findings is better.",
 ]
 
-[records.operation]
-inputs = ["one parent claim (relay) or parent claims (checked derivation)", "the derived claim"]
-output = "acceptance of the derived claim, or a typed refusal"
-premises = ["the relay names exactly one parent", "every relayed field other than the domains is unchanged"]
-transformation = "relay: each domain axis is unchanged or a positive status becomes unknown; derivation: the derived identification status's strength rank is at most each parent's"
-justification = [
-    "Antecedent.Standing.relayChain_le",
-    "Antecedent.Standing.relayChain_no_new_assertion",
-    "Antecedent.Standing.derivation_identification_le",
-    "AntecedentRust.Standing.domain_change_allowed_spec",
-    "AntecedentRust.Standing.identification_status_kept_or_lowered_spec",
-]
-implementation = [
+operations = [
     "antecedent_contract::claim::compose_claims",
     "antecedent_contract::claim::domain_change_allowed",
     "antecedent_contract::claim::identification_status_kept_or_lowered",
     "antecedent_core::identification::IdentificationStatus::strength_rank",
+    "antecedent_contract::claim::identification_strengthened",
 ]
-obligations = []
-limitations = ["Identified-mass monotonicity is checked in floating point in the same function and is not covered."]
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -112,22 +100,10 @@ limitations = [
     "Lists whose order the identity rules make significant (schema variables, partitions, estimands, positional priors) are outside this record.",
 ]
 
-[records.operation]
-inputs = ["an order-insensitive declaration list (source ids, populations or assumptions)"]
-output = "the canonical word stream hashed into the identity"
-premises = ["the element order is total, transitive and antisymmetric"]
-transformation = "length word, then the elements sorted"
-justification = [
-    "Antecedent.Identity.encodeSet_eq_iff",
-    "Antecedent.Identity.encodeTwo_inj",
-    "Antecedent.Identity.identity_eq_iff",
-]
-implementation = [
+operations = [
     "antecedent_contract::evidence_ledger::operation::write_ids",
     "antecedent_contract::evidence_ledger::source::TransportIdentity::encode",
 ]
-obligations = ["A machine check connecting write_ids to encodeSet is not yet in place; see scope."]
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -160,25 +136,12 @@ limitations = [
     "That bind_retained_claim and accept_claim_expecting route every replayed claim through bind is reviewed and tested (identity_contract, bayesian_randomized_routes), not machine-checked.",
 ]
 
-[records.operation]
-inputs = ["the required slot", "the presented identity", "the consumer's retained expected identity, if any"]
-output = "Bound, NotRequired, or a typed refusal naming the first mismatch"
-premises = ["the expected identity is retained by the consumer, not read from the presented artifact"]
-transformation = "slot check, self-description check against the recomputed facet digest, then facet-by-facet comparison with the retained expectation"
-justification = [
-    "Antecedent.Acceptance.bind_bound_sound",
-    "Antecedent.Acceptance.bind_none_not_bound",
-    "Antecedent.Acceptance.bind_mismatch_never_bound",
-    "bound_only_against_the_retained_expectation",
-]
-implementation = [
+operations = [
     "antecedent_io_core::bound_identity::bind",
     "antecedent_io_core::accept_claim_expecting",
     "antecedent_io_core::bind_retained_claim",
     "antecedent_io::accept_claim_expecting",
 ]
-obligations = []
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -242,30 +205,12 @@ limitations = [
     "Obligation records are compared by id, kind and status in the model; the production comparison also covers scope, source, required check, evidence, assumption and description.",
 ]
 
-[records.operation]
-inputs = ["a transformation report", "the next transformation report"]
-output = "the composed report"
-premises = []
-transformation = "per-layer effects unioned; later obligations added in order, a resolved one never hiding an earlier record with its id and an unresolved one replacing only resolved records with its id"
-justification = [
-    "Antecedent.Contract.drop_premise_unsound",
-    "Antecedent.Contract.compose_keeps_unresolved",
-    "Antecedent.Contract.chain_keeps_unresolved",
-    "Antecedent.Contract.chain_keeps_effects",
-    "Antecedent.Contract.compose_refused",
-    "Antecedent.Contract.addObligationBy_eq",
-    "AntecedentRust.Transform.obligation_merge_spec",
-    "AntecedentRust.Transform.obligation_kept_on_replace_spec",
-    "AntecedentRust.Transform.obligation_unresolved_spec",
-]
-implementation = [
+operations = [
     "antecedent_contract::transform::TransformationReport::compose",
     "antecedent_contract::transform::obligation_merge",
     "antecedent_contract::transform::obligation_kept_on_replace",
     "antecedent_contract::obligation::obligation_unresolved",
 ]
-obligations = ["The record loop and the per-layer union of TransformationReport::compose are modeled, not translated; see scope."]
-limitations = ["The code claims no associativity or identity for composition, and none is proved."]
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -330,23 +275,10 @@ limitations = [
     "The graph-posterior atom wire (PosteriorAtomGraphWire::Static), the transport selection graph (TransportIdentityWire.selection_graph) and the static CPDAG and PAG wires still name nodes by dense index; they are listed in the inventory.",
 ]
 
-[records.operation]
-inputs = ["a static DAG or ADMG with labelled nodes"]
-output = "the graph identity wire hashed into the identification identity"
-premises = ["node labels are distinct static variables"]
-transformation = "nodes sorted by label, edges remapped into that order and sorted (bidirected oriented and deduplicated); unlabelled form when the labels are exactly Static(0..n)"
-justification = [
-    "dag_identity_ignores_dense_order",
-    "dag_identity_binds_labels_and_edges",
-    "dag_identity_keeps_the_aligned_form",
-    "admg_identity_binds_labels_not_dense_order",
-]
-implementation = [
+operations = [
     "antecedent_io_core::identity::dag_identity",
     "antecedent_io_core::identity::admg_identity",
 ]
-obligations = ["The listed sites of formal/identity_sites.toml each owe a generated check on production code."]
-limitations = []
 
 [[records.checks]]
 kind = "bounded_model_check"
@@ -390,23 +322,7 @@ limitations = [
     "A derivation that drops an identification slot is refused although dropping one asserts less: the slot carries the unidentified mass a consumer must see.",
 ]
 
-[records.operation]
-inputs = ["the parent claims", "the derived claim", "the operation"]
-output = "acceptance of the derived claim, or a typed refusal naming the first departure"
-premises = ["the operation is not a relay (a relay is covered by claim_standing.never_raised)"]
-transformation = "refuse a causal claim from an association, a value from a refusal or incomplete parent, an identification slot some parent lacks, a dropped or stronger identification slot, a positive domain status a parent did not hold, and any other domain status that is neither the parent's nor unknown"
-justification = [
-    "Antecedent.Standing.kind_rules_iff",
-    "Antecedent.Standing.domainDeparts_iff",
-    "Antecedent.Standing.derivation_le",
-    "Antecedent.Standing.descends_le",
-    "Antecedent.Standing.derivation_no_new_assertion",
-    "Antecedent.Standing.checked_composer_le",
-    "AntecedentRust.Standing.domain_departs_spec",
-    "AntecedentRust.Standing.associational_derives_causal_spec",
-    "AntecedentRust.Standing.non_value_derives_value_spec",
-]
-implementation = [
+operations = [
     "antecedent_contract::claim::compose_claims",
     "antecedent_contract::claim::derived_departs_from_parents",
     "antecedent_contract::claim::identification_strengthened",
@@ -416,9 +332,9 @@ implementation = [
     "antecedent_contract::claim::non_value_derives_value",
     "antecedent_contract::claim::identification_slot_added",
     "antecedent::analysis::checked_claim_composition::compose_checked_study_claims",
+    "antecedent_contract::claim::identification_status_kept_or_lowered",
+    "antecedent_core::identification::IdentificationStatus::strength_rank",
 ]
-obligations = ["The loop of derived_departs_from_parents over parents and axes, and the checked composer, are modeled, not translated; see scope."]
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -491,28 +407,11 @@ limitations = [
     "The code claims no associativity for chain, and none is proved: which fields a chain establishes depends on whether each hop is complete.",
 ]
 
-[records.operation]
-inputs = ["a handoff receipt", "the next handoff receipt"]
-output = "the receipt of the chain"
-premises = []
-transformation = "omitted, unresolved and unavailable lists merged; a field retained when the hops are contiguous, either hop is complete or both retained it, and no hop omitted it; a discontinuity recorded as unresolved"
-justification = [
-    "Antecedent.Standing.chain_omitted",
-    "Antecedent.Standing.chain_keeps_unresolved",
-    "Antecedent.Standing.chain_retained_not_omitted",
-    "Antecedent.Standing.chain_retained_declared",
-    "Antecedent.Standing.chain_discontinuous",
-    "Antecedent.Standing.chain_equivalent",
-    "Antecedent.Standing.chainAll_never_restores",
-    "AntecedentRust.Standing.chain_retains_spec",
-]
-implementation = [
+operations = [
     "antecedent_contract::claim::HandoffReceipt::chain",
     "antecedent_contract::claim::HandoffReceipt::equivalent_claim",
     "antecedent_contract::claim::chain_retains",
 ]
-obligations = ["merge_unique and the list filtering of HandoffReceipt::chain are modeled, not translated; see scope."]
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -568,27 +467,7 @@ limitations = [
     "That a still-valid stage's effective identity is unchanged, and that a recomputed one changed, is checked on generated workflows (recalc.reuse_only_without_a_change), not proved.",
 ]
 
-[records.operation]
-inputs = ["what changed between two snapshots: stage identities, provider trust standings, lost sources"]
-output = "the three-state class of each stage, claim or ledger result"
-premises = []
-transformation = "withdrawn when any withdrawal stands, recompute when only numerical reasons stand, still valid otherwise; a moved trust standing is a numerical reason unless it withdraws; a reclassification takes the more severe of the new and current classes"
-justification = [
-    "Antecedent.Revalidation.worst_assoc",
-    "Antecedent.Revalidation.worst_comm",
-    "Antecedent.Revalidation.worst_stillValid",
-    "Antecedent.Revalidation.StageStatus.stillValid_iff",
-    "Antecedent.Revalidation.ChangeKind.revalidation_lowers",
-    "Antecedent.Revalidation.trust_move_never_still_valid",
-    "Antecedent.Revalidation.still_valid_trust",
-    "Antecedent.Revalidation.Trust.ofProvider_held",
-    "Antecedent.Revalidation.lossClass_stillValid",
-    "Antecedent.Revalidation.reclassify_monotone",
-    "worst_is_a_join",
-    "AntecedentRust.Revalidation.revalidation_class_spec",
-    "AntecedentRust.Revalidation.status_step_spec",
-]
-implementation = [
+operations = [
     "antecedent_core::recalc::Revalidation::worst",
     "antecedent_core::recalc::ChangeKind::revalidation",
     "antecedent_core::recalc::StageStatus::revalidation",
@@ -601,8 +480,6 @@ implementation = [
     "antecedent_contract::evidence_ledger::ledger::loss_class",
     "antecedent_contract::evidence_ledger::ledger::status_step",
 ]
-obligations = ["How plan and revalidate compute the inputs of the translated rules is exercised by the adversarial campaign, not proved; see scope."]
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -705,23 +582,10 @@ limitations = [
     "Kani covers grids of at most four labels; the Lean model covers every length but is not the production function.",
 ]
 
-[records.operation]
-inputs = ["the per-coordinate support labels", "the summary label", "the value count"]
-output = "acceptance, or a typed refusal naming the mismatch"
-premises = []
-transformation = "the summary must be the most severe label"
-justification = [
-    "Antecedent.Revalidation.labelsAccepted_summary",
-    "accepted_summary_is_never_better_than_a_label",
-    "missing_evidence_is_never_hidden",
-    "AntecedentRust.Support.severity_spec",
-]
-implementation = [
+operations = [
     "antecedent_contract::support_labels::check_static_point_labels",
     "antecedent_core::response::SupportStatus::severity",
 ]
-obligations = []
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -784,23 +648,12 @@ limitations = [
     "Loaders whose error type has no From<IoError> carry the binding refusal in their own refusal type (CohortRefusal, ExportRefusal, the cyclic and release-migration errors, String for provider envelopes); the refusal text names the retained artifact identity, the registered code differs by type.",
 ]
 
-[records.operation]
-inputs = ["the artifact bytes handed to the loader", "the artifact identity the consumer retained apart from the bytes"]
-output = "the loader's result on exactly the retained bytes, or external_binding_mismatch before the bytes are read"
-premises = ["the retained identity is obtained from the producer or the consumer's own store, not read from the bytes being admitted"]
-transformation = "recompute the artifact digest from the bytes, bind it in the claim slot against the retained digest, then run the unbound loader"
-justification = [
-    "artifact_binds_only_the_retained_digest",
-    "loader_runs_only_after_binding",
-    "bound_only_against_the_retained_expectation",
-]
-implementation = [
+operations = [
     "antecedent_io_core::retained_artifact::bind_artifact_identity",
     "antecedent_io_core::retained_artifact::bind_retained_artifact",
     "antecedent_io_core::retained_artifact::load_expecting",
+    "antecedent_io_core::bound_identity::bind",
 ]
-obligations = []
-limitations = []
 
 [[records.checks]]
 kind = "bounded_model_check"

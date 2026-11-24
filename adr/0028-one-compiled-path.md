@@ -93,7 +93,8 @@ The classes are `compiled`, `deprecated` (with its replacement), `internal`,
 
 An operation record is a computed view over the layers of a lowered program. It
 stores nothing the program does not already determine. Assurance records name
-the compiled routes and support units they cover.
+the compiled routes and support units they cover. ADR 0029 extends this to the
+verified kernel functions no lowered program contains.
 
 ### Amendments
 

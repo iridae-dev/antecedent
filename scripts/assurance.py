@@ -2,8 +2,9 @@
 """Assurance records: machine-checked properties of Antecedent operations.
 
 `parity/assurance_records.toml` holds one record per property. A record states its
-proposition and scope, what it trusts, the operation it is about (the operation-record
-fields), and one or more checks. Each check has one kind, never merged into a single
+proposition and scope, what it trusts, the operations it is about (`operations`, each
+described by its record in `parity/operation_records.toml`, checked by
+scripts/operation_records.py), and one or more checks. Each check has one kind, never merged into a single
 "verified" label:
 
 * `machine_checked_proof`: a Lean theorem about a specification;
@@ -67,11 +68,7 @@ KIND_TOOLCHAIN_FILES = {
     ],
     "bounded_model_check": ["formal/kani/Cargo.toml", "formal/kani/Cargo.lock"],
 }
-RECORD_KEYS = {"id", "proposition", "scope", "trusted", "limitations", "operation", "checks", "result"}
-OPERATION_KEYS = {
-    "inputs", "output", "premises", "transformation", "justification", "implementation",
-    "obligations", "limitations",
-}
+RECORD_KEYS = {"id", "proposition", "scope", "trusted", "limitations", "operations", "checks", "result"}
 RESULT_KEYS = {"inputs_digest", "checked_commit"}
 # Statements that end a proof without proving it, or assume what should be proved.
 UNPROVED = re.compile(r"\b(sorry|admit|native_decide)\b|^\s*axiom\s", re.MULTILINE)
@@ -158,9 +155,9 @@ def validate(root: Path, data: dict, toolchain: dict) -> list[str]:
         if rid in seen:
             errors.append(f"{rid}: duplicate id")
         seen.add(rid)
-        op = record["operation"]
-        if set(op) != OPERATION_KEYS:
-            errors.append(f"{rid}: operation fields must be exactly {sorted(OPERATION_KEYS)}")
+        ops = record["operations"]
+        if not ops or not all(isinstance(o, str) and o for o in ops) or len(set(ops)) != len(ops):
+            errors.append(f"{rid}: `operations` lists each operation the record is about once, by Rust path")
         if not record["trusted"]:
             errors.append(f"{rid}: a check always trusts something; list it")
         if not record["checks"]:
@@ -321,7 +318,7 @@ def self_test(root: Path = REPO_ROOT) -> int:
     cases: list[tuple[str, object]] = [
         ("unknown check kind", broken(lambda r: r["checks"][0].update(kind="verified"))),
         ("theorem not declared", broken(lambda r: r["checks"][0]["theorems"].append("Antecedent.Missing.no_such"))),
-        ("missing operation field", broken(lambda r: r["operation"].pop("premises"))),
+        ("no operations", broken(lambda r: r.update(operations=[]))),
         ("nothing trusted", broken(lambda r: r.update(trusted=[]))),
         ("stale digest", broken(lambda r: r["result"].update(inputs_digest="0" * 64))),
     ]
