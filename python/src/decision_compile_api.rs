@@ -113,8 +113,8 @@ fn compile_decision_for_study(
             prior_scale,
         )?;
         let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
-        let plan = match study.compile_for_decision(&problem, &request, &ctx) {
-            Ok(plan) => plan,
+        let compiled = match study.compile_decision_program(&problem, &request, &ctx) {
+            Ok(compiled) => compiled,
             Err(error) => {
                 return match carrier_refusal(&error) {
                     Some(refusal) => Ok((None, Some(refusal))),
@@ -122,7 +122,8 @@ fn compile_decision_for_study(
                 };
             }
         };
-        let lowered = plan
+        let lowered = compiled
+            .plan()
             .lowered()
             .ok_or_else(|| value_err("the compiled plan carries no lowered program"))?;
         let decision = lowered
@@ -145,6 +146,9 @@ fn compile_decision_for_study(
             "utility_unit": decision.utility_unit(),
             "contract_identity": decision.contract_identity(),
             "utility_coefficients": decision.utility().coefficients(),
+            // The decision's own program over the plan above, and the unit it is gated on.
+            "decision_program_identity": compiled.program_identity().to_hex(),
+            "decision_unit": compiled.plan_view().unit_support().map(|unit| unit.unit().to_owned()),
         });
         Ok((Some(body.to_string()), None))
     })

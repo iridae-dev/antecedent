@@ -17,9 +17,10 @@
 //! EVSI is a point-only value.
 //!
 //! [`evaluate_for_study`] binds the evaluation to a lowered program: the study is compiled
-//! for the request through [`Study::compile_for_evsi`] first, which refuses a study whose
+//! for the request through [`Study::compile_evsi_program`] first, which refuses a study whose
 //! statistical program publishes no parameter posterior and a Monte Carlo store the
-//! admission pool cannot hold, and the evaluation carries that program's identity.
+//! admission pool cannot hold, and the evaluation carries that program's identity. The
+//! request's own program passes its support gate (`design.evsi`) before the engine runs.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -756,7 +757,8 @@ pub fn compile_for_study(
 ) -> Result<PhysicalExecutionPlan, DesignRankingError> {
     let prepared = Prepared::try_from(wire)?;
     study
-        .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
+        .compile_evsi_program(&prepared.problem, &prepared.request, ctx)
+        .map(crate::analysis::CompiledEvsiProgram::into_plan)
         .map_err(DesignRankingError::Compile)
 }
 
@@ -775,10 +777,11 @@ pub fn evaluate_for_study(
     ctx: &ExecutionContext,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let prepared = Prepared::try_from(wire)?;
-    let plan = study
-        .compile_for_evsi(&prepared.problem, &prepared.request, ctx)
+    let compiled = study
+        .compile_evsi_program(&prepared.problem, &prepared.request, ctx)
         .map_err(DesignRankingError::Compile)?;
-    let lowered = plan
+    let lowered = compiled
+        .plan()
         .lowered()
         .filter(|lowered| {
             lowered
@@ -792,7 +795,17 @@ pub fn evaluate_for_study(
                 "the plan compiled for an EVSI request carries no value-of-information program"
             ))
         })?;
-    evaluate_prepared(&prepared, ctx, Some(lowered.identity()))
+    let identity = lowered.identity();
+    let evaluation =
+        compiled.execute(&prepared.problem, &prepared.prior, ctx).map_err(|error| match error {
+            crate::analysis::claim_decision_programs::TerminalError::Refused(error) => {
+                DesignRankingError::Compile(error)
+            }
+            crate::analysis::claim_decision_programs::TerminalError::Kernel(error) => {
+                DesignRankingError::from(error)
+            }
+        })?;
+    seal_prepared(&prepared, evaluation, ctx, Some(identity))
 }
 
 fn evaluate_prepared(
@@ -802,6 +815,16 @@ fn evaluate_prepared(
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let evaluation =
         evaluate_evsi_with_context(&prepared.problem, &prepared.prior, &prepared.request, ctx)?;
+    seal_prepared(prepared, evaluation, ctx, lowered_program)
+}
+
+/// Seal an evaluation of `prepared` into the ranking record and the artifact.
+fn seal_prepared(
+    prepared: &Prepared,
+    evaluation: antecedent_design::evsi::EvaluatedEvsi,
+    ctx: &ExecutionContext,
+    lowered_program: Option<SemanticDigest>,
+) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let report = evaluation.report();
     let artifact = antecedent_design::design_ranking_artifact::seal_with_context(
         &SealInputs {

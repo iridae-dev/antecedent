@@ -11,6 +11,7 @@
 //! | integer, index, id | one little-endian word |
 //! | real | its IEEE-754 bit pattern (`-0.0` and `0.0` differ, NaN payloads are kept) |
 //! | text | length-prefixed UTF-8 |
+//! | program identity ([`SemanticDigest`]) | its 32 digest bytes, length-prefixed |
 //! | option | a presence word, then the value |
 //! | ordered list | a count word, then each item in order: reordering it changes the identity |
 //! | set ([`SetOf`]) | each item's sub-digest, sorted ascending and deduplicated, after a count word: reordering or repeating an item does not change the identity |
@@ -30,7 +31,7 @@ use std::sync::Arc;
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::response::IdentifiedSet;
-use antecedent_core::{CanonicalWriter, NodeRef, SupportStatus, VariableId};
+use antecedent_core::{CanonicalWriter, NodeRef, SemanticDigest, SupportStatus, VariableId};
 use antecedent_design::decision_adapters::{ClaimProbability, IdentifiedUtility, SuppliedClaim};
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, DecisionContract};
 use antecedent_design::decision_robustness::{AtomSupport, InputSupport};
@@ -239,6 +240,12 @@ impl<A: Canonical, B: Canonical> Canonical for (A, B) {
 impl Canonical for VariableId {
     fn encode(&self, out: &mut CanonicalWriter) {
         out.word(u64::from(self.raw()));
+    }
+}
+
+impl Canonical for SemanticDigest {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.bytes(self.as_bytes());
     }
 }
 

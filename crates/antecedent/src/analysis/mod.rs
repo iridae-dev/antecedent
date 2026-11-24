@@ -103,6 +103,7 @@ mod admg_conditional_transport;
 mod alpha_selection;
 pub mod array_fits;
 pub mod association;
+mod attached_decision;
 mod batch;
 mod batch_export;
 mod batch_retarget;
@@ -627,6 +628,7 @@ pub use execute::{
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
     ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
+pub use execute::{CompiledDecisionProgram, CompiledEvsiProgram};
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,

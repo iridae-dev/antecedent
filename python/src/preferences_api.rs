@@ -1741,6 +1741,8 @@ fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
         "unidentified_mass": compiled.unidentified_mass(),
         "joint_law": compiled.joint_law().map(joint_law_json),
         "plans": compiled.plan_views().iter().map(PlanView::to_json).collect::<Vec<_>>(),
+        // The decision's own program over the plans above, with its own unit's support.
+        "decision_plan": compiled.plan_view().to_json(),
     })
 }
 
@@ -1800,6 +1802,9 @@ fn executed_json(
             .collect::<Vec<_>>(),
         "measure": receipt.measure,
         "options": receipt.options,
+        "decision_program": receipt.decision_program.to_hex(),
+        // What a development build ran that a release build refuses; empty in a release build.
+        "would_refuse": executed.would_refuse.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "mixture": executed.mixture.as_ref().map(|m| json!({
             "weight_basis": m.weight_basis.as_str(),
             "identified_mass": m.identified_mass,

@@ -341,6 +341,7 @@ impl CompiledPreferenceDecision {
                 inputs: Vec::new(),
                 mixture: Some(mixture),
                 receipt,
+                would_refuse: Vec::new(),
             });
         }
         let claims = structure_claims(
@@ -358,6 +359,7 @@ impl CompiledPreferenceDecision {
             inputs: Vec::new(),
             mixture: Some(mixture),
             receipt,
+            would_refuse: Vec::new(),
         })
     }
 }

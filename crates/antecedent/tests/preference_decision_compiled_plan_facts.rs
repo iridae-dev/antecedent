@@ -161,7 +161,7 @@ fn an_ordinary_decision_plan_states_exactly_the_facts_it_always_did() {
     let request = DecisionCompileRequest::new(CarrierDemand::ParameterPosterior)
         .with_contract_identity("launch-decision")
         .with_utility_unit("net_margin");
-    let plan = study.compile_for_decision(&problem, &request, &ctx).unwrap();
+    let plan = study.compile_decision_program(&problem, &request, &ctx).unwrap().into_plan();
     let json = plan.plan_view().unwrap().to_json();
     let decision = &json["evidence"]["decision"];
     let expected = json!({

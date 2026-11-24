@@ -58,13 +58,15 @@ use super::outcomes::{OutcomeDependence, law_refusal, unpaired};
 use super::{
     CompiledContract, CompiledDecision, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
     DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL, PreferenceRouteError, STAGE_BIND,
-    STAGE_COMPILE, Sources, checked_executed, decision_program, demand_of,
+    STAGE_COMPILE, Sources, checked_executed, decision_program, demand_of, parent_of,
 };
 use crate::CausalError;
 use crate::analysis::joint_panel::designs::PreparedNativeJointDesign;
 use crate::analysis::native_claims::NativeDecisionSource;
 use crate::planner::PlanView;
-use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceDesignLawFact};
+use crate::planner::lowered::{
+    CarrierDemand, Composition, DecisionProgram, PreferenceDesignLawFact,
+};
 use crate::planner::statistical::Realization;
 
 /// Domain of the digest naming a refit law's resampling recipe.
@@ -654,7 +656,7 @@ impl PreparedNativeJointDesign {
         let stated = super::facts::value_facts(&contract, &demand, &read, None, None, design_law);
         let program = decision_program(&contract, &identity, stated, (&demand, carrier));
         require_design_carrier(self, &program, &inference)?;
-        let lowered = self.lowered().with_decision(program).ok_or_else(|| {
+        let lowered = self.lowered().with_decision(program.clone()).ok_or_else(|| {
             PreferenceRouteError::from(
                 ExternalRefusal::new(
                     antecedent_core::reason_code!("invalid_argument"),
@@ -664,6 +666,17 @@ impl PreparedNativeJointDesign {
                 .with_offending(self.program_identity().to_hex()),
             )
         })?;
+        let design = self.with_lowered(Arc::new(lowered));
+        // The one child is the design's program with the decision in its layer four, the
+        // program the execution runs.
+        let children = [Some(design.program_identity())];
+        let parent = parent_of(
+            &contract,
+            (&demand, program),
+            (identity.as_str(), contract_identity.as_str()),
+            (children.as_slice(), &[] as &[f64]),
+            Composition::Single,
+        )?;
         Ok(CompiledPreferenceDecision {
             contract,
             contract_identity,
@@ -672,13 +685,14 @@ impl PreparedNativeJointDesign {
             causal,
             dependence: OutcomeDependence::Undeclared,
             sources: Sources::Design(Box::new(DesignSource {
-                design: self.with_lowered(Arc::new(lowered)),
+                design,
                 coordinates,
                 inference,
                 sampling,
             })),
             shared: Arc::from(Vec::new()),
             joint: None,
+            parent,
         })
     }
 }

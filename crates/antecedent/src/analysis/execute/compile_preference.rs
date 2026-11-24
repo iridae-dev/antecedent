@@ -76,8 +76,8 @@ use antecedent_design::decision_eval::{
 use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_design::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use antecedent_design::preference_evaluation::{
-    PreferenceEvaluation, PreferenceEvaluationOptions, RouteChoice, StructuralPreferenceEvaluation,
-    preference_route,
+    PreferenceEvaluation, PreferenceEvaluationOptions, PreferenceRoute, RouteChoice,
+    StructuralPreferenceEvaluation, preference_route,
 };
 
 pub use bind::BoundPreferenceContract;
@@ -97,6 +97,7 @@ pub use outcomes::{
 pub use structures::{CompiledStructure, StructureIdentification};
 
 use super::Study;
+use crate::analysis::attached_decision::{ParentDecisionProgram, ParentSpec, lower_parent};
 use crate::analysis::contract::CausalContract;
 use crate::analysis::joint_panel::JointPanelError;
 use crate::analysis::lowering::CompileGoal;
@@ -104,8 +105,11 @@ use crate::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
 use crate::analysis::preference_decision::decide_with_context;
+use crate::analysis::supplied_identity::Declaration;
 use crate::planner::PlanView;
-use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceValueFacts};
+use crate::planner::lowered::{
+    CarrierDemand, Composition, DecisionProgram, PreferenceValueFacts, ProgramCell,
+};
 use crate::result::{StructuralResponseMixture, StructuralWeightBasis};
 use crate::{CausalError, PreparedStudy};
 use bind::{BoundContract, BoundStudy};
@@ -119,6 +123,11 @@ const BOUND_TAG: &str = "antecedent.preference_route.bound.v1";
 const MEAN_FUNCTIONAL: &str = "mean";
 const IDENTITY_TRANSFORM: &str = "identity";
 const UNDECLARED_UNITS: &str = "undeclared";
+/// Tag of a compiled decision's parent program over its child programs.
+const PARENT_TAG: &str = "antecedent.attached_decision.preference_route.v1";
+/// Tag of the decision's own declaration, which the parent's identity covers beside its
+/// children.
+const DECLARATION_TAG: &str = "antecedent.attached_decision.preference_route.declaration.v1";
 
 // ---------------------------------------------------------------------------------------------
 // Refusals
@@ -587,6 +596,9 @@ pub struct CompiledPreferenceDecision {
     shared: Arc<[CrossStudyCovariance]>,
     /// The chain declared at compile that joins separately estimated outcomes.
     joint: Option<PreferenceJointLaw>,
+    /// The decision's own program, composed over the child programs that estimate its
+    /// quantities and gated on the decision's support unit.
+    parent: ParentDecisionProgram,
 }
 
 /// A compiled decision: a decision across a range of preferences or an ordinary decision
@@ -628,6 +640,77 @@ fn decision_program(
         information_value: None,
         scenario_source: None,
     }
+}
+
+/// The parent family, plan id and evaluator of `contract`'s decision: the exact or the
+/// certified route across a preference set, or an ordinary contract's own evaluation. A family
+/// binds one support unit, so the route the contract takes names the family.
+fn parent_family(
+    contract: &CompiledContract,
+    demand: &PreferenceDemand,
+    composition: Composition,
+) -> (ProgramCell, &'static str, &'static str) {
+    let structures = matches!(composition, Composition::AtomMixture { .. });
+    let tradeoff = if structures {
+        "preference_evaluation::decide_preferences_structural_with_context"
+    } else {
+        "preference_evaluation::decide_preferences_with_context"
+    };
+    match contract {
+        CompiledContract::Ordinary(_) => (
+            ProgramCell::ContractAttachedDecision,
+            "attached.contract_decision.v1",
+            if demand.representation == SourceRepresentation::Mean {
+                "decision_eval::evaluate_contract_on_means"
+            } else {
+                "decision_eval::evaluate_contract"
+            },
+        ),
+        CompiledContract::Tradeoff(_) => match demand.route.map(|choice| choice.route) {
+            Some(PreferenceRoute::Certified) => (
+                ProgramCell::CertifiedPreferenceAttachedDecision,
+                "attached.certified_preference_decision.v1",
+                tradeoff,
+            ),
+            Some(PreferenceRoute::Exact) | None => (
+                ProgramCell::PreferenceAttachedDecision,
+                "attached.preference_decision.v1",
+                tradeoff,
+            ),
+        },
+    }
+}
+
+/// The parent program of `contract`'s decision, composed over `children` in declared order:
+/// the decision's own program, gated on the decision's unit. Its identity covers the
+/// children's program identities and the decision's declaration: the bound identity (the
+/// contract bound to the children's causal contracts), the contract identity and `weights`,
+/// the structure weights a mixture over a graph posterior reads (empty otherwise).
+fn parent_of(
+    contract: &CompiledContract,
+    (demand, program): (&PreferenceDemand, DecisionProgram),
+    (bound_identity, contract_identity): (&str, &str),
+    (children, weights): (&[Option<SemanticDigest>], &[f64]),
+    composition: Composition,
+) -> Result<ParentDecisionProgram, PreferenceRouteError> {
+    let (cell, plan_id, evaluator) = parent_family(contract, demand, composition);
+    let decision = Declaration::new(DECLARATION_TAG)
+        .field("bound", bound_identity)
+        .field("contract", contract_identity)
+        .field("weights", weights)
+        .finish();
+    lower_parent(ParentSpec {
+        cell,
+        plan_id,
+        tag: PARENT_TAG,
+        children,
+        decision,
+        evaluator,
+        composition,
+        program,
+        claim: Some(antecedent_contract::ClaimKind::PolicyValue),
+    })
+    .map_err(PreferenceRouteError::from)
 }
 
 /// One study entering the compile: its frozen causal contract and, for a prepared handle,
@@ -737,6 +820,41 @@ pub(super) fn compile_entries(
     if posterior && structures.iter().all(|s| s.runner.is_none()) {
         return Err(not_identified(&demand.quantities, 1.0, "no structure identifies it"));
     }
+    // The children, as declared: every structure of every study in study order (`None` for a
+    // structure that compiled no program), then the chain that joins separate studies.
+    let mut children: Vec<Option<SemanticDigest>> =
+        structures.iter().map(|s| s.plan.as_ref().map(PlanView::identity)).collect();
+    children.extend(declared.as_ref().map(|law| Some(law.fact().program())));
+    let weights: Vec<f64> =
+        if posterior { structures.iter().map(|s| s.weight).collect() } else { Vec::new() };
+    let composition = if posterior {
+        Composition::AtomMixture { atoms: structures.len() }
+    } else if entries.len() > 1 {
+        Composition::Pooled { sources: entries.len() }
+    } else {
+        Composition::Single
+    };
+    let read: Vec<&DemandedQuantity> = demand.quantities.iter().collect();
+    let schema = match bound.studies.as_slice() {
+        [study] => Some(&study.schema),
+        _ => None,
+    };
+    let stated = facts::value_facts(
+        contract,
+        &demand,
+        &read,
+        schema,
+        declared.as_ref().map(|law| law.fact().clone()),
+        None,
+    );
+    let program = decision_program(contract, &bound.identity, stated, (&demand, carrier));
+    let parent = parent_of(
+        contract,
+        (&demand, program),
+        (bound.identity.as_str(), bound.contract_identity.as_str()),
+        (children.as_slice(), weights.as_slice()),
+        composition,
+    )?;
     let causal = bound.causal_bindings();
     Ok(CompiledPreferenceDecision {
         contract: bound.contract,
@@ -748,6 +866,7 @@ pub(super) fn compile_entries(
         sources: Sources::Studies { studies: bound.studies, structures, posterior, basis },
         shared: Arc::from(shared),
         joint: declared,
+        parent,
     })
 }
 
@@ -973,6 +1092,9 @@ pub struct PreferenceDecisionReceipt {
     /// Identity of the options of the exact and certified routes the execution was given;
     /// an ordinary contract reads none of them.
     pub options: String,
+    /// Identity of the decision's own program, composed over [`Self::programs`] and gated on
+    /// the decision's support unit ([`CompiledPreferenceDecision::plan_view`]).
+    pub decision_program: SemanticDigest,
 }
 
 /// An executed compiled decision.
@@ -991,6 +1113,11 @@ pub struct PreferenceDecisionExecution {
     pub mixture: Option<StructuralResponseMixture>,
     /// What ties the execution to the compile.
     pub receipt: PreferenceDecisionReceipt,
+    /// What a release build would have refused and a development build ran under the
+    /// execution's context: the decision's own unit and every child program's, as the
+    /// context's shared log records them. Always empty in a release build, which refuses
+    /// instead.
+    pub would_refuse: Vec<antecedent_core::WouldRefuse>,
 }
 
 fn no_response() -> PreferenceRouteError {
@@ -1064,6 +1191,30 @@ impl CompiledPreferenceDecision {
         self.joint.as_ref().map(|joint| joint.program().plan_view())
     }
 
+    /// The plan view of the decision's own program: a parent program composed over the child
+    /// programs of [`Self::plan_views`] (and the chain of [`Self::chain_plan_view`]), whose
+    /// [`PlanView::unit_support`] is the support decision of the decision's unit
+    /// (`preference_decision.exact` or `.certified` across a preference set, `decision.contract`
+    /// for an ordinary contract). Each child program keeps its own unit.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.parent.plan_view()
+    }
+
+    /// Identity of the decision's own program: the children's program identities in the order
+    /// they were declared and the decision's declaration.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.parent.identity()
+    }
+
+    /// The same decision, its own program gated by `decided` in place of its unit's status.
+    #[cfg(test)]
+    pub(crate) fn deciding(mut self, decided: crate::support::unit::UnitDecision) -> Self {
+        self.parent = self.parent.deciding(decided);
+        self
+    }
+
     /// Every compiled structure, including the ones under which the quantities are not
     /// identified; empty for a design.
     #[must_use]
@@ -1124,6 +1275,7 @@ impl CompiledPreferenceDecision {
             executed,
             measure: measure.map(measure_identity),
             options: options_identity(options),
+            decision_program: self.parent.identity(),
         }
     }
 
@@ -1135,10 +1287,16 @@ impl CompiledPreferenceDecision {
     /// evaluation on the source ([`CompiledPreferenceEvaluation::Ordinary`]): it reads no
     /// measure and none of the options.
     ///
+    /// The decision's own program ([`Self::plan_view`]) passes its support gate first: a
+    /// release build refuses a decision whose unit is not supported (`not_supported`), before
+    /// anything is fitted; a development build records it in
+    /// [`PreferenceDecisionExecution::would_refuse`] and runs.
+    ///
     /// # Errors
-    /// Cancellation and resource refusals; an estimation failure of a single structure; a
-    /// response the claim conversion refuses (no point identification, missing support,
-    /// no supported coordinate); a failed bootstrap slot of a design; a refusal of the chain
+    /// A release build's refusal of the decision's unit; cancellation and resource refusals;
+    /// an estimation failure of a single structure; a response the claim conversion refuses
+    /// (no point identification, missing support, no supported coordinate); a failed
+    /// bootstrap slot of a design; a refusal of the chain
     /// that joins separately estimated outcomes; a measure given with an ordinary contract
     /// (`preference_compile.ordinary_measure_not_read`), before anything is fitted; and every
     /// refusal of the evaluators.
@@ -1154,7 +1312,10 @@ impl CompiledPreferenceDecision {
         if measure.is_some() && self.contract.ordinary().is_some() {
             return Err(measure_not_read());
         }
-        match &self.sources {
+        // The decision's own unit, before any child program runs; each child then passes its
+        // own gate.
+        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let mut execution = match &self.sources {
             Sources::Studies { studies, structures, posterior: true, basis } => self
                 .execute_structures(
                     studies,
@@ -1177,9 +1338,12 @@ impl CompiledPreferenceDecision {
                     inputs: Vec::new(),
                     mixture: None,
                     receipt: self.receipt((programs, executed), measure, &options),
+                    would_refuse: Vec::new(),
                 })
             }
-        }
+        }?;
+        execution.would_refuse = ctx.would_refuse();
+        Ok(execution)
     }
 
     fn execute_studies(
@@ -1228,6 +1392,7 @@ impl CompiledPreferenceDecision {
             inputs,
             mixture: None,
             receipt: self.receipt((programs, executed), measure, &options),
+            would_refuse: Vec::new(),
         })
     }
 
