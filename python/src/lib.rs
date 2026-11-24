@@ -338,7 +338,6 @@ use antecedent::discovery::{
     two_regime_half_split,
 };
 use antecedent::error::PendingEdge as FacadePendingEdge;
-use antecedent::estimate::{CausalExprArena, TemporalMediationEstimator};
 use antecedent::execution::{CachePolicy, KernelPolicy};
 use antecedent::gcm::fit_gcm;
 use antecedent::graph::{
@@ -352,8 +351,7 @@ use antecedent::io::{
     encode_causal_posterior_bytes, encode_posterior_artifact as encode_posterior_wire,
 };
 use antecedent::prelude::{
-    ExecutionContext, IdentifiedEstimand, Intervention, MultiEnvironmentData, TimeSeriesData,
-    Value, VariableId,
+    ExecutionContext, Intervention, MultiEnvironmentData, TimeSeriesData, Value, VariableId,
 };
 use antecedent::query::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, MechanismChangeQuery,
