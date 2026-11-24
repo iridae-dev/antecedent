@@ -73,7 +73,9 @@ def compiled_route() -> str:
     raise SystemExit("FAIL: self-test needs a PlanRoute in the lowering registry")
 
 
-def plant_deprecated_entry(root: Path, *, replacement: str | None, warn: bool | None) -> None:
+def plant_deprecated_entry(
+    root: Path, *, replacement: str | None, warn: bool | str | None
+) -> None:
     """A deprecated facade function, the native that calls it and the Python wrapper."""
     append(
         root,
@@ -86,7 +88,11 @@ def plant_deprecated_entry(root: Path, *, replacement: str | None, warn: bool | 
         "python/src/planted_api.rs",
         "#[pyfunction]\nfn planted_native() {\n    antecedent::planted::planted_old_fit();\n}\n",
     )
-    body = "    _deprecation.direct_path_deprecated('planted', 'fit')\n" if warn else ""
+    call = "_deprecation.direct_path_deprecated('planted', 'fit')"
+    if warn == "conditional":
+        body = f"    if True:\n        {call}\n"
+    else:
+        body = f"    {call}\n" if warn else ""
     append(
         root,
         "python/antecedent/planted_wrapper.py",
@@ -166,6 +172,44 @@ def case_deprecated_replacement_not_compiled(root: Path) -> str:
     return "does not name a compiled row"
 
 
+def plant_kernel_method(root: Path, **extra: str) -> None:
+    """A run method of a re-exported kernel type, classified `kernel`."""
+    append(
+        root,
+        "parity/public_api/antecedent-estimate.txt",
+        f"pub fn <antecedent_estimate::AipwAte>::fn planted_kernel_fit(&self, ctx: {CTX}) -> {RESULT}\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row("antecedent_estimate::AipwAte::planted_kernel_fit", "kernel", **extra),
+    )
+
+
+def case_kernel_without_reason(root: Path) -> str:
+    plant_kernel_method(root)
+    return "disposition kernel requires a non-empty 'reason'"
+
+
+def case_kernel_on_facade_item(root: Path) -> str:
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        f"pub fn antecedent::planted::planted_facade_fit(ctx: {CTX}) -> {RESULT}\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row("antecedent::planted::planted_facade_fit", "kernel", reason="planted"),
+    )
+    return "classified kernel, but it is not an item of a kernel crate"
+
+
+def case_deprecated_unknown_route(root: Path) -> str:
+    plant_deprecated_entry(root, replacement="route:PlantedNoSuchRoute", warn=True)
+    return "does not name a route in the lowering registry"
+
+
 def case_python_wrapper_missing_warning(root: Path) -> str:
     plant_deprecated_entry(root, replacement="antecedent::planted::planted_new_fit", warn=False)
     return "python/antecedent/planted_wrapper.py::planted_run: deprecated, but it does not call"
@@ -213,6 +257,9 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("a module-namespace re-export", case_module_namespace_reexport),
     ("a deprecated row without a replacement", case_deprecated_without_replacement),
     ("a deprecated row whose replacement is not compiled", case_deprecated_replacement_not_compiled),
+    ("a kernel row without a reason", case_kernel_without_reason),
+    ("a kernel row on a facade item", case_kernel_on_facade_item),
+    ("a deprecated row naming an unknown route", case_deprecated_unknown_route),
     ("a Python wrapper missing the deprecation warning", case_python_wrapper_missing_warning),
     ("an unclassified Python wrapper", case_unclassified_python_wrapper),
     ("a literal support_status", case_python_literal_support_status),
@@ -243,6 +290,29 @@ def main() -> None:
         accepted = compiled_path_problems(control)
         if accepted:
             failures.append(f"a correct deprecated wrapper was refused: {accepted[:3]}")
+        # A deprecated row may name a compiled route directly.
+        by_route = Path(scratch) / "by-route"
+        shutil.copytree(base, by_route)
+        plant_deprecated_entry(by_route, replacement=f"route:{compiled_route()}", warn=True)
+        accepted = compiled_path_problems(by_route)
+        if accepted:
+            failures.append(f"a deprecated row naming a route was refused: {accepted[:3]}")
+        # A deprecation scoped by an `if` to the served cases still counts as warning first.
+        scoped = Path(scratch) / "scoped"
+        shutil.copytree(base, scoped)
+        plant_deprecated_entry(
+            scoped, replacement="antecedent::planted::planted_new_fit", warn="conditional"
+        )
+        accepted = compiled_path_problems(scoped)
+        if accepted:
+            failures.append(f"a deprecation scoped by an if was refused: {accepted[:3]}")
+        # A kernel row with a reason is accepted.
+        kernel = Path(scratch) / "kernel"
+        shutil.copytree(base, kernel)
+        plant_kernel_method(kernel, reason="kernel API; the type configures a compiled estimator")
+        accepted = compiled_path_problems(kernel)
+        if accepted:
+            failures.append(f"a kernel row with a reason was refused: {accepted[:3]}")
         for index, (label, case) in enumerate(CASES):
             target = Path(scratch) / f"case{index}"
             shutil.copytree(base, target)

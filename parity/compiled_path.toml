@@ -10,8 +10,13 @@
 # [[verdict]]  a support-verdict literal that belongs in the generated support table.
 #
 # disposition: compiled (route = a PlanRoute in the lowering registry), deprecated (the snapshot
-# shows #[deprecated]; replacement = a compiled row), internal (#[doc(hidden)]), consume (artifact
-# or result consumer), not_scientific (reason), pending (owner = the follow-up area).
+# shows #[deprecated], or a Python wrapper calls direct_path_deprecated first, directly or under
+# an `if` that scopes the deprecation to the cases the route serves; replacement = a compiled row,
+# or `route:<name>`, a PlanRoute or program family of the lowering registry), kernel (a kernel
+# crate's run method reached through a facade-re-exported type that also configures a compiled
+# estimator; kernel crates are kernel API and not deprecated; reason), internal (#[doc(hidden)]),
+# consume (artifact or result consumer), not_scientific (reason), pending (owner = the follow-up
+# area).
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
@@ -33,8 +38,7 @@ owner = "interval candidates"
 
 [[row]]
 path = "antecedent::EvidenceLedgerSession::pooled_interval_candidate"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "internal"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate"
@@ -168,13 +172,13 @@ owner = "transport trial estimators"
 
 [[row]]
 path = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "compiled"
+route = "CategoricalPosteriorCandidate"
 
 [[row]]
 path = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::measured_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "compiled"
+route = "CategoricalPosteriorCandidate"
 
 [[row]]
 path = "antecedent::analysis::cohort_decision::measured_cohort_interval"
@@ -198,8 +202,8 @@ owner = "discovery engines"
 
 [[row]]
 path = "antecedent::analysis::graph_imputation::GraphImputationPoint::measured"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "compiled"
+route = "GraphImputation"
 
 [[row]]
 path = "antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift::measured_interval"
@@ -232,153 +236,162 @@ owner = "prepared-object interval and transport readings"
 
 [[row]]
 path = "antecedent::analysis::temporal_dependent_interval_candidate"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "internal"
 
 [[row]]
 path = "antecedent::discovery::discover_ci_screened_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_dbn_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_dbn_posterior_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_exact_dag_marginals"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_exact_dag_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_exact_pag_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_fci"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_ges"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_jpcmci_plus"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_lingam"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_lpcmci"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_lpcmci_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_notears"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_notears_with"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_order_mcmc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pag_mcmc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
+
+[[row]]
+path = "antecedent::discovery::discover_pcmci"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
+
+[[row]]
+path = "antecedent::discovery::discover_pcmci_panel"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_pc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pcmci_plus"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_pcmci_plus_panel"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_ci_screened_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_dbn_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_exact_dag_marginals"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_exact_dag_posterior"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_order_mcmc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_pooled_structure_mcmc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_rfci"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_rpcmci"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverTemporal"
 
 [[row]]
 path = "antecedent::discovery::discover_screened_exact_marginals"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::discover_structure_mcmc"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::discovery::pool_posteriors_over_imputations"
@@ -403,12 +416,12 @@ owner = "attribution operations"
 [[row]]
 path = "antecedent_attribution::anomaly::arrow_strengths"
 disposition = "pending"
-owner = "attribution operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_attribution::anomaly::population_do_contrast"
 disposition = "pending"
-owner = "attribution operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_attribution::anomaly::score_anomalies"
@@ -1053,8 +1066,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::evaluate"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled robust decision terminal (PreparedStudy::compile_for_robust_decision), which evaluates through it"
 
 [[row]]
 path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::export"
@@ -1467,93 +1480,93 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::AipwAte::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::estimate_streamed"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::fit_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::fit_checked_point"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::fit_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::population_linear_atc_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::population_linear_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::prepare_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::rebind_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::CausalForest::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::CausalForest::fit_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::CausalForest::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::CausalForest::score_table"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores_sampling_weighted"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::CellSaturatedAipw::fit_scores_with_assignment"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::ConditionalLinearAdjustment::estimate"
@@ -1587,113 +1600,113 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::DistanceMatching::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DistanceMatching::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::fit_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::population_linear_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::score_table"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::fit_pointwise_profiles"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::fit_with_factories"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::population_linear_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::score_table"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::fit_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::prepare_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::FrontDoorTwoStage::rebind_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::GlmAdjustmentAte::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::GlmAdjustmentAte::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::GlmAdjustmentAte::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::LearnedContinuousOptions::analytic_interval_internal"
@@ -1702,58 +1715,58 @@ owner = "raw estimators"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::estimate_streamed"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::fit_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::fit_point"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::fit_point_with_ols_residuals"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::prepare_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::prepare_checked_with_backend"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::rebind_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::LinearAdjustmentAte::rebind_checked_with_backend"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::adjust_temporal_anchors"
@@ -1782,58 +1795,58 @@ owner = "measurement-error and observation-recovery corrections"
 
 [[row]]
 path = "antecedent_estimate::PropensityMatching::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityMatching::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::PropensityStratification::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityStratification::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityStratification::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::attach_bootstrap"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::estimate_streamed"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::population_linear_score_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::population_score_interval"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::PropensityWeighting::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::RegimeSample::from_tabular"
@@ -1887,58 +1900,58 @@ owner = "temporal and mediation estimators"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::estimate_streamed"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::fit_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::prepare_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::TwoStageLeastSquares::rebind_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::WaldIv::fit"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::WaldIv::fit_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec)"
 
 [[row]]
 path = "antecedent_estimate::WaldIv::prepare"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::WaldIv::prepare_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::WaldIv::rebind_checked"
-disposition = "pending"
-owner = "raw estimators"
+disposition = "not_scientific"
+reason = "configures the compiled estimator: builds the preparation receipt the compiled static route consumes and computes no estimate"
 
 [[row]]
 path = "antecedent_estimate::adjustment_resume::count_adjusted_model_fits"
@@ -2447,13 +2460,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_identify::TemporalMediationIdentifier::adjustment_nodes_within"
-disposition = "pending"
-owner = "raw identifiers"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled temporal mediation identification (StudyBuilder::identify_structure_within)"
 
 [[row]]
 path = "antecedent_identify::TransportIdentifier::identify_with_context"
 disposition = "pending"
-owner = "raw identifiers"
+owner = "transport routes"
 
 [[row]]
 path = "antecedent_identify::ZTransportDerivation::from_record_checked"
@@ -3525,12 +3538,12 @@ owner = "learner-backed estimators"
 [[row]]
 path = "antecedent_model::KdeDoSampler::sample"
 disposition = "pending"
-owner = "gcm operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_model::McmcDoSampler::sample"
 disposition = "pending"
-owner = "gcm operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_model::MechanismRegistry::assign_and_fit"
@@ -3575,7 +3588,7 @@ owner = "gcm operations"
 [[row]]
 path = "antecedent_model::ModelEvaluator::evaluate"
 disposition = "pending"
-owner = "gcm operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_model::NoiseTable::randomize"
@@ -3590,7 +3603,7 @@ owner = "gcm operations"
 [[row]]
 path = "antecedent_model::WeightingDoSampler::estimate"
 disposition = "pending"
-owner = "gcm operations"
+owner = "gcm model operations"
 
 [[row]]
 path = "antecedent_model::compile::standard_normal_log_density"
@@ -4154,8 +4167,8 @@ owner = "decisions over supplied claims"
 
 [[python]]
 path = "python/antecedent/decision_robust.py::robust"
-disposition = "pending"
-owner = "decisions over supplied claims"
+disposition = "deprecated"
+replacement = "antecedent::PreparedStudy::compile_for_robust_decision"
 
 [[python]]
 path = "python/antecedent/decision_robust.py::IdentifiedUtility.from_inputs"
@@ -4210,7 +4223,7 @@ owner = "prior composition and transport of posteriors"
 [[python]]
 path = "python/antecedent/experiment.py::SwitchbackEffect.estimate"
 disposition = "deprecated"
-replacement = "antecedent.analyze with SwitchbackEffect"
+replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::RandomizedEffect.estimate"
@@ -4220,17 +4233,17 @@ owner = "randomized-design kernels"
 [[python]]
 path = "python/antecedent/experiment.py::estimate_cuped_effect"
 disposition = "deprecated"
-replacement = "antecedent.analyze with RandomizedEffect(estimated_cuped=EstimatedCUPED(covariate))"
+replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::estimate_ancova_effect"
 disposition = "deprecated"
-replacement = "antecedent.analyze with RandomizedEffect(ancova_covariates=...)"
+replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::exact_randomization_test"
 disposition = "deprecated"
-replacement = "antecedent.analyze with RandomizedEffect(exact_randomization_test=True) on a Bernoulli design"
+replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/exposure_measurement.py::ExposureMeasurement.realize"
@@ -4250,7 +4263,7 @@ owner = "measurement-error and observation-recovery corrections"
 [[python]]
 path = "python/antecedent/external_learners.py::dml_ate"
 disposition = "pending"
-owner = "raw estimators"
+owner = "caller-supplied learner factories"
 
 [[python]]
 path = "python/antecedent/external_learners.py::cross_fit_aipw"
@@ -4270,7 +4283,7 @@ owner = "artifact-backed computations"
 [[python]]
 path = "python/antecedent/interference.py::estimate"
 disposition = "deprecated"
-replacement = "antecedent.analyze with Study.interference(InterferenceSpec) (route cell InterferenceDag)"
+replacement = "route:InterferenceDag"
 
 [[python]]
 path = "python/antecedent/inverse_query.py::finite_enumeration_baseline"
@@ -4325,22 +4338,22 @@ owner = "measurement-error and observation-recovery corrections"
 [[python]]
 path = "python/antecedent/policy.py::uplift_by_score"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:PolicyValue"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_policy"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:PolicyValue"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_policy_doubly_robust"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:PolicyValue"
 
 [[python]]
 path = "python/antecedent/policy.py::evaluate_multi_action_policy"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:PolicyValue"
 
 [[python]]
 path = "python/antecedent/predictive_assessment.py::score_case"
@@ -4360,7 +4373,7 @@ owner = "validation checks"
 [[python]]
 path = "python/antecedent/quasi.py::estimate_group_time_att"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:PanelDid"
 
 [[python]]
 path = "python/antecedent/selective_discovery.py::SelectiveDiscovery.resume"
@@ -4380,12 +4393,12 @@ owner = "prepared-object interval and transport readings"
 [[python]]
 path = "python/antecedent/survival.py::estimate_survival_ipcw"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:Survival"
 
 [[python]]
 path = "python/antecedent/survival.py::estimate_cumulative_incidence_ipcw"
 disposition = "deprecated"
-replacement = "antecedent.analyze with the program-family compiled study"
+replacement = "route:Survival"
 
 [[python]]
 path = "python/antecedent/temporal_model.py::detect_mechanism_change"
@@ -4544,8 +4557,8 @@ owner = "sensitivity ranges"
 
 [[python]]
 path = "python/antecedent/validation.py::mediation_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:StaticMediationDag"
 
 [[python]]
 path = "python/antecedent/validation.py::derivative_consistency"

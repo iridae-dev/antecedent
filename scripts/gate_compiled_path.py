@@ -23,8 +23,13 @@ Candidates (each needs a row):
 Dispositions:
 
 * `compiled`: names a `route` present in the lowering registry text;
-* `deprecated`: the snapshot shows `#[deprecated]` and `replacement` names a compiled row (a Python
-  wrapper must call `_deprecation.direct_path_deprecated(` first);
+* `deprecated`: the snapshot shows `#[deprecated]` and `replacement` names a compiled row, or a
+  compiled route directly as `route:<name>`, a PlanRoute or program family in the lowering
+  registry (a Python wrapper must call `_deprecation.direct_path_deprecated(` first, directly or
+  inside an `if` that scopes the deprecation to the cases the compiled route serves);
+* `kernel`: a kernel-crate run method reached through a facade-re-exported type that also
+  configures a compiled estimator; kernel crates are kernel API and are not deprecated, so the
+  row carries a non-empty `reason`;
 * `internal`: the snapshot shows `#[doc(hidden)]`;
 * `consume`: an artifact or result consumer;
 * `not_scientific`: with a `reason`;
@@ -60,11 +65,13 @@ REGISTRY_FILES = (
 GENERATED_VERDICTS_RS = "crates/antecedent/src/support/units_generated.rs"
 GENERATED_VERDICTS_PY = "python/antecedent/_direct_status.py"
 DEPRECATION_MODULE = "python/antecedent/_deprecation.py"
+ROUTE_REPLACEMENT_PREFIX = "route:"
 
-DISPOSITIONS = ("compiled", "deprecated", "internal", "consume", "not_scientific", "pending")
+DISPOSITIONS = ("compiled", "deprecated", "kernel", "internal", "consume", "not_scientific", "pending")
 DISPOSITION_FIELD = {
     "compiled": "route",
     "deprecated": "replacement",
+    "kernel": "reason",
     "not_scientific": "reason",
     "pending": "owner",
 }
@@ -294,6 +301,20 @@ def registry_text(root: Path) -> str:
     )
 
 
+_ROUTE_TABLE = re.compile(r"route_lowerings!\s*\{(.*?)^\}", re.S | re.M)
+_ROUTE_ROW = re.compile(r"^\s*(\w+)\s*=>\s*\w+\s+as\s+\w+\s*,", re.M)
+_FAMILY_ROW = re.compile(r"^\s*([A-Z]\w*)\s*=>\s*\w+\s*,\s*unit\s", re.M)
+
+
+def route_names(registry: str) -> set[str]:
+    """The route names of the `route_lowerings!` table and the program-family table."""
+    names: set[str] = set()
+    for table in _ROUTE_TABLE.findall(registry):
+        names |= set(_ROUTE_ROW.findall(table))
+    names |= set(_FAMILY_ROW.findall(registry))
+    return names
+
+
 # -- Python ---------------------------------------------------------------------------------
 
 
@@ -420,6 +441,17 @@ def _is_deprecation_call(node: ast.AST) -> bool:
     )
 
 
+def _warns_first(node: ast.AST) -> bool:
+    """The first statement warns, or is an `if` whose body warns first.
+
+    The second form is a deprecation scoped to the cases the compiled route serves: the other
+    cases keep the direct path, undeprecated, until the route accepts them.
+    """
+    if _is_deprecation_call(node):
+        return True
+    return isinstance(node, ast.If) and bool(node.body) and _is_deprecation_call(node.body[0])
+
+
 def _function_info(node: ast.AST, aliases: dict[str, str], modules: set[str]) -> tuple[set[str], set[str], bool]:
     natives: set[str] = set()
     called: set[str] = set()
@@ -437,7 +469,7 @@ def _function_info(node: ast.AST, aliases: dict[str, str], modules: set[str]) ->
     body = list(node.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant):
         body = body[1:]
-    return natives, called, bool(body) and _is_deprecation_call(body[0])
+    return natives, called, bool(body) and _warns_first(body[0])
 
 
 def python_functions(root: Path) -> list[PyFunction]:
@@ -537,6 +569,7 @@ def _row_problems(
     registry: str,
     compiled_paths: set[str],
     require_snapshot: bool,
+    kernel_item: bool | None = None,
 ) -> list[str]:
     problems: list[str] = []
     disposition = row.get("disposition")
@@ -551,10 +584,20 @@ def _row_problems(
     if disposition == "deprecated" and require_snapshot:
         if line is None or "#[deprecated" not in line:
             problems.append(f"{where}: classified deprecated, but the snapshot shows no #[deprecated]")
-        if row["replacement"] not in compiled_paths:
+    if disposition == "deprecated":
+        replacement = row["replacement"]
+        if replacement.startswith(ROUTE_REPLACEMENT_PREFIX):
+            name = replacement[len(ROUTE_REPLACEMENT_PREFIX) :].strip()
+            if name not in route_names(registry):
+                problems.append(
+                    f"{where}: replacement {replacement!r} does not name a route in the lowering registry"
+                )
+        elif require_snapshot and replacement not in compiled_paths:
             problems.append(
-                f"{where}: replacement {row['replacement']!r} does not name a compiled row"
+                f"{where}: replacement {replacement!r} does not name a compiled row"
             )
+    if disposition == "kernel" and require_snapshot and kernel_item is False:
+        problems.append(f"{where}: classified kernel, but it is not an item of a kernel crate")
     if disposition == "internal" and require_snapshot and (line is None or "doc(hidden)" not in line):
         problems.append(f"{where}: classified internal, but the snapshot shows no #[doc(hidden)]")
     return problems
@@ -593,7 +636,7 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
             continue
         # The snapshot line carries the attributes; rebuild just what the rows check.
         line = ("#[doc(hidden)] " if fn.hidden else "") + ("#[deprecated] " if fn.deprecated else "")
-        problems += _row_problems(path, row, line, registry, compiled_paths, True)
+        problems += _row_problems(path, row, line, registry, compiled_paths, True, fn.crate != FACADE)
     for path in sorted(set(by_path) - set(candidates)):
         problems.append(f"{MANIFEST}: stale row {path!r}; no candidate matches it")
 
