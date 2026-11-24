@@ -17,6 +17,10 @@ use crate::container::{
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
 
+/// Bytes a seekable source may carry beyond the manifest and declared section bounds (the
+/// container header and the section length prefixes) before it is too large to hash.
+const SEEK_FRAMING_ALLOWANCE: u64 = 1 << 20;
+
 /// Index entry for one section payload inside a seekable/mmap artifact.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SectionIndexEntry {
@@ -163,6 +167,53 @@ impl<R: Read + Seek> ArtifactReader<R> {
         let loaded = vec![false; index.len()];
         let decoded = vec![None; index.len()];
         Ok(Self { manifest, index, by_id, inner, stats, loaded, decoded, limits })
+    }
+
+    /// As [`Self::open_seek`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes from the current position to the end of `inner` bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed;
+    /// the source is then rewound to where it was.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_seek`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn open_seek_expecting(
+        inner: R,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        Self::open_seek_with_limits_expecting(inner, ContainerLimits::default(), retained)
+    }
+
+    /// As [`Self::open_seek_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes from the current position to the end of `inner` bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed;
+    /// the source is then rewound to where it was. A source longer than the container bounds
+    /// allow is [`IoError::TooLarge`] before it is hashed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_seek_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn open_seek_with_limits_expecting(
+        mut inner: R,
+        limits: ContainerLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        let start = inner.stream_position().map_err(IoError::from)?;
+        let cap = (limits.max_manifest_bytes as u64)
+            .saturating_add(limits.max_total_uncompressed_bytes)
+            .saturating_add(SEEK_FRAMING_ALLOWANCE);
+        let mut bytes = Vec::new();
+        (&mut inner).take(cap.saturating_add(1)).read_to_end(&mut bytes).map_err(IoError::from)?;
+        if bytes.len() as u64 > cap {
+            return Err(IoError::TooLarge);
+        }
+        crate::retained_artifact::bind_retained_artifact(&bytes, retained)?;
+        inner.seek(SeekFrom::Start(start)).map_err(IoError::from)?;
+        Self::open_seek_with_limits(inner, limits)
     }
 
     /// Manifest (always available after open).
@@ -382,6 +433,63 @@ impl MappedArtifactReader {
         unsafe { Self::from_mmap_with_limits(mmap, limits) }
     }
 
+    /// As [`Self::open_path_mapped`], admitting only the artifact the consumer retained.
+    ///
+    /// The mapped bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::open_path_mapped`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_path_mapped`], and `external_binding_mismatch` when the bytes are not
+    /// the retained artifact.
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
+    pub unsafe fn open_path_mapped_expecting(
+        path: impl AsRef<Path>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        // SAFETY: the caller upholds the file-immutability contract of this function.
+        unsafe {
+            Self::open_path_mapped_with_limits_expecting(path, ContainerLimits::default(), retained)
+        }
+    }
+
+    /// As [`Self::open_path_mapped_with_limits`], admitting only the artifact the consumer
+    /// retained.
+    ///
+    /// The mapped bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::open_path_mapped`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_path_mapped_with_limits`], and `external_binding_mismatch` when the
+    /// bytes are not the retained artifact.
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
+    pub unsafe fn open_path_mapped_with_limits_expecting(
+        path: impl AsRef<Path>,
+        limits: ContainerLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        let file = File::open(path.as_ref()).map_err(IoError::from)?;
+        // SAFETY: caller upholds file immutability for the map lifetime.
+        let mmap = Arc::new(unsafe { map_file_readonly(&file)? });
+        // SAFETY: as in `open_path_mapped_with_limits`; the caller upholds the contract.
+        unsafe { Self::from_mmap_with_limits_expecting(mmap, limits, retained) }
+    }
+
     /// Index an owned byte snapshot.
     ///
     /// # Errors
@@ -401,6 +509,40 @@ impl MappedArtifactReader {
         limits: ContainerLimits,
     ) -> Result<Self, IoError> {
         Self::from_backing(ArtifactBacking::Owned(bytes), limits)
+    }
+
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained` ([`crate::retained_artifact::bind_retained_artifact`])
+    /// before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: Arc<[u8]>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        Self::from_bytes_with_limits_expecting(bytes, ContainerLimits::default(), retained)
+    }
+
+    /// As [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained` ([`crate::retained_artifact::bind_retained_artifact`])
+    /// before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: Arc<[u8]>,
+        limits: ContainerLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::bind_retained_artifact(&bytes, retained)?;
+        Self::from_bytes_with_limits(bytes, limits)
     }
 
     /// Index an already-mapped buffer.
@@ -440,6 +582,58 @@ impl MappedArtifactReader {
         limits: ContainerLimits,
     ) -> Result<Self, IoError> {
         Self::from_backing(ArtifactBacking::Mapped(mmap), limits)
+    }
+
+    /// As [`Self::from_mmap`], admitting only the artifact the consumer retained.
+    ///
+    /// The mapped bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are parsed.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::from_mmap`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_mmap`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
+    pub unsafe fn from_mmap_expecting(
+        mmap: Arc<Mmap>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        // SAFETY: forwarded; the caller upholds the same contract.
+        unsafe { Self::from_mmap_with_limits_expecting(mmap, ContainerLimits::default(), retained) }
+    }
+
+    /// As [`Self::from_mmap_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The mapped bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are parsed.
+    ///
+    /// # Safety
+    ///
+    /// As [`Self::from_mmap`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_mmap_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    #[allow(
+        unsafe_code,
+        reason = "memory map of a caller-owned file; the caller guarantees it is not mutated while mapped"
+    )]
+    pub unsafe fn from_mmap_with_limits_expecting(
+        mmap: Arc<Mmap>,
+        limits: ContainerLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::bind_retained_artifact(&mmap[..], retained)?;
+        // SAFETY: forwarded; the caller upholds the same contract.
+        unsafe { Self::from_mmap_with_limits(mmap, limits) }
     }
 
     fn from_backing(backing: ArtifactBacking, limits: ContainerLimits) -> Result<Self, IoError> {
@@ -726,6 +920,83 @@ mod tests {
             let refused = format!("{refused:?}");
             assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
         }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    #[allow(
+        unsafe_code,
+        reason = "maps a temp file this test writes and never modifies while mapped"
+    )]
+    fn reader_byte_and_map_forms_bind_the_retained_bytes() {
+        use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+        let art = artifact_with_blob();
+        let mut written = Vec::new();
+        art.write_to(&mut written).unwrap();
+        let retained = RetainedArtifactIdentity::of_bytes(&written);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        let shared: Arc<[u8]> = Arc::from(written.clone());
+        let refused = |error: Option<IoError>| {
+            let text = format!("{error:?}");
+            assert!(text.contains(RETAINED_ARTIFACT_REFUSAL), "{text}");
+        };
+
+        let mut bound =
+            MappedArtifactReader::from_bytes_expecting(shared.clone(), &retained).unwrap();
+        assert_eq!(bound.load_section_mapped("blob").unwrap().as_bytes().len(), 48 * 1024);
+        assert!(
+            MappedArtifactReader::from_bytes_with_limits_expecting(
+                shared.clone(),
+                ContainerLimits::default(),
+                &retained
+            )
+            .is_ok()
+        );
+        refused(MappedArtifactReader::from_bytes_expecting(shared.clone(), &other).err());
+        refused(
+            MappedArtifactReader::from_bytes_with_limits_expecting(
+                shared,
+                ContainerLimits::default(),
+                &other,
+            )
+            .err(),
+        );
+
+        // A seekable source is hashed from its current position and rewound before it is read.
+        let mut seek =
+            ArtifactReader::open_seek_expecting(Cursor::new(written.clone()), &retained).unwrap();
+        assert_eq!(seek.load_section("meta").unwrap().as_bytes(), b"meta");
+        assert!(
+            ArtifactReader::open_seek_with_limits_expecting(
+                Cursor::new(written.clone()),
+                ContainerLimits::default(),
+                &retained
+            )
+            .is_ok()
+        );
+        refused(ArtifactReader::open_seek_expecting(Cursor::new(written.clone()), &other).err());
+
+        let path =
+            std::env::temp_dir().join(format!("causal-retained-mapped-{}.bin", std::process::id()));
+        std::fs::write(&path, &written).unwrap();
+        // SAFETY: the test owns the temp file and does not modify it while it is mapped.
+        let mut mapped =
+            unsafe { MappedArtifactReader::open_path_mapped_expecting(&path, &retained) }.unwrap();
+        assert_eq!(mapped.load_section_mapped("blob").unwrap().as_bytes().len(), 48 * 1024);
+        drop(mapped);
+        // SAFETY: as above.
+        refused(unsafe { MappedArtifactReader::open_path_mapped_expecting(&path, &other) }.err());
+        // SAFETY: as above.
+        refused(
+            unsafe {
+                MappedArtifactReader::open_path_mapped_with_limits_expecting(
+                    &path,
+                    ContainerLimits::default(),
+                    &other,
+                )
+            }
+            .err(),
+        );
         let _ = std::fs::remove_file(&path);
     }
 

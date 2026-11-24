@@ -645,7 +645,9 @@ def decode_programs(
     supplied = list(callbacks.values() if isinstance(callbacks, Mapping) else callbacks)
     if any(not isinstance(c, InterventionCallback) for c in supplied):
         raise CausalValueError("callbacks must be InterventionCallback instances")
-    rows = decode_callback_policy_program(list(names), bytes(data), [c._handle for c in supplied])
+    rows = decode_callback_policy_program(
+        list(names), bytes(data), [c._handle for c in supplied], _retained.native(retained_identity)
+    )
     by_name = {c.name: c for c in supplied}
     decoded: list[Program | CallbackProgram] = []
     for kind, first, variable, callback_name, reads in rows:

@@ -42,12 +42,10 @@ use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use super::StudyBuilder;
 use super::structure_route::{AcceptedPosterior, DiscoverySpec};
 use crate::accepted::StructureProvenance;
-use crate::io::{
-    CausalPosteriorWire, IoError, PosteriorQuantityWire, decode_causal_posterior_bytes,
-    encode_posterior_artifact,
-};
+use crate::io::{CausalPosteriorWire, IoError, PosteriorQuantityWire, encode_posterior_artifact};
 use crate::schema::VERSION;
 use crate::{CausalError, StudyResult};
+use antecedent_io::decode_causal_posterior_bytes;
 
 /// Backend id prefix of an exposure-draw posterior artifact.
 const BACKEND_PREFIX: &str = "exposure_measurement";

@@ -1102,17 +1102,48 @@ fn evaluate_decision_py(
 
 /// Decode a serialized posterior artifact into summaries + column-major draws.
 #[pyfunction]
-fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
+#[pyo3(signature = (bytes, retained_identity=None))]
+fn decode_posterior_artifact(
+    bytes: Vec<u8>,
+    retained_identity: Option<&str>,
+) -> PyResult<PosteriorArtifact> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     catch_ffi(|| {
-        let decoded = decode_causal_posterior_bytes(&bytes).or_else(|posterior_error| {
-            let (_, _, composite) = antecedent::io::decode_analysis_result_artifact(&bytes)
-                .map_err(|_| posterior_error)?;
+        let posterior = match &retained {
+            Some(retained) => {
+                antecedent::io::decode_causal_posterior_bytes_expecting(&bytes, retained)
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::decode_causal_posterior_bytes(&bytes),
+        };
+        let decoded = posterior.or_else(|posterior_error| {
+            let analysis = match &retained {
+                Some(retained) => {
+                    antecedent::io::decode_analysis_result_artifact_expecting(&bytes, retained)
+                }
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::decode_analysis_result_artifact(&bytes),
+            };
+            let (_, _, composite) = analysis.map_err(|_| posterior_error)?;
             let nested = composite.posterior_artifact.ok_or_else(|| {
                 antecedent::io::IoError::Convert(
                     "analysis_result artifact has no posterior axis".into(),
                 )
             })?;
-            decode_causal_posterior_bytes(&nested)
+            // The nested posterior is a section of the artifact admitted above; it has no
+            // identity of its own to retain.
+            #[allow(
+                deprecated,
+                reason = "nested posterior section of an artifact already admitted above"
+            )]
+            let nested_posterior = antecedent::io::decode_causal_posterior_bytes(&nested);
+            nested_posterior
         });
         let (meta, draws) = decoded.map_err(py_err)?;
         Ok(PosteriorArtifact {

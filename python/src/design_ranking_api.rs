@@ -14,8 +14,7 @@ use std::collections::BTreeMap;
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::design_ranking::{
     ConsumeExpectation, CostMapDeclWire, DesignRankingError, DesignRankingRequestWire,
-    StructuralCandidateDeclWire, compile_for_study, consume, evaluate, evaluate_for_study,
-    rank_structural,
+    StructuralCandidateDeclWire, compile_for_study, evaluate, evaluate_for_study, rank_structural,
 };
 use antecedent::data::TableView;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
@@ -199,12 +198,14 @@ fn consumed_json(done: &antecedent::analysis::design_ranking::ConsumedDesignRank
 /// (artifact digest, decision contract identity, per-candidate signal identities, source
 /// digests, cost mapping); a changed one is refused against it.
 #[pyfunction]
-#[pyo3(signature = (artifact, expectation_json=None))]
+#[pyo3(signature = (artifact, expectation_json=None, retained_identity=None))]
 fn consume_design_ranking(
     py: Python<'_>,
     artifact: &[u8],
     expectation_json: Option<String>,
+    retained_identity: Option<&str>,
 ) -> PyResult<ConsumePayload> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     let expectation: ConsumeExpectation = match expectation_json {
         Some(text) => {
             check_size(&text)?;
@@ -214,11 +215,24 @@ fn consume_design_ranking(
         }
         None => ConsumeExpectation::default(),
     };
-    detach_catch(py, move || match consume(artifact, &expectation) {
-        Ok(done) => Ok((Some(consumed_json(&done)), None)),
-        Err(error) => {
-            let error = DesignRankingError::Artifact(error);
-            Ok((None, Some(payload_error(&error)?)))
+    detach_catch(py, move || {
+        match match &retained {
+            Some(retained) => antecedent::analysis::design_ranking::consume_expecting(
+                artifact,
+                &expectation,
+                retained,
+            ),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::analysis::design_ranking::consume(artifact, &expectation),
+        } {
+            Ok(done) => Ok((Some(consumed_json(&done)), None)),
+            Err(error) => {
+                let error = DesignRankingError::Artifact(error);
+                Ok((None, Some(payload_error(&error)?)))
+            }
         }
     })
 }

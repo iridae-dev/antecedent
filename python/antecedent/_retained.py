@@ -61,6 +61,14 @@ def admit(
         _deprecation.unbound_artifact_deprecated(name, replacement)
 
 
+def native(retained_identity: str | None) -> str | None:
+    """The retained identity to hand a native loader: ``None`` when there is none or an inner
+    caller already admitted the bytes, else the hex string the native bound form binds to."""
+    if retained_identity is None or retained_identity is ADMITTED:
+        return None
+    return str(retained_identity)
+
+
 def _container_bytes(data: Any) -> bytes:
     if isinstance(data, (bytes, bytearray, memoryview)):
         return bytes(data)

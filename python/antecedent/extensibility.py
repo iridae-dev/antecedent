@@ -621,7 +621,11 @@ class ProviderVerificationReceipt:
         data = container_bytes(data)
         from . import _native
 
-        return cls(_native.ProviderVerificationReceipt.load(data, expected_digest))
+        return cls(
+            _native.ProviderVerificationReceipt.load(
+                data, expected_digest, _retained.native(retained_identity)
+            )
+        )
 
     def trust_evidence(self):
         """Composition evidence that the provider was verified at exactly these requests.

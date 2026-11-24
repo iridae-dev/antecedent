@@ -1061,6 +1061,7 @@ def consume_sampled_counterfactual_transport_artifact(
         max_depth=_optional_non_negative("max_depth", max_depth),
         max_tables=_optional_non_negative("max_tables", max_tables),
         max_table_cells=_optional_non_negative("max_table_cells", max_table_cells),
+        retained_identity=_retained.native(retained_identity),
         cancel="cancel",
         memory="memory_bytes",
     )

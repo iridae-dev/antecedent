@@ -558,7 +558,11 @@ def consume_rollout(
 
     if len(data) > 32 * 1024 * 1024:
         raise CausalValueError("rollout artifact exceeds its byte bound")
-    report = _consume_rollout(data, json.dumps(dict(expected_identity), allow_nan=False))
+    report = _consume_rollout(
+        data,
+        json.dumps(dict(expected_identity), allow_nan=False),
+        _retained.native(retained_identity),
+    )
     return _rollout_result(report, data)
 
 
@@ -1091,7 +1095,9 @@ def consume(
         raise CausalValueError("pass expected_identity= or skip_expectation_check=True, not both")
     expectation = expected_identity._wire() if expected_identity is not None else None
     consumed, refusal = _consume(
-        bytes(data), json.dumps(expectation, allow_nan=False) if expectation is not None else None
+        bytes(data),
+        json.dumps(expectation, allow_nan=False) if expectation is not None else None,
+        _retained.native(retained_identity),
     )
     raise_refusal(refusal, _refusal_type)
     assert consumed is not None

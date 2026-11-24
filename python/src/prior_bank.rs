@@ -327,9 +327,23 @@ fn encode_prior_source_meta(meta: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
 
 /// Decode prior-source meta CBOR → dict.
 #[pyfunction]
-fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_, PyDict>> {
+#[pyo3(signature = (bytes, retained_identity=None))]
+fn decode_prior_source_meta<'py>(
+    py: Python<'py>,
+    bytes: Vec<u8>,
+    retained_identity: Option<&str>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
-        let meta = antecedent::io::decode_prior_source_meta(&bytes).map_err(py_err)?;
+        let meta = match &retained {
+            Some(retained) => antecedent::io::decode_prior_source_meta_expecting(&bytes, retained),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::decode_prior_source_meta(&bytes),
+        }
+        .map_err(py_err)?;
         let d = PyDict::new(py);
         d.set_item("artifact_id", meta.artifact_id)?;
         let est = PyDict::new(py);

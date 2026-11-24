@@ -65,14 +65,28 @@ EXEMPT = {
     "detect_node_kind": "kind sniffing; admits nothing",
     "mean_decision_bytes": "produces bytes from an admitted contract",
     "bind_retained_artifact": "the binding check every bound form calls",
+    "read_from": "container codec under every artifact loader; the loaders above it bind",
+    "read_from_with_limits": "container codec under every artifact loader; the loaders above it bind",
+    "read_selective": "container codec under every artifact loader; the loaders above it bind",
+    "read_selective_with_limits": "container codec under every artifact loader; the loaders above it bind",
+    "read_and_migrate": "container migration codec under the loaders; the loaders above it bind",
+    "read_streaming": "chunked container reader that never holds the artifact whole",
+    "zstd_decompress_chunked": "stream decompressor",
+    "read_to": "chunked stream reader that never holds the stream whole",
 }
 # Calibration replays of a measured source, called on bytes the measured consumer admitted.
-EXEMPT_PREFIX = {("measured_inference/graph_candidate.rs", "replay_")}
+EXEMPT_PREFIX = {
+    ("measured_inference/graph_candidate.rs", "replay_"),
+    # The rollout producer binds the source and ranking bytes it is given to its declared
+    # expectation; it builds an artifact, it does not admit one.
+    ("rollout_artifact.rs", "new"),
+    ("rollout_artifact.rs", "with_source_evidence"),
+}
 NOT_LOADER_NAME = re.compile(
     r"^(to_|write|encode|digest|hash|canonical|check_|validate_|is_|peek|container_kind|f64s|"
     r"update|measure|bytes$|payload_digest)"
 )
-FN_HEAD = re.compile(r"((?:#\[[^\]]*\]\s*|///[^\n]*\n\s*)*)pub (?:const )?fn (\w+)\s*(<[^{(]*?>)?\s*\(", re.S)
+FN_HEAD = re.compile(r"((?:#\[[^\]]*\]\s*|///[^\n]*\n\s*)*)pub (?:const |unsafe )?fn (\w+)\s*(<[^{(]*?>)?\s*\(", re.S)
 
 
 class _Fn:
@@ -106,7 +120,10 @@ class FN:  # noqa: N801 - mirrors the regex interface it replaces
     def finditer(src: str):
         for m in FN_HEAD.finditer(src):
             yield _Fn(src, m)
-BYTES_OR_PATH = re.compile(r":\s*&\[u8\]|&Path|AsRef<Path>")
+BYTES_OR_PATH = re.compile(
+    r":\s*&\[u8\]|:\s*Arc<\[u8\]>|:\s*Vec<u8>|:\s*Arc<Mmap>|&(?:std::path::)?Path\b|"
+    r"AsRef<(?:std::path::)?Path>|:\s*(?:&mut )?R\b|impl (?:std::io::)?Read\b"
+)
 BINDS = ("load_expecting(", "bind_retained_artifact(")
 
 
@@ -202,6 +219,9 @@ def form_problem(loader: str, bodies: list[str], forms: dict[str, list[str]]) ->
                 return "reads the bytes before binding them"
             continue
         if any(re.search(rf"\b{re.escape(other)}\s*\(", body) for other in forms if other != loader):
+            continue
+        # Delegates to a bound form elsewhere, handing it the retained identity.
+        if re.search(r"\w+_(?:expecting|retained)\s*\([^;]*\bretained\b", body, re.S):
             continue
         return "does not bind the bytes to the retained identity"
     return None

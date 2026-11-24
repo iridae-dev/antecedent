@@ -121,7 +121,14 @@ fn rollout_json(
 
 /// Replay source projection and ranking under independent full expected inputs.
 #[pyfunction]
-fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> PyResult<String> {
+#[pyo3(signature = (artifact, expectation_json, retained_identity=None))]
+fn consume_rollout(
+    py: Python<'_>,
+    artifact: &[u8],
+    expectation_json: &str,
+    retained_identity: Option<&str>,
+) -> PyResult<String> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     check_binding_size(expectation_json)?;
     check_declared_len(
         artifact.len(),
@@ -132,15 +139,30 @@ fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> P
     let expected: antecedent::design::rollout_artifact::RolloutExpectation =
         serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
     detach_catch(py, move || {
-        let artifact = antecedent::design::rollout_artifact::consume(&artifact, &expected)
-            .map_err(rollout_error)?;
+        let artifact = match &retained {
+            Some(retained) => antecedent::design::rollout_artifact::consume_expecting(
+                &artifact, &expected, retained,
+            ),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::design::rollout_artifact::consume(&artifact, &expected),
+        }
+        .map_err(rollout_error)?;
         rollout_json(&artifact)
     })
 }
 
 /// Original ranking bytes after complete source-state/terminal replay.
 #[pyfunction]
-fn rollout_ranking(artifact: &[u8], expectation_json: &str) -> PyResult<Vec<u8>> {
+#[pyo3(signature = (artifact, expectation_json, retained_identity=None))]
+fn rollout_ranking(
+    artifact: &[u8],
+    expectation_json: &str,
+    retained_identity: Option<&str>,
+) -> PyResult<Vec<u8>> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     check_binding_size(expectation_json)?;
     check_declared_len(
         artifact.len(),
@@ -148,9 +170,17 @@ fn rollout_ranking(artifact: &[u8], expectation_json: &str) -> PyResult<Vec<u8>>
         "rollout artifact",
     )?;
     let expected = serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
-    Ok(antecedent::design::rollout_artifact::consume(artifact, &expected)
-        .map_err(rollout_error)?
-        .ranking_artifact)
+    let consumed = match &retained {
+        Some(retained) => {
+            antecedent::design::rollout_artifact::consume_expecting(artifact, &expected, retained)
+        }
+        #[allow(
+            deprecated,
+            reason = "the unbound Python loader warns and stays reachable until 4.0"
+        )]
+        None => antecedent::design::rollout_artifact::consume(artifact, &expected),
+    };
+    Ok(consumed.map_err(rollout_error)?.ranking_artifact)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

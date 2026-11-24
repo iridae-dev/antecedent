@@ -37,8 +37,8 @@ def unbound_artifact_deprecated(name: str, replacement: str) -> None:
     attributed to the first frame outside the ``antecedent`` package: the caller of the loader.
     """
     warnings.warn(
-        f"{name} admits an artifact without the identity its consumer retained and is "
-        f"deprecated; use {replacement} instead",
+        f"{name} admits an artifact without a retained identity and is deprecated; use "
+        f"{replacement} with a retained identity (removed in 4.0)",
         AntecedentDeprecationWarning,
         stacklevel=_caller_level(),
     )

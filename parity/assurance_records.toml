@@ -277,7 +277,7 @@ checked_commit = "4382fb44cb96811da901aa99712269934ad48b64"
 [[records]]
 id = "acceptance.retained_artifact"
 proposition = "Every artifact loader offers a form that admits bytes only as the artifact its consumer retained. The artifact slot binds exactly when the digest the consumer recomputes from the bytes it was handed equals the digest it retained, through bind; load_expecting runs the loader only after that binding, and every refusal it returns before the loader runs is external_binding_mismatch. Each loader's bound form is load_expecting around the loader, or calls bind_retained_artifact before it reads the bytes."
-scope = "antecedent_io_core::retained_artifact::{bind_artifact_identity, load_expecting} for every input, with the artifact digest and facet digest replaced by arbitrary functions, and the 246 bound loader forms (*_expecting, *_retained) of antecedent-io-core, antecedent-io, antecedent-design and the facade io surface that the static loader check lists. The unbound loaders stay available, and are not deprecated in the kernel crates; a caller that does not pass a retained identity is not bound. Loaders under crates/antecedent/src/analysis (compiled-family surfaces) are outside this record."
+scope = "antecedent_io_core::retained_artifact::{bind_artifact_identity, load_expecting} for every input, with the artifact digest and facet digest replaced by arbitrary functions, and the 255 bound loader forms (*_expecting, *_retained) of antecedent-io-core, antecedent-io, antecedent-design and the facade io surface that the static loader check lists. The unbound loaders stay available: not deprecated in the kernel crates, deprecated on the facade (removed in 4.0) and warned about in Python; a caller that does not pass a retained identity is not bound. Loaders under crates/antecedent/src/analysis (compiled-family surfaces) are outside this record."
 trusted = [
     "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of bind_artifact_identity and load_expecting",
     "the Kani stubs of artifact_identity and facet_digest are arbitrary values, so no property of BLAKE3 is used",
@@ -510,6 +510,8 @@ rust_items = [
     ] },
     { file = "crates/antecedent-io-core/src/posterior.rs", items = [
         "fn:decode_causal_posterior_bytes_expecting#0",
+        "fn:decode_posterior_meta_from_path_expecting#0",
+        "fn:decode_posterior_meta_from_seek_expecting#0",
     ] },
     { file = "crates/antecedent-io-core/src/prior_bank.rs", items = [
         "fn:decode_prior_source_meta_expecting#0",
@@ -528,7 +530,15 @@ rust_items = [
         "fn:receipt_from_bytes_within_expecting#0",
     ] },
     { file = "crates/antecedent-io-core/src/reader.rs", items = [
+        "impl:<R:Read+Seek>ArtifactReader<R>#0/fn:open_seek_expecting#0",
+        "impl:<R:Read+Seek>ArtifactReader<R>#0/fn:open_seek_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_bytes_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_mmap_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_mmap_with_limits_expecting#0",
         "impl:MappedArtifactReader#0/fn:open_path_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_mapped_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_mapped_with_limits_expecting#0",
         "impl:MappedArtifactReader#0/fn:open_path_with_limits_expecting#0",
     ] },
     { file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", items = [
@@ -814,9 +824,6 @@ rust_items = [
         "impl:ZTransportArtifactWire#0/fn:consume_with_limits_expecting#0",
         "impl:ZTransportArtifactWire#0/fn:decode_expecting#0",
         "impl:ZTransportArtifactWire#0/fn:reconstruct_expecting#0",
-    ] },
-    { file = "crates/antecedent/src/analysis/surface/io.rs", items = [
-        "fn:decode_model_bundle_bytes_expecting#0",
     ] },
 ]
 

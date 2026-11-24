@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
+use antecedent::io::encode_causal_posterior_bytes;
 use antecedent::validate::PredictiveCheckKind as FacadeKind;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -24,6 +24,7 @@ use antecedent_estimate::{
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_graph::{Dag, DenseNodeId, TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
+use antecedent_io::decode_causal_posterior_bytes;
 use antecedent_prob::{
     BayesDesignRef, BayesFitOptions, BayesLikelihood, ConjugateGaussianBackend,
     GaussianCoefficientPrior, GraphIdentFlag, InferenceBackend, InferenceDiagnostics,

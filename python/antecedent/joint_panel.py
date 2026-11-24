@@ -12,6 +12,7 @@ results without granting current scientific authority.
 
 from __future__ import annotations
 
+import functools
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -1254,7 +1255,10 @@ def consume(
         "antecedent.joint_panel.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
     )
     artifact = container_bytes(artifact)
-    return json.loads(run_panel(execution, _native.consume_joint_panel, artifact))
+    consume_native = functools.partial(
+        _native.consume_joint_panel, retained_identity=_retained.native(retained_identity)
+    )
+    return json.loads(run_panel(execution, consume_native, artifact))
 
 
 @dataclass(frozen=True, slots=True)

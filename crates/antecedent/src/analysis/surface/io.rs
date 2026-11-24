@@ -16,15 +16,14 @@ pub use antecedent_io::{
     cpdag_from_json, cpdag_from_networkx_node_link, cpdag_to_dot, cpdag_to_gml, cpdag_to_json,
     cpdag_to_networkx_node_link, dag_from_dot, dag_from_gml, dag_from_json,
     dag_from_networkx_adjacency, dag_from_networkx_node_link, dag_to_dot, dag_to_gml, dag_to_json,
-    dag_to_networkx_adjacency, dag_to_networkx_node_link, decode_analysis_result_artifact,
+    dag_to_networkx_adjacency, dag_to_networkx_node_link,
     decode_analysis_result_artifact_expecting, decode_analysis_result_contract,
-    decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    encode_causal_posterior_bytes, interference_estimate_from_wire, interference_estimate_to_wire,
-    interference_query_from_wire, interference_query_to_wire, load_analysis_result,
-    load_analysis_result_expecting, pag_from_dot, pag_from_gml, pag_from_json,
-    pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json, pag_to_networkx_node_link,
-    replay_analysis_result, replay_analysis_result_expecting, replay_loaded_result,
+    decode_causal_posterior_bytes_expecting, encode_analysis_result_artifact,
+    encode_analysis_result_artifact_with_contract, encode_causal_posterior_bytes,
+    interference_estimate_from_wire, interference_estimate_to_wire, interference_query_from_wire,
+    interference_query_to_wire, load_analysis_result_expecting, pag_from_dot, pag_from_gml,
+    pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
+    pag_to_networkx_node_link, replay_analysis_result_expecting, replay_loaded_result,
     transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
     transport_identification_to_wire, transport_query_from_wire, transport_query_to_wire,
 };
@@ -65,12 +64,21 @@ pub fn encode_model_bundle_bytes(
     Ok(buf)
 }
 
-/// Decode a model bundle from durable bytes (migrates format if needed).
+/// Decode a model bundle from durable bytes (migrates format if needed), without a retained
+/// identity; [`decode_model_bundle_bytes_expecting`] admits only the retained bundle.
 ///
 /// # Errors
 ///
 /// [`CausalError::Serialization`] on IO failures.
+#[deprecated(
+    since = "3.1.0",
+    note = "use decode_model_bundle_bytes_expecting with a RetainedArtifactIdentity"
+)]
 pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<antecedent_io::ModelBundle, CausalError> {
+    decode_model_bundle(bytes)
+}
+
+fn decode_model_bundle(bytes: &[u8]) -> Result<antecedent_io::ModelBundle, CausalError> {
     let art = antecedent_io::read_and_migrate(bytes).map_err(CausalError::from)?;
     antecedent_io::decode_model_bundle(&art).map_err(CausalError::from)
 }
@@ -87,7 +95,129 @@ pub fn decode_model_bundle_bytes_expecting(
     retained: &antecedent_io::RetainedArtifactIdentity,
 ) -> Result<antecedent_io::ModelBundle, CausalError> {
     antecedent_io::bind_retained_artifact(bytes, retained).map_err(CausalError::from)?;
-    decode_model_bundle_bytes(bytes)
+    decode_model_bundle(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`load_analysis_result_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::load_analysis_result` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::load_analysis_result`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use load_analysis_result_expecting with a RetainedArtifactIdentity"
+)]
+pub fn load_analysis_result(
+    bytes: &[u8],
+) -> Result<antecedent_io::AnalysisResultLoad, antecedent_io::IoError> {
+    antecedent_io::load_analysis_result(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`replay_analysis_result_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::replay_analysis_result` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::replay_analysis_result`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use replay_analysis_result_expecting with a RetainedArtifactIdentity"
+)]
+pub fn replay_analysis_result(
+    bytes: &[u8],
+) -> Result<antecedent_io::AnalysisResultConsumption, antecedent_io::IoError> {
+    antecedent_io::replay_analysis_result(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`decode_analysis_result_artifact_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::decode_analysis_result_artifact` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::decode_analysis_result_artifact`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use decode_analysis_result_artifact_expecting with a RetainedArtifactIdentity"
+)]
+pub fn decode_analysis_result_artifact(
+    bytes: &[u8],
+) -> Result<
+    (
+        antecedent_io::EncodedArtifact,
+        antecedent_io_core::AnalysisResultHeader,
+        antecedent_io::AnalysisResultWire,
+    ),
+    antecedent_io::IoError,
+> {
+    antecedent_io::decode_analysis_result_artifact(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`decode_causal_posterior_bytes_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::decode_causal_posterior_bytes` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::decode_causal_posterior_bytes`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use decode_causal_posterior_bytes_expecting with a RetainedArtifactIdentity"
+)]
+pub fn decode_causal_posterior_bytes(
+    bytes: &[u8],
+) -> Result<(antecedent_io::CausalPosteriorWire, Vec<f64>), antecedent_io::IoError> {
+    antecedent_io::decode_causal_posterior_bytes(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`decode_causal_payload_artifact_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::decode_causal_payload_artifact` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::decode_causal_payload_artifact`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use decode_causal_payload_artifact_expecting with a RetainedArtifactIdentity"
+)]
+pub fn decode_causal_payload_artifact(
+    bytes: &[u8],
+) -> Result<
+    (
+        antecedent_io::EncodedArtifact,
+        antecedent_io_core::causal_artifact::CausalPayloadHeader,
+        antecedent_io::CausalPayloadWire,
+    ),
+    antecedent_io::IoError,
+> {
+    antecedent_io::decode_causal_payload_artifact(bytes)
+}
+
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`decode_prior_source_meta_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_io::decode_prior_source_meta` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_io::decode_prior_source_meta`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use decode_prior_source_meta_expecting with a RetainedArtifactIdentity"
+)]
+pub fn decode_prior_source_meta(
+    bytes: &[u8],
+) -> Result<antecedent_io::PriorSourceMeta, antecedent_io::IoError> {
+    antecedent_io::decode_prior_source_meta(bytes)
 }
 
 /// Portable checked transport proof and supplied exact-law records.
@@ -95,9 +225,57 @@ pub use antecedent_io::{exact_law_wire::ExactLawWire, transport_proof::Transport
 
 // --- Further items the language bindings use, re-exported from their defining crates ---
 
-/// Whole `antecedent-io` modules re-exported as namespaces (their items are
-/// reached as `io::<module>::<Item>`).
-pub use antecedent_io::policy_program_artifact;
+/// Portable policy programs: the items of `antecedent-io::policy_program_artifact`, reached as
+/// `io::policy_program_artifact::<Item>`.
+pub mod policy_program_artifact {
+    pub use antecedent_io::policy_program_artifact::{
+        POLICY_PROGRAM_MAGIC, POLICY_PROGRAM_MAX_BYTES, POLICY_PROGRAM_MAX_INTERVENTIONS,
+        POLICY_PROGRAM_RECOVERABLE_VERSION, POLICY_PROGRAM_SUPPORTED_VERSIONS,
+        POLICY_PROGRAM_VERSION, decode_policy_program_expecting,
+        decode_policy_program_with_expecting, encode_policy_program, interventions_from_named_json,
+        named_json_from_interventions, policy_program_callback_records, policy_program_identity,
+        value_expression_identity,
+    };
+
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`decode_policy_program_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::policy_program_artifact::decode_policy_program` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::policy_program_artifact::decode_policy_program`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use decode_policy_program_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn decode_policy_program(
+        bytes: &[u8],
+    ) -> Result<Vec<antecedent_core::Intervention>, antecedent_io::IoError> {
+        antecedent_io::policy_program_artifact::decode_policy_program(bytes)
+    }
+
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`decode_policy_program_with_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::policy_program_artifact::decode_policy_program_with` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::policy_program_artifact::decode_policy_program_with`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use decode_policy_program_with_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn decode_policy_program_with(
+        bytes: &[u8],
+        supply: &dyn Fn(
+            &antecedent_core::RecoveryRecord,
+        ) -> Option<std::sync::Arc<dyn antecedent_core::BatchCallback>>,
+    ) -> Result<Vec<antecedent_core::Intervention>, antecedent_io::IoError> {
+        antecedent_io::policy_program_artifact::decode_policy_program_with(bytes, supply)
+    }
+}
 /// Estimate conversions for the transportability and randomized-interference wires.
 pub use antecedent_io::try_interference_estimate_from_wire;
 /// `antecedent-io` items at the crate root.
@@ -111,12 +289,12 @@ pub use antecedent_io::{
     STABLE_FORMAT, StaticResultWire, TargetDesign, admg_from_wire, admg_to_wire,
     causal_query_from_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
     causal_response_from_wire, causal_response_to_wire, dag_from_wire, dag_to_wire,
-    decode_causal_payload_artifact, decode_causal_payload_artifact_expecting,
-    decode_posterior_artifact, decode_prior_source_meta, decode_prior_source_meta_expecting,
-    encode_causal_payload_artifact, encode_external_estimate_claim, encode_posterior_artifact,
-    encode_prior_source_meta, executed_functional_labels, execution_digest,
-    execution_identity_from_context, expr_arena_from_wire, expr_arena_to_wire, from_cbor,
-    functional_program_from_wire, functional_program_to_wire, identification_to_wire_with_registry,
+    decode_causal_payload_artifact_expecting, decode_posterior_artifact,
+    decode_prior_source_meta_expecting, encode_causal_payload_artifact,
+    encode_external_estimate_claim, encode_posterior_artifact, encode_prior_source_meta,
+    executed_functional_labels, execution_digest, execution_identity_from_context,
+    expr_arena_from_wire, expr_arena_to_wire, from_cbor, functional_program_from_wire,
+    functional_program_to_wire, identification_to_wire_with_registry,
     identified_set_interval_from_wire, parse_digest_hex, temporal_dag_to_wire, to_cbor,
 };
 /// Model bundle artifact encode/decode.
@@ -311,8 +489,29 @@ pub mod joint_law_propagation_artifact {
 /// Exact frozen joint-panel execution, replayed by the existing model engine.
 pub mod joint_panel_artifact {
     pub use antecedent_io::joint_panel_artifact::{
-        PanelArtifactError, consume_panel_execution, consume_panel_execution_expecting,
+        PanelArtifactError, consume_panel_execution_expecting,
     };
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`consume_panel_execution_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::joint_panel_artifact::consume_panel_execution` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::joint_panel_artifact::consume_panel_execution`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use consume_panel_execution_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn consume_panel_execution(
+        bytes: &[u8],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<
+        antecedent_io::joint_panel_artifact::HistoricalPanelExecution,
+        antecedent_io::joint_panel_artifact::PanelArtifactError,
+    > {
+        antecedent_io::joint_panel_artifact::consume_panel_execution(bytes, ctx)
+    }
 }
 /// Independent point and analytic-interval artifacts for learned continuous-outcome trial.
 pub mod learned_continuous_artifact {
@@ -358,7 +557,26 @@ pub mod mixed_source_artifact {
 }
 /// Source-bound reconstruction of the declared-shift MNAR candidate.
 pub mod mnar_candidate_source {
-    pub use antecedent_io::mnar_candidate_source::{decode_source, decode_source_expecting};
+    pub use antecedent_io::mnar_candidate_source::decode_source_expecting;
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`decode_source_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::mnar_candidate_source::decode_source` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::mnar_candidate_source::decode_source`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use decode_source_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn decode_source(
+        bytes: &[u8],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<antecedent_io::mnar_candidate_source::ReconstructedMnarSource, antecedent_io::IoError>
+    {
+        antecedent_io::mnar_candidate_source::decode_source(bytes, ctx)
+    }
 }
 /// Independent point-result artifacts for multi-source limited-experiment transport.
 pub mod mz_transport_artifact {
@@ -395,15 +613,33 @@ pub mod posterior {
 pub mod provider_envelope {
     pub use antecedent_io::provider_envelope::{
         ProviderEnvelope, ProviderEnvelopeHeader, inspect_provider_envelope, is_provider_envelope,
-        open_provider_envelope, open_verified_provider_envelope, seal_provider_envelope,
+        open_provider_envelope_expecting, open_verified_provider_envelope,
+        open_verified_provider_envelope_expecting, seal_provider_envelope,
     };
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`open_provider_envelope_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::provider_envelope::open_provider_envelope` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::provider_envelope::open_provider_envelope`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use open_provider_envelope_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn open_provider_envelope(
+        bytes: &[u8],
+    ) -> Result<antecedent_io::provider_envelope::ProviderEnvelope, String> {
+        antecedent_io::provider_envelope::open_provider_envelope(bytes)
+    }
 }
 /// Items of `antecedent-io::provider_verification_artifact`.
 pub mod provider_verification_artifact {
     pub use antecedent_io::provider_verification_artifact::{
         ExecutionVerificationWire, MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
-        ProviderVerificationReceiptWire, receipt_from_bytes, receipt_to_bytes,
-        verify_execution_requests,
+        ProviderVerificationReceiptWire, receipt_from_bytes, receipt_from_bytes_expecting,
+        receipt_to_bytes, verify_execution_requests,
     };
 }
 /// Items of `antecedent-io::quantity_wire`.
@@ -436,11 +672,53 @@ pub mod recovery_artifact {
 pub mod release_migration {
     pub use antecedent_io::release_migration::{
         CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError,
-        RouteRecordOutcome, consume_previous_release_artifact,
-        consume_previous_release_artifact_expecting, consume_previous_route_records,
+        RouteRecordOutcome, consume_previous_release_artifact_expecting,
         consume_previous_route_records_expecting, current_score_row_digest,
         narrow_score_row_digest,
     };
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`consume_previous_release_artifact_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::release_migration::consume_previous_release_artifact` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::release_migration::consume_previous_release_artifact`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use consume_previous_release_artifact_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn consume_previous_release_artifact(
+        bytes: &[u8],
+        target: &antecedent_core::ScientificTarget,
+    ) -> Result<
+        antecedent_io::release_migration::AdoptedRelease,
+        antecedent_io::release_migration::PreviousReleaseError,
+    > {
+        antecedent_io::release_migration::consume_previous_release_artifact(bytes, target)
+    }
+
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`consume_previous_route_records_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_io::release_migration::consume_previous_route_records` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_io::release_migration::consume_previous_route_records`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use consume_previous_route_records_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn consume_previous_route_records(
+        bytes: &[u8],
+        current: &[antecedent_io::release_migration::CurrentMethod],
+    ) -> Result<
+        Vec<antecedent_io::release_migration::RouteRecordMigration>,
+        antecedent_io::release_migration::PreviousReleaseError,
+    > {
+        antecedent_io::release_migration::consume_previous_route_records(bytes, current)
+    }
 }
 /// Independent replay of sampled counterfactual transport artifacts (kind.
 pub mod sampled_counterfactual_transport_artifact {

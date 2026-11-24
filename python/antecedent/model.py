@@ -11,16 +11,34 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._native import (
     GcmSampleResult,
     PredictSummary,
-    decode_model_bundle,
     encode_model_bundle,
     predict_conditional_summary,
 )
+from ._native import decode_model_bundle as _decode_model_bundle
 from .counterfactual import FittedGcm, fit_gcm
 from .execution import Execution, native_controls
+
+
+def decode_model_bundle(
+    data: bytes | list[int], *, retained_identity: str | None = None
+) -> tuple[list[str], list[tuple[int, int]], int]:
+    """Decode a model bundle: ``(variable_names, edges, n_mechanisms)``.
+
+    ``retained_identity`` is :func:`antecedent.artifacts.artifact_identity` of the bundle the
+    consumer kept when it was written; other bytes are refused with ``external_binding_mismatch``.
+    """
+    raw = bytes(data)
+    _retained.admit(
+        raw,
+        retained_identity,
+        "antecedent.model.decode_model_bundle",
+        "antecedent.model.decode_model_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
+    return _decode_model_bundle(raw, _retained.native(retained_identity))
 
 
 def sample_do(

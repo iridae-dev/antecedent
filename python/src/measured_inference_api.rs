@@ -143,8 +143,14 @@ impl NativeMeasuredInference {
                 }
                 "mnar_fixed_shift_interval" => {
                     let ctx = antecedent::prelude::ExecutionContext::production_default(0);
-                    let decoded = antecedent::io::mnar_candidate_source::decode_source(bytes, &ctx)
-                        .map_err(crate::transport_common::error)?;
+                    // The source this measured inference already admitted; projecting it admits
+                    // nothing new.
+                    #[allow(
+                        deprecated,
+                        reason = "descriptive projection of a source the handle already admitted"
+                    )]
+                    let decoded = antecedent::io::mnar_candidate_source::decode_source(bytes, &ctx);
+                    let decoded = decoded.map_err(crate::transport_common::error)?;
                     let source = decoded.source();
                     let rows: Vec<_> = source
                         .rows()

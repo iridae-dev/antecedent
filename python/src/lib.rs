@@ -349,7 +349,7 @@ use antecedent::graph::{
 };
 use antecedent::inference::{FdrAdjustment, PartialCorrelation};
 use antecedent::io::{
-    CausalPosteriorWire, IoError, PosteriorQuantityWire, decode_causal_posterior_bytes,
+    CausalPosteriorWire, IoError, PosteriorQuantityWire,
     encode_causal_posterior_bytes, encode_posterior_artifact as encode_posterior_wire,
 };
 use antecedent::prelude::{

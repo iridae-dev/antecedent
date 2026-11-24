@@ -624,7 +624,9 @@ def consume_transported_decision(
     data = container_bytes(artifact)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
-    payload, handle, refusal = _native.transported_decision_consume(bytes(data), expected_identity)
+    payload, handle, refusal = _native.transported_decision_consume(
+        bytes(data), expected_identity, _retained.native(retained_identity)
+    )
     raise_refusal(refusal, DecisionRefusal)
     if payload is None:
         raise CausalTypeError("transported decision artifact carried no payload")

@@ -392,20 +392,33 @@ pub fn policy_program_callback_records(py: Python<'_>, data: &[u8]) -> PyResult<
 /// The artifact's own refusals, and `policy_callback_unrecoverable` for a record with no
 /// supplied callback or one that does not match.
 #[pyfunction]
+#[pyo3(signature = (names, data, supplied, retained_identity=None))]
 #[allow(clippy::type_complexity, reason = "the flat tuple the Python facade unpacks")]
 pub fn decode_callback_policy_program(
     names: Vec<String>,
     data: &[u8],
     supplied: Vec<PyRef<'_, PyBatchCallbackHandle>>,
+    retained_identity: Option<&str>,
 ) -> PyResult<Vec<(String, String, Option<String>, Option<String>, Option<Vec<Option<String>>>)>> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
         let by_name: Vec<(&str, Arc<dyn BatchCallback>)> = supplied
             .iter()
             .map(|h| (h.inner.spec.name.as_str(), Arc::clone(&h.inner) as Arc<dyn BatchCallback>))
             .collect();
-        let interventions = artifact::decode_policy_program_with(data, &|record| {
+        let supply = |record: &RecoveryRecord| {
             by_name.iter().find(|(name, _)| *name == record.name).map(|(_, cb)| Arc::clone(cb))
-        })
+        };
+        let interventions = match &retained {
+            Some(retained) => {
+                artifact::decode_policy_program_with_expecting(data, &supply, retained)
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => artifact::decode_policy_program_with(data, &supply),
+        }
         .map_err(io_err)?;
         let spell = |id: VariableId| {
             names

@@ -983,7 +983,7 @@ fn dummy_code_joint_panel(
     })
 }
 #[pyfunction]
-#[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+#[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None,retained_identity=None))]
 fn consume_joint_panel(
     py: Python<'_>,
     bytes: &[u8],
@@ -991,11 +991,24 @@ fn consume_joint_panel(
     threads: u32,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
+    retained_identity: Option<&str>,
 ) -> PyResult<String> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     let ctx = context(seed, threads, max_bytes, cancel)?;
     crate::detach_catch(py, || {
-        let replay = antecedent::io::joint_panel_artifact::consume_panel_execution(bytes, &ctx)
-            .map_err(artifact_error)?;
+        let replay = match &retained {
+            Some(retained) => {
+                antecedent::io::joint_panel_artifact::consume_panel_execution_expecting(
+                    bytes, &ctx, retained,
+                )
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::joint_panel_artifact::consume_panel_execution(bytes, &ctx),
+        }
+        .map_err(artifact_error)?;
         Ok(serde_json::json!({"point":replay.point(),"draws":replay.draws(),"grants_current_authority":replay.grants_current_authority()}).to_string())
     })
 }

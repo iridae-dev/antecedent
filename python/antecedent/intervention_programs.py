@@ -445,8 +445,17 @@ def decode_policy_program(
     from .intervention_callbacks import decode_programs
 
     if callbacks is not None:
-        return decode_programs(names, data, callbacks, retained_identity=_retained.ADMITTED)
-    return _programs(_native.decode_policy_program(list(names), bytes(data)))
+        return decode_programs(
+            names,
+            data,
+            callbacks,
+            retained_identity=_retained.ADMITTED
+            if retained_identity is None
+            else retained_identity,
+        )
+    return _programs(
+        _native.decode_policy_program(list(names), bytes(data), _retained.native(retained_identity))
+    )
 
 
 @dataclass(frozen=True, slots=True, repr=False)

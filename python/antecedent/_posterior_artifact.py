@@ -266,7 +266,7 @@ def consume_posterior(
             raise CausalValueError("expected_encoding_sha256 must contain 64 hexadecimal digits")
         if sha256(raw).hexdigest() != expected_encoding_sha256.lower():
             raise CausalValueError("posterior encoding SHA-256 differs from expected encoding")
-    native = _native.decode_posterior_artifact(raw)
+    native = _native.decode_posterior_artifact(raw, _retained.native(retained_identity))
     return ConsumedPosterior(
         native,
         raw,

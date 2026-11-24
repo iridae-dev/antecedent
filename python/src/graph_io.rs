@@ -140,9 +140,22 @@ fn encode_model_bundle(
 
 /// Decode a model bundle; return `(variable_names, edges, n_mechanisms)`.
 #[pyfunction]
-fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
+#[pyo3(signature = (bytes, retained_identity=None))]
+fn decode_model_bundle(
+    bytes: &[u8],
+    retained_identity: Option<&str>,
+) -> PyResult<ModelBundleSummary> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     catch_ffi(|| {
-        let bundle = antecedent::io::decode_model_bundle_bytes(bytes).map_err(py_err)?;
+        let bundle = match &retained {
+            Some(retained) => antecedent::io::decode_model_bundle_bytes_expecting(bytes, retained),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::decode_model_bundle_bytes(bytes),
+        }
+        .map_err(py_err)?;
         let names = bundle.schema.variables().iter().map(|v| v.name.to_string()).collect();
         let wire = antecedent::io::dag_to_wire(&bundle.dag).map_err(py_err)?;
         Ok((names, wire.edges, bundle.mechanisms.slots.len()))

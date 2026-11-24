@@ -526,7 +526,14 @@ def consume_artifact(
         "antecedent.external_mechanisms.consume_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
         bound=True,
     )
-    return json.loads(_native.external_consume(bytes(data), identity, _resolver(resolver)))
+    return json.loads(
+        _native.external_consume(
+            bytes(data),
+            identity,
+            _resolver(resolver),
+            retained_identity=_retained.native(retained_identity),
+        )
+    )
 
 
 def load_artifact(

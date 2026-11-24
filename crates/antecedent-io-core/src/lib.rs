@@ -302,8 +302,9 @@ pub use plan_wire::{
 pub use posterior::{
     CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire,
     decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
-    decode_posterior_artifact, decode_posterior_meta_from_path, decode_posterior_meta_from_seek,
-    encode_posterior_artifact,
+    decode_posterior_artifact, decode_posterior_meta_from_path,
+    decode_posterior_meta_from_path_expecting, decode_posterior_meta_from_seek,
+    decode_posterior_meta_from_seek_expecting, encode_posterior_artifact,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,

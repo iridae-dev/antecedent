@@ -95,7 +95,7 @@ class FittedEffectModel:
         artifact = container_bytes(artifact)
         from ._native import FittedEffectModel as NativeModel
 
-        model = cls(NativeModel.load(artifact))
+        model = cls(NativeModel.load(artifact, _retained.native(retained_identity)))
         if expected_parent_claim is not None and model.parent_claim != expected_parent_claim:
             from .cohort_decision import CohortDecisionRefusal
 

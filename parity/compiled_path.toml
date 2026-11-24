@@ -1190,10 +1190,6 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::design_ranking_artifact::consume"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_design::design_ranking_artifact::consume_wire"
 disposition = "consume"
 
@@ -1287,10 +1283,6 @@ replacement = "route:StructureIdentification"
 path = "antecedent::design::structure_posterior"
 disposition = "deprecated"
 replacement = "route:StructureIdentification"
-
-[[row]]
-path = "antecedent_design::transported_decision_artifact::consume_transported_decision"
-disposition = "consume"
 
 [[row]]
 path = "antecedent_design::transported_decision_artifact::export_transported_decision"
@@ -2836,10 +2828,6 @@ path = "antecedent_io::cyclic_system_artifact::consume_cyclic_artifact"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_io::decode_analysis_result_artifact"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire::consume_typed_with_context"
 disposition = "consume"
 
@@ -2913,10 +2901,6 @@ path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactW
 disposition = "consume"
 
 [[row]]
-path = "antecedent_io::joint_panel_artifact::consume_panel_execution"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io::latent_class_artifact::LatentClassArtifact::from_bytes_with"
 disposition = "consume"
 
@@ -2984,10 +2968,6 @@ path = "antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::consume_w
 disposition = "consume"
 
 [[row]]
-path = "antecedent_io::mnar_candidate_source::decode_source"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io::mz_transport_artifact::MzTransportArtifactWire::checked"
 disposition = "consume"
 
@@ -3051,10 +3031,6 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_io::randomized_ipow_artifact::replay_analysis_result"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io::randomized_ipow_artifact::replay_loaded_result"
 disposition = "consume"
 
@@ -3072,14 +3048,6 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::consume_typed"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io::release_migration::consume_previous_release_artifact"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io::release_migration::consume_previous_route_records"
 disposition = "consume"
 
 [[row]]
@@ -3301,10 +3269,6 @@ disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
 
 [[row]]
-path = "antecedent_io_core::causal_artifact::decode_causal_payload_artifact"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io_core::causal_artifact::encode_causal_payload_artifact"
 disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
@@ -3334,10 +3298,6 @@ reason = "serialization or identity helper; computes no estimate"
 
 [[row]]
 path = "antecedent_io_core::contract_section::decode_analysis_result_contract"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::contract_section::load_analysis_result"
 disposition = "consume"
 
 [[row]]
@@ -3441,10 +3401,6 @@ reason = "serialization or identity helper; computes no estimate"
 
 [[row]]
 path = "antecedent_io_core::decode_posterior_artifact"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::decode_prior_source_meta"
 disposition = "consume"
 
 [[row]]
@@ -3553,14 +3509,6 @@ disposition = "consume"
 path = "antecedent_io_core::interference_query_to_wire"
 disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::decode_policy_program"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::decode_policy_program_with"
-disposition = "consume"
 
 [[row]]
 path = "antecedent_io_core::policy_program_artifact::encode_policy_program"
@@ -4399,6 +4347,86 @@ disposition = "consume"
 [[row]]
 path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted_expecting"
 disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::design_ranking::consume"
+disposition = "deprecated"
+replacement = "bound:antecedent_design::design_ranking_artifact::consume_expecting"
+
+[[row]]
+path = "antecedent::design::transported_decision_artifact::consume_transported_decision"
+disposition = "deprecated"
+replacement = "bound:antecedent_design::transported_decision_artifact::consume_transported_decision_expecting"
+
+[[row]]
+path = "antecedent::io::decode_analysis_result_artifact"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::decode_analysis_result_artifact_expecting"
+
+[[row]]
+path = "antecedent::io::decode_causal_payload_artifact"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::causal_artifact::decode_causal_payload_artifact_expecting"
+
+[[row]]
+path = "antecedent::io::decode_causal_posterior_bytes"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::posterior::decode_causal_posterior_bytes_expecting"
+
+[[row]]
+path = "antecedent::io::decode_model_bundle_bytes"
+disposition = "deprecated"
+replacement = "bound:antecedent::io::decode_model_bundle_bytes_expecting"
+
+[[row]]
+path = "antecedent::io::decode_prior_source_meta"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::decode_prior_source_meta_expecting"
+
+[[row]]
+path = "antecedent::io::joint_panel_artifact::consume_panel_execution"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::joint_panel_artifact::consume_panel_execution_expecting"
+
+[[row]]
+path = "antecedent::io::load_analysis_result"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::contract_section::load_analysis_result_expecting"
+
+[[row]]
+path = "antecedent::io::mnar_candidate_source::decode_source"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::mnar_candidate_source::decode_source_expecting"
+
+[[row]]
+path = "antecedent::io::policy_program_artifact::decode_policy_program"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::policy_program_artifact::decode_policy_program_expecting"
+
+[[row]]
+path = "antecedent::io::policy_program_artifact::decode_policy_program_with"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::policy_program_artifact::decode_policy_program_with_expecting"
+
+[[row]]
+path = "antecedent::io::provider_envelope::open_provider_envelope"
+disposition = "deprecated"
+replacement = "bound:antecedent_io_core::provider_envelope::open_provider_envelope_expecting"
+
+[[row]]
+path = "antecedent::io::release_migration::consume_previous_release_artifact"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::release_migration::consume_previous_release_artifact_expecting"
+
+[[row]]
+path = "antecedent::io::release_migration::consume_previous_route_records"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::release_migration::consume_previous_route_records_expecting"
+
+[[row]]
+path = "antecedent::io::replay_analysis_result"
+disposition = "deprecated"
+replacement = "bound:antecedent_io::randomized_ipow_artifact::replay_analysis_result_expecting"
 
 [[python]]
 path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"

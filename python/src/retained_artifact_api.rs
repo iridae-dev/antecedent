@@ -25,6 +25,19 @@ fn bind_retained_artifact(data: &[u8], retained_identity: &str) -> PyResult<()> 
     bind_retained(data, &retained).map_err(crate::bridge::serialization)
 }
 
+/// The retained identity a Python loader passed down, parsed; `None` when it passed none.
+///
+/// A loader that receives `Some` calls the facade's `*_expecting` form, which binds the bytes
+/// through the same Rust `bind`. With `None`, the Python wrapper has already warned that the
+/// load is unbound, and the loader calls the deprecated unbound facade item.
+pub(crate) fn retained(
+    retained_identity: Option<&str>,
+) -> PyResult<Option<RetainedArtifactIdentity>> {
+    retained_identity
+        .map(|hex| RetainedArtifactIdentity::from_hex(hex).map_err(crate::bridge::serialization))
+        .transpose()
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(retained_artifact_identity, module)?)?;
     module.add_function(wrap_pyfunction!(bind_retained_artifact, module)?)?;

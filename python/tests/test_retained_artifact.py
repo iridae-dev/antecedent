@@ -200,6 +200,10 @@ LOADERS: tuple[tuple[str, bool], ...] = (
     ("antecedent.transported_counterfactual.consume_transported_counterfactual_artifact", False),
     ("antecedent.transported_response.consume_transported_decision", False),
     ("antecedent.vector_treatment.consume_joint_effects", False),
+    ("antecedent.model.decode_model_bundle", True),
+    ("antecedent.priors.PriorSourceMeta.from_cbor", True),
+    ("antecedent.prepared.reexecute_retarget", True),
+    ("antecedent.estimation._PreparedEngine.reexecute_retarget", True),
 )
 
 

@@ -166,7 +166,9 @@ def consume_previous_release_artifact(
         "antecedent.release_migration.consume_previous_release_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
     )
     artifact = container_bytes(artifact)
-    score, target, boundary, rows = _consume_release(bytes(artifact), float(intervention_level))
+    score, target, boundary, rows = _consume_release(
+        bytes(artifact), float(intervention_level), _retained.native(retained_identity)
+    )
     return AdoptedRelease(
         score_row_digest=bytes(score),
         target_digest=bytes(target),
@@ -196,7 +198,11 @@ def consume_previous_route_records(
         "antecedent.release_migration.consume_previous_route_records(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
     )
     artifact = container_bytes(artifact)
-    rows = json.loads(_consume_routes(bytes(artifact), [m._row() for m in methods]))
+    rows = json.loads(
+        _consume_routes(
+            bytes(artifact), [m._row() for m in methods], _retained.native(retained_identity)
+        )
+    )
     return tuple(
         RouteRecordMigration(
             id=row["id"],

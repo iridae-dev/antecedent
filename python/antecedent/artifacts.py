@@ -125,7 +125,7 @@ def loads(data: bytes, *, retained_identity: str | None = None) -> CausalArtifac
         "antecedent.artifacts.loads(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
     )
     data = container_bytes(data)
-    decoded = _decode_causal_artifact(data)
+    decoded = _decode_causal_artifact(data, _retained.native(retained_identity))
     payload = json.loads(decoded.payload_json)
     if not isinstance(payload, dict):  # canonical wire payloads are object-shaped
         raise ValueError("decoded causal artifact payload is not an object")
@@ -162,7 +162,7 @@ def accept(
         "antecedent.artifacts.accept(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
     )
     data = container_bytes(data)
-    return dict(_accept_analysis_result_contract(data, replay))
+    return dict(_accept_analysis_result_contract(data, replay, _retained.native(retained_identity)))
 
 
 __all__ = [
