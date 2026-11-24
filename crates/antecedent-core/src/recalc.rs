@@ -799,6 +799,46 @@ pub struct StageEntry {
     pub identity: StageIdentity,
 }
 
+/// Which change decides a stage that rests on several changed inputs.
+///
+/// Every rule agrees on plans where no input was removed. A recorded plan replays under the
+/// rule it was planned with: a receipt from before [`Self::RemovalFirst`] replays under
+/// [`Self::FirstChange`].
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[non_exhaustive]
+pub enum PlannerRule {
+    /// The stage's own change, else its first changed dependency in declared order. A
+    /// numerical change listed before a removed input hides the removal, so the stage reads
+    /// as recomputed where it should be withdrawn. Kept only to replay plans recorded under it.
+    FirstChange,
+    /// As [`Self::FirstChange`], except that a removed input anywhere among the stage's own
+    /// change and its dependencies decides it: a stage resting on an input that is gone is
+    /// withdrawn, whatever else changed.
+    #[default]
+    RemovalFirst,
+}
+
+impl PlannerRule {
+    /// Stable wire name (`first_change`, `removal_first`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FirstChange => "first_change",
+            Self::RemovalFirst => "removal_first",
+        }
+    }
+
+    /// The rule a wire name spells.
+    #[must_use]
+    pub fn from_wire(name: &str) -> Option<Self> {
+        match name {
+            "first_change" => Some(Self::FirstChange),
+            "removal_first" => Some(Self::RemovalFirst),
+            _ => None,
+        }
+    }
+}
+
 /// Per-stage reuse, recompute, or refuse table for a requested workflow.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecalcPlan {
@@ -820,10 +860,24 @@ impl RecalcPlan {
         requested: &StageIdentities,
         capabilities: &RecalcCapabilities,
     ) -> Self {
+        Self::plan_with_rule(previous, requested, capabilities, PlannerRule::RemovalFirst)
+    }
+
+    /// [`Self::plan`] under an explicit [`PlannerRule`]: the rule a recorded plan was made
+    /// with, so a receipt replays exactly as it was planned. New plans use
+    /// [`PlannerRule::RemovalFirst`].
+    #[must_use]
+    pub fn plan_with_rule(
+        previous: &StageIdentities,
+        requested: &StageIdentities,
+        capabilities: &RecalcCapabilities,
+        rule: PlannerRule,
+    ) -> Self {
         let mut planner = Planner {
             previous,
             requested,
             caps: capabilities,
+            rule,
             statuses: BTreeMap::new(),
             changed: BTreeMap::new(),
         };
@@ -931,6 +985,7 @@ struct Planner<'a> {
     previous: &'a StageIdentities,
     requested: &'a StageIdentities,
     caps: &'a RecalcCapabilities,
+    rule: PlannerRule,
     statuses: BTreeMap<Stage, StageStatus>,
     /// Stage -> (origin stage whose own input changed, how it changed), for stages whose
     /// identity changed. Recomputations caused only by a fresh process are not recorded.
@@ -1009,9 +1064,10 @@ impl Planner<'_> {
     }
 
     /// The change that decides a stage: its own change, else the first changed dependency,
-    /// except that a removed input anywhere among them is named instead. A stage resting on
-    /// an input that is gone is withdrawn, whatever else also changed: reporting the first
-    /// change alone would read a withdrawal as a recomputation.
+    /// except that under [`PlannerRule::RemovalFirst`] a removed input anywhere among them is
+    /// named instead. A stage resting on an input that is gone is withdrawn, whatever else
+    /// also changed: reporting the first change alone would read a withdrawal as a
+    /// recomputation ([`PlannerRule::FirstChange`], kept to replay recorded plans).
     fn by_change(&self, stage: Stage, deps: &[Stage]) -> StageStatus {
         let own = self.own_change(stage).map(|change| ChangedDependency::Own { stage, change });
         let upstream = deps.iter().filter_map(|&dep| {
@@ -1023,12 +1079,15 @@ impl Planner<'_> {
             )
         });
         let mut first = None;
+        let removal_first = self.rule == PlannerRule::RemovalFirst;
         for because in own.into_iter().chain(upstream) {
-            if matches!(
-                because,
-                ChangedDependency::Own { change: ChangeKind::Removed, .. }
-                    | ChangedDependency::Upstream { change: ChangeKind::Removed, .. }
-            ) {
+            if removal_first
+                && matches!(
+                    because,
+                    ChangedDependency::Own { change: ChangeKind::Removed, .. }
+                        | ChangedDependency::Upstream { change: ChangeKind::Removed, .. }
+                )
+            {
                 return StageStatus::Recomputed { because };
             }
             first.get_or_insert(because);

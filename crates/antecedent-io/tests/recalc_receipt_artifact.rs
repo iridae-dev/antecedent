@@ -8,13 +8,15 @@
 use std::collections::BTreeMap;
 
 use antecedent_core::recalc::{
-    Boundary, Branch, MissingDependency, RecalcCapabilities, RefusalReason, RequestSupport,
-    ResumeContext, RetargetSupport, Stage, StageIdentities, StageIdentity,
+    Boundary, Branch, MissingDependency, PlannerRule, RecalcCapabilities, RecalcPlan,
+    RefusalReason, RequestSupport, ResumeContext, RetargetSupport, Revalidation, Stage,
+    StageIdentities, StageIdentity,
 };
 use antecedent_io::recalc_receipt_artifact::{
-    CountsWire, RECALC_RECEIPT_ARTIFACT_VERSION, RecalcReceiptArtifact, RecalcReceiptArtifactError,
-    RecalcReceiptMeta, decode_parts, encode_parts, identities_from_wire, identities_to_wire,
-    plan_from_wire, plan_to_wire,
+    CountsWire, RECALC_RECEIPT_ARTIFACT_VERSION, RECALC_RECEIPT_REMOVAL_FIRST_VERSION,
+    RecalcReceiptArtifact, RecalcReceiptArtifactError, RecalcReceiptMeta, decode_parts,
+    encode_parts, identities_from_wire, identities_to_wire, plan_from_wire, plan_to_wire,
+    planner_rule_of_version,
 };
 
 const ID: &str = "recalc-receipt-test";
@@ -504,10 +506,10 @@ fn artifact_is_bounded_and_versioned() {
     ));
 
     let mut meta = artifact.meta().clone();
-    meta.version = RECALC_RECEIPT_ARTIFACT_VERSION + 1;
+    meta.version = RECALC_RECEIPT_REMOVAL_FIRST_VERSION + 1;
     assert!(matches!(
         RecalcReceiptArtifact::from_bytes(&encode_parts(&meta, ID).unwrap(), None),
-        Err(RecalcReceiptArtifactError::UnsupportedVersion { version: 2 })
+        Err(RecalcReceiptArtifactError::UnsupportedVersion { version: 3 })
     ));
     let mut meta = artifact.meta().clone();
     meta.feature = "recalc_receipt_v2".into();
@@ -919,4 +921,76 @@ fn many_distinct_custom_routes_remain_owned_and_do_not_exhaust_process_state() {
     let loaded = RecalcReceiptArtifact::from_bytes(&last.to_bytes(ID).unwrap(), None).unwrap();
     assert_eq!(loaded.capabilities().unwrap(), caps);
     assert_eq!(loaded.plan_identity(), last.plan_identity());
+}
+
+/// A workflow with a calibration record whose score inputs change while the record is gone:
+/// the removal-first rule withdraws the law, the first-change rule recomputes it.
+fn removal_beside_a_change() -> (StageIdentities, StageIdentities, BTreeMap<Stage, CountsWire>) {
+    let mut previous = workflow("u1", "seed1");
+    previous.set(Stage::Calibration, digest("calibration", "record-1"));
+    let mut requested = workflow("u1", "seed1");
+    requested.set(Stage::ScoreArtifact, digest("score_artifact", "derived-2"));
+    let work = counts(&[
+        (
+            Stage::ScoreArtifact,
+            CountsWire { fold_fits: 2, score_computations: 1, ..CountsWire::default() },
+        ),
+        (Stage::Law, CountsWire { reweights: 1, ..CountsWire::default() }),
+        (Stage::Decision, decided()),
+    ]);
+    (previous, requested, work)
+}
+
+#[test]
+fn artifact_planner_rule_is_named_by_the_version_and_legacy_receipts_still_replay() {
+    assert_eq!(
+        planner_rule_of_version(RECALC_RECEIPT_ARTIFACT_VERSION),
+        Some(PlannerRule::FirstChange)
+    );
+    assert_eq!(
+        planner_rule_of_version(RECALC_RECEIPT_REMOVAL_FIRST_VERSION),
+        Some(PlannerRule::RemovalFirst)
+    );
+    // A receipt both rules agree on is written exactly as before the removal-first rule.
+    assert_eq!(utility_only().meta().version, RECALC_RECEIPT_ARTIFACT_VERSION);
+
+    let (previous, requested, work) = removal_beside_a_change();
+    let caps = in_process();
+    let current = RecalcReceiptArtifact::seal(&previous, &requested, &caps, &work).unwrap();
+    assert_eq!(current.meta().version, RECALC_RECEIPT_REMOVAL_FIRST_VERSION);
+    assert_eq!(current.plan().revalidation(Stage::Law), Some(Revalidation::Withdrawn));
+    assert_eq!(current.plan().revalidation(Stage::Decision), Some(Revalidation::Withdrawn));
+    let bytes = current.to_bytes(ID).unwrap();
+    assert_eq!(
+        RecalcReceiptArtifact::from_bytes(&bytes, Some(current.receipt_identity())).unwrap(),
+        current
+    );
+
+    // The receipt a release before the removal-first rule sealed for the same run: version 1,
+    // the first-change table, and its own identities. It still replays, under its own rule.
+    let legacy_plan =
+        RecalcPlan::plan_with_rule(&previous, &requested, &caps, PlannerRule::FirstChange);
+    assert_ne!(&legacy_plan, current.plan());
+    assert_eq!(legacy_plan.revalidation(Stage::Law), Some(Revalidation::Recompute));
+    let mut legacy = current.meta().clone();
+    legacy.version = RECALC_RECEIPT_ARTIFACT_VERSION;
+    for (entry, planned) in legacy.entries.iter_mut().zip(plan_to_wire(&legacy_plan).entries) {
+        assert_eq!(entry.stage, planned.stage);
+        entry.tag = planned.tag;
+        entry.detail = planned.detail;
+        entry.status = planned.status;
+    }
+    legacy.plan_identity = legacy_plan.canonical_identity().to_hex();
+    let legacy = reseal(legacy);
+    let replayed = consume(&legacy).unwrap();
+    assert_eq!(replayed.plan(), &legacy_plan);
+    assert_eq!(replayed.receipt_identity(), oracle_identity(&legacy));
+
+    // Each table replays only under its own rule.
+    let mut wrong = legacy.clone();
+    wrong.version = RECALC_RECEIPT_REMOVAL_FIRST_VERSION;
+    assert!(matches!(consume(&wrong), Err(RecalcReceiptArtifactError::PlanMismatch { .. })));
+    let mut wrong = current.meta().clone();
+    wrong.version = RECALC_RECEIPT_ARTIFACT_VERSION;
+    assert!(matches!(consume(&wrong), Err(RecalcReceiptArtifactError::PlanMismatch { .. })));
 }

@@ -467,6 +467,18 @@ impl CausalState {
             let Some(record) = self.queries.queries.get(&update.query) else {
                 continue;
             };
+            // A premise the result rested on was removed: the result is withdrawn, and only a
+            // recomputation that states its lineage returns it to valid. A bare fingerprint
+            // says nothing about which premises the new result rests on.
+            if update.lineage.is_none()
+                && record.pending_inputs.iter().any(|input| input.change == ChangeKind::Removed)
+            {
+                return Err(StateError::InvalidEvent(format!(
+                    "query {} rests on a removed input; publish the recomputation with its \
+                     lineage, not with a bare fingerprint",
+                    update.query.raw()
+                )));
+            }
             let Some(previous) = record.last_published else {
                 continue;
             };
@@ -1016,6 +1028,36 @@ mod tests {
         // a query that never carried a lineage keeps the caller-driven path
         let plain = one_query(&mut state);
         state.refresh_results_at(state.version, &[(plain, 5, 8)]).expect("unbound query");
+        assert!(!state.is_stale(plain));
+    }
+
+    /// A withdrawal is never cleared on the caller's word: after a removed premise, a query
+    /// that never carried a lineage stays withdrawn until a publication states one.
+    #[test]
+    fn a_bare_refresh_cannot_clear_a_removed_input() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = one_query(&mut state);
+        state.apply(constraint("c1")).expect("constraint");
+        state.refresh_results_at(state.version, &[(q, 5, 8)]).expect("unbound query");
+        assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
+        state
+            .apply(StateEvent::RemoveConstraint(crate::store::ConstraintId(Arc::from("c1"))))
+            .expect("remove");
+        assert_eq!(state.revalidation(q), Some(Revalidation::Withdrawn));
+        let version = state.version;
+        let err = state.refresh_results_at(version, &[(q, 6, 8)]).expect_err("withdrawn");
+        assert!(matches!(err, StateError::InvalidEvent(_)));
+        assert_eq!(state.version, version);
+        assert_eq!(state.revalidation(q), Some(Revalidation::Withdrawn));
+        // A recomputation that states its lineage returns it to valid.
+        state
+            .publish_results_at(state.version, &[publication(q, &identities(11, 20))])
+            .expect("lineage publication");
+        assert_eq!(state.revalidation(q), Some(Revalidation::StillValid));
+        // A numerical change keeps the caller-driven path for an unbound query.
+        let plain = one_query(&mut state);
+        state.apply(constraint("c2")).expect("constraint");
+        state.refresh_results_at(state.version, &[(plain, 7, 8)]).expect("recompute class");
         assert!(!state.is_stale(plain));
     }
 

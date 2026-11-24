@@ -307,9 +307,12 @@ pub fn dependency_class(stage: Stage) -> Option<DependencyClass> {
 }
 
 /// The canonical workflow the staleness planner reasons over: every declared input of an
-/// estimated claim and its derived stages, with the prior stage of a Bayesian plan. Each key in
+/// estimated claim and its derived stages, with the prior stage of a Bayesian plan, and every
+/// other changed key (a calibration record, a representation, a provider request or standing, a
+/// coupling): a key the workflow did not declare would otherwise invalidate nothing. Each key in
 /// `keys` gets a requested identity that differs from its previous one; every other stage keeps
-/// its identity, so the planner recomputes exactly what the changed keys reach.
+/// its identity, so the planner recomputes exactly what the changed keys reach. A workflow
+/// without such keys is the one it always was.
 fn workflow(
     keys: &BTreeSet<Stage>,
     changed_digest: &str,
@@ -334,6 +337,11 @@ fn workflow(
     ];
     if bayesian {
         stages.extend(antecedent_core::recalc::Branch::new(0).map(Stage::Prior));
+    }
+    for key in keys {
+        if !stages.contains(key) {
+            stages.push(*key);
+        }
     }
     let mut previous = StageIdentities::new();
     let mut requested = StageIdentities::new();
@@ -378,4 +386,45 @@ pub(crate) fn classes_and_products(keys: &[Stage]) -> (Vec<DependencyClass>, Vec
         .filter(|product| classes.iter().any(|class| product.declares(*class)))
         .collect();
     (classes.into_iter().collect(), products)
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_core::recalc::Branch;
+
+    /// Every key that maps to a dependency class reaches what rests on it: a changed
+    /// calibration record, representation, provider request or coupling is never a key that
+    /// invalidates nothing, and the keys the assessment always emitted invalidate what they did.
+    #[test]
+    fn site_every_classified_key_invalidates_what_rests_on_it() {
+        let branch = Branch::new(0).expect("branch");
+        for key in [
+            Stage::Calibration,
+            Stage::Representation,
+            Stage::Coupling,
+            Stage::ProviderRequest(branch),
+            Stage::DataSnapshot,
+            Stage::Graph,
+            Stage::TreatmentGrid,
+        ] {
+            let keys = BTreeSet::from([key]);
+            let invalidated = invalidated_stages(&keys, "digest", false);
+            assert!(invalidated.contains(&key), "{key} is not recomputed");
+            assert!(
+                invalidated.contains(&Stage::Decision),
+                "{key} reaches no decision: {invalidated:?}"
+            );
+        }
+        let calibration = invalidated_stages(&BTreeSet::from([Stage::Calibration]), "d", false);
+        assert!(calibration.contains(&Stage::Law));
+        assert!(!calibration.contains(&Stage::ScoreArtifact));
+        // The released workflow is unchanged for the keys an assessment emits.
+        let snapshot = BTreeSet::from([Stage::DataSnapshot]);
+        let (previous, requested) = workflow(&snapshot, "d", false);
+        for stage in [Stage::Calibration, Stage::Representation, Stage::Coupling] {
+            assert!(!previous.contains(stage) && !requested.contains(stage), "{stage}");
+        }
+        assert!(invalidated_stages(&BTreeSet::new(), "d", true).is_empty());
+    }
 }
