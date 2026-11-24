@@ -48,6 +48,8 @@ const ROW_DOMAIN: &str = "antecedent.preference_route.study_rows";
 const UNIT_DOMAIN: &str = "antecedent.preference_route.study_units";
 /// Tag of the digest naming a set of unit identifiers in a chain factor.
 const UNIT_FACTOR_TAG: &str = "antecedent.preference_route.unit_factor";
+/// Tag of the digest naming a set of rows of one source table in a chain factor.
+const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor";
 /// Longest namespace or unit label, in bytes.
 const MAX_UNIT_TEXT_BYTES: usize = 4096;
 
@@ -667,10 +669,31 @@ fn unit_factor(prefix: &str, namespace: &str, labels: impl Iterator<Item = Strin
     format!("{prefix}:{}", writer.finish_hex())
 }
 
+/// Digest naming a set of row indices of the source table `origin`.
+fn row_factor(prefix: &str, origin: &str, rows: &BTreeSet<u64>) -> String {
+    let mut writer = CanonicalWriter::new(ROW_FACTOR_TAG);
+    writer.text(origin).word(u64::try_from(rows.len()).unwrap_or(u64::MAX));
+    for row in rows {
+        writer.word(*row);
+    }
+    format!("{prefix}:{}", writer.finish_hex())
+}
+
+/// The indices in its source table of the rows a study reads.
+fn source_rows(study: &BoundStudy) -> BTreeSet<u64> {
+    match &study.origin_rows {
+        Some(rows) => rows.iter().copied().collect(),
+        None => (0..study.rows).map(|row| row as u64).collect(),
+    }
+}
+
 /// The row factors of every study's chain sources.
 ///
 /// A study without a unit key declares the content identity of the table its rows came from,
-/// as it always has. A keyed study declares one factor per study it shares observations with:
+/// as it always has, unless some study of the same source table selected rows of it: then,
+/// like a keyed study, it declares one factor per study it shares rows with, naming the shared
+/// rows (`shared_rows:<digest>`), or `rows:<digest>` naming its own rows when it shares none,
+/// so studies of disjoint rows of one table are not read as sharing it. A keyed study declares one factor per study it shares observations with:
 /// the source table's identity for a pair of one table, and `shared_units:<digest>` naming the
 /// shared units of its identifier space otherwise; a keyed study that shares nothing declares
 /// `units:<digest>` naming its own units. The chain rule then sees exactly the pairwise
@@ -682,7 +705,39 @@ pub(super) fn row_factors(studies: &[BoundStudy], overlaps: &StudyOverlaps) -> V
         .enumerate()
         .map(|(index, study)| {
             let Some(units) = &study.units else {
-                return vec![study.origin.clone()];
+                let selected = studies.iter().any(|other| {
+                    other.units.is_none()
+                        && other.origin == study.origin
+                        && other.origin_rows.is_some()
+                });
+                if !selected {
+                    return vec![study.origin.clone()];
+                }
+                let mine = source_rows(study);
+                let mut factors = Vec::new();
+                for shared in &overlaps.pairs {
+                    let other = if shared.first == index {
+                        shared.second
+                    } else if shared.second == index {
+                        shared.first
+                    } else {
+                        continue;
+                    };
+                    let factor = match studies.get(other) {
+                        Some(theirs) if theirs.units.is_none() && theirs.origin == study.origin => {
+                            let both = mine.intersection(&source_rows(theirs)).copied().collect();
+                            row_factor("shared_rows", &study.origin, &both)
+                        }
+                        _ => study.origin.clone(),
+                    };
+                    if !factors.contains(&factor) {
+                        factors.push(factor);
+                    }
+                }
+                if factors.is_empty() {
+                    factors.push(row_factor("rows", &study.origin, &mine));
+                }
+                return factors;
             };
             let mut factors = Vec::new();
             for shared in &overlaps.pairs {
