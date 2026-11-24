@@ -1151,6 +1151,7 @@ class Contract:
         seed: int = 0,
         shared: Mapping[tuple[int, int], Sequence[float]] | None = None,
         refits: int | None = None,
+        sampling: str | None = None,
         execution: Execution | None = None,
     ) -> CompiledDecision:
         """Bind this contract to the analysis that estimates its quantities and compile it.
@@ -1173,6 +1174,13 @@ class Contract:
         covariance between the estimates of each such pair ``(i, j)``, rows of study ``i``'s
         coordinates by columns of study ``j``'s. A static-regime design reads its arm means,
         or with ``refits=`` (at least 99, under ``seed=``) its aligned whole-subject refits.
+        A cluster-randomized design or a matched-pair or switchback experiment reads its arm
+        means; randomization alone does not identify the dependence of its arm-mean
+        estimators across arms, so a value that needs one law of its outcomes also needs
+        ``sampling=``, the assumption id of the premise that its independent units (clusters,
+        pairs or sequences) were sampled independently from a larger population, with
+        ``refits=`` for the independent-unit bootstrap. The premise enters the plan and the
+        result's assumptions.
         """
         from ._preference_design import compile_with_design, is_compiled_design
         from .design.ranking import _bound_native
@@ -1182,7 +1190,12 @@ class Contract:
         contract_json = json.dumps(self._wire())
         if is_compiled_design(source):
             compiled, refusal = compile_with_design(
-                source, contract_json, refits=refits, seed=seed, execution=execution
+                source,
+                contract_json,
+                refits=refits,
+                seed=seed,
+                sampling=sampling,
+                execution=execution,
             )
         elif isinstance(source, (list, tuple)):
             natives = [_bound_native(require_success(study)) for study in source]

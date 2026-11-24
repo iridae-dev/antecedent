@@ -342,8 +342,11 @@ impl PyPreparedNativeJointDesign {
     }
     /// Compile a decision across preferences whose quantities are this design's arm means,
     /// with the decision attached to layer four of the design's program. `bootstrap_json`
-    /// (`{replicates, seed}`) declares the whole-subject refits a static-regime design draws
-    /// when the decision needs a joint law. Nothing is executed.
+    /// (`{replicates, seed, sampling}`) declares the refits a design draws when the decision
+    /// needs a joint law: a static-regime design's whole-subject refits, or, with `sampling`
+    /// naming the premise that the independent units were sampled independently from a
+    /// larger population, a randomized design's independent-unit bootstrap. Nothing is
+    /// executed.
     #[pyo3(signature=(contract_json,bootstrap_json=None,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments, reason = "the declaration and the execution controls")]
     fn compile_for_preference_decision(
@@ -366,6 +369,7 @@ impl PyPreparedNativeJointDesign {
                 Some(antecedent::analysis::preference_decision::DesignBootstrap {
                     replicates: wire.replicates,
                     seed: wire.seed,
+                    sampling: wire.sampling,
                 })
             }
             None => None,
@@ -456,10 +460,14 @@ fn replay_native_joint_design(
 
 mod population;
 
-/// The whole-subject refits a static-regime design draws for a decision's joint law.
+/// The refits a design draws for a decision's joint law: a static-regime design's
+/// whole-subject refits, or a randomized design's independent-unit bootstrap under the
+/// declared premise that its units were sampled independently from a larger population.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BootstrapWire {
     replicates: usize,
     seed: u64,
+    #[serde(default)]
+    sampling: Option<String>,
 }

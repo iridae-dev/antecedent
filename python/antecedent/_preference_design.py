@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .errors import CausalValueError
 from .execution import Execution
 
 
@@ -21,16 +22,24 @@ def compile_with_design(
     *,
     refits: int | None,
     seed: int,
+    sampling: str | None,
     execution: Execution | None,
 ) -> tuple[Any, str | None]:
     """Compile the contract with the design's own program; returns ``(compiled, refusal)``.
 
-    The design reads its arm means, or with ``refits`` its aligned whole-subject refits
-    under ``seed``.
+    The design reads its arm means, or with ``refits`` its refits under ``seed``: a
+    static-regime design's aligned whole-subject refits, or, with ``sampling`` naming the
+    premise that the independent units were sampled independently from a larger population,
+    a randomized design's independent-unit bootstrap.
     """
     from ._panel_execution import run_panel
 
-    bootstrap = None if refits is None else json.dumps({"replicates": refits, "seed": seed})
+    if sampling is not None and refits is None:
+        raise CausalValueError("sampling= declares the premise of the refits; give refits= with it")
+    declared: dict[str, Any] = {"replicates": refits, "seed": seed}
+    if sampling is not None:
+        declared["sampling"] = sampling
+    bootstrap = None if refits is None else json.dumps(declared)
     compiled, refusal = run_panel(
         execution,
         source._handle.compile_for_preference_decision,
