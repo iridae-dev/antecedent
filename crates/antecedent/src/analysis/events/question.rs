@@ -1076,6 +1076,10 @@ mod question_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "release times are declared exactly and the drawn path starts at them"
+    )]
     fn agreement_carries_the_direct_mass_when_discovery_orients_the_edge() {
         let ctx = ExecutionContext::for_tests(0);
         let observed = history();
@@ -1132,6 +1136,7 @@ mod question_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "a reverse edge reads exactly zero mass")]
     fn a_label_and_a_descendant_stay_out_of_the_bridge_and_a_reverse_edge_reads_zero() {
         let reading = agreed(0.4);
         let graph = discovered("release", "activity");
@@ -1363,7 +1368,7 @@ mod question_tests {
             draw: ReleaseDraw { release: 0.0, window_end: 2.0, paths: 1, max_events: 4, seed: 7 },
         };
         let prepared =
-            Study::prepare_release_question(question, &discovered("release", "activity"), &ctx)
+            Study::prepare_release_question(question, discovered("release", "activity"), &ctx)
                 .unwrap();
         assert_eq!(prepared.plan_view().route().as_str(), "HawkesParameterBridge");
         assert_eq!(prepared.evidence().map(|digest| digest.len()), Some(64));

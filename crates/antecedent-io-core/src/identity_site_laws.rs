@@ -1,4 +1,4 @@
-//! Category laws for the in-crate identity-site tests (formal/identity_sites.toml): every
+//! Category laws for the in-crate identity-site tests (`formal/identity_sites.toml`): every
 //! permutation of a small list, a repeated element and a dropped element, checked against the
 //! site's classification. `identity` builds the production input from the list and returns the
 //! identity the site computes, or `None` when production refuses the input.

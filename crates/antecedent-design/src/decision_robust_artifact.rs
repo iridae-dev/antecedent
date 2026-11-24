@@ -1277,7 +1277,7 @@ pub use scenario_carrier::{
 
 #[cfg(test)]
 mod identity_site_tests {
-    //! Identity sites (formal/identity_sites.toml): the canonical result, verdict and profile
+    //! Identity sites (`formal/identity_sites.toml`): the canonical result, verdict and profile
     //! wires. Sets of ids are written sorted and once; entries keyed by part of their content
     //! are ordered by the whole entry, so no listing order reaches the bytes.
 

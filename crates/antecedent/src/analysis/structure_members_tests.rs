@@ -89,7 +89,7 @@ fn a_weighted_candidate_set_keeps_an_unidentified_bow_out_of_the_mixture() {
     let members = structure.members("release", "activity", CyclicReading::Lagged, &ctx).unwrap();
     assert_eq!(members.form(), StructureForm::Candidates);
     assert!(members.weighted());
-    let statuses: Vec<_> = members.members().iter().map(|m| m.status()).collect();
+    let statuses: Vec<_> = members.members().iter().map(super::StructureMember::status).collect();
     assert_eq!(
         statuses,
         [MemberStatus::Identified, MemberStatus::Identified, MemberStatus::NotIdentified]
@@ -108,8 +108,8 @@ fn a_posterior_reads_its_atoms_with_their_mass() {
     // release <-> w <-> z: a bidirected path from release to its child z inside the
     // ancestors of activity, so Tian's criterion leaves C unidentified. The edge marginal of
     // release -> activity is 0.6; identified weight 0.9; conditional mixture 0.6 / 0.9.
-    let ctx = ExecutionContext::for_tests(0);
     const N: usize = 4;
+    let ctx = ExecutionContext::for_tests(0);
     let edges = |list: &[(usize, usize)]| {
         list.iter()
             .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, N, from, to, true))
@@ -141,7 +141,7 @@ fn a_posterior_reads_its_atoms_with_their_mass() {
         .members("release", "activity", CyclicReading::Lagged, &ctx)
         .unwrap();
     assert_eq!(members.form(), StructureForm::Posterior);
-    let statuses: Vec<_> = members.members().iter().map(|m| m.status()).collect();
+    let statuses: Vec<_> = members.members().iter().map(super::StructureMember::status).collect();
     assert_eq!(
         statuses,
         [MemberStatus::Identified, MemberStatus::Identified, MemberStatus::NotIdentified]

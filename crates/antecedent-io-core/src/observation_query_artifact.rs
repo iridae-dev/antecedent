@@ -1485,6 +1485,7 @@ mod identity_site_tests {
     /// variable with two levels is refused by the evaluator).
     #[test]
     fn site_observation_query_canonical_assignment_lists_are_sets() {
+        type Row = (Vec<(String, String)>, Vec<(String, u64)>);
         let observed: Vec<(String, u64)> = vec![
             ("m".into(), 0.5f64.to_bits()),
             ("w".into(), 1.5f64.to_bits()),
@@ -1507,7 +1508,7 @@ mod identity_site_tests {
         });
         // Retained table rows are a weighted dataset: a repeated row is more data.
         let parent = |level: &str| vec![("x".to_owned(), level.to_owned())];
-        let rows: Vec<(Vec<(String, String)>, Vec<(String, u64)>)> = vec![
+        let rows: Vec<Row> = vec![
             (parent("0"), vec![("0".into(), 3), ("1".into(), 1)]),
             (parent("1"), vec![("0".into(), 1), ("1".into(), 2)]),
             (parent("2"), vec![("1".into(), 4)]),

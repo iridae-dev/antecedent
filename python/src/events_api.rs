@@ -51,6 +51,10 @@ struct NativePreparedEventProgram {
     inner: Prepared,
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "each Python handle holds one prepared program; the variants are never collected"
+)]
 enum Prepared {
     Forecast(PreparedEventForecast),
     Likelihood(PreparedEventLikelihood),

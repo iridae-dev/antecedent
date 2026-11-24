@@ -32,7 +32,7 @@ pub(crate) fn permutations<T: Clone>(items: &[T]) -> Vec<Vec<T>> {
         }
         for i in 0..k {
             heap(k - 1, items, out);
-            if k % 2 == 0 {
+            if k.is_multiple_of(2) {
                 items.swap(i, k - 1);
             } else {
                 items.swap(0, k - 1);

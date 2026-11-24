@@ -687,19 +687,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod fitted_feature_name_tests {
-    use super::checked_feature_names;
-
-    #[test]
-    fn fitted_feature_names_preserve_order_and_reject_unknown_ids() {
-        let names = vec!["x".to_owned(), "y".to_owned()];
-        assert_eq!(checked_feature_names(&names, &[1, 0]), Some(vec!["y".into(), "x".into()]));
-        assert_eq!(checked_feature_names(&names, &[2]), None);
-        assert_eq!(checked_feature_names(&names, &[u32::MAX]), None);
-    }
-}
-
 /// Load an analysis result through its bound form when the Python caller passed a retained
 /// identity, and through the deprecated unbound form otherwise (the Python wrapper has warned).
 fn load_analysis_result(
@@ -715,4 +702,17 @@ fn load_analysis_result(
         None => antecedent::io::load_analysis_result(bytes),
     }
     .map_err(serialization_error)
+}
+
+#[cfg(test)]
+mod fitted_feature_name_tests {
+    use super::checked_feature_names;
+
+    #[test]
+    fn fitted_feature_names_preserve_order_and_reject_unknown_ids() {
+        let names = vec!["x".to_owned(), "y".to_owned()];
+        assert_eq!(checked_feature_names(&names, &[1, 0]), Some(vec!["y".into(), "x".into()]));
+        assert_eq!(checked_feature_names(&names, &[2]), None);
+        assert_eq!(checked_feature_names(&names, &[u32::MAX]), None);
+    }
 }

@@ -81,6 +81,10 @@ pub struct DeclaredStructure {
 }
 
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a route holds one declared structure at a time, never a collection of them"
+)]
 enum Form {
     Graph(AcceptedGraph),
     Candidates { graphs: Vec<AcceptedGraph>, weights: Option<Vec<f64>> },

@@ -569,6 +569,10 @@ impl HandoffReceipt {
 /// Whether a chain of two hops establishes a field its candidate hop declared
 /// retained: the hops describe one path, either hop is complete or the first
 /// hop also retained the field, and no hop omitted it.
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "the retention kernel is translated by Aeneas and proved over its five boolean inputs"
+)]
 const fn chain_retains(
     contiguous: bool,
     first_complete: bool,

@@ -1312,8 +1312,10 @@ mod identity_site_tests {
         });
         let selections = [selection("s1", "m"), selection("s2", "y"), selection("s3", "z")];
         set_laws(&selections, |items| {
-            let mut request = TransportedCounterfactualRequestWire::default();
-            request.selections = items.to_vec();
+            let request = TransportedCounterfactualRequestWire {
+                selections: items.to_vec(),
+                ..TransportedCounterfactualRequestWire::default()
+            };
             Some(identity(&request).selection_digest)
         });
         let evidence_items = [
@@ -1322,8 +1324,10 @@ mod identity_site_tests {
             evidence("target", "r2", "c"),
         ];
         multiset_laws(&evidence_items, |items| {
-            let mut request = TransportedCounterfactualRequestWire::default();
-            request.evidence = items.to_vec();
+            let request = TransportedCounterfactualRequestWire {
+                evidence: items.to_vec(),
+                ..TransportedCounterfactualRequestWire::default()
+            };
             Some(identity(&request).evidence_digest)
         });
         let children = ["m".to_owned(), "y".to_owned(), "z".to_owned()];
@@ -1338,8 +1342,10 @@ mod identity_site_tests {
     /// v1 identity of the same request, which the reader accepts.
     #[test]
     fn v1_canonical_keeps_a_repeated_selection_v2_writes_it_once() {
-        let mut request = TransportedCounterfactualRequestWire::default();
-        request.selections = vec![selection("s1", "m"), selection("s1", "m")];
+        let mut request = TransportedCounterfactualRequestWire {
+            selections: vec![selection("s1", "m"), selection("s1", "m")],
+            ..TransportedCounterfactualRequestWire::default()
+        };
         let v1 = identity_of(&canonical_v1(&request), &result());
         let v2 = identity_of(&canonical(&request), &result());
         assert_ne!(v1.selection_digest, v2.selection_digest);

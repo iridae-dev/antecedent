@@ -451,6 +451,10 @@ mod retained_tests {
     use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one generated check per loader of this module, kept together"
+    )]
     fn cohort_decision_artifact_expecting_binds_the_retained_bytes() {
         let bytes: &[u8] = b"not an artifact";
         let ctx = antecedent_core::ExecutionContext::production_default(0);

@@ -464,7 +464,7 @@ fn preflight_returns_specific_errors_before_admission() {
 }
 
 /// Identity site `contract.claim.world_point.compose_checked_world_points`
-/// (formal/identity_sites.toml): parents are matched to terms by target identity, so the
+/// (`formal/identity_sites.toml`): parents are matched to terms by target identity, so the
 /// order they are passed in never reaches the proof identity, and each parent's evidence
 /// references are a set (order and repetition do not change it, a changed reference does).
 #[test]
