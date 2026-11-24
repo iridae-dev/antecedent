@@ -46,8 +46,8 @@ pub(crate) use linear_gaussian::{
 pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
 
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
-const ATTACHED_DECISION_TAG: &str = "antecedent.lowered_program.attached_decision";
-const DECISION_FREE_TAG: &str = "antecedent.lowered_program.decision_free";
+const ATTACHED_DECISION_TAG: &str = "antecedent.lowered_program.attached_decision.v1";
+const DECISION_FREE_TAG: &str = "antecedent.lowered_program.decision_free.v1";
 
 /// How far a route's lowering has been carried. Every registered route cell lowers
 /// each layer from its own scientific problem, except the atom operations a program

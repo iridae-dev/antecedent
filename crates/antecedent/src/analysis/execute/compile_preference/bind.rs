@@ -24,7 +24,7 @@ use antecedent_data::TableView;
 use antecedent_design::preference_contract::{ActionInput, PreferenceContract};
 use antecedent_io::distribution_artifact::DistributionCalibration;
 
-use super::evidence::{StudyUnits, analysed_rows, study_units};
+use super::evidence::{StudyUnits, analysed_rows, rows_digest, study_units};
 use super::{
     BOUND_TAG, CompiledContract, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL,
     PreferenceRouteError, STAGE_BIND, UNDECLARED_UNITS, at, unsupported_query,
@@ -128,7 +128,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
     let (outcome_id, treatment_id) = (*outcome, treatment.variable);
     let (outcome, outcome_units) = variable(outcome_id)?;
     let (treatment, dose_units) = variable(treatment_id)?;
-    let observations = SemanticDigest::from_bytes(data.storage().rows_digest()).to_hex();
+    let observations = SemanticDigest::from_bytes(rows_digest(data)?).to_hex();
     let declared = study.evidence_rows.as_deref();
     let provenance = declared.and_then(|rows| rows.provenance.as_ref());
     let resolved = declared.and_then(|rows| rows.units.as_ref());

@@ -17,8 +17,6 @@ pub use antecedent_data::LaggedColumn;
 pub use antecedent_data::OwnedColumnarStorage;
 /// Row accounting for declared missing-data handling.
 pub use antecedent_data::RowAccounting;
-/// The table a projected or row-selected table's rows were taken from.
-pub use antecedent_data::RowOrigin;
 /// `TableView` trait — public causal table API (ADR 0004).
 pub use antecedent_data::TableView;
 /// Pooled multi-environment lagged frames with space/time dummies (J-PCMCI+).

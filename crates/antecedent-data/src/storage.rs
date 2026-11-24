@@ -170,18 +170,6 @@ impl OwnedColumnarStorage {
         })
     }
 
-    /// Digest of the typed column contents and validity alone, without the analysis mask or
-    /// the weights: the identity of the observations the rows record, whatever analysis mask
-    /// or weighting is put on them. Equal to [`Self::content_digest`] for storage with neither,
-    /// so the rows of a table that carries no mask and no weights keep that identity.
-    #[must_use]
-    pub fn rows_digest(&self) -> [u8; 32] {
-        if self.analysis_mask.is_none() && self.weights.is_none() {
-            return self.content_digest();
-        }
-        crate::content_identity::storage_digest(&self.columns, self.row_count, None, None)
-    }
-
     /// Compute or reuse the content identity with the caller's admission and cancellation.
     ///
     /// # Errors

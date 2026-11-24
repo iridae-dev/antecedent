@@ -249,8 +249,8 @@ fn design_code(error: &JointPanelError) -> Option<&str> {
     }
 }
 
-const MEASURE_TAG: &str = "antecedent.preference_route.measure";
-const OPTIONS_TAG: &str = "antecedent.preference_route.evaluation_options";
+const MEASURE_TAG: &str = "antecedent.preference_route.measure.v1";
+const OPTIONS_TAG: &str = "antecedent.preference_route.evaluation_options.v1";
 
 /// The identity the executed `result` reports, checked against the plan compiled for it: the
 /// decision program the plan states is the program that ran.
@@ -322,21 +322,33 @@ fn measure_identity(measure: &PreferenceMeasure) -> String {
     writer.finish_hex()
 }
 
-/// Identity of the options of the exact and certified routes an execution read.
+/// Identity of the options of the exact and certified routes an execution read. Every field
+/// is destructured, so an option added to either route cannot be left out of the identity.
 fn options_identity(options: &PreferenceEvaluationOptions) -> String {
+    let PreferenceEvaluationOptions { exact, certified } = options;
+    let antecedent_design::preference_decision::PreferenceDecisionOptions {
+        tie_tolerance: exact_tie_tolerance,
+        vertex_cap,
+        lp,
+    } = exact;
+    let antecedent_stats::linear_program::LpOptions {
+        feasibility_tolerance,
+        optimality_tolerance,
+        max_pivots,
+    } = lp;
+    let antecedent_design::preference_certified::CertifiedOptions {
+        max_boxes,
+        min_width_fraction,
+        tie_tolerance: certified_tie_tolerance,
+    } = certified;
     let mut writer = CanonicalWriter::new(OPTIONS_TAG);
-    let exact = &options.exact;
     writer
-        .real(exact.tie_tolerance)
-        .word(exact.vertex_cap as u64)
-        .real(exact.lp.feasibility_tolerance)
-        .real(exact.lp.optimality_tolerance)
-        .word(exact.lp.max_pivots as u64);
-    let certified = &options.certified;
-    writer
-        .word(certified.max_boxes as u64)
-        .real(certified.min_width_fraction)
-        .real(certified.tie_tolerance);
+        .real(*exact_tie_tolerance)
+        .word(*vertex_cap as u64)
+        .real(*feasibility_tolerance)
+        .real(*optimality_tolerance)
+        .word(*max_pivots as u64);
+    writer.word(*max_boxes as u64).real(*min_width_fraction).real(*certified_tie_tolerance);
     writer.finish_hex()
 }
 

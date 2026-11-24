@@ -27,8 +27,8 @@ use antecedent::analysis::preference_decision::{
     AcceptedPreferences, ActionInput, ActionKind, Attribute, CrossStudyCovariance,
     DecisionCriterion, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
-    PreferencePolicy, PreferenceRouteError, PreferenceSet, SharedEvidence, StructuralPolicy,
-    UnitKey, ValueModel, compile_preference_decision_across_studies,
+    PreferencePolicy, PreferenceRouteError, PreferenceSet, RowProvenance, SharedEvidence,
+    StructuralPolicy, UnitKey, ValueModel, compile_preference_decision_across_studies,
     compile_preference_decision_with_shared_evidence, shape,
 };
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyBuilder};
@@ -208,12 +208,28 @@ fn keyed(data: &TabularData, labels: Vec<String>) -> Study {
     dose_builder(data, 2, 1).unit_key(UnitKey::canonical_labels(NAMESPACE, labels)).build().unwrap()
 }
 
-/// Rows `rows` of the shared table, with `t` and the outcome in column `outcome`.
-fn rows_of(rows: &[usize], outcome: u32) -> TabularData {
-    let picked = shared_table().select_rows(rows).unwrap();
+/// Rows `rows` of the shared table, with `t` and the outcome in column `outcome`, and the
+/// provenance of the rows taken.
+fn rows_of(rows: &[usize], outcome: u32) -> (TabularData, RowProvenance) {
+    let source = shared_table();
+    let (picked, provenance) =
+        RowProvenance::of_table(&source).unwrap().select_rows(&source, rows).unwrap();
     let (table, _) =
         picked.project(&[VariableId::from_raw(0), VariableId::from_raw(outcome)]).unwrap();
-    table
+    (table, provenance)
+}
+
+/// A study of selected rows, declaring their provenance.
+fn sourced((table, provenance): &(TabularData, RowProvenance)) -> StudyBuilder {
+    dose_builder(table, 2, 1).row_provenance(provenance.clone())
+}
+
+fn study_of(rows: &(TabularData, RowProvenance)) -> Study {
+    sourced(rows).build().unwrap()
+}
+
+fn keyed_of(rows: &(TabularData, RowProvenance), labels: Vec<String>) -> Study {
+    sourced(rows).unit_key(UnitKey::canonical_labels(NAMESPACE, labels)).build().unwrap()
 }
 
 fn distinct() -> OutcomeDependence {
@@ -268,22 +284,25 @@ fn a_mask_or_weights_do_not_make_one_tables_rows_other_observations() {
     // A reordered copy taken by a row selection is the same rows.
     let reversed: Vec<usize> = (0..200).rev().collect();
     refused_as_shared(
-        &[&study(&rows_of(&reversed, 1)), &study(&rows_of(&(0..200).collect::<Vec<_>>(), 2))],
+        &[&study_of(&rows_of(&reversed, 1)), &study_of(&rows_of(&(0..200).collect::<Vec<_>>(), 2))],
         "200 shared observations",
     );
 
     // Masked rows are not observations: a study of the first 100 rows of a table masked to
     // its last 100 shares nothing with them, and the plan says the rows are disjoint.
     let late: Vec<bool> = (0..200).map(|row| row >= 100).collect();
-    let (benefit, _) = shared_table()
-        .with_analysis_mask(ValidityBitmap::from_bools(&late))
-        .unwrap()
-        .project(&[VariableId::from_raw(0), VariableId::from_raw(1)])
+    let masked_source =
+        shared_table().with_analysis_mask(ValidityBitmap::from_bools(&late)).unwrap();
+    let (benefit, _) =
+        masked_source.project(&[VariableId::from_raw(0), VariableId::from_raw(1)]).unwrap();
+    let benefit = dose_builder(&benefit, 2, 1)
+        .row_provenance(RowProvenance::of_table(&masked_source).unwrap())
+        .build()
         .unwrap();
-    let early = rows_of(&(0..100).collect::<Vec<_>>(), 2);
+    let early = study_of(&rows_of(&(0..100).collect::<Vec<_>>(), 2));
     let ctx = ExecutionContext::for_tests(5);
     let compiled = compile_preference_decision_across_studies(
-        &[&study(&benefit), &study(&early)],
+        &[&benefit, &early],
         &contract(),
         distinct(),
         &ctx,
@@ -318,8 +337,8 @@ fn keyed_studies_of_one_table_are_judged_by_their_units() {
     let patients = |rows: &[usize]| -> Vec<String> {
         rows.iter().map(|row| format!("text:p{}", row / 2)).collect()
     };
-    let visit_one = keyed(&rows_of(&first, 1), patients(&first));
-    let visit_two = keyed(&rows_of(&second, 2), patients(&second));
+    let visit_one = keyed_of(&rows_of(&first, 1), patients(&first));
+    let visit_two = keyed_of(&rows_of(&second, 2), patients(&second));
     let refused = compile_preference_decision_across_studies(
         &[&visit_one, &visit_two],
         &contract(),
@@ -357,9 +376,9 @@ fn three_studies_of_one_table_need_only_the_blocks_of_the_pairs_that_share() {
     let all: Vec<usize> = (0..200).collect();
     let labels =
         |rows: &[usize]| -> Vec<String> { rows.iter().map(|row| format!("text:p{row}")).collect() };
-    let a = keyed(&rows_of(&low, 1), labels(&low));
-    let c = keyed(&rows_of(&high, 3), labels(&high));
-    for b in [keyed(&rows_of(&all, 2), labels(&all)), study(&rows_of(&all, 2))] {
+    let a = keyed_of(&rows_of(&low, 1), labels(&low));
+    let c = keyed_of(&rows_of(&high, 3), labels(&high));
+    for b in [keyed_of(&rows_of(&all, 2), labels(&all)), study_of(&rows_of(&all, 2))] {
         let compiled = compile_preference_decision_with_shared_evidence(
             &[&a, &b, &c],
             &costed_contract(),

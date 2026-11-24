@@ -270,6 +270,12 @@ pub enum AcceptedPreferencesError {
     /// The version cannot be increased further.
     #[error("the version cannot be increased further")]
     VersionExhausted,
+    /// A part of the accepted preferences that their identity binds could not be encoded.
+    #[error("the accepted preferences could not be encoded: {message}")]
+    Unencoded {
+        /// The encoder's message.
+        message: String,
+    },
 }
 
 impl AcceptedPreferencesError {
@@ -305,6 +311,7 @@ impl AcceptedPreferencesError {
             Self::NotPending { .. } => reason_details::accepted_preferences::NOT_PENDING,
             Self::VersionInvalid { .. } => reason_details::accepted_preferences::VERSION_INVALID,
             Self::VersionExhausted => reason_details::accepted_preferences::VERSION_EXHAUSTED,
+            Self::Unencoded { .. } => reason_details::preference_artifact::ENCODE_FAILED,
         }
     }
 }
@@ -318,14 +325,14 @@ impl AcceptedPreferences {
     /// An invalid model.
     pub fn declared(model: ValueModel) -> Result<Self, AcceptedPreferencesError> {
         let declared_identity = model.identity().map_err(E::Model)?;
-        Ok(Self::build(
+        Self::build(
             model,
             declared_identity,
             PreferenceBasis::Declared,
             Learning::none(),
             1,
             Vec::new(),
-        ))
+        )
     }
 
     /// Accept a compatible set learned from `model` and `records` with `options`. Version 1.
@@ -464,7 +471,7 @@ impl AcceptedPreferences {
         let learning = Learning { options: learning, stated_comparisons };
         let all = review_items(&declared, &basis, stated_comparisons);
         let acknowledged = canonical_acknowledged(&all, &[], acknowledged)?;
-        Ok(Self::build(declared, declared_identity, basis, learning, version, acknowledged))
+        Self::build(declared, declared_identity, basis, learning, version, acknowledged)
     }
 
     fn build(
@@ -474,7 +481,7 @@ impl AcceptedPreferences {
         learning: Learning,
         version: u32,
         acknowledged: Vec<PendingReview>,
-    ) -> Self {
+    ) -> Result<Self, AcceptedPreferencesError> {
         let model = match &basis {
             PreferenceBasis::CompatibleSet(learned) => {
                 ValueModel { preferences: learned.set.clone(), ..declared.clone() }
@@ -488,8 +495,9 @@ impl AcceptedPreferences {
             learning.stated_comparisons,
             version,
             &acknowledged,
-        );
-        Self {
+        )
+        .map_err(|error| E::Unencoded { message: error.to_string() })?;
+        Ok(Self {
             declared,
             declared_identity,
             model,
@@ -499,7 +507,7 @@ impl AcceptedPreferences {
             version,
             acknowledged,
             identity,
-        }
+        })
     }
 
     fn retained_learning(&self) -> Learning {
@@ -603,14 +611,14 @@ impl AcceptedPreferences {
         let all = review_items(&self.declared, &self.basis, self.stated_comparisons);
         let acknowledged = canonical_acknowledged(&all, &self.acknowledged, items)?;
         let version = self.version.checked_add(1).ok_or(E::VersionExhausted)?;
-        Ok(Self::build(
+        Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             self.basis.clone(),
             self.retained_learning(),
             version,
             acknowledged,
-        ))
+        )
     }
 
     /// Relearn the compatible set from the declared model and `records`: a new handle with the
@@ -655,14 +663,14 @@ impl AcceptedPreferences {
             options: Some(LearningOptions::CompatibleSet(options)),
             stated_comparisons: stated_in_scope(records, decider),
         };
-        Ok(Self::build(
+        Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             PreferenceBasis::CompatibleSet(Box::new(learned)),
             learning,
             version,
             Vec::new(),
-        ))
+        )
     }
 
     /// Re-estimate from the declared model and `records`: a new handle with the version
@@ -707,14 +715,14 @@ impl AcceptedPreferences {
             options: Some(LearningOptions::ChoiceEstimate(options)),
             stated_comparisons: stated_in_scope(records, decider),
         };
-        Ok(Self::build(
+        Self::build(
             self.declared.clone(),
             self.declared_identity.clone(),
             PreferenceBasis::ChoiceEstimate(Box::new(estimate)),
             learning,
             version,
             Vec::new(),
-        ))
+        )
     }
 
     /// Assumptions the accepted preferences stand on, sorted and distinct: the parameter
@@ -1271,6 +1279,11 @@ impl AcceptedPreferencesError {
                 .build(),
             Self::VersionExhausted => {
                 invalid("accept the preferences anew instead of revising them").build()
+            }
+            Self::Unencoded { message } => {
+                refusal(antecedent_core::reason_code!("invalid_argument"), ACCEPT, self.detail())
+                    .supplied(message.clone())
+                    .build()
             }
         }
     }

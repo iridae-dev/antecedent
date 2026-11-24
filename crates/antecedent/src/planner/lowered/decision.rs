@@ -591,25 +591,36 @@ impl UtilityForm {
                     .texts(&quantities[..]);
                 // The coordinates, representation and parameter ranges are bound by the
                 // quantity identities and the bound contract identity; a declared joint law
-                // is not, so it is written when present.
-                if let Some(joint) = &facts.joint_law {
-                    writer
-                        .text("joint_law")
-                        .text(&joint.declaration)
-                        .bytes(joint.program.as_bytes());
+                // is not, so it is written after a presence word.
+                match &facts.joint_law {
+                    Some(joint) => {
+                        writer
+                            .word(1)
+                            .text("joint_law")
+                            .text(&joint.declaration)
+                            .bytes(joint.program.as_bytes());
+                    }
+                    None => {
+                        writer.word(0);
+                    }
                 }
                 // The resampling law of a design changes the law the decision reads, and the
                 // design program's identity excludes the inference executed on it, so it is
-                // written when present.
-                if let Some(law) = &facts.design_law {
-                    writer
-                        .text("design_law")
-                        .text(&law.kind)
-                        .text(&law.unit)
-                        .word(law.replicates as u64)
-                        .word(law.seed)
-                        .word(u64::from(law.sampling.is_some()))
-                        .text(law.sampling.as_deref().unwrap_or(""));
+                // written after a presence word.
+                match &facts.design_law {
+                    Some(law) => {
+                        writer
+                            .word(1)
+                            .text("design_law")
+                            .text(&law.kind)
+                            .text(&law.unit)
+                            .word(law.replicates as u64)
+                            .word(law.seed)
+                            .opt_text(law.sampling.as_deref());
+                    }
+                    None => {
+                        writer.word(0);
+                    }
                 }
             }
         }

@@ -5,12 +5,13 @@
 //! whose observations are the rows its analysis reads (masked rows excluded), identified by the
 //! identity of the table the rows came from and the row's index in that table
 //! ([`ObservationId::from_key`]). A study's table is its own source unless it was taken from a
-//! larger one: a column projection declares its [`RowProvenance`] (the source table's identity
-//! and, when the rows were selected, their original indices), so two studies that read
-//! different columns of the same rows share those rows. A table made by
-//! [`TabularData::project`] or [`TabularData::select_rows`] remembers that origin itself, and a
-//! study built on it uses it unless another is declared. The identity binds the table's columns
-//! and rows ([`antecedent_data::OwnedColumnarStorage::rows_digest`]), not its analysis mask, its
+//! larger one: a study of a column projection or a row selection declares its
+//! [`RowProvenance`] (the source table's identity and, when the rows were selected, their
+//! original indices), so two studies that read different columns of the same rows share those
+//! rows. The provenance is carried beside the table, never in it: [`RowProvenance::of_table`]
+//! names every row of a source table, a column projection keeps its source's provenance, and
+//! [`RowProvenance::select_rows`] takes rows of a table together with their provenance. The
+//! identity binds the table's columns and rows ([`rows_digest`]), not its analysis mask, its
 //! weights, its schema roles or the analysis compiled over it, so two studies of one table share
 //! every row both analyse whatever outcome, mask or weighting each reads.
 //!
@@ -46,7 +47,7 @@ use antecedent_contract::evidence_ledger::{
 };
 use antecedent_core::reason_details::{decision_evidence, preference_compile};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest, VariableId};
-use antecedent_data::{OwnedColumn, RowOrigin, TableView, TabularData};
+use antecedent_data::{DataError, OwnedColumn, TableView, TabularData};
 
 use super::outcomes::OutcomeDependence;
 use super::{BoundStudy, CANCELLED_STAGE, PreferenceRouteError, STAGE_COMPILE};
@@ -54,13 +55,13 @@ use crate::CausalError;
 use crate::analysis::builder::DataInput;
 
 /// Domain of the observation identities a study's rows carry in the ledger.
-const ROW_DOMAIN: &str = "antecedent.preference_route.study_rows";
+const ROW_DOMAIN: &str = "antecedent.preference_route.study_rows.v1";
 /// Domain of the observation identities a study's unit identifiers carry in the ledger.
-const UNIT_DOMAIN: &str = "antecedent.preference_route.study_units";
+const UNIT_DOMAIN: &str = "antecedent.preference_route.study_units.v1";
 /// Tag of the digest naming a set of unit identifiers in a chain factor.
-const UNIT_FACTOR_TAG: &str = "antecedent.preference_route.unit_factor";
+const UNIT_FACTOR_TAG: &str = "antecedent.preference_route.unit_factor.v1";
 /// Tag of the digest naming a set of rows of one source table in a chain factor.
-const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor";
+const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor.v1";
 /// Longest namespace or unit label, in bytes.
 const MAX_UNIT_TEXT_BYTES: usize = 4096;
 
@@ -108,14 +109,32 @@ pub struct SharedEvidence {
 // Declarations on a study
 // ---------------------------------------------------------------------------------------------
 
+/// The identity of the observations a table's rows record: the digest of its typed columns and
+/// their validity, without its analysis mask or weights. It equals the table's content digest
+/// when the table carries neither, and the content digest of the same columns with neither
+/// otherwise, so the same rows under another mask or weighting are the same observations.
+///
+/// # Errors
+/// A failure to rebuild the columns without the mask and weights.
+pub(crate) fn rows_digest(data: &TabularData) -> Result<[u8; 32], CausalError> {
+    let storage = data.storage();
+    if storage.analysis_mask().is_none() && storage.weights().is_none() {
+        return Ok(storage.content_digest());
+    }
+    let rows = storage.derive(storage.schema().clone(), storage.columns().to_vec(), None, None)?;
+    Ok(rows.content_digest())
+}
+
 /// Where the rows of a study's table came from: the table it was taken from and, when rows
 /// were selected, each row's index in that table.
 ///
 /// A study built on a column projection of a larger table declares the larger table here, so
 /// its rows are the same observations as the rows of any other projection of that table. The
-/// identity is compared as declared text; [`Self::of_table`] uses the identity of a table's
-/// rows ([`antecedent_data::OwnedColumnarStorage::rows_digest`]: its columns and validity,
-/// without a mask or weights), the same identity a study of that table carries itself.
+/// provenance is carried beside the table, never in it: a column projection keeps every row in
+/// order, so it keeps its source's provenance, and [`Self::select_rows`] takes rows of a table
+/// with the provenance of the rows taken. The identity is compared as declared text;
+/// [`Self::of_table`] uses the identity of a table's rows (its columns and validity, without a
+/// mask or weights), the same identity a study of that table carries itself.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RowProvenance {
     table: Arc<str>,
@@ -123,31 +142,16 @@ pub struct RowProvenance {
 }
 
 impl RowProvenance {
-    /// Rows taken, in order and all of them, from `source`: a column projection of it. When
-    /// `source` was itself derived from another table, its origin is followed, so the rows
-    /// are named in the first table that was not derived.
-    #[must_use]
-    pub fn of_table(source: &TabularData) -> Self {
-        source.row_origin().map_or_else(
-            || Self {
-                table: Arc::from(
-                    SemanticDigest::from_bytes(source.storage().rows_digest()).to_hex(),
-                ),
-                rows: None,
-            },
-            Self::of_origin,
-        )
-    }
-
-    /// The rows a projected or row-selected table remembers it was taken from
-    /// ([`TabularData::row_origin`]). A study built on such a table uses this provenance
-    /// unless another is declared.
-    #[must_use]
-    pub fn of_origin(origin: &RowOrigin) -> Self {
-        Self {
-            table: Arc::from(SemanticDigest::from_bytes(origin.table()).to_hex()),
-            rows: origin.rows().map(Arc::from),
-        }
+    /// Every row of `source`, in order: the provenance of `source` itself and of any column
+    /// projection of it.
+    ///
+    /// # Errors
+    /// A failure to digest the rows of `source`.
+    pub fn of_table(source: &TabularData) -> Result<Self, CausalError> {
+        Ok(Self {
+            table: Arc::from(SemanticDigest::from_bytes(rows_digest(source)?).to_hex()),
+            rows: None,
+        })
     }
 
     /// Rows taken from the table whose content identity is `table`: with `rows`, the index in
@@ -167,6 +171,69 @@ impl RowProvenance {
     #[must_use]
     pub fn rows(&self) -> Option<&[u64]> {
         self.rows.as_deref()
+    }
+
+    /// The rows `rows` of `table`, whose rows this provenance describes, in that order (a row
+    /// may repeat), with every column, the analysis mask and the weights gathered through
+    /// them, and the provenance of the rows taken: their indices in the source table, composed
+    /// through this provenance's own indices when it has them. The declared unit key of
+    /// `table` is dropped.
+    ///
+    /// # Errors
+    /// An empty selection; a row index past the table; a provenance whose row indices do not
+    /// give one per row of `table`; gathered weights that are not a valid weighting.
+    pub fn select_rows(
+        &self,
+        table: &TabularData,
+        rows: &[usize],
+    ) -> Result<(TabularData, Self), CausalError> {
+        if rows.is_empty() {
+            return Err(
+                DataError::EmptySelection { context: "row selection: no rows requested" }.into()
+            );
+        }
+        let storage = table.storage();
+        if rows.iter().any(|&row| row >= storage.row_count()) {
+            return Err(DataError::InvalidValue {
+                what: "row selection",
+                requirement: "exceeds the table",
+            }
+            .into());
+        }
+        let indices = match &self.rows {
+            None => rows
+                .iter()
+                .map(|&row| {
+                    u64::try_from(row).map_err(|_| DataError::Overflow { what: "row index" })
+                })
+                .collect::<Result<Vec<u64>, DataError>>()?,
+            Some(parent) => {
+                if parent.len() != storage.row_count() {
+                    return Err(declaration_error(format!(
+                        "row provenance gives {} source indices for a table of {} rows",
+                        parent.len(),
+                        storage.row_count()
+                    )));
+                }
+                rows.iter().map(|&row| parent[row]).collect()
+            }
+        };
+        let columns = (0..storage.columns().len())
+            .map(|index| {
+                let id = VariableId::from_raw(
+                    u32::try_from(index)
+                        .map_err(|_| DataError::Overflow { what: "column index" })?,
+                );
+                storage.column(id)?.gather_rows(rows)
+            })
+            .collect::<Result<Vec<_>, DataError>>()?;
+        let mask = storage.analysis_mask().map(|mask| mask.gather_rows(rows)).transpose()?;
+        let weights = storage
+            .weights()
+            .map(|weights| rows.iter().map(|&row| weights[row]).collect::<Arc<[f64]>>());
+        let derived = storage.derive(storage.schema().clone(), columns, mask, weights)?;
+        let provenance = Self { table: Arc::clone(&self.table), rows: Some(Arc::from(indices)) };
+        Ok((TabularData::new(derived), provenance))
     }
 }
 
@@ -334,12 +401,6 @@ impl EvidenceRows {
         provenance: Option<RowProvenance>,
         data: &DataInput,
     ) -> Result<Option<Self>, CausalError> {
-        // A projected or row-selected table remembers the table its rows came from; it is the
-        // provenance unless the caller declared another.
-        let provenance = provenance.or_else(|| match data {
-            DataInput::Tabular(table) => table.row_origin().map(RowProvenance::of_origin),
-            _ => None,
-        });
         if unit_key.is_none() && provenance.is_none() {
             return Ok(None);
         }

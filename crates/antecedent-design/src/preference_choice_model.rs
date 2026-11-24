@@ -1633,11 +1633,12 @@ impl Context<'_> {
             .collect()
     }
 
-    /// [`Self::identity`] followed by the shape search controls.
+    /// The fields of [`Self::identity`] followed by the shape search controls, under the shape
+    /// fit's own domain tag, so a shape fit and a linear fit never share an identity.
     fn shape_identity(&self, decider: Option<&str>, kind: CovarianceKind) -> String {
         let options = &self.options;
         let search = options.shape_search;
-        let mut out = CanonicalWriter::new("antecedent.choice_model_estimate.v1");
+        let mut out = CanonicalWriter::new("antecedent.choice_model_shape_estimate.v1");
         out.text(&self.model_identity).text(&self.records_digest);
         match decider {
             Some(decider) => out.word(1).text(decider),

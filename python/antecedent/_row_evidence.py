@@ -15,10 +15,8 @@ identifiers belong to; two studies keyed in one space are judged by the subjects
 
 from __future__ import annotations
 
-import hashlib
 import math
 import struct
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,8 +25,6 @@ import numpy as np
 from ._data import read_columns, table_column_names
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
-#: Personalisation of the table identity digest (at most 16 bytes).
-_IDENTITY_PERSON = b"antecedent.rows"
 _INT64_MIN, _INT64_MAX = -(2**63), 2**63 - 1
 
 
@@ -99,28 +95,14 @@ def _label(value: Any, column: str) -> str:
     )
 
 
-def _update_text(digest: Any, text: str) -> None:
-    encoded = text.encode("utf-8")
-    digest.update(len(encoded).to_bytes(8, "little"))
-    digest.update(encoded)
-
-
-def _cell_text(value: Any) -> str:
-    if value is None:
-        return "none"
-    return f"{type(value).__name__}:{value!r}"
-
-
-def table_identity(data: Any, names: Sequence[str]) -> str:
+def table_identity(data: Any) -> str:
     """The content identity of the whole table ``data``.
 
-    It is the identity the engine gives a study of that table (the stored content digest of
-    every column as ingested), so a study of a column projection and a study of the whole table
-    name the same table. A table the engine cannot ingest whole (a column of a type no analysis
-    reads) cannot be a study's table; its identity is then a digest of every column's name,
-    type and values, in order. Neither fails on a column the analysis never reads: such a
-    column is digested as it is, so preparing an analysis of the other columns never depends
-    on it.
+    It is the identity the engine gives a study of that table (the rows digest of every column
+    as ingested), computed by the engine, so a study of a column projection and a study of the
+    whole table name the same table. A table the engine cannot ingest whole (a column that is
+    not one value per row, or of a type no table column takes) has no such identity and is
+    refused: its rows are never identified by another scheme.
     """
     from ._data import ingest_columns
     from ._native import table_content_identity
@@ -128,57 +110,13 @@ def table_identity(data: Any, names: Sequence[str]) -> str:
     try:
         ingested, arrays = ingest_columns(data)
         return table_content_identity(list(ingested), list(arrays))
-    except Exception:  # noqa: BLE001 - any column the engine cannot ingest is digested as it is
-        return _column_digest(data, names)
-
-
-def _digest_array(digest: Any, array: np.ndarray) -> None:
-    _update_text(digest, array.dtype.str)
-    if array.ndim == 1:
-        digest.update(len(array).to_bytes(8, "little"))
-    else:
-        # A column that is not one value per row: its shape is part of its content.
-        _update_text(digest, f"shape:{array.shape}")
-    if array.dtype.kind in "biufcmM":
-        digest.update(np.ascontiguousarray(array).tobytes())
-    else:
-        for value in array.ravel().tolist():
-            _update_text(digest, _cell_text(value))
-
-
-def _unread_column(data: Any, name: str) -> Any:
-    """A column ``read_columns`` refuses (not one value per row, or another row count), as
-    the table holds it."""
-    if isinstance(data, Mapping):
-        return next((data[key] for key in data if str(key) == name), None)
-    return None
-
-
-def _column_digest(data: Any, names: Sequence[str]) -> str:
-    """A digest of every column's name, type and values, in order."""
-    from .errors import CausalError
-
-    digest = hashlib.blake2b(digest_size=32, person=_IDENTITY_PERSON)
-    digest.update(len(names).to_bytes(8, "little"))
-    for name in names:
-        _update_text(digest, str(name))
-        try:
-            column = read_columns(data, [name], what="row provenance")[name]
-        except (CausalError, TypeError, ValueError):
-            raw = _unread_column(data, name)
-            _update_text(digest, "unread")
-            for dtype in (None, object):
-                try:
-                    array = np.asarray(raw, dtype=dtype)
-                except (TypeError, ValueError):
-                    continue
-                _digest_array(digest, array)
-                break
-            else:
-                _update_text(digest, _cell_text(raw))
-            continue
-        _digest_array(digest, np.asarray(column))
-    return digest.hexdigest()
+    except Exception as error:  # noqa: BLE001 - every ingestion failure is refused, never digested
+        raise CausalValueError(
+            "the rows of a static response study are identified by the content of the whole "
+            f"table they were taken from, and the engine cannot read this table whole ({error}); "
+            "drop or convert the columns it cannot read before preparing",
+            reason_code="invalid_argument",
+        ) from error
 
 
 class RowSource:
@@ -226,7 +164,7 @@ class RowSource:
             labels = tuple(_label(value, unit_key.column) for value in np.asarray(raw).tolist())
         identity = None
         if provenance and names is not None:
-            identity = table_identity(data, names)
+            identity = table_identity(data)
         return cls(names, identity, unit_key, labels)
 
     def native_options(self, *, applies: bool, route: str) -> dict[str, Any]:

@@ -873,14 +873,14 @@ impl ValueModel {
         }
         self.value.encode(&mut out);
         out.text(&self.utility_units);
-        if !self.preferences.value_relations.is_empty() {
-            let mut value_relations: Vec<[u8; 32]> =
-                self.preferences.value_relations.iter().map(encode_value_relation).collect();
-            value_relations.sort_unstable();
-            out.word(value_relations.len() as u64);
-            for relation in &value_relations {
-                out.bytes(relation);
-            }
+        // The value relations are always written, count first, so a model without them is
+        // never read as one whose trailing field was left out.
+        let mut value_relations: Vec<[u8; 32]> =
+            self.preferences.value_relations.iter().map(encode_value_relation).collect();
+        value_relations.sort_unstable();
+        out.word(value_relations.len() as u64);
+        for relation in &value_relations {
+            out.bytes(relation);
         }
         Ok(out.finish_hex())
     }

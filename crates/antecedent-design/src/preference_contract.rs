@@ -237,8 +237,10 @@ impl PreferenceContract {
     }
 
     /// Canonical BLAKE3 identity as lowercase hex, over the model identity, the actions and
-    /// their inputs, the constraints, the criterion, scope and both policies. Independent of
-    /// the order actions and constraints are declared in.
+    /// their inputs, the constraints, the criterion, scope and both policies. The actions and
+    /// constraints are written as sorted digests, then their ids in declaration order: results
+    /// are reported in action order, so contracts that declare the same actions in another
+    /// order have different identities.
     ///
     /// # Errors
     /// An invalid contract has no identity.
@@ -260,6 +262,10 @@ impl PreferenceContract {
                 out.bytes(item);
             }
         }
+        let action_ids: Vec<&str> = self.actions.iter().map(|action| action.id.as_str()).collect();
+        let constraint_ids: Vec<&str> =
+            self.constraints.iter().map(|constraint| constraint.id.as_str()).collect();
+        out.texts(&action_ids).texts(&constraint_ids);
         Ok(out.finish_hex())
     }
 

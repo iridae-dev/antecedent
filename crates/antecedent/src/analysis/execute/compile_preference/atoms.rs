@@ -70,8 +70,8 @@ use crate::result::StructuralWeightBasis;
 use crate::support::StructureSource;
 use crate::{CausalError, Study};
 
-const MEMBER_KEY_TAG: &str = "antecedent.preference_route.class_member_key";
-const CLASS_KEY_TAG: &str = "antecedent.preference_route.class_key";
+const MEMBER_KEY_TAG: &str = "antecedent.preference_route.class_member_key.v1";
+const CLASS_KEY_TAG: &str = "antecedent.preference_route.class_key.v1";
 
 /// Operations a class sample may charge: four times the enumeration budget, since every
 /// accepted PAG member is audited against a full m-separation model.

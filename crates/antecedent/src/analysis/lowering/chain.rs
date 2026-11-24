@@ -54,7 +54,7 @@ const CHAIN_DESIGN_SHAPE: &str = "a propagation chain combines declared sources;
 
 const QUERY_TAG: &str = "antecedent.propagation_chain.lowered_query";
 const SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_source";
-const DEFERRED_SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_deferred_source";
+const DEFERRED_SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_deferred_source.v1";
 
 fn refuse(reason: impl std::fmt::Display) -> ChainRefusal {
     ChainRefusal::new(
