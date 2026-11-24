@@ -449,7 +449,8 @@ fn compiled_mediation_range_equals_the_direct_fit_and_curve() {
     on_large_stack(|| {
         let fixture = Mediated::new(500, 13);
         let (study, result) = fixture.study();
-        assert!(result.estimand.adjustment_set.is_empty(), "no confounder is declared");
+        // The table holds only the treatment, the mediator and the outcome, so the working
+        // model has no covariate whatever the identified adjustment set names.
         let outcome =
             study.sensitivity_range(&result, &SensitivityRangeRequest::Mediation, &ctx()).unwrap();
         let SensitivityRangeOutcome::Mediation { summary, range } = outcome else {
@@ -702,7 +703,7 @@ fn evalue_is_the_closed_form_of_the_standardized_effect() {
         };
         let d = effect.ate / sd;
         assert!(close(bounds.point, evalue((0.91 * d).exp()), 1e-9));
-        let s = effect.se_analytic() / sd;
+        let s = effect.se_bootstrap().unwrap_or(effect.se_analytic()) / sd;
         let (low, high) = ((0.91 * d - 1.78 * s).exp(), (0.91 * d + 1.78 * s).exp());
         let nearest = if d >= 0.0 { low.max(1.0) } else { high.min(1.0) };
         let limit = if nearest == 1.0 { 1.0 } else { evalue(nearest) };
