@@ -16,9 +16,9 @@ of the roadmap's operation records:
                     cannot check it (`unchecked`); `tests` name the cases that remove it
     transformation  the formula, estimation step or computation
     justification   generated: every check of every assurance record listing the operation,
-                    by kind (`binds_item`: the check's digest binds the operation's item, so
-                    a change to it stales the check), and the identity-site checks that run
-                    on its item
+                    by kind (`binds`: whether the check's digest binds the operation's item
+                    as code it covers or as an item its specification models, so a change to
+                    it stales the check), and the identity-site checks that run on its item
     implementation  generated: how the operation is reached (public path, facade re-exports,
                     compiled-path disposition, plan route and support unit) and which
                     assurance records bind its item by digest
@@ -253,11 +253,17 @@ def _binds(record: dict, op: dict) -> bool:
     return any(_check_binds(check, op) for check in record.get("checks", []))
 
 
+def _binding(check: dict, op: dict) -> str:
+    """How a check binds the operation's item by digest: as a Rust item it covers (`code`), as a
+    production item its specification models without translating it (`model`), or not."""
+    for field, how in (("rust_items", "code"), ("model_items", "model")):
+        if any(b["file"] == op.get("file") and op.get("item") in b["items"] for b in check.get(field, [])):
+            return how
+    return "none"
+
+
 def _check_binds(check: dict, op: dict) -> bool:
-    return any(
-        binding["file"] == op.get("file") and op.get("item") in binding["items"]
-        for binding in check.get("rust_items", [])
-    )
+    return _binding(check, op) != "none"
 
 
 def justification(src: Sources, op: dict) -> list[dict]:
@@ -273,7 +279,7 @@ def justification(src: Sources, op: dict) -> list[dict]:
                 "record": record["id"],
                 "kind": check["kind"],
                 "tool": check["tool"],
-                "binds_item": _check_binds(check, op),
+                "binds": _binding(check, op),
                 "names": list(names),
             })
     for site in src.sites:
@@ -468,6 +474,9 @@ def validate(src: Sources, data: dict) -> list[str]:
         for field in expected["generated"]:
             if op.get(field) != expected[field]:
                 errors.append(f"{oid}: generated field `{field}` is stale; run python3 scripts/operation_records.py --write")
+        if not expected["implementation"]["bound_by"]:
+            errors.append(f"{oid}: no check binds its item by digest, so editing it stales nothing; "
+                          "add it to a check's rust_items or model_items")
         if op["generated"] != expected["generated"]:
             errors.append(f"{oid}: `generated` must be {expected['generated']}")
         for entry in op["justification"]:
@@ -568,6 +577,7 @@ def self_test(root: Path = REPO_ROOT) -> int:
     with_empty = index(lambda op: op.get("empty"))
     with_limitation = index(lambda op: op["limitations"])
     bound = index(lambda op: any(_binds(r, op) for r in src.assurance["records"]))
+    modeled = index(lambda op: any(_binding(c, op) == "model" for r in src.assurance["records"] for c in r["checks"]))
     # Two operations in one file, and two methods of one name on different types.
     sibling = index(lambda op: any(o is not op and o["file"] == op["file"] and "impl:" not in o["item"]
                                    and "impl:" not in op["item"] for o in ops))
@@ -597,6 +607,16 @@ def self_test(root: Path = REPO_ROOT) -> int:
 
     def stale(op):
         op["justification"] = op["justification"][1:]
+
+    def unbind(target: dict) -> Sources:
+        assurance = copy.deepcopy(src.assurance)
+        for record in assurance["records"]:
+            for check in record["checks"]:
+                for field in ("rust_items", "model_items"):
+                    for b in check.get(field, []):
+                        if b["file"] == target["file"]:
+                            b["items"] = [i for i in b["items"] if i != target["item"]]
+        return Sources(root, assurance)
 
     def unlist(target: dict, only_binding: bool) -> Sources:
         assurance = copy.deepcopy(src.assurance)
@@ -637,6 +657,8 @@ def self_test(root: Path = REPO_ROOT) -> int:
          "no assurance record lists it"),
         ("an assurance record binding an item it does not list", unlist(ops[bound], True), data,
          "binds its item but does not list it"),
+        ("a verified operation whose item no check binds", unbind(ops[modeled]), data,
+         "no check binds its item by digest"),
     ]
     failures = 0
     for name, case_src, d, reason in cases:

@@ -75,8 +75,10 @@ machine-readable statement of their inputs or premises anywhere.
   only by a checked rule or valid evidence, never by the existence of a record or proof.
 - Renaming or moving a verified function, or removing the refusal a premise names, fails
   the static gate until the record follows.
-- The record does not store the item's token digest; the assurance records bind it. An
-  operation whose item no check binds shows `bound_by = []`, so a change to it stales
-  nothing; that is visible rather than hidden.
+- The record does not store the item's token digest; the assurance records bind it, and
+  `check` fails for a verified operation whose item no check binds (`bound_by = []`), so
+  editing any verified operation stales an assurance record. An operation a proof only
+  models is bound through the proof check's `model_items`: the digest binds the code, and
+  the record states that the binding is to a model, not a translation (`binds = "model"`).
 - The bound artifact loader forms that `acceptance.retained_artifact` covers are described
   through `load_expecting` and `bind_retained_artifact`, not one record each.

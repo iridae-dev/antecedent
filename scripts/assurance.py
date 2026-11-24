@@ -14,6 +14,9 @@ scripts/operation_records.py), and one or more checks. Each check has one kind, 
 
 A record binds its inputs by digest: the Lean and harness files, the Rust items it covers
 (by token, so comment and whitespace edits are neutral), and the pinned toolchain. A
+`machine_checked_proof` may also name `model_items`: production items its specification
+models without translating them. They are bound by digest the same way, so editing one
+stales the record, but nothing about them is machine-checked against the code. A
 change to any of them makes the record stale until its checks run again.
 
     python3 scripts/assurance.py check            # schema, theorems, no sorry, digests current
@@ -112,17 +115,20 @@ def inputs_digest(root: Path, record: dict) -> str:
     for check in record["checks"]:
         pins += KIND_TOOLCHAIN_FILES[check["kind"]]
         parts.append(json.dumps(
-            {k: check[k] for k in sorted(check) if k not in {"files", "rust_items"}}, sort_keys=True
+            {k: check[k] for k in sorted(check) if k not in {"files", "rust_items", "model_items"}},
+            sort_keys=True,
         ))
         for rel in check_files(check):
             parts += [rel, _read(root, rel)]
-        for binding in check.get("rust_items", []):
-            parsed = rust_items.File(_read(root, binding["file"]))
-            for locator in binding["items"]:
-                digest = parsed.digest(locator, "full")
-                if digest is None:
-                    raise Problem(f"{record['id']}: no Rust item {locator} in {binding['file']}")
-                parts += [binding["file"], locator, digest]
+        for field in ("rust_items", "model_items"):
+            for binding in check.get(field, []):
+                parsed = rust_items.File(_read(root, binding["file"]))
+                for locator in binding["items"]:
+                    digest = parsed.digest(locator, "full")
+                    if digest is None:
+                        raise Problem(f"{record['id']}: no Rust item {locator} in {binding['file']}")
+                    # Rust items keep their unlabelled form, so existing digests are unchanged.
+                    parts += ([field] if field == "model_items" else []) + [binding["file"], locator, digest]
     for rel in sorted(set(pins)):
         parts += [rel, _read(root, rel)]
     return _sha(*parts)
@@ -175,6 +181,8 @@ def validate(root: Path, data: dict, toolchain: dict) -> list[str]:
                 errors.append(f"{rid}: a {kind} names the production Rust items it covers")
             if kind == "machine_checked_proof" and check.get("rust_items"):
                 errors.append(f"{rid}: a proof about a specification covers no Rust item; use verified_implementation")
+            if kind != "machine_checked_proof" and check.get("model_items"):
+                errors.append(f"{rid}: model_items bind the production items a specification models; only a machine_checked_proof has them")
             if kind == "bounded_model_check":
                 for harness in check.get("harnesses", []):
                     text = _read(root, harness["file"])

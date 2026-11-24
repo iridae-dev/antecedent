@@ -95,6 +95,7 @@ trusted = [
     "the Lean 4 kernel",
     "the identity hash is collision-free on the streams it is given (an explicit hypothesis of identity_eq_iff)",
     "write_ids and TransportIdentity::encode write the length and the sorted elements as the model states (reviewed, not machine-checked)",
+    "the proof check binds write_ids and TransportIdentity::encode as model_items: a change to them stales this record, but the binding is to the model, not a translation",
 ]
 limitations = [
     "Lists whose order the identity rules make significant (schema variables, partitions, estimands, positional priors) are outside this record.",
@@ -117,9 +118,13 @@ theorems = [
     "Antecedent.Identity.encodeTwo_inj",
     "Antecedent.Identity.identity_eq_iff",
 ]
+model_items = [
+    { file = "crates/antecedent-contract/src/evidence_ledger/operation.rs", items = ["fn:write_ids#0"] },
+    { file = "crates/antecedent-contract/src/evidence_ledger/source.rs", items = ["impl:TransportIdentity#0/fn:encode#0"] },
+]
 
 [records.result]
-inputs_digest = "78158e7dd9c15620d4bc9561d0f0416a8d50f653ec2e7226e0844f88e80c7fb5"
+inputs_digest = "1f6180dfa3845ad0e0f8639c0b7ed6399f8f96c5c23626f090a3aff330dae7f2"
 checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
 
 [[records]]
@@ -316,6 +321,7 @@ trusted = [
     "the Aeneas model of the standard-library operations the items use: enum discriminant reads, u8 comparison and boolean operations",
     "derived_departs_from_parents applies the translated rules to every parent and axis as derivationAccepted states (reviewed, not machine-checked)",
     "compose_checked_study_claims admits parents and builds its claim as checkedParentAdmitted and checkedDerived state (reviewed, not machine-checked)",
+    "the proof check binds compose_checked_study_claims as a model_item: a change to it stales this record, but the binding is to the model (checkedParentAdmitted, checkedDerived), not a translation",
 ]
 limitations = [
     "The kind order ranks refusal and incomplete below association, and association below every causal kind; it says nothing about which of two causal kinds is stronger, so a derivation between them is held to the operation's own checks.",
@@ -349,6 +355,9 @@ theorems = [
     "Antecedent.Standing.descends_le",
     "Antecedent.Standing.derivation_no_new_assertion",
     "Antecedent.Standing.checked_composer_le",
+]
+model_items = [
+    { file = "crates/antecedent/src/analysis/checked_claim_composition.rs", items = ["fn:compose_checked_study_claims#0"] },
 ]
 
 [[records.checks]]
@@ -390,7 +399,7 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "613f7daf6b55569d6aacf6ab47efd87f88707c6f476bc68e1080be805104bc95"
+inputs_digest = "650408f9a9565c5eebbdc28d2674107739616edd1e59de5f6fa2a3a8b6d38b1a"
 checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
