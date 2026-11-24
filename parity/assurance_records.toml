@@ -305,8 +305,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
-checked_commit = "0000000000000000000000000000000000000000"
+inputs_digest = "0d0006273cd72dc6fa1cc530d6b3f2b4c202394408d18df080f1e6923d2cd96c"
+checked_commit = "1fffc6c00674a29c7bd314566589538007b5c9fe"
 
 [[records]]
 id = "acceptance.retained_expected_identity"
