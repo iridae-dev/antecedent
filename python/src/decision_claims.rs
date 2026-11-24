@@ -124,19 +124,30 @@ fn claim_from(
     wire: ClaimWire,
     source: Option<&PyJointDistributionArtifact>,
 ) -> Result<SuppliedClaim, String> {
-    use antecedent::reason::reason_details::decision_adapters as details;
     let bad = |slot: &str| invalid_json(slot, Some(wire.id.clone()));
     let evidence = match (wire.status.as_str(), source) {
         ("evaluated", Some(source)) => AtomEvidence::Evaluated(Box::new(source.inner().clone())),
-        ("evaluated", None) => return Err(bad(details::EVALUATED_NEEDS_DRAWS)),
+        ("evaluated", None) => {
+            return Err(bad(
+                antecedent::reason::reason_details::decision_adapters::EVALUATED_NEEDS_DRAWS,
+            ));
+        }
         ("unidentified", _) => AtomEvidence::Unidentified,
-        ("unevaluated", _) => match wire.reason.as_deref() {
-            Some(reason) if !reason.trim().is_empty() => {
-                AtomEvidence::Unevaluated(reason.to_owned())
+        ("unevaluated", _) => {
+            match wire.reason.as_deref() {
+                Some(reason) if !reason.trim().is_empty() => {
+                    AtomEvidence::Unevaluated(reason.to_owned())
+                }
+                _ => return Err(bad(
+                    antecedent::reason::reason_details::decision_adapters::UNEVALUATED_NEEDS_REASON,
+                )),
             }
-            _ => return Err(bad(details::UNEVALUATED_NEEDS_REASON)),
-        },
-        _ => return Err(bad(details::UNKNOWN_CLAIM_STATUS)),
+        }
+        _ => {
+            return Err(bad(
+                antecedent::reason::reason_details::decision_adapters::UNKNOWN_CLAIM_STATUS,
+            ));
+        }
     };
     let probability = probability_from(wire.probability, &wire.id)?;
     Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
@@ -151,11 +162,17 @@ pub(crate) fn adapt_claims(
     sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
     subject: &str,
 ) -> Result<AdaptedClaims, String> {
-    use antecedent::reason::reason_details::decision_adapters as details;
-    let wires: Vec<ClaimWire> = serde_json::from_str(claims_json)
-        .map_err(|e| invalid_json(details::INVALID_CLAIMS, Some(e.to_string())))?;
+    let wires: Vec<ClaimWire> = serde_json::from_str(claims_json).map_err(|e| {
+        invalid_json(
+            antecedent::reason::reason_details::decision_adapters::INVALID_CLAIMS,
+            Some(e.to_string()),
+        )
+    })?;
     if wires.len() != sources.len() {
-        return Err(invalid_json(details::CLAIMS_SOURCES_MISMATCH, None));
+        return Err(invalid_json(
+            antecedent::reason::reason_details::decision_adapters::CLAIMS_SOURCES_MISMATCH,
+            None,
+        ));
     }
     // Each evaluated claim owns a copy of its draws: bound the total before cloning.
     let cloned_bytes = wires
@@ -168,7 +185,7 @@ pub(crate) fn adapt_claims(
         });
     if cloned_bytes.is_none_or(|bytes| bytes > MAX_CLAIM_DRAW_BYTES) {
         return Err(invalid_json(
-            details::CLAIM_DRAWS_TOO_LARGE,
+            antecedent::reason::reason_details::decision_adapters::CLAIM_DRAWS_TOO_LARGE,
             Some(format!("the {subject} copy more than {MAX_CLAIM_DRAW_BYTES} bytes of draws")),
         ));
     }
@@ -180,14 +197,22 @@ pub(crate) fn adapt_claims(
     match kind {
         "point" => {
             let Ok([claim]) = <[SuppliedClaim; 1]>::try_from(claims) else {
-                return Err(invalid_json(details::POINT_CLAIM_IS_SINGLE, None));
+                return Err(invalid_json(
+                    antecedent::reason::reason_details::decision_adapters::POINT_CLAIM_IS_SINGLE,
+                    None,
+                ));
             };
             adapt_point_claim(&claim.id, claim.evidence, claim.support, policy)
         }
         "graph_dependent" => adapt_graph_dependent_claims(claims, policy),
         "weighted_graph_posterior" => adapt_weighted_graph_atoms(claims, policy),
         "finite_scenarios" => adapt_finite_scenarios(claims, policy),
-        other => return Err(invalid_json(details::UNKNOWN_CLAIM_KIND, Some(other.into()))),
+        other => {
+            return Err(invalid_json(
+                antecedent::reason::reason_details::decision_adapters::UNKNOWN_CLAIM_KIND,
+                Some(other.into()),
+            ));
+        }
     }
     .map_err(|e| external_refusal_json(&e.to_refusal()))
 }
