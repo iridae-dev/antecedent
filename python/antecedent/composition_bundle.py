@@ -1520,8 +1520,9 @@ class CompiledBundleRecomputation:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -1716,8 +1717,9 @@ class SequentialReliabilityBundleReceipt(ScientificResult):
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit the compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        for a result replayed from an artifact, which retains no program.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` for a result replayed from an artifact, which retains no program.
         """
         return read_unit_support(self._native)
 

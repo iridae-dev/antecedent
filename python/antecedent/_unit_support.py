@@ -14,9 +14,10 @@ __all__ = ["read_unit_support"]
 
 
 def read_unit_support(handle: Any | None) -> dict[str, Any] | None:
-    """The unit a compiled program runs under, as ``{"unit", "supported", "missing_evidence"}``.
+    """The support decision of the unit a compiled program runs under, as a dict.
 
-    ``unit`` is the capability record id, ``supported`` whether the unit is supported and
+    The keys are ``unit``, ``status``, ``supported`` and ``missing_evidence``: ``unit`` is the
+    capability record id, ``status`` its support status, ``supported`` whether the unit is supported and
     ``missing_evidence`` the evidence an unsupported unit still lacks. ``None`` while no unit
     is bound to the program's route.
     """

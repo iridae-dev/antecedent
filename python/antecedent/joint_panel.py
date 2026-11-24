@@ -191,8 +191,9 @@ class PanelProgramCertificate:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -233,8 +234,9 @@ class RandomizedProgramSelection:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -271,8 +273,9 @@ class PreparedRandomizedProgramSelection:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -398,8 +401,9 @@ class InstrumentedProgramSelection:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -797,8 +801,9 @@ class PreparedPanel:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 

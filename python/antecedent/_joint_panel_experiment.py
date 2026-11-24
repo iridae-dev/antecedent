@@ -232,8 +232,9 @@ class PanelJointExperiment:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 
@@ -406,8 +407,9 @@ class PanelExperiment:
     def unit_support(self) -> dict[str, Any] | None:
         """The support decision of the unit this compiled program runs under.
 
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
+        ``{"unit", "status", "supported", "missing_evidence"}``, read from the program's
+
+        route; ``None`` while no unit is bound to it.
         """
         return read_unit_support(self._handle)
 

@@ -57,6 +57,7 @@ def names_route(handle, route):
     assert view["identity"] == handle.program_identity
     assert handle.unit_support() == {
         "unit": "joint_response.interval_readings",
+        "status": "supported",
         "supported": True,
         "missing_evidence": [],
     }

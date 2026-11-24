@@ -51,7 +51,6 @@ from ._cyclic_typed import _limits, _with_execution
 from ._freeze import freeze
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
-from ._unit_support import read_unit_support
 from .decision import ActionOutcome, ConstraintExclusion, Contract, Verdict
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
@@ -708,14 +707,6 @@ class CompiledCyclicDecision:
     def kind(self) -> str:
         """The feature the portable artifact declares."""
         return str(self._native.kind())
-
-    def unit_support(self) -> dict[str, Any] | None:
-        """The support decision of the unit this compiled program runs under.
-
-        ``{"unit", "supported", "missing_evidence"}``, read from the program's route; ``None``
-        while no unit is bound to it.
-        """
-        return read_unit_support(self._native)
 
     @_with_execution
     def execute(self, *, execution: Execution | None = None) -> CyclicDecisionResult:

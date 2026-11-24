@@ -137,6 +137,7 @@ def test_policy_subsampling_compiles_its_schedule_and_replays_every_refit() -> N
     assert candidate.level == 0.95
     assert candidate.unit_support() == {
         "unit": "estimate.observational_policy_value",
+        "status": "supported",
         "supported": True,
         "missing_evidence": [],
     }
@@ -211,6 +212,7 @@ def test_rollout_reliability_compiles_and_replays_the_raw_declaration() -> None:
     assert result.route == "SequentialPolicyReliability"
     assert result.unit_support() == {
         "unit": "decision_reliability.sampled_decision",
+        "status": "supported",
         "supported": True,
         "missing_evidence": [],
     }
@@ -302,6 +304,7 @@ def test_the_producer_draws_and_diagnostic_recompute_as_one_bundle() -> None:
     assert receipt.route == "SequentialPolicyReliabilityNodeBundleRecomputation"
     assert receipt.unit_support() == {
         "unit": "composition.bundle",
+        "status": "supported",
         "supported": True,
         "missing_evidence": [],
     }
