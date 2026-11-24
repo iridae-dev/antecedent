@@ -1027,3 +1027,47 @@ mod tests {
         assert_eq!(E::UnsupportedSemantics("status").slot(), "status");
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{multiset_laws, set_laws};
+    use antecedent_core::{RegimeId, Value};
+    use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
+
+    fn law(population: &str) -> ExactDiscreteLaw {
+        ExactDiscreteLaw::try_new(
+            population,
+            RegimeId::from_raw(0),
+            [],
+            [DiscreteAxis {
+                variable: VariableId::from_raw(0),
+                values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+            }],
+            [0.25, 0.75],
+            "snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap()
+    }
+
+    /// Site `io_core.counterfactual_transport_wire.canonical_laws`: the laws are a set keyed
+    /// by their binding (a repeated binding is refused when the data is built).
+    #[test]
+    fn site_canonical_laws_are_a_set() {
+        let laws = [law("a"), law("b"), law("c")];
+        set_laws(&laws, |items| {
+            let data = ExactTransportData::try_new(items.to_vec(), 16).ok()?;
+            let wires = canonical_laws(&data).ok()?;
+            crate::to_cbor(&wires).ok()
+        });
+    }
+
+    /// Site `io_core.counterfactual_transport_wire.sorted_cbor`: an order-independent view
+    /// that keeps repeats (catalog validation refuses repeated environments, regimes and
+    /// bindings before the data digest is formed).
+    #[test]
+    fn site_sorted_cbor_is_a_multiset() {
+        multiset_laws(&[3u32, 1, 2], |items| sorted_cbor(items).ok());
+    }
+}

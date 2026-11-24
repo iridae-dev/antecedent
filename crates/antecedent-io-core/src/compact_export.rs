@@ -1193,3 +1193,85 @@ mod psd_tests {
         assert!(first_negative_pivot(&[2.0, 0.0, 0.0, 0.5], 2).is_none());
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+
+    fn quantity(id: &str, role: &str, units: &str) -> ScientificQuantityWire {
+        ScientificQuantityWire {
+            version: 1,
+            variable_id: id.into(),
+            variable_name: id.into(),
+            role: role.into(),
+            units: units.into(),
+            population_id: "target".into(),
+            regime_id: "observed".into(),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn dose() -> ExportInput {
+        ExportInput {
+            quantity: quantity("x", "treatment", "mg"),
+            support: InputSupport::Range { lo: 0.0, hi: 10.0 },
+        }
+    }
+
+    fn group(levels: &[&str]) -> ExportInput {
+        ExportInput {
+            quantity: quantity("g", "covariate", "category"),
+            support: InputSupport::Levels {
+                levels: levels.iter().map(|level| (*level).to_owned()).collect(),
+            },
+        }
+    }
+
+    /// A spec over `(term, coefficient, variance)` with a diagonal covariance, so each term
+    /// carries its own row and column through any permutation.
+    fn spec(terms: &[(TermSpec, f64, f64)], inputs: Vec<ExportInput>) -> ExportSpec {
+        let n = terms.len();
+        let mut covariance = vec![0.0; n * n];
+        for (index, term) in terms.iter().enumerate() {
+            covariance[index * n + index] = term.2;
+        }
+        ExportSpec {
+            response: quantity("y", "outcome", "mmHg"),
+            inputs,
+            terms: terms.iter().map(|term| term.0.clone()).collect(),
+            coefficients: terms.iter().map(|term| term.1).collect(),
+            covariance,
+            mask: vec![],
+        }
+    }
+
+    fn identity(spec: ExportSpec) -> Option<String> {
+        CompactExport::build(spec).ok().map(|export| export.body().identity.clone())
+    }
+
+    /// Site `io_core.compact_export.CompactExport.build`: terms (with their coefficients and
+    /// covariance rows), inputs and categorical levels are sets; a repeated term, input or
+    /// level is refused.
+    #[test]
+    fn site_compact_export_terms_inputs_and_levels_are_sets() {
+        let terms = [
+            (TermSpec::Intercept, 1.0, 0.04),
+            (TermSpec::Linear { quantity: "x".into() }, 2.0, 0.01),
+            (TermSpec::Power { quantity: "x".into(), degree: 2 }, -0.5, 0.0004),
+        ];
+        set_laws(&terms, |items| identity(spec(items, vec![dose()])));
+        let with_group = [
+            (TermSpec::Intercept, 1.0, 0.04),
+            (TermSpec::Linear { quantity: "x".into() }, 2.0, 0.01),
+            (TermSpec::OneHot { quantity: "g".into(), level: "b".into() }, 0.5, 0.09),
+        ];
+        set_laws(&[dose(), group(&["a", "b", "c"])], |items| {
+            identity(spec(&with_group, items.to_vec()))
+        });
+        set_laws(&["a", "b", "c"], |items| identity(spec(&with_group, vec![dose(), group(items)])));
+    }
+}

@@ -373,11 +373,16 @@ pub struct CovariateShiftDeclaration {
 
 impl CovariateShiftDeclaration {
     /// Declare an invariance of the conditional contrast across two populations.
+    ///
+    /// The modifiers are a set: listing one twice declares the same invariance, so it is
+    /// written once (an issued source never carried a repeat: resolving the shift against the
+    /// model's distinct features refused it).
     #[must_use]
     pub fn new(source_population: &str, target_population: &str, modifiers: &[&str]) -> Self {
         let mut invariant_modifiers: Vec<String> =
             modifiers.iter().map(|m| (*m).to_owned()).collect();
         invariant_modifiers.sort();
+        invariant_modifiers.dedup();
         Self {
             source_population: source_population.to_owned(),
             target_population: target_population.to_owned(),
@@ -757,3 +762,17 @@ impl CohortDecisionSource {
 // ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+
+    /// Site `io_core.cohort_decision.CovariateShiftDeclaration.new`: the declared invariant
+    /// modifiers are a set (canonical form v2 writes a repeat once).
+    #[test]
+    fn site_covariate_shift_modifiers_are_a_set() {
+        crate::identity_site_laws::set_laws(&["age", "bmi", "sex"], |items| {
+            crate::to_cbor(&CovariateShiftDeclaration::new("source", "target", items)).ok()
+        });
+    }
+}

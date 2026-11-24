@@ -455,8 +455,46 @@ impl ObservationQueryWire {
     /// This query with every assignment list in canonical (variable, level)
     /// order, so two declarations that differ only in listing order have one
     /// wire form and one identity. Results do not depend on the order.
+    ///
+    /// Assignment lists are sets (canonical form v2): an exact repeat of a
+    /// `(variable, level)` pair is the same assignment and is written once. The
+    /// evaluator refuses one variable assigned twice, so no sealed artifact
+    /// carried a repeat and no stored identity changes.
     #[must_use]
     pub fn canonical(mut self) -> Self {
+        self = self.canonical_order();
+        match &mut self {
+            Self::ConditionalOutcome { observed, .. } => observed.dedup(),
+            Self::InterventionalOutcome { interventions, .. } => interventions.dedup(),
+            Self::ConditioningVersusIntervention { assignment, .. } => assignment.dedup(),
+            Self::ThresholdCrossing { background, .. } => background.dedup(),
+            Self::GaussianOutcome { interventions, observed, .. } => {
+                interventions.dedup();
+                observed.dedup();
+            }
+            Self::ConditionalInterventionalOutcome { interventions, observed, .. }
+            | Self::JointMeasuredOutcome { interventions, observed, .. }
+            | Self::DependentMeasuredOutcome { interventions, observed, .. } => {
+                interventions.dedup();
+                observed.dedup();
+            }
+            Self::ParameterRedraw { target, .. } => match target {
+                RedrawTargetWire::Gaussian { interventions, observed, .. } => {
+                    interventions.dedup();
+                    observed.dedup();
+                }
+                RedrawTargetWire::Finite { interventions, observed, .. } => {
+                    interventions.dedup();
+                    observed.dedup();
+                }
+            },
+            _ => {}
+        }
+        self
+    }
+
+    /// The listing-order canonicalization shared by every version.
+    fn canonical_order(mut self) -> Self {
         match &mut self {
             Self::ConditionalOutcome { observed, .. } => observed.sort(),
             Self::InterventionalOutcome { interventions, .. } => interventions.sort(),

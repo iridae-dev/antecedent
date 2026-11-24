@@ -264,8 +264,12 @@ pub fn cross_world_data_digest(names: &[String], columns: &[Vec<f64>]) -> Result
 // doc(hidden): the facade recomputes the premises identity.
 #[doc(hidden)]
 pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoError> {
+    // The edges are a set: the witness check reads them sorted and deduplicated, and the
+    // replay refuses a repeated edge, so no accepted artifact carries one; a repeat is written
+    // once rather than as a second identity of one graph.
     let mut edges = wire.graph_edges.clone();
     edges.sort_unstable();
+    edges.dedup();
     crate::digest_hex(
         IdentityDomain::Program,
         &(
@@ -466,5 +470,23 @@ mod tests {
             cross_world_data_digest(&renamed.variable_names, &renamed.columns).unwrap(),
             w.data_digest
         );
+    }
+
+    /// Site `io_core.cross_world_artifact.cross_world_identity`: the graph edges are a set
+    /// (a repeat is written once; the replay refuses it), and the variable names are ordered
+    /// (edges index into them).
+    #[test]
+    fn site_cross_world_identity_edges_are_a_set() {
+        let base = wire();
+        crate::identity_site_laws::set_laws(&[(0u32, 1u32), (0, 2), (1, 2)], |items| {
+            let mut edited = base.clone();
+            edited.graph_edges = items.to_vec();
+            cross_world_identity(&edited).ok()
+        });
+        crate::identity_site_laws::ordered_laws(&base.variable_names, |items| {
+            let mut edited = base.clone();
+            edited.variable_names = items.to_vec();
+            cross_world_identity(&edited).ok()
+        });
     }
 }

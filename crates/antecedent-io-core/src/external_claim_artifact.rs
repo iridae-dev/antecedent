@@ -620,3 +620,91 @@ impl ExternalClaimArtifact {
         Self::new(metadata, values)
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{multiset_laws, set_laws};
+    use antecedent_contract::{
+        CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
+        ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
+        LawProviderContract, ProviderObjectIdentity, QuantityRole, bind_external_result,
+    };
+    use antecedent_core::IdentificationStatus;
+
+    fn quantity(dose: u32) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "y".into(),
+            role: QuantityRole::Outcome,
+            units: "mmHg".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(a={dose})"),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn identity(capabilities: &[ExternalCapability]) -> Option<ExternalClaimIdentity> {
+        let contract = CheckedCausalContract {
+            graph_id: "graph-1".into(),
+            identification: IdentificationStatus::NonparametricallyIdentified,
+            estimand: (0..3).map(quantity).collect(),
+            accepted_meanings: vec![DistributionMeaning::InterventionalPredictive],
+            required_evidence_ids: vec!["factor:z".into()],
+            required_assumption_ids: vec!["ignorability".into()],
+            equivalences: vec![],
+        };
+        let response = ExternalResponse {
+            header: ExternalResultHeader {
+                object: ExternalScientificObject::Law(LawProviderContract {
+                    identity: ProviderObjectIdentity {
+                        provider_id: "lab".into(),
+                        object_id: "curve".into(),
+                        version_id: "v3".into(),
+                        snapshot_id: "snap-9".into(),
+                        request_id: "req-1".into(),
+                    },
+                    quantities: (0..3).map(quantity).collect(),
+                    meaning: DistributionMeaning::InterventionalPredictive,
+                    capabilities: capabilities.to_vec(),
+                }),
+                graph_id: "graph-1".into(),
+                quantities: (0..3).map(quantity).collect(),
+                evidence_ids: vec!["factor:z".into()],
+                assumption_ids: vec!["ignorability".into()],
+                trust: ExternalTrustState::ExternallyAttested { attestor: "lab".into() },
+            },
+            values: vec![1.0, 3.0, 5.0],
+            uncertainty: ExternalUncertaintyMeaning::None,
+            point_support: None,
+        };
+        let claim = bind_external_result(&contract, &ExternalResult::Response(response)).ok()?;
+        ExternalClaimIdentity::from_claim(&claim, "checked-contract").ok()
+    }
+
+    /// Site `io_core.external_claim_artifact.ExternalClaimIdentity.from_claim_with_digest`:
+    /// the provider's capabilities are a set.
+    #[test]
+    fn site_external_claim_capabilities_are_a_set() {
+        let capabilities =
+            [ExternalCapability::Mean, ExternalCapability::Sample, ExternalCapability::Quantile];
+        set_laws(&capabilities, |items| identity(items).map(|identity| identity.capabilities));
+    }
+
+    /// Site `io_core.external_claim_artifact.ExternalClaimIdentity.compute_fingerprint`: the
+    /// encoder sorts the capability names and keeps a repeat (validation refuses a sealed
+    /// identity whose names are not strictly ascending).
+    #[test]
+    fn site_external_claim_fingerprint_capabilities_multiset() {
+        let base = identity(&[ExternalCapability::Mean]).expect("a bound claim");
+        let names = ["mean".to_owned(), "quantile".to_owned(), "sample".to_owned()];
+        multiset_laws(&names, |items| {
+            let mut edited = base.clone();
+            edited.capabilities = items.to_vec();
+            Some(edited.compute_fingerprint())
+        });
+    }
+}

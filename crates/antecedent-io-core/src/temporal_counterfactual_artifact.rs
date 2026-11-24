@@ -540,7 +540,64 @@ fn spec_of(
     })
 }
 
+/// The request identity (scheme v2): every list is written with its length, so no two
+/// requests share a stream by moving an element across a list boundary. The v1 scheme
+/// ([`spec_id_v1`]) wrote the edge, coefficient and world-unit lists without lengths.
 fn spec_id(request: &TemporalCounterfactualRequestWire) -> String {
+    let mut c = CanonicalWriter::new("temporal_counterfactual_v2.spec");
+    c.text(&request.snapshot);
+    c.word(u64::from(request.graph.horizon));
+    c.word(u64::from(request.graph.latent_confounding));
+    let mut edges = request.graph.edges.clone();
+    edges.sort();
+    c.word(edges.len() as u64);
+    for (p, ch) in &edges {
+        c.text(p);
+        c.text(ch);
+    }
+    c.text(&request.fit.fit_id);
+    let mut mechanisms: Vec<&MechanismWire> = request.fit.mechanisms.iter().collect();
+    mechanisms.sort_by(|a, b| a.node.cmp(&b.node));
+    c.word(mechanisms.len() as u64);
+    for m in mechanisms {
+        c.text(&m.node);
+        c.real(m.intercept);
+        let mut coefs = m.parent_coefficients.clone();
+        coefs.sort_by(|a, b| a.0.cmp(&b.0));
+        c.word(coefs.len() as u64);
+        for (p, coef) in &coefs {
+            c.text(p);
+            c.real(*coef);
+        }
+        c.opt_real(m.noise_halfwidth);
+    }
+    let mut factual: Vec<&FactualUnitWire> = request.factual.iter().collect();
+    factual.sort_by(|a, b| a.unit.cmp(&b.unit));
+    c.word(factual.len() as u64);
+    for f in factual {
+        c.text(&f.unit);
+        c.text(&f.history);
+        c.word(u64::from(f.times[0]));
+        c.word(u64::from(f.times[1]));
+        for v in f.values {
+            c.real(v);
+        }
+    }
+    for w in [&request.plus, &request.minus] {
+        c.text(&w.name);
+        c.word(u64::from(w.times[0]));
+        c.word(u64::from(w.times[1]));
+        c.real(w.actions[0]);
+        c.real(w.actions[1]);
+        let mut units = w.units.clone();
+        units.sort();
+        c.texts(&units);
+    }
+    c.finish_hex()
+}
+
+/// The request identity of earlier releases, kept to verify artifacts sealed under it.
+fn spec_id_v1(request: &TemporalCounterfactualRequestWire) -> String {
     let mut c = CanonicalWriter::new("temporal_counterfactual_v1.spec");
     c.text(&request.snapshot);
     c.word(u64::from(request.graph.horizon));
@@ -618,9 +675,13 @@ fn identity_of(
 }
 
 /// The first identity field that differs, in the order the contract names them.
+///
+/// `legacy_spec_id` is the request's v1 identity ([`spec_id_v1`]); a stored identity carrying
+/// it is accepted, so artifacts sealed before the v2 request identity still verify.
 fn identity_diff(
     stored: &TemporalCounterfactualIdentity,
     other: &TemporalCounterfactualIdentity,
+    legacy_spec_id: &str,
 ) -> Option<&'static str> {
     if stored.snapshot != other.snapshot {
         Some("snapshot")
@@ -636,7 +697,7 @@ fn identity_diff(
         Some("shared_abduction")
     } else if stored.receipt_digest != other.receipt_digest {
         Some("receipt")
-    } else if stored.spec_id != other.spec_id {
+    } else if stored.spec_id != other.spec_id && stored.spec_id != legacy_spec_id {
         Some("request")
     } else {
         None
@@ -956,7 +1017,8 @@ impl TemporalCounterfactualArtifact {
         let spec = spec_of(&request)?;
         let result = evaluate_temporal_counterfactual(&spec, ctx).map_err(from_core)?;
         let recomputed = identity_of(&request, &result.receipt);
-        if let Some(field) = identity_diff(&meta.identity, &recomputed) {
+        let legacy_spec_id = spec_id_v1(&request);
+        if let Some(field) = identity_diff(&meta.identity, &recomputed, &legacy_spec_id) {
             return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
         if meta.receipt != ReceiptWire::from_receipt(&result.receipt)? {
@@ -981,7 +1043,7 @@ impl TemporalCounterfactualArtifact {
             return Err(TemporalCounterfactualArtifactError::ResultMismatch("means"));
         }
         if let Some(expected) = expected
-            && let Some(field) = identity_diff(expected, &recomputed)
+            && let Some(field) = identity_diff(expected, &recomputed, &legacy_spec_id)
         {
             return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
@@ -1090,5 +1152,157 @@ mod error_text_tests {
         let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
         assert_eq!(bits(&rebuilt), bits(&values));
         assert_eq!(crate::artifact_codec::f64s_to_le_bytes(&rebuilt), bytes);
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+
+    fn simulate(noise: [f64; 3], a: [f64; 2]) -> [f64; 5] {
+        let l0 = 1.0 + noise[0];
+        let l1 = 0.5 + 0.8 * l0 + 1.5 * a[0] + noise[1];
+        let y = -1.0 + 0.5 * l0 + 0.7 * a[0] + 2.0 * l1 + 1.2 * a[1] + noise[2];
+        [l0, a[0], l1, a[1], y]
+    }
+
+    const NOISE: [[f64; 3]; 3] = [[0.3, -0.2, 0.5], [-0.4, 0.6, -0.1], [0.0, 0.1, 0.9]];
+    const ACTIONS: [[f64; 2]; 3] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]];
+
+    fn edges() -> Vec<(String, String)> {
+        [
+            ("covariate_0", "covariate_1"),
+            ("action_0", "covariate_1"),
+            ("covariate_0", "outcome"),
+            ("action_0", "outcome"),
+            ("covariate_1", "outcome"),
+            ("action_1", "outcome"),
+        ]
+        .iter()
+        .map(|(p, c)| ((*p).to_owned(), (*c).to_owned()))
+        .collect()
+    }
+
+    fn mechanism(node: &str, intercept: f64, parents: &[(&str, f64)]) -> MechanismWire {
+        MechanismWire {
+            node: node.into(),
+            intercept,
+            parent_coefficients: parents.iter().map(|(p, c)| ((*p).to_owned(), *c)).collect(),
+            noise_halfwidth: None,
+        }
+    }
+
+    fn factual(index: usize) -> FactualUnitWire {
+        FactualUnitWire {
+            unit: format!("unit-{index}"),
+            history: format!("hist-{index}"),
+            times: [0, 1],
+            values: simulate(NOISE[index], ACTIONS[index]),
+        }
+    }
+
+    fn request() -> TemporalCounterfactualRequestWire {
+        let units: Vec<String> = (0..3).map(|i| format!("unit-{i}")).collect();
+        TemporalCounterfactualRequestWire {
+            graph: TemporalGraphWire { horizon: 2, edges: edges(), latent_confounding: false },
+            fit: FitWire {
+                fit_id: "fit-known-coefficients".into(),
+                mechanisms: vec![
+                    mechanism("covariate_0", 1.0, &[]),
+                    mechanism("covariate_1", 0.5, &[("covariate_0", 0.8), ("action_0", 1.5)]),
+                    mechanism(
+                        "outcome",
+                        -1.0,
+                        &[
+                            ("covariate_0", 0.5),
+                            ("action_0", 0.7),
+                            ("covariate_1", 2.0),
+                            ("action_1", 1.2),
+                        ],
+                    ),
+                ],
+            },
+            snapshot: "snapshot-1".into(),
+            factual: (0..3).map(factual).collect(),
+            plus: ActionHistoryWire {
+                name: "always_treat".into(),
+                times: [0, 1],
+                actions: [1.0, 1.0],
+                units: units.clone(),
+            },
+            minus: ActionHistoryWire {
+                name: "never_treat".into(),
+                times: [0, 1],
+                actions: [0.0, 0.0],
+                units,
+            },
+        }
+    }
+
+    fn sealed(
+        request: &TemporalCounterfactualRequestWire,
+    ) -> Option<TemporalCounterfactualIdentity> {
+        TemporalCounterfactualArtifact::seal(request, &ExecutionContext::for_tests(7))
+            .ok()
+            .map(|artifact| artifact.identity().clone())
+    }
+
+    /// Site `io_core.temporal_counterfactual_artifact.TemporalCounterfactualArtifact.seal`:
+    /// the factual histories are a set of units (a repeated unit is refused by the evaluator).
+    #[test]
+    fn site_temporal_seal_factual_units_are_a_set() {
+        let units: Vec<FactualUnitWire> = (0..3).map(factual).collect();
+        set_laws(&units, |items| {
+            let mut request = request();
+            request.factual = items.to_vec();
+            sealed(&request)
+        });
+    }
+
+    /// Site `io_core.temporal_counterfactual_artifact.spec_id`: graph edges and world units are
+    /// sets (repeats are refused by the evaluator), and the v2 request identity frames every
+    /// list, where v1 let an edge move across the edge-list boundary into the fit id.
+    #[test]
+    fn site_temporal_spec_id_sets_and_framing() {
+        set_laws(&edges(), |items| {
+            let mut request = request();
+            request.graph.edges = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+        let units: Vec<String> = (0..3).map(|i| format!("unit-{i}")).collect();
+        set_laws(&units, |items| {
+            let mut request = request();
+            request.plus.units = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+        // v1 wrote the edge, coefficient and world-unit lists with no length, so where one
+        // list ends was not in the stream; v2 writes every length.
+        let base = request();
+        let mut fewer = base.clone();
+        fewer.graph.edges.pop();
+        assert_ne!(spec_id(&base), spec_id(&fewer));
+        assert_ne!(spec_id(&base), spec_id_v1(&base), "v2 is a new identity scheme");
+        // A stored v1 identity still verifies.
+        let identity = sealed(&base).unwrap();
+        let mut legacy = identity.clone();
+        legacy.spec_id = spec_id_v1(&base);
+        assert_eq!(identity_diff(&legacy, &identity, &spec_id_v1(&base)), None);
+        assert_eq!(identity_diff(&legacy, &identity, "other"), Some("request"));
+    }
+
+    /// Site `io_core.temporal_counterfactual_artifact.execute_selective`: the selective
+    /// executor reads the factual histories as a set of units.
+    #[test]
+    fn site_temporal_execute_selective_factual_units_are_a_set() {
+        let units: Vec<FactualUnitWire> = (0..3).map(factual).collect();
+        set_laws(&units, |items| {
+            let mut request = request();
+            request.factual = items.to_vec();
+            let mut executor = TemporalExecutor::new();
+            execute_selective(&mut executor, &request, &ExecutionContext::for_tests(7))
+                .ok()
+                .map(|selective| selective.report.identity)
+        });
     }
 }

@@ -266,3 +266,33 @@ mod tests {
         assert!(canonical_json_digest("d", &deep).is_err());
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{ordered_laws, set_laws};
+
+    fn object(entries: &[(&str, &str)]) -> String {
+        let body: Vec<String> =
+            entries.iter().map(|(key, value)| format!("{key:?}:{value}")).collect();
+        format!("{{{}}}", body.join(","))
+    }
+
+    /// Site `io_core.canonical_json.write`: object entries are a set keyed by name (a JSON
+    /// map holds one entry per key), arrays are ordered, strings are length-framed and
+    /// numbers enter by type and bit pattern.
+    #[test]
+    fn site_canonical_json_objects_arrays_and_numbers() {
+        set_laws(&[("a", "1"), ("b", "[1,2]"), ("c", "\"x\"")], |items| {
+            canonical_json_digest("site", &object(items)).ok()
+        });
+        ordered_laws(&["1", "2", "3"], |items| {
+            canonical_json_digest("site", &format!("[{}]", items.join(","))).ok()
+        });
+        let digest = |json: &str| canonical_json_digest("site", json).unwrap();
+        assert_ne!(digest(r#"["a,b"]"#), digest(r#"["a","b"]"#));
+        assert_ne!(digest(r#"{"a":"b,c"}"#), digest(r#"{"a":"b","c":null}"#));
+        assert_ne!(digest("0.0"), digest("-0.0"));
+        assert_ne!(digest("1"), digest("1.0"));
+    }
+}

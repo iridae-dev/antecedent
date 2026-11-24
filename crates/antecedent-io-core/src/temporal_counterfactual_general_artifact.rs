@@ -888,3 +888,102 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{ordered_laws, set_laws};
+
+    /// The horizon-2 chain: covariates and the outcome read the previous node and node 0.
+    fn mechanisms() -> Vec<GeneralMechanismWire> {
+        let mechanism = |node: u32, parents: Vec<(u32, f64)>| GeneralMechanismWire {
+            node,
+            intercept: 0.5,
+            parent_coefficients: parents,
+            noise_halfwidth: None,
+        };
+        vec![
+            mechanism(0, vec![]),
+            mechanism(2, vec![(1, 0.3), (0, 0.25)]),
+            mechanism(4, vec![(3, 0.3), (0, 0.25)]),
+        ]
+    }
+
+    fn factual(index: u32) -> GeneralFactualUnitWire {
+        let offset = f64::from(index) * 0.1;
+        GeneralFactualUnitWire {
+            unit: format!("unit-{index}"),
+            history: format!("h{index}"),
+            times: vec![0, 1],
+            values: vec![0.6 + offset, f64::from(index % 2), 0.9 - offset, 1.0, 1.4 + offset],
+        }
+    }
+
+    fn world(name: &str, actions: [f64; 2]) -> GeneralWorldWire {
+        GeneralWorldWire {
+            name: name.into(),
+            times: vec![0, 1],
+            actions: actions.to_vec(),
+            units: (0..3).map(|i| format!("unit-{i}")).collect(),
+        }
+    }
+
+    fn request() -> GeneralTemporalRequestWire {
+        GeneralTemporalRequestWire {
+            horizon: 2,
+            latent_confounding: false,
+            fit: GeneralFitWire { fit_id: "fit".into(), mechanisms: mechanisms() },
+            snapshot: "snap".into(),
+            factual: (0..3).map(factual).collect(),
+            worlds: vec![world("treat", [1.0, 1.0]), world("control", [0.0, 0.0])],
+        }
+    }
+
+    fn sealed(request: &GeneralTemporalRequestWire) -> Option<GeneralTemporalIdentity> {
+        GeneralTemporalCounterfactualArtifact::seal(request, &ExecutionContext::for_tests(7))
+            .ok()
+            .map(|artifact| artifact.identity().clone())
+    }
+
+    /// Site `io_core.temporal_counterfactual_general_artifact.GeneralTemporalCounterfactualArtifact.seal`:
+    /// the factual histories are a set of units (a repeated unit is refused).
+    #[test]
+    fn site_general_seal_factual_units_are_a_set() {
+        let units: Vec<GeneralFactualUnitWire> = (0..3).map(factual).collect();
+        set_laws(&units, |items| {
+            let mut request = request();
+            request.factual = items.to_vec();
+            sealed(&request)
+        });
+    }
+
+    /// Site `io_core.temporal_counterfactual_general_artifact.spec_id`: mechanisms, parent
+    /// coefficients and world units are sets (repeats are refused by the evaluator); the
+    /// worlds are ordered (the action order).
+    #[test]
+    fn site_general_spec_id_sets_and_ordered_worlds() {
+        set_laws(&mechanisms(), |items| {
+            let mut request = request();
+            request.fit.mechanisms = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+        let parents = vec![(3u32, 0.3), (0, 0.25), (1, 0.5)];
+        set_laws(&parents, |items| {
+            let mut request = request();
+            request.fit.mechanisms[2].parent_coefficients = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+        let units: Vec<String> = (0..3).map(|i| format!("unit-{i}")).collect();
+        set_laws(&units, |items| {
+            let mut request = request();
+            request.worlds[0].units = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+        let worlds = request().worlds;
+        ordered_laws(&worlds, |items| {
+            let mut request = request();
+            request.worlds = items.to_vec();
+            sealed(&request).map(|identity| identity.spec_id)
+        });
+    }
+}

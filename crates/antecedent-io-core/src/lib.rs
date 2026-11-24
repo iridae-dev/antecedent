@@ -65,6 +65,8 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod graphless_support;
 pub mod identity;
+#[cfg(test)]
+mod identity_site_laws;
 pub mod interface_contract_artifact;
 pub mod joint_law_propagation_artifact;
 pub mod measurement_model_wire;
