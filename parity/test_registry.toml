@@ -25534,6 +25534,20 @@ path = "crates/antecedent/src/analysis/events/question.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "events-structure-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/structure_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "structure-members-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/structure_members_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "graph-imputation-effect-decision-unit"
 crate = "antecedent"
 cargo_target = "lib"

@@ -8394,18 +8394,11 @@ refusals = [
   { code = "scientific_bridge_invalid", detail = "events.bridge_contract_refused" },
   { code = "bridge_mapping_not_supported", detail = "events.descendant_not_carried" },
   { code = "bridge_substitution_refused", detail = "events.diagnostic_withheld" },
-  { code = "effect_not_identified", detail = "events.discovery_confounded" },
-  { code = "bridge_assumption_missing", detail = "events.discovery_missing" },
-  { code = "effect_not_identified", detail = "events.discovery_reversed" },
-  { code = "effect_not_identified", detail = "events.discovery_symmetric" },
   { code = "schema_mismatch", detail = "events.discovery_unbound" },
-  { code = "discovered_structure_unresolved", detail = "events.discovery_unoriented" },
   { code = "bridge_assumption_missing", detail = "events.evidence_missing" },
   { code = "bridge_assumption_missing", detail = "events.evidence_not_discovery" },
   { code = "scientific_bridge_invalid", detail = "events.incomplete_mapping" },
-  { code = "effect_not_identified", detail = "events.kernel_lead" },
   { code = "bridge_binding_mismatch", detail = "events.kernel_mismatch" },
-  { code = "effect_not_identified", detail = "events.kernel_symmetric" },
   { code = "bridge_mapping_not_supported", detail = "events.mapping_not_affine" },
   { code = "unknown_variable", detail = "events.names_not_in_discovery" },
   { code = "bridge_substitution_refused", detail = "events.not_parameter_mean" },
@@ -8415,6 +8408,8 @@ refusals = [
   { code = "dynamics_not_identified", detail = "events.singular_gram" },
   { code = "bridge_binding_mismatch", detail = "events.study_kernel_mismatch" },
   { code = "bridge_binding_mismatch", detail = "events.study_marked_kernel" },
+  { code = "effect_not_identified", detail = "events.reading_not_identified" },
+  { code = "bridge_binding_mismatch", detail = "events.study_needs_members" },
 ]
 routes = [
   { route = "antecedent.Study.prepare_excitation_question", stage = "prepare", status = "supported", claim = "point_only" },
@@ -8423,6 +8418,7 @@ routes = [
   { route = "antecedent.Study.prepare_release_question", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.Study.prepare_shock_query", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.Study.prepare_release_study", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_member_release_study", stage = "prepare", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

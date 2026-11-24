@@ -2,13 +2,18 @@
 //!
 //! The immigrant diagnostic is a robustness check. This module does not treat
 //! agreement as identification. An agreed direct mass can cross
-//! [`BridgeKind::ParameterInterventionResponse`] when an accepted discovery
-//! orients the exposure into the outcome. That provenance is the evidence.
-//! Descendants stay a
-//! conditional intensity: the resolvent is nonlinear, so the affine bridge
-//! does not carry them as a mean. A withheld diagnostic, a missing reading, or
-//! a bridge that asks for anything else refuses, and no intervened law is
-//! produced for the decision.
+//! [`BridgeKind::ParameterInterventionResponse`] read against a declared structure: an accepted
+//! graph or equivalence class, a candidate set, a graph posterior or a cyclic system. Every
+//! member of the structure is read: the kernel's mass where the member orients the exposure
+//! into the outcome, zero where the edge is absent or reversed, nothing where the member does
+//! not identify the effect (see [`super::discovery`]). The structure's provenance, or its
+//! canonical identity, is the evidence. Descendants stay a conditional intensity under an
+//! affine map: the resolvent is nonlinear, so the affine bridge carries the direct mass and the
+//! resolvent descendants are reported beside it. Under an identity map the lifetime total
+//! offspring (`total_offspring`: direct mass and resolvent feedback descendants) may cross as
+//! well, so mutual excitation is read, not refused. A withheld diagnostic, a missing reading,
+//! or a bridge that asks for anything else refuses, and no intervened law is produced for the
+//! decision.
 
 use std::sync::Arc;
 
@@ -26,7 +31,10 @@ use antecedent_core::identity::{ContractIdentities, SemanticDigest};
 use serde::Serialize;
 
 use super::challenge::{DiagnosticStatus, ExcitationReading};
-use super::discovery::structural_evidence;
+use super::discovery::{
+    Mixture, ReadingMode, Structural, StructuralReading, has_feedback_member, has_null_member,
+    provenance_hex, single_dag, structural_members,
+};
 use super::hawkes::{self, HawkesParameters};
 use super::marked::{self, MarkPrototype, MarkedHistory, MarkedParameters};
 use super::{
@@ -116,10 +124,12 @@ pub(super) enum Kernel {
 
 /// A question whose direct mass the parameter bridge accepted.
 ///
-/// `bridged_direct` is the bridge's mean. The descendant fields are functionals
-/// of the conditional intensity and are not that mean.
+/// `bridged_direct` is the bridge's mean of the kernel's reading for a member that orients the
+/// exposure into the outcome; [`Self::structure`] reads every member of the declared structure.
+/// The descendant fields are functionals of the conditional intensity and are not that mean.
 pub struct AcceptedExcitation {
-    /// Mapped direct mass.
+    /// Mapped kernel reading: the horizon direct mass, or under an identity map of
+    /// `total_offspring` the lifetime total offspring.
     pub bridged_direct: f64,
     /// Constant-baseline horizon direct mass that the bridge carried.
     pub conditional_direct: f64,
@@ -129,8 +139,15 @@ pub struct AcceptedExcitation {
     pub lifetime_descendants: f64,
     /// The bridge carried evidence established in another scope, under a premise.
     pub transported: bool,
+    /// The reading over every member of the declared structure: per-member bridged readings,
+    /// their envelope, the mixture conditional on identified members where weights exist, the
+    /// identified weight, and the resolvent descendants beside a direct mass when excitation
+    /// runs both ways.
+    pub structure: StructuralReading,
+    pub(super) mixture: Mixture,
     pub(super) kernel: Kernel,
     pub(super) source: usize,
+    pub(super) target: usize,
     pub(super) identity: SemanticDigest,
     _lease: AdmissionLease,
 }
@@ -140,7 +157,7 @@ pub struct PreparedExcitationQuestion {
     reading: ExcitationReading,
     subject: ExcitationSubject,
     bridge: BridgeContract,
-    discovery: crate::AcceptedGraph,
+    structural: Structural,
     plan: PreparedKernel,
     _lease: AdmissionLease,
 }
@@ -152,7 +169,7 @@ pub struct DeclaredQuantity {
     pub variable_id: String,
     /// Name shown with the claim.
     pub variable_name: String,
-    /// Unit of the direct mass.
+    /// Unit of the offspring count.
     pub units: String,
     /// Population the quantity was read in.
     pub population_id: String,
@@ -160,14 +177,14 @@ pub struct DeclaredQuantity {
     pub regime_id: String,
     /// Horizon the functional is taken over.
     pub horizon: u32,
-    /// Must be `direct_offspring` for this bridge.
+    /// `direct_offspring`, or `total_offspring` under an identity map.
     pub functional_id: String,
 }
 
 /// Build the parameter-intervention contract the excitation question can offer.
 ///
-/// Evidence is left empty. The accepted discovery writes its provenance digest
-/// in before the bridge is asked to carry the mean.
+/// Evidence is left empty. The declared structure writes its provenance digest, or its
+/// canonical identity, in before the bridge is asked to carry the mean.
 ///
 /// # Errors
 /// The map is neither an identity nor a complete affine map.
@@ -239,39 +256,49 @@ fn declared_quantity(quantity: DeclaredQuantity) -> ScientificQuantity {
 impl crate::Study {
     /// Compile an excitation question for the parameter-intervention bridge.
     ///
+    /// `structure` is any declared structure the shared member carrier takes: an accepted
+    /// graph or equivalence class (a `&AcceptedGraph` converts), a candidate set, a graph
+    /// posterior or a cyclic system. Its members are enumerated and identified here.
+    ///
     /// # Errors
-    /// The diagnostic was withheld, the kernel does not reproduce it, the
-    /// contract asks the bridge to carry a nonlinear descendant, the discovery
-    /// does not orient the edge, or the bridge refuses the declaration.
+    /// The structure is not bound to the catalog names or no member identifies the reading;
+    /// at execution, the diagnostic was withheld, the kernel does not reproduce it, the
+    /// contract asks the bridge to carry a nonlinear descendant, or the bridge refuses the
+    /// declaration.
     pub fn prepare_excitation_question(
         reading: ExcitationReading,
         subject: ExcitationSubject,
         bridge: BridgeContract,
-        discovery: &crate::AcceptedGraph,
+        structure: impl Into<crate::analysis::structure_members::DeclaredStructure>,
         ctx: &ExecutionContext,
     ) -> Result<PreparedExcitationQuestion, EventError> {
         super::super::lowering::refuse_reentry(ctx)?;
         let lease = admit(ctx, 0, 8_192)?;
-        let source = digest(
-            "antecedent.events.excitation_question.v2",
-            &(
-                &reading,
-                subject_identity(&subject)?.to_hex(),
-                bridge.identity().to_hex(),
-                discovery
-                    .provenance()
-                    .map(|provenance| crate::accepted::digest_hex(&provenance.digest())),
-            ),
-        )?;
+        let structure = structure.into();
+        let (exposure, outcome) = pair_names(&subject, &reading)?;
+        let structural = structural_members(&structure, &exposure, &outcome, ctx)?;
+        let subject_hex = subject_identity(&subject)?.to_hex();
+        let source = if single_dag(&structure) {
+            digest(
+                "antecedent.events.excitation_question.v2",
+                &(&reading, subject_hex, bridge.identity().to_hex(), provenance_hex(&structure)),
+            )?
+        } else {
+            digest(
+                "antecedent.events.excitation_question.v3",
+                &(
+                    &reading,
+                    subject_hex,
+                    bridge.identity().to_hex(),
+                    structural.members.identity().to_hex(),
+                    provenance_hex(&structure),
+                    ReadingMode::declared(&bridge).functional(),
+                    super::discovery::CYCLIC.as_str(),
+                ),
+            )?
+        };
         let plan = PreparedKernel::on(ParameterBridge, source, "excitation_question")?;
-        Ok(PreparedExcitationQuestion {
-            reading,
-            subject,
-            bridge,
-            discovery: discovery.clone(),
-            plan,
-            _lease: lease,
-        })
+        Ok(PreparedExcitationQuestion { reading, subject, bridge, structural, plan, _lease: lease })
     }
 }
 
@@ -279,6 +306,19 @@ impl PreparedExcitationQuestion {
     /// Inspect the compiled question.
     pub fn plan_view(&self) -> crate::planner::PlanView {
         self.plan.plan_view()
+    }
+
+    /// The members of the declared structure and their identification of the reading.
+    #[must_use]
+    pub fn members(&self) -> &crate::analysis::structure_members::StructureMembers {
+        &self.structural.members
+    }
+
+    /// The evidence the bridge cites: the structure's provenance digest, or its canonical
+    /// identity, as lowercase hex.
+    #[must_use]
+    pub fn evidence(&self) -> &str {
+        &self.structural.evidence
     }
 
     /// Ask the parameter bridge to carry the agreed direct mass.
@@ -292,7 +332,7 @@ impl PreparedExcitationQuestion {
             &self.reading,
             &self.subject,
             &self.bridge,
-            &self.discovery,
+            &self.structural,
             self.plan.identity(),
             &scoped,
         )
@@ -314,52 +354,77 @@ fn subject_identity(subject: &ExcitationSubject) -> Result<SemanticDigest, Event
     }
 }
 
-/// Offer the agreed direct mass of `subject` to the parameter bridge under the dispatch-scoped
-/// `ctx`, citing the accepted discovery as its structural evidence.
+/// Offer the agreed kernel reading of `subject` to the parameter bridge under the
+/// dispatch-scoped `ctx`, citing the declared structure as its structural evidence, and read
+/// every member of that structure.
 pub(super) fn accept(
     reading: &ExcitationReading,
     subject: &ExcitationSubject,
     bridge: &BridgeContract,
-    discovery: &crate::AcceptedGraph,
+    structural: &Structural,
     identity: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<AcceptedExcitation, EventError> {
     let mass = offered_mass(reading, subject)?;
-    kernel_gate(subject, reading, ctx)?;
-    let (exposure, outcome) = pair_names(subject, reading)?;
-    let evidence = structural_evidence(discovery, &exposure, &outcome)?;
-    let bridge = cite_discovery(bridge, &evidence)?;
-    direct_bridge(&bridge)?;
+    let two_way = kernel_gate(subject, reading, ctx)?;
+    let bridge = cite_discovery(bridge, &structural.evidence)?;
+    let mode = direct_bridge(&bridge)?;
+    let kernel_reading = match mode {
+        ReadingMode::Direct => mass.direct,
+        ReadingMode::Total => mass.lifetime_descendants,
+    };
     let identities =
         ContractIdentities::new(identity, identity, None, None, identity, identity, identity);
-    let claim = point_claim(&identities, &bridge.source.quantity, mass.direct);
-    let derived = derive_bridged_claim(
-        &bridge,
-        &BridgeSource { claim: &claim, quantity: &bridge.source.quantity },
-    )
-    .map_err(|refusal| {
-        EventError::bridge(
-            events::BRIDGE_CONTRACT_REFUSED,
-            reason_code!("scientific_bridge_invalid"),
-            format!(
-                "{} {}: {}",
-                refusal.code,
-                refusal.detail,
-                refusal.remedy.unwrap_or("the bridge names the declaration that would support it")
-            ),
-        )
-    })?;
+    let derived = bridged(&bridge, &identities, kernel_reading)?;
+    // A member where the edge is absent or reversed reads zero through the same bridge.
+    let bridged_zero = if has_null_member(&structural.members) {
+        bridged(&bridge, &identities, 0.0)?.value
+    } else {
+        derived.value
+    };
+    let feedback = two_way || has_feedback_member(&structural.members);
+    let cyclic_reading =
+        (feedback && mode == ReadingMode::Direct).then_some(mass.lifetime_descendants);
+    let structure =
+        super::discovery::read(structural, mode, derived.value, bridged_zero, cyclic_reading);
     Ok(AcceptedExcitation {
         bridged_direct: derived.value,
         conditional_direct: mass.direct,
         horizon_descendants: mass.horizon_descendants,
         lifetime_descendants: mass.lifetime_descendants,
         transported: derived.transported,
+        structure,
+        mixture: Mixture::of(&structural.members),
         kernel: kernel_of(subject),
         source: reading.source,
+        target: reading.target,
         identity,
         _lease: admit(ctx, 0, 8_192)?,
     })
+}
+
+/// The bridge's derived claim for one kernel reading.
+fn bridged(
+    bridge: &BridgeContract,
+    identities: &ContractIdentities,
+    value: f64,
+) -> Result<antecedent_contract::bridge::BridgedClaim, EventError> {
+    let claim = point_claim(identities, &bridge.source.quantity, value);
+    derive_bridged_claim(bridge, &BridgeSource { claim: &claim, quantity: &bridge.source.quantity })
+        .map_err(|refusal| {
+            EventError::bridge(
+                events::BRIDGE_CONTRACT_REFUSED,
+                reason_code!("scientific_bridge_invalid"),
+                format!(
+                    "{} {}: {}",
+                    refusal.code,
+                    refusal.detail,
+                    refusal
+                        .remedy
+                        .unwrap_or("the bridge names the declaration that would support it")
+                ),
+            )
+        })
 }
 
 impl AcceptedExcitation {
@@ -465,7 +530,8 @@ fn component(values: &[f64], target: usize) -> Result<f64, EventError> {
         .ok_or_else(|| EventError::invalid("the questioned target is outside the kernel"))
 }
 
-fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
+/// Check the bridge asks for a reading it can carry, and say which.
+fn direct_bridge(bridge: &BridgeContract) -> Result<ReadingMode, EventError> {
     if bridge.kind != BridgeKind::ParameterInterventionResponse
         || bridge.source.class != QuantityClass::ModelParameter
         || bridge.target.class != QuantityClass::InterventionResponse
@@ -478,13 +544,17 @@ fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
             "an excitation mass enters the decision loop only as a parameter-intervention mean",
         ));
     }
-    if bridge.source.quantity.functional_id != "direct_offspring"
-        || bridge.target.quantity.functional_id != "direct_offspring"
+    let mode = ReadingMode::declared(bridge);
+    let total = mode == ReadingMode::Total;
+    if bridge.source.quantity.functional_id != mode.functional()
+        || bridge.target.quantity.functional_id != mode.functional()
+        || (total && !matches!(bridge.mapping, BridgeMapping::Identity))
     {
         return Err(EventError::bridge(
             events::DESCENDANT_NOT_CARRIED,
             reason_code!("bridge_mapping_not_supported"),
-            "only the horizon direct mass is affine; descendants stay a conditional intensity",
+            "only the horizon direct mass is affine; the total offspring crosses an identity map \
+             only, and other descendants stay a conditional intensity",
         ));
     }
     if !matches!(bridge.mapping, BridgeMapping::Identity | BridgeMapping::Affine { .. }) {
@@ -517,7 +587,7 @@ fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
             "the fitted mass is observational and the response must name a different regime",
         ));
     }
-    Ok(())
+    Ok(mode)
 }
 
 fn kernel_of(subject: &ExcitationSubject) -> Kernel {
@@ -546,7 +616,7 @@ fn cite_discovery(bridge: &BridgeContract, evidence: &str) -> Result<BridgeContr
         return Err(EventError::bridge(
             events::EVIDENCE_NOT_DISCOVERY,
             reason_code!("bridge_assumption_missing"),
-            "the structural evidence is the accepted discovery, not a separate label",
+            "the structural evidence is the declared structure, not a separate label",
         ));
     }
     reading.evidence = Some(evidence.to_owned());
@@ -574,11 +644,13 @@ fn pair_names(
     Ok((exposure, outcome))
 }
 
+/// Check the kernel's Gram and stability cap, and say whether excitation runs both ways
+/// between the questioned types. A two-way kernel is mutual excitation: it is read, not refused.
 fn kernel_gate(
     subject: &ExcitationSubject,
     reading: &ExcitationReading,
     ctx: &ExecutionContext,
-) -> Result<(), EventError> {
+) -> Result<bool, EventError> {
     let mut work = hawkes::Work::new(ctx);
     match subject {
         ExcitationSubject::Catalog { parameters, history, column_cap } => {
@@ -598,13 +670,9 @@ fn kernel_gate(
                     "the source column is on its stability cap",
                 ));
             }
-            if reading.source != reading.target {
-                direction_gate(
-                    edge(parameters, reading.source, reading.target),
-                    edge(parameters, reading.target, reading.source),
-                )?;
-            }
-            Ok(())
+            Ok(reading.source != reading.target
+                && edge(parameters, reading.source, reading.target) > 0.0
+                && edge(parameters, reading.target, reading.source) > 0.0)
         }
         ExcitationSubject::Marked { parameters, prototypes, history, reproduction_cap } => {
             if !(0.0..1.0).contains(reproduction_cap) {
@@ -624,10 +692,7 @@ fn kernel_gate(
                     "the source prototype is on its reproduction cap",
                 ));
             }
-            if reading.source != reading.target {
-                direction_gate(forward, reverse)?;
-            }
-            Ok(())
+            Ok(reading.source != reading.target && forward > 0.0 && reverse > 0.0)
         }
     }
 }
@@ -653,24 +718,6 @@ fn singular_gram() -> EventError {
         reason_code!("dynamics_not_identified"),
         "the excitation Gram is singular",
     )
-}
-
-fn direction_gate(forward: f64, reverse: f64) -> Result<(), EventError> {
-    if reverse > forward + 1e-8 {
-        return Err(EventError::bridge(
-            events::KERNEL_LEAD,
-            reason_code!("effect_not_identified"),
-            "the queried edge is a lead of the other type",
-        ));
-    }
-    if forward > 1e-8 && reverse > 1e-8 && (forward - reverse).abs() <= 1e-8 {
-        return Err(EventError::bridge(
-            events::KERNEL_SYMMETRIC,
-            reason_code!("effect_not_identified"),
-            "the kernel is symmetric on the queried edge",
-        ));
-    }
-    Ok(())
 }
 
 fn point_claim(
@@ -1085,7 +1132,7 @@ mod question_tests {
     }
 
     #[test]
-    fn a_label_a_reverse_edge_and_a_descendant_stay_out_of_the_bridge() {
+    fn a_label_and_a_descendant_stay_out_of_the_bridge_and_a_reverse_edge_reads_zero() {
         let reading = agreed(0.4);
         let graph = discovered("release", "activity");
         refused(
@@ -1110,15 +1157,34 @@ mod question_tests {
             events::REGIME_NOT_INTERVENED,
             reason_code!("bridge_binding_mismatch"),
         );
+        // A discovery that orients activity into release is one member whose edge from the
+        // exposure is reversed: the complete ID algorithm identifies the exposure's effect as
+        // zero, so the structural reading is the bridged zero (slope 2, intercept 0) while the
+        // bridge's mean of the kernel reading stays 2 alpha (1 - e^{-1}).
         let reverse = discovered("activity", "release");
-        refused(
-            ask(reading.clone(), 0.4, None, "direct_offspring", "do_one_release", &reverse),
-            events::DISCOVERY_REVERSED,
-            reason_code!("effect_not_identified"),
-        );
+        let accepted =
+            ask(reading.clone(), 0.4, None, "direct_offspring", "do_one_release", &reverse)
+                .unwrap();
+        assert!((accepted.bridged_direct - 2.0 * reading.conditional_direct).abs() < 1e-12);
+        assert_eq!(accepted.structure.envelope, [0.0, 0.0]);
+        assert_eq!(accepted.structure.members.len(), 1);
+        assert!(accepted.structure.members[0].relation.reverse());
+        assert_eq!(accepted.structure.members[0].bridged, Some(0.0));
+        let ctx = ExecutionContext::for_tests(0);
+        let quiet = accepted
+            .release_law(
+                Continuation::Catalog(&history()),
+                ReleaseAction::Now,
+                ReleaseDraw { release: 0.0, window_end: 2.0, paths: 2, max_events: 8, seed: 7 },
+                &ctx,
+            )
+            .unwrap();
+        // Every member reads zero: the continuation is drawn without the added event.
+        assert!(quiet.weights().is_none());
+        let added = crate::analysis::events::Arrival { time: 1.0, kind: 0 };
+        assert!(quiet.paths().iter().all(|path| path.first() != Some(&added)));
         let mut predictive = bridge("direct_offspring", None, "do_one_release");
         predictive.kind = BridgeKind::PredictiveCausalQuantity;
-        let ctx = ExecutionContext::for_tests(0);
         refused(
             Study::prepare_excitation_question(reading, subject(0.4), predictive, &graph, &ctx)
                 .unwrap()

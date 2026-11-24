@@ -20,7 +20,7 @@
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
-seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome"]
+seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy"]
 
 [[row]]
 path = "antecedent::AcceptedPosterior::posterior"
@@ -137,6 +137,11 @@ route = "HawkesParameterBridge"
 
 [[row]]
 path = "antecedent::analysis::events::AcceptedExcitation::release_law"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMemberReleaseStudy::execute"
 disposition = "compiled"
 route = "HawkesParameterBridge"
 

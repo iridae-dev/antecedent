@@ -22,6 +22,8 @@ mod marked;
 mod offspring;
 mod question;
 mod release;
+#[cfg(test)]
+mod structure_tests;
 mod study;
 
 pub use antecedent_contract::bridge::BridgeContract;
@@ -34,6 +36,7 @@ pub use challenge::{
     MarkedReleaseComparisonRequest, PreparedExcitationChallenge, PreparedMarkedChallenge,
     PreparedReleaseComparison, ReleaseChoice, ReleaseComparison, ReleaseComparisonRequest,
 };
+pub use discovery::{MemberReading, StructuralReading};
 pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
     PreparedEventWorlds,
@@ -58,7 +61,8 @@ pub use release::{
 };
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
-    PreparedEventStudy, PreparedEventUpdate,
+    MemberReleaseStudy, MemberStudyValue, PreparedEventStudy, PreparedEventUpdate,
+    PreparedMemberReleaseStudy,
 };
 
 pub(crate) const CAPABILITY: &str =

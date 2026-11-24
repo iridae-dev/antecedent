@@ -819,12 +819,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "events.budget",
     "events.descendant_not_carried",
     "events.diagnostic_withheld",
-    "events.discovery_confounded",
-    "events.discovery_missing",
-    "events.discovery_reversed",
-    "events.discovery_symmetric",
     "events.discovery_unbound",
-    "events.discovery_unoriented",
     "events.evidence_missing",
     "events.evidence_not_discovery",
     "events.fit_failed",
@@ -832,19 +827,19 @@ pub const REASON_DETAILS: &[&str] = &[
     "events.incomplete_mapping",
     "events.interval_unmeasured",
     "events.invalid_request",
-    "events.kernel_lead",
     "events.kernel_mismatch",
-    "events.kernel_symmetric",
     "events.mapping_not_affine",
     "events.names_not_in_discovery",
     "events.not_parameter_mean",
     "events.numerical",
     "events.on_stability_cap",
+    "events.reading_not_identified",
     "events.regime_not_intervened",
     "events.same_variable",
     "events.singular_gram",
     "events.study_kernel_mismatch",
     "events.study_marked_kernel",
+    "events.study_needs_members",
     "events.unstable",
     "events.unverified_source",
     "evidence_ledger.cancelled",
@@ -3716,12 +3711,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("events.budget", &["execution_resource_limit"]),
     ("events.descendant_not_carried", &["bridge_mapping_not_supported"]),
     ("events.diagnostic_withheld", &["bridge_substitution_refused"]),
-    ("events.discovery_confounded", &["effect_not_identified"]),
-    ("events.discovery_missing", &["bridge_assumption_missing"]),
-    ("events.discovery_reversed", &["effect_not_identified"]),
-    ("events.discovery_symmetric", &["effect_not_identified"]),
     ("events.discovery_unbound", &["schema_mismatch"]),
-    ("events.discovery_unoriented", &["discovered_structure_unresolved"]),
     ("events.evidence_missing", &["bridge_assumption_missing"]),
     ("events.evidence_not_discovery", &["bridge_assumption_missing"]),
     ("events.fit_failed", &["dynamics_not_identified"]),
@@ -3729,19 +3719,19 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("events.incomplete_mapping", &["scientific_bridge_invalid"]),
     ("events.interval_unmeasured", &["uncertainty_representation_insufficient"]),
     ("events.invalid_request", &["invalid_argument"]),
-    ("events.kernel_lead", &["effect_not_identified"]),
     ("events.kernel_mismatch", &["bridge_binding_mismatch"]),
-    ("events.kernel_symmetric", &["effect_not_identified"]),
     ("events.mapping_not_affine", &["bridge_mapping_not_supported"]),
     ("events.names_not_in_discovery", &["unknown_variable"]),
     ("events.not_parameter_mean", &["bridge_substitution_refused"]),
     ("events.numerical", &["invalid_argument"]),
     ("events.on_stability_cap", &["dynamics_not_identified"]),
+    ("events.reading_not_identified", &["effect_not_identified"]),
     ("events.regime_not_intervened", &["bridge_binding_mismatch"]),
     ("events.same_variable", &["invalid_argument"]),
     ("events.singular_gram", &["dynamics_not_identified"]),
     ("events.study_kernel_mismatch", &["bridge_binding_mismatch"]),
     ("events.study_marked_kernel", &["bridge_binding_mismatch"]),
+    ("events.study_needs_members", &["bridge_binding_mismatch"]),
     ("events.unstable", &["invalid_argument"]),
     ("events.unverified_source", &["external_verification_failed"]),
     ("evidence_ledger.cancelled", &["cancelled_no_claim"]),
@@ -7683,18 +7673,8 @@ pub mod events {
     pub const DESCENDANT_NOT_CARRIED: &str = "events.descendant_not_carried";
     /// Detail `events.diagnostic_withheld`.
     pub const DIAGNOSTIC_WITHHELD: &str = "events.diagnostic_withheld";
-    /// Detail `events.discovery_confounded`.
-    pub const DISCOVERY_CONFOUNDED: &str = "events.discovery_confounded";
-    /// Detail `events.discovery_missing`.
-    pub const DISCOVERY_MISSING: &str = "events.discovery_missing";
-    /// Detail `events.discovery_reversed`.
-    pub const DISCOVERY_REVERSED: &str = "events.discovery_reversed";
-    /// Detail `events.discovery_symmetric`.
-    pub const DISCOVERY_SYMMETRIC: &str = "events.discovery_symmetric";
     /// Detail `events.discovery_unbound`.
     pub const DISCOVERY_UNBOUND: &str = "events.discovery_unbound";
-    /// Detail `events.discovery_unoriented`.
-    pub const DISCOVERY_UNORIENTED: &str = "events.discovery_unoriented";
     /// Detail `events.evidence_missing`.
     pub const EVIDENCE_MISSING: &str = "events.evidence_missing";
     /// Detail `events.evidence_not_discovery`.
@@ -7709,12 +7689,8 @@ pub mod events {
     pub const INTERVAL_UNMEASURED: &str = "events.interval_unmeasured";
     /// Detail `events.invalid_request`.
     pub const INVALID_REQUEST: &str = "events.invalid_request";
-    /// Detail `events.kernel_lead`.
-    pub const KERNEL_LEAD: &str = "events.kernel_lead";
     /// Detail `events.kernel_mismatch`.
     pub const KERNEL_MISMATCH: &str = "events.kernel_mismatch";
-    /// Detail `events.kernel_symmetric`.
-    pub const KERNEL_SYMMETRIC: &str = "events.kernel_symmetric";
     /// Detail `events.mapping_not_affine`.
     pub const MAPPING_NOT_AFFINE: &str = "events.mapping_not_affine";
     /// Detail `events.names_not_in_discovery`.
@@ -7725,6 +7701,8 @@ pub mod events {
     pub const NUMERICAL: &str = "events.numerical";
     /// Detail `events.on_stability_cap`.
     pub const ON_STABILITY_CAP: &str = "events.on_stability_cap";
+    /// Detail `events.reading_not_identified`.
+    pub const READING_NOT_IDENTIFIED: &str = "events.reading_not_identified";
     /// Detail `events.regime_not_intervened`.
     pub const REGIME_NOT_INTERVENED: &str = "events.regime_not_intervened";
     /// Detail `events.same_variable`.
@@ -7735,6 +7713,8 @@ pub mod events {
     pub const STUDY_KERNEL_MISMATCH: &str = "events.study_kernel_mismatch";
     /// Detail `events.study_marked_kernel`.
     pub const STUDY_MARKED_KERNEL: &str = "events.study_marked_kernel";
+    /// Detail `events.study_needs_members`.
+    pub const STUDY_NEEDS_MEMBERS: &str = "events.study_needs_members";
     /// Detail `events.unstable`.
     pub const UNSTABLE: &str = "events.unstable";
     /// Detail `events.unverified_source`.

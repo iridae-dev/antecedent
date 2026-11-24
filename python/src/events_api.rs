@@ -10,9 +10,11 @@ use antecedent::analysis::events::{
     PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate, PreparedEventWorlds,
     PreparedExcitationChallenge, PreparedExcitationOffspring, PreparedForecastAssessment,
     PreparedMarkedChallenge, PreparedMarkedFit, PreparedMarkedLikelihood, PreparedMarkedOffspring,
-    PreparedReleaseComparison, PreparedReleaseQuestion, PreparedShock, QuestionChallenge,
-    ReleaseAction, ReleaseComparisonRequest, ReleaseDraw, ReleaseQuestion, parameter_bridge,
+    PreparedMemberReleaseStudy, PreparedReleaseComparison, PreparedReleaseQuestion, PreparedShock,
+    QuestionChallenge, ReleaseAction, ReleaseComparisonRequest, ReleaseDraw, ReleaseQuestion,
+    parameter_bridge,
 };
+use antecedent::analysis::structure_members::{DeclaredStructure, StructureMembers};
 use antecedent::design::decision_artifact::{contract_from_json, result_to_json};
 use antecedent::design::evsi::{CostToUtilityMap, StudyCostSpec};
 use pyo3::prelude::*;
@@ -65,6 +67,7 @@ enum Prepared {
     Release(PreparedReleaseComparison),
     Question(Box<PreparedReleaseQuestion>),
     Shock(PreparedShock),
+    MemberStudy(PreparedMemberReleaseStudy),
 }
 
 fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
@@ -84,6 +87,7 @@ fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
         Prepared::Release(p) => p.plan_view(),
         Prepared::Question(p) => p.plan_view(),
         Prepared::Shock(p) => p.plan_view(),
+        Prepared::MemberStudy(p) => p.plan_view(),
     }
 }
 
@@ -104,11 +108,12 @@ impl NativePreparedEventProgram {
     fn inspect(&self) -> String {
         let view = plan_view_of(&self.inner).to_json();
         match &self.inner {
-            // The question's structural evidence is the discovery provenance it cites, beside
-            // the compiled plan.
+            // The question's structural evidence is the provenance digest or the identity of the
+            // declared structure it cites, with the structure's members, beside the compiled plan.
             Prepared::Question(plan) => json!({
                 "operation": "excitation_question",
                 "evidence": plan.evidence(),
+                "structure": members_json(plan.members()),
                 "plan": view,
             })
             .to_string(),
@@ -206,6 +211,9 @@ impl NativePreparedEventProgram {
                     Ok((Some(law), json!({"updated_belief": belief}), None, None))
                 }
                 Prepared::Shock(plan) => {
+                    Ok((None, json!(plan.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::MemberStudy(plan) => {
                     Ok((None, json!(plan.execute(&ctx).map_err(error)?), None, None))
                 }
                 Prepared::Question(plan) => execute_question(plan, &ctx),
@@ -373,6 +381,13 @@ enum Request {
         contract: String,
         cost: Option<Cost>,
     },
+    MemberReleaseStudy {
+        history: EventHistory,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: String,
+        cost: Option<Cost>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -386,7 +401,8 @@ struct Cost {
 }
 
 #[pyfunction]
-#[pyo3(signature = (request, source=None, receipt=None, graph=None, provenance=None, memory_bytes=None, cancel=None))]
+#[pyo3(signature = (request, source=None, receipt=None, graph=None, provenance=None, weights=None, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "the keyword arguments of events.prepare")]
 fn events_prepare(
     py: Python<'_>,
     request: &str,
@@ -394,6 +410,7 @@ fn events_prepare(
     receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
     graph: Option<&Bound<'_, PyAny>>,
     provenance: Option<HashMap<String, String>>,
+    weights: Option<Vec<f64>>,
     memory_bytes: Option<u64>,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<NativePreparedEventProgram> {
@@ -403,14 +420,10 @@ fn events_prepare(
         return Err(crate::errors::value_err("source result does not retain an event law"));
     }
     let receipt = receipt.as_ref().map(|r| r.inner.clone());
-    let discovery = match (graph, provenance) {
-        (Some(graph), Some(provenance)) => Some(accepted_graph(graph, provenance)?),
-        (None, None) => None,
-        _ => {
-            return Err(crate::errors::value_err(
-                "an excitation question needs the discovered graph and its provenance",
-            ));
-        }
+    let discovery = match graph {
+        Some(graph) => Some(declared_structure(graph, provenance, weights)?),
+        None if provenance.is_none() && weights.is_none() => None,
+        None => return Err(crate::errors::value_err(NEEDS_STRUCTURE)),
     };
     let ctx = execution_context(0, memory_bytes, cancel);
     let inner = detach_catch(py, || -> PyResult<_> {
@@ -422,7 +435,9 @@ fn events_prepare(
                 "retained event law is only used by world composition",
             ));
         }
-        if matches!(&request, Request::ReleaseStudy { .. }) && accepted.is_none() {
+        if matches!(&request, Request::ReleaseStudy { .. } | Request::MemberReleaseStudy { .. })
+            && accepted.is_none()
+        {
             return Err(crate::errors::value_err(
                 "a release study needs the excitation the bridge accepted",
             ));
@@ -552,11 +567,8 @@ fn events_prepare(
                 .map_err(error)?,
             ),
             Request::ExcitationQuestion { challenge, bridge, action, draw } => {
-                let discovery = discovery.clone().ok_or_else(|| {
-                    crate::errors::value_err(
-                        "an excitation question needs the discovered graph and its provenance",
-                    )
-                })?;
+                let discovery =
+                    discovery.clone().ok_or_else(|| crate::errors::value_err(NEEDS_STRUCTURE))?;
                 let question = ReleaseQuestion {
                     challenge: QuestionChallenge::Catalog(challenge),
                     bridge: bridge_contract(bridge)?,
@@ -568,11 +580,8 @@ fn events_prepare(
                 ))
             }
             Request::MarkedExcitationQuestion { challenge, bridge, action, draw } => {
-                let discovery = discovery.clone().ok_or_else(|| {
-                    crate::errors::value_err(
-                        "an excitation question needs the discovered graph and its provenance",
-                    )
-                })?;
+                let discovery =
+                    discovery.clone().ok_or_else(|| crate::errors::value_err(NEEDS_STRUCTURE))?;
                 let question = ReleaseQuestion {
                     challenge: QuestionChallenge::Marked(challenge),
                     bridge: bridge_contract(bridge)?,
@@ -612,6 +621,41 @@ fn events_prepare(
                     Study::prepare_release_study(
                         &accepted,
                         prior,
+                        request,
+                        worlds,
+                        contract(&declaration)?,
+                        cost,
+                        &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
+            Request::MemberReleaseStudy {
+                history,
+                request,
+                worlds,
+                contract: declaration,
+                cost,
+            } => {
+                let accepted = accepted.clone().ok_or_else(|| {
+                    crate::errors::value_err(
+                        "a release study needs the excitation the bridge accepted",
+                    )
+                })?;
+                let cost = cost.map(|c| {
+                    (
+                        StudyCostSpec { amount: c.amount, unit: c.unit.clone() },
+                        CostToUtilityMap {
+                            cost_unit: c.unit,
+                            utility_unit: c.utility_unit,
+                            utility_per_cost: c.utility_rate,
+                        },
+                    )
+                });
+                Prepared::MemberStudy(
+                    Study::prepare_member_release_study(
+                        &accepted,
+                        history,
                         request,
                         worlds,
                         contract(&declaration)?,
@@ -727,58 +771,135 @@ fn execute_question(
         "horizon_descendants": accepted.horizon_descendants,
         "lifetime_descendants": accepted.lifetime_descendants,
         "transported": accepted.transported,
+        "structure": accepted.structure,
     });
     Ok((Some(law), report, None, Some(Arc::new(accepted))))
 }
 
-fn accepted_graph(
+const NEEDS_STRUCTURE: &str = "an excitation question needs a declared structure: the discovered \
+     graph and its provenance, an equivalence class, a list of graphs with optional weights, a \
+     graph posterior, or a cyclic declaration";
+
+/// The members of a compiled question's structure, for inspection.
+fn members_json(members: &StructureMembers) -> Value {
+    json!({
+        "form": members.form(),
+        "identity": members.identity().to_hex(),
+        "weighted": members.weighted(),
+        "truncated": members.truncated(),
+        "cyclic_reading": members.cyclic_reading(),
+        "members": members.members().iter().map(|member| json!({
+            "relation": member.relation(),
+            "weight": member.weight(),
+            "status": member.status(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// A cyclic system declared by name.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CyclicWire {
+    names: Vec<String>,
+    directed: Vec<(String, String)>,
+    #[serde(default)]
+    bidirected: Vec<(String, String)>,
+    io_scm: bool,
+    scc_product_density: bool,
+}
+
+/// The structure a question reads: one graph or class, a list of graphs (with `weights`), a
+/// graph posterior, or a cyclic declaration (a mapping). `provenance` cites the search it came
+/// from; a single graph without one is a declared structure.
+fn declared_structure(
     graph: &Bound<'_, PyAny>,
-    provenance: HashMap<String, String>,
-) -> PyResult<antecedent::AcceptedGraph> {
-    let provenance = Arc::new(structure_provenance(&provenance)?);
+    provenance: Option<HashMap<String, String>>,
+    weights: Option<Vec<f64>>,
+) -> PyResult<DeclaredStructure> {
+    let provenance = provenance.as_ref().map(structure_provenance).transpose()?.map(Arc::new);
+    let cite = |structure: DeclaredStructure| match &provenance {
+        Some(provenance) => structure.with_provenance(Arc::clone(provenance)),
+        None => structure,
+    };
+    if let Ok(posterior) = graph.extract::<PyRef<'_, crate::bayesian::PyGraphPosterior>>() {
+        if weights.is_some() {
+            return Err(crate::errors::value_err("a graph posterior carries its own weights"));
+        }
+        let names = posterior.names().to_vec();
+        return Ok(cite(DeclaredStructure::posterior(posterior.to_rust()?, names)));
+    }
+    if graph.cast::<pyo3::types::PyDict>().is_ok() {
+        if weights.is_some() {
+            return Err(crate::errors::value_err("a cyclic declaration carries no weights"));
+        }
+        let text: String = graph.py().import("json")?.call_method1("dumps", (graph,))?.extract()?;
+        let wire: CyclicWire = parse(&text)?;
+        return Ok(cite(cyclic_structure(wire)?));
+    }
+    if let Ok(list) = graph.cast::<pyo3::types::PyList>() {
+        let graphs = list.iter().map(|item| accepted_graph(&item)).collect::<PyResult<Vec<_>>>()?;
+        return Ok(cite(DeclaredStructure::candidates(graphs, weights)));
+    }
+    if weights.is_some() {
+        return Err(crate::errors::value_err("weights belong to a list of candidate graphs"));
+    }
+    Ok(cite(DeclaredStructure::graph(accepted_graph(graph)?)))
+}
+
+fn cyclic_structure(wire: CyclicWire) -> PyResult<DeclaredStructure> {
+    DeclaredStructure::cyclic_named(
+        wire.names,
+        &wire.directed,
+        &wire.bidirected,
+        wire.io_scm,
+        wire.scc_product_density,
+    )
+    .map_err(crate::errors::py_err)
+}
+
+fn accepted_graph(graph: &Bound<'_, PyAny>) -> PyResult<antecedent::AcceptedGraph> {
     if let Ok(item) = graph.extract::<crate::graphs::Dag>() {
-        return bind(antecedent::AcceptedGraph::dag(item.dag), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::dag(item.dag), &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::Cpdag>() {
         let graph = antecedent::AcceptedGraph::cpdag(item.cpdag)
             .map_err(|err| crate::errors::value_err(err.to_string()))?;
-        return bind(graph, &item.names, provenance);
+        return bind(graph, &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::Pag>() {
-        return bind(antecedent::AcceptedGraph::pag(item.pag), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::pag(item.pag), &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::Admg>() {
-        return bind(antecedent::AcceptedGraph::admg(item.admg), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::admg(item.admg), &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::TemporalDag>() {
-        return bind(antecedent::AcceptedGraph::temporal_dag(item.dag), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::temporal_dag(item.dag), &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::TemporalCpdag>() {
         let graph = antecedent::AcceptedGraph::temporal_cpdag(item.cpdag)
             .map_err(|err| crate::errors::value_err(err.to_string()))?;
-        return bind(graph, &item.names, provenance);
+        return bind(graph, &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::TemporalPag>() {
-        return bind(antecedent::AcceptedGraph::temporal_pag(item.pag), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::temporal_pag(item.pag), &item.names);
     }
     if let Ok(item) = graph.extract::<crate::graphs::TemporalAdmg>() {
-        return bind(antecedent::AcceptedGraph::temporal_admg(item.graph), &item.names, provenance);
+        return bind(antecedent::AcceptedGraph::temporal_admg(item.graph), &item.names);
     }
-    Err(crate::errors::value_err("the discovery graph is not a compiled graph object"))
+    Err(crate::errors::value_err(
+        "the structure is not a compiled graph, a list of graphs, a graph posterior or a cyclic \
+         declaration",
+    ))
 }
 
-fn bind(
-    graph: antecedent::AcceptedGraph,
-    names: &[String],
-    provenance: Arc<antecedent::StructureProvenance>,
-) -> PyResult<antecedent::AcceptedGraph> {
+fn bind(graph: antecedent::AcceptedGraph, names: &[String]) -> PyResult<antecedent::AcceptedGraph> {
     use antecedent::prelude::CausalSchemaBuilder;
     let mut builder = CausalSchemaBuilder::new();
     for name in names {
         builder = builder.continuous(name.as_str()).context();
     }
     let schema = builder.build().map_err(|err| crate::errors::value_err(err.to_string()))?;
-    Ok(graph.with_schema(&schema).with_provenance(provenance))
+    Ok(graph.with_schema(&schema))
 }
 
 fn structure_provenance(

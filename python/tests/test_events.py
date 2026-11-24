@@ -201,10 +201,8 @@ def test_excluded_shock_returns_a_lag_query_without_an_excitation_coefficient():
     }
 
 
-def test_excitation_question_uses_the_discovery_provenance():
-    from antecedent import Dag
-
-    question = {
+def _question() -> dict:
+    return {
         "operation": "excitation_question",
         "challenge": {
             "history": _pair_history(),
@@ -251,6 +249,12 @@ def test_excitation_question_uses_the_discovery_provenance():
             "seed": 7,
         },
     }
+
+
+def test_excitation_question_uses_the_discovery_provenance():
+    from antecedent import Dag
+
+    question = _question()
     with pytest.raises(ValueError, match="discovered graph"):
         events.prepare(question)
     graph = Dag.from_edges(["release", "activity"], [("release", "activity")])
@@ -262,3 +266,61 @@ def test_excitation_question_uses_the_discovery_provenance():
     assert report["reading"]["status"] == "withheld"
     assert report["reading"]["reason"] == "immigrant-alternative fit is weakly identified"
     assert "bridged_direct" not in report
+
+
+def _relations(structure: dict) -> list[tuple[bool, bool]]:
+    return sorted(
+        (member["relation"]["forward"], member["relation"]["reverse"])
+        for member in structure["members"]
+    )
+
+
+def test_excitation_question_reads_every_structure_form():
+    from antecedent import Cpdag, Dag, _native
+
+    names = ["release", "activity"]
+    question = _question()
+
+    # A class: both orientations of the unoriented pair are identified members.
+    cpdag = Cpdag.from_edges(names, [("release", "activity", "undirected")])
+    plan = events.prepare(question, graph=cpdag, provenance=_provenance())
+    structure = plan.inspect()["structure"]
+    assert structure["form"] == "graph"
+    assert _relations(structure) == [(False, True), (True, False)]
+    assert all(member["status"] == "identified" for member in structure["members"])
+    assert structure["weighted"] is False
+
+    # A weighted candidate list cites its own identity as the evidence.
+    candidates = [
+        Dag.from_edges(names, [("release", "activity")]),
+        Dag.from_edges(names, [("activity", "release")]),
+    ]
+    plan = events.prepare(question, graph=candidates, weights=[1.0, 3.0])
+    inspected = plan.inspect()
+    assert inspected["structure"]["form"] == "candidates"
+    assert [m["weight"] for m in inspected["structure"]["members"]] == [0.25, 0.75]
+    assert inspected["evidence"] == inspected["structure"]["identity"]
+
+    # A posterior reads its atoms (release -> activity is bit 0, the reverse bit 1).
+    posterior = _native.GraphPosterior.from_atoms(names, [0.7, 0.3], [1, 2])
+    structure = events.prepare(question, graph=posterior).inspect()["structure"]
+    assert structure["form"] == "posterior"
+    assert [m["weight"] for m in structure["members"]] == pytest.approx([0.7, 0.3])
+
+    # A cyclic declaration is one feedback member, read as lags and identified.
+    cyclic = {
+        "names": names,
+        "directed": [["release", "activity"], ["activity", "release"]],
+        "io_scm": True,
+        "scc_product_density": True,
+    }
+    structure = events.prepare(question, graph=cyclic).inspect()["structure"]
+    assert structure["form"] == "cyclic"
+    assert structure["cyclic_reading"] == "lagged"
+    assert _relations(structure) == [(True, True)]
+    assert structure["members"][0]["status"] == "identified"
+
+    with pytest.raises(ValueError, match="weights"):
+        events.prepare(question, graph=cpdag, provenance=_provenance(), weights=[1.0])
+    # The fixture's reading is withheld, so no member reading is produced.
+    assert events.prepare(question, graph=cyclic).execute().report()["accepted"] is False

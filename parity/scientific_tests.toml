@@ -3062,6 +3062,48 @@ fixtures = []
 why = "With an affine map of slope 2 the bridged mean is twice the agreed direct mass, and each release action adds exactly one event at the declared time and type. This source assertion is unearned."
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs"
+evidence_assertion = "an_unoriented_pair_reads_an_envelope_from_zero_to_the_mass"
+kind = "known_truth"
+fixtures = []
+why = "A two-node unoriented CPDAG has the members release -> activity and activity -> release; the complete ID algorithm identifies both (the second as zero), so under an identity map the structural reading's envelope is [0, alpha (1 - e^{-1})], with identified weight 1 and no mixture. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs"
+evidence_assertion = "a_weighted_candidate_set_mixes_its_identified_readings"
+kind = "known_truth"
+fixtures = []
+why = "Candidates weighted 0.5, 0.3, 0.2 read the mass, zero and nothing (an unidentified bow): identified weight 0.8, conditional mixture 0.625 times the mass, envelope [0, mass], all written out by hand. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs"
+evidence_assertion = "a_posterior_mixes_conditional_on_its_identified_atoms"
+kind = "known_truth"
+fixtures = []
+why = "An ADMG posterior with masses 0.6, 0.3 and 0.1 on an oriented, a reversed and a Tian-unidentified atom (edge probability 0.6) gives identified weight 0.9 and a mixture conditional on identified atoms of 0.6 / 0.9 times the mass. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs"
+evidence_assertion = "a_feedback_cycle_carries_the_total_offspring_of_the_resolvent"
+kind = "known_truth"
+fixtures = []
+why = "For release -> activity mass a = 0.4 and activity -> release mass b = 0.3 the total offspring crossing an identity map equals the resolvent closed form a / (1 - ab) = a + a^2 b / (1 - ab); under an affine map the direct mass crosses and the same resolvent value is reported beside it. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs"
+evidence_assertion = "a_mixture_law_draws_null_members_on_the_same_streams"
+kind = "known_truth"
+fixtures = []
+why = "With candidate weights 0.25 and 0.75 every null-member path equals the hawkes continuation without the added event on the same stream index, every oriented path is the added event followed by the continuation with it, and the weighted mean activity count of the mixture equals the weighted member means. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/structure_members_tests.rs"
+evidence_assertion = "a_posterior_reads_its_atoms_with_their_mass"
+kind = "known_truth"
+fixtures = []
+why = "The members of an ADMG posterior are its atoms with their masses, and the atom with a bidirected path from the treatment to its child inside the outcome's ancestors is unidentified (Tian's criterion), so identified weight is 0.9. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent-state/src/graph_score.rs"
 evidence_assertion = "gaussian_bic_matches_closed_form_regression"
 kind = "reference"

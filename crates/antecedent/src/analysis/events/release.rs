@@ -5,6 +5,13 @@
 //! different mark) and draws its offspring together with the observed history's excitation.
 //! The paths are a conditional scenario under the kernel the bridge kept; they are not, by
 //! themselves, the utility of releasing.
+//!
+//! When some identified members of the declared structure leave the exposure's edge into the
+//! outcome absent or reversed, the law is one weighted mixture: the members that orient the
+//! edge draw the continuation with the added event exciting, and the null members draw the same
+//! continuation without it, on the same random stream for each path index, so the difference
+//! between the two groups is the structure alone. Group weights are the identified members'
+//! weights, or their uniform enumeration weight for a form without weights.
 
 use std::sync::Arc;
 
@@ -16,6 +23,7 @@ use antecedent_core::identity::SemanticDigest;
 use super::challenge::{
     DiagnosticStatus, ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge,
 };
+use super::discovery::{Mixture, Structural, single_dag, structural_members};
 use super::hawkes::{self, INTERVENE};
 use super::marked::{self, MarkedHistory};
 use super::question::{
@@ -122,9 +130,14 @@ fn resolve(
 
 /// Draw the intervened continuations of `resolved` under the dispatch-scoped `ctx`. The law
 /// carries the identity of the program that drew it.
+///
+/// Members that orient the edge draw with the added event; null members draw path `i` on the
+/// same stream `i` without it. A law with one group is unweighted, exactly the single-kernel
+/// law; a law with both groups weights each path by its group's weight over the path count.
 fn sample(
     kernel: &Kernel,
     resolved: &Resolved,
+    mixture: Mixture,
     identity: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<EventLaw, EventError> {
@@ -134,53 +147,68 @@ fn sample(
     let catalog = conditioning.catalog();
     let mut work = hawkes::Work::new(ctx);
     let rng = RngFactory::from_seed(draw.seed);
-    let mut paths = Vec::with_capacity(draw.paths);
-    for index in 0..draw.paths {
-        let mut path = vec![Arrival { time: draw.release, kind }];
-        let offspring = match (kernel, conditioning) {
-            (Kernel::Catalog(parameters), _) => {
-                let mut prefix = before_release(catalog, draw.release);
-                prefix.push(path[0]);
-                hawkes::sample(
-                    catalog,
-                    &prefix,
-                    parameters,
-                    window,
-                    (&rng, INTERVENE, index as u64),
-                    draw.max_events,
-                    &mut work,
-                )?
-            }
-            (Kernel::Marked(parameters, _), Conditioning::Marked { marked: history, .. }) => {
-                let mut prefix = marked_before(history, draw.release);
-                prefix.push(marked::MarkedArrival { time: draw.release, prototype: kind });
-                marked::sample(
-                    history,
-                    &prefix,
-                    parameters,
-                    window,
-                    (&rng, INTERVENE, index as u64),
-                    draw.max_events,
-                    &mut work,
-                )?
-                .into_iter()
-                .map(|event| Arrival { time: event.time, kind: event.prototype })
-                .collect()
-            }
-            (Kernel::Marked(..), Conditioning::Catalog(_)) => {
-                return Err(EventError::invalid("marked intervention needs the marked history"));
-            }
-        };
-        path.extend(offspring);
-        paths.push(path);
+    let groups = mixture.groups();
+    let mut paths = Vec::with_capacity(draw.paths * groups.len());
+    let mut weights = Vec::with_capacity(draw.paths * groups.len());
+    for &(excites, group_weight) in &groups {
+        for index in 0..draw.paths {
+            let added = Arrival { time: draw.release, kind };
+            let offspring = match (kernel, conditioning) {
+                (Kernel::Catalog(parameters), _) => {
+                    let mut prefix = before_release(catalog, draw.release);
+                    if excites {
+                        prefix.push(added);
+                    }
+                    hawkes::sample(
+                        catalog,
+                        &prefix,
+                        parameters,
+                        window,
+                        (&rng, INTERVENE, index as u64),
+                        draw.max_events,
+                        &mut work,
+                    )?
+                }
+                (Kernel::Marked(parameters, _), Conditioning::Marked { marked: history, .. }) => {
+                    let mut prefix = marked_before(history, draw.release);
+                    if excites {
+                        prefix.push(marked::MarkedArrival { time: draw.release, prototype: kind });
+                    }
+                    marked::sample(
+                        history,
+                        &prefix,
+                        parameters,
+                        window,
+                        (&rng, INTERVENE, index as u64),
+                        draw.max_events,
+                        &mut work,
+                    )?
+                    .into_iter()
+                    .map(|event| Arrival { time: event.time, kind: event.prototype })
+                    .collect()
+                }
+                (Kernel::Marked(..), Conditioning::Catalog(_)) => {
+                    return Err(EventError::invalid(
+                        "marked intervention needs the marked history",
+                    ));
+                }
+            };
+            let mut path = if excites { vec![added] } else { Vec::new() };
+            path.extend(offspring);
+            paths.push(path);
+            weights.push(group_weight / draw.paths as f64);
+        }
     }
-    let lease =
-        Arc::new(admit(ctx, 0, path_bytes(draw.paths, draw.max_events.saturating_add(1)) + 8_192)?);
+    let lease = Arc::new(admit(
+        ctx,
+        0,
+        path_bytes(paths.len(), draw.max_events.saturating_add(1)) + 8_192,
+    )?);
     Ok(EventLaw {
         history: Arc::new(catalog.clone()),
         window,
         paths: Arc::new(paths),
-        weights: None,
+        weights: (groups.len() > 1).then(|| Arc::new(weights)),
         path_left: None,
         meaning: EventLawMeaning::Intervened,
         identity,
@@ -198,6 +226,7 @@ fn sample(
 pub struct PreparedReleaseLaw {
     kernel: Kernel,
     resolved: Resolved,
+    mixture: Mixture,
     plan: PreparedKernel,
     _lease: AdmissionLease,
 }
@@ -240,7 +269,7 @@ fn prepare_draw(
             Kernel::Marked(parameters.clone(), prototypes.clone())
         }
     };
-    Ok(PreparedReleaseLaw { kernel, resolved, plan, _lease: lease })
+    Ok(PreparedReleaseLaw { kernel, resolved, mixture: accepted.mixture, plan, _lease: lease })
 }
 
 impl crate::Study {
@@ -288,7 +317,7 @@ impl PreparedReleaseLaw {
     /// Resource exhaustion, cancellation, numerical failure, or an unsupported release scope.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventLaw, EventError> {
         let scoped = super::scoped_execution(ctx, &self.plan)?;
-        sample(&self.kernel, &self.resolved, self.plan.identity(), &scoped)
+        sample(&self.kernel, &self.resolved, self.mixture, self.plan.identity(), &scoped)
     }
 }
 
@@ -328,12 +357,32 @@ pub struct ReleaseQuestionOutcome {
     pub law: Option<EventLaw>,
 }
 
-/// Compiled release question, bound to the discovery its structural reading cites.
+/// Compiled release question, bound to the declared structure its structural reading cites.
 pub struct PreparedReleaseQuestion {
     question: ReleaseQuestion,
-    discovery: crate::AcceptedGraph,
+    structural: Structural,
     plan: PreparedKernel,
     _lease: AdmissionLease,
+}
+
+/// The exposure and outcome names of a challenge: the catalog names, or one name per prototype.
+fn challenge_names(challenge: &QuestionChallenge) -> Result<(String, String), EventError> {
+    let (names, source, target) = match challenge {
+        QuestionChallenge::Catalog(challenge) => {
+            (challenge.history.catalog.clone(), challenge.source, challenge.target)
+        }
+        QuestionChallenge::Marked(challenge) => (
+            (0..challenge.history.prototypes.len())
+                .map(|index| format!("prototype-{index}"))
+                .collect(),
+            challenge.source,
+            challenge.target,
+        ),
+    };
+    match (names.get(source), names.get(target)) {
+        (Some(exposure), Some(outcome)) => Ok((exposure.clone(), outcome.clone())),
+        _ => Err(EventError::invalid("the questioned types are outside the catalog")),
+    }
 }
 
 fn action_wire(action: ReleaseAction) -> (&'static str, Option<usize>, Option<f64>) {
@@ -347,11 +396,15 @@ fn action_wire(action: ReleaseAction) -> (&'static str, Option<usize>, Option<f6
 impl crate::Study {
     /// Compile a release question before the challenge fits run.
     ///
+    /// `structure` is any declared structure the shared member carrier takes (a
+    /// `&AcceptedGraph` converts); its members are enumerated and identified here.
+    ///
     /// # Errors
-    /// Invalid challenge, draw outside the event budget, or a resource refusal.
+    /// Invalid challenge, draw outside the event budget, a structure not bound to the catalog
+    /// names or none of whose members identifies the reading, or a resource refusal.
     pub fn prepare_release_question(
         question: ReleaseQuestion,
-        discovery: &crate::AcceptedGraph,
+        structure: impl Into<crate::analysis::structure_members::DeclaredStructure>,
         ctx: &ExecutionContext,
     ) -> Result<PreparedReleaseQuestion, EventError> {
         super::super::lowering::refuse_reentry(ctx)?;
@@ -367,22 +420,41 @@ impl crate::Study {
         };
         validate_budget(question.draw.paths, question.draw.max_events)?;
         let lease = admit(ctx, 0, bytes)?;
+        let structure = structure.into();
+        let (exposure, outcome) = challenge_names(&question.challenge)?;
+        let structural = structural_members(&structure, &exposure, &outcome, ctx)?;
         let draw = question.draw;
-        let source = digest(
-            "antecedent.events.release_question.v1",
-            &(
-                catalog,
-                marked,
-                question.bridge.identity().to_hex(),
-                action_wire(question.action),
-                (draw.release, draw.window_end, draw.paths, draw.max_events, draw.seed),
-                discovery
-                    .provenance()
-                    .map(|provenance| crate::accepted::digest_hex(&provenance.digest())),
-            ),
-        )?;
+        let provenance = super::discovery::provenance_hex(&structure);
+        let source = if single_dag(&structure) {
+            digest(
+                "antecedent.events.release_question.v1",
+                &(
+                    catalog,
+                    marked,
+                    question.bridge.identity().to_hex(),
+                    action_wire(question.action),
+                    (draw.release, draw.window_end, draw.paths, draw.max_events, draw.seed),
+                    provenance,
+                ),
+            )?
+        } else {
+            digest(
+                "antecedent.events.release_question.v2",
+                &(
+                    catalog,
+                    marked,
+                    question.bridge.identity().to_hex(),
+                    action_wire(question.action),
+                    (draw.release, draw.window_end, draw.paths, draw.max_events, draw.seed),
+                    provenance,
+                    structural.members.identity().to_hex(),
+                    super::discovery::ReadingMode::declared(&question.bridge).functional(),
+                    super::discovery::CYCLIC.as_str(),
+                ),
+            )?
+        };
         let plan = PreparedKernel::on(ParameterBridge, source, "release_question")?;
-        Ok(PreparedReleaseQuestion { question, discovery: discovery.clone(), plan, _lease: lease })
+        Ok(PreparedReleaseQuestion { question, structural, plan, _lease: lease })
     }
 }
 
@@ -392,12 +464,17 @@ impl PreparedReleaseQuestion {
         self.plan.plan_view()
     }
 
-    /// The provenance digest of the discovery the structural reading cites, as lowercase hex.
+    /// The evidence the structural reading cites, as lowercase hex: the provenance digest of
+    /// the search the structure came from, or the declared structure's canonical identity.
     #[must_use]
     pub fn evidence(&self) -> Option<String> {
-        self.discovery
-            .provenance()
-            .map(|provenance| crate::accepted::digest_hex(&provenance.digest()))
+        Some(self.structural.evidence.clone())
+    }
+
+    /// The members of the declared structure and their identification of the reading.
+    #[must_use]
+    pub fn members(&self) -> &crate::analysis::structure_members::StructureMembers {
+        &self.structural.members
     }
 
     /// Fit the challenge, offer an agreed direct mass to the bridge and draw the release.
@@ -424,7 +501,7 @@ impl PreparedReleaseQuestion {
         }
         let identity = self.plan.identity();
         let accepted =
-            accept(&reading, &subject, &self.question.bridge, &self.discovery, identity, &scoped)?;
+            accept(&reading, &subject, &self.question.bridge, &self.structural, identity, &scoped)?;
         let continuation = match &subject {
             ExcitationSubject::Catalog { history, .. } => Continuation::Catalog(history),
             ExcitationSubject::Marked { history, .. } => Continuation::Marked(history),
@@ -436,7 +513,7 @@ impl PreparedReleaseQuestion {
             Some(self.question.action),
             self.question.draw,
         )?;
-        let law = sample(&accepted.kernel, &resolved, identity, &scoped)?;
+        let law = sample(&accepted.kernel, &resolved, accepted.mixture, identity, &scoped)?;
         Ok(ReleaseQuestionOutcome { reading, accepted: Some(accepted), law: Some(law) })
     }
 }

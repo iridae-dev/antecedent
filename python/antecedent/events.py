@@ -9,7 +9,7 @@ from . import _native, _reason_details
 from .execution import Execution, native_controls
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from .extensibility import ProviderVerificationReceipt
 
@@ -101,6 +101,7 @@ def prepare(
     receipt: ProviderVerificationReceipt | None = None,
     graph: Any | None = None,
     provenance: Mapping[str, str] | None = None,
+    weights: Sequence[float] | None = None,
     execution: Execution | None = None,
 ) -> PreparedEventProgram:
     """Compile a forecast, likelihood, worlds, assessment, update, future study,
@@ -108,11 +109,19 @@ def prepare(
     excluded shock, or release study.
 
     For world composition, pass a retained event result as `source`. An
-    excitation question takes the discovered graph and the provenance map from
-    the compiled search. The question fits the challenge and offers that
-    constant-baseline kernel; the bridge evidence is the discovery provenance. A release
-    study takes the question result as `source` and prices only the catalog
-    kernel the bridge kept. Decision contracts accept an existing
+    excitation question takes a declared structure as `graph`: one compiled graph
+    or equivalence class (with the provenance map of the search it came from), a
+    list of graphs with optional `weights`, a `GraphPosterior`, or a cyclic
+    declaration ``{"names", "directed", "bidirected", "io_scm",
+    "scc_product_density"}`` whose edges are read as lags. The question fits the
+    challenge, offers that constant-baseline kernel, and reads every member of the
+    structure: the kernel's mass where the member orients the exposure into the
+    outcome, zero where it does not, nothing where the member does not identify
+    the effect. ``inspect()`` lists the members; the report gives their envelope,
+    identified weight and, with weights, the mixture. The bridge evidence is the
+    provenance digest, or the declared structure's identity. A release study takes
+    the question result as `source` and prices the catalog kernel the bridge kept;
+    a ``member_release_study`` prices it per member. Decision contracts accept an existing
     decision.Contract or its native JSON declaration. ``execution`` supplies the
     memory limit and cancellation of the compile; the random streams are the
     seeds the request declares.
@@ -130,6 +139,7 @@ def prepare(
         None if receipt is None else receipt._native_value,
         graph,
         None if provenance is None else dict(provenance),
+        None if weights is None else [float(weight) for weight in weights],
         **_controls(execution),
     )
     return PreparedEventProgram(native)
@@ -143,6 +153,7 @@ def replay(
     receipt: ProviderVerificationReceipt | None = None,
     graph: Any | None = None,
     provenance: Mapping[str, str] | None = None,
+    weights: Sequence[float] | None = None,
     execution: Execution | None = None,
 ) -> EventResult:
     """Recompile and execute a forecast or world request under an expected identity."""
@@ -152,6 +163,7 @@ def replay(
         receipt=receipt,
         graph=graph,
         provenance=provenance,
+        weights=weights,
         execution=execution,
     )
     if plan._native.replay_identity() != expected_program:

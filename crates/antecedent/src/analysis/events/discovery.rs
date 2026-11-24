@@ -1,41 +1,95 @@
-//! An accepted discovery is the evidence a structural excitation reading may cite.
+//! The declared structure a structural excitation reading is read against.
 //!
-//! A handwritten label is not that evidence. The compiled search must have
-//! been accepted, bound to the same variable names, and oriented a directed
-//! edge from the exposure to the outcome. A reverse edge, a symmetric pair, a
-//! bidirected edge, or an unoriented mark refuses before any bridge is built,
-//! each with its registered `events` detail.
+//! A handwritten label is not evidence for a structural reading. The structure is: one accepted
+//! graph or equivalence class, an explicit candidate set, a graph posterior, or a cyclic system,
+//! enumerated into members by the shared carrier
+//! ([`crate::analysis::structure_members`]) with each member's identification of the
+//! exposure's effect on the outcome. A member that orients the exposure into the outcome reads
+//! the kernel's mass; a member where the edge is absent or reversed reads zero; an unidentified
+//! member reads nothing and its weight is reported beside the reading. Cyclic members are read
+//! as lags, since an event process unfolds in time. The reading refuses only when no member
+//! identifies it.
+//!
+//! The bridge evidence is the provenance digest of the search the structure came from, or, for
+//! a declared structure, its canonical identity.
 
-use antecedent_core::NodeRef;
+use std::sync::Arc;
+
+use antecedent_core::ExecutionContext;
 use antecedent_core::reason_code;
 use antecedent_core::reason_details::events;
-use antecedent_graph::{DenseNodeId, MarkedEdge};
+use serde::Serialize;
 
 use super::EventError;
-use crate::AcceptedGraph;
+use crate::analysis::structure_members::{
+    CyclicReading, DeclaredStructure, DirectRelation, MemberStatus, StructureForm, StructureMembers,
+};
 
-/// Provenance digest of a discovery that orients `source` into `target`.
+/// How cyclic members of an event process are read: each excitation edge acts after a delay.
+pub(super) const CYCLIC: CyclicReading = CyclicReading::Lagged;
+
+/// The members of the declared structure for one exposure and outcome, and the evidence the
+/// bridge cites.
+pub(super) struct Structural {
+    pub(super) members: Arc<StructureMembers>,
+    pub(super) evidence: String,
+}
+
+/// Which functional the bridge carries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ReadingMode {
+    /// The horizon direct mass, by an identity or affine map.
+    Direct,
+    /// The lifetime total offspring (direct mass and resolvent feedback descendants), by an
+    /// identity map only.
+    Total,
+}
+
+impl ReadingMode {
+    pub(super) const fn functional(self) -> &'static str {
+        match self {
+            Self::Direct => "direct_offspring",
+            Self::Total => "total_offspring",
+        }
+    }
+
+    /// The mode a bridge contract declares; the bridge checks refuse anything else at execution.
+    pub(super) fn declared(bridge: &antecedent_contract::bridge::BridgeContract) -> Self {
+        if bridge.source.quantity.functional_id == Self::Total.functional() {
+            Self::Total
+        } else {
+            Self::Direct
+        }
+    }
+}
+
+/// Whether the structure is one accepted DAG: its program identities are the ones a single
+/// discovered DAG always had.
+pub(super) fn single_dag(structure: &DeclaredStructure) -> bool {
+    structure.as_graph().is_some_and(|graph| graph.as_dag().is_some())
+}
+
+/// Provenance digest of the search the structure came from, as lowercase hex.
+pub(super) fn provenance_hex(structure: &DeclaredStructure) -> Option<String> {
+    structure.provenance().map(|provenance| crate::accepted::digest_hex(&provenance.digest()))
+}
+
+/// Enumerate the members of `structure` for `source` exciting `target`.
 ///
 /// # Errors
-/// The structure was not accepted from a compiled search, or it does not
-/// orient this pair.
-pub(super) fn structural_evidence(
-    graph: &AcceptedGraph,
+/// The structure is not bound to names, the names are not its variables or coincide, a member
+/// enumeration refusal, or no member identifies the reading.
+pub(super) fn structural_members(
+    structure: &DeclaredStructure,
     source: &str,
     target: &str,
-) -> Result<String, EventError> {
-    let provenance = graph.provenance().ok_or_else(|| {
-        EventError::bridge(
-            events::DISCOVERY_MISSING,
-            reason_code!("bridge_assumption_missing"),
-            "a structural reading of the excitation mass needs an accepted discovery",
-        )
-    })?;
-    let names = graph.variable_names().ok_or_else(|| {
+    ctx: &ExecutionContext,
+) -> Result<Structural, EventError> {
+    let names = structure.variable_names().ok_or_else(|| {
         EventError::bridge(
             events::DISCOVERY_UNBOUND,
             reason_code!("schema_mismatch"),
-            "the accepted discovery is not bound to its variable names",
+            "the declared structure is not bound to its variable names",
         )
     })?;
     if source == target {
@@ -45,182 +99,154 @@ pub(super) fn structural_evidence(
             "a structural reading compares the exposure with a different outcome",
         ));
     }
-    let source_index = index_of(names, source)?;
-    let target_index = index_of(names, target)?;
-    if let Some(refusal) = refusal(orient(graph, source_index, target_index)) {
-        return Err(refusal);
-    }
-    Ok(crate::accepted::digest_hex(&provenance.digest()))
-}
-
-fn refusal((forward, reverse, confound, partial): (bool, bool, bool, bool)) -> Option<EventError> {
-    let (slot, code, message) = if confound {
-        (
-            events::DISCOVERY_CONFOUNDED,
-            reason_code!("effect_not_identified"),
-            "the discovery edge is confounded",
-        )
-    } else if forward && reverse {
-        (
-            events::DISCOVERY_SYMMETRIC,
-            reason_code!("effect_not_identified"),
-            "the discovery edge is symmetric",
-        )
-    } else if reverse {
-        (
-            events::DISCOVERY_REVERSED,
-            reason_code!("effect_not_identified"),
-            "the discovery edge is a lead of the other variable",
-        )
-    } else if partial || !forward {
-        (
-            events::DISCOVERY_UNORIENTED,
-            reason_code!("discovered_structure_unresolved"),
-            "discovery did not orient a directed edge from the exposure to the outcome",
-        )
-    } else {
-        return None;
-    };
-    Some(EventError::bridge(slot, code, message))
-}
-
-fn index_of(names: &[std::sync::Arc<str>], name: &str) -> Result<usize, EventError> {
-    names.iter().position(|item| item.as_ref() == name).ok_or_else(|| {
-        EventError::bridge(
+    if !names.iter().any(|name| name.as_ref() == source)
+        || !names.iter().any(|name| name.as_ref() == target)
+    {
+        return Err(EventError::bridge(
             events::NAMES_NOT_IN_DISCOVERY,
             reason_code!("unknown_variable"),
-            "the excitation names are not variables of the accepted discovery",
-        )
-    })
+            "the excitation names are not variables of the declared structure",
+        ));
+    }
+    let members = structure.members(source, target, CYCLIC, ctx)?;
+    if !members.any_identified() {
+        return Err(EventError::bridge(
+            events::READING_NOT_IDENTIFIED,
+            reason_code!("effect_not_identified"),
+            "no member of the declared structure identifies the exposure's effect on the outcome",
+        ));
+    }
+    let evidence = provenance_hex(structure).unwrap_or_else(|| members.identity().to_hex());
+    Ok(Structural { members: Arc::new(members), evidence })
 }
 
-fn orient(graph: &AcceptedGraph, source: usize, target: usize) -> (bool, bool, bool, bool) {
-    let unoriented = (false, false, false, true);
-    if let Some(dag) = graph.as_dag() {
-        return static_parents(
-            dag.parents(id(target)),
-            dag.parents(id(source)),
-            source,
-            target,
-            false,
-        );
-    }
-    if let Some(admg) = graph.as_admg() {
-        let confound =
-            admg.bidirected_neighbors(id(source)).iter().any(|node| node.as_usize() == target);
-        return static_parents(
-            admg.parents(id(target)),
-            admg.parents(id(source)),
-            source,
-            target,
-            confound,
-        );
-    }
-    if let Some(pag) = graph.as_pag() {
-        return one_edge(pag.edge_between(id(source), id(target)), source, target);
-    }
-    if let Some(cpdag) = graph.as_cpdag() {
-        return cpdag.try_into_dag().map_or(unoriented, |dag| {
-            static_parents(dag.parents(id(target)), dag.parents(id(source)), source, target, false)
-        });
-    }
-    if let Some(dag) = graph.as_temporal_dag() {
-        return scan(dag.nodes(), dag.edges(), source, target);
-    }
-    if let Some(pag) = graph.as_temporal_pag() {
-        return scan(pag.nodes(), pag.edges(), source, target);
-    }
-    if let Some(admg) = graph.as_temporal_admg() {
-        return scan(admg.nodes(), admg.edges(), source, target);
-    }
-    if let Some(cpdag) = graph.as_temporal_cpdag() {
-        return cpdag
-            .try_into_temporal_dag()
-            .map_or(unoriented, |dag| scan(dag.nodes(), dag.edges(), source, target));
-    }
-    unoriented
+/// One member's reading.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[non_exhaustive]
+pub struct MemberReading {
+    /// The direct relation between the exposure and the outcome in the member.
+    pub relation: DirectRelation,
+    /// Normalized weight, when the form has weights.
+    pub weight: Option<f64>,
+    /// Whether the member identifies the reading.
+    pub status: MemberStatus,
+    /// The bridged reading of an identified member: the bridged kernel reading where the
+    /// member orients the exposure into the outcome, the bridged zero where it does not.
+    pub bridged: Option<f64>,
 }
 
-fn id(index: usize) -> DenseNodeId {
-    DenseNodeId::from_raw(u32::try_from(index).unwrap_or(u32::MAX))
+/// The structural reading of an accepted excitation over every member of its structure.
+#[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
+pub struct StructuralReading {
+    /// The declared form.
+    pub form: StructureForm,
+    /// Canonical identity of the declared structure, as lowercase hex.
+    pub structure: String,
+    /// The evidence the bridge cites: the provenance digest, or the structure's identity.
+    pub evidence: String,
+    /// The functional the bridge carried: `direct_offspring` or `total_offspring`.
+    pub functional: &'static str,
+    /// How cyclic members were read.
+    pub cyclic: CyclicReading,
+    /// One reading per member, in enumeration order.
+    pub members: Vec<MemberReading>,
+    /// Smallest and largest bridged reading over the identified members.
+    pub envelope: [f64; 2],
+    /// Mixture conditional on the identified members, for a form with weights.
+    pub mixture: Option<f64>,
+    /// Weight of the identified members (uniform enumeration weight for a form without
+    /// weights).
+    pub identified_weight: f64,
+    /// A class enumeration stopped before the class was complete.
+    pub truncated: bool,
+    /// Lifetime resolvent descendants of the outcome, reported beside a carried direct mass
+    /// when excitation runs both ways (a two-way kernel or a feedback member). Not a bridged
+    /// mean.
+    pub cyclic_reading: Option<f64>,
 }
 
-fn static_parents(
-    into_target: &[DenseNodeId],
-    into_source: &[DenseNodeId],
-    source: usize,
-    target: usize,
-    confound: bool,
-) -> (bool, bool, bool, bool) {
-    (
-        into_target.iter().any(|node| node.as_usize() == source),
-        into_source.iter().any(|node| node.as_usize() == target),
-        confound,
-        false,
-    )
+/// Mixture weights of the members that read the kernel and of the members that read zero,
+/// over the identified members.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Mixture {
+    pub(super) oriented: f64,
+    pub(super) null: f64,
 }
 
-fn one_edge(edge: Option<MarkedEdge>, source: usize, target: usize) -> (bool, bool, bool, bool) {
-    let Some(edge) = edge else {
-        return (false, false, false, false);
-    };
-    let mut forward = false;
-    let mut reverse = false;
-    let confound = edge.is_bidirected();
-    let mut partial = false;
-    match edge.parent_child() {
-        Some((parent, child)) if parent.as_usize() == source && child.as_usize() == target => {
-            forward = true;
-        }
-        Some((parent, child)) if parent.as_usize() == target && child.as_usize() == source => {
-            reverse = true;
-        }
-        Some(_) => {}
-        None => partial = !edge.is_bidirected(),
-    }
-    (forward, reverse, confound, partial)
-}
+impl Mixture {
+    /// Every identified member orients the edge: one law with the added event.
+    pub(super) const ORIENTED: Self = Self { oriented: 1.0, null: 0.0 };
 
-fn scan(
-    nodes: &[NodeRef],
-    edges: impl IntoIterator<Item = MarkedEdge>,
-    source: usize,
-    target: usize,
-) -> (bool, bool, bool, bool) {
-    let mut forward = false;
-    let mut reverse = false;
-    let mut confound = false;
-    let mut partial = false;
-    for edge in edges {
-        let Some(from) = variable(nodes, edge.a) else { continue };
-        let Some(to) = variable(nodes, edge.b) else { continue };
-        let pair = (from == source && to == target) || (from == target && to == source);
-        if !pair {
-            continue;
-        }
-        if edge.is_bidirected() {
-            confound = true;
-        }
-        match edge.parent_child() {
-            Some((parent, child)) => {
-                let parent = variable(nodes, parent);
-                let child = variable(nodes, child);
-                forward |= parent == Some(source) && child == Some(target);
-                reverse |= parent == Some(target) && child == Some(source);
+    pub(super) fn of(members: &StructureMembers) -> Self {
+        let (mut oriented, mut null) = (0.0, 0.0);
+        for member in members.members().iter().filter(|member| member.identified()) {
+            let weight = members.mixing_weight(member);
+            if member.relation().forward() {
+                oriented += weight;
+            } else {
+                null += weight;
             }
-            None => partial = true,
+        }
+        let total = oriented + null;
+        if total > 0.0 {
+            Self { oriented: oriented / total, null: null / total }
+        } else {
+            Self::ORIENTED
         }
     }
-    (forward, reverse, confound, partial)
+
+    /// The groups the law draws: `(added event excites, weight)`, kernel-reading members first.
+    pub(super) fn groups(self) -> Vec<(bool, f64)> {
+        [(true, self.oriented), (false, self.null)]
+            .into_iter()
+            .filter(|(_, weight)| *weight > 0.0)
+            .collect()
+    }
 }
 
-fn variable(nodes: &[NodeRef], id: DenseNodeId) -> Option<usize> {
-    let node = nodes.get(id.as_usize())?;
-    let variable = match node {
-        NodeRef::Static(variable)
-        | NodeRef::Lagged { variable, .. }
-        | NodeRef::Unfolded { variable, .. }
-        | NodeRef::Context { variable, .. } => variable,
-    };
-    usize::try_from(variable.raw()).ok()
+/// Read every member: the bridged kernel reading where the member orients the edge, the
+/// bridged zero where it does not.
+pub(super) fn read(
+    structural: &Structural,
+    mode: ReadingMode,
+    bridged: f64,
+    bridged_zero: f64,
+    cyclic_reading: Option<f64>,
+) -> StructuralReading {
+    let members = &structural.members;
+    let value = |relation: DirectRelation| if relation.forward() { bridged } else { bridged_zero };
+    let summary = members.summarize(|member| value(member.relation()));
+    StructuralReading {
+        form: members.form(),
+        structure: members.identity().to_hex(),
+        evidence: structural.evidence.clone(),
+        functional: mode.functional(),
+        cyclic: members.cyclic_reading(),
+        members: members
+            .members()
+            .iter()
+            .map(|member| MemberReading {
+                relation: member.relation(),
+                weight: member.weight(),
+                status: member.status(),
+                bridged: member.identified().then(|| value(member.relation())),
+            })
+            .collect(),
+        envelope: summary.envelope.unwrap_or([bridged, bridged]),
+        mixture: summary.mixture,
+        identified_weight: summary.identified_weight,
+        truncated: members.truncated(),
+        cyclic_reading,
+    }
+}
+
+/// Whether any identified member reads zero.
+pub(super) fn has_null_member(members: &StructureMembers) -> bool {
+    members.members().iter().any(|member| member.identified() && !member.relation().forward())
+}
+
+/// Whether any member carries a feedback pair.
+pub(super) fn has_feedback_member(members: &StructureMembers) -> bool {
+    members.members().iter().any(|member| member.relation().feedback())
 }

@@ -1042,12 +1042,7 @@ class events:  # noqa: N801
     BUDGET: Final = "events.budget"
     DESCENDANT_NOT_CARRIED: Final = "events.descendant_not_carried"
     DIAGNOSTIC_WITHHELD: Final = "events.diagnostic_withheld"
-    DISCOVERY_CONFOUNDED: Final = "events.discovery_confounded"
-    DISCOVERY_MISSING: Final = "events.discovery_missing"
-    DISCOVERY_REVERSED: Final = "events.discovery_reversed"
-    DISCOVERY_SYMMETRIC: Final = "events.discovery_symmetric"
     DISCOVERY_UNBOUND: Final = "events.discovery_unbound"
-    DISCOVERY_UNORIENTED: Final = "events.discovery_unoriented"
     EVIDENCE_MISSING: Final = "events.evidence_missing"
     EVIDENCE_NOT_DISCOVERY: Final = "events.evidence_not_discovery"
     FIT_FAILED: Final = "events.fit_failed"
@@ -1055,19 +1050,19 @@ class events:  # noqa: N801
     INCOMPLETE_MAPPING: Final = "events.incomplete_mapping"
     INTERVAL_UNMEASURED: Final = "events.interval_unmeasured"
     INVALID_REQUEST: Final = "events.invalid_request"
-    KERNEL_LEAD: Final = "events.kernel_lead"
     KERNEL_MISMATCH: Final = "events.kernel_mismatch"
-    KERNEL_SYMMETRIC: Final = "events.kernel_symmetric"
     MAPPING_NOT_AFFINE: Final = "events.mapping_not_affine"
     NAMES_NOT_IN_DISCOVERY: Final = "events.names_not_in_discovery"
     NOT_PARAMETER_MEAN: Final = "events.not_parameter_mean"
     NUMERICAL: Final = "events.numerical"
     ON_STABILITY_CAP: Final = "events.on_stability_cap"
+    READING_NOT_IDENTIFIED: Final = "events.reading_not_identified"
     REGIME_NOT_INTERVENED: Final = "events.regime_not_intervened"
     SAME_VARIABLE: Final = "events.same_variable"
     SINGULAR_GRAM: Final = "events.singular_gram"
     STUDY_KERNEL_MISMATCH: Final = "events.study_kernel_mismatch"
     STUDY_MARKED_KERNEL: Final = "events.study_marked_kernel"
+    STUDY_NEEDS_MEMBERS: Final = "events.study_needs_members"
     UNSTABLE: Final = "events.unstable"
     UNVERIFIED_SOURCE: Final = "events.unverified_source"
 
@@ -4510,12 +4505,7 @@ ALL: Final[tuple[str, ...]] = (
     "events.budget",
     "events.descendant_not_carried",
     "events.diagnostic_withheld",
-    "events.discovery_confounded",
-    "events.discovery_missing",
-    "events.discovery_reversed",
-    "events.discovery_symmetric",
     "events.discovery_unbound",
-    "events.discovery_unoriented",
     "events.evidence_missing",
     "events.evidence_not_discovery",
     "events.fit_failed",
@@ -4523,19 +4513,19 @@ ALL: Final[tuple[str, ...]] = (
     "events.incomplete_mapping",
     "events.interval_unmeasured",
     "events.invalid_request",
-    "events.kernel_lead",
     "events.kernel_mismatch",
-    "events.kernel_symmetric",
     "events.mapping_not_affine",
     "events.names_not_in_discovery",
     "events.not_parameter_mean",
     "events.numerical",
     "events.on_stability_cap",
+    "events.reading_not_identified",
     "events.regime_not_intervened",
     "events.same_variable",
     "events.singular_gram",
     "events.study_kernel_mismatch",
     "events.study_marked_kernel",
+    "events.study_needs_members",
     "events.unstable",
     "events.unverified_source",
     "evidence_ledger.cancelled",
@@ -7414,12 +7404,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "events.budget": ("execution_resource_limit",),
     "events.descendant_not_carried": ("bridge_mapping_not_supported",),
     "events.diagnostic_withheld": ("bridge_substitution_refused",),
-    "events.discovery_confounded": ("effect_not_identified",),
-    "events.discovery_missing": ("bridge_assumption_missing",),
-    "events.discovery_reversed": ("effect_not_identified",),
-    "events.discovery_symmetric": ("effect_not_identified",),
     "events.discovery_unbound": ("schema_mismatch",),
-    "events.discovery_unoriented": ("discovered_structure_unresolved",),
     "events.evidence_missing": ("bridge_assumption_missing",),
     "events.evidence_not_discovery": ("bridge_assumption_missing",),
     "events.fit_failed": ("dynamics_not_identified",),
@@ -7427,19 +7412,19 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "events.incomplete_mapping": ("scientific_bridge_invalid",),
     "events.interval_unmeasured": ("uncertainty_representation_insufficient",),
     "events.invalid_request": ("invalid_argument",),
-    "events.kernel_lead": ("effect_not_identified",),
     "events.kernel_mismatch": ("bridge_binding_mismatch",),
-    "events.kernel_symmetric": ("effect_not_identified",),
     "events.mapping_not_affine": ("bridge_mapping_not_supported",),
     "events.names_not_in_discovery": ("unknown_variable",),
     "events.not_parameter_mean": ("bridge_substitution_refused",),
     "events.numerical": ("invalid_argument",),
     "events.on_stability_cap": ("dynamics_not_identified",),
+    "events.reading_not_identified": ("effect_not_identified",),
     "events.regime_not_intervened": ("bridge_binding_mismatch",),
     "events.same_variable": ("invalid_argument",),
     "events.singular_gram": ("dynamics_not_identified",),
     "events.study_kernel_mismatch": ("bridge_binding_mismatch",),
     "events.study_marked_kernel": ("bridge_binding_mismatch",),
+    "events.study_needs_members": ("bridge_binding_mismatch",),
     "events.unstable": ("invalid_argument",),
     "events.unverified_source": ("external_verification_failed",),
     "evidence_ledger.cancelled": ("cancelled_no_claim",),

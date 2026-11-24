@@ -24543,20 +24543,20 @@ fixtures = [
 id = "forecast.hawkes_parameter_bridge"
 capability = "forecast.hawkes_parameter_bridge"
 status = "supported"
-consumer_question = "When an immigrant diagnostic agreed and an accepted discovery orients the exposure into the outcome, what intervention-response mean does the parameter-intervention bridge carry for one added event, what continuations does one release action draw under that kernel, and what is observing the stream worth for that release?"
-theorem = "The bridge maps the agreed horizon direct mass by its declared identity or affine map, so the bridged mean is intercept + slope x the direct mass; descendants are nonlinear in the kernel and are reported, never carried. One added event of type s at time r changes the intensity of type t by alpha_ts beta_ts exp(-beta_ts (u - r)) beside the observed history's excitation, so the intervened continuation is the kernel's conditional law given the history and that event, drawn by Ogata thinning. The structural reading is premise-conditional: its evidence is the provenance of the accepted discovery, never a label."
+consumer_question = "When an immigrant diagnostic agreed, what intervention-response mean does the parameter-intervention bridge carry for one added event under every member of a declared structure (an accepted graph or equivalence class, a candidate set, a graph posterior or a cyclic system), what continuations does one release action draw across those members, and what is observing the stream worth for that release per member?"
+theorem = "The bridge maps the agreed horizon direct mass by its declared identity or affine map, so the bridged mean is intercept + slope x the direct mass; under an identity map the lifetime total offspring, the resolvent column entry [(I - A)^{-1} - I]_ts (direct mass plus feedback descendants), may cross instead, and under an affine map the resolvent value is reported beside the carried direct mass. Each member of the declared structure reads the bridged kernel value where it orients s into t, the bridged zero where the edge is absent or reversed (the complete ID algorithm identifies that effect as zero), and nothing where its identification fails; the reading reports the envelope over identified members, their weight, and for weighted forms the mixture conditional on them. One added event of type s at time r changes the intensity of type t by alpha_ts beta_ts exp(-beta_ts (u - r)) beside the observed history's excitation, so the intervened continuation is the kernel's conditional law given the history and that event, drawn by Ogata thinning; null members draw the same stream without the event, so the mixture law's member difference is structural. The structural reading is premise-conditional: its evidence is the provenance of the search the structure came from, or the declared structure's canonical identity, never a label."
 reference = "provenance/forecast.hawkes_parameter_bridge.toml"
 guarantee = "premise_conditional_bridged_direct_mass_and_intervened_continuation"
-graph_class = "An accepted discovered structure (DAG, CPDAG, PAG, ADMG or their temporal forms) that orients the exposure into the outcome, over the event catalog or prototype names."
+graph_class = "A declared structure over the event catalog or prototype names: one DAG, ADMG, temporal DAG or temporal ADMG; a CPDAG, PAG, temporal CPDAG or temporal PAG read through its completions; an explicit candidate set; a DAG or ADMG graph posterior; or a cyclic system whose edges are read as lags."
 population_semantics = "The observed stream the kernel was fitted on; the response regime the bridge names differs from the observational one."
-evidence_family = "An agreed immigrant reading and its kernel, a parameter-intervention bridge on direct_offspring, the provenance of an accepted discovery, and a release action with a draw declaration."
-provider = "antecedent::analysis::events bridge programs (route HawkesParameterBridge): Study::prepare_excitation_question, prepare_release_law, prepare_intervened_law, prepare_release_question, prepare_shock_query and prepare_release_study, over antecedent_contract::bridge::derive_bridged_claim"
-estimand = "The bridged direct-offspring mean of one added event, the intervened continuation of one release action, the lag-count query of an excluded shock, and the value of observing the stream for the release under the kept kernel."
+evidence_family = "An agreed immigrant reading and its kernel, a parameter-intervention bridge on direct_offspring (or total_offspring under an identity map), a declared structure with its provenance or canonical identity, and a release action with a draw declaration."
+provider = "antecedent::analysis::events bridge programs (route HawkesParameterBridge): Study::prepare_excitation_question, prepare_release_law, prepare_intervened_law, prepare_release_question, prepare_shock_query, prepare_release_study and prepare_member_release_study, over antecedent_contract::bridge::derive_bridged_claim and the shared member carrier antecedent::analysis::structure_members"
+estimand = "The bridged direct-offspring (or total-offspring) mean of one added event under each member of the declared structure with its envelope and mixture, the mixture intervened continuation of one release action, the lag-count query of an excluded shock, and the value of observing the stream for the release under each member kernel and their mixture."
 inference_claim = "point_only"
-inference_notes = "A point bridged mean conditional on the bridge's structural premise and the discovery it cites; model-conditional intervened paths. No interval, posterior or calibration is computed or claimed."
+inference_notes = "A point bridged mean conditional on the bridge's structural premise and the declared structure it cites; the envelope is the range over identified members and the mixture is conditional on them, neither is an interval; model-conditional intervened paths. No interval, posterior or calibration is computed or claimed."
 owners = ["antecedent", "antecedent-contract", "antecedent-py"]
-identity_inputs = ["reading, kernel and the history its Gram is checked on", "bridge contract identity", "discovery provenance digest", "release action, draw window, path count, event cap and seed", "the accepted program a continuation or release study composes on"]
-wire_changes = ["Additive compiled route HawkesParameterBridge; Python events.prepare accepts excitation_question, marked_excitation_question, shock and release_study operations."]
+identity_inputs = ["reading, kernel and the history its Gram is checked on", "bridge contract identity", "structure provenance digest", "for a structure other than one accepted DAG: the declared structure's canonical identity (form, canonical graph identities with node labels, names, weights, cyclic premises) and the reading mode (functional and lagged cyclic reading)", "release action, draw window, path count, event cap and seed", "the accepted program a continuation or release study composes on"]
+wire_changes = ["Additive compiled route HawkesParameterBridge; Python events.prepare accepts excitation_question, marked_excitation_question, shock, release_study and member_release_study operations, and a graph, a class, a list of graphs with weights, a graph posterior or a cyclic declaration as the structure."]
 compatibility = "Additive. The catalog event routes, their program identities and their results are unchanged; an event-study report gains release_information only for a release study."
 prerequisite_records = ["forecast.hawkes_excitation", "forecast.event_process"]
 search = false
@@ -24568,6 +24568,7 @@ routes = [
   { name = "antecedent.Study.prepare_release_question", stage = "prepare", status = "supported" },
   { name = "antecedent.Study.prepare_shock_query", stage = "prepare", status = "supported" },
   { name = "antecedent.Study.prepare_release_study", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_member_release_study", stage = "prepare", status = "supported" },
 ]
 refusals = [
   { detail = "events.invalid_request" },
@@ -24578,18 +24579,11 @@ refusals = [
   { detail = "events.bridge_contract_refused" },
   { detail = "events.descendant_not_carried" },
   { detail = "events.diagnostic_withheld" },
-  { detail = "events.discovery_confounded" },
-  { detail = "events.discovery_missing" },
-  { detail = "events.discovery_reversed" },
-  { detail = "events.discovery_symmetric" },
   { detail = "events.discovery_unbound" },
-  { detail = "events.discovery_unoriented" },
   { detail = "events.evidence_missing" },
   { detail = "events.evidence_not_discovery" },
   { detail = "events.incomplete_mapping" },
-  { detail = "events.kernel_lead" },
   { detail = "events.kernel_mismatch" },
-  { detail = "events.kernel_symmetric" },
   { detail = "events.mapping_not_affine" },
   { detail = "events.names_not_in_discovery" },
   { detail = "events.not_parameter_mean" },
@@ -24599,15 +24593,26 @@ refusals = [
   { detail = "events.singular_gram" },
   { detail = "events.study_kernel_mismatch" },
   { detail = "events.study_marked_kernel" },
+  { detail = "events.reading_not_identified" },
+  { detail = "events.study_needs_members" },
 ]
 fixtures = [
   { id = "forecast.hawkes_parameter_bridge.release_law_means.truth", role = "truth", intent = "4000 compiled continuations of a release added at the end of the observation have mean release and activity counts on [1, 2) equal to the linear-intensity means: the baseline, each observed release's and the added release's in-window excitation, and the excitation of baseline releases, written out in the test.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "release_law_counts_match_the_linear_intensity_means" },
   { id = "forecast.hawkes_parameter_bridge.affine_mean.truth", role = "truth", intent = "With an affine map of slope 2 the bridged mean is twice the agreed direct mass alpha (1 - exp(-1)); release now, later and under another mark add exactly one event at the declared time and type.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "agreement_carries_the_direct_mass_when_discovery_orients_the_edge" },
   { id = "forecast.hawkes_parameter_bridge.marked.positive", role = "positive", intent = "A marked kernel crosses the same bridge and its continuation starts with one added prototype.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "a_marked_kernel_uses_the_same_question_and_one_added_prototype" },
   { id = "forecast.hawkes_parameter_bridge.shock.positive", role = "positive", intent = "Python surface: an excluded shock returns the lag-count query and no excitation coefficient.", evidence_test = "python/tests/test_events.py", evidence_assertion = "test_excluded_shock_returns_a_lag_query_without_an_excitation_coefficient" },
-  { id = "forecast.hawkes_parameter_bridge.labels.negative", role = "negative", intent = "A handwritten evidence label, a descendant functional, an observational response regime, a reverse discovery edge and a predictive bridge kind all refuse.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "a_label_a_reverse_edge_and_a_descendant_stay_out_of_the_bridge" },
+  { id = "forecast.hawkes_parameter_bridge.labels.negative", role = "negative", intent = "A handwritten evidence label, a descendant functional, an observational response regime and a predictive bridge kind all refuse; a reverse discovery edge is one member that reads the bridged zero and draws its continuation without the added event.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "a_label_and_a_descendant_stay_out_of_the_bridge_and_a_reverse_edge_reads_zero" },
+  { id = "forecast.hawkes_parameter_bridge.class_envelope.truth", role = "truth", intent = "A two-node unoriented CPDAG reads its two completions, both identified, with envelope [0, alpha (1 - e^{-1})] under an identity map.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "an_unoriented_pair_reads_an_envelope_from_zero_to_the_mass" },
+  { id = "forecast.hawkes_parameter_bridge.candidates.truth", role = "truth", intent = "A three-graph weighted candidate set reads the mass, zero and an unidentified bow: identified weight 0.8 and conditional mixture 0.625 times the mass, by hand.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_weighted_candidate_set_mixes_its_identified_readings" },
+  { id = "forecast.hawkes_parameter_bridge.posterior.truth", role = "truth", intent = "An ADMG posterior with edge probability 0.6 and an unidentified atom of mass 0.1 reports identified weight 0.9 and the mixture 0.6 / 0.9 times the mass conditional on identified atoms.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_posterior_mixes_conditional_on_its_identified_atoms" },
+  { id = "forecast.hawkes_parameter_bridge.feedback.truth", role = "truth", intent = "A two-node feedback cycle carries the total offspring a / (1 - ab) across an identity map, and reports it beside the carried direct mass under an affine map.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_feedback_cycle_carries_the_total_offspring_of_the_resolvent" },
+  { id = "forecast.hawkes_parameter_bridge.mixture_law.truth", role = "truth", intent = "A mixture release law draws null members exactly as the continuation without the added event on the same stream, and its weighted mean equals the weighted member means.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_mixture_law_draws_null_members_on_the_same_streams" },
+  { id = "forecast.hawkes_parameter_bridge.unidentified.negative", role = "negative", intent = "A structure none of whose members identifies the exposure's effect refuses with events.reading_not_identified.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_structure_no_member_identifies_refuses" },
+  { id = "forecast.hawkes_parameter_bridge.dag_identity.artifact", role = "artifact", intent = "A question read against one accepted DAG keeps the program identity a discovered DAG always had.", evidence_test = "crates/antecedent/src/analysis/events/structure_tests.rs", evidence_assertion = "a_single_dag_keeps_its_program_identity" },
+  { id = "forecast.hawkes_parameter_bridge.members.artifact", role = "artifact", intent = "The shared member carrier enumerates class completions, weighted candidates, posterior atoms and lagged cyclic members with their identification, and its identity covers form, graph and labels.", evidence_test = "crates/antecedent/src/analysis/structure_members_tests.rs", evidence_assertion = "a_posterior_reads_its_atoms_with_their_mass" },
   { id = "forecast.hawkes_parameter_bridge.withheld.negative", role = "negative", intent = "A compiled release question whose reading is withheld returns the reading alone, with no claim and no law.", evidence_test = "crates/antecedent/src/analysis/events/question.rs", evidence_assertion = "a_release_question_withholds_what_the_python_fixture_withholds" },
-  { id = "forecast.hawkes_parameter_bridge.python_question.negative", role = "negative", intent = "Python surface: a question needs the discovered graph and provenance, reports the provenance digest as its evidence, and a withheld reading is not accepted.", evidence_test = "python/tests/test_events.py", evidence_assertion = "test_excitation_question_uses_the_discovery_provenance" },
+  { id = "forecast.hawkes_parameter_bridge.python_question.negative", role = "negative", intent = "Python surface: a question needs a declared structure, reports the provenance digest as its evidence, and a withheld reading is not accepted.", evidence_test = "python/tests/test_events.py", evidence_assertion = "test_excitation_question_uses_the_discovery_provenance" },
+  { id = "forecast.hawkes_parameter_bridge.python_structures.positive", role = "positive", intent = "Python surface: a class, a weighted candidate list, a graph posterior and a cyclic declaration each compile a question whose inspection lists the members and their identification.", evidence_test = "python/tests/test_events.py", evidence_assertion = "test_excitation_question_reads_every_structure_form" },
   { id = "forecast.hawkes_parameter_bridge.unit.artifact", role = "artifact", shared_evidence = true, intent = "The compiled shock handoff names the HawkesParameterBridge route and runs under this unit.", evidence_test = "crates/antecedent/tests/hawkes_marks.rs", evidence_assertion = "each_new_program_runs_under_its_own_unit" },
 ]
 
