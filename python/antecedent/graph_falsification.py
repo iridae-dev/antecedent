@@ -159,6 +159,12 @@ def falsify_study_graph(
     program: the run is gated on the support unit ``gcm.model.graph_falsification`` and the
     report is the same, number for number, as ``evaluate_graph`` on the same rows, edges,
     settings and execution seed. ``execution`` defaults to the study's own.
+
+    The nodes are the columns the study retained, in the data's own order (preparation keeps
+    the columns the graph and the query name, in the order the data holds them), so node ids
+    follow the table exactly as ``evaluate_graph`` numbers them. A column of the data that the
+    graph does not name is not retained, so it is not tested as an isolated node; declare it in
+    the graph to test it.
     """
     native = getattr(getattr(study, "_engine", None), "_native", None)
     if native is None or not hasattr(native, "falsify_graph"):
