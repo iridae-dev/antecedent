@@ -1158,10 +1158,14 @@ mod compiled_tests {
             require_decision_route_support(&ctx, "GraphImputationEffectDecision").unwrap();
             assert!(ctx.would_refuse().is_empty());
         }
-        // The route-keyed gate itself reads the unit table: a development build records what a
-        // release build refuses and runs, and a release build refuses.
+        // The route-keyed gate itself reads the unit table: a supported unit passes silently;
+        // otherwise a development build records what a release build refuses and runs, and a
+        // release build refuses.
         let gated = require_route_support(&ctx, "GraphImputationEffectDecision");
-        if cfg!(feature = "development") {
+        if crate::support::capability_supported("graph_imputation.compiled_decision") {
+            gated.unwrap();
+            assert!(ctx.would_refuse().is_empty());
+        } else if cfg!(feature = "development") {
             gated.unwrap();
             assert_eq!(ctx.would_refuse().len(), 1);
         } else {

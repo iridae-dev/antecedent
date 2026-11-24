@@ -525,7 +525,8 @@ mod smoothed_dose {
         .unwrap()
         .execute(&ctx)
         .unwrap_err();
-        assert!(error.to_string().contains("route_not_supported"), "{error}");
+        // The kernel refuses with a coded error; the code travels as the refusal's reason code.
+        assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     }
 
     #[test]
