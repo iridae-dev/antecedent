@@ -8584,6 +8584,8 @@ refusals = [
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.model_mismatch" },
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.declaration_not_kept" },
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.records_mismatch" },
+  { code = "decision_contract_unsatisfied", detail = "accepted_preferences.added_relation_not_from_choices" },
+  { code = "decision_contract_unsatisfied", detail = "accepted_preferences.learned_not_reproduced" },
   { code = "invalid_argument", detail = "accepted_preferences.not_pending" },
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.options_mismatch" },
   { code = "invalid_argument", detail = "accepted_preferences.pooled_not_available" },

@@ -132,8 +132,14 @@ drawn (`draws=`, `shared=` or `refits=`). `seed=` defaults to the seed of `execu
 `compiled.execute(measure=None, execution=None)` runs each plan once and returns the same
 `PreferenceDecision` as `evaluate`. When a chain was compiled, execution fits each study, binds
 its posterior moments to the chain's deferred family table and runs the compiled program; the
-receipt names that program's identity. The decision's `source` is the aligned law it read, when
-it read one, so the decision exports and replays as one evaluated on draws.
+receipt names that program's identity. The receipt lists the compiled program of every plan
+(`programs`) and, position by position beside it, the identity the executed result reported
+(`executed`); an execution whose result reports another program is refused
+(`preference_compile.executed_program_mismatch`), for studies and compiled designs alike. An
+`executed` entry is `None` (`null` in Python) where no result reports one: a structure whose
+estimation failed without ending the run, which the decision counts as unevaluated, or a
+runtime-callback program, which has no semantic identity. The decision's `source` is the aligned
+law it read, when it read one, so the decision exports and replays as one evaluated on draws.
 
 ### Evaluate on a source in hand
 
@@ -489,8 +495,11 @@ a law that treated them as independent would understate the spread of every marg
 
 A refusal for shared evidence says how many observations (`200 shared observations`) or units
 (`100 shared units in namespace hospital_mrn`) the pair shares, and only those pairs need a
-declared block. In Rust, a unit key is `StudyBuilder::unit_key(UnitKey::column(id, namespace))`
-(or `UnitKey::labels`). A table made by `TabularData::project` or `TabularData::select_rows`
+declared block. In Rust, a unit key is `StudyBuilder::unit_key(UnitKey::column(id, namespace))`,
+`UnitKey::text_labels(namespace, ids)` for one text identifier per row (any text, a `:`
+included: `2023:017` is the text `2023:017`), or `UnitKey::canonical_labels(namespace, labels)`
+for labels already in the canonical type-tagged form (`text:<id>`, `int64:<decimal>`,
+`float64:<16 hex digits>`, `bool:<0|1>`), each checked when the study is built. A table made by `TabularData::project` or `TabularData::select_rows`
 remembers the table its rows came from and their positions in it (`TabularData::row_origin`),
 and a study built on it is judged by that origin without any declaration: two projections of
 one table share every row, and row selections share exactly the rows both took. For a table
@@ -661,7 +670,8 @@ uses Bland's (1977) smallest-index rule and the non-negative least-squares metho
 and Hanson. Margins within the tie tolerance count as ties: the declared tolerance (`1e-9`
 criterion units by default) or, when larger, the numerical error bound of the margins (the
 rounding of the expected values, which grows with their magnitude, plus the linear-program
-tolerances times the margin's slope).
+tolerances times the margin's slope). The tolerance applied is reported as
+`effective_tie_tolerance`.
 
 What it does not guarantee: the law itself. If the source is a posterior or a set of sampled
 draws, its own sampling error is not part of the ranges. The ranges are over trade-offs only.
@@ -684,18 +694,32 @@ What it guarantees:
 - **Bounded declared ranges.** Every parameter has a finite range, so the box to cover is
   bounded.
 - **A non-empty set.** The ranges and linear relations are checked by linear program before any
-  box is placed. Relations that conflict jointly, or leave a gap narrower than the smallest box,
-  are refused as an empty set (`preference_certified.preference_set_empty`).
+  box is placed. Relations that conflict jointly by more than its feasibility tolerance are
+  refused as an empty set (`preference_certified.preference_set_empty`), and so is a set whose
+  every box is proven outside some relation.
+- **A witnessed point behind every choice.** The linear program works to a tolerance, so its
+  point is not proof that the set holds one. A choosing verdict (`necessarily_best`,
+  `worst_case_choice`, `minimax_regret_choice`) needs a kept box wholly inside every relation, or
+  a point at which every relation is proven to hold with no tolerance (linear relations in
+  arithmetic that widens only an inexact operation, so touching bounds such as `t >= 0.5` and
+  `t <= 0.5` are proven at `t = 0.5`). Without one the verdict is `undetermined`: relations
+  that miss each other by less than the feasibility tolerance (`t >= 0.5 + 1e-10` with
+  `t <= 0.5`) are neither a choice nor called empty.
 - **Equalities solved.** Each equality relation is solved for one parameter, so boxes lie inside
   the equality and the fractions are over the set's own dimensions.
-- **Value relations met.** With value relations, a choosing verdict needs a box wholly inside
-  the set or a point the set accepts; otherwise the verdict is `undetermined`.
+- **Value relations met.** The witness above also holds every value relation: at a point, its
+  outward-rounded gap enclosure is at least minus its tolerance.
 - **No point labels.** A box is certified for an action only when its enclosures prove that
   action better than every admissible rival by more than the tie tolerance on the whole box.
 - **Boundary boxes counted in full.** A box that straddles a relation is kept, flagged as
   touching the boundary and counted in full, although part of it lies outside the set.
-- **Rounding of point scores.** Under a weighted policy, a lead between point scores must also
-  exceed twice the rounding bound of those scores when that is larger than the tie tolerance.
+- **Leads at measure points read from enclosures.** Under a weighted policy each measure point
+  is also evaluated in outward-rounded interval arithmetic, and a lead counts toward an action's
+  share only when the enclosure of its margin there exceeds the tie tolerance; the choice reads
+  the measure-weighted margin enclosures the same way. A value that cancels large terms (a
+  benefit and a price times a cost near `1e9` leaving a value near `1`) can lead by pure rounding
+  in floating point, and such a lead does not count. `effective_tie_tolerance` reports the tie
+  tolerance plus the widest measure-weighted margin enclosure; on boxes it is the tie tolerance.
 - **An explicit undecided share.** Splitting stops when every box is decided, when the box
   budget is spent (4,096 boxes by default) or when every width is at most a minimum fraction
   of its range (`1e-6` by default). Volume left undecided is reported as `undecided_fraction`
@@ -753,7 +777,7 @@ execution's memory limit raises `CausalResourceError`, as elsewhere. The full ta
 | `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Studies of different tables whose overlap cannot be judged: unit keys in different namespaces, or a key on one study only | Key both studies in one namespace, or declare their covariance with `shared=` |
 | `preference_compile.unit_key_invalid` | `invalid_argument` | A study's unit key column is its treatment or its outcome | Name a column that identifies the units the rows observe |
 | `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | A declared block has the wrong shape, a non-finite term or only zero terms, or names studies that share nothing | Declare one finite block, not all zero, per overlapping pair |
-| `preference_compile.unit_label_types_differ` | `evidence_overlap_unknown` | Two studies keyed in one identifier space carry unit labels of different types | Key both studies by labels of one type |
+| `preference_compile.unit_label_types_differ` | `evidence_overlap_unknown` | Two studies keyed in one identifier space carry unit labels of different types (for example text in one, integers in the other) | Key both studies by labels of one type |
 | `preference_compile.executed_program_mismatch` | `route_not_lowered` | An executed result reports a program other than the decision program its plan states | Execute the compiled decision's own prepared studies |
 | `preference_compile.sampled_mixture_not_exact` | `route_not_supported` | A mixture of sampled class members was read under a policy other than report-only | Report the sampled shares, or enumerate the class |
 | `preference_compile.design_sampling_undeclared` | `joint_law_required` | A cluster-randomized, matched-pair or switchback design asked for a joint law with no declared sampling premise | Declare `sampling=` with `refits=` (at least 99), or decide with an affine value and an expectation, which its arm means answer |

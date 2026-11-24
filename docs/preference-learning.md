@@ -380,7 +380,16 @@ Accepting a learned set or estimate directly (`AcceptedPreferences::from_compati
 `from_estimate` in Rust) takes the records it was learned from: records whose digest differs
 are refused (`accepted_preferences.records_mismatch`), and the count of stated comparisons is
 read from them. A learned set that drops or changes a declared parameter, range or relation is
-refused (`accepted_preferences.declaration_not_kept`).
+refused (`accepted_preferences.declaration_not_kept`), and so is one that adds a relation no
+recorded choice implies (`accepted_preferences.added_relation_not_from_choices`). The set or
+estimate itself is then learned again from the model, the records and the options supplied
+(the seed included, so an estimate's measure draws are the same) and must be reproduced, within
+the replay tolerance: a range, a relation or an estimate edited after learning, or options other
+than the ones it was learned with, are refused (`accepted_preferences.learned_not_reproduced`,
+naming the first field that differs). Recomputing, not checking a stored digest, is what
+detects an edit, since a digest over the content can be recomputed by whoever edits it; the
+cost is one run of the learner. `accept`, which learns and accepts in one step, does not run it
+twice.
 
 ## Why a fit never mixes stated and recorded choices
 

@@ -1285,6 +1285,8 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `accepted_preferences.model_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences under the model they were learned from. |
 | `accepted_preferences.declaration_not_kept` | `decision_contract_unsatisfied` | Accept a learned set that keeps every declared parameter, range and relation. |
 | `accepted_preferences.records_mismatch` | `decision_contract_unsatisfied` | Supply the records the set or estimate was learned from. |
+| `accepted_preferences.added_relation_not_from_choices` | `decision_contract_unsatisfied` | Accept the learned set as the learner returned it; declare analyst relations in the value model. |
+| `accepted_preferences.learned_not_reproduced` | `decision_contract_unsatisfied` | Accept the learned set or estimate as the learner returned it, with the records and options it was learned from: learning again does not reproduce it. |
 | `accepted_preferences.options_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences with the options they were learned with. |
 | `accepted_preferences.pooled_not_available` | `invalid_argument` | Name the decider whose preferences to accept. |
 | `accepted_preferences.decider_unknown` | `invalid_argument` | Name a decider the records hold. |
