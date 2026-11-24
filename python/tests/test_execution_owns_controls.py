@@ -66,6 +66,17 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.graph_falsification.GraphFalsification:execution_seed": "seed recorded on the result",
     "antecedent.graph_falsification.GraphFalsification:permutation_seed": "declared permutation seed",
     "antecedent.graph_falsification.evaluate_graph:permutation_seed": "declared permutation seed",
+    "antecedent._decision_compile.DesignLawPlan:seed": "seed of the design refits, on the plan",
+    "antecedent._decision_compile.JointLawPlan:seed": "seed of the joint-law draws, on the plan",
+    "antecedent._decision_tradeoff_results.ClassSampling:seed": (
+        "stream of the sampled class members, recorded on the result"
+    ),
+    "antecedent.decision.Contract.compile:seed": (
+        "declared seed of the compiled program's draws, recorded on its plan (the Execution "
+        "seed when omitted)"
+    ),
+    "antecedent.decision_learning.ChoiceModel:seed": "stream of the measure's draws, on the record",
+    "antecedent.inference.ClassPrior.sample:seed": "declared sampling stream of the class prior",
     "antecedent.graph_falsification.falsify_study_graph:permutation_seed": (
         "declared permutation seed"
     ),

@@ -847,9 +847,11 @@ def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_
 
     decided = require_success(compiled.execute())
     assert isinstance(decided.source, JointDistributionArtifact)
-    assert (
-        decided.source.identity.rng_id == "independent_unit_bootstrap:cluster:replicates=99:seed=3"
-    )
+    # The recipe is named by its kind and the canonical digest of the kind, the resampled unit
+    # (cluster), the refits and the seed; the Rust tests derive the digest.
+    kind, _, digest = decided.source.identity.rng_id.partition(":")
+    assert kind == "independent_unit_bootstrap"
+    assert len(digest) == 64 and all(c in "0123456789abcdef" for c in digest)
     assert decided.selected == "treat"
     assert SAMPLING in decided.assumptions
 

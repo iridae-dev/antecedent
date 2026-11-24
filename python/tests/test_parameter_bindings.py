@@ -23,7 +23,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.discovery import PC, RPCMCI
-from antecedent.errors import CausalCancelled, ReviewRequired
+from antecedent.errors import CausalCancelled, CausalUnsupportedError, ReviewRequired
 from antecedent.inference import Bayesian, Frequentist
 from antecedent.outcomes import require_success
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
@@ -441,6 +441,14 @@ def test_seed_reaches_plan():
 
 def test_threads_reaches_plan():
     assert _bound(_analyze(threads=2), "threads") == 2
+
+
+def test_unit_key_reaches_plan():
+    # The unit key declares the identifier space a decision judges shared evidence in; it is
+    # read only by the static ResponseCurve route a decision joins, and refused elsewhere.
+    with pytest.raises(CausalUnsupportedError) as refused:
+        _analyze(unit_key=ant.UnitKey("z", "fixture_units"))
+    assert refused.value.reason_code == "option_not_applicable"
 
 
 # --- execution controls -----------------------------------------------------------------------

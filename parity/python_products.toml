@@ -1192,6 +1192,13 @@ reason = ""
 test = "python/tests/test_parameter_bindings.py::test_data_diagnostics_reaches_plan"
 
 [[parameter]]
+name = "unit_key"
+entry_points = ["prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = "declares the unit identifiers a decision judges shared evidence by; it is not a contract field of the study"
+test = "python/tests/test_parameter_bindings.py::test_unit_key_reaches_plan"
+
+[[parameter]]
 name = "return_posterior_artifact"
 entry_points = ["analyze"]
 binding = "execution_control"

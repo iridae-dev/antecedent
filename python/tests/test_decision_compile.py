@@ -139,7 +139,9 @@ def test_ordinary_compile_across_studies_and_design():
     key = ant.UnitKey("patient", namespace="hospital_mrn")
 
     def keyed(outcome: str, patients: list[str]):
-        table = _dose_table(outcome, 200)
+        # Each outcome has its own noise, so the two tables differ in the columns the engine
+        # identifies them by (the patient column is text, which no table column takes).
+        table = _dose_table(outcome, 200, rate=1.7 if outcome == "b" else 2.9)
         table["patient"] = np.array(patients, dtype=object)
         return ant.prepare(
             table,
