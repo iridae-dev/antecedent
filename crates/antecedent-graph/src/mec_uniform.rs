@@ -30,7 +30,10 @@
 //! The count is exact in `u128`; a class with more members is refused rather than rounded.
 //! Counting is charged to a [`SearchBudget`]: one operation per clique of every subproblem,
 //! and one per undirected edge Meek's rules examine while closing the orientation the clique
-//! fixes, so the charge grows with the closure work.
+//! fixes, so the charge grows with the closure work. A clique or a star charges one operation
+//! per clique; a path of `n` vertices, whose closure orients one edge per pass, about `n^3 / 3`
+//! (1,327,280 for 160 vertices), so the default completion budget of 4,000,000 operations holds
+//! paths of a little over 200 vertices and a class sample's four-fold budget paths of about 360.
 //!
 //! The per-component product counts the members of an essential graph: a chain graph (no
 //! directed cycle through its undirected components, no directed edge inside one) whose
@@ -889,6 +892,31 @@ mod tests {
         ));
         let ample = SearchLimits { operations: 1_000_000, depth: usize::MAX };
         assert_eq!(MecUniform::new(&graph, ample, &ctx).map(|class| class.class_size()), Ok(30));
+    }
+
+    #[test]
+    fn components_well_beyond_the_tested_sizes_fit_the_completion_budget() {
+        // Measured charges (cliques plus examined closure edges): a path of n nodes about
+        // n^3 / 3 (30: 7,715; 60: 66,730; 120: 554,660; 160: 1,327,280), a binary tree far less
+        // (160: 155,908), a star or a clique one operation per clique (a star of 160: 159; a
+        // clique of 20: 1). Every component the sampling tests draw (paths of 30, random chordal
+        // graphs of at most 12 nodes) charges below 10,000, and these fit the completion budget
+        // of 4,000,000 operations, a quarter of what a class sample may charge.
+        let (limits, ctx) = crate::completion::default_completion_search();
+        let path: Vec<(u32, u32)> = (0..119).map(|a| (a, a + 1)).collect();
+        let binary: Vec<(u32, u32)> = (1..160).map(|a| ((a - 1) / 2, a)).collect();
+        let star: Vec<(u32, u32)> = (1..160).map(|a| (0, a)).collect();
+        let clique: Vec<(u32, u32)> =
+            (0..12).flat_map(|a| ((a + 1)..12).map(move |b| (a, b))).collect();
+        // A tree's members are its rootings (n of them); a clique's are its orders.
+        for (graph, size) in [
+            (undirected(120, &path), 120),
+            (undirected(160, &binary), 160),
+            (undirected(160, &star), 160),
+            (undirected(12, &clique), 479_001_600),
+        ] {
+            assert_eq!(MecUniform::new(&graph, limits, &ctx).map(|c| c.class_size()), Ok(size));
+        }
     }
 
     #[test]
