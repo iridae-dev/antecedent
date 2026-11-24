@@ -489,6 +489,19 @@
     "url": "https://api.crossref.org/works/10.1017/cbo9780511802256",
     "year": 1998
   },
+  "10.1017/cbo9780511802843": {
+    "authors": [
+      "A. C. Davison",
+      "D. V. Hinkley"
+    ],
+    "doi": "10.1017/cbo9780511802843",
+    "response_sha256": "469db3e5d7d9802e1cfccbaeb75f917449de102382218574fc9501f826653266",
+    "titles": [
+      "Bootstrap Methods and their Application"
+    ],
+    "url": "https://api.crossref.org/works/10.1017/cbo9780511802843",
+    "year": 1997
+  },
   "10.1017/cbo9780511803161": {
     "authors": [
       "Judea Pearl"
@@ -500,6 +513,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1017/cbo9780511803161",
     "year": 2009
+  },
+  "10.1017/cbo9781139025751": {
+    "authors": [
+      "Guido W. Imbens",
+      "Donald B. Rubin"
+    ],
+    "doi": "10.1017/cbo9781139025751",
+    "response_sha256": "499ebe6220bc5988db736c82414e78c49de2c128e9400e7a98c090306cd10abc",
+    "titles": [
+      "Causal Inference for Statistics, Social, and Biomedical Sciences"
+    ],
+    "url": "https://api.crossref.org/works/10.1017/cbo9781139025751",
+    "year": 2015
   },
   "10.1017/s0266466605050565": {
     "authors": [
