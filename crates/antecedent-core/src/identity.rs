@@ -9,6 +9,8 @@
 use core::fmt;
 use std::sync::Arc;
 
+use crate::framing::{self, FrameSink};
+
 /// Lowercase hex encoding of `bytes` (two characters per byte).
 #[must_use]
 pub fn to_hex(bytes: &[u8]) -> String {
@@ -100,6 +102,11 @@ pub fn fnv1a_u64(bytes: &[u8]) -> u64 {
 ///
 /// The byte stream is identical to the buffered `Canon` builders previously
 /// private to `antecedent-io`, so a digest computed by either agrees.
+///
+/// Every frame is written by the framing kernels of `crate::framing`, which are
+/// translated to Lean and proved uniquely decodable (assurance record
+/// `identity.canonical_framing_injective`); [`Self::try_bytes`] writes the
+/// [`Self::bytes`] frame with the payload in checked chunks.
 #[derive(Clone, Debug)]
 pub struct CanonicalWriter {
     hasher: blake3::Hasher,
@@ -130,7 +137,13 @@ impl CanonicalWriter {
 
     /// One `u64` word, little-endian.
     pub fn word(&mut self, word: u64) -> &mut Self {
-        self.hasher.update(&word.to_le_bytes());
+        framing::frame_word(&mut self.hasher, word);
+        self
+    }
+
+    /// A presence word: `1` when an optional value follows, `0` when it is absent.
+    pub fn presence(&mut self, present: bool) -> &mut Self {
+        framing::frame_presence(&mut self.hasher, present);
         self
     }
 
@@ -141,13 +154,13 @@ impl CanonicalWriter {
 
     /// A real as its `to_bits` word.
     pub fn real(&mut self, value: f64) -> &mut Self {
-        self.word(value.to_bits())
+        framing::frame_real_bits(&mut self.hasher, value.to_bits());
+        self
     }
 
     /// Length-prefixed raw bytes.
     pub fn bytes(&mut self, bytes: &[u8]) -> &mut Self {
-        self.word(bytes.len() as u64);
-        self.hasher.update(bytes);
+        framing::frame_bytes(&mut self.hasher, bytes);
         self
     }
 
@@ -163,7 +176,7 @@ impl CanonicalWriter {
         mut check: impl FnMut() -> Result<(), E>,
     ) -> Result<&mut Self, E> {
         check()?;
-        self.word(bytes.len() as u64);
+        framing::frame_count(&mut self.hasher, bytes.len());
         for chunk in bytes.chunks(4096) {
             check()?;
             self.hasher.update(chunk);
@@ -173,7 +186,7 @@ impl CanonicalWriter {
 
     /// A count-prefixed sequence of reals: the length as a word, then each `to_bits` word.
     pub fn reals(&mut self, values: &[f64]) -> &mut Self {
-        self.word(values.len() as u64);
+        framing::frame_count(&mut self.hasher, values.len());
         for &value in values {
             self.real(value);
         }
@@ -182,25 +195,47 @@ impl CanonicalWriter {
 
     /// A count-prefixed sequence of `u32` values, each widened to one word.
     pub fn u32s(&mut self, values: &[u32]) -> &mut Self {
-        self.word(values.len() as u64);
-        for &value in values {
-            self.word(u64::from(value));
-        }
+        framing::frame_u32s(&mut self.hasher, values);
         self
     }
 
     /// A count-prefixed sequence of `u64` words.
     pub fn words(&mut self, values: &[u64]) -> &mut Self {
-        self.word(values.len() as u64);
-        for &value in values {
-            self.word(value);
-        }
+        framing::frame_words(&mut self.hasher, values);
+        self
+    }
+
+    /// A count-prefixed sequence of 32-byte digests in the order given, each as [`Self::bytes`].
+    pub fn digests(&mut self, digests: &[[u8; 32]]) -> &mut Self {
+        framing::frame_digests(&mut self.hasher, digests);
+        self
+    }
+
+    /// A set of 32-byte digests: sorted ascending with repeats removed, then written as
+    /// [`Self::digests`]. Neither the order of `digests` nor a repeated digest changes the
+    /// stream.
+    pub fn digest_set(&mut self, digests: Vec<[u8; 32]>) -> &mut Self {
+        framing::frame_digest_set(&mut self.hasher, digests);
+        self
+    }
+
+    /// A multiset of 32-byte digests: sorted ascending with repeats kept, then written as
+    /// [`Self::digests`]. The order of `digests` does not change the stream; a repeat does.
+    pub fn digest_multiset(&mut self, digests: Vec<[u8; 32]>) -> &mut Self {
+        framing::frame_digest_multiset(&mut self.hasher, digests);
+        self
+    }
+
+    /// A multiset of `u32` values: sorted ascending with repeats kept, then written as
+    /// [`Self::u32s`].
+    pub fn u32_multiset(&mut self, values: Vec<u32>) -> &mut Self {
+        framing::frame_u32_multiset(&mut self.hasher, values);
         self
     }
 
     /// A count-prefixed sequence of texts: the length as a word, then each as [`Self::text`].
     pub fn texts<S: AsRef<str>>(&mut self, values: &[S]) -> &mut Self {
-        self.word(values.len() as u64);
+        framing::frame_count(&mut self.hasher, values.len());
         for value in values {
             self.text(value.as_ref());
         }
@@ -210,24 +245,24 @@ impl CanonicalWriter {
     /// An optional text: a presence word (`0` or `1`), then the text when present.
     pub fn opt_text(&mut self, value: Option<&str>) -> &mut Self {
         match value {
-            Some(text) => self.word(1).text(text),
-            None => self.word(0),
+            Some(text) => self.presence(true).text(text),
+            None => self.presence(false),
         }
     }
 
     /// An optional word: a presence word (`0` or `1`), then the value when present.
     pub fn opt_word(&mut self, value: Option<u64>) -> &mut Self {
         match value {
-            Some(word) => self.word(1).word(word),
-            None => self.word(0),
+            Some(word) => self.presence(true).word(word),
+            None => self.presence(false),
         }
     }
 
     /// An optional real: a presence word (`0` or `1`), then its bit pattern when present.
     pub fn opt_real(&mut self, value: Option<f64>) -> &mut Self {
         match value {
-            Some(real) => self.word(1).real(real),
-            None => self.word(0),
+            Some(real) => self.presence(true).real(real),
+            None => self.presence(false),
         }
     }
 
@@ -254,6 +289,12 @@ impl CanonicalWriter {
     #[must_use]
     pub fn digest_bytes_hex(tag: &str, bytes: &[u8]) -> String {
         to_hex(&Self::digest_bytes(tag, bytes))
+    }
+}
+
+impl FrameSink for blake3::Hasher {
+    fn put(&mut self, bytes: &[u8]) {
+        self.update(bytes);
     }
 }
 

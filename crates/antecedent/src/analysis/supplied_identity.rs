@@ -14,7 +14,7 @@
 //! | program identity ([`SemanticDigest`]) | its 32 digest bytes, length-prefixed |
 //! | option | a presence word, then the value |
 //! | ordered list | a count word, then each item in order: reordering it changes the identity |
-//! | set ([`SetOf`]) | each item's sub-digest, sorted ascending and deduplicated, after a count word: reordering or repeating an item does not change the identity |
+//! | set ([`SetOf`]) | each item's sub-digest, sorted ascending and deduplicated, after a count word ([`CanonicalWriter::digest_set`]): reordering or repeating an item does not change the identity |
 //! | enum | a variant tag text, then the variant's fields |
 //! | wire value ([`Wire`]) | its CBOR wire encoding (fields in declaration order, floats in the shortest exact width, so injective on bits), length-prefixed; a value the wire cannot encode writes its conversion error under its own tag |
 //! | decision contract | its canonical declaration identity (actions and constraints as a set, as the contract identity encodes them), then the action and constraint ids in declaration order, since results are reported in that order |
@@ -93,7 +93,7 @@ pub(crate) struct SetOf<'a, T>(pub(crate) &'a [T]);
 
 impl<T: Canonical> Canonical for SetOf<'_, T> {
     fn encode(&self, out: &mut CanonicalWriter) {
-        let mut items: Vec<[u8; 32]> = self
+        let items: Vec<[u8; 32]> = self
             .0
             .iter()
             .map(|item| {
@@ -102,12 +102,7 @@ impl<T: Canonical> Canonical for SetOf<'_, T> {
                 writer.finish()
             })
             .collect();
-        items.sort_unstable();
-        items.dedup();
-        out.word(items.len() as u64);
-        for item in &items {
-            out.bytes(item);
-        }
+        out.digest_set(items);
     }
 }
 
@@ -252,11 +247,11 @@ impl<T: Canonical> Canonical for Option<T> {
     fn encode(&self, out: &mut CanonicalWriter) {
         match self {
             Some(value) => {
-                out.word(1);
+                out.presence(true);
                 value.encode(out);
             }
             None => {
-                out.word(0);
+                out.presence(false);
             }
         }
     }
