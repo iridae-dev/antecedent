@@ -104,6 +104,15 @@ impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::StudyRankingVerifier
 impl antecedent_design::decision_evaluation::DemandSource for antecedent_design::decision_evaluation::ArtifactDemand<'_>
 impl antecedent_design::decision_evaluation::DemandSource for antecedent_design::decision_evaluation::MeanDemand<'_>
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::decision_eval::DecisionResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::decision_robustness::RobustDecisionResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::decision_structural::StructuralDecisionResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_certified::CertifiedPreferenceResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_certified::StructuralCertifiedResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_decision::PreferenceDecisionResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_decision::StructuralPreferenceResult
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_evaluation::PreferenceEvaluation
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent_design::preference_evaluation::StructuralPreferenceEvaluation
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::ExternalSignal
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::NativeBinomialSignal
 impl antecedent_design::signal::SignalProvider for antecedent_design::signal::NativeGaussianMeanSignal
@@ -533,6 +542,7 @@ impl core::clone::Clone for antecedent_design::decision_robustness::RobustDecisi
 impl core::clone::Clone for antecedent_design::decision_robustness::RobustVerdict
 impl core::clone::Clone for antecedent_design::decision_robustness::RobustnessError
 impl core::clone::Clone for antecedent_design::decision_robustness::SupportShortfall
+impl core::clone::Clone for antecedent_design::decision_standing::Standing
 impl core::clone::Clone for antecedent_design::decision_structural::ActionStructure
 impl core::clone::Clone for antecedent_design::decision_structural::AtomEvidence
 impl core::clone::Clone for antecedent_design::decision_structural::AtomStatus
@@ -1160,6 +1170,7 @@ impl core::cmp::Eq for antecedent_design::decision_robust_artifact::ReplayReceip
 impl core::cmp::Eq for antecedent_design::decision_robustness::AtomSupport
 impl core::cmp::Eq for antecedent_design::decision_robustness::InputSupport
 impl core::cmp::Eq for antecedent_design::decision_robustness::SupportShortfall
+impl core::cmp::Eq for antecedent_design::decision_standing::Standing
 impl core::cmp::Eq for antecedent_design::decision_transported_source::AdaptiveTransportedValue
 impl core::cmp::Eq for antecedent_design::decision_transported_source::TransportedDemand
 impl core::cmp::Eq for antecedent_design::decision_transported_source::TransportedRepresentation
@@ -1705,6 +1716,7 @@ impl core::cmp::PartialEq for antecedent_design::decision_robustness::RobustDeci
 impl core::cmp::PartialEq for antecedent_design::decision_robustness::RobustVerdict
 impl core::cmp::PartialEq for antecedent_design::decision_robustness::RobustnessError
 impl core::cmp::PartialEq for antecedent_design::decision_robustness::SupportShortfall
+impl core::cmp::PartialEq for antecedent_design::decision_standing::Standing
 impl core::cmp::PartialEq for antecedent_design::decision_structural::ActionStructure
 impl core::cmp::PartialEq for antecedent_design::decision_structural::AtomStatus
 impl core::cmp::PartialEq for antecedent_design::decision_structural::AtomSummary
@@ -2696,6 +2708,7 @@ impl core::fmt::Debug for antecedent_design::decision_robustness::RobustDecision
 impl core::fmt::Debug for antecedent_design::decision_robustness::RobustVerdict
 impl core::fmt::Debug for antecedent_design::decision_robustness::RobustnessError
 impl core::fmt::Debug for antecedent_design::decision_robustness::SupportShortfall
+impl core::fmt::Debug for antecedent_design::decision_standing::Standing
 impl core::fmt::Debug for antecedent_design::decision_structural::ActionStructure
 impl core::fmt::Debug for antecedent_design::decision_structural::AtomEvidence
 impl core::fmt::Debug for antecedent_design::decision_structural::AtomStatus
@@ -3219,6 +3232,7 @@ impl core::hash::Hash for antecedent_design::decision_contract::UncertaintyRequi
 impl core::hash::Hash for antecedent_design::decision_reliability::DrawSegment
 impl core::hash::Hash for antecedent_design::decision_reliability::StreamId
 impl core::hash::Hash for antecedent_design::decision_reliability::StreamPurpose
+impl core::hash::Hash for antecedent_design::decision_standing::Standing
 impl core::hash::Hash for antecedent_design::planning::ArmComparison
 impl core::hash::Hash for antecedent_design::planning::FactorialContrast
 impl core::hash::Hash for antecedent_design::planning::FamilyPower
@@ -3359,6 +3373,7 @@ impl core::marker::Copy for antecedent_design::decision_reliability::Uncertainty
 impl core::marker::Copy for antecedent_design::decision_reliability::ValidationKind
 impl core::marker::Copy for antecedent_design::decision_reliability::ValueLabel
 impl core::marker::Copy for antecedent_design::decision_reliability::WithinStreamDependence
+impl core::marker::Copy for antecedent_design::decision_standing::Standing
 impl core::marker::Copy for antecedent_design::decision_transported_source::AdaptiveTransportedValue
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedDemand
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedRepresentation
@@ -3903,6 +3918,7 @@ impl core::marker::Freeze for antecedent_design::decision_robustness::RobustDeci
 impl core::marker::Freeze for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::marker::Freeze for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::marker::Freeze for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::marker::Freeze for antecedent_design::decision_standing::Standing [auto]
 impl core::marker::Freeze for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::marker::Freeze for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::marker::Freeze for antecedent_design::decision_structural::AtomStatus [auto]
@@ -4789,6 +4805,7 @@ impl core::marker::Send for antecedent_design::decision_robustness::RobustDecisi
 impl core::marker::Send for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::marker::Send for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::marker::Send for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::marker::Send for antecedent_design::decision_standing::Standing [auto]
 impl core::marker::Send for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::marker::Send for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::marker::Send for antecedent_design::decision_structural::AtomStatus [auto]
@@ -5620,6 +5637,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_robustnes
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::RobustVerdict
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::RobustnessError
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::SupportShortfall
+impl core::marker::StructuralPartialEq for antecedent_design::decision_standing::Standing
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::ActionStructure
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::AtomStatus
 impl core::marker::StructuralPartialEq for antecedent_design::decision_structural::AtomSummary
@@ -6452,6 +6470,7 @@ impl core::marker::Sync for antecedent_design::decision_robustness::RobustDecisi
 impl core::marker::Sync for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::marker::Sync for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::marker::Sync for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::marker::Sync for antecedent_design::decision_standing::Standing [auto]
 impl core::marker::Sync for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::marker::Sync for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::marker::Sync for antecedent_design::decision_structural::AtomStatus [auto]
@@ -7339,6 +7358,7 @@ impl core::marker::Unpin for antecedent_design::decision_robustness::RobustDecis
 impl core::marker::Unpin for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::marker::Unpin for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::marker::Unpin for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::marker::Unpin for antecedent_design::decision_standing::Standing [auto]
 impl core::marker::Unpin for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::marker::Unpin for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::marker::Unpin for antecedent_design::decision_structural::AtomStatus [auto]
@@ -8225,6 +8245,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_rob
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_standing::Standing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_structural::AtomStatus [auto]
@@ -9101,6 +9122,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::RobustVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::RobustnessError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::SupportShortfall [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_standing::Standing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::ActionStructure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::AtomEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_structural::AtomStatus [auto]
@@ -10494,6 +10516,7 @@ pub enum antecedent_design::decision_reliability::WithinStreamDependence
 pub enum antecedent_design::decision_robust_artifact::ExternalTrustLimit
 pub enum antecedent_design::decision_robustness::RobustVerdict
 pub enum antecedent_design::decision_robustness::RobustnessError
+pub enum antecedent_design::decision_standing::Standing
 pub enum antecedent_design::decision_structural::AtomEvidence
 pub enum antecedent_design::decision_structural::AtomStatus
 pub enum antecedent_design::decision_structural::StructuralError
@@ -13882,6 +13905,7 @@ pub fn <antecedent_design::decision_robustness::AtomSupport>::const fn uniform(s
 pub fn <antecedent_design::decision_robustness::AtomSupport>::fn status_of(&self, action_id: &str, input: usize) -> antecedent_core::response::SupportStatus
 pub fn <antecedent_design::decision_robustness::RobustVerdict>::fn selected_action(&self) -> core::option::Option<&str>
 pub fn <antecedent_design::decision_robustness::RobustnessError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::decision_standing::Standing>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_structural::StructuralError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::decision_structural::StructuralError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::decision_transported_source::AdaptiveTransportedValue>::const fn as_str(self) -> &'static str
@@ -14059,6 +14083,7 @@ pub fn <antecedent_design::preference_choice_model::ChoiceModelError>::const fn 
 pub fn <antecedent_design::preference_choice_model::ChoiceModelError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::preference_contract::PreferenceContract>::fn bind(&self, parameters: &[f64]) -> core::result::Result<antecedent_design::DecisionContract, antecedent_design::preference_contract::PreferenceContractError>
 pub fn <antecedent_design::preference_contract::PreferenceContract>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::preference_contract::PreferenceContractError>
+pub fn <antecedent_design::preference_contract::PreferenceContract>::fn ordinary_contract(&self) -> core::result::Result<antecedent_design::DecisionContract, antecedent_design::preference_contract::PreferenceContractError>
 pub fn <antecedent_design::preference_contract::PreferenceContract>::fn probe_contract(&self) -> core::result::Result<antecedent_design::preference_contract::ProbeContract, antecedent_design::preference_contract::PreferenceContractError>
 pub fn <antecedent_design::preference_contract::PreferenceContract>::fn term_contract(&self) -> core::result::Result<core::option::Option<antecedent_design::DecisionContract>, antecedent_design::preference_contract::PreferenceContractError>
 pub fn <antecedent_design::preference_contract::PreferenceContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::preference_contract::PreferenceContractError>
@@ -14570,6 +14595,7 @@ pub mod antecedent_design::decision_reliability::selection
 pub mod antecedent_design::decision_reliability::stream
 pub mod antecedent_design::decision_robust_artifact
 pub mod antecedent_design::decision_robustness
+pub mod antecedent_design::decision_standing
 pub mod antecedent_design::decision_structural
 pub mod antecedent_design::decision_structural_artifact
 pub mod antecedent_design::decision_transported_source
@@ -15345,6 +15371,7 @@ pub trait antecedent_design::Utility<A, O>: core::marker::Send + core::marker::S
 pub trait antecedent_design::adaptive_policy_search::PolicyRolloutSource: core::marker::Sync
 pub trait antecedent_design::composition_bundle::NodeVerifier
 pub trait antecedent_design::decision_evaluation::DemandSource
+pub trait antecedent_design::decision_standing::DecisionOutcome
 pub trait antecedent_design::program_search::continuous::CompiledProgramEvaluator: core::marker::Sync
 pub trait antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<D>
 pub trait antecedent_design::signal::SignalProvider: core::marker::Send + core::marker::Sync
@@ -15397,6 +15424,9 @@ pub trait fn fn antecedent_design::decision_evaluation::DemandSource::supplies_d
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::supplies_means(&self) -> bool {default}
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::unsupported(&self, _column: usize) -> bool {default}
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::weights(&self) -> core::option::Option<&[f64]> {default}
+pub trait fn fn antecedent_design::decision_standing::DecisionOutcome::choice(&self) -> core::option::Option<&str>
+pub trait fn fn antecedent_design::decision_standing::DecisionOutcome::standing(&self) -> antecedent_design::decision_standing::Standing
+pub trait fn fn antecedent_design::decision_standing::DecisionOutcome::statement(&self) -> alloc::string::String
 pub trait fn fn antecedent_design::program_search::continuous::CompiledProgramEvaluator::evaluate_program(&self, controls: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::CompiledContinuousCandidate, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::evaluate(&self, validation: &[&D], action: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Action, replicate: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::program_search::selection::procedure::HeldoutProgramValue, antecedent_design::program_search::ProgramSearchError>
 pub trait fn fn antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure::feasible(&self, fit: &<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Fit, candidates: <Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<<Self as antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure>::Candidates, antecedent_design::program_search::ProgramSearchError>
@@ -16377,6 +16407,15 @@ pub variant antecedent_design::decision_robustness::RobustnessError::Admissibili
 pub variant antecedent_design::decision_robustness::RobustnessError::ContractMismatch
 pub variant antecedent_design::decision_robustness::RobustnessError::InvalidProfile(&'static str)
 pub variant antecedent_design::decision_robustness::RobustnessError::Structural(antecedent_design::decision_structural::StructuralError)
+pub variant antecedent_design::decision_standing::Standing::Best
+pub variant antecedent_design::decision_standing::Standing::Depends
+pub variant antecedent_design::decision_standing::Standing::InsufficientEvidence
+pub variant antecedent_design::decision_standing::Standing::NoAdmissibleAction
+pub variant antecedent_design::decision_standing::Standing::PolicyChoice
+pub variant antecedent_design::decision_standing::Standing::ReportOnly
+pub variant antecedent_design::decision_standing::Standing::SampledEstimate
+pub variant antecedent_design::decision_standing::Standing::Tied
+pub variant antecedent_design::decision_standing::Standing::Undetermined
 pub variant antecedent_design::decision_structural::AtomEvidence::Evaluated(alloc::boxed::Box<antecedent_io_core::distribution_artifact::DistributionArtifact>)
 pub variant antecedent_design::decision_structural::AtomEvidence::Unevaluated(alloc::string::String)
 pub variant antecedent_design::decision_structural::AtomEvidence::Unidentified
@@ -16740,6 +16779,7 @@ pub variant antecedent_design::preference_contract::PreferenceContractError::Inp
 pub variant antecedent_design::preference_contract::PreferenceContractError::InvalidCriterion
 pub variant antecedent_design::preference_contract::PreferenceContractError::InvalidQuantity { action: alloc::string::String, attribute: alloc::string::String }
 pub variant antecedent_design::preference_contract::PreferenceContractError::Model(antecedent_design::preference_model::PreferenceModelError)
+pub variant antecedent_design::preference_contract::PreferenceContractError::NoOrdinaryForm { parameters: usize }
 pub variant antecedent_design::preference_contract::PreferenceContractError::NoQuantityInput { action: alloc::string::String }
 pub variant antecedent_design::preference_contract::PreferenceContractError::NonFiniteFixedInput { action: alloc::string::String, attribute: alloc::string::String }
 pub variant antecedent_design::preference_contract::PreferenceContractError::NonFiniteParameter { index: usize }

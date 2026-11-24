@@ -284,6 +284,7 @@ impl antecedent::IntoGraphInput for antecedent_graph::temporal_admg::TemporalAdm
 impl antecedent::IntoGraphInput for antecedent_graph::temporal_pag::TemporalPag
 impl antecedent_core::refusal::Refused for antecedent::analysis::DecisionCarrierError
 impl antecedent_design::adaptive_policy_search::PolicyRolloutSource for antecedent::gcm::ModelPolicySource
+impl antecedent_design::decision_standing::DecisionOutcome for antecedent::analysis::preference_decision::SampledStructuralEvaluation
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit> for antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest
 impl antecedent_design::program_search::selection::procedure::ProgramSelectionProcedure<antecedent_estimate::joint_design::randomized::JointRandomizedUnit> for antecedent::analysis::joint_panel::selection::PreparedRandomizedSelection
 impl antecedent_state::disk_retention::Spillable for antecedent::bootstrap_retention::RetainedBootstrap
@@ -16099,7 +16100,7 @@ pub field antecedent::analysis::preference_decision::PreferenceDemand::carrier: 
 pub field antecedent::analysis::preference_decision::PreferenceDemand::quantities: alloc::vec::Vec<antecedent::analysis::preference_decision::DemandedQuantity>
 pub field antecedent::analysis::preference_decision::PreferenceDemand::representation: antecedent_design::decision_contract::SourceRepresentation
 pub field antecedent::analysis::preference_decision::PreferenceDemand::requirement: antecedent_design::decision_contract::SourceRequirement
-pub field antecedent::analysis::preference_decision::PreferenceDemand::route: antecedent_design::preference_route_choice::RouteChoice
+pub field antecedent::analysis::preference_decision::PreferenceDemand::route: core::option::Option<antecedent_design::preference_route_choice::RouteChoice>
 pub field antecedent::analysis::preference_decision::SampledClassMass::class_key: u64
 pub field antecedent::analysis::preference_decision::SampledClassMass::class_mass: f64
 pub field antecedent::analysis::preference_decision::SampledClassMass::drawn: usize
@@ -17828,6 +17829,7 @@ pub fn <antecedent::PreparedStudy>::fn apply_retarget(&self, preview: &anteceden
 pub fn <antecedent::PreparedStudy>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::sensitivity::SensitivityFinding>) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::PreparedStudy>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn compile_for_contract_decision(&self, contract: &antecedent_design::decision_contract::DecisionContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::PreparedStudy>::fn compile_for_preference_decision(&self, contract: &antecedent_design::preference_contract::PreferenceContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::PreparedStudy>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compile_joint_response(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedJointResponse, antecedent::CausalError>
@@ -18072,6 +18074,7 @@ pub fn <antecedent::Study>::fn bind_preference_contract(&self, contract: &antece
 pub fn <antecedent::Study>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::sensitivity::SensitivityFinding>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::Study>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_for_contract_decision(&self, contract: &antecedent_design::decision_contract::DecisionContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::Study>::fn compile_for_decision<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent::analysis::DecisionCompileRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_evsi<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_planning(&self, request: &antecedent_design::planning::request::PlanningRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::planning::PlanningPlan, antecedent::CausalError>
@@ -19275,6 +19278,7 @@ pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::const fn dependency(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::const fn lowered(&self) -> &alloc::sync::Arc<antecedent::planner::lowered::LoweredProgram>
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::fn compile(recipe: antecedent_estimate::joint_design::compiled::JointDesignRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::fn compile_for_contract_decision(&self, contract: &antecedent_design::decision_contract::DecisionContract, bootstrap: core::option::Option<antecedent::analysis::preference_decision::DesignBootstrap>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::fn compile_for_preference_decision(&self, contract: &antecedent_design::preference_contract::PreferenceContract, bootstrap: core::option::Option<antecedent::analysis::preference_decision::DesignBootstrap>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::fn consume_current(&self, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::designs::NativeJointDesignResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::fn consume_current_with_limits(&self, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<antecedent::analysis::joint_panel::designs::NativeJointDesignResult, antecedent::analysis::joint_panel::JointPanelError>
@@ -19432,7 +19436,8 @@ pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn 
 pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::preference_decision::BoundPreferenceContract>::fn quantities(&self) -> &[antecedent::analysis::preference_decision::DemandedQuantity]
 pub fn <antecedent::analysis::preference_decision::ClassSamplingScheme>::const fn as_str(self) -> &'static str
-pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn contract(&self) -> &antecedent_design::preference_contract::PreferenceContract
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn contract(&self) -> core::option::Option<&antecedent_design::preference_contract::PreferenceContract>
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn decision_contract(&self) -> core::option::Option<&antecedent_design::decision_contract::DecisionContract>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn demand(&self) -> &antecedent::analysis::preference_decision::PreferenceDemand
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn dependence(&self) -> antecedent::analysis::preference_decision::OutcomeDependence
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::const fn joint_law(&self) -> core::option::Option<&antecedent::analysis::preference_decision::PreferenceJointLaw>
@@ -19440,6 +19445,7 @@ pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn causal_bindings(&self) -> &[(alloc::string::String, alloc::string::String)]
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn chain_plan_view(&self) -> core::option::Option<antecedent::planner::PlanView>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn class_sampling(&self) -> alloc::vec::Vec<alloc::sync::Arc<antecedent::analysis::preference_decision::ClassSampling>>
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn contract_identity(&self) -> &str
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn cross_study_covariance(&self) -> &[antecedent::analysis::preference_decision::CrossStudyCovariance]
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn execute(&self, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_route_choice::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::PreferenceDecisionExecution, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn plan_views(&self) -> alloc::vec::Vec<antecedent::planner::PlanView>
@@ -19448,6 +19454,7 @@ pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceDecision>::fn unidentified_mass(&self) -> f64
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::const fn single(&self) -> core::option::Option<&antecedent_design::preference_route_choice::PreferenceEvaluation>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::const fn structures(&self) -> core::option::Option<&antecedent_design::preference_route_choice::StructuralPreferenceEvaluation>
+pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::fn ordinary(&self) -> core::option::Option<&antecedent_design::decision_eval::DecisionResult>
 pub fn <antecedent::analysis::preference_decision::CompiledPreferenceEvaluation>::fn sampled(&self) -> core::option::Option<&antecedent::analysis::preference_decision::SampledStructuralEvaluation>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn class_key(&self) -> core::option::Option<u64>
 pub fn <antecedent::analysis::preference_decision::CompiledStructure>::const fn identification(&self) -> &antecedent::analysis::preference_decision::StructureIdentification
@@ -20723,6 +20730,8 @@ pub fn antecedent::analysis::preference_decision::analysis_belief_source(input: 
 pub fn antecedent::analysis::preference_decision::analysis_options(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent::analysis::native_claims::NativeDecisionSource) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_record::ChoiceOption>, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::analysis_result_identity(input: &antecedent::analysis::native_claims::NativeDecisionInput) -> alloc::string::String
 pub fn antecedent::analysis::preference_decision::chain_joint_law(chain: &antecedent::analysis::PropagationChain) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent::DecisionFacadeRefusal>
+pub fn antecedent::analysis::preference_decision::compile_contract_decision_across_prepared_studies(studies: &[&antecedent::PreparedStudy], contract: &antecedent_design::decision_contract::DecisionContract, (dependence, cross): (antecedent::analysis::preference_decision::OutcomeDependence, &[antecedent::analysis::preference_decision::CrossStudyCovariance]), ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
+pub fn antecedent::analysis::preference_decision::compile_contract_decision_across_studies(studies: &[&antecedent::Study], contract: &antecedent_design::decision_contract::DecisionContract, dependence: antecedent::analysis::preference_decision::OutcomeDependence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_prepared_studies(studies: &[&antecedent::PreparedStudy], contract: &antecedent_design::preference_contract::PreferenceContract, (dependence, cross): (antecedent::analysis::preference_decision::OutcomeDependence, &[antecedent::analysis::preference_decision::CrossStudyCovariance]), ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_studies(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, dependence: antecedent::analysis::preference_decision::OutcomeDependence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, shared: &antecedent::analysis::preference_decision::SharedEvidence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
@@ -22808,6 +22817,7 @@ pub type antecedent::analysis::CheckedTemporalGraphPosteriorResponseInfo = antec
 pub type antecedent::analysis::observation_query::DependentMeasuredObservationPlan = antecedent::analysis::observation_query::JointMeasuredObservationPlan
 pub type antecedent::analysis::observation_query::PairedLaws = (alloc::vec::Vec<(alloc::string::String, f64)>, alloc::vec::Vec<(alloc::string::String, f64)>, f64)
 pub type antecedent::analysis::observation_query::ThresholdRows = (alloc::vec::Vec<(alloc::string::String, f64, f64, bool)>, f64)
+pub type antecedent::analysis::preference_decision::CompiledDecision = antecedent::analysis::preference_decision::CompiledPreferenceDecision
 pub use antecedent::ActionRobustness = super::ActionRobustness
 pub use antecedent::AdaptedClaims = super::AdaptedClaims
 pub use antecedent::AdaptedDecision = super::AdaptedDecision
@@ -24701,7 +24711,9 @@ pub use antecedent::analysis::preference_decision::DEFAULT_MAX_SHAPE_BOXES = ant
 pub use antecedent::analysis::preference_decision::DEFAULT_MIN_SHAPE_WIDTH_FRACTION = antecedent_design::preference_set_learning::DEFAULT_MIN_SHAPE_WIDTH_FRACTION
 pub use antecedent::analysis::preference_decision::DeciderOverlap = antecedent_design::preference_set_learning::DeciderOverlap
 pub use antecedent::analysis::preference_decision::DeciderSet = antecedent_design::preference_set_learning::DeciderSet
+pub use antecedent::analysis::preference_decision::DecisionContract = antecedent_design::decision_contract::DecisionContract
 pub use antecedent::analysis::preference_decision::DecisionCriterion = antecedent_design::decision_contract::DecisionCriterion
+pub use antecedent::analysis::preference_decision::DecisionOutcome = antecedent_design::decision_standing::DecisionOutcome
 pub use antecedent::analysis::preference_decision::EstimateOutcome = antecedent_design::preference_choice_model::EstimateOutcome
 pub use antecedent::analysis::preference_decision::HardConstraint = antecedent_design::decision_contract::HardConstraint
 pub use antecedent::analysis::preference_decision::LearnedPreferenceSet = antecedent_design::preference_set_learning::LearnedPreferenceSet
@@ -24764,6 +24776,7 @@ pub use antecedent::analysis::preference_decision::SetLearningOptions = antecede
 pub use antecedent::analysis::preference_decision::SetLearningResult = antecedent_design::preference_set_learning::SetLearningResult
 pub use antecedent::analysis::preference_decision::SetOutcome = antecedent_design::preference_set_learning::SetOutcome
 pub use antecedent::analysis::preference_decision::ShapeSearchOptions = antecedent_stats::ShapeSearchOptions
+pub use antecedent::analysis::preference_decision::Standing = antecedent_design::decision_standing::Standing
 pub use antecedent::analysis::preference_decision::StructuralCertifiedResult = antecedent_design::preference_certified::StructuralCertifiedResult
 pub use antecedent::analysis::preference_decision::StructuralCertifiedVerdict = antecedent_design::preference_certified::StructuralCertifiedVerdict
 pub use antecedent::analysis::preference_decision::StructuralPolicy = antecedent_design::decision_contract::StructuralPolicy
@@ -28677,6 +28690,7 @@ pub variant antecedent::analysis::preference_decision::ClassSamplingScheme::Circ
 pub variant antecedent::analysis::preference_decision::ClassSamplingScheme::CliquePicking
 pub variant antecedent::analysis::preference_decision::ClassSize::AtLeast(u128)
 pub variant antecedent::analysis::preference_decision::ClassSize::Exact(u128)
+pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Ordinary(alloc::boxed::Box<antecedent_design::decision_eval::DecisionResult>)
 pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Sampled(alloc::boxed::Box<antecedent::analysis::preference_decision::SampledStructuralEvaluation>)
 pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Single(antecedent_design::preference_route_choice::PreferenceEvaluation)
 pub variant antecedent::analysis::preference_decision::CompiledPreferenceEvaluation::Structures(antecedent_design::preference_route_choice::StructuralPreferenceEvaluation)
