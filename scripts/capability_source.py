@@ -228,6 +228,52 @@ def _multiple_imputation_error_helpers() -> dict[str, str]:
             ("not_applicable", "missing_policy_not_applicable")) if name in valid}
 
 
+_PLANNING_DIR = REPO_ROOT / "crates/antecedent-design/src/planning"
+
+
+def _planning_refusal_helpers(path: Path, skel: str) -> dict[str, str | None]:
+    """Prove the planning refusal constructors a planning source calls.
+
+    `PlanningRefusal::new(reason_code!("<code>"), detail, ..)` emits its literal code and
+    `PlanningRefusal::invalid(detail, ..)` emits `invalid_argument`; both are proven only while
+    the type's one inherent impl keeps exactly these bodies and the calling file is the defining
+    `request.rs` or a sibling that imports the type from it. Returns helper -> code (`None` for
+    `new`, whose code is read at each call)."""
+    request = _PLANNING_DIR / "request.rs"
+    if path.resolve() not in {request.resolve(), (_PLANNING_DIR / "analytic.rs").resolve()}:
+        return {}
+    if path.resolve() != request.resolve() and (
+        not re.search(r"\buse\s+super::request::\{[^}]*\bPlanningRefusal\b[^}]*\}\s*;", skel)
+        or re.search(r"\b(?:struct|enum|type|trait)\s+PlanningRefusal\b", skel)
+    ):
+        return {}
+    code, req_skel = nontest_pair(request)
+    blocks = list(re.finditer(r"\bimpl\s+PlanningRefusal\s*\{", req_skel))
+    if len(blocks) != 1:
+        return {}
+    opening = blocks[0].end() - 1
+    closing = _match_bracket(req_skel, opening)
+    _, items = rust_items(request.resolve())
+    expected = {
+        "new": ("fnnew(code:&'staticstr,detail:&'staticstr,message:implInto<String>,next_attempt:Option<NextAttempt>,)->Self",
+                "{Self{code,detail,message:message.into(),next_attempt}}"),
+        "invalid": ("fninvalid(detail:&'staticstr,message:implInto<String>)->Self",
+                    '{Self::new(antecedent_core::reason_code!("invalid_argument"),detail,message,None)}'),
+    }
+    valid = set()
+    for name, (header, body) in expected.items():
+        matches = [item for item in items if item.kind == "fn" and item.name == name
+                   and opening < item.start < closing]
+        if len(matches) == 1:
+            item = matches[0]
+            if (_compact_rust_tokens(code[item.start:item.body[0]]) == header
+                    and _compact_rust_tokens(code[item.body[0]:item.body[1]]) == body):
+                valid.add(name)
+    if valid != {"new", "invalid"}:
+        return {}
+    return {"new": None, "invalid": "invalid_argument"}
+
+
 def _horizon_refusal_is_proven(path: Path, code: str, skel: str) -> bool:
     """Prove the exact horizon helper and transitive ExternalRefusal setters."""
     expected_path = REPO_ROOT / "crates/antecedent/src/analysis/horizon_composition.rs"
@@ -408,6 +454,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     adaptive_rule = _adaptive_rule_emitter(path, skel) if "adaptive_inference.rule_mismatch" in code else None
     recalc_no_state = _recalc_no_state_proven(path, skel) if "recalc.no_live_state" in code else False
     decision_builder = _decision_builder_proven(path) if path.name == "decision_reliability.rs" else False
+    planning_helpers = _planning_refusal_helpers(path, skel) if "PlanningRefusal::" in skel else {}
     mi_dir = REPO_ROOT / "crates/antecedent-estimate/src/multiple_imputation"
     mi_helpers = {}
     if (path.resolve() in {(mi_dir / "impute.rs").resolve(), (mi_dir / "pool.rs").resolve()}
@@ -517,6 +564,15 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
         )
         if horizon_proven and direct and re.match(r"refuse\s*\(", skel[direct.start():]):
             reason = direct[1]
+        if planning_helpers:
+            built = re.search(
+                r'(?<![\w:])PlanningRefusal::new\s*\(\s*(?:antecedent_core::)?reason_code!\(\s*"([a-z][a-z0-9_]*)"\s*\)\s*,\s*$',
+                code[:at],
+            )
+            if built and re.match(r"PlanningRefusal::new\s*\(", skel[built.start():]):
+                reason = built[1]
+            elif re.search(r"(?<![\w:])PlanningRefusal::invalid\s*\(\s*$", skel[:at]):
+                reason = planning_helpers["invalid"]
         for helper, proven_code in mi_helpers.items():
             if re.search(rf"(?<![\w:])MultipleImputationError::{helper}\s*\(\s*$", skel[:at]):
                 reason = proven_code

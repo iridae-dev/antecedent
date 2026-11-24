@@ -243,12 +243,12 @@ fn invalid_json(message: &str, replay: bool) -> String {
     let (code, detail) = if replay {
         (
             antecedent::reason::reason_code!("external_binding_mismatch"),
-            "sampling_assumption_union.replay_mismatch",
+            antecedent::reason::reason_details::sampling_assumption_union::REPLAY_MISMATCH,
         )
     } else {
         (
             antecedent::reason::reason_code!("invalid_argument"),
-            "sampling_assumption_union.invalid_declaration",
+            antecedent::reason::reason_details::sampling_assumption_union::INVALID_DECLARATION,
         )
     };
     json!({

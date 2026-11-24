@@ -10112,14 +10112,14 @@ meaning = "A lasso propensity outside the cross-fitted untrimmed AllObserved mea
 [[detail]]
 id = "planning.adaptive"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The declared design adapts its allocation or stopping on observed data, which the planner does not characterise."
+codes = ["adaptive_contract_incomplete", "route_not_supported"]
+meaning = "The outcome-adaptive design declares no pre-specified adaptation rule, or a rule that is not a group-sequential boundary."
 
 [[detail]]
 id = "planning.allocation"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The arm allocation weights are empty, nonpositive or cannot be split into whole units."
+meaning = "The arm allocation weights are empty, negative or not finite, or have no positive finite total."
 
 [[detail]]
 id = "planning.allocation_ratio"
@@ -10131,43 +10131,43 @@ meaning = "The allocation ratio is not a positive finite number."
 id = "planning.alpha"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The significance level is outside the open unit interval."
+meaning = "The significance level is outside (0, 0.5]."
 
 [[detail]]
 id = "planning.assurance"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The assurance target or its prior draw count is outside the declared range."
+meaning = "The target assurance is outside (0, 1)."
 
 [[detail]]
 id = "planning.attrition"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The attrition fraction is outside the half-open unit interval."
+meaning = "The attrition fraction is outside [0, 1)."
 
 [[detail]]
 id = "planning.cluster"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The cluster design declares no positive cluster size or a correlation outside its range."
+codes = ["invalid_argument", "required_option_missing"]
+meaning = "The cluster design has a mean cluster size below 1, an intracluster correlation outside [0, 1) or a negative size coefficient of variation, or unequal cluster sizes with no control mean declared."
 
 [[detail]]
 id = "planning.covariates"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The declared covariate adjustment is outside the planner's range (count or explained fraction)."
+codes = ["invalid_argument", "option_not_applicable"]
+meaning = "The covariate adjustment is inconsistent: R² outside [0, 1), R² and covariate count not both zero or both positive, or adjustment declared for a binary outcome or for a design whose analysis does not adjust."
 
 [[detail]]
 id = "planning.decision"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The decision threshold or its rule is inconsistent with the declared target."
+meaning = "The correct-decision criterion has a non-finite threshold, or a posterior probability or target outside (0, 1)."
 
 [[detail]]
 id = "planning.effect"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The assumed effect, its standard deviation or its scale is not a finite value the criterion can use."
+codes = ["invalid_argument", "required_option_missing"]
+meaning = "The assumed effect is not finite or moves the binary rate outside (0, 1), is missing where power is computed at it, is zero for a sample-size goal, or is declared where it is solved for or taken from a design prior."
 
 [[detail]]
 id = "planning.effect_unreachable"
@@ -10178,92 +10178,92 @@ meaning = "No admissible effect reaches the target power at the declared size."
 [[detail]]
 id = "planning.factorial"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The factorial design declares fewer than two factors or an unusable interaction."
+codes = ["option_not_applicable"]
+meaning = "The factorial design declares an allocation ratio other than 1, though its four cells are equal."
 
 [[detail]]
 id = "planning.goal"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The planning goal or its size bound is missing, nonpositive or inconsistent with the criterion."
+meaning = "The planning goal declares zero units or a zero maximum, or asks a Bayesian criterion for a minimum detectable effect."
 
 [[detail]]
 id = "planning.group_sequential"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The group-sequential schedule is not sequential or its boundaries cannot be built."
+codes = ["invalid_argument", "route_not_supported"]
+meaning = "The information fractions are not strictly increasing in (0, 1] and ending at 1 within the look limit, the boundaries cannot be computed, or the criterion is a posterior criterion the group-sequential plan does not target."
 
 [[detail]]
 id = "planning.interference"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The declared design carries interference between units, which the planner does not characterise."
+codes = ["required_option_missing"]
+meaning = "Units interfere and no exposure model is declared, so the exposure contrast and its variance are undefined."
 
 [[detail]]
 id = "planning.multi_arm"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The multi-arm design declares too few arms, an inconsistent contrast set or an unusable adjustment."
+codes = ["invalid_argument", "route_not_supported", "option_not_applicable"]
+meaning = "The multi-arm design declares a treatment-arm count outside the supported range, a posterior criterion over its family of comparisons, or an omnibus test with a binary outcome or a one-sided test."
 
 [[detail]]
 id = "planning.outcome"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The outcome model is not declared consistently with the design (variance, rate or baseline)."
+meaning = "The outcome standard deviation is not positive and finite, a declared control mean is not finite, or the binary control rate is outside (0, 1)."
 
 [[detail]]
 id = "planning.power"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The target power is outside the open unit interval."
+meaning = "The target power is not above the significance level and below 1."
 
 [[detail]]
 id = "planning.precision"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The target precision is not a positive finite half-width."
+meaning = "The target posterior standard deviation is not a positive finite number."
 
 [[detail]]
 id = "planning.prior"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The prior declared for a Bayesian criterion is not a proper distribution over the effect."
+meaning = "A declared prior has a non-finite mean or standard deviation, or a standard deviation that is negative (design prior) or not positive (analysis prior)."
 
 [[detail]]
 id = "planning.simulation"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The simulation request declares no replicates or an unusable budget."
+meaning = "The simulation replicate count is zero or above the replicate limit."
 
 [[detail]]
 id = "planning.size"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The sample size is below the design minimum, non-integral or above the declared bound."
+meaning = "The declared size leaves an arm with fewer than two analysed units, or no size within the scan limit gives every arm two."
 
 [[detail]]
 id = "planning.size_unreachable"
 family = "planning"
 codes = ["evidence_cannot_reach_level"]
-meaning = "The goal reaches no size within the bound: the smallest feasible size or the target at the bound is out of reach."
+meaning = "No size up to the declared maximum meets the target: the smallest feasible size exceeds the maximum, or the criterion at the maximum falls short."
 
 [[detail]]
 id = "planning.stratified"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The stratified design declares no strata, weights that do not sum, or an unusable allocation."
+meaning = "The stratified design declares no strata, shares that are not positive or do not sum to 1, or a stratum value that is not a positive standard deviation or a rate that stays a probability under the effect."
 
 [[detail]]
 id = "planning.success"
 family = "planning"
 codes = ["invalid_argument"]
-meaning = "The success criterion is outside the range of the declared outcome."
+meaning = "The posterior success criterion has a non-finite threshold or a probability outside (0, 1)."
 
 [[detail]]
 id = "planning.switchback"
 family = "planning"
-codes = ["invalid_argument"]
-meaning = "The switchback design declares an unusable number of periods, washout or carryover."
+codes = ["invalid_argument", "option_not_applicable", "effect_not_identified", "required_option_missing"]
+meaning = "The switchback design has fewer than two sequences, a block no longer than its washout, autocorrelation outside (-1, 1) or a non-finite carryover or one of -1, or declares attrition, a binary outcome, carryover without washout, or no control mean."
 
 [[detail]]
 id = "planning.study"
@@ -10833,361 +10833,373 @@ meaning = "The claim intervenes on another treatment, asks for another outcome, 
 id = "propagation_chain.ancestry_bytes"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: ancestry bytes."
+meaning = "The ancestry the chain's stages retain exceeds the byte budget for identifier text."
 
 [[detail]]
 id = "propagation_chain.assumption_envelope_needs_both_axes"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: assumption envelope needs both axes."
+meaning = "An assumption-envelope chain lacks an interval assumption source or an aligned draw source."
 
 [[detail]]
 id = "propagation_chain.assumption_envelope_needs_draws"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: assumption envelope needs draws."
+meaning = "The assumption envelope's output carries no sampling, posterior or predictive draw law alongside its interval assumption."
 
 [[detail]]
 id = "propagation_chain.assumption_envelope_operator"
 family = "propagation_chain"
 codes = ["route_not_supported"]
-meaning = "The chain refuses: assumption envelope operator."
+meaning = "An assumption-envelope chain applies a pool or a posterior update, which are not rowwise operators."
 
 [[detail]]
 id = "propagation_chain.budget_exceeded"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: budget exceeded."
+meaning = "The chain exceeds a work budget: its nodes, table rows, pool covariance or product-table rows."
 
 [[detail]]
 id = "propagation_chain.cancelled"
 family = "propagation_chain"
 codes = ["cancelled_no_claim"]
-meaning = "The chain refuses: cancelled."
+meaning = "Compiling or running the chain was cancelled, which is no verdict on the chain."
 
 [[detail]]
 id = "propagation_chain.denominator_not_bounded"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: denominator not bounded."
+meaning = "A denominator of an expression stage reaches zero, or comes closer to it than the stage declares it may."
 
 [[detail]]
 id = "propagation_chain.draws_are_not_an_enclosure"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: draws are not an enclosure."
+meaning = "An enclosure, interval or assumption-envelope reading is asked of a chain whose output carries draws."
 
 [[detail]]
 id = "propagation_chain.enclosure_is_not_a_law"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: enclosure is not a law."
+meaning = "A value or spread reading is asked of a chain whose output carries intervals, which give neither."
 
 [[detail]]
 id = "propagation_chain.enclosure_unbounded"
 family = "propagation_chain"
 codes = ["route_not_supported"]
-meaning = "The chain refuses: enclosure unbounded."
+meaning = "An interval stage has no bounded image: a divisor interval contains zero, or a logarithm's interval reaches zero."
 
 [[detail]]
 id = "propagation_chain.family_authority"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family authority."
+meaning = "A ledger-overlap family table has no ledger, or an estimate has no authorizing source, one the ledger does not hold, or a retired one."
 
 [[detail]]
 id = "propagation_chain.family_covariance"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family covariance."
+meaning = "The declared family covariance is not a finite k by k matrix whose diagonal is the squared published standard errors, or the ledger overlap gives no valid correlation."
 
 [[detail]]
 id = "propagation_chain.family_dependence"
 family = "propagation_chain"
+codes = ["invalid_argument"]
+meaning = "A family estimate declares a blank shared-factor id."
+
+[[detail]]
+id = "propagation_chain.family_overlap_unknown"
+family = "propagation_chain"
 codes = ["evidence_overlap_unknown"]
-meaning = "The chain refuses: family dependence."
+meaning = "The overlap of the family estimates is unknown: an independence claim over an estimate with undeclared overlap, a nonzero covariance that names no shared factor, or an authorizing source with no declared observations."
+
+[[detail]]
+id = "propagation_chain.family_shared_evidence"
+family = "propagation_chain"
+codes = ["evidence_double_counted"]
+meaning = "Family estimates share declared evidence that the declared dependence counts as independent: an independence claim, or a zero covariance between estimates that share a factor."
 
 [[detail]]
 id = "propagation_chain.family_estimate"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family estimate."
+meaning = "A family estimate or its standard error is not finite, or the standard error is negative."
 
 [[detail]]
 id = "propagation_chain.family_meaning"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family meaning."
+meaning = "A family estimate is declared as a predictive or innovation law, which an estimate and its standard error do not specify."
 
 [[detail]]
 id = "propagation_chain.family_shape"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family shape."
+meaning = "The family table joins no estimate, more estimates than its cell budget holds, or an estimate with a blank or repeated id."
 
 [[detail]]
 id = "propagation_chain.family_table_cancelled"
 family = "propagation_chain"
 codes = ["execution_cancelled"]
-meaning = "The chain refuses: family table cancelled."
+meaning = "Building the family table was cancelled."
 
 [[detail]]
 id = "propagation_chain.family_table_refused"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: family table refused."
+meaning = "The family table cannot be built: no more rows than estimates, or a covariance that is not finite, has a negative variance, or is not symmetric or positive semidefinite."
 
 [[detail]]
 id = "propagation_chain.family_table_work_limit"
 family = "propagation_chain"
 codes = ["moment_matched_table_work_budget"]
-meaning = "The chain refuses: family table work limit."
+meaning = "The family table's rows or its moment-matching work exceed the work limit."
 
 [[detail]]
 id = "propagation_chain.interval_cannot_be_pooled"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: interval cannot be pooled."
+meaning = "A pool reads an interval, which has no covariance to weight by."
 
 [[detail]]
 id = "propagation_chain.interval_is_not_a_posterior"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: interval is not a posterior."
+meaning = "An update, or a posterior or predictive reading, meets an interval, which is not a posterior."
 
 [[detail]]
 id = "propagation_chain.interval_not_measured"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "An interval of a composed quantity has no measured coverage record at its composed coordinate; the spread is read instead."
+meaning = "An interval of the composed quantity is asked for, and it has no measured coverage record at its composed coordinate; a component interval does not cover the composition."
 
 [[detail]]
 id = "propagation_chain.invalid_request"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: invalid request."
+meaning = "The chain request does not parse: malformed JSON, an unknown field or dependence kind, or a value of the wrong type."
 
 [[detail]]
 id = "propagation_chain.law_meaning_mismatch"
 family = "propagation_chain"
 codes = ["distribution_meaning_mismatch"]
-meaning = "The chain refuses: law meaning mismatch."
+meaning = "A stage reads draws of different law meanings that it cannot combine; posterior parameters and predictive disturbances combine only in a predictive mapping."
 
 [[detail]]
 id = "propagation_chain.lowering"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: lowering."
+meaning = "The chain does not lower to a compiler program: its reading has no lowered realization, or a decision's carrier does not match the chain's output reading."
 
 [[detail]]
 id = "propagation_chain.malformed"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: malformed."
+meaning = "The chain declaration is malformed: no source or stage, a blank or repeated id, an input that is not an earlier node or reads an update, draws without their law meaning and alignment (or another source with them), an operator with the wrong number of inputs, or an output that names no stage."
 
 [[detail]]
 id = "propagation_chain.mixed_draws_and_interval"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: mixed draws and interval."
+meaning = "The chain or a stage reads draws and an interval together outside an assumption envelope, and an interval has no law to pair with draws."
 
 [[detail]]
 id = "propagation_chain.not_lowered"
 family = "propagation_chain"
 codes = ["route_not_lowered"]
-meaning = "The chain refuses: not lowered."
+meaning = "The lowered compiler program retains no chain."
 
 [[detail]]
 id = "propagation_chain.not_read_as_posterior"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: not read as posterior."
+meaning = "A posterior is asked of a chain not sealed with a posterior reading."
 
 [[detail]]
 id = "propagation_chain.not_supported"
 family = "propagation_chain"
 codes = ["not_supported"]
-meaning = "The chain refuses: not supported."
+meaning = "A release build refuses the chain because its support unit is not supported."
 
 [[detail]]
 id = "propagation_chain.operator_not_supported_for_stage"
 family = "propagation_chain"
 codes = ["route_not_supported"]
-meaning = "The chain refuses: operator not supported for stage."
+meaning = "A stage applies an operator class its stage kind does not support."
 
 [[detail]]
 id = "propagation_chain.outcome_law_is_not_an_estimate_pool"
 family = "propagation_chain"
 codes = ["distribution_meaning_mismatch"]
-meaning = "The chain refuses: outcome law is not an estimate pool."
+meaning = "A pool reads predictive outcome or innovation draws, but pooling combines estimates of one quantity."
 
 [[detail]]
 id = "propagation_chain.overlap_unknown_in_independent_product"
 family = "propagation_chain"
 codes = ["evidence_overlap_unknown"]
-meaning = "The chain refuses: overlap unknown in independent product."
+meaning = "An independent product table is built over draw sources one of which leaves its overlap undeclared."
 
 [[detail]]
 id = "propagation_chain.parameter_law_is_not_predictive"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: parameter law is not predictive."
+meaning = "A predictive reading is asked of draws that are not a predictive outcome law."
 
 [[detail]]
 id = "propagation_chain.point_cannot_be_pooled"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: point cannot be pooled."
+meaning = "A pool reads a fixed value, which has no variance to weight by."
 
 [[detail]]
 id = "propagation_chain.point_has_no_posterior"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: point has no posterior."
+meaning = "An update reads a fixed value, which has no posterior."
 
 [[detail]]
 id = "propagation_chain.point_has_no_spread"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: point has no spread."
+meaning = "A spread, posterior, predictive or assumption-envelope reading is asked of a chain whose inputs are all fixed values."
 
 [[detail]]
 id = "propagation_chain.pool_inputs_duplicated"
 family = "propagation_chain"
 codes = ["evidence_double_counted"]
-meaning = "The chain refuses: pool inputs duplicated."
+meaning = "The pooled inputs are perfectly correlated, so they carry the same evidence and no pooling weights exist."
 
 [[detail]]
 id = "propagation_chain.pool_overlap_unknown"
 family = "propagation_chain"
 codes = ["evidence_overlap_unknown"]
-meaning = "The chain refuses: pool overlap unknown."
+meaning = "An independent pool reads inputs whose overlap is not declared."
 
 [[detail]]
 id = "propagation_chain.pool_refused"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: pool refused."
+meaning = "The pool's variances or covariance are refused: a variance that is not finite and positive, or a covariance that is not finite, symmetric or positive semidefinite."
 
 [[detail]]
 id = "propagation_chain.pool_shares_evidence"
 family = "propagation_chain"
 codes = ["evidence_double_counted"]
-meaning = "The chain refuses: pool shares evidence."
+meaning = "An independent pool reads inputs that share a declared factor, so it would count that evidence twice."
 
 [[detail]]
 id = "propagation_chain.predictive_disturbance_required"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: predictive disturbance required."
+meaning = "A predictive mapping reads no aligned outcome disturbance or innovation source."
 
 [[detail]]
 id = "propagation_chain.predictive_reading_required"
 family = "propagation_chain"
 codes = ["distribution_meaning_mismatch"]
-meaning = "The chain refuses: predictive reading required."
+meaning = "A chain with predictive or innovation sources is read other than as a predictive law or an assumption envelope."
 
 [[detail]]
 id = "propagation_chain.product_table_refused"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: product table refused."
+meaning = "The independent product table has no columns, an empty column or a non-finite draw, or more rows than its maximum."
 
 [[detail]]
 id = "propagation_chain.program_mismatch"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: program mismatch."
+meaning = "The combined compiler program or the sealed record is not the chain declaration the program was lowered from."
 
 [[detail]]
 id = "propagation_chain.record_invalid"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: record invalid."
+meaning = "The propagation record does not decode or encode, has another format version or feature marker, exceeds a consumer limit, or stores a field that is not a well-formed declaration."
 
 [[detail]]
 id = "propagation_chain.record_refused"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: record refused."
+meaning = "The record's identity does not match its content or the identity the caller retained, or its results do not replay."
 
 [[detail]]
 id = "propagation_chain.reentry"
 family = "propagation_chain"
 codes = ["public_builder_reentry"]
-meaning = "The chain refuses: reentry."
+meaning = "A chain is compiled inside a lowered dispatch, which executes its retained program and compiles no other."
 
 [[detail]]
 id = "propagation_chain.reweight_needs_draws"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: reweight needs draws."
+meaning = "A re-weight change names a source that is not draws, so its rows cannot be re-weighted."
 
 [[detail]]
 id = "propagation_chain.sampling_is_not_predictive"
 family = "propagation_chain"
 codes = ["distribution_meaning_mismatch"]
-meaning = "The chain refuses: sampling is not predictive."
+meaning = "A predictive mapping reads an estimator sampling law, which cannot stand in for an outcome or innovation law."
 
 [[detail]]
 id = "propagation_chain.sampling_law_is_not_a_posterior"
 family = "propagation_chain"
 codes = ["uncertainty_representation_insufficient"]
-meaning = "The chain refuses: sampling law is not a posterior."
+meaning = "An update, or a posterior reading, meets draws that are a sampling law, not a posterior."
 
 [[detail]]
 id = "propagation_chain.shared_factor_in_independent_product"
 family = "propagation_chain"
 codes = ["evidence_double_counted"]
-meaning = "The chain refuses: shared factor in independent product."
+meaning = "An independent product table is built over draw sources that share a declared factor, which the product treats as independent."
 
 [[detail]]
 id = "propagation_chain.stage_invalidated"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: stage invalidated."
+meaning = "The requested stage depends on a withdrawn source and carries no number."
 
 [[detail]]
 id = "propagation_chain.stage_left_domain"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: stage left domain."
+meaning = "A stage leaves its domain on some row: a logarithm of a non-positive draw, a reciprocal of zero or an overflow."
 
 [[detail]]
 id = "propagation_chain.too_many_inputs"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: too many inputs."
+meaning = "The dependence of a stage's inputs, or of the draw sources, cannot be assessed."
 
 [[detail]]
 id = "propagation_chain.too_many_nodes"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: too many nodes."
+meaning = "The chain's sources times stages exceed the cell budget of its ancestry table."
 
 [[detail]]
 id = "propagation_chain.unaligned_draws"
 family = "propagation_chain"
 codes = ["joint_law_required"]
-meaning = "The chain refuses: unaligned draws."
+meaning = "Draw sources carry different alignment identities, so their rows cannot be paired by index."
 
 [[detail]]
 id = "propagation_chain.unknown_stage"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: unknown stage."
+meaning = "The chain has no stage of the requested name."
 
 [[detail]]
 id = "propagation_chain.unknown_value"
 family = "propagation_chain"
 codes = ["invalid_argument"]
-meaning = "The chain refuses: unknown value."
+meaning = "The stage stores no value of the requested name."
 
 [[detail]]
 id = "propagation_chain.update_effective_size"
 family = "propagation_chain"
 codes = ["posterior_draws_below_supported"]
-meaning = "The chain refuses: update effective size."
+meaning = "The updated draws of a preposterior update have an effective size below the minimum."
 
 [[detail]]
 id = "proposal_arrival.assignment_mismatch"
@@ -13035,19 +13047,19 @@ meaning = "An observation pattern, zero complete-case cell, zero denominator, ad
 id = "sampling_assumption_union.invalid_declaration"
 family = "sampling_assumption_union"
 codes = ["invalid_argument"]
-meaning = "The union declaration is refused: the scheme, units, replicates or level are outside the declared range."
+meaning = "The union declaration or its run is invalid: a resampling, unit, stratum or cluster declaration out of range, a byte or work bound exceeded, or a chain whose terminal envelope is missing, reversed or unweighted."
 
 [[detail]]
 id = "sampling_assumption_union.not_supported"
 family = "sampling_assumption_union"
 codes = ["not_supported"]
-meaning = "The release support gate refuses the union because its support unit is not supported."
+meaning = "A release build refuses the union because its support unit is not supported."
 
 [[detail]]
 id = "sampling_assumption_union.replay_mismatch"
 family = "sampling_assumption_union"
 codes = ["external_binding_mismatch"]
-meaning = "The bytes do not replay to the retained identity, seed or result."
+meaning = "The bytes are not a union artifact, or do not replay to the retained identity, seed or result."
 
 [[detail]]
 id = "sampling_weights.invalid"
@@ -16913,7 +16925,6 @@ family = "weighted_target"
 codes = ["transport_target_overlap_failed"]
 meaning = "A target population declared as row weights or a kernel has no support among the analysed rows, a Kish effective sample size below the floor, or a smaller share of the rows than declared; the refusal names a next attempt."
 
-
 [[detail]]
 id = "decision_evaluation.analytic_law_unsupported"
 family = "decision_evaluation"
@@ -17044,10 +17055,10 @@ meaning = "The count interval has no current matching coverage record."
 id = "cyclic_decision.invalid_request"
 family = "cyclic_decision"
 codes = ["invalid_argument"]
-meaning = "The action worlds, output coordinates, decision actions, training schedule or target frame of a cyclic action-world decision are inconsistent, or a retained decision artifact differs from its recomputation."
+meaning = "The action worlds, output equations, decision, posterior fit or target frame of a cyclic decision are inconsistent or exceed a bound, or a retained decision artifact differs from its recomputation."
 
 [[detail]]
 id = "cyclic_component.invalid_request"
 family = "cyclic_component"
 codes = ["invalid_argument"]
-meaning = "The component outputs, port connections, couplings, clamps or posterior binding of a connected feedback decision are malformed or inconsistent, or a retained artifact differs from its recomputation."
+meaning = "The components, ports, connections, clamps, evidence inputs, calibration coverage or posterior handoff of a connected feedback decision are malformed or inconsistent, or a retained artifact differs from its recomputation."

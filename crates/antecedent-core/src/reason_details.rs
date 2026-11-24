@@ -1844,7 +1844,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "propagation_chain.family_dependence",
     "propagation_chain.family_estimate",
     "propagation_chain.family_meaning",
+    "propagation_chain.family_overlap_unknown",
     "propagation_chain.family_shape",
+    "propagation_chain.family_shared_evidence",
     "propagation_chain.family_table_cancelled",
     "propagation_chain.family_table_refused",
     "propagation_chain.family_table_work_limit",
@@ -4554,22 +4556,22 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("penalized_propensity.invalid_penalty", &["invalid_argument"]),
     ("penalized_propensity.scope", &["route_not_supported"]),
     ("penalized_propensity.selection_not_supported", &["selection_inference_not_supported"]),
-    ("planning.adaptive", &["invalid_argument"]),
+    ("planning.adaptive", &["adaptive_contract_incomplete", "route_not_supported"]),
     ("planning.allocation", &["invalid_argument"]),
     ("planning.allocation_ratio", &["invalid_argument"]),
     ("planning.alpha", &["invalid_argument"]),
     ("planning.assurance", &["invalid_argument"]),
     ("planning.attrition", &["invalid_argument"]),
-    ("planning.cluster", &["invalid_argument"]),
-    ("planning.covariates", &["invalid_argument"]),
+    ("planning.cluster", &["invalid_argument", "required_option_missing"]),
+    ("planning.covariates", &["invalid_argument", "option_not_applicable"]),
     ("planning.decision", &["invalid_argument"]),
-    ("planning.effect", &["invalid_argument"]),
+    ("planning.effect", &["invalid_argument", "required_option_missing"]),
     ("planning.effect_unreachable", &["evidence_cannot_reach_level"]),
-    ("planning.factorial", &["invalid_argument"]),
+    ("planning.factorial", &["option_not_applicable"]),
     ("planning.goal", &["invalid_argument"]),
-    ("planning.group_sequential", &["invalid_argument"]),
-    ("planning.interference", &["invalid_argument"]),
-    ("planning.multi_arm", &["invalid_argument"]),
+    ("planning.group_sequential", &["invalid_argument", "route_not_supported"]),
+    ("planning.interference", &["required_option_missing"]),
+    ("planning.multi_arm", &["invalid_argument", "route_not_supported", "option_not_applicable"]),
     ("planning.outcome", &["invalid_argument"]),
     ("planning.power", &["invalid_argument"]),
     ("planning.precision", &["invalid_argument"]),
@@ -4580,7 +4582,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("planning.stratified", &["invalid_argument"]),
     ("planning.study", &["route_not_supported"]),
     ("planning.success", &["invalid_argument"]),
-    ("planning.switchback", &["invalid_argument"]),
+    ("planning.switchback", &["invalid_argument", "option_not_applicable", "effect_not_identified", "required_option_missing"]),
     ("policy_value.action_not_populated", &["arm_not_populated"]),
     ("policy_value.action_outside_support", &["positivity_violated"]),
     ("policy_value.action_propensity_below_floor", &["positivity_violated"]),
@@ -4686,10 +4688,12 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("propagation_chain.enclosure_unbounded", &["route_not_supported"]),
     ("propagation_chain.family_authority", &["invalid_argument"]),
     ("propagation_chain.family_covariance", &["invalid_argument"]),
-    ("propagation_chain.family_dependence", &["evidence_overlap_unknown"]),
+    ("propagation_chain.family_dependence", &["invalid_argument"]),
     ("propagation_chain.family_estimate", &["invalid_argument"]),
     ("propagation_chain.family_meaning", &["invalid_argument"]),
+    ("propagation_chain.family_overlap_unknown", &["evidence_overlap_unknown"]),
     ("propagation_chain.family_shape", &["invalid_argument"]),
+    ("propagation_chain.family_shared_evidence", &["evidence_double_counted"]),
     ("propagation_chain.family_table_cancelled", &["execution_cancelled"]),
     ("propagation_chain.family_table_refused", &["invalid_argument"]),
     ("propagation_chain.family_table_work_limit", &["moment_matched_table_work_budget"]),
@@ -9913,8 +9917,12 @@ pub mod propagation_chain {
     pub const FAMILY_ESTIMATE: &str = "propagation_chain.family_estimate";
     /// Detail `propagation_chain.family_meaning`.
     pub const FAMILY_MEANING: &str = "propagation_chain.family_meaning";
+    /// Detail `propagation_chain.family_overlap_unknown`.
+    pub const FAMILY_OVERLAP_UNKNOWN: &str = "propagation_chain.family_overlap_unknown";
     /// Detail `propagation_chain.family_shape`.
     pub const FAMILY_SHAPE: &str = "propagation_chain.family_shape";
+    /// Detail `propagation_chain.family_shared_evidence`.
+    pub const FAMILY_SHARED_EVIDENCE: &str = "propagation_chain.family_shared_evidence";
     /// Detail `propagation_chain.family_table_cancelled`.
     pub const FAMILY_TABLE_CANCELLED: &str = "propagation_chain.family_table_cancelled";
     /// Detail `propagation_chain.family_table_refused`.

@@ -1042,18 +1042,27 @@ fn a_denominator_that_reaches_zero_seals_nothing() {
     }
     let refusal =
         PropagationChainRecordWire::seal(draft, &ctx()).expect_err("refused").to_refusal();
-    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED
+    );
     assert_eq!(refusal.code(), "invalid_argument");
     // A bound above the smallest Youden index refuses the same chain.
     let bounded = correction_draft(0.9);
     let refusal =
         PropagationChainRecordWire::seal(bounded, &ctx()).expect_err("refused").to_refusal();
-    assert_eq!(refusal.detail(), "propagation_chain.denominator_not_bounded");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED
+    );
     // A corrected rate above one is refused, never clipped.
     let mut high = correction_draft(0.0);
     high.sources[0].values[10] = 0.99_f64.to_bits();
     let refusal = PropagationChainRecordWire::seal(high, &ctx()).expect_err("refused").to_refusal();
-    assert_eq!(refusal.detail(), "propagation_chain.stage_left_domain");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::STAGE_LEFT_DOMAIN
+    );
 }
 
 #[test]
@@ -1197,7 +1206,10 @@ fn point_sources_replicated_past_the_cell_budget_are_refused_before_any_column_i
     );
     let refusal =
         PropagationChainRecordWire::seal(draft, &ctx()).expect_err("over budget").to_refusal();
-    assert_eq!(refusal.detail(), "propagation_chain.budget_exceeded");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED
+    );
 }
 
 /// A small posterior artifact for a host to carry the record in.

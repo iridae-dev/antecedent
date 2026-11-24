@@ -611,7 +611,7 @@ fn check_prior(prior: NormalPrior, what: &str, allow_point: bool) -> Result<(), 
     let sd_ok = prior.sd.is_finite() && (prior.sd > 0.0 || (allow_point && prior.sd == 0.0));
     if !prior.mean.is_finite() || !sd_ok {
         return Err(PlanningRefusal::invalid(
-            "planning.prior",
+            antecedent_core::reason_details::planning::PRIOR,
             format!(
                 "the {what} prior needs a finite mean and a {} standard deviation (got {} and {})",
                 if allow_point { "finite nonnegative" } else { "finite positive" },
@@ -682,21 +682,21 @@ impl PlanningRequest {
         match &self.design {
             PlannedDesign::Interference { exposure: None } => Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("required_option_missing"),
-                "planning.interference",
+                antecedent_core::reason_details::planning::INTERFERENCE,
                 "units interfere and no exposure model is declared, so the exposure contrast \
                  and its variance are undefined",
                 Some(DECLARE_EXPOSURE_MODEL),
             )),
             PlannedDesign::OutcomeAdaptive { rule: None } => Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("adaptive_contract_incomplete"),
-                "planning.adaptive",
+                antecedent_core::reason_details::planning::ADAPTIVE,
                 "an outcome-adaptive design without a pre-specified adaptation rule has no \
                  operating characteristics: the stopping rule is missing",
                 Some(PRESPECIFY_STOPPING_RULE),
             )),
             PlannedDesign::OutcomeAdaptive { rule: Some(rule) } => Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
-                "planning.adaptive",
+                antecedent_core::reason_details::planning::ADAPTIVE,
                 format!(
                     "the adaptation rule {rule:?} is not a group-sequential boundary; its \
                      operating characteristics are those of the whole adaptive procedure"
@@ -711,31 +711,31 @@ impl PlanningRequest {
         let a = &self.assumptions;
         if !(a.alpha.is_finite() && a.alpha > 0.0 && a.alpha <= 0.5) {
             return Err(PlanningRefusal::invalid(
-                "planning.alpha",
+                antecedent_core::reason_details::planning::ALPHA,
                 format!("alpha must lie in (0, 0.5] (got {})", a.alpha),
             ));
         }
         if !(a.allocation_ratio.is_finite() && a.allocation_ratio > 0.0) {
             return Err(PlanningRefusal::invalid(
-                "planning.allocation_ratio",
+                antecedent_core::reason_details::planning::ALLOCATION_RATIO,
                 format!("the allocation ratio must be finite and > 0 (got {})", a.allocation_ratio),
             ));
         }
         if !(a.attrition.is_finite() && (0.0..1.0).contains(&a.attrition)) {
             return Err(PlanningRefusal::invalid(
-                "planning.attrition",
+                antecedent_core::reason_details::planning::ATTRITION,
                 format!("attrition must lie in [0, 1) (got {})", a.attrition),
             ));
         }
         if !(a.covariate_r_squared.is_finite() && (0.0..1.0).contains(&a.covariate_r_squared)) {
             return Err(PlanningRefusal::invalid(
-                "planning.covariates",
+                antecedent_core::reason_details::planning::COVARIATES,
                 format!("covariate R² must lie in [0, 1) (got {})", a.covariate_r_squared),
             ));
         }
         if (a.covariate_r_squared > 0.0) != (a.covariates > 0) {
             return Err(PlanningRefusal::invalid(
-                "planning.covariates",
+                antecedent_core::reason_details::planning::COVARIATES,
                 format!(
                     "a covariate R² above zero needs at least one declared covariate, and \
                      covariates need an R² above zero (got R² {} and {} covariates)",
@@ -747,7 +747,7 @@ impl PlanningRequest {
             OutcomeModel::Continuous { sd, control_mean } => {
                 if !(sd.is_finite() && sd > 0.0) || control_mean.is_some_and(|m| !m.is_finite()) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.outcome",
+                        antecedent_core::reason_details::planning::OUTCOME,
                         format!(
                             "the outcome sd must be finite and > 0 and a declared control mean finite (got sd {sd})"
                         ),
@@ -757,14 +757,14 @@ impl PlanningRequest {
             OutcomeModel::Binary { control_rate } => {
                 if !probability(control_rate) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.outcome",
+                        antecedent_core::reason_details::planning::OUTCOME,
                         format!("the control rate must lie in (0, 1) (got {control_rate})"),
                     ));
                 }
                 if a.covariate_r_squared > 0.0 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("option_not_applicable"),
-                        "planning.covariates",
+                        antecedent_core::reason_details::planning::COVARIATES,
                         "covariate adjustment is planned for a continuous outcome",
                         Some(COVARIATE_ADJUSTED_DESIGN),
                     ));
@@ -774,7 +774,7 @@ impl PlanningRequest {
         if let Some(effect) = a.effect {
             if !effect.is_finite() {
                 return Err(PlanningRefusal::invalid(
-                    "planning.effect",
+                    antecedent_core::reason_details::planning::EFFECT,
                     format!("the effect must be finite (got {effect})"),
                 ));
             }
@@ -782,7 +782,7 @@ impl PlanningRequest {
                 && !probability(control_rate + effect)
             {
                 return Err(PlanningRefusal::invalid(
-                    "planning.effect",
+                    antecedent_core::reason_details::planning::EFFECT,
                     format!(
                         "control rate {control_rate} plus effect {effect} is not a probability"
                     ),
@@ -799,7 +799,7 @@ impl PlanningRequest {
             PlanningCriterion::Power { target } => {
                 if !target_ok(target) || target <= a.alpha {
                     return Err(PlanningRefusal::invalid(
-                        "planning.power",
+                        antecedent_core::reason_details::planning::POWER,
                         format!("target power must lie in (alpha, 1) (got {target})"),
                     ));
                 }
@@ -808,7 +808,7 @@ impl PlanningRequest {
                 match (needs_effect, a.effect) {
                     (true, None) => Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("required_option_missing"),
-                        "planning.effect",
+                        antecedent_core::reason_details::planning::EFFECT,
                         "power is computed at a declared effect; none is declared",
                         None,
                     )),
@@ -816,12 +816,12 @@ impl PlanningRequest {
                         if effect == 0.0 && !matches!(self.goal, PlanningGoal::Evaluate { .. }) =>
                     {
                         Err(PlanningRefusal::invalid(
-                            "planning.effect",
+                            antecedent_core::reason_details::planning::EFFECT,
                             "a sample size cannot be planned to detect a zero effect",
                         ))
                     }
                     (false, Some(_)) => Err(PlanningRefusal::invalid(
-                        "planning.effect",
+                        antecedent_core::reason_details::planning::EFFECT,
                         "a minimum detectable effect is solved for; declare no effect",
                     )),
                     _ => Ok(()),
@@ -832,7 +832,7 @@ impl PlanningRequest {
                 check_prior(design_prior, "design", true)?;
                 if !target_ok(target) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.assurance",
+                        antecedent_core::reason_details::planning::ASSURANCE,
                         format!("target assurance must lie in (0, 1) (got {target})"),
                     ));
                 }
@@ -842,7 +842,7 @@ impl PlanningRequest {
                     check_prior(analysis_prior, "analysis", false)?;
                     if !threshold.is_finite() || !probability(p) {
                         return Err(PlanningRefusal::invalid(
-                            "planning.success",
+                            antecedent_core::reason_details::planning::SUCCESS,
                             "the success threshold must be finite and its probability in (0, 1)",
                         ));
                     }
@@ -854,7 +854,7 @@ impl PlanningRequest {
                 check_prior(analysis_prior, "analysis", false)?;
                 if !(max_posterior_sd.is_finite() && max_posterior_sd > 0.0) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.precision",
+                        antecedent_core::reason_details::planning::PRECISION,
                         format!(
                             "the posterior sd target must be finite and > 0 (got {max_posterior_sd})"
                         ),
@@ -874,7 +874,7 @@ impl PlanningRequest {
                 check_prior(analysis_prior, "analysis", false)?;
                 if !threshold.is_finite() || !probability(p) || !target_ok(target) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.decision",
+                        antecedent_core::reason_details::planning::DECISION,
                         "the decision threshold must be finite and its probability and target \
                          in (0, 1)",
                     ));
@@ -887,13 +887,13 @@ impl PlanningRequest {
     fn no_effect_with_prior(&self) -> Result<(), PlanningRefusal> {
         if self.assumptions.effect.is_some() {
             return Err(PlanningRefusal::invalid(
-                "planning.effect",
+                antecedent_core::reason_details::planning::EFFECT,
                 "a Bayesian criterion takes the effect from its design prior; declare no effect",
             ));
         }
         if matches!(self.goal, PlanningGoal::MinimumDetectableEffect { .. }) {
             return Err(PlanningRefusal::invalid(
-                "planning.goal",
+                antecedent_core::reason_details::planning::GOAL,
                 "a minimum detectable effect is a property of the frequentist power criterion",
             ));
         }
@@ -908,7 +908,7 @@ impl PlanningRequest {
         if adjusted && !matches!(design, PlannedDesign::Bernoulli | PlannedDesign::Complete) {
             return Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("option_not_applicable"),
-                "planning.covariates",
+                antecedent_core::reason_details::planning::COVARIATES,
                 format!("the {} analysis does not adjust for covariates", design.as_str()),
                 Some(COVARIATE_ADJUSTED_DESIGN),
             ));
@@ -934,7 +934,7 @@ impl PlanningRequest {
                     && *cluster_size_cv >= 0.0)
                 {
                     return Err(PlanningRefusal::invalid(
-                        "planning.cluster",
+                        antecedent_core::reason_details::planning::CLUSTER,
                         format!(
                             "cluster size must be >= 1, ICC in [0, 1) and size CV >= 0 (got {mean_cluster_size}, {icc}, {cluster_size_cv})"
                         ),
@@ -945,7 +945,7 @@ impl PlanningRequest {
                 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("required_option_missing"),
-                        "planning.cluster",
+                        antecedent_core::reason_details::planning::CLUSTER,
                         "the cluster-total analysis with unequal cluster sizes depends on the \
                          outcome level; no control mean is declared",
                         Some(DECLARE_CONTROL_MEAN),
@@ -956,7 +956,7 @@ impl PlanningRequest {
             PlannedDesign::MultiArm { treatment_arms, comparison } => {
                 if !(2..=MAX_COMPARISONS).contains(treatment_arms) {
                     return Err(PlanningRefusal::invalid(
-                        "planning.multi_arm",
+                        antecedent_core::reason_details::planning::MULTI_ARM,
                         format!(
                             "a multi-arm plan has between 2 and {MAX_COMPARISONS} treatment arms"
                         ),
@@ -965,7 +965,7 @@ impl PlanningRequest {
                 if single_contrast_posterior {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("route_not_supported"),
-                        "planning.multi_arm",
+                        antecedent_core::reason_details::planning::MULTI_ARM,
                         "a posterior criterion is planned for a single contrast; a family of \
                          comparisons has none",
                         Some(SINGLE_CONTRAST_BAYESIAN),
@@ -976,7 +976,7 @@ impl PlanningRequest {
                 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("option_not_applicable"),
-                        "planning.multi_arm",
+                        antecedent_core::reason_details::planning::MULTI_ARM,
                         "the omnibus F test is planned for a continuous outcome and is two-sided",
                         None,
                     ));
@@ -987,7 +987,7 @@ impl PlanningRequest {
                 if (a.allocation_ratio - 1.0).abs() > 1e-12 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("option_not_applicable"),
-                        "planning.factorial",
+                        antecedent_core::reason_details::planning::FACTORIAL,
                         "the factorial plan has four equal cells; the allocation ratio is fixed at 1",
                         None,
                     ));
@@ -1009,7 +1009,7 @@ impl PlanningRequest {
                     || (1.0 + carryover).abs() < 1e-9
                 {
                     return Err(PlanningRefusal::invalid(
-                        "planning.switchback",
+                        antecedent_core::reason_details::planning::SWITCHBACK,
                         "a switchback plan needs at least 2 sequences, a block longer than its \
                          washout, autocorrelation in (-1, 1) and a finite carryover other than -1",
                     ));
@@ -1017,7 +1017,7 @@ impl PlanningRequest {
                 if a.attrition > 0.0 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("option_not_applicable"),
-                        "planning.switchback",
+                        antecedent_core::reason_details::planning::SWITCHBACK,
                         "switchback periods are scheduled, not enrolled; attrition does not apply",
                         None,
                     ));
@@ -1025,7 +1025,7 @@ impl PlanningRequest {
                 if *carryover != 0.0 && *washout_periods == 0 {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("effect_not_identified"),
-                        "planning.switchback",
+                        antecedent_core::reason_details::planning::SWITCHBACK,
                         "with carryover and no washout the first period of a block mixes the \
                          previous block's assignment, so the period contrast does not estimate \
                          the global effect",
@@ -1035,7 +1035,7 @@ impl PlanningRequest {
                 match a.outcome {
                     OutcomeModel::Binary { .. } => Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("option_not_applicable"),
-                        "planning.switchback",
+                        antecedent_core::reason_details::planning::SWITCHBACK,
                         "switchback planning models a continuous outcome with autoregressive \
                          period dependence",
                         None,
@@ -1043,7 +1043,7 @@ impl PlanningRequest {
                     OutcomeModel::Continuous { control_mean: None, .. } => {
                         Err(PlanningRefusal::new(
                             antecedent_core::reason_code!("required_option_missing"),
-                            "planning.switchback",
+                            antecedent_core::reason_details::planning::SWITCHBACK,
                             "the switchback Horvitz–Thompson analysis depends on the outcome \
                              level; no control mean is declared",
                             Some(DECLARE_CONTROL_MEAN),
@@ -1063,7 +1063,7 @@ impl PlanningRequest {
                     || information_fractions.iter().any(|f| !(f.is_finite() && *f > 0.0))
                 {
                     return Err(PlanningRefusal::invalid(
-                        "planning.group_sequential",
+                        antecedent_core::reason_details::planning::GROUP_SEQUENTIAL,
                         format!(
                             "information fractions must be strictly increasing in (0, 1], end \
                              at 1 and number at most {MAX_LOOKS}"
@@ -1081,7 +1081,7 @@ impl PlanningRequest {
                 if !hybrid {
                     return Err(PlanningRefusal::new(
                         antecedent_core::reason_code!("route_not_supported"),
-                        "planning.group_sequential",
+                        antecedent_core::reason_details::planning::GROUP_SEQUENTIAL,
                         "a group-sequential plan targets power or the assurance of crossing its \
                          efficacy boundary; a posterior criterion of the stopped trial is not \
                          planned",
@@ -1097,7 +1097,7 @@ impl PlanningRequest {
         let a = &self.assumptions;
         if strata.is_empty() {
             return Err(PlanningRefusal::invalid(
-                "planning.stratified",
+                antecedent_core::reason_details::planning::STRATIFIED,
                 "a stratified plan declares at least one stratum",
             ));
         }
@@ -1106,7 +1106,7 @@ impl PlanningRequest {
             || (total - 1.0).abs() > 1e-9
         {
             return Err(PlanningRefusal::invalid(
-                "planning.stratified",
+                antecedent_core::reason_details::planning::STRATIFIED,
                 format!("stratum shares must be positive and sum to 1 (sum {total})"),
             ));
         }
@@ -1122,7 +1122,7 @@ impl PlanningRequest {
             };
             if !ok {
                 return Err(PlanningRefusal::invalid(
-                    "planning.stratified",
+                    antecedent_core::reason_details::planning::STRATIFIED,
                     format!(
                         "stratum value {} is not a positive sd (continuous) or a rate \
                          that stays a probability under the effect (binary)",
@@ -1137,12 +1137,18 @@ impl PlanningRequest {
     fn check_goal_and_simulation(&self) -> Result<(), PlanningRefusal> {
         match self.goal {
             PlanningGoal::SampleSize { max_units: 0 } => {
-                return Err(PlanningRefusal::invalid("planning.goal", "max_units must be > 0"));
+                return Err(PlanningRefusal::invalid(
+                    antecedent_core::reason_details::planning::GOAL,
+                    "max_units must be > 0",
+                ));
             }
             PlanningGoal::Evaluate { units } | PlanningGoal::MinimumDetectableEffect { units }
                 if units == 0 =>
             {
-                return Err(PlanningRefusal::invalid("planning.goal", "units must be > 0"));
+                return Err(PlanningRefusal::invalid(
+                    antecedent_core::reason_details::planning::GOAL,
+                    "units must be > 0",
+                ));
             }
             _ => {}
         }
@@ -1150,7 +1156,7 @@ impl PlanningRequest {
             && (spec.replicates == 0 || spec.replicates > MAX_SIMULATION_REPLICATES)
         {
             return Err(PlanningRefusal::invalid(
-                "planning.simulation",
+                antecedent_core::reason_details::planning::SIMULATION,
                 format!(
                     "simulation replicates must lie in [1, {MAX_SIMULATION_REPLICATES}] (got {})",
                     spec.replicates

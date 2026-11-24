@@ -15,6 +15,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import propagation_chain as pc
 from antecedent.errors import CausalValueError
 from antecedent.outcomes import require_success
@@ -99,11 +100,11 @@ def test_export_is_consumed_independently_and_edits_are_refused() -> None:
         require_success(
             pc.consume_propagation_chain(bytes(chain.export()), expected_identity="0" * 64)
         )
-    assert wrong_identity.value.detail == "propagation_chain.record_refused"
+    assert wrong_identity.value.detail == reason_details.propagation_chain.RECORD_REFUSED
     with pytest.raises(R) as truncated:
         require_success(pc.consume_propagation_chain(bytes(chain.export())[:-7]))
     assert truncated.value.code == "invalid_argument"
-    assert truncated.value.detail == "propagation_chain.record_invalid"
+    assert truncated.value.detail == reason_details.propagation_chain.RECORD_INVALID
 
 
 def _overlapping_estimates() -> tuple[np.ndarray, np.ndarray]:
@@ -123,7 +124,7 @@ def test_overlapping_evidence_is_counted_once() -> None:
             pc.propagate(sources, [pc.pool("pooled", ["a", "b"], dependent=False)], output="pooled")
         )
     assert refused.value.code == "evidence_double_counted"
-    assert refused.value.detail == "propagation_chain.pool_shares_evidence"
+    assert refused.value.detail == reason_details.propagation_chain.POOL_SHARES_EVIDENCE
     assert refused.value.next_attempt == "pool_with_joint_covariance"
     chain = require_success(
         pc.propagate(sources, [pc.pool("pooled", ["a", "b"], dependent=True)], output="pooled")
@@ -209,11 +210,11 @@ def test_changed_assumptions_reach_exactly_the_dependent_stages() -> None:
     assert consumed.results == reweighted.results
     with pytest.raises(R) as unknown:
         require_success(chain.withdraw("nowhere"))
-    assert unknown.value.detail == "propagation_chain.record_invalid"
+    assert unknown.value.detail == reason_details.propagation_chain.RECORD_INVALID
     assert "`nowhere`, which is not a source" in str(unknown.value)
     with pytest.raises(R) as short:
         require_success(chain.reweight("effect", [0.0, 1.0]))
-    assert short.value.detail == "propagation_chain.record_invalid"
+    assert short.value.detail == reason_details.propagation_chain.RECORD_INVALID
     assert "one finite log weight per row" in str(short.value)
 
 
@@ -375,7 +376,7 @@ def test_a_ratio_expression_is_the_formula_row_by_row_and_replays() -> None:
                 [sources[0], crossing, sources[2]], [_correction_stage(0.0)], output="corrected"
             )
         )
-    assert refused.value.detail == "propagation_chain.denominator_not_bounded"
+    assert refused.value.detail == reason_details.propagation_chain.DENOMINATOR_NOT_BOUNDED
     high = pc.draws("q", np.full(ROWS, 0.99), meaning="posterior", alignment=TABLE)
     with pytest.raises(R) as refused:
         require_success(
@@ -383,7 +384,7 @@ def test_a_ratio_expression_is_the_formula_row_by_row_and_replays() -> None:
                 [high, sources[1], sources[2]], [_correction_stage(0.0)], output="corrected"
             )
         )
-    assert refused.value.detail == "propagation_chain.stage_left_domain"
+    assert refused.value.detail == reason_details.propagation_chain.STAGE_LEFT_DOMAIN
 
 
 def test_an_expression_over_intervals_is_an_enclosure_bounded_away_from_zero() -> None:
@@ -444,5 +445,5 @@ def test_a_chain_compiles_before_it_runs_and_the_result_carries_its_program() ->
     with pytest.raises(R) as not_measured:
         pc.plan_view([effect], stages, output="utility", reading="interval")
     assert not_measured.value.code == "uncertainty_representation_insufficient"
-    assert not_measured.value.detail == "propagation_chain.interval_not_measured"
+    assert not_measured.value.detail == reason_details.propagation_chain.INTERVAL_NOT_MEASURED
     assert not_measured.value.next_attempt == "measure_composed_coverage"

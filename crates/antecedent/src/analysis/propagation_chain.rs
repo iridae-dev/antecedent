@@ -117,7 +117,7 @@ const CHAIN_ROUTE: &str = "PropagationChain";
 fn unsupported(error: &antecedent_core::NotSupported) -> ChainRefusal {
     ChainRefusal::new(
         error.code(),
-        "propagation_chain.not_supported",
+        antecedent_core::reason_details::propagation_chain::NOT_SUPPORTED,
         error.message(),
         None,
         antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -179,7 +179,7 @@ pub fn compile_propagation_chain(
     if ctx.lowered_dispatch().is_some() {
         return Err(ChainRefusal::new(
             antecedent_core::reason_code!("public_builder_reentry"),
-            "propagation_chain.reentry",
+            antecedent_core::reason_details::propagation_chain::REENTRY,
             "a lowered dispatch executes its retained program; it does not compile another chain",
             None,
             antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -188,7 +188,7 @@ pub fn compile_propagation_chain(
     if ctx.cancellation.is_cancelled() {
         return Err(ChainRefusal::new(
             antecedent_core::reason_code!("cancelled_no_claim"),
-            "propagation_chain.cancelled",
+            antecedent_core::reason_details::propagation_chain::CANCELLED,
             "compile was cancelled; cancellation is not a verdict on the chain",
             None,
             antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -231,7 +231,7 @@ pub fn compile_propagation_chain(
     let program = lowered.propagation_chain().cloned().ok_or_else(|| {
         ChainRefusal::new(
             antecedent_core::reason_code!("route_not_lowered"),
-            "propagation_chain.not_lowered",
+            antecedent_core::reason_details::propagation_chain::NOT_LOWERED,
             "the chain lowered without a program",
             None,
             antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -256,7 +256,7 @@ impl PropagationChainPlan {
         let program = lowered.propagation_chain().cloned().ok_or_else(|| {
             ChainRefusal::new(
                 antecedent_core::reason_code!("route_not_lowered"),
-                "propagation_chain.not_lowered",
+                antecedent_core::reason_details::propagation_chain::NOT_LOWERED,
                 "the combined compiler program has no retained chain",
                 None,
                 antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -265,7 +265,7 @@ impl PropagationChainPlan {
         if program.declaration_identity() != self.program.declaration_identity() {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "propagation_chain.program_mismatch",
+                antecedent_core::reason_details::propagation_chain::PROGRAM_MISMATCH,
                 "the combined compiler program changed the retained chain declaration",
                 None,
                 antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -336,7 +336,7 @@ impl PropagationChainPlan {
         if record.identity != self.program.declaration_identity() {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "propagation_chain.program_mismatch",
+                antecedent_core::reason_details::propagation_chain::PROGRAM_MISMATCH,
                 "the sealed record is not the one the program was lowered from",
                 None,
                 antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
@@ -507,7 +507,7 @@ impl PropagationChain {
     pub fn interval(&self) -> Result<(), ChainRefusal> {
         Err(ChainRefusal::new(
             antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-            "propagation_chain.interval_not_measured",
+            antecedent_core::reason_details::propagation_chain::INTERVAL_NOT_MEASURED,
             "an interval of a composed quantity needs a measured coverage record at its composed coordinate",
             Some(&self.record.output),
             MEASURE_COMPOSED_COVERAGE,
@@ -526,7 +526,7 @@ impl PropagationChain {
         } else {
             Err(ChainRefusal::new(
                 antecedent_core::reason_code!("uncertainty_representation_insufficient"),
-                "propagation_chain.not_read_as_posterior",
+                antecedent_core::reason_details::propagation_chain::NOT_READ_AS_POSTERIOR,
                 "the chain was not sealed with a posterior reading",
                 Some(&self.record.output),
                 antecedent_contract::propagation_chain::SUPPLY_POSTERIOR_DRAWS,
@@ -625,7 +625,7 @@ pub fn independent_product_table(
     antecedent_stats::independent_product_table(columns, max_rows).map_err(|error| {
         ChainRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "propagation_chain.product_table_refused",
+            antecedent_core::reason_details::propagation_chain::PRODUCT_TABLE_REFUSED,
             error.to_string(),
             None,
             antecedent_contract::propagation_chain::RAISE_BUDGET_OR_THIN_DRAWS,
@@ -653,10 +653,19 @@ fn family_refusal(
     )
 }
 
+/// A refused dependence declaration of the family, under the detail of its code: shared
+/// evidence counted as independent, overlap that is unknown, or a blank factor id.
 fn dependence_refusal(error: &DependenceError) -> ChainRefusal {
+    let detail = if error.code() == antecedent_core::reason_code!("evidence_double_counted") {
+        antecedent_core::reason_details::propagation_chain::FAMILY_SHARED_EVIDENCE
+    } else if error.code() == antecedent_core::reason_code!("evidence_overlap_unknown") {
+        antecedent_core::reason_details::propagation_chain::FAMILY_OVERLAP_UNKNOWN
+    } else {
+        antecedent_core::reason_details::propagation_chain::FAMILY_DEPENDENCE
+    };
     ChainRefusal::new(
         error.code(),
-        "propagation_chain.family_dependence",
+        detail,
         format!("{}: {}", error.detail(), error.message()),
         None,
         antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
@@ -666,7 +675,7 @@ fn dependence_refusal(error: &DependenceError) -> ChainRefusal {
 fn authority_refusal(error: &LedgerError, source: &str) -> ChainRefusal {
     ChainRefusal::new(
         error.code,
-        "propagation_chain.family_authority",
+        antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY,
         error.message.clone(),
         Some(source),
         antecedent_contract::propagation_chain::RERUN_WITHOUT_WITHDRAWN_SOURCE,
@@ -887,7 +896,7 @@ pub fn family_table(
     let k = estimates.len();
     if k == 0 || k.checked_mul(k).is_none_or(|cells| cells > MAX_FAMILY_TABLE_CELLS) {
         return Err(family_refusal(
-            "propagation_chain.family_shape",
+            antecedent_core::reason_details::propagation_chain::FAMILY_SHAPE,
             "a family table joins at least one estimate and a joint table within the cell budget",
             None,
         ));
@@ -906,12 +915,12 @@ pub fn family_table(
             },
             match &error {
                 antecedent_stats::ChainError::Cancelled => {
-                    "propagation_chain.family_table_cancelled"
+                    antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_CANCELLED
                 }
                 antecedent_stats::ChainError::Budget(_) => {
-                    "propagation_chain.family_table_work_limit"
+                    antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_WORK_LIMIT
                 }
-                _ => "propagation_chain.family_table_refused",
+                _ => antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_REFUSED,
             },
             error.to_string(),
             None,
@@ -922,14 +931,14 @@ pub fn family_table(
     for estimate in estimates {
         if matches!(estimate.meaning, LawMeaning::Predictive | LawMeaning::Innovation) {
             return Err(family_refusal(
-                "propagation_chain.family_meaning",
+                antecedent_core::reason_details::propagation_chain::FAMILY_MEANING,
                 "an estimate and its standard error do not specify a predictive outcome law",
                 Some(&estimate.id),
             ));
         }
         if !seen.insert(estimate.id.as_str()) || estimate.id.trim().is_empty() {
             return Err(family_refusal(
-                "propagation_chain.family_shape",
+                antecedent_core::reason_details::propagation_chain::FAMILY_SHAPE,
                 "each estimate names a distinct, non-blank source",
                 Some(&estimate.id),
             ));
@@ -939,7 +948,7 @@ pub fn family_table(
             || estimate.standard_error < 0.0
         {
             return Err(family_refusal(
-                "propagation_chain.family_estimate",
+                antecedent_core::reason_details::propagation_chain::FAMILY_ESTIMATE,
                 "an estimate is finite with a finite non-negative standard error",
                 Some(&estimate.id),
             ));
@@ -956,7 +965,7 @@ pub fn family_table(
         FamilyDependence::Covariance(matrix) => {
             if matrix.len() != k * k || matrix.iter().any(|value| !value.is_finite()) {
                 return Err(family_refusal(
-                    "propagation_chain.family_covariance",
+                    antecedent_core::reason_details::propagation_chain::FAMILY_COVARIANCE,
                     "a declared covariance is a finite k by k matrix",
                     None,
                 ));
@@ -966,7 +975,7 @@ pub fn family_table(
                 let published = covariance[i * k + i];
                 if (declared - published).abs() > 1e-9 * published.max(declared.abs()).max(1e-300) {
                     return Err(family_refusal(
-                        "propagation_chain.family_covariance",
+                        antecedent_core::reason_details::propagation_chain::FAMILY_COVARIANCE,
                         "the covariance diagonal is the squared standard error the family published",
                         Some(&estimates[i].id),
                     ));
@@ -1001,12 +1010,12 @@ pub fn family_table(
                 },
                 match &error {
                     antecedent_stats::ChainError::Cancelled => {
-                        "propagation_chain.family_table_cancelled"
+                        antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_CANCELLED
                     }
                     antecedent_stats::ChainError::Budget(_) => {
-                        "propagation_chain.family_table_work_limit"
+                        antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_WORK_LIMIT
                     }
-                    _ => "propagation_chain.family_table_refused",
+                    _ => antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_REFUSED,
                 },
                 error.to_string(),
                 None,
@@ -1043,7 +1052,7 @@ impl PropagationChain {
     pub fn require_current_value(&self, stage: &str, name: &str) -> Result<f64, ChainRefusal> {
         let result = self.stage(stage).ok_or_else(|| {
             family_refusal(
-                "propagation_chain.unknown_stage",
+                antecedent_core::reason_details::propagation_chain::UNKNOWN_STAGE,
                 "the chain has no such stage",
                 Some(stage),
             )
@@ -1051,7 +1060,7 @@ impl PropagationChain {
         if result.status == STATUS_INVALIDATED {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "propagation_chain.stage_invalidated",
+                antecedent_core::reason_details::propagation_chain::STAGE_INVALIDATED,
                 format!(
                     "the stage depends on withdrawn source(s) {}; it carries no number",
                     result.invalidated_by.join(", ")
@@ -1062,7 +1071,7 @@ impl PropagationChain {
         }
         result.value(name).ok_or_else(|| {
             family_refusal(
-                "propagation_chain.unknown_value",
+                antecedent_core::reason_details::propagation_chain::UNKNOWN_VALUE,
                 "the stage stores no such value",
                 Some(stage),
             )
@@ -1081,7 +1090,7 @@ fn apply_family_ledger_overlap(
     let k = estimates.len();
     let ledger = ledger.ok_or_else(|| {
         family_refusal(
-            "propagation_chain.family_authority",
+            antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY,
             "a ledger overlap needs the ledger that holds the authorizing sources",
             None,
         )
@@ -1090,14 +1099,14 @@ fn apply_family_ledger_overlap(
     for estimate in estimates {
         let id = estimate.authority.ok_or_else(|| {
             family_refusal(
-                "propagation_chain.family_authority",
+                antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY,
                 "a ledger overlap needs the authorizing source of every estimate",
                 Some(&estimate.id),
             )
         })?;
         let source = ledger.source(id).ok_or_else(|| {
             family_refusal(
-                "propagation_chain.family_authority",
+                antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY,
                 "the authorizing source is not in the ledger",
                 Some(&estimate.id),
             )
@@ -1105,7 +1114,7 @@ fn apply_family_ledger_overlap(
         if !matches!(source.status, SourceStatus::Active) {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "propagation_chain.family_authority",
+                antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY,
                 "a retired source cannot seed a chain",
                 Some(&estimate.id),
                 antecedent_contract::propagation_chain::RERUN_WITHOUT_WITHDRAWN_SOURCE,
@@ -1114,7 +1123,7 @@ fn apply_family_ledger_overlap(
         let known = source.effective.known().ok_or_else(|| {
             ChainRefusal::new(
                 antecedent_core::reason_code!("evidence_overlap_unknown"),
-                "propagation_chain.family_dependence",
+                antecedent_core::reason_details::propagation_chain::FAMILY_OVERLAP_UNKNOWN,
                 "the authorizing source declares no observations, so its overlap is unknown",
                 Some(&estimate.id),
                 antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
@@ -1134,7 +1143,7 @@ fn apply_family_ledger_overlap(
                 antecedent_stats::shared_row_correlation(rows_used[i], rows_used[j], shared)
                     .map_err(|error| {
                         family_refusal(
-                            "propagation_chain.family_covariance",
+                            antecedent_core::reason_details::propagation_chain::FAMILY_COVARIANCE,
                             error.to_string(),
                             Some(&estimates[i].id),
                         )
@@ -1183,7 +1192,7 @@ fn check_family_dependence(
                     if live && term != 0.0 && !shares {
                         return Err(ChainRefusal::new(
                             antecedent_core::reason_code!("evidence_overlap_unknown"),
-                            "propagation_chain.family_dependence",
+                            antecedent_core::reason_details::propagation_chain::FAMILY_OVERLAP_UNKNOWN,
                             "a nonzero covariance names the evidence the two estimates share; declare the shared factor",
                             Some(&estimates[i].id),
                             antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
@@ -1192,7 +1201,7 @@ fn check_family_dependence(
                     if live && term == 0.0 && shares {
                         return Err(ChainRefusal::new(
                             antecedent_core::reason_code!("evidence_double_counted"),
-                            "propagation_chain.family_dependence",
+                            antecedent_core::reason_details::propagation_chain::FAMILY_SHARED_EVIDENCE,
                             "two estimates share declared evidence but the covariance counts it as independent",
                             Some(&estimates[i].id),
                             antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE,

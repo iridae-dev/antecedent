@@ -118,7 +118,10 @@ fn an_independent_pool_of_overlapping_evidence_is_refused_and_names_the_covarian
     let refusal =
         check_propagation_chain(&pooled(OperatorClass::IndependentPool)).expect_err("refused");
     assert_eq!(refusal.code(), "evidence_double_counted");
-    assert_eq!(refusal.detail(), "propagation_chain.pool_shares_evidence");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::POOL_SHARES_EVIDENCE
+    );
     assert_eq!(refusal.next_attempt(), POOL_WITH_JOINT_COVARIANCE);
     assert!(refusal.to_string().contains("next attempt"));
     // The dependent pool is the supported route and records what it shares.
@@ -191,7 +194,10 @@ fn a_stage_bringing_a_shared_factor_makes_its_dependents_overlap() {
     ];
     let refusal = check_propagation_chain(&chain(sources, stages, ChainReading::Spread))
         .expect_err("refused");
-    assert_eq!(refusal.detail(), "propagation_chain.pool_shares_evidence");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::POOL_SHARES_EVIDENCE
+    );
 }
 
 #[test]
@@ -288,7 +294,10 @@ fn a_point_carries_no_spread_and_an_interval_no_posterior() {
     assert_eq!(plan.label, PROPAGATION_ENCLOSURE_LABEL);
     let refusal =
         check_propagation_chain(&interval_chain(ChainReading::Posterior)).expect_err("refused");
-    assert_eq!(refusal.detail(), "propagation_chain.interval_is_not_a_posterior");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::INTERVAL_IS_NOT_A_POSTERIOR
+    );
     assert_eq!(refusal.next_attempt(), SUPPLY_POSTERIOR_DRAWS);
     let refusal =
         check_propagation_chain(&interval_chain(ChainReading::Spread)).expect_err("refused");
@@ -304,7 +313,10 @@ fn a_sampling_law_is_not_a_posterior() {
     );
     let refusal = check_propagation_chain(&decl).expect_err("refused");
     assert_eq!(refusal.code(), "uncertainty_representation_insufficient");
-    assert_eq!(refusal.detail(), "propagation_chain.sampling_law_is_not_a_posterior");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::SAMPLING_LAW_IS_NOT_A_POSTERIOR
+    );
     // Mixing a sampling law with a posterior is a meaning mismatch.
     let mixed = chain(
         vec![
@@ -328,7 +340,7 @@ fn intervals_cannot_be_pooled_or_mixed_with_draws_or_updated() {
     );
     assert_eq!(
         check_propagation_chain(&interval_pool).expect_err("refused").detail(),
-        "propagation_chain.interval_cannot_be_pooled"
+        antecedent_core::reason_details::propagation_chain::INTERVAL_CANNOT_BE_POOLED
     );
     let mixed = chain(
         vec![fixed("a", Representation::Interval), draws("b", LawMeaning::Posterior, Vec::new())],
@@ -369,7 +381,10 @@ fn a_preposterior_update_needs_posterior_draws_and_is_terminal() {
     let sampling = vec![draws("theta", LawMeaning::Sampling, Vec::new())];
     let refusal = check_propagation_chain(&chain(sampling, base.clone(), ChainReading::Spread))
         .expect_err("refused");
-    assert_eq!(refusal.detail(), "propagation_chain.sampling_law_is_not_a_posterior");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::SAMPLING_LAW_IS_NOT_A_POSTERIOR
+    );
     // Nothing may consume the update.
     let mut after = base;
     after.push(stage("after", StageKind::DerivedQuantity, OperatorClass::Nonlinear, &["update"]));
@@ -457,7 +472,10 @@ fn stage_tables_are_charged_by_identifier_bytes_not_by_cell_count() {
     }
     let refusal = charge_stage_tables(&stage, &mut state, &ancestors, &FactorSet::new())
         .expect_err("over the byte budget");
-    assert_eq!(refusal.detail(), "propagation_chain.ancestry_bytes");
+    assert_eq!(
+        refusal.detail(),
+        antecedent_core::reason_details::propagation_chain::ANCESTRY_BYTES
+    );
     assert_eq!(refusal.stage(), Some("late"));
     // The same cell count with short identifiers is nowhere near the budget.
     let short: BTreeSet<String> = (0..64).map(|index| format!("s{index}")).collect();

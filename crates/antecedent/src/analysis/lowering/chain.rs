@@ -58,7 +58,7 @@ const SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_source";
 fn refuse(reason: impl std::fmt::Display) -> ChainRefusal {
     ChainRefusal::new(
         antecedent_core::reason_code!("invalid_argument"),
-        "propagation_chain.lowering",
+        antecedent_core::reason_details::propagation_chain::LOWERING,
         format!("propagation chain lowering: {reason}"),
         None,
         FIX_CHAIN_DECLARATION,

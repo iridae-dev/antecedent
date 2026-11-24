@@ -524,7 +524,7 @@ def test_a_measurement_correction_is_a_ratio_stage_and_a_zero_denominator_is_ref
     ]
     with pytest.raises(R) as caught:
         require_success(pc.propagate(sources, [parts.stage], output="correction"))
-    assert caught.value.detail == "propagation_chain.denominator_not_bounded"
+    assert caught.value.detail == reason_details.propagation_chain.DENOMINATOR_NOT_BOUNDED
     assert caught.value.reason_code == "invalid_argument"
 
 
@@ -555,7 +555,7 @@ def test_a_guarded_division_refuses_a_denominator_that_reaches_zero_and_replays(
                 output="ratio",
             )
         )
-    assert caught.value.detail == "propagation_chain.denominator_not_bounded"
+    assert caught.value.detail == reason_details.propagation_chain.DENOMINATOR_NOT_BOUNDED
     # A declared bound refuses a denominator that comes closer to zero than the model supports.
     near_zero = pc.draws("b", grid(0.5, 0.05), meaning="posterior", alignment=alignment)
     with pytest.raises(R):

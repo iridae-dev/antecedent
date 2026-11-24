@@ -846,7 +846,10 @@ fn a_denominator_that_can_be_zero_or_a_rate_outside_its_range_is_refused_by_the_
     }
     let refused =
         seal_stage(crossing, parts.stage.clone()).expect_err("a denominator crossing zero");
-    assert_eq!(refusal_detail(refused), "propagation_chain.denominator_not_bounded");
+    assert_eq!(
+        refusal_detail(refused),
+        antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED
+    );
     // A Youden index above zero but below the model's smallest supported value is refused too.
     let mut thin = parts.sources.clone();
     let specificity: Vec<f64> = thin[2].values.iter().map(|b| f64::from_bits(*b)).collect();
@@ -854,12 +857,18 @@ fn a_denominator_that_can_be_zero_or_a_rate_outside_its_range_is_refused_by_the_
         *bits = (1.0 - spec + 0.05).to_bits();
     }
     let refused = seal_stage(thin, parts.stage.clone()).expect_err("a thin Youden index");
-    assert_eq!(refusal_detail(refused), "propagation_chain.denominator_not_bounded");
+    assert_eq!(
+        refusal_detail(refused),
+        antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED
+    );
     // A recorded rate above the sensitivity corrects to more than one: refused, not clipped.
     let mut high = parts.sources.clone();
     high[0].values[3] = 0.99_f64.to_bits();
     let refused = seal_stage(high, parts.stage.clone()).expect_err("a rate above one");
-    assert_eq!(refusal_detail(refused), "propagation_chain.stage_left_domain");
+    assert_eq!(
+        refusal_detail(refused),
+        antecedent_core::reason_details::propagation_chain::STAGE_LEFT_DOMAIN
+    );
 }
 
 #[test]

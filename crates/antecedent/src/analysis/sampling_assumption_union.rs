@@ -93,7 +93,7 @@ fn gate_release_support<H: CompiledProgramHandle>(
     gate_program(ctx, handle).map_err(|error| {
         SamplingAssumptionUnionError::Chain(ChainRefusal::new(
             error.code(),
-            "sampling_assumption_union.not_supported",
+            antecedent_core::reason_details::sampling_assumption_union::NOT_SUPPORTED,
             error.message(),
             None,
             antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,

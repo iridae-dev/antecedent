@@ -134,7 +134,7 @@ pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRef
     if weights.is_empty() {
         return Err(PlanningRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "planning.allocation",
+            antecedent_core::reason_details::planning::ALLOCATION,
             "no weights to split over",
             None,
         ));
@@ -142,7 +142,7 @@ pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRef
     if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
         return Err(PlanningRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "planning.allocation",
+            antecedent_core::reason_details::planning::ALLOCATION,
             "allocation weights must be finite and nonnegative",
             None,
         ));
@@ -151,7 +151,7 @@ pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRef
     if !sum.is_finite() || sum <= 0.0 {
         return Err(PlanningRefusal::new(
             antecedent_core::reason_code!("invalid_argument"),
-            "planning.allocation",
+            antecedent_core::reason_details::planning::ALLOCATION,
             "allocation weights must have a positive finite total",
             None,
         ));
@@ -841,7 +841,7 @@ impl<'a> Planner<'a> {
         let none = || {
             PlanningRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "planning.size",
+                antecedent_core::reason_details::planning::SIZE,
                 format!("no size up to {MINIMUM_SCAN} gives every arm two analysed units"),
                 None,
             )
@@ -1017,11 +1017,17 @@ impl<'a> Planner<'a> {
         }
         let fractions: Vec<f64> = looks.iter().map(|n| *n as f64 / units as f64).collect();
         let PlannedDesign::GroupSequential { spending, .. } = &self.design else {
-            return Err(PlanningRefusal::invalid("planning.group_sequential", "not sequential"));
+            return Err(PlanningRefusal::invalid(
+                antecedent_core::reason_details::planning::GROUP_SEQUENTIAL,
+                "not sequential",
+            ));
         };
         let critical = boundaries(&fractions, self.alpha(), *spending, self.sidedness(), &|| false)
             .map_err(|error| {
-                PlanningRefusal::invalid("planning.group_sequential", error.to_string())
+                PlanningRefusal::invalid(
+                    antecedent_core::reason_details::planning::GROUP_SEQUENTIAL,
+                    error.to_string(),
+                )
             })?
             .critical;
         self.boundaries.borrow_mut().insert(looks.to_vec(), critical.clone());
@@ -1046,7 +1052,12 @@ impl<'a> Planner<'a> {
         let actual: Vec<f64> = looks.iter().map(|n| *n as f64 / units as f64).collect();
         let crossing = |drift: f64| {
             crossing_probabilities(&actual, &critical, self.sidedness(), drift, &|| false).map_err(
-                |error| PlanningRefusal::invalid("planning.group_sequential", error.to_string()),
+                |error| {
+                    PlanningRefusal::invalid(
+                        antecedent_core::reason_details::planning::GROUP_SEQUENTIAL,
+                        error.to_string(),
+                    )
+                },
             )
         };
         let alternative = crossing(drift)?;
@@ -1220,7 +1231,7 @@ impl<'a> Planner<'a> {
         if minimum > max_units {
             return Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                "planning.size_unreachable",
+                antecedent_core::reason_details::planning::SIZE_UNREACHABLE,
                 format!("the smallest feasible size {minimum} exceeds max_units {max_units}"),
                 Some(RELAX_TARGET),
             ));
@@ -1235,7 +1246,7 @@ impl<'a> Planner<'a> {
                 let reached = self.criterion(max_units, effect)?.0;
                 return Err(PlanningRefusal::new(
                     antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                    "planning.size_unreachable",
+                    antecedent_core::reason_details::planning::SIZE_UNREACHABLE,
                     format!(
                         "the {} reaches {reached:.6} at max_units {max_units}, short of the \
                          target {}{}",
@@ -1331,7 +1342,7 @@ impl<'a> Planner<'a> {
             if upper_bound.is_some() || high > 1e6 * self.scale() {
                 return Err(PlanningRefusal::new(
                     antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                    "planning.effect_unreachable",
+                    antecedent_core::reason_details::planning::EFFECT_UNREACHABLE,
                     format!(
                         "no admissible effect reaches power {target} at {units} units (power \
                          {reached:.6} at effect {high})"
@@ -1493,7 +1504,7 @@ pub fn plan_analytic(request: &PlanningRequest) -> Result<PlanningResult, Planni
         {
             return Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
-                "planning.size",
+                antecedent_core::reason_details::planning::SIZE,
                 format!(
                     "{units} {}s leave an arm with fewer than two analysed units; the smallest \
                      feasible size is {minimum}",

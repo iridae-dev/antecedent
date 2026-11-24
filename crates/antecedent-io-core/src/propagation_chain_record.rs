@@ -227,21 +227,21 @@ impl PropagationChainError {
             Self::Refused(refusal) => refusal.clone(),
             Self::Cancelled => ChainRefusal::new(
                 antecedent_core::reason_code!("cancelled_no_claim"),
-                "propagation_chain.cancelled",
+                antecedent_core::reason_details::propagation_chain::CANCELLED,
                 "cancellation is not a verdict on the chain",
                 None,
                 FIX_CHAIN_DECLARATION,
             ),
             Self::IdentityMismatch | Self::ResultMismatch => ChainRefusal::new(
                 invalid,
-                "propagation_chain.record_refused",
+                antecedent_core::reason_details::propagation_chain::RECORD_REFUSED,
                 self.to_string(),
                 None,
                 FIX_CHAIN_DECLARATION,
             ),
             other => ChainRefusal::new(
                 invalid,
-                "propagation_chain.record_invalid",
+                antecedent_core::reason_details::propagation_chain::RECORD_INVALID,
                 other.to_string(),
                 None,
                 FIX_CHAIN_DECLARATION,
@@ -270,14 +270,14 @@ fn map_chain_error(error: ChainError) -> Error {
         ChainError::Cancelled => Error::Cancelled,
         ChainError::SingularPool => refused(
             antecedent_core::reason_code!("evidence_double_counted"),
-            "propagation_chain.pool_inputs_duplicated",
+            antecedent_core::reason_details::propagation_chain::POOL_INPUTS_DUPLICATED,
             "the pooled inputs are perfectly correlated, so they carry the same evidence and no weights exist",
             None,
             DROP_DUPLICATED_SOURCE,
         ),
         ChainError::LowEffectiveSize { effective, minimum } => refused(
             antecedent_core::reason_code!("posterior_draws_below_supported"),
-            "propagation_chain.update_effective_size",
+            antecedent_core::reason_details::propagation_chain::UPDATE_EFFECTIVE_SIZE,
             format!(
                 "the updated draws have effective size {effective:.3}, below the minimum {minimum}"
             ),
@@ -286,35 +286,35 @@ fn map_chain_error(error: ChainError) -> Error {
         ),
         ChainError::Budget(what) => refused(
             invalid,
-            "propagation_chain.budget_exceeded",
+            antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED,
             format!("the chain exceeds the declared budget of {what}"),
             None,
             RAISE_BUDGET_OR_THIN_DRAWS,
         ),
         ChainError::Denominator(what) => refused(
             invalid,
-            "propagation_chain.denominator_not_bounded",
+            antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED,
             what,
             None,
             FIX_CHAIN_DECLARATION,
         ),
         ChainError::EnclosureUnbounded(what) => refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "propagation_chain.enclosure_unbounded",
+            antecedent_core::reason_details::propagation_chain::ENCLOSURE_UNBOUNDED,
             format!("the enclosure is unbounded: {what}"),
             None,
             FIX_CHAIN_DECLARATION,
         ),
         ChainError::Domain(what) => refused(
             invalid,
-            "propagation_chain.stage_left_domain",
+            antecedent_core::reason_details::propagation_chain::STAGE_LEFT_DOMAIN,
             what,
             None,
             FIX_CHAIN_DECLARATION,
         ),
         ChainError::PoolCovariance(inner) => refused(
             invalid,
-            "propagation_chain.pool_refused",
+            antecedent_core::reason_details::propagation_chain::POOL_REFUSED,
             inner.to_string(),
             None,
             FIX_CHAIN_DECLARATION,
@@ -790,7 +790,7 @@ impl PropagationChainRecordWire {
                             antecedent_core::reason_code!(
                                 "uncertainty_representation_insufficient"
                             ),
-                            "propagation_chain.reweight_needs_draws",
+                            antecedent_core::reason_details::propagation_chain::REWEIGHT_NEEDS_DRAWS,
                             format!(
                                 "source `{source}` is not draws, so its rows cannot be re-weighted"
                             ),

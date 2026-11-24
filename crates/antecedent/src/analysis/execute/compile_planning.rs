@@ -460,7 +460,7 @@ impl Study {
             return Err(CausalError::Compile {
                 message: PlanningRefusal {
                     code: antecedent_core::reason_code!("route_not_supported"),
-                    detail: "planning.study",
+                    detail: antecedent_core::reason_details::planning::STUDY,
                     message: format!(
                         "the study is not a randomized experiment whose randomization is the \
                          planned {} design",

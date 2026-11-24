@@ -621,7 +621,13 @@ fn refuse(
 }
 
 fn malformed(message: impl Into<String>, stage: Option<&str>) -> ChainRefusal {
-    refuse(INVALID_CODE, "propagation_chain.malformed", message, stage, FIX_CHAIN_DECLARATION)
+    refuse(
+        INVALID_CODE,
+        antecedent_core::reason_details::propagation_chain::MALFORMED,
+        message,
+        stage,
+        FIX_CHAIN_DECLARATION,
+    )
 }
 
 // ----------------------------------------------------------------------- plan
@@ -816,7 +822,7 @@ pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefus
     {
         return Err(refuse(
             NOT_SUPPORTED_CODE,
-            "propagation_chain.assumption_envelope_operator",
+            antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_OPERATOR,
             "a draw-indexed assumption envelope needs rowwise operators; pooling and posterior updates require a separate law calculation",
             Some(&stage.id),
             FIX_CHAIN_DECLARATION,
@@ -849,7 +855,7 @@ fn check_structure_and_budget(decl: &ChainDecl) -> Result<(), ChainRefusal> {
     if decl.sources.len().saturating_mul(decl.stages.len()) > MAX_CHAIN_ANCESTRY_CELLS {
         return Err(refuse(
             INVALID_CODE,
-            "propagation_chain.too_many_nodes",
+            antecedent_core::reason_details::propagation_chain::TOO_MANY_NODES,
             format!(
                 "a chain names {} sources and {} stages; their ancestry table would exceed {MAX_CHAIN_ANCESTRY_CELLS} cells",
                 decl.sources.len(),
@@ -929,7 +935,7 @@ fn check_draw_alignment<'a>(
         };
         return Err(refuse(
             JOINT_LAW_CODE,
-            "propagation_chain.unaligned_draws",
+            antecedent_core::reason_details::propagation_chain::UNALIGNED_DRAWS,
             format!(
                 "the draws of {} carry {} different alignment identities; rows of unrelated draws are never paired by index",
                 draw_sources.iter().map(|s| s.id.as_str()).collect::<Vec<_>>().join(", "),
@@ -943,7 +949,7 @@ fn check_draw_alignment<'a>(
     if intervals && !draw_sources.is_empty() && decl.reading != ChainReading::AssumptionEnvelope {
         return Err(refuse(
             REPRESENTATION_CODE,
-            "propagation_chain.mixed_draws_and_interval",
+            antecedent_core::reason_details::propagation_chain::MIXED_DRAWS_AND_INTERVAL,
             "a chain carries draws or intervals, not both: an interval has no law to pair with draws",
             None,
             SUPPLY_DRAWS_FOR_INTERVAL,
@@ -959,7 +965,7 @@ fn check_draw_alignment<'a>(
                 .collect();
             return Err(refuse(
                 DOUBLE_COUNTED_CODE,
-                "propagation_chain.shared_factor_in_independent_product",
+                antecedent_core::reason_details::propagation_chain::SHARED_FACTOR_IN_INDEPENDENT_PRODUCT,
                 format!(
                     "the sources share {}, but an independent product table carries no dependence",
                     shared.join(", ")
@@ -971,7 +977,7 @@ fn check_draw_alignment<'a>(
         if assessed.is_unknown() {
             return Err(refuse(
                 OVERLAP_UNKNOWN_CODE,
-                "propagation_chain.overlap_unknown_in_independent_product",
+                antecedent_core::reason_details::propagation_chain::OVERLAP_UNKNOWN_IN_INDEPENDENT_PRODUCT,
                 "a source left its overlap undeclared, so an independent product table is not supported",
                 None,
                 DECLARE_SHARED_FACTORS,
@@ -1048,7 +1054,7 @@ fn charge_stage_tables(
     if state.retained_bytes > MAX_CHAIN_ANCESTRY_BYTES {
         return Err(refuse(
             INVALID_CODE,
-            "propagation_chain.ancestry_bytes",
+            antecedent_core::reason_details::propagation_chain::ANCESTRY_BYTES,
             format!(
                 "the ancestry of the stages up to `{}` would retain more than \
                  {MAX_CHAIN_ANCESTRY_BYTES} bytes of identifier text",
@@ -1074,7 +1080,7 @@ fn check_stage_shape(stage: &ChainStageDecl, state: &ChainState<'_>) -> Result<(
     if !class_fits(stage.kind, stage.class) {
         return Err(refuse(
             NOT_SUPPORTED_CODE,
-            "propagation_chain.operator_not_supported_for_stage",
+            antecedent_core::reason_details::propagation_chain::OPERATOR_NOT_SUPPORTED_FOR_STAGE,
             format!(
                 "a {} stage does not apply a {} operator",
                 stage.kind.as_str(),
@@ -1110,7 +1116,7 @@ fn check_stage_representation(
         if has_enclosure {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.interval_is_not_a_posterior",
+                antecedent_core::reason_details::propagation_chain::INTERVAL_IS_NOT_A_POSTERIOR,
                 "an update re-evaluates a decision under the posterior of a parameter, and an interval is not a posterior",
                 Some(&stage.id),
                 SUPPLY_POSTERIOR_DRAWS,
@@ -1119,7 +1125,7 @@ fn check_stage_representation(
         if has_point {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.point_has_no_posterior",
+                antecedent_core::reason_details::propagation_chain::POINT_HAS_NO_POSTERIOR,
                 "an update re-evaluates a decision under the posterior of a parameter, and a fixed value has none",
                 Some(&stage.id),
                 SUPPLY_POSTERIOR_DRAWS,
@@ -1128,7 +1134,7 @@ fn check_stage_representation(
         if input_facts.iter().any(|f| f.meaning != Some(LawMeaning::Posterior)) {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.sampling_law_is_not_a_posterior",
+                antecedent_core::reason_details::propagation_chain::SAMPLING_LAW_IS_NOT_A_POSTERIOR,
                 "an update needs posterior draws of the parameter; a sampling law is not updated by a likelihood",
                 Some(&stage.id),
                 SUPPLY_POSTERIOR_DRAWS,
@@ -1138,7 +1144,7 @@ fn check_stage_representation(
         if has_enclosure {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.interval_cannot_be_pooled",
+                antecedent_core::reason_details::propagation_chain::INTERVAL_CANNOT_BE_POOLED,
                 "a pool weights its inputs by their joint covariance, and an interval has none",
                 Some(&stage.id),
                 SUPPLY_DRAWS_FOR_INTERVAL,
@@ -1147,7 +1153,7 @@ fn check_stage_representation(
         if has_point {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.point_cannot_be_pooled",
+                antecedent_core::reason_details::propagation_chain::POINT_CANNOT_BE_POOLED,
                 "a pool weights its inputs by their variances, and a fixed value has none",
                 Some(&stage.id),
                 SUPPLY_DRAWS_FOR_FIXED_INPUT,
@@ -1156,7 +1162,7 @@ fn check_stage_representation(
     } else if has_draws && has_enclosure && !allow_mixed {
         return Err(refuse(
             REPRESENTATION_CODE,
-            "propagation_chain.mixed_draws_and_interval",
+            antecedent_core::reason_details::propagation_chain::MIXED_DRAWS_AND_INTERVAL,
             "a stage reads draws and an interval together: the interval has no law to pair with the draws",
             Some(&stage.id),
             SUPPLY_DRAWS_FOR_INTERVAL,
@@ -1183,7 +1189,7 @@ fn check_stage_meaning(
     {
         return Err(refuse(
             MEANING_CODE,
-            "propagation_chain.outcome_law_is_not_an_estimate_pool",
+            antecedent_core::reason_details::propagation_chain::OUTCOME_LAW_IS_NOT_AN_ESTIMATE_POOL,
             "inverse-variance or covariance pooling combines estimates of one quantity, not predictive outcomes or innovations",
             Some(&stage.id),
             FIX_CHAIN_DECLARATION,
@@ -1193,7 +1199,7 @@ fn check_stage_meaning(
         if !meanings.contains(&LawMeaning::Innovation) {
             return Err(refuse(
                 REPRESENTATION_CODE,
-                "propagation_chain.predictive_disturbance_required",
+                antecedent_core::reason_details::propagation_chain::PREDICTIVE_DISTURBANCE_REQUIRED,
                 "a predictive mapping needs an aligned outcome disturbance or innovation source",
                 Some(&stage.id),
                 FIX_CHAIN_DECLARATION,
@@ -1202,7 +1208,7 @@ fn check_stage_meaning(
         if meanings.contains(&LawMeaning::Sampling) {
             return Err(refuse(
                 MEANING_CODE,
-                "propagation_chain.sampling_is_not_predictive",
+                antecedent_core::reason_details::propagation_chain::SAMPLING_IS_NOT_PREDICTIVE,
                 "an estimator sampling law cannot stand in for an outcome or innovation law",
                 Some(&stage.id),
                 MATCH_LAW_MEANING,
@@ -1225,7 +1231,7 @@ fn check_stage_meaning(
     if meanings.len() > 1 {
         return Err(refuse(
             MEANING_CODE,
-            "propagation_chain.law_meaning_mismatch",
+            antecedent_core::reason_details::propagation_chain::LAW_MEANING_MISMATCH,
             "a stage reads laws with different meanings; declare a predictive mapping when posterior parameters and predictive disturbances jointly generate an outcome",
             Some(&stage.id),
             MATCH_LAW_MEANING,
@@ -1253,7 +1259,7 @@ fn check_stage_dependence(
                 .collect();
             return Err(refuse(
                 DOUBLE_COUNTED_CODE,
-                "propagation_chain.pool_shares_evidence",
+                antecedent_core::reason_details::propagation_chain::POOL_SHARES_EVIDENCE,
                 format!("an independent pool would count {} twice", shared.join(", ")),
                 Some(&stage.id),
                 POOL_WITH_JOINT_COVARIANCE,
@@ -1262,7 +1268,7 @@ fn check_stage_dependence(
         if assessed.is_unknown() {
             return Err(refuse(
                 OVERLAP_UNKNOWN_CODE,
-                "propagation_chain.pool_overlap_unknown",
+                antecedent_core::reason_details::propagation_chain::POOL_OVERLAP_UNKNOWN,
                 "an independent pool needs the overlap of its inputs declared",
                 Some(&stage.id),
                 DECLARE_SHARED_FACTORS,
@@ -1304,7 +1310,7 @@ fn finish_plan(
     {
         return Err(refuse(
             MEANING_CODE,
-            "propagation_chain.predictive_reading_required",
+            antecedent_core::reason_details::propagation_chain::PREDICTIVE_READING_REQUIRED,
             "a chain with predictive or innovation sources must publish its output as a predictive law",
             Some(&decl.output),
             FIX_CHAIN_DECLARATION,
@@ -1317,7 +1323,7 @@ fn finish_plan(
     {
         return Err(refuse(
             REPRESENTATION_CODE,
-            "propagation_chain.assumption_envelope_needs_both_axes",
+            antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_NEEDS_BOTH_AXES,
             "an assumption envelope needs at least one interval assumption and one aligned draw source",
             Some(&decl.output),
             FIX_CHAIN_DECLARATION,
@@ -1355,7 +1361,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
     if reading == ChainReading::Interval {
         return Err(refuse(
             NOT_MEASURED_CODE,
-            "propagation_chain.interval_not_measured",
+            antecedent_core::reason_details::propagation_chain::INTERVAL_NOT_MEASURED,
             "an interval of a composed quantity needs a measured coverage record at its composed coordinate, and a component interval does not cover the composition",
             stage,
             MEASURE_COMPOSED_COVERAGE,
@@ -1372,7 +1378,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
             ) {
                 return Err(refuse(
                     REPRESENTATION_CODE,
-                    "propagation_chain.point_has_no_spread",
+                    antecedent_core::reason_details::propagation_chain::POINT_HAS_NO_SPREAD,
                     "every input is a fixed value, so the chain has a value and no spread or posterior",
                     stage,
                     SUPPLY_DRAWS_FOR_FIXED_INPUT,
@@ -1388,7 +1394,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
                 ) {
                     return Err(refuse(
                         REPRESENTATION_CODE,
-                        "propagation_chain.assumption_envelope_needs_draws",
+                        antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_NEEDS_DRAWS,
                         "an assumption envelope needs sampling, posterior or predictive draws alongside the interval assumption",
                         stage,
                         FIX_CHAIN_DECLARATION,
@@ -1398,7 +1404,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
             ChainReading::Posterior | ChainReading::Predictive => {
                 return Err(refuse(
                     REPRESENTATION_CODE,
-                    "propagation_chain.interval_is_not_a_posterior",
+                    antecedent_core::reason_details::propagation_chain::INTERVAL_IS_NOT_A_POSTERIOR,
                     "the chain carries intervals, and an interval is not a posterior",
                     stage,
                     SUPPLY_POSTERIOR_DRAWS,
@@ -1407,7 +1413,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
             _ => {
                 return Err(refuse(
                     REPRESENTATION_CODE,
-                    "propagation_chain.enclosure_is_not_a_law",
+                    antecedent_core::reason_details::propagation_chain::ENCLOSURE_IS_NOT_A_LAW,
                     "the chain carries intervals, which hold under every coupling and give neither a value nor a spread",
                     stage,
                     USE_ENCLOSURE_READING,
@@ -1420,7 +1426,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
                 if output.meaning != Some(LawMeaning::Posterior) {
                     return Err(refuse(
                         REPRESENTATION_CODE,
-                        "propagation_chain.sampling_law_is_not_a_posterior",
+                        antecedent_core::reason_details::propagation_chain::SAMPLING_LAW_IS_NOT_A_POSTERIOR,
                         "the draws are a sampling law, and a sampling law is not a posterior",
                         stage,
                         SUPPLY_POSTERIOR_DRAWS,
@@ -1437,7 +1443,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
                 if output.meaning != Some(LawMeaning::Predictive) {
                     return Err(refuse(
                         REPRESENTATION_CODE,
-                        "propagation_chain.parameter_law_is_not_predictive",
+                        antecedent_core::reason_details::propagation_chain::PARAMETER_LAW_IS_NOT_PREDICTIVE,
                         "the output needs predictive outcome draws, including outcome variability under the declared model",
                         stage,
                         FIX_CHAIN_DECLARATION,
@@ -1447,7 +1453,7 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
             ChainReading::Enclosure | ChainReading::Interval | ChainReading::AssumptionEnvelope => {
                 return Err(refuse(
                     REPRESENTATION_CODE,
-                    "propagation_chain.draws_are_not_an_enclosure",
+                    antecedent_core::reason_details::propagation_chain::DRAWS_ARE_NOT_AN_ENCLOSURE,
                     "the chain carries draws, and the range of draws is not the image of a declared box",
                     stage,
                     FIX_CHAIN_DECLARATION,
@@ -1481,7 +1487,7 @@ fn assess_inputs(
     DependenceContract::assess(&sources).map_err(|error| {
         refuse(
             INVALID_CODE,
-            "propagation_chain.too_many_inputs",
+            antecedent_core::reason_details::propagation_chain::TOO_MANY_INPUTS,
             error.to_string(),
             None,
             FIX_CHAIN_DECLARATION,

@@ -42,7 +42,7 @@ fn invalid_json(message: String) -> String {
     json!({
         "code": antecedent::reason::reason_code!("invalid_argument"),
         "stage": STAGE,
-        "detail": "propagation_chain.invalid_request",
+        "detail": antecedent::reason::reason_details::propagation_chain::INVALID_REQUEST,
         "message": message,
         "offending": null,
         "next_attempt": "fix_chain_declaration",
@@ -325,7 +325,7 @@ fn propagation_chain_family_table(
         }
         let table = match table_result {
             Ok(table) => table,
-            Err(refusal) if refusal.detail() == "propagation_chain.family_table_work_limit" => {
+            Err(refusal) if refusal.detail() == antecedent::reason::reason_details::propagation_chain::FAMILY_TABLE_WORK_LIMIT => {
                 return Err(crate::CausalResourceError::new_err(refusal.to_string()));
             }
             Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),

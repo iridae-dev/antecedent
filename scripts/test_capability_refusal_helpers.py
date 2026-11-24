@@ -12,6 +12,7 @@ from capability_source import (
     Symbol,
     _core_refusal_helpers,
     _multiple_imputation_error_helpers,
+    _planning_refusal_helpers,
     defensive_carrier_route_problems,
     duplicate_refusal_pairs,
     external_surface_ownership,
@@ -383,6 +384,27 @@ class CrossFileHelperTests(unittest.TestCase):
             return code, skel
         with patch("capability_source.nontest_pair", side_effect=changed):
             self.assertNotIn("invalid", _multiple_imputation_error_helpers())
+
+    def test_planning_refusal_constructors_require_exact_bodies(self):
+        request = REPO_ROOT / "crates/antecedent-design/src/planning/request.rs"
+        analytic = REPO_ROOT / "crates/antecedent-design/src/planning/analytic.rs"
+        self.assertEqual(_planning_refusal_helpers(request, nontest_pair(request)[1]),
+                         {"new": None, "invalid": "invalid_argument"})
+        request_entries = {(lit.value, lit.reason_code) for lit in rust_literals(request)}
+        self.assertIn(("planning.alpha", "invalid_argument"), request_entries)
+        self.assertIn(("planning.interference", "required_option_missing"), request_entries)
+        self.assertIn(("planning.adaptive", "route_not_supported"), request_entries)
+        analytic_entries = {(lit.value, lit.reason_code) for lit in rust_literals(analytic)}
+        self.assertIn(("planning.group_sequential", "invalid_argument"), analytic_entries)
+        original = nontest_pair
+        def changed(path, **kwargs):
+            code, skel = original(path, **kwargs)
+            if path.name == "request.rs" and path.parent.name == "planning":
+                code = code.replace('reason_code!("invalid_argument"), detail',
+                                    'reason_code!("route_not_supported"), detail', 1)
+            return code, skel
+        with patch("capability_source.nontest_pair", side_effect=changed):
+            self.assertEqual(_planning_refusal_helpers(request, nontest_pair(request)[1]), {})
 
     def test_adaptive_premise_requires_the_verified_facade_and_default_mapping(self):
         path = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"

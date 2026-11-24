@@ -61,7 +61,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from . import _native
+from . import _native, _reason_details
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -913,7 +913,7 @@ class PropagationChain:
                 {
                     "code": "uncertainty_representation_insufficient",
                     "stage": "propagate_chain",
-                    "detail": "propagation_chain.interval_not_measured",
+                    "detail": _reason_details.propagation_chain.INTERVAL_NOT_MEASURED,
                     "message": "an interval of a composed quantity needs a measured coverage "
                     "record at its composed coordinate",
                     "offending": self.output,
