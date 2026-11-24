@@ -227,8 +227,8 @@ pub(crate) fn change_quantities(result: &ChangeAttributionResult) -> Vec<(String
 /// The named scalar quantities of a simulation, all smooth functionals of the fitted mechanisms:
 /// the mean of each variable of a draw batch (interventional draws, noise samples), the policy
 /// and baseline means and their paired difference, the mean unit effect, the mean of each
-/// outcome in each world of a counterfactual, and, for a rollout, the mean of each of the first
-/// `nodes` variables at each step (step-major).
+/// outcome in each world of a counterfactual, the nested counterfactual mean, and, for a
+/// rollout, the mean of each of the first `nodes` variables at each step (step-major).
 pub(crate) fn simulation_quantities(
     outcome: &SimulationOutcome,
     nodes: usize,
@@ -251,6 +251,9 @@ pub(crate) fn simulation_quantities(
             ("mean_difference".to_owned(), value.mean_difference),
         ]),
         SimulationOutcome::UnitEffects(ite) => Some(vec![("mean_ite".to_owned(), ite.mean_ite)]),
+        SimulationOutcome::NestedCounterfactual(mean) => {
+            Some(vec![("nested_mean".to_owned(), *mean)])
+        }
         SimulationOutcome::Counterfactual(result) => {
             let mut out = Vec::new();
             for world in 0..result.n_worlds {
@@ -338,13 +341,17 @@ pub(crate) fn attribution_quantities_weighted(
             .iter()
             .map(|source| (format!("source[{}]", source.source.raw()), source.contribution))
             .collect(),
+        AttributionOutcome::PopulationDoContrast(result) => {
+            vec![("contrast".to_owned(), result.contrast)]
+        }
         _ => return None,
     })
 }
 
 /// The named scalar quantities of an attribution at its point answer, in the order its posterior
 /// and bootstrap columns use: a change's total, components and paths; feature scores; the mean
-/// anomaly score per target; the mean unit contributions; each source's variance share. `None`
+/// anomaly score per target; the mean unit contributions; each source's variance share; a
+/// do-contrast. `None`
 /// for a mechanism-change detection, which is a test and has no scalar quantities.
 #[must_use]
 pub fn attribution_quantities(outcome: &AttributionOutcome) -> Option<Vec<(String, f64)>> {
@@ -511,11 +518,14 @@ pub(crate) fn run_attribute_with_fit(
                 fitted, data, detection, method, reading, ctx,
             )?)
         }
+        AttributeTarget::PopulationDoContrast(target) => AttributionOutcome::PopulationDoContrast(
+            super::model_operations::run_population_do_contrast(fitted, data, target, ctx)?,
+        ),
     })
 }
 
 /// Run the simulation `query` states on `fitted`, with the engine every
-/// `sample_do`, `policy_value` and `counterfactual_ite` entry runs.
+/// `sample_do`, `policy_value`, `counterfactual_ite` and `nested_counterfactual` entry runs.
 pub(crate) fn run_simulate(
     fitted: &FittedGcm,
     data: &TabularData,
@@ -618,6 +628,9 @@ pub(crate) fn run_simulate(
                 ctx,
             )?)
         }
+        SimulationTarget::NestedCounterfactual(target) => SimulationOutcome::NestedCounterfactual(
+            super::model_operations::run_nested_counterfactual(fitted, data, target, ctx)?,
+        ),
     })
 }
 
@@ -628,7 +641,9 @@ pub(crate) fn simulated_rows(target: &SimulationTarget, data_rows: u64) -> u64 {
         | SimulationTarget::PolicyValue { draws, .. }
         | SimulationTarget::NoiseSample { draws, .. } => *draws as u64,
         SimulationTarget::NoiseReplay { n_rows, .. } => *n_rows as u64,
-        SimulationTarget::UnitEffects { .. } | SimulationTarget::Counterfactual { .. } => data_rows,
+        SimulationTarget::UnitEffects { .. }
+        | SimulationTarget::Counterfactual { .. }
+        | SimulationTarget::NestedCounterfactual(_) => data_rows,
         SimulationTarget::TemporalRollout { n_rows, n_steps, .. }
         | SimulationTarget::TemporalCounterfactual { n_rows, n_steps, .. } => {
             (*n_rows as u64).saturating_mul(*n_steps as u64)

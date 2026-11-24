@@ -10,9 +10,9 @@ use std::sync::Arc;
 use antecedent_core::{
     AttributeQuery, AttributeTarget, CausalQuery, ChangeAttributionQuery, ChangeEstimator,
     ChangeMeasure, DiscoverQuery, DiscoveryMethod, InfluenceAllocation, Intervention,
-    InterventionSequence, IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
-    ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget,
-    StructurePriorSpec, VariableId,
+    InterventionSequence, IntrinsicInfluenceTarget, MechanismChangeTest,
+    NestedCounterfactualTarget, NoiseDeclaration, PopulationDoContrastTarget, ScreenWeight,
+    SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget, StructurePriorSpec, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -586,6 +586,20 @@ pub enum AttributeTargetWire {
         /// Seed.
         seed: u64,
     },
+    /// Population do-contrast of one parent on one child.
+    PopulationDoContrast {
+        /// Intervened variable.
+        parent: u32,
+        /// Variable read.
+        child: u32,
+        /// Width of the contrast.
+        delta: f64,
+        /// Most observed rows accepted; absent accepts every row.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_units: Option<u64>,
+        /// Seed of the generator both arms draw from.
+        seed: u64,
+    },
 }
 
 /// Wire form of [`AttributeQuery`].
@@ -729,6 +743,15 @@ impl AttributeQueryWire {
                     measure: measure_name(*measure).into(),
                     n_samples: fit_u64(*n_samples)?,
                     seed: *seed,
+                }
+            }
+            AttributeTarget::PopulationDoContrast(target) => {
+                AttributeTargetWire::PopulationDoContrast {
+                    parent: target.parent.raw(),
+                    child: target.child.raw(),
+                    delta: target.delta,
+                    max_units: target.max_units.map(fit_u64).transpose()?,
+                    seed: target.seed,
                 }
             }
         };
@@ -883,6 +906,15 @@ impl AttributeQueryWire {
                 n_samples: fit_usize(*n_samples)?,
                 seed: *seed,
             },
+            AttributeTargetWire::PopulationDoContrast { parent, child, delta, max_units, seed } => {
+                AttributeTarget::PopulationDoContrast(PopulationDoContrastTarget {
+                    parent: VariableId::from_raw(*parent),
+                    child: VariableId::from_raw(*child),
+                    delta: *delta,
+                    max_units: max_units.map(fit_usize).transpose()?,
+                    seed: *seed,
+                })
+            }
         };
         let query = AttributeQuery { target };
         query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -907,6 +939,9 @@ impl AttributeQueryWire {
             AttributeTargetWire::StructureChange { comparison, .. } => {
                 comparison.iter().flat_map(|(a, b)| [*a, *b]).collect()
             }
+            AttributeTargetWire::PopulationDoContrast { parent, child, .. } => {
+                vec![*parent, *child]
+            }
             AttributeTargetWire::RootCauses { .. }
             | AttributeTargetWire::DistributionChange { .. }
             | AttributeTargetWire::Anomaly { .. }
@@ -927,7 +962,8 @@ impl AttributeQueryWire {
             | AttributeTargetWire::MechanismChange { query, .. } => Some(&**query),
             AttributeTargetWire::IntrinsicInfluence { .. }
             | AttributeTargetWire::Paths { .. }
-            | AttributeTargetWire::FeatureRelevance { .. } => None,
+            | AttributeTargetWire::FeatureRelevance { .. }
+            | AttributeTargetWire::PopulationDoContrast { .. } => None,
         }
     }
 }
@@ -1021,6 +1057,17 @@ pub enum SimulationTargetWire {
         /// History before the panel.
         history: Vec<f64>,
     },
+    /// Nested counterfactual mean over the study's rows.
+    NestedCounterfactual {
+        /// Outer-world interventions.
+        outer: Vec<InterventionWire>,
+        /// Inner-world interventions.
+        inner: Vec<InterventionWire>,
+        /// Variables held at their outer-world values.
+        frozen: Vec<u32>,
+        /// Outcome.
+        outcome: u32,
+    },
     /// A simulation whose program holds an in-process callback. It runs in the process
     /// that holds the callback; the wire records the target and the canonical digest of
     /// the whole query, which commits to every callback's declaration (name, inputs,
@@ -1049,6 +1096,9 @@ fn target_portability(target: &SimulationTarget) -> antecedent_core::Portability
         | SimulationTarget::NoiseSample { interventions, .. }
         | SimulationTarget::NoiseReplay { interventions, .. }
         | SimulationTarget::Counterfactual { interventions, .. } => fold(interventions),
+        SimulationTarget::NestedCounterfactual(target) => {
+            fold(&target.outer).and(fold(&target.inner))
+        }
         SimulationTarget::TemporalRollout { schedule, .. }
         | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
             Intervention::sequence(schedule.clone()).portability()
@@ -1181,6 +1231,14 @@ impl SimulateQueryWire {
                 panel: panel.to_vec(),
                 history: history.to_vec(),
             },
+            SimulationTarget::NestedCounterfactual(target) => {
+                SimulationTargetWire::NestedCounterfactual {
+                    outer: interventions_to_wire(&target.outer)?,
+                    inner: interventions_to_wire(&target.inner)?,
+                    frozen: vars_to_raw(&target.frozen),
+                    outcome: target.outcome.raw(),
+                }
+            }
         };
         Ok(Self { target })
     }
@@ -1264,6 +1322,14 @@ impl SimulateQueryWire {
                 panel: Arc::from(panel.as_slice()),
                 history: Arc::from(history.as_slice()),
             },
+            SimulationTargetWire::NestedCounterfactual { outer, inner, frozen, outcome } => {
+                SimulationTarget::NestedCounterfactual(NestedCounterfactualTarget {
+                    outer: interventions_from_wire(outer),
+                    inner: interventions_from_wire(inner),
+                    frozen: vars_from_raw(frozen),
+                    outcome: VariableId::from_raw(*outcome),
+                })
+            }
             SimulationTargetWire::InProcess { target, callbacks, .. } => {
                 let refusal =
                     antecedent_core::Portability::RuntimeBound { callbacks: callbacks.clone() }
@@ -1302,10 +1368,25 @@ impl SimulateQueryWire {
             SimulationTargetWire::UnitEffects { treatment, outcome, .. } => {
                 vec![*treatment, *outcome]
             }
+            SimulationTargetWire::NestedCounterfactual { frozen, outcome, .. } => {
+                frozen.iter().copied().chain(std::iter::once(*outcome)).collect()
+            }
         }
     }
 
-    /// Interventions the query declares.
+    /// Every intervention the query declares, in both worlds of a nested counterfactual.
+    #[must_use]
+    pub fn all_interventions(&self) -> Vec<&InterventionWire> {
+        match &self.target {
+            SimulationTargetWire::NestedCounterfactual { outer, inner, .. } => {
+                outer.iter().chain(inner).collect()
+            }
+            _ => self.interventions().iter().collect(),
+        }
+    }
+
+    /// Interventions the query declares: of a nested counterfactual, the outer world's
+    /// ([`Self::all_interventions`] also walks the inner world's).
     #[must_use]
     pub fn interventions(&self) -> &[InterventionWire] {
         match &self.target {
@@ -1316,6 +1397,7 @@ impl SimulateQueryWire {
             | SimulationTargetWire::Counterfactual { interventions, .. } => {
                 interventions.as_slice()
             }
+            SimulationTargetWire::NestedCounterfactual { outer, .. } => outer.as_slice(),
             SimulationTargetWire::TemporalRollout { schedule, .. }
             | SimulationTargetWire::TemporalCounterfactual { schedule, .. } => {
                 std::slice::from_ref(schedule)
@@ -1541,3 +1623,7 @@ mod tests {
         })));
     }
 }
+
+#[cfg(test)]
+#[path = "structure_query_wire_fitted_model_tests.rs"]
+mod fitted_model_tests;

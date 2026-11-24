@@ -9,6 +9,12 @@
 //! result. The operations are statements about the fitted model, not identified estimands of the
 //! population, and run with calibration status `not_measured`.
 //!
+//! The nested counterfactual and the population do-contrast are causal quantities, and their
+//! query forms are [`crate::SimulationTarget::NestedCounterfactual`] and
+//! [`crate::AttributeTarget::PopulationDoContrast`]: a study posed with either builds the
+//! query-level contract and claim. Their operation forms here are kept for existing callers,
+//! take the same target, and run the same execution as the query form; new code poses the query.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -80,6 +86,9 @@ impl CanonicalEncode for ArrowStrengthsTarget {
 /// Population do-contrast of `parent` on `child`:
 /// `E[child | do(parent = mean + delta/2)] - E[child | do(parent = mean - delta/2)]`, with common
 /// random numbers across the two arms.
+///
+/// Posed as a query with [`crate::AttributeTarget::PopulationDoContrast`]; the
+/// [`ModelOperation::PopulationDoContrast`] form is kept for existing callers.
 ///
 /// The two arms draw from the attribution stream of `seed`'s own generator, so the draws are a
 /// function of the declaration and not of the execution context the study runs under; a direct
@@ -268,6 +277,9 @@ impl CanonicalEncode for ModelEvaluationTarget {
 /// under the `inner` interventions while every variable in `frozen` keeps the value it takes in
 /// the `outer` world, on the noise abduced from each row. For the mediation contrast
 /// `Y_{x, M_{x'}}` take `outer = do(X = x')`, `inner = do(X = x)` and `frozen = {M}`.
+///
+/// Posed as a query with [`crate::SimulationTarget::NestedCounterfactual`]; the
+/// [`ModelOperation::NestedCounterfactual`] form is kept for existing callers.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NestedCounterfactualTarget {
     /// Interventions of the outer world, in declared order.
@@ -317,13 +329,15 @@ impl CanonicalEncode for NestedCounterfactualTarget {
 pub enum ModelOperation {
     /// Model-implied strength of every edge (linear-family mechanisms).
     ArrowStrengths(ArrowStrengthsTarget),
-    /// Population do-contrast of one parent on one child.
+    /// Population do-contrast of one parent on one child. Kept for existing callers: the query
+    /// form [`crate::AttributeTarget::PopulationDoContrast`] builds a contract and claim.
     PopulationDoContrast(PopulationDoContrastTarget),
     /// A named do-sampler for one outcome.
     DoSample(DoSamplerTarget),
     /// The fitted model's falsification evaluation on the study's rows.
     ModelEvaluation(ModelEvaluationTarget),
-    /// A nested counterfactual mean over the study's rows.
+    /// A nested counterfactual mean over the study's rows. Kept for existing callers: the query
+    /// form [`crate::SimulationTarget::NestedCounterfactual`] builds a contract and claim.
     NestedCounterfactual(NestedCounterfactualTarget),
 }
 

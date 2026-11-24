@@ -544,6 +544,11 @@ fn simulation_reading(outcome: &SimulationOutcome) -> (f64, &'static str) {
             "a rollout of the fitted model under the declared schedule; only the draws' \
              own variation is reported",
         ),
+        SimulationOutcome::NestedCounterfactual(mean) => (
+            *mean,
+            "the nested counterfactual mean is computed under the fitted mechanisms after \
+             abduction; it is not identified from data",
+        ),
         _ => (f64::NAN, "draws of the fitted model under the declared interventions"),
     }
 }
@@ -694,6 +699,7 @@ pub(super) fn run_model_query_with_fit(
                 AttributionOutcome::RootCauses { attribution, .. } => attribution.total_change,
                 AttributionOutcome::Change(change) => change.total_change,
                 AttributionOutcome::IntrinsicInfluence(influence) => influence.total_variance,
+                AttributionOutcome::PopulationDoContrast(contrast) => contrast.contrast,
                 _ => f64::NAN,
             };
             Ok(ModelAnswer {

@@ -6,6 +6,10 @@
 //! structure. None is a geometric support-matrix cell; the route executes with
 //! calibration status `not_measured`; no coverage record covers it.
 //!
+//! The population do-contrast of one parent on one child is the
+//! [`AttributeTarget::PopulationDoContrast`] target: the query form of the fitted-model
+//! operation of the same name, with the same declaration.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::AttributeFault;
@@ -19,6 +23,7 @@ use super::attribution::{
     AnomalyAttributionQuery, ChangeAttributionQuery, MechanismChangeQuery, UnitChangeQuery,
 };
 use super::error::QueryError;
+use super::model_operations::PopulationDoContrastTarget;
 
 /// Allocation of the intrinsic-influence variance game among its sources.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -281,6 +286,10 @@ pub enum AttributeTarget {
         /// Sampling seed.
         seed: u64,
     },
+    /// Population do-contrast of one parent on one child,
+    /// `E[child | do(parent = mean + delta/2)] - E[child | do(parent = mean - delta/2)]`, with
+    /// common random numbers across the two arms drawn from the target's own seed.
+    PopulationDoContrast(PopulationDoContrastTarget),
 }
 
 impl AttributeTarget {
@@ -297,6 +306,7 @@ impl AttributeTarget {
             Self::UnitChange(_) => "unit_change",
             Self::MechanismChange { .. } => "mechanism_change",
             Self::StructureChange { .. } => "structure_change",
+            Self::PopulationDoContrast(_) => "population_do_contrast",
         }
     }
 }
@@ -354,6 +364,11 @@ impl CanonicalEncode for AttributeTarget {
                 measure.encode(writer);
                 writer.word(count(*n_samples)).word(*seed);
             }
+            Self::PopulationDoContrast(target) => {
+                // The target writes its own operation tag after the attribution tag.
+                writer.word(10);
+                target.encode(writer);
+            }
         }
     }
 }
@@ -379,7 +394,8 @@ impl AttributeQuery {
     }
 
     /// The variable the attribution is about: the attributed target, the
-    /// change outcome, the path outcome, the first anomaly or detection target.
+    /// change outcome, the path outcome, the first anomaly or detection target, the child of a
+    /// do-contrast.
     ///
     /// # Errors
     ///
@@ -393,6 +409,7 @@ impl AttributeQuery {
             AttributeTarget::Paths { outcome, .. }
             | AttributeTarget::FeatureRelevance { outcome, .. } => Ok(*outcome),
             AttributeTarget::UnitChange(query) => Ok(query.outcome),
+            AttributeTarget::PopulationDoContrast(target) => Ok(target.child),
             AttributeTarget::Anomaly(query) => query
                 .targets
                 .first()
@@ -410,10 +427,12 @@ impl AttributeQuery {
     ///
     /// # Errors
     ///
-    /// The embedded query's own validation errors, and
+    /// The embedded query's own validation errors,
     /// [`QueryError::InvalidAttribute`] for too few draws or replicates, a
     /// level outside `(0, 1)`, no sources or features, a zero path or feature
-    /// limit, a non-finite shift, or no Monte Carlo samples.
+    /// limit, a non-finite shift, or no Monte Carlo samples, and
+    /// [`QueryError::InvalidModelOperation`] for a do-contrast of zero or non-finite width or of
+    /// a variable on itself.
     pub fn validate(&self) -> Result<(), QueryError> {
         let invalid = |fault: AttributeFault| Err(QueryError::InvalidAttribute(fault));
         match &self.target {
@@ -485,6 +504,9 @@ impl AttributeQuery {
                     return invalid(AttributeFault::StructureChangeSampleCount);
                 }
                 Ok(())
+            }
+            AttributeTarget::PopulationDoContrast(target) => {
+                target.validate().map_err(QueryError::from)
             }
         }
     }

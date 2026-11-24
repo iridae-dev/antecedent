@@ -1,12 +1,14 @@
 //! The native side of the `antecedent.analyze` query forms `ArrowStrengths`,
-//! `PopulationContrast`, `DoSampling`, `FittedModelEvaluation`, `InterventionalMean` and
-//! `SimultaneousCounterfactual`.
+//! `PopulationContrast`, `DoSampling`, `FittedModelEvaluation`, `InterventionalMean`,
+//! `SimultaneousCounterfactual` and `NestedCounterfactualMean`.
 //!
-//! The first four are operations of a prepared study on its own fitted model
-//! (`PreparedStudy::model_operation`, program families `FittedModelAttribution` /
-//! `FittedModelSimulation`); the last two run the compiled `Simulate` route. Each fits the
-//! standard mechanism program on the supplied graph (the fit `fit_gcm` makes with no selection
-//! keyword). The seeds are chosen so that a call with
+//! `ArrowStrengths`, `DoSampling` and `FittedModelEvaluation` are operations of a prepared study
+//! on its own fitted model (`PreparedStudy::model_operation`, program families
+//! `FittedModelAttribution` / `FittedModelSimulation`). The population do-contrast runs the
+//! compiled `Attribute` route (`AttributeTarget::PopulationDoContrast`), and the two means and
+//! the nested counterfactual the compiled `Simulate` route, each with its contract and claim.
+//! Each fits the standard mechanism program on the supplied graph (the fit `fit_gcm` makes with
+//! no selection keyword). The seeds are chosen so that a call with
 //! `seed` reproduces the numbers of the corresponding `FittedGcm` method run with the same seed:
 //! the population do-contrast and the model evaluation take `seed` itself, and the do-samplers and
 //! the interventional mean take the seed of the stream the method drew from.
@@ -21,10 +23,11 @@ use antecedent::data::TableView;
 use antecedent::execution::{CausalRng, RngFactory, StreamDomain};
 use antecedent::prelude::{ExecutionContext, TabularData, VariableId};
 use antecedent::query::{
-    ArrowStrengthsTarget, CausalQuery, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
-    ModelOperation, PopulationDoContrastTarget, SimulateQuery, SimulationTarget,
+    ArrowStrengthsTarget, AttributeTarget, CausalQuery, DoSamplerMethod, DoSamplerTarget,
+    ModelEvaluationTarget, ModelOperation, NestedCounterfactualTarget, PopulationDoContrastTarget,
+    SimulateQuery, SimulationTarget,
 };
-use antecedent::{MechanismProgram, SimulationOutcome, Study};
+use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome, Study};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
@@ -55,15 +58,17 @@ fn stream_seed(seed: u64, index: u64) -> u64 {
 #[pyclass(skip_from_py_object, name = "ModelOperationAnswer")]
 pub struct PyModelOperationAnswer {
     /// The operation: `arrow_strengths`, `population_do_contrast`, `do_sample`,
-    /// `model_evaluation`, `interventional_mean` or `simultaneous_counterfactual`.
+    /// `model_evaluation`, `interventional_mean`, `simultaneous_counterfactual` or
+    /// `nested_counterfactual`.
     #[pyo3(get)]
     pub kind: String,
     /// The engine's answer: a list of `ArrowStrength`, a `PopulationDoContrast`, a `DoSample`,
-    /// a `ModelEvaluation`, or a float for the two means.
+    /// a `ModelEvaluation`, or a float for the means.
     #[pyo3(get)]
     pub value: Py<PyAny>,
-    /// The compiled `Simulate` route the two means ran under (contract, claim, inspection
-    /// record); `None` for an operation of a prepared study, which reports its program instead.
+    /// The compiled query route the answer ran under (contract, claim, inspection record): the
+    /// `Attribute` route of the do-contrast, the `Simulate` route of the means; `None` for an
+    /// operation of a prepared study, which reports its program instead.
     #[pyo3(get)]
     pub route: RouteHandle,
     /// The program family the answer ran under.
@@ -124,11 +129,22 @@ fn answer(
     value: Py<PyAny>,
     route: &RouteRecord,
 ) -> PyResult<PyModelOperationAnswer> {
+    answer_on(py, kind, value, route, "GcmSimulateDag")
+}
+
+/// An answer of the compiled query route `program_route`.
+fn answer_on(
+    py: Python<'_>,
+    kind: &str,
+    value: Py<PyAny>,
+    route: &RouteRecord,
+    program_route: &str,
+) -> PyResult<PyModelOperationAnswer> {
     Ok(PyModelOperationAnswer {
         kind: kind.to_owned(),
         value,
         route: crate::compiled_route_api::route_object(py, Some(route))?,
-        program_route: "GcmSimulateDag".to_owned(),
+        program_route: program_route.to_owned(),
         program_identity: route.execution.lowered_identity().map(|digest| digest.to_hex()),
     })
 }
@@ -222,8 +238,9 @@ fn model_operation_arrow_strengths(
     Ok(operated(py, "arrow_strengths", value, &run))
 }
 
-/// The population do-contrast of `parent` on `child`, through the compiled `Attribute` route.
-/// Both arms draw from the attribution stream of `seed`.
+/// The population do-contrast of `parent` on `child`, through the compiled `Attribute` route
+/// (`AttributeTarget::PopulationDoContrast`, with its contract and claim). Both arms draw from
+/// the attribution stream of `seed`.
 #[pyfunction]
 #[pyo3(signature = (names, columns, edges, parent, child, delta, *, max_units=None, seed=1, threads=None))]
 #[allow(clippy::too_many_arguments, reason = "the query's fields and the run settings")]
@@ -245,19 +262,22 @@ fn model_operation_population_contrast(
     }
     let input = Input::load(&names, columns, edges, seed, threads)?;
     let (parent_id, child_id) = (input.id(&parent)?, input.id(&child)?);
-    let run = detach_catch(py, move || {
+    let (result, route) = detach_catch(py, move || {
+        let (source, ctx, seed) = input.source()?;
         let target = PopulationDoContrastTarget {
             parent: parent_id,
             child: child_id,
             delta,
             max_units,
-            seed: input.seed,
+            seed,
         };
-        run_operation(input, &ModelOperation::PopulationDoContrast(target))
+        let (outcome, route) =
+            source.attribute(AttributeTarget::PopulationDoContrast(target), &ctx)?;
+        let AttributionOutcome::PopulationDoContrast(result) = outcome else {
+            return Err(outcome_mismatch());
+        };
+        Ok::<_, PyErr>((result, route))
     })?;
-    let ModelOperationAnswer::PopulationDoContrast(result) = &run.answer else {
-        return Err(outcome_mismatch());
-    };
     let value = Py::new(
         py,
         PyPopulationDoContrast {
@@ -269,7 +289,7 @@ fn model_operation_population_contrast(
         },
     )?
     .into_any();
-    Ok(operated(py, "population_do_contrast", value, &run))
+    answer_on(py, "population_do_contrast", value, &route, "GcmAttributeDag")
 }
 
 /// A named do-sampler for `outcome` under hard `interventions`, through the compiled `Simulate`
@@ -473,6 +493,49 @@ fn model_operation_simultaneous_counterfactual(
     answer(py, "simultaneous_counterfactual", mean.into_pyobject(py)?.into_any().unbind(), &route)
 }
 
+/// The nested counterfactual mean `Y_{inner, F_{outer}}` of `outcome` over every row: the `inner`
+/// hard interventions hold while each `frozen` variable keeps its value in the `outer` world, on
+/// the abduced factual noise. Runs the compiled `Simulate` route
+/// (`SimulationTarget::NestedCounterfactual`), with its contract and claim.
+#[pyfunction]
+#[pyo3(signature = (names, columns, edges, outcome, outer, inner, frozen, *, seed=1, threads=None))]
+#[allow(clippy::too_many_arguments, reason = "the query's fields and the run settings")]
+fn model_operation_nested_counterfactual(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<NumericColumn<'_>>,
+    edges: Vec<(String, String)>,
+    outcome: String,
+    outer: HashMap<String, f64>,
+    inner: HashMap<String, f64>,
+    frozen: Vec<String>,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<PyModelOperationAnswer> {
+    crate::require_finite(outer.iter().map(|(name, level)| (name.as_str(), *level)))?;
+    crate::require_finite(inner.iter().map(|(name, level)| (name.as_str(), *level)))?;
+    let input = Input::load(&names, columns, edges, seed, threads)?;
+    let outcome_id = input.id(&outcome)?;
+    let frozen = frozen.iter().map(|name| input.id(name)).collect::<PyResult<Vec<_>>>()?;
+    let target = NestedCounterfactualTarget {
+        outer: Arc::from(hard_interventions(&input.data, &outer)?),
+        inner: Arc::from(hard_interventions(&input.data, &inner)?),
+        frozen: Arc::from(frozen),
+        outcome: outcome_id,
+    };
+    let query = SimulateQuery::new(SimulationTarget::NestedCounterfactual(target));
+    query.validate().map_err(|e| py_err(antecedent::CausalError::from(e)))?;
+    let (mean, route) = detach_catch(py, move || {
+        let (source, ctx, _) = input.source()?;
+        let (simulated, route) = source.simulate(query.target, &ctx)?;
+        let SimulationOutcome::NestedCounterfactual(mean) = simulated else {
+            return Err(outcome_mismatch());
+        };
+        Ok::<_, PyErr>((mean, route))
+    })?;
+    answer(py, "nested_counterfactual", mean.into_pyobject(py)?.into_any().unbind(), &route)
+}
+
 #[pymethods]
 impl PyFittedGcm {
     /// Whether `antecedent.analyze` on this model's rows and graph refits exactly these
@@ -492,6 +555,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(model_operation_evaluation, m)?)?;
     m.add_function(wrap_pyfunction!(model_operation_interventional_mean, m)?)?;
     m.add_function(wrap_pyfunction!(model_operation_simultaneous_counterfactual, m)?)?;
+    m.add_function(wrap_pyfunction!(model_operation_nested_counterfactual, m)?)?;
     Ok(())
 }
 
