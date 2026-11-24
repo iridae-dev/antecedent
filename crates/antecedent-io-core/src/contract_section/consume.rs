@@ -538,6 +538,7 @@ pub(in crate::contract_section) fn require_payload_digest<T>(
     };
     match (digest(payload), advertised) {
         (Ok(got), Some(want)) if got.as_bytes() == want => {}
+        _ if unresolved.contains(&label) => {}
         _ => unresolved.push(label),
     }
 }

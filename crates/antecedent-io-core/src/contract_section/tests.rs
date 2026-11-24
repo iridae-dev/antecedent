@@ -317,27 +317,30 @@ fn distribution_consumer_names_missing_factor_laws_as_replay_dependency() {
 }
 
 /// A stored set-valued payload in another order (or with a repeat) hashes to a second identity
-/// for the same science. Even with its digest re-advertised, it is refused as non-canonical,
-/// while the canonical payload keeps its digest and is not refused.
+/// for the same science. Even with its digest re-advertised, it is refused under the identity
+/// reason of the facet whose payload it is, while the canonical payload keeps its digest and is
+/// not refused.
 #[test]
 fn decoded_payloads_outside_canonical_form_are_refused_at_verification() {
     use crate::identity::{
         ClassPriorIdentityWire, GraphIdentityWire, TransportIdentityWire, identification_digest,
     };
     use antecedent_graph::{Dag, DenseNodeId};
-    const REASON: &str = "identity.noncanonical_payload";
+    const OBSERVATION: &str = "identities.observation";
+    const IDENTIFICATION: &str = "identities.identification";
     let (body, target, names) = fixture_body_for(&["t", "y", "z"]);
     let header = AnalysisResultHeader { variable_names: names };
     let mut dag = Dag::with_variables(3);
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    let refused = |contract: &AnalysisResultContractWire| {
+    let refused_as = |contract: &AnalysisResultContractWire, wanted: &str| {
         verify_contract_against_body(&header, &body, contract)
             .iter()
-            .any(|reason| reason.as_ref() == REASON)
+            .any(|reason| reason.as_ref() == wanted)
     };
     let base = contract_for_dag(target.clone(), &body, &dag);
-    assert!(!refused(&base));
+    assert!(!refused_as(&base, OBSERVATION));
+    assert!(!refused_as(&base, IDENTIFICATION));
 
     // Observation tags.
     let tags = |tags: &[&str]| {
@@ -351,7 +354,7 @@ fn decoded_payloads_outside_canonical_form_are_refused_at_verification() {
             *digest_wire(IdentityDomain::Observation, &stored).unwrap().as_bytes();
         let canonical = stored.is_canonical();
         contract.observation = Some(stored);
-        assert_eq!(refused(&contract), !canonical);
+        assert_eq!(refused_as(&contract, OBSERVATION), !canonical);
     }
 
     // Identification: graph edges, class-prior pairs and transport targets.
@@ -363,6 +366,7 @@ fn decoded_payloads_outside_canonical_form_are_refused_at_verification() {
             *identification_digest(identification).unwrap().as_bytes();
         contract
     };
+    let refused = |contract: &AnalysisResultContractWire| refused_as(contract, IDENTIFICATION);
     let canonical_digest = base.identities.identification;
     let kept = readvertised(&|_| {});
     assert_eq!(kept.identities.identification, canonical_digest);

@@ -1875,6 +1875,16 @@
       "missing_evidence": []
     },
     {
+      "id": "cyclic.action_world_decisions",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cyclic.component_posterior_decisions",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "provider_callback.consumers",
       "status": "supported",
       "missing_evidence": []
@@ -2205,6 +2215,11 @@
       "missing_evidence": []
     },
     {
+      "id": "graph_imputation.compiled_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "categorical_treatment.compiled_candidate",
       "status": "supported",
       "missing_evidence": []
@@ -2321,6 +2336,46 @@
     },
     {
       "id": "forecast.event_process",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.bridge_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.bridge_premise_assessment",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.joint_transport_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.trial_ipw_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.temporal_path_specific",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.sampling_assumption_union",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.propagation_chain",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.experiment_planning",
       "status": "supported",
       "missing_evidence": []
     }
