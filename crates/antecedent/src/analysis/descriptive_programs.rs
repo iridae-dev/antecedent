@@ -325,22 +325,20 @@ fn question(request: &DescriptiveRequest) -> [u8; 32] {
 const fn shape(request: &DescriptiveRequest) -> (&'static str, &'static str) {
     match request {
         DescriptiveRequest::RawContrast { .. } => {
-            ("descriptive_comparison.raw_contrast.v1", "descriptive_comparison.welch")
+            ("descriptive_comparison.raw_contrast.v1", "welch_raw_contrast")
         }
         DescriptiveRequest::CompareRawAdjusted { .. } => {
-            ("descriptive_comparison.raw_vs_adjusted.v1", "descriptive_comparison.welch")
+            ("descriptive_comparison.raw_vs_adjusted.v1", "welch_raw_contrast")
         }
         DescriptiveRequest::TransformMeanPair { .. } => {
-            ("descriptive_comparison.reporting_transform.v1", "descriptive_comparison.delta_method")
+            ("descriptive_comparison.reporting_transform.v1", "delta_method_transform")
         }
-        DescriptiveRequest::RawArmsTransform { .. } => (
-            "descriptive_comparison.raw_reporting_transform.v1",
-            "descriptive_comparison.delta_method",
-        ),
-        DescriptiveRequest::MatchedOddsRatio { .. } => (
-            "matched_case_control.conditional_odds_ratio.v1",
-            "matched_case_control.conditional_likelihood",
-        ),
+        DescriptiveRequest::RawArmsTransform { .. } => {
+            ("descriptive_comparison.raw_reporting_transform.v1", "delta_method_transform")
+        }
+        DescriptiveRequest::MatchedOddsRatio { .. } => {
+            ("matched_case_control.conditional_odds_ratio.v1", "matched_conditional_likelihood")
+        }
     }
 }
 
