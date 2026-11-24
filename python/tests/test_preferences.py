@@ -20,7 +20,8 @@ import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent._decision_value import StructuralPolicy as StructuralPolicyClass
-from antecedent.errors import CausalValueError
+from antecedent.artifacts import artifact_identity
+from antecedent.errors import CausalError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -438,6 +439,21 @@ def test_export_and_replay_recompute_the_decision():
         require_success(decision.replay(exported, contract=contract, source=other))
     assert other_draws.value.reason_code == "decision_contract_unsatisfied"
     assert other_draws.value.detail == reason_details.preference_artifact.SOURCE_EXPECTED
+
+    # Bound to the bytes the consumer retained: the same recomputation, and other bytes are
+    # refused before they are read.
+    retained = artifact_identity(exported)
+    bound = require_success(
+        decision.replay(exported, contract=contract, source=_source(), retained_identity=retained)
+    )
+    assert bound.kind == replayed.kind
+    assert bound.switches[0].margin_range == pytest.approx(replayed.switches[0].margin_range)
+    changed = bytearray(exported.data)
+    changed[len(changed) // 2] ^= 0x01
+    with pytest.raises(CausalError, match="external_binding_mismatch"):
+        decision.replay(
+            bytes(changed), contract=contract, source=_source(), retained_identity=retained
+        )
 
 
 def test_replay_keeps_the_stored_evaluation_options():

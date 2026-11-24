@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
+from . import _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ExportedArtifact,
@@ -1080,24 +1081,42 @@ def load(
     expected_identity: str,
     records: Records | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> AcceptedPreferences:
     """Load accepted preferences under an identity retained separately from the bytes.
+
+    ``expected_identity`` is the accepted preferences' identity, recomputed from the decoded
+    content. ``retained_identity`` (``antecedent.artifacts.artifact_identity`` of the bytes the
+    producer wrote) binds the bytes themselves before they are read; bytes other than the
+    retained artifact are refused with ``external_binding_mismatch``.
 
     With ``records``, a learned basis is relearned from them with the stored options and must be
     reproduced; a declared basis needs no records. The relearning reads the execution's
     cancellation token; a cancelled replay is refused with ``cancelled_no_claim``.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.decision_learning.load",
+        "antecedent.decision_learning.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
+    retained = _retained.native(retained_identity)
     execution = resolve_execution(execution)
     data = container_bytes(data)
     records_json = None
     if records is not None:
         # The record set is stated over the declared attributes, which the stored record names.
-        unverified, refusal = _consume_accepted(data, expected_identity, None)
+        unverified, refusal = _consume_accepted(
+            data, expected_identity, None, None, retained_identity=retained
+        )
         _raise(refusal)
         assert unverified is not None
         model = json.loads(unverified.summary_json())["declared_model"]
         records_json = _records(records)._wire(model)
-    native, refusal = _consume_accepted(data, expected_identity, records_json, execution.cancel)
+    native, refusal = _consume_accepted(
+        data, expected_identity, records_json, execution.cancel, retained_identity=retained
+    )
     _raise(refusal)
     accepted = AcceptedPreferences(native)
     accepted._replayed = records is not None or accepted.basis == "declared"

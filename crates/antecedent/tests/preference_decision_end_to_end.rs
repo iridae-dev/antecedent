@@ -54,6 +54,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, set_edge};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_io::RetainedArtifactIdentity;
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionCalibration};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -716,17 +717,22 @@ fn accepted_preferences_and_decisions_are_exported_consumed_and_replayed() {
     let (_, _, records) = bracketing_records();
     let accepted = reviewed(&records);
     let bytes = pd::export_accepted(&accepted, "pharmacy-pricing").unwrap();
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
     assert_eq!(
-        pd::consume_accepted(&bytes, accepted.identity(), Some(&records)).unwrap(),
+        pd::consume_accepted(&bytes, accepted.identity(), Some(&records), &retained).unwrap(),
         accepted
     );
     let mut tampered = bytes.clone();
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x01;
-    assert!(pd::consume_accepted(&tampered, accepted.identity(), None).is_err());
-    assert!(pd::consume_accepted(&bytes, &"0".repeat(64), None).is_err());
+    assert!(pd::consume_accepted(&tampered, accepted.identity(), None, &retained).is_err());
+    let tampered_retained = RetainedArtifactIdentity::of_bytes(&tampered);
+    assert!(
+        pd::consume_accepted(&tampered, accepted.identity(), None, &tampered_retained).is_err()
+    );
+    assert!(pd::consume_accepted(&bytes, &"0".repeat(64), None, &retained).is_err());
     let fewer = ChoiceRecordSet { records: records.records[..1].to_vec(), ..records.clone() };
-    assert!(pd::consume_accepted(&bytes, accepted.identity(), Some(&fewer)).is_err());
+    assert!(pd::consume_accepted(&bytes, accepted.identity(), Some(&fewer), &retained).is_err());
 
     let data = dose_table();
     let claim = claim_of(&analyze(&data, dag(2, &[(T, Y)]), bayes(), 23), &data);
@@ -743,7 +749,9 @@ fn accepted_preferences_and_decisions_are_exported_consumed_and_replayed() {
         let artifact =
             pd::PreferenceDecisionArtifact::evaluate(decided, law, None, options()).unwrap();
         let bytes = pd::export_decision(&artifact, "dose-decision").unwrap();
-        let back = pd::consume_decision(&bytes, artifact.contract_identity(), law).unwrap();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let back =
+            pd::consume_decision(&bytes, artifact.contract_identity(), law, &retained).unwrap();
         assert_eq!(back.evaluation(), artifact.evaluation());
         assert_eq!(back.route(), artifact.route());
         assert!(matches!(
@@ -755,13 +763,25 @@ fn accepted_preferences_and_decisions_are_exported_consumed_and_replayed() {
         let mut tampered = bytes.clone();
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x01;
-        assert!(pd::consume_decision(&tampered, artifact.contract_identity(), law).is_err());
-        assert!(pd::consume_decision(&bytes, &"0".repeat(64), law).is_err());
+        assert!(
+            pd::consume_decision(&tampered, artifact.contract_identity(), law, &retained).is_err()
+        );
+        let tampered_retained = RetainedArtifactIdentity::of_bytes(&tampered);
+        assert!(
+            pd::consume_decision(&tampered, artifact.contract_identity(), law, &tampered_retained)
+                .is_err()
+        );
+        assert!(pd::consume_decision(&bytes, &"0".repeat(64), law, &retained).is_err());
         let elsewhere =
             other.decision_source(&pd::source_requirement(artifact.contract()).unwrap()).unwrap();
         assert!(
-            pd::consume_decision(&bytes, artifact.contract_identity(), joint_law(&elsewhere))
-                .is_err()
+            pd::consume_decision(
+                &bytes,
+                artifact.contract_identity(),
+                joint_law(&elsewhere),
+                &retained
+            )
+            .is_err()
         );
     }
 }

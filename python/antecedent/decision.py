@@ -1544,17 +1544,27 @@ def replay(
     contract: Any,
     source: JointDistributionArtifact,
     execution: Any = None,
+    retained_identity: str | None = None,
 ) -> Decision | TradeoffDecision:
     """Recompute a stored decision from the consumer's own contract and draws.
 
-    A result computed under a different contract or from different draws, or one whose
-    numbers were edited, refuses. An ordinary decision (including a value contract decided as
+    ``retained_identity`` (``antecedent.artifacts.artifact_identity`` of the bytes the producer
+    wrote) binds the bytes themselves before they are read; bytes other than the retained
+    artifact are refused with ``external_binding_mismatch``. A result computed under a different
+    contract or from different draws, or one whose numbers were edited, refuses. An ordinary decision (including a value contract decided as
     an ordinary contract) is recomputed and must match exactly. A decision across trade-off
     ranges reuses its stored measure and options and must match within the relative tolerance
     its linear-program and interval numerics need; its recomputation reads the execution's
     cancellation token at its work boundaries, and a cancelled replay is refused with
     ``cancelled_no_claim``.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.decision.replay",
+        "antecedent.decision.replay(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     source = require_success(source)
     if not isinstance(contract, Contract):
@@ -1567,7 +1577,9 @@ def replay(
     if contract._engine() == "tradeoff":
         from ._decision_tradeoff import replay_tradeoff
 
-        return replay_tradeoff(data, contract, source, execution)
+        return replay_tradeoff(
+            data, contract, source, execution, retained_identity=_retained.native(retained_identity)
+        )
     ordinary = contract._ordinary()
     _refuse_if_cancelled(execution, "before the decision was replayed")
     result, refusal = _replay(data, json.dumps(ordinary._wire()), source._native)

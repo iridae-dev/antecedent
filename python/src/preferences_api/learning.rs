@@ -790,19 +790,29 @@ fn preference_analysis_options(
 
 /// Load accepted preferences under an identity the consumer retained; with records, a
 /// learned basis is relearned from them and must be reproduced, reading `cancel` as the
-/// learner or the estimator does.
+/// learner or the estimator does. With `retained_identity`, the bytes bind to it before they
+/// are read (`AcceptedPreferencesArtifact::from_bytes_expecting`); without one, the Python
+/// wrapper has already admitted them.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity, records_json, cancel=None))]
+#[pyo3(signature = (data, expected_identity, records_json, cancel=None, retained_identity=None))]
 fn consume_accepted_preferences(
     data: &[u8],
     expected_identity: &str,
     records_json: Option<&str>,
     cancel: Option<crate::PyCancellationToken>,
+    retained_identity: Option<&str>,
 ) -> PyResult<HandleReply> {
     crate::catch_ffi(|| {
+        let retained = crate::retained_artifact_api::retained(retained_identity)?;
         let records = records_json.map(records_from).transpose()?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        let outcome = AcceptedPreferencesArtifact::from_bytes(data, expected_identity)
+        let loaded = match &retained {
+            Some(retained) => {
+                AcceptedPreferencesArtifact::from_bytes_expecting(data, expected_identity, retained)
+            }
+            None => AcceptedPreferencesArtifact::from_bytes(data, expected_identity),
+        };
+        let outcome = loaded
             .and_then(|artifact| match &records {
                 Some(records) => artifact.replay_with_context(records, &ctx).map(|()| artifact),
                 None => Ok(artifact),

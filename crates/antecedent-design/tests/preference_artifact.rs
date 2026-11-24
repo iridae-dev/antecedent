@@ -33,6 +33,7 @@ use antecedent_design::preference_model::{
     Attribute, PreferenceExpr as P, PreferenceParameter, PreferenceSet, ValueModel,
 };
 use antecedent_design::preference_set_learning::SetLearningOptions;
+use antecedent_io_core::RetainedArtifactIdentity;
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -291,7 +292,30 @@ fn round_trip(accepted: &AcceptedPreferences) -> AcceptedPreferencesArtifact {
         AcceptedPreferencesArtifact::from_bytes(&corrupt(&bytes), accepted.identity()).unwrap_err();
     assert!(matches!(error, E::Container(_)), "{error:?}");
     assert_eq!(error.detail(), reason_details::preference_artifact::CONTAINER_REFUSED);
+
+    // The bound form admits the retained bytes as the unbound load does, and refuses any other
+    // bytes before reading them, with the binding refusal kept through the IO error.
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let bound =
+        AcceptedPreferencesArtifact::from_bytes_expecting(&bytes, accepted.identity(), &retained)
+            .unwrap();
+    assert_eq!(bound, loaded);
+    let changed = corrupt(&bytes);
+    let error =
+        AcceptedPreferencesArtifact::from_bytes_expecting(&changed, accepted.identity(), &retained)
+            .unwrap_err();
+    assert_not_retained(error);
     loaded
+}
+
+/// A refusal of bytes other than the retained artifact: its registered detail and code, and
+/// the binding refusal unchanged as an IO error.
+fn assert_not_retained(error: E) {
+    assert!(matches!(error, E::Retained(_)), "{error:?}");
+    assert_eq!(error.detail(), reason_details::preference_artifact::RETAINED_ARTIFACT_MISMATCH);
+    assert_eq!(error.to_refusal().code, "external_binding_mismatch");
+    let IoError::Refused { code, .. } = IoError::from(error) else { panic!("not a refusal") };
+    assert_eq!(code, "external_binding_mismatch");
 }
 
 #[test]
@@ -411,6 +435,16 @@ fn decision_round_trip(
     let bytes = artifact.to_bytes("preference-decision").unwrap();
     let loaded = PreferenceDecisionArtifact::from_bytes(&bytes, &identity, &digest).unwrap();
     assert_eq!(&loaded, artifact);
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let bound =
+        PreferenceDecisionArtifact::from_bytes_expecting(&bytes, &identity, &digest, &retained)
+            .unwrap();
+    assert_eq!(bound, loaded);
+    let changed = corrupt(&bytes);
+    assert_not_retained(
+        PreferenceDecisionArtifact::from_bytes_expecting(&changed, &identity, &digest, &retained)
+            .unwrap_err(),
+    );
 
     let error = PreferenceDecisionArtifact::from_bytes(&bytes, "another", &digest).unwrap_err();
     assert_eq!(error, E::ContractExpected);

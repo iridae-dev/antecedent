@@ -1186,20 +1186,25 @@ pub fn export_accepted(
     Ok(AcceptedPreferencesArtifact::new(accepted.clone()).to_bytes(artifact_id)?)
 }
 
-/// Consume accepted preferences under an identity the consumer retained independently of the
-/// bytes. The identity is recomputed from the decoded content, so a resealed edit is refused.
-/// With `records`, a learned basis is relearned from them with the stored options and must
-/// be reproduced; a declared basis replays without records.
+/// Consume accepted preferences under the identities the consumer retained independently of
+/// the bytes: `retained` binds the bytes themselves before they are read
+/// ([`AcceptedPreferencesArtifact::from_bytes_expecting`]), and `expected_identity` is the
+/// accepted preferences' identity, recomputed from the decoded content, so a resealed edit is
+/// refused. With `records`, a learned basis is relearned from them with the stored options and
+/// must be reproduced; a declared basis replays without records.
 ///
 /// # Errors
-/// Corruption, another kind or version, a changed identity, records other than the ones the
-/// basis was learned from, and a relearning that does not reproduce the stored basis.
+/// Bytes other than the retained artifact (`external_binding_mismatch`), corruption, another
+/// kind or version, a changed identity, records other than the ones the basis was learned
+/// from, and a relearning that does not reproduce the stored basis.
 pub fn consume_accepted(
     bytes: &[u8],
     expected_identity: &str,
     records: Option<&ChoiceRecordSet>,
+    retained: &antecedent_io::RetainedArtifactIdentity,
 ) -> Result<AcceptedPreferences, IoError> {
-    let artifact = AcceptedPreferencesArtifact::from_bytes(bytes, expected_identity)?;
+    let artifact =
+        AcceptedPreferencesArtifact::from_bytes_expecting(bytes, expected_identity, retained)?;
     if let Some(records) = records {
         artifact.replay(records)?;
     }
@@ -1217,23 +1222,27 @@ pub fn export_decision(
     Ok(artifact.to_bytes(artifact_id)?)
 }
 
-/// Consume a decision across a preference set by recomputation: `expected_contract_identity`
-/// is retained by the consumer, `source` is the joint law the consumer holds; the stored
-/// result must have been computed from exactly that law and must be reproduced by
-/// re-evaluating the stored contract on it.
+/// Consume a decision across a preference set by recomputation: `retained` binds the bytes
+/// themselves before they are read ([`PreferenceDecisionArtifact::from_bytes_expecting`]),
+/// `expected_contract_identity` is retained by the consumer, `source` is the joint law the
+/// consumer holds; the stored result must have been computed from exactly that law and must be
+/// reproduced by re-evaluating the stored contract on it.
 ///
 /// # Errors
-/// Corruption, another kind or version, another contract or source than the retained ones, a
-/// resealed edit, and a recomputation that does not reproduce the stored result.
+/// Bytes other than the retained artifact (`external_binding_mismatch`), corruption, another
+/// kind or version, another contract or source than the retained ones, a resealed edit, and a
+/// recomputation that does not reproduce the stored result.
 pub fn consume_decision(
     bytes: &[u8],
     expected_contract_identity: &str,
     source: &DistributionArtifact,
+    retained: &antecedent_io::RetainedArtifactIdentity,
 ) -> Result<PreferenceDecisionArtifact, IoError> {
-    let artifact = PreferenceDecisionArtifact::from_bytes(
+    let artifact = PreferenceDecisionArtifact::from_bytes_expecting(
         bytes,
         expected_contract_identity,
         &source_digest(source),
+        retained,
     )?;
     artifact.replay(source)?;
     Ok(artifact)
