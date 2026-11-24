@@ -379,7 +379,7 @@ fn the_checks_find_the_known_lag_one_link() {
 }
 
 #[test]
-fn a_check_refuses_a_search_it_does_not_validate_and_is_keyed_by_its_options() {
+fn a_check_refuses_a_search_it_does_not_validate() {
     on_large_stack("check-refusals", || {
         let series = lag1_series(160, 61);
         let plus = series_study(
@@ -405,7 +405,29 @@ fn a_check_refuses_a_search_it_does_not_validate_and_is_keyed_by_its_options() {
             )
             .unwrap_err();
         assert!(error.to_string().contains("route_not_supported"), "{error}");
+        assert!(error.to_string().contains("discovery_validation.wrong_search"), "{error}");
 
+        let error = Study::series(series.clone())
+            .discovery(DiscoverySpec::pcmci(params(1, 0.05, false, "parcorr"), "parcorr"), vars())
+            .build()
+            .unwrap()
+            .validate_discovery(DiscoveryCheck::EnvironmentHoldout { n_discovery: 1 }, &ctx())
+            .unwrap_err();
+        assert!(error.to_string().contains("discovery_validation.wrong_search"), "{error}");
+    });
+}
+
+/// The check's program is keyed by the search program and by every option of the check: the same
+/// check on the same study is the same program, another replicate count is another program, and
+/// the program names the DiscoveryValidation route.
+#[test]
+fn a_check_program_is_keyed_by_the_search_and_its_options() {
+    on_large_stack("check-identity", || {
+        let series = lag1_series(160, 61);
+        let pcmci = series_study(
+            &series,
+            DiscoverySpec::pcmci(params(1, 0.05, false, "parcorr"), "parcorr"),
+        );
         let four = pcmci
             .validate_discovery(
                 DiscoveryCheck::BlockBootstrap { replicates: 4, block_size: 20 },
@@ -426,5 +448,16 @@ fn a_check_refuses_a_search_it_does_not_validate_and_is_keyed_by_its_options() {
             )
             .unwrap();
         assert_eq!(four.lowered_identity(), again.lowered_identity());
+        assert_eq!(four.lowered().route(), "DiscoveryValidation");
+        let other_search = series_study(
+            &series,
+            DiscoverySpec::pcmci(params(1, 0.1, false, "parcorr"), "parcorr"),
+        )
+        .validate_discovery(
+            DiscoveryCheck::BlockBootstrap { replicates: 4, block_size: 20 },
+            &ctx(),
+        )
+        .unwrap();
+        assert_ne!(four.lowered_identity(), other_search.lowered_identity());
     });
 }
