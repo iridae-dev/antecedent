@@ -7864,6 +7864,7 @@ id = "discovery.structure_posterior"
 status = "supported"
 refusals = [
   { code = "invalid_argument", detail = "structure_posterior.edge_prior_probability" },
+  { code = "option_not_applicable", detail = "structure_posterior.class_prior_not_read" },
 ]
 routes = [
   { route = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
@@ -8204,6 +8205,21 @@ refusals = [
   { code = "invalid_argument", detail = "preference_contract.target_population_blank" },
   { code = "invalid_argument", detail = "preference_contract.too_few_actions" },
   { code = "joint_law_required", detail = "preference_evaluation.joint_draws_required" },
+  { code = "route_not_supported", detail = "preference_compile.atom_kind_not_compiled" },
+  { code = "route_not_supported", detail = "preference_compile.class_completions_truncated" },
+  { code = "invalid_argument", detail = "preference_compile.cross_study_covariance_invalid" },
+  { code = "effect_not_identified", detail = "preference_compile.design_exposure_bounded" },
+  { code = "joint_law_required", detail = "preference_compile.design_law_not_aligned" },
+  { code = "route_not_supported", detail = "preference_compile.design_not_supported" },
+  { code = "invalid_argument", detail = "preference_compile.program_carries_decision" },
+  { code = "evidence_double_counted", detail = "preference_compile.studies_share_evidence" },
+  { code = "invalid_argument", detail = "preference_compile.class_prior_keys_mismatch" },
+  { code = "invalid_argument", detail = "preference_compile.class_prior_sampling_needs_uniform" },
+  { code = "route_not_supported", detail = "preference_compile.class_sampling_budget" },
+  { code = "invalid_argument", detail = "preference_compile.unit_key_invalid" },
+  { code = "route_not_supported", detail = "preference_decision.value_relations_need_certified_route" },
+  { code = "invalid_argument", detail = "preference_model.value_relation_rows_invalid" },
+  { code = "invalid_argument", detail = "preference_model.value_relation_tolerance_invalid" },
 ]
 routes = [
   { route = "antecedent_design.evaluate_preference_contract", stage = "evaluate", status = "supported", claim = "assumption_range" },
@@ -8223,6 +8239,15 @@ routes = [
   { route = "antecedent.preference_decision.chain_joint_law", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preference_decision.joint_law_of", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preferences.Contract.evaluate", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.Study.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.PreparedStudy.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.preference_decision.compile_preference_decision_across_studies", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.preference_decision.compile_preference_decision_with_shared_evidence", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.preference_decision.compile_preference_decision_across_prepared_studies", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.joint_panel.PreparedNativeJointDesign.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.preference_decision.CompiledPreferenceDecision.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.preferences.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.preferences.CompiledDecision.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
 ]
 
 [[record]]
@@ -8344,6 +8369,7 @@ refusals = [
   { code = "invalid_argument", detail = "preference_set_learning.linear_program_refused" },
   { code = "invalid_argument", detail = "preference_set_learning.model_invalid" },
   { code = "invalid_argument", detail = "preference_set_learning.program_inconsistent" },
+  { code = "invalid_argument", detail = "preference_set_learning.region_budget_invalid" },
   { code = "invalid_argument", detail = "preference_set_learning.relation_id_collision" },
   { code = "invalid_argument", detail = "preference_set_learning.tolerance_negative" },
   { code = "invalid_argument", detail = "preference_set_learning.tolerance_non_finite" },
@@ -8448,6 +8474,10 @@ refusals = [
   { code = "design_rank_deficient", detail = "preference_choice_model.nothing_identified" },
   { code = "design_rank_deficient", detail = "preference_choice_model.rank_deficient" },
   { code = "glm_fit_refused", detail = "preference_choice_model.separated" },
+  { code = "design_rank_deficient", detail = "preference_choice_model.shape_not_identified" },
+  { code = "uncertainty_representation_insufficient", detail = "preference_choice_model.shape_estimate_at_bound" },
+  { code = "glm_fit_refused", detail = "preference_choice_model.profile_multimodal" },
+  { code = "invalid_argument", detail = "preference_choice_model.shape_search_budget" },
   { code = "route_not_supported", detail = "preference_choice_model.stated_and_recorded_mixed" },
   { code = "design_rank_deficient", detail = "preference_choice_model.unit_of_account_missing" },
   { code = "invalid_argument", detail = "choice_record.analysis_date_blank" },
@@ -8479,7 +8509,6 @@ refusals = [
   { code = "invalid_argument", detail = "choice_record.record_duplicate" },
   { code = "invalid_argument", detail = "choice_record.record_id_blank" },
   { code = "invalid_argument", detail = "choice_record.records_missing" },
-  { code = "route_not_supported", detail = "choice_record.shape_parameters_not_fixed" },
   { code = "invalid_argument", detail = "choice_record.stated_assumption_blank" },
   { code = "invalid_argument", detail = "choice_record.stated_belief_not_exact" },
   { code = "invalid_argument", detail = "choice_record.stated_elicitation_blank" },
@@ -8544,6 +8573,7 @@ refusals = [
   { code = "invalid_argument", detail = "accepted_preferences.acknowledge_empty" },
   { code = "invalid_argument", detail = "accepted_preferences.acknowledge_repeated" },
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.choices_contradictory" },
+  { code = "decision_contract_unsatisfied", detail = "accepted_preferences.set_undetermined" },
   { code = "invalid_argument", detail = "accepted_preferences.decider_unknown" },
   { code = "decision_contract_unsatisfied", detail = "accepted_preferences.model_mismatch" },
   { code = "invalid_argument", detail = "accepted_preferences.not_pending" },
@@ -8603,7 +8633,6 @@ refusals = [
   { code = "invalid_argument", detail = "choice_record.record_duplicate" },
   { code = "invalid_argument", detail = "choice_record.record_id_blank" },
   { code = "invalid_argument", detail = "choice_record.records_missing" },
-  { code = "route_not_supported", detail = "choice_record.shape_parameters_not_fixed" },
   { code = "invalid_argument", detail = "choice_record.stated_assumption_blank" },
   { code = "invalid_argument", detail = "choice_record.stated_belief_not_exact" },
   { code = "invalid_argument", detail = "choice_record.stated_elicitation_blank" },

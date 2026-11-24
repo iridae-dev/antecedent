@@ -18088,6 +18088,103 @@ dimensions = ["refusal"]
 assertion_contract = "An empty parameter range and too few actions refuse with their registered preference_model and preference_contract details."
 
 [[capability]]
+id = "preferences.compiled_decision"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Compile a decision across a preference set with the prepared studies or design that estimate its quantities: the plan shows the decision's quantities, source and ranges before fitting, what cannot be answered refuses at compile, and execution returns the decision."
+python = "antecedent.preferences.Contract.compile"
+required_dimensions = ["success", "inspection", "refusal"]
+supports = ["capability:preference_decision.exact", "capability:preference_decision.certified"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_shows_the_plan_before_anything_is_fitted"
+assertion_scopes = ["test_compile_shows_the_plan_before_anything_is_fitted"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The compiled plan states the mean representation and carrier, both dose quantities, the price range [0.2, 1.0] and the bound identity before execution; execution chooses the high dose."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_refuses_a_quantity_no_structure_identifies"
+assertion_scopes = ["test_compile_refuses_a_quantity_no_structure_identifies"]
+dimensions = ["refusal"]
+assertion_contract = "A mixed-graph posterior whose only structure is a directed cycle refuses at compile with effect_not_identified and native_claims.response_not_point_identified."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_the_compiled_decision_agrees_with_evaluate_on_the_same_draws"
+assertion_scopes = ["test_the_compiled_decision_agrees_with_evaluate_on_the_same_draws"]
+dimensions = ["success"]
+assertion_contract = "A kinked value compiled on a Bayesian study reads joint draws, and evaluate on the same draws gives the same verdict, choice and value ranges."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_over_a_graph_posterior_keeps_the_unidentified_mass"
+assertion_scopes = ["test_compile_over_a_graph_posterior_keeps_the_unidentified_mass"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Two mixed-graph posterior structures on a coded table, with weights 0.7 and 0.3, compile with the cyclic one not identified; the unidentified mass 0.3 is stated before fitting and kept by the decision, which is insufficient science under invariance."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_across_several_studies"
+assertion_scopes = ["test_compile_across_several_studies"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Two studies meet by their means for an affine value; a kinked value refuses without a declared dependence, joins through a declared four-input chain under distinct evidence, and refuses with preference_compile.studies_share_evidence for two outcomes of one table."
+
+[[capability]]
+id = "preferences.compiled_evidence_overlap"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Judge which separately prepared studies share evidence before joining their outcomes: studies of one table share its rows whether or not columns were dropped, and studies of different tables are compared by a declared unit key in one namespace."
+python = "antecedent._row_evidence.UnitKey"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share"
+assertion_scopes = ["test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Studies of different tables keyed in one namespace refuse with preference_compile.studies_share_evidence when 100 patients are in both, join as distinct evidence when none is, and refuse with evidence_overlap_unknown under another namespace or with no key on one study."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_projections_of_one_table_keep_their_source_rows"
+assertion_scopes = ["test_projections_of_one_table_keep_their_source_rows"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Studies of different columns of one table share its rows and refuse as distinct evidence; a copy of the table with other values joins as distinct evidence."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_projection_and_a_study_of_the_whole_table_share_its_rows"
+assertion_scopes = ["test_a_projection_and_a_study_of_the_whole_table_share_its_rows"]
+dimensions = ["refusal"]
+assertion_contract = "A study of every column and a study of a projection name the same table and refuse as distinct evidence in either order."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_unit_key_is_checked_where_it_is_declared"
+assertion_scopes = ["test_a_unit_key_is_checked_where_it_is_declared"]
+dimensions = ["refusal"]
+assertion_contract = "A blank namespace, an unknown key column and a missing identifier are refused at declaration or prepare, and a unit key on a query that does not read it refuses with option_not_applicable."
+
+[[capability]]
+id = "preferences.class_member_measure"
+status = "covered"
+owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
+behavior = "Weigh the members of CPDAG or PAG atoms of a graph posterior by a declared class prior, uniform under a named assumption or keyed by member fingerprint, enumerated up to an exact limit and sampled uniformly above it, without ever calling a sampled class best for every member."
+python = "antecedent.inference.ClassPrior.uniform"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_a_uniform_measure_makes_members_probabilities"
+assertion_scopes = ["test_a_uniform_measure_makes_members_probabilities"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Under a uniform class prior the three path members weigh 0.2 each with distinct fingerprints and multiplicity one, nothing is sampled, and the decision reads probabilities 0.2, 0.2, 0.2 and 0.4."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_keyed_masses_are_read_by_member_fingerprint"
+assertion_scopes = ["test_keyed_masses_are_read_by_member_fingerprint"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Masses 1 : 2 : 1 keyed by member fingerprint give the members 0.15, 0.3 and 0.15; a missing key refuses with preference_compile.class_prior_keys_mismatch."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_a_sampled_class_is_never_called_best_for_every_member"
+assertion_scopes = ["test_a_sampled_class_is_never_called_best_for_every_member"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A class above an exact limit of two drawn 40 times by clique-picking from an exact size of 3 reports a sampled-measure verdict, never necessarily best, with masses summing to the class weight 0.6 and Monte Carlo margins; under invariance the verdict is per sampled member."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_above_the_limit_without_a_sample_the_class_is_refused"
+assertion_scopes = ["test_above_the_limit_without_a_sample_the_class_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "Above the exact limit without a sample the compile refuses with route_not_supported and preference_compile.class_completions_truncated."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_the_graph_posterior_estimate_refuses_a_class_prior_it_does_not_read"
+assertion_scopes = ["test_the_graph_posterior_estimate_refuses_a_class_prior_it_does_not_read"]
+dimensions = ["refusal"]
+assertion_contract = "An ordinary estimate of the prepared graph posterior refuses the class prior with structure_posterior.class_prior_not_read, and estimates without it."
+
+[[capability]]
 id = "preferences.decide_certified"
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
@@ -18101,6 +18198,11 @@ assertion_scopes = ["test_a_shape_parameter_is_answered_by_certified_subdivision
 dimensions = ["success", "branch"]
 assertion_contract = "A model with a shape parameter routes to the certified route, which proves treat necessarily best with no undecided volume."
 
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_declared_box"
+assertion_scopes = ["test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_declared_box"]
+dimensions = ["success", "branch"]
+assertion_contract = "Accepted preferences learned from a sure-over-lottery choice under a risk attitude decide on their value relations: the sure option is necessarily best on the learned set, though not on the declared box."
 [[capability]]
 id = "preferences.decision_artifact"
 status = "covered"
@@ -18138,6 +18240,16 @@ assertion_scopes = ["test_a_stated_comparison_narrows_a_range_under_its_named_as
 dimensions = ["success"]
 assertion_contract = "A stated comparison narrows the harm weight to (3, 4) and adds its named assumption."
 
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes"
+assertion_scopes = ["test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes"]
+dimensions = ["success", "inspection"]
+assertion_contract = "One sure-over-lottery choice under v = -exp(-risk x) learns risk as an outer range (basis enclosure) from within 1e-2 below its closed-form threshold to 3, narrowed, with inside boxes above the threshold in the region."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts"
+assertion_scopes = ["test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A box budget of one gives an Undetermined outcome with boundary boxes and an exhausted budget, accepting it refuses with accepted_preferences.set_undetermined, and two lottery choices on disjoint risk ranges are the smallest conflict with a finite tolerance needed."
 [[capability]]
 id = "preference_learning.choice_model"
 status = "covered"
@@ -18157,6 +18269,16 @@ assertion_scopes = ["test_the_choice_model_refuses_a_fit_mixing_stated_and_recor
 dimensions = ["refusal"]
 assertion_contract = "A fit mixing stated and recorded choices refuses with preference_choice_model.stated_and_recorded_mixed."
 
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval"
+assertion_scopes = ["test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval"]
+dimensions = ["success", "inspection", "refusal"]
+assertion_contract = "From 500 simulated choices the risk attitude (0.8) and harm weight (0.6) are recovered, risk with a profile likelihood-ratio interval and the harm weight with a Wald interval, calibration not_measured; a shape search limit of zero refuses with preference_choice_model.shape_search_budget."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_risk_attitude_estimated_on_its_declared_bound_is_refused"
+assertion_scopes = ["test_a_risk_attitude_estimated_on_its_declared_bound_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "Choices made as if risk-neutral put the risk estimate on its declared lower bound, which refuses with preference_choice_model.shape_estimate_at_bound."
 [[capability]]
 id = "preference_learning.accepted_preferences"
 status = "covered"

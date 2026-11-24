@@ -12062,6 +12062,141 @@ provider_trust = "native_computation_over_a_supplied_contract_and_source; no ext
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "preference_decision.exact"
+route = "antecedent.Study.compile_for_preference_decision"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_plan_facts.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.PreparedStudy.compile_for_preference_decision"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_plan_facts.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preference_decision.compile_preference_decision_across_studies"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_joint_law.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preference_decision.compile_preference_decision_with_shared_evidence"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_joint_law.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preference_decision.compile_preference_decision_across_prepared_studies"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_joint_law.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.joint_panel.PreparedNativeJointDesign.compile_for_preference_decision"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_design_program.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preference_decision.CompiledPreferenceDecision.execute"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_plan_facts.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preferences.Contract.compile"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_python.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.preferences.CompiledDecision.execute"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.compiled_python.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Dose-response studies of tables with known slopes, randomized designs whose arms differ by exactly 0.7 in benefit and 1.4 in harm, and graph posteriors with declared weights; the compiled decision is compared with the result-level evaluators on the same responses."
+expected_values = "Switch at a harm rate of exactly one half for the designs; plan facts equal to the declared quantities, ranges and bound identity; unidentified mass equal to the declared weight of unidentified structures; drawn cross covariance equal to the declared block."
+tolerance = "1e-12 for arm differences; 1e-9 for masses and moments; 1e-6 for drawn covariances; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "preference_decision.certified"
 route = "antecedent_design.evaluate_preference_certified"
 algorithm_provenance = ["provenance/preference_decision.certified.toml", "provenance/preference_decision.value_model.toml"]
