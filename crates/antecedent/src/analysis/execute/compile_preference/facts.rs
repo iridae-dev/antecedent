@@ -1,4 +1,5 @@
-//! What the plan states about a decision across preferences.
+//! What the plan states about a decision across preferences, or about an ordinary decision
+//! contract compiled on the same route.
 //!
 //! The decision program layer four carries names every quantity the actions read by its
 //! canonical identity. Beside it the plan states each quantity's coordinates (the schema
@@ -6,7 +7,8 @@
 //! and scale), the representation the route reads and the ones the contract accepts, the
 //! trade-off parameters with their declared ranges, when separately estimated outcomes are
 //! joined into one law, the propagation chain declared for them at compile and, when a compiled
-//! design draws a resampling law of its arm means, that law and its sampling premise.
+//! design draws a resampling law of its arm means, that law and its sampling premise. An
+//! ordinary contract has no trade-off parameters, so it states none.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,9 +16,8 @@ use std::sync::Arc;
 
 use antecedent_core::CausalSchema;
 use antecedent_design::decision_contract::SourceRepresentation;
-use antecedent_design::preference_contract::PreferenceContract;
 
-use super::{DemandedQuantity, PreferenceDemand};
+use super::{CompiledContract, DemandedQuantity, PreferenceDemand};
 use crate::planner::lowered::{
     PreferenceDesignLawFact, PreferenceJointLawFact, PreferenceParameterFact,
     PreferenceQuantityFact, PreferenceValueFacts,
@@ -38,7 +39,7 @@ pub(super) const fn representation_name(representation: SourceRepresentation) ->
 /// quantity's variable in `schema` when the source is a study, with the joint law that joins
 /// separate studies or the resampling law a compiled design draws.
 pub(super) fn value_facts(
-    contract: &PreferenceContract,
+    contract: &CompiledContract,
     demand: &PreferenceDemand,
     quantities: &[&DemandedQuantity],
     schema: Option<&CausalSchema>,
@@ -63,10 +64,8 @@ pub(super) fn value_facts(
             }
         })
         .collect::<Vec<_>>();
-    let parameters = contract
-        .model
-        .preferences
-        .parameters
+    let declared = contract.tradeoff().map_or(&[][..], |c| &c.model.preferences.parameters[..]);
+    let parameters = declared
         .iter()
         .map(|parameter| PreferenceParameterFact {
             id: Arc::from(parameter.id.as_str()),

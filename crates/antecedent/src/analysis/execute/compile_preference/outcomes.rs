@@ -17,7 +17,7 @@ use antecedent_contract::ExternalRefusal;
 use antecedent_contract::propagation_chain::ChainRefusal;
 use antecedent_core::reason_details::{decision_evaluation, native_claims};
 use antecedent_core::{ExecutionContext, SemanticDigest};
-use antecedent_design::decision_contract::SourceRepresentation;
+use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_io::distribution_artifact::DistributionArtifact;
@@ -26,8 +26,8 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use super::evidence::{CrossStudyCovariance, SharedEvidence, StudyOverlaps};
 use super::joint::PreferenceJointLaw;
 use super::{
-    BoundStudy, CompiledPreferenceDecision, PreferenceDemand, PreferenceRouteError, STAGE_COMPILE,
-    STAGE_EVALUATE, StudyEntry, compile_entries,
+    BoundStudy, CompiledContract, CompiledDecision, CompiledPreferenceDecision, PreferenceDemand,
+    PreferenceRouteError, STAGE_COMPILE, STAGE_EVALUATE, StudyEntry, compile_entries,
 };
 use crate::analysis::native_claims::{NativeDecisionInput, NativeDecisionSource};
 use crate::analysis::preference_decision::chain_joint_law;
@@ -134,7 +134,30 @@ pub fn compile_preference_decision_across_studies(
     for study in studies {
         entries.push(StudyEntry { study, causal: study.inspect()?, prepared: None });
     }
-    compile_entries(&entries, contract, (dependence, &[]), ctx)
+    compile_entries(&entries, CompiledContract::Tradeoff(contract.clone()), (dependence, &[]), ctx)
+}
+
+/// Compile an ordinary decision contract whose quantities are the outcomes of several
+/// studies, one outcome per study: the same binding, lowering, dependence checks and joining
+/// as [`compile_preference_decision_across_studies`], each action reading its own inputs
+/// through its own utility. Executed, the decision is the contract's own evaluation on the
+/// joined source, with its result and contract identity.
+///
+/// # Errors
+/// As [`compile_preference_decision_across_studies`], a quantity being named by its action
+/// and input position (`input k`); a criterion that reads structure or identified-set inputs
+/// (`decision_evaluation.structure_inputs_required`); a graph posterior among the studies.
+pub fn compile_contract_decision_across_studies(
+    studies: &[&Study],
+    contract: &DecisionContract,
+    dependence: OutcomeDependence,
+    ctx: &ExecutionContext,
+) -> Result<CompiledDecision, PreferenceRouteError> {
+    let mut entries = Vec::with_capacity(studies.len());
+    for study in studies {
+        entries.push(StudyEntry { study, causal: study.inspect()?, prepared: None });
+    }
+    compile_entries(&entries, CompiledContract::Ordinary(contract.clone()), (dependence, &[]), ctx)
 }
 
 /// Compile a decision across the preference set of `contract` whose quantities are the
@@ -164,7 +187,12 @@ pub fn compile_preference_decision_with_shared_evidence(
         entries.push(StudyEntry { study, causal: study.inspect()?, prepared: None });
     }
     let dependence = OutcomeDependence::SharedEvidence { draws: shared.draws, seed: shared.seed };
-    compile_entries(&entries, contract, (dependence, &shared.cross), ctx)
+    compile_entries(
+        &entries,
+        CompiledContract::Tradeoff(contract.clone()),
+        (dependence, &shared.cross),
+        ctx,
+    )
 }
 
 /// Compile a decision across the preference set of `contract` whose quantities are the
@@ -182,6 +210,43 @@ pub fn compile_preference_decision_with_shared_evidence(
 pub fn compile_preference_decision_across_prepared_studies(
     studies: &[&PreparedStudy],
     contract: &PreferenceContract,
+    (dependence, cross): (OutcomeDependence, &[CrossStudyCovariance]),
+    ctx: &ExecutionContext,
+) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
+    compile_prepared(
+        studies,
+        CompiledContract::Tradeoff(contract.clone()),
+        (dependence, cross),
+        ctx,
+    )
+}
+
+/// Compile an ordinary decision contract whose quantities are the outcomes of several
+/// prepared studies, one outcome per study: the same binding, demand, lowering, dependence
+/// checks and joining as [`compile_contract_decision_across_studies`] (and, with `cross`, the
+/// shared-evidence law of [`compile_preference_decision_with_shared_evidence`]), against each
+/// handle's frozen contract. A handle executes its study's single structure.
+///
+/// # Errors
+/// As [`compile_contract_decision_across_studies`] and
+/// [`compile_preference_decision_across_prepared_studies`].
+pub fn compile_contract_decision_across_prepared_studies(
+    studies: &[&PreparedStudy],
+    contract: &DecisionContract,
+    (dependence, cross): (OutcomeDependence, &[CrossStudyCovariance]),
+    ctx: &ExecutionContext,
+) -> Result<CompiledDecision, PreferenceRouteError> {
+    compile_prepared(
+        studies,
+        CompiledContract::Ordinary(contract.clone()),
+        (dependence, cross),
+        ctx,
+    )
+}
+
+fn compile_prepared(
+    studies: &[&PreparedStudy],
+    contract: CompiledContract,
     (dependence, cross): (OutcomeDependence, &[CrossStudyCovariance]),
     ctx: &ExecutionContext,
 ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {

@@ -13,6 +13,8 @@ mod mediation_mixed_graph;
 mod predictive_score_interval_facade;
 #[path = "preference_decision_class_weighting.rs"]
 mod preference_decision_class_weighting;
+#[path = "ordinary_contract_compiled.rs"]
+mod ordinary_contract_compiled;
 #[path = "preference_decision_compiled.rs"]
 mod preference_decision_compiled;
 #[path = "preference_decision_compiled_atoms.rs"]

@@ -555,16 +555,18 @@ mod compile_robust;
 pub use compile_robust::CompiledRobustDecision;
 
 mod compile_preference;
+pub(crate) use compile_preference::EvidenceRows;
 pub use compile_preference::{
-    BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
-    CompiledStructure, DemandedQuantity, DesignBootstrap, OutcomeDependence,
-    PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
-    StructureIdentification, compile_preference_decision_across_studies,
+    BoundPreferenceContract, CompiledDecision, CompiledPreferenceDecision,
+    CompiledPreferenceEvaluation, CompiledStructure, DemandedQuantity, DesignBootstrap,
+    OutcomeDependence, PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand,
+    PreferenceRouteError, StructureIdentification, compile_contract_decision_across_studies,
+    compile_preference_decision_across_studies,
 };
 pub use compile_preference::{
     CrossStudyCovariance, PreferenceJointLaw, SharedEvidence,
+    compile_contract_decision_across_prepared_studies,
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
 pub use compile_preference::{RowProvenance, UnitKey};
-pub(crate) use compile_preference::EvidenceRows;

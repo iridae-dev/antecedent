@@ -22,7 +22,7 @@ use antecedent_design::preference_evaluation::PreferenceEvaluationOptions;
 use super::{
     BoundStudy, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
     PreferenceDecisionExecution, PreferenceRouteError, executed_identity, no_response,
-    retained_response, unsupported_query,
+    ordinary_structures_not_compiled, retained_response, unsupported_query,
 };
 use crate::analysis::lowering::CompileGoal;
 use crate::analysis::preference_decision::{
@@ -263,6 +263,9 @@ impl CompiledPreferenceDecision {
         ctx: &ExecutionContext,
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
         let study = studies.first().ok_or_else(no_response)?;
+        let Some(contract) = self.contract.tradeoff() else {
+            return Err(ordinary_structures_not_compiled());
+        };
         let mut atoms = Vec::with_capacity(structures.len());
         let mut programs = Vec::with_capacity(structures.len());
         let mut executed = Vec::with_capacity(structures.len());
@@ -325,7 +328,7 @@ impl CompiledPreferenceDecision {
             let members: Vec<Option<ClassMember>> =
                 structures.iter().map(|structure| structure.member.clone()).collect();
             let evaluation = decide_on_sampled_structures(
-                &self.contract,
+                contract,
                 (&mixture, members.as_slice()),
                 (&study.schema, &study.context(ctx)),
                 measure,
@@ -345,10 +348,10 @@ impl CompiledPreferenceDecision {
             &[],
             &study.schema,
             &study.context(ctx),
-            self.contract.structural_policy,
+            contract.structural_policy,
         )?;
         let evaluation =
-            decide_across_structures_with_context(&self.contract, &claims, measure, options, ctx)?;
+            decide_across_structures_with_context(contract, &claims, measure, options, ctx)?;
         Ok(PreferenceDecisionExecution {
             evaluation: CompiledPreferenceEvaluation::Structures(evaluation),
             source: None,

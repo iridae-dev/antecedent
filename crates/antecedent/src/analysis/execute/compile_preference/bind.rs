@@ -1,9 +1,11 @@
-//! Binding a preference contract to the studies that estimate its quantities.
+//! Binding a preference contract, or an ordinary decision contract, to the studies that
+//! estimate its quantities.
 //!
 //! Every quantity an action reads must be a coordinate the study's query targets: its
 //! outcome, a regime on its dose grid, the contract's population, the static horizon, the
 //! mean on the identity scale, in the outcome's units (the schema's, when it declares one). A
-//! refusal names the action and the attribute.
+//! refusal names the action and the attribute of a value, or the position (`input k`) of an
+//! ordinary action's input.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,8 +26,8 @@ use antecedent_io::distribution_artifact::DistributionCalibration;
 
 use super::evidence::{StudyUnits, analysed_rows, study_units};
 use super::{
-    BOUND_TAG, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL, PreferenceRouteError,
-    STAGE_BIND, UNDECLARED_UNITS, at, unsupported_query,
+    BOUND_TAG, CompiledContract, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL,
+    PreferenceRouteError, STAGE_BIND, UNDECLARED_UNITS, at, unsupported_query,
 };
 use crate::analysis::contract::CausalContract;
 use crate::analysis::execute::Study;
@@ -161,20 +163,38 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
     })
 }
 
-/// Every quantity input of `contract`: `(action, attribute, quantity)`.
+/// Every quantity input of `contract`: `(action, label, quantity)`, the label naming the
+/// attribute a value reads, or the position (`input k`) of an ordinary action's input.
 pub(super) fn quantity_inputs(
-    contract: &PreferenceContract,
-) -> impl Iterator<Item = (&str, &str, &ScientificQuantity)> {
-    contract.actions.iter().flat_map(move |action| {
-        action.inputs.iter().zip(&contract.model.attributes).filter_map(
-            move |(input, attribute)| match input {
-                ActionInput::Quantity(quantity) => {
-                    Some((action.id.as_str(), attribute.id.as_str(), quantity))
-                }
-                ActionInput::Fixed { .. } => None,
-            },
-        )
-    })
+    contract: &CompiledContract,
+) -> Vec<(&str, String, &ScientificQuantity)> {
+    match contract {
+        CompiledContract::Tradeoff(contract) => contract
+            .actions
+            .iter()
+            .flat_map(|action| {
+                action.inputs.iter().zip(&contract.model.attributes).filter_map(
+                    move |(input, attribute)| match input {
+                        ActionInput::Quantity(quantity) => {
+                            Some((action.id.as_str(), attribute.id.clone(), quantity))
+                        }
+                        ActionInput::Fixed { .. } => None,
+                    },
+                )
+            })
+            .collect(),
+        CompiledContract::Ordinary(contract) => {
+            contract
+                .actions
+                .iter()
+                .flat_map(|action| {
+                    action.inputs.iter().enumerate().map(move |(k, quantity)| {
+                        (action.id.as_str(), format!("input {k}"), quantity)
+                    })
+                })
+                .collect()
+        }
+    }
 }
 
 /// The study whose outcome `quantity` names.
@@ -259,7 +279,7 @@ pub(super) fn coordinate_refusal(
 /// Bind every quantity input of `contract` to a coordinate of one study, resolving each
 /// study's outcome units (the schema's, else the units every input reading it declares).
 fn bind_studies(
-    contract: &PreferenceContract,
+    contract: &CompiledContract,
     studies: Vec<StudyQuery>,
 ) -> Result<(Vec<BoundStudy>, Vec<DemandedQuantity>), PreferenceRouteError> {
     let mut seen = HashSet::new();
@@ -277,7 +297,7 @@ fn bind_studies(
     let mut units: Vec<Option<String>> =
         studies.iter().map(|study| study.outcome_units.clone()).collect();
     for (action, attribute, quantity) in quantity_inputs(contract) {
-        let index = study_of(&studies, (action, attribute), quantity)?;
+        let index = study_of(&studies, (action, attribute.as_str()), quantity)?;
         if units[index].is_none() {
             units[index] = Some(quantity.units.clone());
         }
@@ -291,7 +311,7 @@ fn bind_studies(
                 contract_id: study.causal_target.clone(),
                 treatment_id: study.treatment,
                 outcome_id: study.outcome,
-                population_id: contract.target_population.clone(),
+                population_id: contract.target_population().to_owned(),
                 intervention_kind: "do".to_owned(),
                 horizon: 0,
                 dose_grid: study.doses,
@@ -320,14 +340,14 @@ fn bind_studies(
         let source = bound
             .iter()
             .position(|study| study.binding.outcome_id == quantity.variable_id)
-            .ok_or_else(|| coordinate_refusal(&[], (action, attribute), quantity))?;
+            .ok_or_else(|| coordinate_refusal(&[], (action, attribute.as_str()), quantity))?;
         let coordinates = &bound[source].coordinates;
         let Some(coordinate) =
             coordinates.iter().find(|c| quantity.require_same_coordinate(c).is_ok())
         else {
-            return Err(coordinate_refusal(coordinates, (action, attribute), quantity));
+            return Err(coordinate_refusal(coordinates, (action, attribute.as_str()), quantity));
         };
-        let read = (action.to_owned(), attribute.to_owned());
+        let read = (action.to_owned(), attribute);
         match demanded.iter_mut().find(|d| d.quantity == *coordinate) {
             Some(entry) => entry.read_by.push(read),
             None => demanded.push(DemandedQuantity {
@@ -349,15 +369,52 @@ pub(super) fn bound_identity(contract_identity: &str, causal: &[(String, String)
     writer.finish_hex()
 }
 
-/// A preference contract bound to the causal contracts of the studies that estimate its
-/// quantities.
+/// A contract bound to the causal contracts of the studies that estimate its quantities.
 #[derive(Clone, Debug)]
-pub struct BoundPreferenceContract {
-    pub(super) contract: PreferenceContract,
+pub(super) struct BoundContract {
+    pub(super) contract: CompiledContract,
     pub(super) contract_identity: String,
     pub(super) studies: Vec<BoundStudy>,
     pub(super) quantities: Vec<DemandedQuantity>,
     pub(super) identity: String,
+}
+
+impl BoundContract {
+    pub(super) fn bind(
+        contract: CompiledContract,
+        studies: &[(&Study, &CausalContract)],
+    ) -> Result<Self, PreferenceRouteError> {
+        let contract_identity = contract.identity()?;
+        let queries = studies
+            .iter()
+            .map(|(study, causal)| study_query(study, causal))
+            .collect::<Result<Vec<_>, _>>()?;
+        let (studies, quantities) = bind_studies(&contract, queries)?;
+        let causal: Vec<(String, String)> = studies
+            .iter()
+            .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
+            .collect();
+        let identity = bound_identity(&contract_identity, &causal);
+        Ok(Self { contract, contract_identity, studies, quantities, identity })
+    }
+
+    /// `(causal target, causal identification)` of every study, lowercase hex.
+    pub(super) fn causal_bindings(&self) -> Vec<(String, String)> {
+        self.studies
+            .iter()
+            .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
+            .collect()
+    }
+}
+
+/// A preference contract bound to the causal contracts of the studies that estimate its
+/// quantities.
+#[derive(Clone, Debug)]
+pub struct BoundPreferenceContract {
+    contract: PreferenceContract,
+    studies: Vec<BoundStudy>,
+    quantities: Vec<DemandedQuantity>,
+    identity: String,
 }
 
 impl BoundPreferenceContract {
@@ -365,18 +422,13 @@ impl BoundPreferenceContract {
         contract: &PreferenceContract,
         studies: &[(&Study, &CausalContract)],
     ) -> Result<Self, PreferenceRouteError> {
-        let contract_identity = contract.identity().map_err(|e| e.to_refusal())?;
-        let queries = studies
-            .iter()
-            .map(|(study, causal)| study_query(study, causal))
-            .collect::<Result<Vec<_>, _>>()?;
-        let (studies, quantities) = bind_studies(contract, queries)?;
-        let causal: Vec<(String, String)> = studies
-            .iter()
-            .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
-            .collect();
-        let identity = bound_identity(&contract_identity, &causal);
-        Ok(Self { contract: contract.clone(), contract_identity, studies, quantities, identity })
+        let bound = BoundContract::bind(CompiledContract::Tradeoff(contract.clone()), studies)?;
+        Ok(Self {
+            contract: contract.clone(),
+            studies: bound.studies,
+            quantities: bound.quantities,
+            identity: bound.identity,
+        })
     }
 
     /// The preference contract.

@@ -23,6 +23,10 @@
 //! program, so it enters the program's identity, and the premise enters the evaluation's
 //! assumptions.
 //!
+//! The same compile answers an ordinary decision contract, whose actions each read their own
+//! arm coordinates through their own utility
+//! ([`PreparedNativeJointDesign::compile_for_contract_decision`]).
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -31,7 +35,7 @@ use antecedent_contract::{ExternalRefusal, QuantityRole, ScientificQuantity};
 use antecedent_core::ExecutionContext;
 use antecedent_core::SemanticDigest;
 use antecedent_core::reason_details::preference_compile;
-use antecedent_design::decision_contract::SourceRepresentation;
+use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_design::preference_evaluation::PreferenceEvaluation;
@@ -52,9 +56,9 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 use super::bind::{bound_identity, coordinate_refusal, quantity_inputs};
 use super::outcomes::{OutcomeDependence, law_refusal, unpaired};
 use super::{
-    CompiledPreferenceDecision, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL,
-    PreferenceRouteError, STAGE_BIND, STAGE_COMPILE, Sources, checked_executed, decision_program,
-    demand_of,
+    CompiledContract, CompiledDecision, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
+    DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL, PreferenceRouteError, STAGE_BIND,
+    STAGE_COMPILE, Sources, checked_executed, decision_program, demand_of,
 };
 use crate::CausalError;
 use crate::analysis::joint_panel::designs::PreparedNativeJointDesign;
@@ -185,13 +189,20 @@ impl DesignSource {
     }
 
     /// Add the declared sampling premise to the assumptions the evaluation rests on.
-    pub(super) fn state_premise(&self, evaluation: &mut PreferenceEvaluation) {
+    pub(super) fn state_premise(&self, evaluation: &mut CompiledPreferenceEvaluation) {
         let Some(premise) = &self.sampling else {
             return;
         };
         let assumptions = match evaluation {
-            PreferenceEvaluation::Exact(result) => &mut result.assumptions,
-            PreferenceEvaluation::Certified(result) => &mut result.assumptions,
+            CompiledPreferenceEvaluation::Single(PreferenceEvaluation::Exact(result)) => {
+                &mut result.assumptions
+            }
+            CompiledPreferenceEvaluation::Single(PreferenceEvaluation::Certified(result)) => {
+                &mut result.assumptions
+            }
+            CompiledPreferenceEvaluation::Ordinary(result) => &mut result.assumptions,
+            CompiledPreferenceEvaluation::Structures(_)
+            | CompiledPreferenceEvaluation::Sampled(_) => return,
         };
         assumptions.push(premise.clone());
         assumptions.sort();
@@ -401,7 +412,7 @@ fn design_coordinates(
 
 /// Bind every quantity input to an arm coordinate of the design.
 fn bind_design(
-    contract: &PreferenceContract,
+    contract: &CompiledContract,
     coordinates: &[ScientificQuantity],
 ) -> Result<Vec<DemandedQuantity>, PreferenceRouteError> {
     let mut demanded: Vec<DemandedQuantity> = Vec::new();
@@ -409,9 +420,9 @@ fn bind_design(
         let Some(coordinate) =
             coordinates.iter().find(|c| quantity.require_same_coordinate(c).is_ok())
         else {
-            return Err(coordinate_refusal(coordinates, (action, attribute), quantity));
+            return Err(coordinate_refusal(coordinates, (action, attribute.as_str()), quantity));
         };
-        let read = (action.to_owned(), attribute.to_owned());
+        let read = (action.to_owned(), attribute);
         match demanded.iter_mut().find(|d| d.quantity == *coordinate) {
             Some(entry) => entry.read_by.push(read),
             None => demanded.push(DemandedQuantity {
@@ -571,14 +582,42 @@ impl PreparedNativeJointDesign {
         bootstrap: Option<DesignBootstrap>,
         ctx: &ExecutionContext,
     ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
+        self.compile_design_decision(CompiledContract::Tradeoff(contract.clone()), bootstrap, ctx)
+    }
+
+    /// Compile an ordinary decision contract whose quantities are the arm means of this
+    /// compiled design's outcomes: the same binding, carrier check and lowering into layer
+    /// four as [`Self::compile_for_preference_decision`], each action reading its own arm
+    /// coordinates through its own utility. Executed, the decision is the contract's own
+    /// evaluation on the source the design supplies, with its result and contract identity.
+    ///
+    /// # Errors
+    /// As [`Self::compile_for_preference_decision`], a quantity being named by its action and
+    /// input position (`input k`); a criterion that reads structure or identified-set inputs
+    /// (`decision_evaluation.structure_inputs_required`).
+    pub fn compile_for_contract_decision(
+        &self,
+        contract: &DecisionContract,
+        bootstrap: Option<DesignBootstrap>,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledDecision, PreferenceRouteError> {
+        self.compile_design_decision(CompiledContract::Ordinary(contract.clone()), bootstrap, ctx)
+    }
+
+    fn compile_design_decision(
+        &self,
+        contract: CompiledContract,
+        bootstrap: Option<DesignBootstrap>,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: super::CANCELLED_STAGE }.into());
         }
-        let contract_identity = contract.identity().map_err(|e| e.to_refusal())?;
+        let contract_identity = contract.identity()?;
         let (coordinates, kind) = design_coordinates(self)?;
-        let quantities = bind_design(contract, &coordinates)?;
-        let (mut demand, _) = demand_of(contract, quantities, false)?;
+        let quantities = bind_design(&contract, &coordinates)?;
+        let (mut demand, _) = demand_of(&contract, quantities, false)?;
         let (inference, carrier, design_law) =
             design_inference(self, kind, demand.representation, bootstrap)?;
         let sampling = design_law.as_ref().and_then(|law| law.sampling().map(str::to_owned));
@@ -586,8 +625,8 @@ impl PreparedNativeJointDesign {
         let causal = vec![(self.program_identity().to_hex(), self.dependency().to_hex())];
         let identity = bound_identity(&contract_identity, &causal);
         let read: Vec<&DemandedQuantity> = demand.quantities.iter().collect();
-        let stated = super::facts::value_facts(contract, &demand, &read, None, None, design_law);
-        let program = decision_program(contract, &identity, stated, (&demand, carrier));
+        let stated = super::facts::value_facts(&contract, &demand, &read, None, None, design_law);
+        let program = decision_program(&contract, &identity, stated, (&demand, carrier));
         require_design_carrier(self, &program, &inference)?;
         let lowered = self.lowered().with_decision(program).ok_or_else(|| {
             PreferenceRouteError::from(
@@ -600,7 +639,7 @@ impl PreparedNativeJointDesign {
             )
         })?;
         Ok(CompiledPreferenceDecision {
-            contract: contract.clone(),
+            contract,
             contract_identity,
             demand,
             identity,

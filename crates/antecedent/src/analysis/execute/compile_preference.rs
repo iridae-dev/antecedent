@@ -39,6 +39,17 @@
 //! of their own structure, equivalence-class atoms per member, weighed by a declared class prior when one is given
 //! (see `atoms`).
 //!
+//! An ordinary [`DecisionContract`], each of whose actions reads its own quantities through
+//! its own utility, compiles on the same route ([`Study::compile_for_contract_decision`], the
+//! same on [`PreparedStudy`], [`compile_contract_decision_across_studies`] and
+//! [`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_contract_decision`]):
+//! the same binding (a refusal names the action and the input position), demand, lowering and
+//! checks, with the representation the contract's own source requirement accepts. Executed, it
+//! is the contract's own evaluation ([`evaluate_contract`] on aligned joint draws,
+//! [`evaluate_contract_on_means`] on means), so the result and its contract identity are the
+//! ones the contract gives on the same source. Over the structures of a graph posterior an
+//! ordinary contract is refused at compile (`preference_compile.ordinary_structures_not_compiled`).
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod atoms;
@@ -54,9 +65,14 @@ use std::fmt;
 use std::sync::Arc;
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
-use antecedent_core::reason_details::native_claims;
+use antecedent_core::reason_details::{native_claims, preference_compile};
 use antecedent_core::{CanonicalWriter, ExecutionContext, ResponseIdentification, SemanticDigest};
-use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+use antecedent_design::decision_contract::{
+    DecisionContract, HardConstraint, SourceRepresentation, SourceRequirement, StructuralPolicy,
+};
+use antecedent_design::decision_eval::{
+    DecisionEvalError, DecisionResult, evaluate_contract, evaluate_contract_on_means,
+};
 use antecedent_design::preference_contract::PreferenceContract;
 use antecedent_design::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use antecedent_design::preference_evaluation::{
@@ -69,8 +85,12 @@ pub use design::DesignBootstrap;
 pub(crate) use evidence::EvidenceRows;
 pub use evidence::{CrossStudyCovariance, RowProvenance, SharedEvidence, UnitKey};
 pub use joint::PreferenceJointLaw;
-pub use outcomes::{OutcomeDependence, compile_preference_decision_across_studies};
 pub use outcomes::{
+    OutcomeDependence, compile_contract_decision_across_studies,
+    compile_preference_decision_across_studies,
+};
+pub use outcomes::{
+    compile_contract_decision_across_prepared_studies,
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
@@ -88,7 +108,7 @@ use crate::planner::PlanView;
 use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceValueFacts};
 use crate::result::{StructuralResponseMixture, StructuralWeightBasis};
 use crate::{CausalError, PreparedStudy};
-use bind::BoundStudy;
+use bind::{BoundContract, BoundStudy};
 use structures::compile_structure;
 
 const STAGE_BIND: &str = "bind";
@@ -360,6 +380,136 @@ fn not_identified(quantities: &[DemandedQuantity], mass: f64, why: &str) -> Pref
     .into()
 }
 
+/// The contract a compiled decision answers.
+#[derive(Clone, Debug)]
+pub(super) enum CompiledContract {
+    /// An ordinary decision contract: each action's own utility over its own inputs, decided
+    /// as declared.
+    Ordinary(DecisionContract),
+    /// A value over outcome attributes whose trade-off parameters range over a declared or
+    /// learned set, decided across that set.
+    Tradeoff(PreferenceContract),
+}
+
+impl CompiledContract {
+    /// Canonical identity of the contract.
+    fn identity(&self) -> Result<String, PreferenceRouteError> {
+        match self {
+            Self::Ordinary(contract) => {
+                contract.identity().map_err(|e| PreferenceRouteError::from(e.to_refusal()))
+            }
+            Self::Tradeoff(contract) => {
+                contract.identity().map_err(|e| PreferenceRouteError::from(e.to_refusal()))
+            }
+        }
+    }
+
+    /// The trade-off contract, when the contract is one.
+    const fn tradeoff(&self) -> Option<&PreferenceContract> {
+        match self {
+            Self::Tradeoff(contract) => Some(contract),
+            Self::Ordinary(_) => None,
+        }
+    }
+
+    /// The ordinary contract, when the contract is one.
+    const fn ordinary(&self) -> Option<&DecisionContract> {
+        match self {
+            Self::Ordinary(contract) => Some(contract),
+            Self::Tradeoff(_) => None,
+        }
+    }
+
+    fn target_population(&self) -> &str {
+        match self {
+            Self::Ordinary(contract) => &contract.target_population,
+            Self::Tradeoff(contract) => &contract.target_population,
+        }
+    }
+
+    const fn structural_policy(&self) -> StructuralPolicy {
+        match self {
+            Self::Ordinary(contract) => contract.structural_policy,
+            Self::Tradeoff(contract) => contract.structural_policy,
+        }
+    }
+
+    fn actions(&self) -> usize {
+        match self {
+            Self::Ordinary(contract) => contract.actions.len(),
+            Self::Tradeoff(contract) => contract.actions.len(),
+        }
+    }
+
+    fn constraints(&self) -> &[HardConstraint] {
+        match self {
+            Self::Ordinary(contract) => &contract.constraints,
+            Self::Tradeoff(contract) => &contract.constraints,
+        }
+    }
+
+    fn utility_units(&self) -> &str {
+        match self {
+            Self::Ordinary(contract) => &contract.utility_units,
+            Self::Tradeoff(contract) => &contract.model.utility_units,
+        }
+    }
+}
+
+/// The refusal of an ordinary contract over the structures of a graph posterior.
+fn ordinary_structures_not_compiled() -> PreferenceRouteError {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("route_not_supported"),
+        STAGE_COMPILE,
+        preference_compile::ORDINARY_STRUCTURES_NOT_COMPILED,
+    )
+    .with_supplied("an ordinary decision contract and a study over a graph posterior")
+    .with_expected("a study of one structure, or a contract that states its trade-offs as a value")
+    .with_remedy(
+        "compile the ordinary contract with a study of one structure, or decide across the \
+         structures' responses with the structural decision evaluators; nothing was fitted",
+    )
+    .into()
+}
+
+/// The refusal of a measure over a preference set read by an ordinary contract, which
+/// declares no trade-off parameters.
+fn measure_not_read() -> PreferenceRouteError {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("option_not_applicable"),
+        STAGE_EVALUATE,
+        preference_compile::ORDINARY_MEASURE_NOT_READ,
+    )
+    .with_supplied("a measure over a preference set")
+    .with_expected("no measure: an ordinary contract declares no trade-off parameters")
+    .with_remedy("execute the ordinary contract without a measure; nothing was fitted")
+    .into()
+}
+
+/// The source an ordinary contract needs, refusing a criterion that reads structure or
+/// identified-set inputs, which one compiled source does not supply.
+fn ordinary_requirement(
+    contract: &DecisionContract,
+) -> Result<SourceRequirement, PreferenceRouteError> {
+    let structures = || {
+        PreferenceRouteError::from(
+            DecisionEvalError::StructureInputsRequired(
+                "the criterion reads structure or identified-set inputs, which one compiled \
+                 source does not supply",
+            )
+            .to_refusal(),
+        )
+    };
+    let requirement = contract
+        .source_requirement()
+        .map_err(|e| PreferenceRouteError::from(e.to_refusal()))?
+        .ok_or_else(structures)?;
+    if requirement.check(&[SourceRepresentation::Mean, SourceRepresentation::JointDraws]).is_err() {
+        return Err(structures());
+    }
+    Ok(requirement)
+}
+
 /// One scientific quantity the decision reads.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DemandedQuantity {
@@ -368,7 +518,8 @@ pub struct DemandedQuantity {
     /// Index of the source that targets it: the study in declaration order, or zero for a
     /// single study or design.
     pub source: usize,
-    /// `(action, attribute)` of every input that reads it.
+    /// `(action, attribute)` of every input that reads it; for an ordinary contract the
+    /// second element is the input's position, `input k`.
     pub read_by: Vec<(String, String)>,
 }
 
@@ -381,8 +532,9 @@ pub struct DemandedQuantity {
 pub struct PreferenceDemand {
     /// The quantities the actions read.
     pub quantities: Vec<DemandedQuantity>,
-    /// The route that answers the contract, with its reason.
-    pub route: RouteChoice,
+    /// The route that answers the contract across its preference set, with its reason;
+    /// `None` for an ordinary contract, which is evaluated as declared.
+    pub route: Option<RouteChoice>,
     /// The representation the contract needs of an analysis
     /// ([`crate::analysis::preference_decision::source_requirement`]).
     pub requirement: SourceRequirement,
@@ -408,11 +560,11 @@ enum Sources {
     Design(Box<design::DesignSource>),
 }
 
-/// A decision across a range of preferences compiled with the studies that estimate its
-/// quantities.
+/// A decision across a range of preferences, or an ordinary decision contract, compiled with
+/// the studies that estimate its quantities.
 #[derive(Clone, Debug)]
 pub struct CompiledPreferenceDecision {
-    contract: PreferenceContract,
+    contract: CompiledContract,
     contract_identity: String,
     demand: PreferenceDemand,
     identity: String,
@@ -425,13 +577,21 @@ pub struct CompiledPreferenceDecision {
     joint: Option<PreferenceJointLaw>,
 }
 
+/// A compiled decision: a decision across a range of preferences or an ordinary decision
+/// contract, compiled with the studies that estimate its quantities.
+pub type CompiledDecision = CompiledPreferenceDecision;
+
 fn means_requirement(representation: SourceRepresentation) -> SourceRequirement {
     SourceRequirement { any_of: vec![representation], sampled_needs_error_receipt: false }
 }
 
 /// The decision program layer four carries for one study or design.
+///
+/// The utility is the value form that names every quantity the actions read, for an ordinary
+/// contract as for a trade-off contract (an ordinary contract states no trade-off parameters),
+/// and whether their means answer the decision.
 fn decision_program(
-    contract: &PreferenceContract,
+    contract: &CompiledContract,
     identity: &str,
     stated: PreferenceValueFacts,
     (demand, carrier): (&PreferenceDemand, CarrierDemand),
@@ -444,14 +604,14 @@ fn decision_program(
             demand.representation == SourceRepresentation::Mean,
             stated,
         ),
-        actions: contract.actions.len(),
-        constraints: contract.constraints.len(),
+        actions: contract.actions(),
+        constraints: contract.constraints().len(),
         chance_threshold: contract
-            .constraints
+            .constraints()
             .iter()
             .map(|constraint| constraint.min_probability)
             .fold(0.0_f64, f64::max),
-        utility_unit: Some(Arc::from(contract.model.utility_units.as_str())),
+        utility_unit: Some(Arc::from(contract.utility_units())),
         contract_identity: Some(Arc::from(identity)),
         information_value: None,
         scenario_source: None,
@@ -470,12 +630,17 @@ pub(super) struct StudyEntry<'a> {
 /// means when the contract's requirement accepts them and no structure needs a law, aligned
 /// joint draws of a posterior otherwise.
 fn demand_of(
-    contract: &PreferenceContract,
+    contract: &CompiledContract,
     quantities: Vec<DemandedQuantity>,
     draws_required: bool,
 ) -> Result<(PreferenceDemand, CarrierDemand), PreferenceRouteError> {
-    let route = preference_route(contract).map_err(|e| e.to_refusal())?;
-    let requirement = crate::analysis::preference_decision::source_requirement(contract)?;
+    let (route, requirement) = match contract {
+        CompiledContract::Tradeoff(contract) => (
+            Some(preference_route(contract).map_err(|e| e.to_refusal())?),
+            crate::analysis::preference_decision::source_requirement(contract)?,
+        ),
+        CompiledContract::Ordinary(contract) => (None, ordinary_requirement(contract)?),
+    };
     let means = !draws_required && requirement.check(&[SourceRepresentation::Mean]).is_ok();
     let (representation, carrier) = if means {
         (SourceRepresentation::Mean, CarrierDemand::Mean)
@@ -493,7 +658,7 @@ fn demand_of(
 /// every structure of every study.
 pub(super) fn compile_entries(
     entries: &[StudyEntry<'_>],
-    contract: &PreferenceContract,
+    contract: CompiledContract,
     (dependence, shared): (OutcomeDependence, &[CrossStudyCovariance]),
     ctx: &ExecutionContext,
 ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
@@ -503,10 +668,14 @@ pub(super) fn compile_entries(
     }
     let pairs: Vec<(&Study, &CausalContract)> =
         entries.iter().map(|entry| (entry.study, &entry.causal)).collect();
-    let bound = BoundPreferenceContract::bind(contract, &pairs)?;
+    let bound = BoundContract::bind(contract, &pairs)?;
+    let contract = &bound.contract;
     let posterior = entries.iter().any(|entry| entry.study.graph_posterior.is_some());
     if posterior && entries.len() > 1 {
         return Err(unsupported_query("a graph posterior among several separately fitted studies"));
+    }
+    if posterior && contract.ordinary().is_some() {
+        return Err(ordinary_structures_not_compiled());
     }
     let (demand, carrier) = demand_of(contract, bound.quantities.clone(), posterior)?;
     let overlaps = outcomes::check_dependence(&bound.studies, &demand, (dependence, shared), ctx)?;
@@ -538,7 +707,7 @@ pub(super) fn compile_entries(
                 entry.study,
                 &goal,
                 source,
-                contract.structural_policy,
+                contract.structural_policy(),
                 ctx,
             )?;
             structures.extend(compiled);
@@ -617,7 +786,45 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledPreferenceDecision, PreferenceRouteError> {
         let entry = StudyEntry { study: self, causal: self.inspect()?, prepared: None };
-        compile_entries(&[entry], contract, (OutcomeDependence::Undeclared, &[]), ctx)
+        compile_entries(
+            &[entry],
+            CompiledContract::Tradeoff(contract.clone()),
+            (OutcomeDependence::Undeclared, &[]),
+            ctx,
+        )
+    }
+
+    /// Compile an ordinary decision contract with this study: each action reads its own
+    /// quantities through its own utility, and every quantity must be a coordinate of the
+    /// study's mean response curve.
+    ///
+    /// The same binding, demand, lowering and checks as
+    /// [`Self::compile_for_preference_decision`]: the plan view shows the carrier and the
+    /// quantities before anything is fitted, and the representation is the one the
+    /// contract's own source requirement accepts (means when they answer it, else aligned
+    /// joint draws). Executed, the decision is the contract's own evaluation on that source,
+    /// with its result and contract identity. Nothing is fitted.
+    ///
+    /// # Errors
+    /// Every binding refusal of [`Self::compile_for_preference_decision`], a quantity being
+    /// named by its action and input position (`input k`); an invalid contract; a criterion
+    /// that reads structure or identified-set inputs
+    /// (`decision_evaluation.structure_inputs_required`); a study over a graph posterior
+    /// (`preference_compile.ordinary_structures_not_compiled`); a carrier the route's
+    /// statistical realization cannot publish; a quantity not identified under the study's
+    /// structure; and every refusal of compile and preparation.
+    pub fn compile_for_contract_decision(
+        &self,
+        contract: &DecisionContract,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledDecision, PreferenceRouteError> {
+        let entry = StudyEntry { study: self, causal: self.inspect()?, prepared: None };
+        compile_entries(
+            &[entry],
+            CompiledContract::Ordinary(contract.clone()),
+            (OutcomeDependence::Undeclared, &[]),
+            ctx,
+        )
     }
 }
 
@@ -638,7 +845,34 @@ impl PreparedStudy {
         let study = self.study();
         let prepared = study.graph_posterior.is_none().then_some(self);
         let entry = StudyEntry { study, causal: self.contract()?, prepared };
-        compile_entries(&[entry], contract, (OutcomeDependence::Undeclared, &[]), ctx)
+        compile_entries(
+            &[entry],
+            CompiledContract::Tradeoff(contract.clone()),
+            (OutcomeDependence::Undeclared, &[]),
+            ctx,
+        )
+    }
+
+    /// Compile an ordinary decision contract with this prepared study: the same binding,
+    /// demand, lowering and checks as [`Study::compile_for_contract_decision`], against the
+    /// handle's frozen contract. The handle executes the study's single structure.
+    ///
+    /// # Errors
+    /// As [`Study::compile_for_contract_decision`].
+    pub fn compile_for_contract_decision(
+        &self,
+        contract: &DecisionContract,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledDecision, PreferenceRouteError> {
+        let study = self.study();
+        let prepared = study.graph_posterior.is_none().then_some(self);
+        let entry = StudyEntry { study, causal: self.contract()?, prepared };
+        compile_entries(
+            &[entry],
+            CompiledContract::Ordinary(contract.clone()),
+            (OutcomeDependence::Undeclared, &[]),
+            ctx,
+        )
     }
 }
 
@@ -656,6 +890,8 @@ pub enum CompiledPreferenceEvaluation {
     /// Across structures some of whose equivalence classes were sampled under a declared
     /// uniform measure: what a sample supports, never a verdict over every member.
     Sampled(Box<crate::analysis::preference_decision::SampledStructuralEvaluation>),
+    /// An ordinary decision contract's own evaluation on one aligned source.
+    Ordinary(Box<DecisionResult>),
 }
 
 impl CompiledPreferenceEvaluation {
@@ -664,7 +900,7 @@ impl CompiledPreferenceEvaluation {
     pub const fn single(&self) -> Option<&PreferenceEvaluation> {
         match self {
             Self::Single(evaluation) => Some(evaluation),
-            Self::Structures(_) | Self::Sampled(_) => None,
+            Self::Structures(_) | Self::Sampled(_) | Self::Ordinary(_) => None,
         }
     }
 
@@ -673,7 +909,7 @@ impl CompiledPreferenceEvaluation {
     pub const fn structures(&self) -> Option<&StructuralPreferenceEvaluation> {
         match self {
             Self::Structures(evaluation) => Some(evaluation),
-            Self::Single(_) | Self::Sampled(_) => None,
+            Self::Single(_) | Self::Sampled(_) | Self::Ordinary(_) => None,
         }
     }
 
@@ -684,7 +920,16 @@ impl CompiledPreferenceEvaluation {
     ) -> Option<&crate::analysis::preference_decision::SampledStructuralEvaluation> {
         match self {
             Self::Sampled(evaluation) => Some(evaluation),
-            Self::Single(_) | Self::Structures(_) => None,
+            Self::Single(_) | Self::Structures(_) | Self::Ordinary(_) => None,
+        }
+    }
+
+    /// The ordinary contract's result, when the decision compiled an ordinary contract.
+    #[must_use]
+    pub fn ordinary(&self) -> Option<&DecisionResult> {
+        match self {
+            Self::Ordinary(result) => Some(result),
+            Self::Single(_) | Self::Structures(_) | Self::Sampled(_) => None,
         }
     }
 }
@@ -692,9 +937,9 @@ impl CompiledPreferenceEvaluation {
 /// What ties an executed decision to what was compiled.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreferenceDecisionReceipt {
-    /// Identity of the preference contract bound to the studies' causal contracts.
+    /// Identity of the contract bound to the studies' causal contracts.
     pub bound_identity: String,
-    /// Identity of the preference contract.
+    /// Identity of the preference contract, or of the ordinary decision contract.
     pub contract_identity: String,
     /// `(causal target, causal identification)` of every study, or the program and
     /// dependency identities of a compiled design.
@@ -713,7 +958,8 @@ pub struct PreferenceDecisionReceipt {
     /// Identity of the measure over the preference set the execution read; `None` without
     /// one.
     pub measure: Option<String>,
-    /// Identity of the options of the exact and certified routes the execution read.
+    /// Identity of the options of the exact and certified routes the execution was given;
+    /// an ordinary contract reads none of them.
     pub options: String,
 }
 
@@ -740,10 +986,22 @@ fn no_response() -> PreferenceRouteError {
 }
 
 impl CompiledPreferenceDecision {
-    /// The preference contract.
+    /// The preference contract; `None` for an ordinary decision contract.
     #[must_use]
-    pub const fn contract(&self) -> &PreferenceContract {
-        &self.contract
+    pub const fn contract(&self) -> Option<&PreferenceContract> {
+        self.contract.tradeoff()
+    }
+
+    /// The ordinary decision contract; `None` for a preference contract.
+    #[must_use]
+    pub const fn decision_contract(&self) -> Option<&DecisionContract> {
+        self.contract.ordinary()
+    }
+
+    /// Identity of the preference contract, or of the ordinary decision contract.
+    #[must_use]
+    pub fn contract_identity(&self) -> &str {
+        &self.contract_identity
     }
 
     /// What the decision asks of the studies.
@@ -861,13 +1119,17 @@ impl CompiledPreferenceDecision {
     /// structures of a graph posterior) on what it produced.
     ///
     /// `measure` is the measure over the preference set a weighted policy reads; `options`
-    /// tune the exact and certified routes.
+    /// tune the exact and certified routes. An ordinary contract is the contract's own
+    /// evaluation on the source ([`CompiledPreferenceEvaluation::Ordinary`]): it reads no
+    /// measure and none of the options.
     ///
     /// # Errors
     /// Cancellation and resource refusals; an estimation failure of a single structure; a
     /// response the claim conversion refuses (no point identification, missing support,
     /// no supported coordinate); a failed bootstrap slot of a design; a refusal of the chain
-    /// that joins separately estimated outcomes; and every refusal of the evaluators.
+    /// that joins separately estimated outcomes; a measure given with an ordinary contract
+    /// (`preference_compile.ordinary_measure_not_read`), before anything is fitted; and every
+    /// refusal of the evaluators.
     pub fn execute(
         &self,
         measure: Option<&PreferenceMeasure>,
@@ -876,6 +1138,9 @@ impl CompiledPreferenceDecision {
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
+        }
+        if measure.is_some() && self.contract.ordinary().is_some() {
+            return Err(measure_not_read());
         }
         match &self.sources {
             Sources::Studies { studies, structures, posterior: true, basis } => self
@@ -892,11 +1157,10 @@ impl CompiledPreferenceDecision {
             Sources::Design(design) => {
                 let (source, programs, executed) =
                     design.execute(self.demand.representation, ctx)?;
-                let mut evaluation =
-                    decide_with_context(&self.contract, &source, measure, options, ctx)?;
+                let mut evaluation = self.decide_source(&source, measure, options, ctx)?;
                 design.state_premise(&mut evaluation);
                 Ok(PreferenceDecisionExecution {
-                    evaluation: CompiledPreferenceEvaluation::Single(evaluation),
+                    evaluation,
                     source: Some(source),
                     inputs: Vec::new(),
                     mixture: None,
@@ -945,14 +1209,45 @@ impl CompiledPreferenceDecision {
             }
             source
         };
-        let evaluation = decide_with_context(&self.contract, &source, measure, options, ctx)?;
+        let evaluation = self.decide_source(&source, measure, options, ctx)?;
         Ok(PreferenceDecisionExecution {
-            evaluation: CompiledPreferenceEvaluation::Single(evaluation),
+            evaluation,
             source: Some(source),
             inputs,
             mixture: None,
             receipt: self.receipt((programs, executed), measure, &options),
         })
+    }
+
+    /// Decide on one aligned source: across the preference set for a trade-off contract, by
+    /// the contract's own evaluation for an ordinary contract.
+    fn decide_source(
+        &self,
+        source: &NativeDecisionSource,
+        measure: Option<&PreferenceMeasure>,
+        options: PreferenceEvaluationOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledPreferenceEvaluation, PreferenceRouteError> {
+        match &self.contract {
+            CompiledContract::Tradeoff(contract) => Ok(CompiledPreferenceEvaluation::Single(
+                decide_with_context(contract, source, measure, options, ctx)?,
+            )),
+            CompiledContract::Ordinary(contract) => {
+                // The ordinary evaluators read no execution context, so cancellation is
+                // checked once before they run.
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
+                }
+                let result = match source {
+                    NativeDecisionSource::Mean(means) => {
+                        evaluate_contract_on_means(contract, means)
+                    }
+                    NativeDecisionSource::JointLaw(law) => evaluate_contract(contract, law),
+                }
+                .map_err(|e| PreferenceRouteError::from(e.to_refusal()))?;
+                Ok(CompiledPreferenceEvaluation::Ordinary(Box::new(result)))
+            }
+        }
     }
 }
 

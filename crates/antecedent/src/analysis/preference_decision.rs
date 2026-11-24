@@ -100,8 +100,9 @@ pub use antecedent_design::choice_record::{
     choice_features_at,
 };
 pub use antecedent_design::decision_contract::{
-    ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy,
+    ActionKind, DecisionContract, DecisionCriterion, HardConstraint, StructuralPolicy,
 };
+pub use antecedent_design::decision_standing::{DecisionOutcome, Standing};
 pub use antecedent_design::preference_artifact::{
     AcceptedPreferencesArtifact, PreferenceArtifactError, PreferenceDecisionArtifact,
     REPLAY_RELATIVE_TOLERANCE,
@@ -155,13 +156,15 @@ pub use antecedent_stats::ShapeSearchOptions;
 pub use antecedent_stats::binomial_interval::{clopper_pearson, clopper_pearson_upper};
 
 pub use super::execute::{
-    BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
-    CompiledStructure, DemandedQuantity, DesignBootstrap, OutcomeDependence,
-    PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand, PreferenceRouteError,
-    StructureIdentification, compile_preference_decision_across_studies,
+    BoundPreferenceContract, CompiledDecision, CompiledPreferenceDecision,
+    CompiledPreferenceEvaluation, CompiledStructure, DemandedQuantity, DesignBootstrap,
+    OutcomeDependence, PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand,
+    PreferenceRouteError, StructureIdentification, compile_contract_decision_across_studies,
+    compile_preference_decision_across_studies,
 };
 pub use super::execute::{
     CrossStudyCovariance, PreferenceJointLaw, RowProvenance, SharedEvidence, UnitKey,
+    compile_contract_decision_across_prepared_studies,
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_with_shared_evidence,
 };
@@ -760,6 +763,55 @@ impl SampledStructuralEvaluation {
                 format!("{scope}. No action is chosen; per-structure results are reported.")
             }
         }
+    }
+}
+
+impl DecisionOutcome for SampledStructuralEvaluation {
+    fn choice(&self) -> Option<&str> {
+        match &self.verdict {
+            SampledStructuralVerdict::OnSampledMeasure {
+                best_on_sampled_measure: Some(action),
+                ..
+            }
+            | SampledStructuralVerdict::PerSampledMember {
+                best_on_every_sampled_member: Some(action),
+                ..
+            } => Some(action.as_str()),
+            SampledStructuralVerdict::OnSampledMeasure {
+                best_on_sampled_measure: None, ..
+            }
+            | SampledStructuralVerdict::PerSampledMember {
+                best_on_every_sampled_member: None,
+                ..
+            }
+            | SampledStructuralVerdict::ReportOnly => None,
+        }
+    }
+
+    /// An action chosen from sampled members is an estimate; with none chosen, the sampled
+    /// measure leaves the choice undetermined and the sampled members depend on structure.
+    fn standing(&self) -> Standing {
+        match &self.verdict {
+            SampledStructuralVerdict::OnSampledMeasure {
+                best_on_sampled_measure: Some(_), ..
+            }
+            | SampledStructuralVerdict::PerSampledMember {
+                best_on_every_sampled_member: Some(_),
+                ..
+            } => Standing::SampledEstimate,
+            SampledStructuralVerdict::OnSampledMeasure {
+                best_on_sampled_measure: None, ..
+            } => Standing::Undetermined,
+            SampledStructuralVerdict::PerSampledMember {
+                best_on_every_sampled_member: None,
+                ..
+            } => Standing::Depends,
+            SampledStructuralVerdict::ReportOnly => Standing::ReportOnly,
+        }
+    }
+
+    fn statement(&self) -> String {
+        Self::statement(self)
     }
 }
 

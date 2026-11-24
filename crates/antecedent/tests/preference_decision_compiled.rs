@@ -179,7 +179,7 @@ fn the_plan_names_the_decisions_quantities_and_carrier_before_anything_is_fitted
         study.compile_for_preference_decision(&contract(priced(0.2, 1.0)), &ctx).unwrap();
 
     let demand = compiled.demand();
-    assert_eq!(demand.route.route, PreferenceRoute::Exact);
+    assert_eq!(demand.route.as_ref().unwrap().route, PreferenceRoute::Exact);
     assert_eq!(demand.representation, SourceRepresentation::Mean);
     assert_eq!(demand.carrier, Some(CarrierDemand::Mean));
     assert_eq!(demand.quantities.len(), 2);
