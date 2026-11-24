@@ -200,3 +200,41 @@ def test_a_receipt_that_does_not_replay_is_the_same_refusal_through_the_program(
         )
     assert type(compiled.value) is type(direct.value)
     assert str(compiled.value) == str(direct.value)
+
+
+POPULATION_CONTRACT = sd.StaticContract(variables=("x", "y", "z"), alpha=0.001, fdr=None, seed=5)
+
+
+def _collider(seed: int, n: int = N) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    z = rng.normal(size=n)
+    y = 0.8 * x + 0.8 * z + 0.5 * rng.normal(size=n)
+    return {"x": x, "y": y, "z": z}
+
+
+def test_the_compiled_per_population_run_equals_the_driver_run() -> None:
+    populations = {"south": _collider(2), "north": _chain(1)}
+    direct = sd.PerPopulationDiscovery().run(POPULATION_CONTRACT, populations)
+    driver = sd.PerPopulationDiscovery()
+    compiled = driver.compiled_run(POPULATION_CONTRACT, populations)
+    assert compiled == direct
+    assert driver.report is not None and driver.report.identity == direct.identity
+    # The hand oracle: both edges in both populations, marked differently; the collider
+    # compels x -> y <- z.
+    assert len(compiled.differing_edges) == 2
+    assert compiled.edges[0].marks["south"] == ("tail", "arrow")
+    assert compiled.edges[1].marks["south"] == ("arrow", "tail")
+    assert driver.outcome("north") is not None
+
+
+def test_a_pooled_request_is_the_same_refusal_through_the_compiled_program() -> None:
+    rows = _chain(1)
+    driver = sd.PerPopulationDiscovery()
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as direct:
+        sd.PerPopulationDiscovery().run(POPULATION_CONTRACT, {"north": rows, "south": rows})
+    with pytest.raises(sd.SelectiveDiscoveryRefusal) as compiled:
+        driver.compiled_run(POPULATION_CONTRACT, {"north": rows, "south": rows})
+    assert compiled.value.detail == direct.value.detail
+    assert compiled.value.detail == "selective_discovery.pooled_population_data"
+    assert driver.report is None
