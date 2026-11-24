@@ -915,8 +915,8 @@ item = "impl:TemporalPolicy#0/fn:dynamic#0"
 feeds = "TemporalPolicy::Dynamic active_at written in stored order by CanonicalEncode for TemporalPolicy"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_temporal_policy_dynamic", "adversarial:identity_sites.core.dynamic_schedule"]
-note = "The public Dynamic variant can be built unsorted, bypassing the constructor; is_active_at binary-searches, so an unsorted schedule misbehaves and must not share the canonical schedule's identity. The fix is a validate() refusal of an unsorted/repeated active_at, which needs a new InterventionError variant (error enum: needs approval); not made."
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_temporal_policy_dynamic", "adversarial:identity_sites.core.dynamic_schedule", "unit:crates/antecedent-core/src/intervention.rs::hand_built_dynamic_schedule_must_be_strictly_ascending"]
+note = "Set of offsets: TemporalPolicy::dynamic sorts and deduplicates, and validate() refuses a hand-built Dynamic whose active_at is not strictly ascending (InterventionError::UnorderedDynamicSchedule), so every validated schedule is in canonical form before it is encoded or binary-searched."
 [[sites.collections]]
 name = "active_at"
 class = "set"

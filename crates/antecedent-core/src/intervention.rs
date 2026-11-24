@@ -565,6 +565,9 @@ impl TemporalPolicy {
                 if active_at.is_empty() {
                     return Err(InterventionError::EmptyDynamicSchedule);
                 }
+                if active_at.windows(2).any(|pair| pair[0] >= pair[1]) {
+                    return Err(InterventionError::UnorderedDynamicSchedule);
+                }
                 Ok(())
             }
         }
@@ -1161,6 +1164,12 @@ pub enum InterventionError {
     /// An initial-state law was not named.
     #[error("initial-state law name is empty")]
     EmptyInitialLaw,
+    /// A dynamic schedule's active offsets are not strictly ascending (unsorted or repeated).
+    /// [`TemporalPolicy::dynamic`] builds them sorted and distinct; a hand-built
+    /// [`TemporalPolicy::Dynamic`] must be in that form, because activity is looked up by
+    /// binary search and the identity writes the offsets as given.
+    #[error("TemporalPolicy::Dynamic active_at must be strictly ascending")]
+    UnorderedDynamicSchedule,
 }
 
 #[cfg(test)]
@@ -1304,6 +1313,20 @@ mod tests {
         assert_eq!(p.active_offsets().unwrap().as_ref(), &[0, 2, 5]);
         let empty = TemporalPolicy::dynamic(DynamicRuleId::from_raw(1), []);
         assert!(matches!(empty.validate(), Err(InterventionError::EmptyDynamicSchedule)));
+    }
+
+    /// A hand-built dynamic schedule must be in the constructor's form: strictly ascending.
+    #[test]
+    fn hand_built_dynamic_schedule_must_be_strictly_ascending() {
+        use crate::ids::DynamicRuleId;
+        let rule = DynamicRuleId::from_raw(1);
+        for active_at in [vec![5, 0, 2], vec![0, 2, 2, 5]] {
+            let policy = TemporalPolicy::Dynamic { rule, active_at: Arc::from(active_at) };
+            assert!(matches!(policy.validate(), Err(InterventionError::UnorderedDynamicSchedule)));
+        }
+        let canonical = TemporalPolicy::Dynamic { rule, active_at: Arc::from(vec![0, 2, 5]) };
+        canonical.validate().unwrap();
+        assert_eq!(canonical, TemporalPolicy::dynamic(rule, [5, 0, 2, 2]));
     }
 
     fn refusal_operation(error: AdmitError) -> &'static str {
