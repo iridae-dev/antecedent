@@ -2267,7 +2267,7 @@
     "Original bounded route under a declared invariance premise; the premise is a declaration and is not tested. The cited literature is the statement of the covariate-shift identification, not an implemented algorithm.",
     "Only the support box is checked as a positivity necessary condition; no density ratio, overlap weight or transported variance is computed, and the result is labelled extrapolative and point-only."
    ],
-   "digest": "15aeb1795c9b1abe818b3d5e1a6fa867c34228a3eb9ce64a8f6f219c495665b7",
+   "digest": "68c1a4e041c4aa32793edff18a80f5ef2e1625a87660bbfcdccf97bac7fba27f",
    "id": "cohort_decision.declared_shift",
    "review": "none",
    "scope_limits": [],
@@ -2303,7 +2303,7 @@
     "Claim policy: point-only. No standard error, interval or posterior is inherited from the fit; the cohort-mean contrast is issued as an affine expectation of one coordinate and nothing else.",
     "Trust policy: numbers are always recomputed from the retained model and cohort rows; a source built from a verified analysis result is native, one built from a caller-built compact export is a declared model and is never native."
    ],
-   "digest": "f746b6acbcb791a9622ece215e7a31171890423b89434fe30b0a68a3644bd6f6",
+   "digest": "11c61053a11d4500748dfd08d06b5d76dcb6ffae31716c7f721f60a1f2fd3b6f",
    "id": "cohort_decision.mean_contrast",
    "review": "none",
    "scope_limits": [],
@@ -2344,7 +2344,7 @@
     "A consumer holding no retained expected bundle identity checks only internal consistency; a resealed forgery passes only under the forger's own identity, so the consumer passes the identity it retained independently of the bytes. Container, version, size and count bounds are checked before any decode allocation.",
     "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage."
    ],
-   "digest": "0ac487806ca84544c0a3c9e0ed3529d2f7825aa6898d0f7d6aa3bb1b6ff40dcf",
+   "digest": "5cdd4daad1b073ad683b4319f9b85c58d0cc650be0af0fe7e2ce152b80745372",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2638,7 +2638,7 @@
     "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. Recalculation receipts are not covered by this registry.",
     "A reference node is verified by the bundle only as 'matched a supplied source' and is never replayed by a verifier."
    ],
-   "digest": "96c1f17ecb97136de82c8698c6b27d88adb2f56c6d692629d6d1ce4de9bf3142",
+   "digest": "5674bda2ca55d7645f2422a42756b1e666824218182ae719edbe470b0220b044",
    "id": "composition.verifiers",
    "review": "none",
    "scope_limits": [],
@@ -2650,7 +2650,7 @@
     "Stage reuse never proves a claim supported. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws support even when every number is reusable.",
     "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states. A held record that differs from the earlier snapshot, including one that appears where none was held (point-only or required before), forces recomputation of its owner as a calibration change, so calibration never rises across reused numbers; lowering a held record to point-only or required raises no calibration change: the numbers stand and the interval is simply no longer held."
    ],
-   "digest": "ad53d701e62b299feaa4822040ebb670ea619ddbbdda218a00f13052af516c41",
+   "digest": "a605df7f9eb3f390754e52e5a5a819a1c1ec9373bcaa1acbce682caf2635f2f0",
    "id": "composition_verification.claim_revalidation",
    "review": "none",
    "scope_limits": [],
@@ -2660,7 +2660,7 @@
    "deviations": [
     "Intentionally implements no interval, posterior or coverage statement for a revalidated or composed claim, and no inheritance of a calibration record by a claim about another target. A calibration record that no longer holds at the claim's coordinate is carried as a calibration withdrawal on the claim (its interval is annotated, the point value stands); it is never refused and never silently kept. A held record that replaces another or appears where none was held is not attached to reused numbers either: its owner is recomputed."
    ],
-   "digest": "baed07e1391f9df01bec2f61a3baf4aead277cd50d1be9dff5c00d5137693f37",
+   "digest": "b0eee8838dedc7ec8bc079e67bd6bce46ff1827d5718be0fd2a1ccfe9bf9614a",
    "id": "composition_verification.revalidated_interval",
    "review": "none",
    "scope_limits": [],
@@ -3217,7 +3217,7 @@
     "An uncertainty requirement is met only by a supplied claim of exactly its own kind (none accepts any); the kind is a label supplied by the caller and is not verified against how the claim was produced.",
     "The contract identity is a canonical digest that ignores the order of rules and exclusions; a contract without rules keeps the earlier decision_contract_v1 bytes, so the wrapper adds no wire change for existing contracts."
    ],
-   "digest": "df2050cba4789ee2394e18535bb6cc278f63d8228717faec4d554016dfea8a41",
+   "digest": "5eea6cb1c812801b1e97c5d159e86b4f8afdf619d3e6d7caeb537bc87b88dd70",
    "id": "decision.admissibility",
    "review": "none",
    "scope_limits": [],
@@ -3240,7 +3240,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "cf8ac1ab55af0eadf33db7a71631c88a50f7105e3851427357eae41757f2c543",
+   "digest": "d6f4c24bfcb8553fbb0ef46f7348156f8b49823992d5744006e7bf9c4ffb2559",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3323,7 +3323,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "60c3157c151b2fd0bf8a2ac4e44da1d0a6cb024a63a0a8758a143d4a759a2635",
+   "digest": "5500bcf5321039995e9b55a05bd9c4c2eb2d99ba421a67ab8c5e00a4c2f9f9d8",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -3418,7 +3418,7 @@
    "deviations": [
     "Point-only export: the consumer re-evaluates the decision and compares identity and action values; a law is not exportable."
    ],
-   "digest": "6ce67e6a46fc52b01d3960600da8deec2f4f8ea04ddd6ce34b5e3276a420ab99",
+   "digest": "d5c2a43afd363e7b458cac14a40cf561c113210a3ee928d72a4b9a9b2590a34e",
    "id": "decision.transported_decision_artifact",
    "review": "none",
    "scope_limits": [],
@@ -3434,7 +3434,7 @@
     "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is supported from the transport step.",
     "The source model's standard error is retained as an uncalibrated diagnostic and never becomes a decision, interval or feasibility statement. The inverse origin is a declaration; replay re-checks that the embedded numbers match it, not that the producing route re-executes."
    ],
-   "digest": "0932c51fd3c8d8bf131c0dfcf6719595bd02b6c936255af14a8505cc3eae2d94",
+   "digest": "fb0781b673fe269bf96d5f0b4e1ae7c481b0debdf4644e1bf3c7bce4a960ec97",
    "id": "decision.transported_source",
    "review": "none",
    "scope_limits": [],
@@ -3911,7 +3911,7 @@
     "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is not measured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
     "No causal, interval or calibration claim is made."
    ],
-   "digest": "178d64e2138862e737758c17a82f14abadc480649179bc35b7aec0423355911d",
+   "digest": "7a05b3b2dad78e82cce7d30b43eb5d03fef522676acb4a19415ee332b4b1cda6",
    "id": "design.evidence_plan",
    "review": "none",
    "scope_limits": [],
@@ -4041,7 +4041,7 @@
     "Original engineering of actual study-arrival execution over existing independently checked repair/ranking consumers, catalog SID and frozen z-transport verifiers/binders, exact finite expression compiler and provider evaluator. Every algorithm and its scientific scope retain the original implementation/provenance; this adapter is not a parallel estimator. The raw cell counts, declared Available physical binding, original planned sample total and complete checked program are reexecuted by fresh consumption.",
     "Scope is one independent unweighted jointly observed delivered regime with explicitly disjoint count tables per concrete intervention world. Count-law arithmetic is an empirical point estimate; finite structural and arithmetic verification do not validate interval calibration, authenticate raw physical observations or grant live provider authority. Existing descriptor-only arrival remains a structural receipt check."
    ],
-   "digest": "2e7884e48123caa00873de0928bd31e8dc3214955d03065ad8b2daddd6f1fd91",
+   "digest": "d36494e9ce705794e3a112bce8b818b1ce6ee3b58baac9d917b6a6be9382dd10",
    "id": "design.proposal_arrival",
    "review": "none",
    "scope_limits": [],
@@ -4059,7 +4059,7 @@
     "The record claims nothing about whether a proposed study will in fact deliver the hypothetical evidence, nor about the EVSI or net value it binds: those values are retained as computed by their own routes and are point-only. No interval, coverage or probability claim is made.",
     "Re-identification supports the backdoor and transport repair families only; an arrival that differs in sample or shape from the proposal, or lacks the joint law the family needs, is refused or reported insufficient with a typed reason. Cancellation observed while re-identifying is reported, never read as a verdict."
    ],
-   "digest": "98a45e41889cc147890fac98afa9ea2e5f29a15503ded87a1a8763e87cf4f3e7",
+   "digest": "972a7dcc3839ff56cab39a68399f8a8da4966226e75e13b3926e14d0d49b5621",
    "id": "design.proposal_receipt",
    "review": "none",
    "scope_limits": [],
@@ -4086,7 +4086,7 @@
    "deviations": [
     "A replayed receipt is a structural recomputation by the family checker from the stored hypothetical delta; it carries no numeric or causal claim."
    ],
-   "digest": "431abd2892075e11138b95410df6952f9ef3ad11b9fbab8e57aae1fb82892813",
+   "digest": "e7d98c9b9d3f2e098aa140902629fb9c981a1328863752b91c35dc40a3d53690",
    "id": "design.repair_search_receipt",
    "review": "none",
    "scope_limits": [],
@@ -4095,12 +4095,12 @@
   {
    "deviations": [
     "A candidate never claims evidence it cannot collect: observing separate regimes or separate marginals cannot claim a joint law, and missing unit, timing, recruitment, sample-size, cost or cost-unit semantics refuse as study_candidate.wrong_contract.",
-    "The semantic id sc1:<digest> is a content fingerprint independent of ordering and of the human label; it is not a security token.",
+    "The semantic id is a content fingerprint independent of ordering, repetition within set-valued fields and the human label; it is not a security token. A candidate whose fields cannot reach a v1 separator keeps its sc1:<digest> id; any other gets the framed sc2:<digest> id, and stored sc1 ids are still accepted by accepts_semantic_id.",
     "Proposed regimes are marked Proposed and tied to the semantic id; they are hypotheses and never become available evidence.",
     "Cost units are labels; they are never assumed to equal outcome utility, and ranking compares only equal labels.",
     "The older planner-specific StudyCandidate of study_planner is unchanged. No causal, interval or calibration claim is made."
    ],
-   "digest": "fc51e44796c8a87884c0febb243d953ca8d905b3d47572060f5e3a6ada9597d9",
+   "digest": "8920212a0e54ae16fe158f38d0d87f8bb1f888e4c8db2284d5230484ae208605",
    "id": "design.study_candidate",
    "review": "none",
    "scope_limits": [],
@@ -9521,7 +9521,7 @@
    "deviations": [
     "Reuse reports the cited result's mass; it does not re-derive the cited result's numerical value."
    ],
-   "digest": "5baa2e9903a85eba33e87a3b89ef8159ae3e4b4eebc137ea16cf5980bf766fac",
+   "digest": "4c7203ad21189498863c903f1c9ae835157bda4b55e460e7ef77dd540340164f",
    "id": "evidence_ledger.evidence_reuse",
    "review": "none",
    "scope_limits": [],
@@ -9571,7 +9571,7 @@
     "Overlap is computed over producer-declared row identities; the ledger cannot verify that two distinct identities are not the same physical observation, and undeclared observations are unknown, never independent.",
     "Statistical dependence between disjoint observations (clusters, shared units under a different identity) is not represented; a producer who knows of it declares a covariance or an assumption range."
    ],
-   "digest": "59965f414bc361e2b80a05a047d9ae2afacc145ad05c821382683f851234156f",
+   "digest": "5e064313a00ea1ffc858ed719b6364b26e90932f49edd33203e2dfe54589e5a6",
    "id": "evidence_ledger.overlap_accounting",
    "review": "none",
    "scope_limits": [],
@@ -9662,7 +9662,7 @@
    "deviations": [
     "The ledger takes the producer's declaration that observations are used again; it does not detect adaptive reuse on its own."
    ],
-   "digest": "383f613c3729e78c34a4b814f106908139bb7263a4199d4f4ad61d51ddb8fa7f",
+   "digest": "d3b6b7668bf325d4add09cd539dea44051cf8127ad76b116fa7e2c73bc400593",
    "id": "evidence_ledger.repeated_observation_use",
    "review": "none",
    "scope_limits": [],
@@ -9673,7 +9673,7 @@
     "Dependence is the declared lineage and result structure; a dependent claim that did not declare its inputs cannot be classified.",
     "Classification rules (pools need two members, borrowing needs a likelihood, transport needs a transported claim) are the ledger's own policy, not a theorem."
    ],
-   "digest": "c7b6c26c0066aaf6def6f7166764c4a548c9f44856d4b0c095399570404a99ee",
+   "digest": "47b0dcb139afe77407cf6a0899dd6992aa82aa2e7dd3a783619b121560239ff2",
    "id": "evidence_ledger.revision",
    "review": "none",
    "scope_limits": [],
@@ -9726,7 +9726,7 @@
    "deviations": [
     "Records and checks transport identity only; it does not identify, estimate or validate a transported effect, and the selection diagram is carried as a digest, not interpreted."
    ],
-   "digest": "44ec1f91107d7093fbaa662896542763eb649a3e9f50ad10f6fc48bfdfadc448",
+   "digest": "f1c5c1b54de69542388722b3a8e8454128201e12db2b089efbc1c89db72e20bd",
    "id": "evidence_ledger.transport_provenance",
    "review": "none",
    "scope_limits": [],
@@ -12607,7 +12607,7 @@
     "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
     "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare."
    ],
-   "digest": "f29c986049594761811fee2901366c5e77500de0c877e9ea843fa08d2d1d20ee",
+   "digest": "c36f50e3d686112996b94764ea493301649f86327cca4cb12991eded43f71af9",
    "id": "recalculation.selective",
    "review": "none",
    "scope_limits": [],
@@ -13847,7 +13847,7 @@
     "A declaration, not proof: it does not establish that the populations are those of the data, that the selection diagram holds, or that the consumer will use the claim as declared. It never presents the claim as native target data and carries no interval, posterior or calibration of its own.",
     "A consumer trusts no stored identity: it rebuilds the offer and consumer contract, re-derives the port, re-runs the connection decision and recomputes identities. A stored native_target_only policy is refused."
    ],
-   "digest": "55af0d134910a94f428c8265f6cdc77c75e4adef75892061231fd61eadfb517e",
+   "digest": "f47569de60f12ead0f6494f622db7ff7f88f6813bfb34daecd216d2e5c62ea9a",
    "id": "transport.handoff_artifact",
    "review": "none",
    "scope_limits": [],
@@ -14046,7 +14046,7 @@
     "An admitted source is an external claim in the evidence ledger and never native target data; a handoff stays a transported external claim and its calibration label is never raised. No interval, posterior or calibration is supported.",
     "A consumer that accepts only native target data refuses the claim; the portable record (transport_handoff_v1) is re-derived by a consumer, not trusted."
    ],
-   "digest": "219473cf80245e33fee5ac30c59f23b1978eafbc7f9a4d3673e60e9b58b3eb11",
+   "digest": "ee94c3ca64920b03a151ab9d31f6178904e434f6354d9d5293ea04c2b875ac32",
    "id": "transport.provider_source_admission",
    "review": "none",
    "scope_limits": [],
