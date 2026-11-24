@@ -376,7 +376,7 @@ fn lower(request: &TemporalPredictionRequest) -> LoweredProgram {
             outcome: Some(target),
             query,
         },
-        plan_id: Arc::from("temporal_linear_prediction.v1"),
+        plan_id: Arc::from("temporal_linear_prediction.conditional.v1"),
         data: DataClassification::Temporal,
         graph_class: "none",
         query_variables,
