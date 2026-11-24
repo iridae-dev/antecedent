@@ -70,6 +70,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     super::compiled_route_api::register(m)?;
     gcm_api::register(m)?;
     super::gcm_estimand_api::register(m)?;
+    super::model_operation_api::register(m)?;
     graph_falsification_api::register(m)?;
     super::intrinsic_influence_api::register(m)?;
     super::file_source_api::register(m)?;

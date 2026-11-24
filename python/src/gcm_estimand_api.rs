@@ -158,6 +158,21 @@ pub struct PyDoSample {
     pub ess: Option<f64>,
 }
 
+impl PyDoSample {
+    /// The Python view of a do-sampler result.
+    pub(crate) fn from_result(result: DoSampleResult) -> Self {
+        Self {
+            mean: WeightingDoSampler::weighted_mean(&result),
+            method: result.method.to_string(),
+            notes: result.notes.iter().map(ToString::to_string).collect(),
+            accept_rate: result.accept_rate,
+            bandwidth: result.bandwidth,
+            ess: result.ess,
+            inner: result,
+        }
+    }
+}
+
 #[pymethods]
 impl PyDoSample {
     /// Sampled outcome values.
@@ -236,7 +251,7 @@ impl PyModelEvaluation {
 }
 
 /// Hard `do` values by variable name.
-fn hard_interventions(
+pub(crate) fn hard_interventions(
     data: &TabularData,
     values: &HashMap<String, f64>,
 ) -> PyResult<Vec<Intervention>> {
@@ -534,15 +549,7 @@ impl PyFittedGcm {
                 }
             }
         })?;
-        Ok(PyDoSample {
-            mean: WeightingDoSampler::weighted_mean(&result),
-            method: result.method.to_string(),
-            notes: result.notes.iter().map(ToString::to_string).collect(),
-            accept_rate: result.accept_rate,
-            bandwidth: result.bandwidth,
-            ess: result.ess,
-            inner: result,
-        })
+        Ok(PyDoSample::from_result(result))
     }
 
     /// Evaluate the fitted model on its own data: in-sample log-likelihood, residual

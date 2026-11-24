@@ -909,6 +909,34 @@ def prepare(
             "dose_units": dose_units,
         }
     )
+    from .model_operations import MODEL_OPERATION_QUERIES
+
+    if isinstance(query, MODEL_OPERATION_QUERIES):
+        # A fitted-model operation keeps every column in the caller's order: its mechanisms are
+        # fitted on the graph over the whole table, as fit_gcm fits them, so the variable order
+        # (and with it every draw) matches the FittedGcm method it replaces.
+        from ._prepared_model_operation import PreparedModelOperation
+
+        operation = capture_outcome(
+            policy._call,
+            lambda: PreparedModelOperation.prepare(
+                data,
+                execution=policy,
+                **{
+                    key: value
+                    for key, value in declarations.items()
+                    if not (key == "data_diagnostics" and value is _AUTO_DATA_DIAGNOSTICS)
+                },
+            ),
+        )
+        refused = operation.refusal is not None
+        return PreparedAnalysis(
+            operation.value,
+            policy,
+            declarations,
+            data if refused else operation.value._data,
+            _refused=operation if refused else None,
+        )
     from ._table_snapshot import Table, table
     from .data import EventFrame, MultiEnvFrame, PanelFrame
     from .transport import Transport
