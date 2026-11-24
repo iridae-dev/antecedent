@@ -1475,18 +1475,13 @@ def test_a_compiled_decision_on_draws_exports_and_replays():
 # --------------------------------------------------------------------------- preparation
 
 
-def test_a_table_the_engine_cannot_read_whole_is_refused_not_identified_otherwise():
-    # A column of two values per row cannot be ingested as a table column. A static response
-    # study's rows are identified by the engine's identity of the whole table they were taken
-    # from, so such a table is refused at preparation rather than identified by another scheme.
+def test_a_column_no_analysis_reads_never_fails_preparation():
+    # A column of two values per row cannot be ingested as a table column; no analysis below
+    # reads it, so preparing still succeeds and both studies still name the one table: its
+    # identity is the engine's identity of the columns it can read.
     table = _dose_table("b", 200, 1.2, 1.7)
     table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
     table["notes"] = np.zeros((200, 2))
-    with pytest.raises(CausalValueError) as refused:
-        _prepared(table, "b", bayes=True)
-    assert refused.value.reason_code == "invalid_argument"
-    # Without the column the engine cannot read, both studies name the one table.
-    del table["notes"]
     first = _prepared(table, "b", bayes=True)
     second = _prepared(table, "h", bayes=True)
     with pytest.raises(decision.PreferenceRefusal) as shared:

@@ -18174,10 +18174,10 @@ assertion_scopes = ["test_a_unit_key_is_checked_where_it_is_declared"]
 dimensions = ["refusal"]
 assertion_contract = "A blank namespace, an unknown key column and a missing identifier are refused at declaration or prepare, and a unit key on a query that does not read it refuses with option_not_applicable."
 [[capability.evidence]]
-test = "python/tests/test_preferences.py::test_a_table_the_engine_cannot_read_whole_is_refused_not_identified_otherwise"
-assertion_scopes = ["test_a_table_the_engine_cannot_read_whole_is_refused_not_identified_otherwise"]
-dimensions = ["success", "refusal"]
-assertion_contract = "A table holding a two-value-per-row column the engine cannot ingest is refused at preparation (invalid_argument) rather than identified by another scheme; without that column two outcomes of it are refused as sharing evidence (evidence_double_counted)."
+test = "python/tests/test_preferences.py::test_a_column_no_analysis_reads_never_fails_preparation"
+assertion_scopes = ["test_a_column_no_analysis_reads_never_fails_preparation"]
+dimensions = ["success"]
+assertion_contract = "A table holding a two-value-per-row column no analysis reads still prepares, and two outcomes of it are refused as sharing evidence (evidence_double_counted): the table's identity is the engine's identity of the columns it can read."
 
 [[capability]]
 id = "preferences.class_member_measure"

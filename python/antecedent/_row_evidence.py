@@ -95,14 +95,17 @@ def _label(value: Any, column: str) -> str:
     )
 
 
-def table_identity(data: Any) -> str:
-    """The content identity of the whole table ``data``.
+def table_identity(data: Any, names: tuple[str, ...]) -> str:
+    """The content identity of the table ``data`` with columns ``names``.
 
     It is the identity the engine gives a study of that table (the rows digest of every column
     as ingested), computed by the engine, so a study of a column projection and a study of the
-    whole table name the same table. A table the engine cannot ingest whole (a column that is
-    not one value per row, or of a type no table column takes) has no such identity and is
-    refused: its rows are never identified by another scheme.
+    whole table name the same table. A column the engine cannot ingest (one that is not one
+    value per row, or of a type no table column takes) is left out: no analysis can read it, and
+    the identity is the engine's identity of the columns it can read, never a digest of another
+    scheme. Leaving a column out can only make two tables name the same rows, so their overlap
+    is judged as shared, never as distinct. A table with no column the engine can read is
+    refused.
     """
     from ._data import ingest_columns
     from ._native import table_content_identity
@@ -110,13 +113,25 @@ def table_identity(data: Any) -> str:
     try:
         ingested, arrays = ingest_columns(data)
         return table_content_identity(list(ingested), list(arrays))
-    except Exception as error:  # noqa: BLE001 - every ingestion failure is refused, never digested
+    except Exception:  # noqa: BLE001 - fall back to the columns the engine can read
+        pass
+    readable: list[str] = []
+    columns: list[Any] = []
+    for name in names:
+        try:
+            raw = read_columns(data, [name], what="source table")
+            ingested, arrays = ingest_columns({name: raw[name]})
+        except Exception:  # noqa: BLE001 - a column the engine cannot read is not identified
+            continue
+        readable.extend(ingested)
+        columns.extend(arrays)
+    if not readable:
         raise CausalValueError(
-            "the rows of a static response study are identified by the content of the whole "
-            f"table they were taken from, and the engine cannot read this table whole ({error}); "
-            "drop or convert the columns it cannot read before preparing",
+            "the rows of a static response study are identified by the content of the table "
+            "they were taken from, and the engine can read no column of this table",
             reason_code="invalid_argument",
-        ) from error
+        )
+    return table_content_identity(readable, columns)
 
 
 class RowSource:
@@ -164,7 +179,7 @@ class RowSource:
             labels = tuple(_label(value, unit_key.column) for value in np.asarray(raw).tolist())
         identity = None
         if provenance and names is not None:
-            identity = table_identity(data)
+            identity = table_identity(data, names)
         return cls(names, identity, unit_key, labels)
 
     def native_options(self, *, applies: bool, route: str) -> dict[str, Any]:
