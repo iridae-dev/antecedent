@@ -201,7 +201,7 @@ fn the_plan_names_the_decisions_quantities_and_carrier_before_anything_is_fitted
     let view = structure.plan_view().expect("a compiled plan");
     let decision = view.evidence().decision().expect("the decision is in layer four");
     assert_eq!(decision.carrier(), CarrierDemand::Mean);
-    assert!(decision.utility().is_affine());
+    assert!(decision.utility().means_suffice());
     assert_eq!(decision.actions(), 2);
     assert_eq!(decision.contract_identity(), Some(compiled.bound_identity()));
     let read: Vec<&str> = decision.utility().quantities().iter().map(|q| &**q).collect();

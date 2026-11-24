@@ -182,7 +182,7 @@ fn the_plan_names_an_ordinary_contracts_quantities_and_carrier_before_anything_i
     let view = &compiled.plan_views()[0];
     let decision = view.evidence().decision().expect("the decision is in layer four");
     assert_eq!(decision.carrier(), CarrierDemand::Mean);
-    assert!(decision.utility().is_affine());
+    assert!(decision.utility().means_suffice());
     assert_eq!(decision.actions(), 2);
     assert_eq!(decision.constraints(), 0);
     assert_eq!(decision.utility_unit(), Some("points"));

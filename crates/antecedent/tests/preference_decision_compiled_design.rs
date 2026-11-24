@@ -39,7 +39,7 @@ use antecedent::design::decision_contract::{SourceRepresentation, UtilityExpr};
 use antecedent::planner::lowered::CarrierDemand;
 use antecedent::reason::reason_details::{decision_evaluation, preference_compile};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe;
 use antecedent_estimate::joint_design::compiled::{
     JointDesignInference, JointDesignRecipe, JointNativeDesignLaw,
@@ -365,7 +365,7 @@ fn the_design_plan_carries_the_decision_and_its_carrier_is_checked_at_compile() 
     let view = &views[0];
     let decision = view.evidence().decision().expect("the decision is in layer four");
     assert_eq!(decision.carrier(), CarrierDemand::Mean);
-    assert!(decision.utility().is_affine());
+    assert!(decision.utility().means_suffice());
     assert_eq!(decision.contract_identity(), Some(probe.bound_identity()));
     assert_eq!(decision.utility().quantities().len(), 4);
     assert_ne!(view.identity(), design.program_identity(), "the decision changes layer four");
@@ -572,7 +572,7 @@ fn a_declared_sampling_premise_reads_the_independent_unit_bootstrap_of_a_cluster
     };
     assert_eq!(law.shape(), [99, 4]);
     let identity = &law.metadata().identity;
-    assert_eq!(identity.rng_id, "independent_unit_bootstrap:cluster:replicates=99:seed=5");
+    assert_eq!(identity.rng_id, independent_unit_recipe("cluster", 99, 5));
     assert_eq!(identity.provider_id, "antecedent.native_joint_design");
     // Every refit keeps the arms' 0.7 per-row benefit gap within the wobble's reach, and the
     // harm is exactly twice the benefit in every refit.
@@ -618,10 +618,7 @@ fn a_kinked_value_and_a_probability_limit_run_on_a_matched_pair_bootstrap() {
             panic!("the independent-unit refits");
         };
         assert_eq!(draws.shape(), [199, 4]);
-        assert_eq!(
-            draws.metadata().identity.rng_id,
-            "independent_unit_bootstrap:pair:replicates=199:seed=9"
-        );
+        assert_eq!(draws.metadata().identity.rng_id, independent_unit_recipe("pair", 199, 9));
         let evaluation = executed.evaluation.single().unwrap().clone();
         assert!(evaluation.assumptions().iter().any(|a| a == premise), "the premise is stated");
         evaluation
@@ -654,4 +651,12 @@ fn a_kinked_value_and_a_probability_limit_run_on_a_matched_pair_bootstrap() {
     let breached =
         run(contract_with(model((0.1, 0.2), None), 2, vec![harm_cap(treated_harm - 1.0)]));
     assert_eq!(breached.chosen_action(), Some("low"));
+}
+
+/// The `rng_id` an independent-unit refit law names: the recipe kind and the canonical digest of
+/// the kind, the resampled unit, the refits and the seed.
+fn independent_unit_recipe(unit: &str, replicates: u64, seed: u64) -> String {
+    let mut writer = CanonicalWriter::new("antecedent.preference_route.design_resampling.v1");
+    writer.text("independent_unit_bootstrap").word(1).text(unit).word(replicates).word(seed);
+    format!("independent_unit_bootstrap:{}", writer.finish_hex())
 }
