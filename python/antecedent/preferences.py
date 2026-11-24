@@ -56,6 +56,8 @@ from functools import reduce
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, get_args
 
+import numpy as np
+
 from antecedent import _reason_details
 
 from ._artifact_protocol import (
@@ -80,7 +82,7 @@ from ._native import preference_model_describe as _describe_model
 from ._native import replay_preference_decision as _replay_decision
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
-from ._validate import real, text
+from ._validate import count, real, text
 from .decision import Constraint, ConstraintExclusion, Criterion
 from .decision import Expr as _DecisionExpr
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -95,8 +97,11 @@ if TYPE_CHECKING:
     from .program_claims import ProgramBinding
 
 ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
-StructuralPolicy = Literal[
+StructuralPolicyKind = Literal[
     "require_invariant_best_action", "maximin", "bayes_over_structures", "report_only"
+]
+PolicyKind = Literal[
+    "require_invariant_best_action", "maximin", "minimax_regret", "weighted", "report_only"
 ]
 StructureKind = Literal["point", "graph_dependent", "weighted_graph_posterior", "finite_scenarios"]
 Sense = Literal["at_least", "at_most", "equal"]
@@ -734,9 +739,15 @@ class Policy:
     * :meth:`report_only` reports the answer across the set and chooses nothing.
     """
 
-    kind: Literal[
-        "require_invariant_best_action", "maximin", "minimax_regret", "weighted", "report_only"
-    ]
+    kind: PolicyKind
+
+    def __post_init__(self) -> None:
+        if self.kind not in get_args(PolicyKind):
+            raise CausalValueError(
+                f"Policy kind {self.kind!r} is not one of {get_args(PolicyKind)}; build one with "
+                "Policy.invariant_best(), .maximin(), .minimax_regret(), .weighted() or "
+                ".report_only()"
+            )
 
     @classmethod
     def invariant_best(cls) -> Policy:
@@ -756,6 +767,47 @@ class Policy:
 
     @classmethod
     def report_only(cls) -> Policy:
+        return cls("report_only")
+
+
+@dataclass(frozen=True, slots=True)
+class StructuralPolicy:
+    """How the results under several causal structures combine (see :class:`Structures`).
+
+    * :meth:`invariant_best` requires every structure to be evaluated and their verdicts to
+      agree; otherwise the result is ``structures_disagree``;
+    * :meth:`maximin` scores each action by its worst value over structures at each trade-off,
+      then applies the preference :class:`Policy`;
+    * :meth:`bayes_over_structures` weighs the per-structure values by the supplied structure
+      probabilities, never renormalized;
+    * :meth:`report_only` reports each structure's result with no combination.
+
+    ``Contract(structural_policy=...)`` also takes the kind as a string.
+    """
+
+    kind: StructuralPolicyKind
+
+    def __post_init__(self) -> None:
+        if self.kind not in get_args(StructuralPolicyKind):
+            raise CausalValueError(
+                f"StructuralPolicy kind {self.kind!r} is not one of "
+                f"{get_args(StructuralPolicyKind)}"
+            )
+
+    @classmethod
+    def invariant_best(cls) -> StructuralPolicy:
+        return cls("require_invariant_best_action")
+
+    @classmethod
+    def maximin(cls) -> StructuralPolicy:
+        return cls("maximin")
+
+    @classmethod
+    def bayes_over_structures(cls) -> StructuralPolicy:
+        return cls("bayes_over_structures")
+
+    @classmethod
+    def report_only(cls) -> StructuralPolicy:
         return cls("report_only")
 
 
@@ -864,9 +916,12 @@ class Structures:
     """Several causal structures, each with its own evidence, decided together with the trade-offs.
 
     ``claims`` are :class:`antecedent.decision_robust.Claim` values (evaluated with draws,
-    unidentified, or unevaluated with a reason), read as ``kind`` reads them in
-    :mod:`antecedent.decision_robust`. Unidentified and unevaluated mass is reported, never
-    renormalized away.
+    unidentified, or unevaluated with a reason). Build the set by how the claims are read, as
+    in :mod:`antecedent.decision_robust`: :meth:`point` (one structure),
+    :meth:`graph_dependent` (one answer per graph, no probabilities), :meth:`weighted_atoms`
+    (graph-posterior atoms whose probabilities weigh them) or :meth:`finite_scenarios`
+    (supplied scenarios, always an envelope). ``Structures(kind, claims)`` with the kind as a
+    string is the same. Unidentified and unevaluated mass is reported, never renormalized away.
     """
 
     kind: StructureKind
@@ -876,6 +931,26 @@ class Structures:
         if self.kind not in get_args(StructureKind):
             raise CausalValueError(f"Structures.kind is one of {get_args(StructureKind)}")
         object.__setattr__(self, "claims", tuple(self.claims))
+
+    @classmethod
+    def point(cls, claim: Claim) -> Structures:
+        """One structure: a single exact law or answer."""
+        return cls("point", (claim,))
+
+    @classmethod
+    def graph_dependent(cls, claims: Iterable[Claim]) -> Structures:
+        """One answer per graph, with no probability over the graphs."""
+        return cls("graph_dependent", tuple(claims))
+
+    @classmethod
+    def weighted_atoms(cls, claims: Iterable[Claim]) -> Structures:
+        """Graph-posterior atoms whose probabilities weigh the structures."""
+        return cls("weighted_graph_posterior", tuple(claims))
+
+    @classmethod
+    def finite_scenarios(cls, claims: Iterable[Claim]) -> Structures:
+        """A finite set of supplied scenarios, read as a structural envelope."""
+        return cls("finite_scenarios", tuple(claims))
 
 
 def constraint(
@@ -957,6 +1032,86 @@ def _mean_wire(source: MeanSource | BoundExternalClaim) -> dict[str, Any]:
     }
 
 
+def _check_compile_arguments(
+    source_kind: str,
+    *,
+    reads: Mapping[str, bool],
+    given: Mapping[str, Any],
+    seed: int | None,
+    draws_anything: bool,
+) -> None:
+    """Refuse an argument the compile source does not read, instead of dropping it."""
+    unread = [f"{name}=" for name, value in given.items() if value is not None and not reads[name]]
+    if seed is not None and not draws_anything:
+        unread.append("seed=")
+    if unread:
+        raise CausalValueError(
+            f"{source_kind} does not read {', '.join(unread)}: draws= and shared= apply to "
+            "several studies, refits= and sampling= to a compiled design, and seed= only when "
+            "draws, shared covariance or refits are drawn",
+            reason_code="option_not_applicable",
+        )
+
+
+def _coordinate_count(study: Any) -> int | None:
+    """The number of coordinates of a study's mean response curve (its grid), when known."""
+    query = getattr(study, "query", None)
+    grid = getattr(query, "grid", None)
+    if grid is None or getattr(query, "is_temporal", False):
+        return None
+    return len(grid)
+
+
+def _cross_blocks(shared: Any, studies: Sequence[Any]) -> list[dict[str, Any]]:
+    """The declared cross-study covariance blocks as the native wire: each pair of study
+    positions with its first < second and its block flattened row-major."""
+    if not isinstance(shared, Mapping):
+        raise CausalTypeError(
+            "shared= maps a pair of study positions (i, j) to a 2-D covariance block"
+        )
+    blocks: dict[tuple[int, int], np.ndarray] = {}
+    for key, block in shared.items():
+        if not (
+            isinstance(key, tuple)
+            and len(key) == 2
+            and all(isinstance(k, int) and not isinstance(k, bool) for k in key)
+        ):
+            raise CausalTypeError(f"shared= keys are pairs of study positions (i, j), not {key!r}")
+        i, j = key
+        if i == j or not (0 <= i < len(studies) and 0 <= j < len(studies)):
+            raise CausalValueError(
+                f"shared= key {key} names two different studies by their positions "
+                f"0..{len(studies) - 1} in the source"
+            )
+        try:
+            matrix = np.asarray(block, dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError(
+                f"shared[{key}] is a 2-D array of numbers (rows of study {i}'s coordinates by "
+                f"columns of study {j}'s): {error}"
+            ) from None
+        rows, columns = _coordinate_count(studies[i]), _coordinate_count(studies[j])
+        if (
+            matrix.ndim != 2
+            or (rows is not None and matrix.shape[0] != rows)
+            or (columns is not None and matrix.shape[1] != columns)
+        ):
+            expected = tuple("?" if n is None else n for n in (rows, columns))
+            raise CausalValueError(
+                f"shared[{key}] has shape {matrix.shape}; it needs {expected}: one row per "
+                f"coordinate of study {i} and one column per coordinate of study {j}, in grid order"
+            )
+        if i > j:
+            i, j, matrix = j, i, matrix.T
+        if (i, j) in blocks:
+            raise CausalValueError(f"shared= declares the pair of studies {i} and {j} twice")
+        blocks[(i, j)] = matrix
+    return [
+        {"first": i, "second": j, "covariance": [float(v) for v in matrix.reshape(-1)]}
+        for (i, j), matrix in sorted(blocks.items())
+    ]
+
+
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Contract:
     """A decision whose value comes from a model with explicit trade-offs.
@@ -977,7 +1132,9 @@ class Contract:
     policy: Policy = field(default_factory=Policy.invariant_best)
     constraints: tuple[Constraint, ...] = ()
     horizon: int = 0
-    structural_policy: StructuralPolicy = "report_only"
+    structural_policy: StructuralPolicy | StructuralPolicyKind = field(
+        default_factory=StructuralPolicy.report_only
+    )
 
     def __post_init__(self) -> None:
         if (self.model is None) == (self.preferences is None):
@@ -1005,13 +1162,28 @@ class Contract:
             raise CausalTypeError("Contract.policy is a Policy such as Policy.maximin()")
         if isinstance(self.horizon, bool) or not isinstance(self.horizon, int):
             raise CausalTypeError("Contract.horizon is an integer")
-        if self.structural_policy not in get_args(StructuralPolicy):
-            raise CausalValueError(
-                f"Contract.structural_policy is one of {get_args(StructuralPolicy)}"
+        structural = self.structural_policy
+        if isinstance(structural, str):
+            if structural not in get_args(StructuralPolicyKind):
+                raise CausalValueError(
+                    f"Contract.structural_policy is a StructuralPolicy or one of "
+                    f"{get_args(StructuralPolicyKind)}"
+                )
+            structural = StructuralPolicy(structural)
+        elif not isinstance(structural, StructuralPolicy):
+            raise CausalTypeError(
+                "Contract.structural_policy is a StructuralPolicy such as "
+                "StructuralPolicy.maximin(), or its kind as a string"
             )
+        object.__setattr__(self, "structural_policy", structural)
         text(self.target_population, "Contract.target_population", non_empty=True)
         object.__setattr__(self, "actions", actions)
         object.__setattr__(self, "constraints", constraints)
+
+    @property
+    def _structural_policy(self) -> StructuralPolicy:
+        policy = self.structural_policy
+        return policy if isinstance(policy, StructuralPolicy) else StructuralPolicy(policy)
 
     def _preferences(self) -> dict[str, Any]:
         source = self.model if self.model is not None else self.preferences
@@ -1033,7 +1205,7 @@ class Contract:
             ],
             "target_population": self.target_population,
             "horizon": self.horizon,
-            "structural_policy": self.structural_policy,
+            "structural_policy": self._structural_policy.kind,
             "preference_policy": self.policy.kind,
         }
 
@@ -1148,8 +1320,8 @@ class Contract:
         source: Any,
         *,
         draws: int | None = None,
-        seed: int = 0,
-        shared: Mapping[tuple[int, int], Sequence[float]] | None = None,
+        seed: int | None = None,
+        shared: Mapping[tuple[int, int], Any] | None = None,
         refits: int | None = None,
         sampling: str | None = None,
         execution: Execution | None = None,
@@ -1162,43 +1334,64 @@ class Contract:
         (one outcome each), or a compiled design of several outcomes
         (``joint_panel.prepare_native_joint_design``). Every quantity an action reads must be
         a coordinate the analysis targets. The decision is lowered into the analysis's own
-        plan, so :meth:`CompiledDecision.inspect` shows the quantities, the source the
-        contract needs, the trade-off ranges and the identification before anything is
-        fitted; what cannot be answered (a quantity not identified, a source the analysis
-        cannot supply, studies that share observations without a declared covariance) is
-        refused here. :meth:`CompiledDecision.execute` then runs each plan once.
+        plan, so the :class:`CompiledDecision` states the quantities, the source the contract
+        needs, the trade-off ranges and the identification before anything is fitted; what
+        cannot be answered (a quantity not identified, a source the analysis cannot supply,
+        studies that share observations without a declared covariance) is refused here.
+        :meth:`CompiledDecision.execute` then runs each plan once.
 
         Several studies meet by their means when means suffice. A value that needs one law
-        of their outcomes needs ``draws=`` (the aligned rows the propagation chain draws,
-        under ``seed=``) and, for studies that share observations, ``shared=``: the declared
-        covariance between the estimates of each such pair ``(i, j)``, rows of study ``i``'s
-        coordinates by columns of study ``j``'s. A static-regime design reads its arm means,
-        or with ``refits=`` (at least 99, under ``seed=``) its aligned whole-subject refits.
-        A cluster-randomized design or a matched-pair or switchback experiment reads its arm
-        means; randomization alone does not identify the dependence of its arm-mean
-        estimators across arms, so a value that needs one law of its outcomes also needs
-        ``sampling=``, the assumption id of the premise that its independent units (clusters,
-        pairs or sequences) were sampled independently from a larger population, with
-        ``refits=`` for the independent-unit bootstrap. The premise enters the plan and the
-        result's assumptions.
+        of their outcomes needs ``draws=`` (the aligned rows the propagation chain draws)
+        and, for studies that share observations, ``shared=``: the declared covariance
+        between the estimates of each such pair, keyed ``(i, j)`` by the studies' positions
+        in ``source``. Each block is a 2-D array-like with one row per coordinate of study
+        ``i`` and one column per coordinate of study ``j``, both in grid order; a block keyed
+        ``(j, i)`` is read as its transpose. A static-regime design reads its arm means, or
+        with ``refits=`` (at least 99) its aligned whole-subject refits. A cluster-randomized
+        design or a matched-pair or switchback experiment reads its arm means; randomization
+        alone does not identify the dependence of its arm-mean estimators across arms, so a
+        value that needs one law of its outcomes also needs ``sampling=``, the assumption id
+        of the premise that its independent units (clusters, pairs or sequences) were sampled
+        independently from a larger population, with ``refits=`` for the independent-unit
+        bootstrap. The premise enters the plan and the result's assumptions.
+
+        ``seed`` seeds the chain's draws and the refits; by default it is the seed of
+        ``execution`` (``Execution().seed`` when none is given), so ``execution=`` alone
+        reproduces a compile. An argument the source does not read refuses with
+        ``option_not_applicable`` rather than being dropped: ``draws=`` and ``shared=`` are
+        read only for several studies, ``refits=`` and ``sampling=`` only for a design, and
+        ``seed=`` only when something is drawn (``draws=``, ``shared=`` or ``refits=``).
         """
         from ._preference_design import compile_with_design, is_compiled_design
         from .design.ranking import _bound_native
         from .transport._controls import call_native
 
         source = require_success(source)
+        execution = resolve_execution(execution)
+        design = is_compiled_design(source)
+        several = isinstance(source, (list, tuple))
+        _check_compile_arguments(
+            "a compiled design" if design else "several studies" if several else "one study",
+            reads={"draws": several, "shared": several, "refits": design, "sampling": design},
+            given={"draws": draws, "shared": shared, "refits": refits, "sampling": sampling},
+            seed=seed,
+            draws_anything=(several and (draws is not None or shared is not None))
+            or (design and refits is not None),
+        )
+        seed_value = execution.seed if seed is None else count(seed, "seed", minimum=0)
         contract_json = json.dumps(self._wire())
-        if is_compiled_design(source):
+        if design:
             compiled, refusal = compile_with_design(
                 source,
                 contract_json,
                 refits=refits,
-                seed=seed,
+                seed=seed_value,
                 sampling=sampling,
                 execution=execution,
             )
-        elif isinstance(source, (list, tuple)):
-            natives = [_bound_native(require_success(study)) for study in source]
+        elif several:
+            studies = [require_success(study) for study in source]
+            natives = [_bound_native(study) for study in studies]
             if shared is not None:
                 kind = "shared_evidence"
             elif draws is not None:
@@ -1207,12 +1400,9 @@ class Contract:
                 kind = "undeclared"
             dependence = {
                 "kind": kind,
-                "draws": 2000 if draws is None else int(draws),
-                "seed": int(seed),
-                "cross": [
-                    {"first": int(i), "second": int(j), "covariance": [float(v) for v in block]}
-                    for (i, j), block in (shared or {}).items()
-                ],
+                "draws": 2000 if draws is None else count(draws, "draws", minimum=0),
+                "seed": seed_value,
+                "cross": _cross_blocks(shared or {}, studies),
             }
             compiled, refusal = call_native(
                 execution,
@@ -1318,13 +1508,16 @@ class Contract:
 class CompiledDecision(ScientificResult):
     """A decision across preferences compiled with the analysis that estimates it.
 
-    :meth:`inspect` reads what the compile states before anything is fitted: the bound
-    contract identity, each quantity the actions read, the source representation the contract
-    needs, the carrier the plan demands, every structure with its identification and weight,
-    the unidentified mass, the declared joint law of separately estimated outcomes, and every
-    compiled plan (whose ``evidence.decision.preference`` lists the quantities, the trade-off
-    parameters with their ranges and the bound contract). :meth:`execute` runs each plan once
-    and returns the :class:`PreferenceDecision`.
+    Before anything is fitted it states: :attr:`contract_identity` and :attr:`bound_identity`;
+    :attr:`quantities`, each quantity the actions read with the study that targets it;
+    :attr:`representation`, the source the contract needs (``"mean"`` or ``"joint_draws"``),
+    and :attr:`carrier`, what the plans demand of the analysis; :attr:`trade_offs`, each
+    parameter's declared range and assumption; :attr:`joint_law`, the declared joint law of
+    separately estimated outcomes; :attr:`design_law`, the resampling law of a compiled
+    design; and :attr:`unidentified_mass` and :attr:`class_sampling` across structures.
+    :meth:`inspect` returns everything the compile states, the compiled plans included, as
+    nested mappings. :meth:`execute` runs each plan once and returns the
+    :class:`PreferenceDecision`.
     """
 
     def __init__(self, contract: Contract, native: Any) -> None:
@@ -1349,6 +1542,114 @@ class CompiledDecision(ScientificResult):
         """Every compiled plan, each with the decision in its evidence layer."""
         return tuple(
             MappingProxyType(plan) for plan in json.loads(self._native.describe())["plans"]
+        )
+
+    def _stated(self) -> Mapping[str, Any] | None:
+        """The decision facts of the first plan that carries them."""
+        for plan in json.loads(self._native.describe())["plans"]:
+            decision = (plan.get("evidence") or {}).get("decision") or {}
+            preference = decision.get("preference")
+            if isinstance(preference, Mapping):
+                return preference
+        return None
+
+    @property
+    def contract_identity(self) -> str:
+        """Canonical digest of the preference contract (the same as :attr:`Contract.identity`)."""
+        identity = self.inspect().get("contract_identity")
+        return self._contract.identity if identity is None else str(identity)
+
+    @property
+    def route(self) -> Literal["exact", "certified"]:
+        """The route the decision will be answered by."""
+        return self.inspect()["demand"]["route"]
+
+    @property
+    def representation(self) -> str:
+        """The source the contract needs of the analysis: ``"mean"`` when means answer it
+        (an affine value and an expectation), otherwise ``"joint_draws"``."""
+        return str(self.inspect()["demand"]["representation"])
+
+    @property
+    def carrier(self) -> str | None:
+        """What each compiled plan demands of its analysis (``"mean"``, ``"decision_draws"``,
+        ...)."""
+        carrier = self.inspect()["demand"].get("carrier")
+        return None if carrier is None else str(carrier)
+
+    @property
+    def quantities(self) -> tuple[CompiledQuantity, ...]:
+        """Each quantity the actions read, in the compile's order, with its source study."""
+        return tuple(
+            CompiledQuantity(
+                quantity=ScientificQuantity._from_wire(q["quantity"]),
+                source=int(q["source"]),
+                read_by=tuple((str(a), str(b)) for a, b in q["read_by"]),
+            )
+            for q in self.inspect()["demand"]["quantities"]
+        )
+
+    @property
+    def trade_offs(self) -> tuple[TradeOffRange, ...]:
+        """Each trade-off parameter with its declared range, as the plan states it."""
+        stated = self._stated()
+        parameters = (
+            stated["parameters"]
+            if stated is not None
+            else self._contract._preferences()["model"]["parameters"]
+        )
+        return tuple(
+            TradeOffRange(
+                id=str(p["id"]),
+                units=str(p["units"]),
+                lower=float(p["lower"]),
+                upper=float(p["upper"]),
+                assumption=str(p["assumption"]),
+            )
+            for p in parameters
+        )
+
+    @property
+    def parameter_ranges(self) -> Mapping[str, tuple[float, float]]:
+        """Each trade-off parameter's declared range, by id."""
+        return MappingProxyType({t.id: (t.lower, t.upper) for t in self.trade_offs})
+
+    @property
+    def joint_law(self) -> JointLawPlan | None:
+        """The declared joint law of separately estimated outcomes, or ``None`` when one
+        study, a design or the outcomes' means answer the decision."""
+        joint = self.inspect().get("joint_law")
+        if joint is None:
+            return None
+        return JointLawPlan(
+            dependence=str(joint["dependence"]),
+            draws=int(joint["draws"]),
+            seed=int(joint["seed"]),
+            cross_blocks=tuple((int(a), int(b)) for a, b in joint.get("cross_blocks") or ()),
+            inputs=tuple(
+                JointLawInput(
+                    study=int(column["study"]),
+                    quantity=str(column["quantity"]),
+                    stage=str(column["stage"]),
+                )
+                for column in joint["inputs"]
+            ),
+        )
+
+    @property
+    def design_law(self) -> DesignLawPlan | None:
+        """The resampling law a compiled design draws, or ``None`` when its arm means answer
+        the decision or the source is not a design."""
+        stated = self._stated()
+        law = None if stated is None else stated.get("design_law")
+        if law is None:
+            return None
+        return DesignLawPlan(
+            kind=str(law["kind"]),
+            unit=str(law["unit"]),
+            replicates=int(law["replicates"]),
+            seed=int(law["seed"]),
+            sampling=None if law.get("sampling") is None else str(law["sampling"]),
         )
 
     @property
@@ -1638,6 +1939,71 @@ class SampledMargin:
     vertex: Mapping[str, float]
     margin: float
     standard_error: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledQuantity:
+    """One quantity the actions read, bound to the analysis that targets it.
+
+    ``source`` is the position of the study in the compiled source (0 for one study or a
+    design); ``read_by`` lists the ``(action, attribute)`` of every input that reads it.
+    """
+
+    quantity: ScientificQuantity
+    source: int
+    read_by: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TradeOffRange:
+    """One trade-off parameter as the compiled plan states it: its units, its declared range
+    (``lower == upper`` for a fixed value) and the assumption the range stands on."""
+
+    id: str
+    units: str
+    lower: float
+    upper: float
+    assumption: str
+
+
+@dataclass(frozen=True, slots=True)
+class JointLawInput:
+    """One column of a study's law that the joint law of several studies reads: the study's
+    position, the canonical identity of the quantity and the chain stage it becomes."""
+
+    study: int
+    quantity: str
+    stage: str
+
+
+@dataclass(frozen=True, slots=True)
+class JointLawPlan:
+    """The joint law separately estimated outcomes are joined into, declared at compile.
+
+    ``dependence`` is ``distinct_evidence`` or ``shared_evidence``; ``draws`` aligned rows are
+    drawn under ``seed``; ``cross_blocks`` names the study pairs whose cross covariance was
+    declared; ``inputs`` are the columns the chain reads, in output order.
+    """
+
+    dependence: str
+    draws: int
+    seed: int
+    cross_blocks: tuple[tuple[int, int], ...]
+    inputs: tuple[JointLawInput, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DesignLawPlan:
+    """The resampling law a compiled design draws when the decision needs one law of its
+    outcomes: ``static_regime_refits`` or ``independent_unit_bootstrap``, the unit resampled
+    (``subject``, ``cluster``, ``pair`` or ``sequence``), the number of refits, their seed and
+    the declared sampling premise (required for an independent-unit bootstrap)."""
+
+    kind: str
+    unit: str
+    replicates: int
+    seed: int
+    sampling: str | None
 
 
 def _class_sampling(wire: Mapping[str, Any]) -> ClassSampling:
@@ -2114,7 +2480,8 @@ def replay(
     _raise(refusal)
     assert body is not None
     decoded = json.loads(body)
-    return PreferenceDecision(contract, source, decoded, decoded.get("measure"), {})
+    options = decoded.pop("options", None) or {}
+    return PreferenceDecision(contract, source, decoded, decoded.get("measure"), options)
 
 
 __all__ = [
@@ -2123,11 +2490,15 @@ __all__ = [
     "Attribute",
     "ClassSampling",
     "CompiledDecision",
+    "CompiledQuantity",
     "Contract",
     "Criterion",
     "Constraint",
     "Curve",
+    "DesignLawPlan",
     "Expr",
+    "JointLawInput",
+    "JointLawPlan",
     "Measure",
     "Parameter",
     "Policy",
@@ -2138,9 +2509,11 @@ __all__ = [
     "SampledMargin",
     "SampledMass",
     "StructureOutcome",
+    "StructuralPolicy",
     "Structures",
     "Switch",
     "SwitchThreshold",
+    "TradeOffRange",
     "ValueModel",
     "attribute",
     "both",

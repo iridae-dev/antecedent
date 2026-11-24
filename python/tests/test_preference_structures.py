@@ -14,11 +14,7 @@ import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import preferences as pf
-from antecedent.inference import (
-    ClassPrior,
-    _class_prior_kwargs,
-    _graph_posterior_class_prior_kwargs,
-)
+from antecedent.inference import ClassPrior, _class_prior_kwargs
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
 
@@ -57,34 +53,9 @@ def test_exact_limit_and_sample_are_validated():
         ClassPrior.from_pairs([(3, 1.0)]).sample(5, seed=1)
 
 
-def test_the_graph_posterior_wire_carries_every_declaration():
-    prior = ClassPrior.uniform(UNIFORM).exact_limit(4).sample(25, seed=7)
-    assert _graph_posterior_class_prior_kwargs(prior) == {
-        "class_prior": {
-            "kind": "uniform",
-            "pairs": [],
-            "assumption": UNIFORM,
-            "exact_limit": 4,
-            "sample": (25, 7),
-        }
-    }
-    keyed = ClassPrior.from_pairs([(9, 2.0), (4, 1.0)]).with_assumption("declared")
-    wire = _graph_posterior_class_prior_kwargs(keyed)["class_prior"]
-    assert wire["kind"] == "pairs"
-    assert wire["pairs"] == [(9, 2.0), (4, 1.0)]
-    assert _graph_posterior_class_prior_kwargs(None) == {}
-    # Ordered masses name no member of a graph-posterior class.
-    with pytest.raises(ValueError, match="ordered masses name no member"):
-        _graph_posterior_class_prior_kwargs(ClassPrior.from_ordered([1.0, 2.0]))
-
-
-def test_a_temporal_class_keeps_its_ordered_or_keyed_wire():
-    assert _class_prior_kwargs(ClassPrior.from_ordered([1.0, 3.0])) == {
-        "class_prior_ordered": [1.0, 3.0]
-    }
-    assert _class_prior_kwargs(ClassPrior.from_pairs([(5, 1.0)])) == {
-        "class_prior_pairs": [(5, 1.0)]
-    }
+def test_a_temporal_class_refuses_a_member_measure():
+    # A temporal class reads ordered or keyed masses (see the temporal class envelope tests);
+    # a uniform member measure, an exact limit or a sample weighs graph-posterior class atoms.
     with pytest.raises(ValueError, match="temporal class takes ordered or keyed"):
         _class_prior_kwargs(ClassPrior.uniform(UNIFORM))
 
@@ -244,12 +215,39 @@ def test_a_sampled_class_is_never_called_best_for_every_member():
     assert per_member.kind in ("best_on_every_sampled_member", "per_sampled_member")
 
 
+def test_a_sampled_result_exposes_no_exact_verdict():
+    # Every policy over a sampled class: no reading of the result names an action best for
+    # every member, and the exported mixture states that its members were sampled.
+    prior = ClassPrior.uniform(UNIFORM).exact_limit(2).sample(40, seed=9)
+    for policy in ("bayes_over_structures", "maximin", "require_invariant_best_action"):
+        compiled = require_success(_contract(policy).compile(_prepared(prior)))
+        decided = require_success(compiled.execute())
+        assert decided.kind not in ("necessarily_best", "uniquely_best", "tied")
+        assert all(a.necessarily_best is None for a in decided.actions)
+        assert all(a.uniquely_best is None for a in decided.actions)
+        assert decided.draw_share_best_everywhere is None
+        body = decided.to_dict()
+        assert body["compiled"]["mixture"]["weight_basis"] == "sampled_class_measure"
+        assert body["compiled"]["executed"] == body["compiled"]["programs"]
+        assert body["compiled"]["options"]
+        combined = body.get("combined") or {}
+        assert combined.get("draw_share_best_everywhere") is None
+        for action in combined.get("actions") or ():
+            assert action.get("necessarily_best") is None
+            assert action.get("uniquely_best") is None
+
+
 def test_above_the_limit_without_a_sample_the_class_is_refused():
     prior = ClassPrior.uniform(UNIFORM).exact_limit(2)
     with pytest.raises(pf.PreferenceRefusal) as refused:
         require_success(_contract("bayes_over_structures").compile(_prepared(prior)))
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == reason_details.preference_compile.CLASS_COMPLETIONS_TRUNCATED
+
+
+def test_ordered_masses_name_no_member_of_a_graph_posterior_class():
+    with pytest.raises(ValueError, match="ordered masses name no member"):
+        require_success(_prepared(ClassPrior.from_ordered([1.0, 2.0])).estimate())
 
 
 def test_the_graph_posterior_estimate_refuses_a_class_prior_it_does_not_read():

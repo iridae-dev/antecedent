@@ -113,9 +113,9 @@ def contract_for(preferences, policy=None):
     )
 
 compiled = require_success(contract_for(model).compile(studies))
-plan = compiled.inspect()
-plan["demand"]["representation"]     # "mean"
-plan["plans"][0]["evidence"]["decision"]["preference"]["quantities"]
+compiled.representation              # "mean"
+[q.quantity.regime_id for q in compiled.quantities]
+compiled.parameter_ranges            # {"margin": (20.0, 20.0), "return_cost": (10.0, 60.0)}
 declared = require_success(compiled.execute())
 ```
 

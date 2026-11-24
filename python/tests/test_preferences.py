@@ -11,6 +11,8 @@ below ``w = 2`` and wait above it, so every answer below is known in closed form
 
 from __future__ import annotations
 
+from typing import Any
+
 import antecedent as ant
 import numpy as np
 import pytest
@@ -336,8 +338,24 @@ def test_export_and_replay_recompute_the_decision():
     assert replayed.switches[0].margin_range == pytest.approx(result.switches[0].margin_range)
 
     other = _source([[1.0, 0.0, 1.0, 0.0], [5.0, 1.0, 1.0, 0.0]])
-    with pytest.raises(pf.PreferenceRefusal):
+    with pytest.raises(pf.PreferenceRefusal) as other_draws:
         require_success(pf.replay(exported, contract=contract, source=other))
+    assert other_draws.value.reason_code == "decision_contract_unsatisfied"
+    assert other_draws.value.detail == reason_details.preference_artifact.SOURCE_EXPECTED
+
+
+def test_replay_keeps_the_stored_evaluation_options():
+    # A shape parameter takes the certified route, which reads both options.
+    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
+    contract = _contract(pf.ValueModel(BENEFIT - w * w * HARM, utility_units="qaly"))
+    result = _decide(contract, tie_tolerance=1e-3, max_boxes=64)
+    exported = result.export()
+    replayed = require_success(pf.replay(exported, contract=contract, source=_source()))
+    assert replayed.kind == result.kind
+    assert replayed.undecided_fraction == result.undecided_fraction
+    # Re-exporting the replayed decision recomputes it under the stored options.
+    assert bytes(replayed.export()) == bytes(exported)
+    assert bytes(_decide(contract).export()) != bytes(exported)
 
 
 # --------------------------------------------------------------------------- several outcomes
@@ -532,8 +550,12 @@ def test_one_experiment_switches_at_the_ratio_of_its_estimated_differences():
 def test_one_experiment_cannot_answer_a_kinked_term_from_its_means():
     experiment = _experiment()
     kinked = pf.ValueModel(BENEFIT - _weight() * pf.excess(HARM, 1.0), utility_units="qaly")
-    with pytest.raises(pf.PreferenceRefusal):
+    with pytest.raises(pf.PreferenceRefusal) as refused:
         require_success(_experiment_contract(experiment, kinked).evaluate(experiment))
+    # The arm means answer only an affine expectation: the ordinary evaluation of the kinked
+    # part refuses the mean source.
+    assert refused.value.reason_code == "decision_contract_unsatisfied"
+    assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 
 
 # --------------------------------------------------------------------------- one compiled design
@@ -638,6 +660,10 @@ def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_
 
     compiled = require_success(kinked.compile(design, refits=99, seed=3, sampling=SAMPLING))
     assert compiled.inspect()["demand"]["representation"] == "joint_draws"
+    assert means.design_law is None
+    assert compiled.design_law == pf.DesignLawPlan(
+        kind="independent_unit_bootstrap", unit="cluster", replicates=99, seed=3, sampling=SAMPLING
+    )
     (plan,) = compiled.plans
     assert plan["evidence"]["decision"]["carrier"] == "decision_draws"
     assert plan["evidence"]["decision"]["preference"]["design_law"] == {
@@ -767,6 +793,22 @@ def test_compile_shows_the_plan_before_anything_is_fitted():
         }
     ]
 
+    # The same facts, typed.
+    assert compiled.representation == "mean"
+    assert compiled.carrier == "mean"
+    assert compiled.route == "exact"
+    assert compiled.contract_identity == compiled.contract.identity
+    assert [q.quantity.regime_id for q in compiled.quantities] == ["do(t=0.5)", "do(t=1.5)"]
+    assert [q.source for q in compiled.quantities] == [0, 0]
+    assert [q.read_by for q in compiled.quantities] == [
+        (("low", "benefit"),),
+        (("high", "benefit"),),
+    ]
+    assert compiled.trade_offs == (pf.TradeOffRange("price", PRICE_UNITS, 0.2, 1.0, "price"),)
+    assert compiled.parameter_ranges == {"price": (0.2, 1.0)}
+    assert compiled.joint_law is None
+    assert compiled.design_law is None
+
     # The gain is about 1.5, so a price range below it leaves `high` best everywhere.
     decided = require_success(compiled.execute())
     assert decided.kind == "necessarily_best"
@@ -874,6 +916,16 @@ def test_compile_across_several_studies():
     joint = joined.inspect()["joint_law"]
     assert joint["dependence"] == "distinct_evidence"
     assert len(joint["inputs"]) == 4
+    law = joined.joint_law
+    assert law is not None
+    assert (law.dependence, law.draws, law.seed, law.cross_blocks) == (
+        "distinct_evidence",
+        2000,
+        7,
+        (),
+    )
+    assert sorted(column.study for column in law.inputs) == [0, 0, 1, 1]
+    assert means.joint_law is None
     decided = require_success(joined.execute())
     assert isinstance(decided.source, JointDistributionArtifact)
 
@@ -1010,3 +1062,281 @@ def test_a_projection_and_a_study_of_the_whole_table_share_its_rows():
     with pytest.raises(pf.PreferenceRefusal) as reversed_order:
         require_success(_joined_contract().compile([projected, whole], draws=2000, seed=7))
     assert reversed_order.value.reason_code == "evidence_double_counted"
+
+
+# --------------------------------------------------------------------------- arguments and seeds
+
+
+def test_compile_refuses_an_argument_its_source_does_not_read():
+    study = _prepared(_dose_table(), bayes=True)
+    contract = _dose_contract(_priced(0.2, 1.0, kink=2.0))
+    block = {(0, 1): [[1e-5, 1e-5], [1e-5, 1e-5]]}
+    for arguments in (
+        {"draws": 2000},
+        {"shared": block},
+        {"refits": 99},
+        {"sampling": SAMPLING},
+        {"seed": 3},
+    ):
+        with pytest.raises(CausalValueError) as one:
+            require_success(contract.compile(study, **arguments))  # type: ignore[arg-type]
+        assert one.value.reason_code == "option_not_applicable"
+
+    benefit = _prepared(_dose_table("b", 220, 1.2, 1.7), "b", bayes=True)
+    harm = _prepared(_dose_table("h", 260, 0.5, 2.9), "h", bayes=True)
+    joined = _joined_contract()
+    for arguments in ({"refits": 99}, {"sampling": SAMPLING}, {"seed": 3}):
+        with pytest.raises(CausalValueError) as several:
+            require_success(joined.compile([benefit, harm], **arguments))  # type: ignore[arg-type]
+        assert several.value.reason_code == "option_not_applicable"
+
+    design = _cluster_design()
+    kinked = _design_contract(
+        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+    )
+    for arguments in ({"draws": 2000}, {"shared": block}, {"seed": 3}):
+        with pytest.raises(CausalValueError) as on_design:
+            require_success(kinked.compile(design, **arguments))  # type: ignore[arg-type]
+        assert on_design.value.reason_code == "option_not_applicable"
+
+
+def test_shared_evidence_reads_a_block_of_rows_by_columns():
+    # Two outcomes of one table share every row; the declared block is rows of the first
+    # study's two doses by columns of the second's.
+    table = _dose_table("b", 200, 1.2, 1.7)
+    table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
+    first = _prepared(table, "b", bayes=True)
+    second = _prepared(table, "h", bayes=True)
+    block = [[1e-5, 2e-5], [3e-5, 4e-5]]
+    compiled = require_success(
+        _joined_contract().compile([first, second], shared={(0, 1): block}, seed=7)
+    )
+    assert compiled.joint_law is not None
+    assert compiled.joint_law.dependence == "shared_evidence"
+    assert compiled.joint_law.cross_blocks == ((0, 1),)
+    declared = compiled.inspect()["cross_study_covariance"]
+    assert declared == [{"first": 0, "second": 1, "covariance": [1e-5, 2e-5, 3e-5, 4e-5]}]
+
+    # A NumPy block keyed the other way round is read as its transpose.
+    swapped = require_success(
+        _joined_contract().compile([first, second], shared={(1, 0): np.array(block).T}, seed=7)
+    )
+    assert swapped.inspect()["cross_study_covariance"] == declared
+
+    for wrong in ([[1e-5, 1e-5, 1e-5], [1e-5, 1e-5, 1e-5]], [1e-5, 2e-5, 3e-5, 4e-5]):
+        with pytest.raises(CausalValueError, match="one row per coordinate of study 0"):
+            require_success(_joined_contract().compile([first, second], shared={(0, 1): wrong}))
+    with pytest.raises(CausalValueError, match="two different studies"):
+        require_success(_joined_contract().compile([first, second], shared={(0, 2): block}))
+
+
+def test_the_execution_seed_seeds_the_chain_draws_and_the_refits():
+    benefit = _prepared(_dose_table("b", 220, 1.2, 1.7), "b", bayes=True)
+    harm = _prepared(_dose_table("h", 260, 0.5, 2.9), "h", bayes=True)
+    contract = _joined_contract()
+
+    def chain_seed(**arguments: Any) -> int:
+        compiled = require_success(contract.compile([benefit, harm], draws=2000, **arguments))
+        assert compiled.joint_law is not None
+        return compiled.joint_law.seed
+
+    assert chain_seed(execution=ant.Execution(seed=5)) == 5
+    assert chain_seed(execution=ant.Execution(seed=6)) == 6
+    assert chain_seed() == ant.Execution().seed
+    # An explicit seed= wins over the execution's.
+    assert chain_seed(seed=8, execution=ant.Execution(seed=5)) == 8
+
+    kinked = _design_contract(
+        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+    )
+    refits = require_success(
+        kinked.compile(
+            _cluster_design(), refits=99, sampling=SAMPLING, execution=ant.Execution(seed=4)
+        )
+    )
+    assert refits.design_law is not None
+    assert refits.design_law.seed == 4
+
+
+# --------------------------------------------------------------------------- refusals of the route
+
+
+def test_a_cancelled_compile_or_execution_is_a_preference_refusal():
+    token = ant.CancellationToken()
+    token.cancel()
+    cancelled = ant.Execution(cancel=token)
+    prepared = _prepared(_dose_table())
+    contract = _dose_contract(_priced(0.2, 1.0))
+
+    # The causal compiler stops at the cancelled token: a compile refusal, not a bare error.
+    with pytest.raises(pf.PreferenceRefusal) as at_compile:
+        require_success(contract.compile(prepared, execution=cancelled))
+    assert at_compile.value.reason_code == "cancelled_no_claim"
+    assert at_compile.value.detail == reason_details.preference_compile.CANCELLED
+
+    compiled = require_success(contract.compile(prepared))
+    with pytest.raises(pf.PreferenceRefusal) as at_execute:
+        require_success(compiled.execute(execution=cancelled))
+    assert at_execute.value.reason_code == "cancelled_no_claim"
+    assert at_execute.value.detail == reason_details.preference_compile.CANCELLED
+
+    # A compiled design is stopped the same way.
+    affine = _design_contract(
+        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * HARM, utility_units="qaly")
+    )
+    with pytest.raises(pf.PreferenceRefusal) as on_design:
+        require_success(affine.compile(_cluster_design(), execution=cancelled))
+    assert on_design.value.detail == reason_details.preference_compile.CANCELLED
+
+
+def test_policies_are_checked_where_they_are_declared():
+    with pytest.raises(CausalValueError, match="Policy.invariant_best"):
+        pf.Policy("minimax")  # type: ignore[arg-type]
+    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    with pytest.raises(CausalValueError, match="structural_policy"):
+        _contract(model, structural_policy="minimax")
+    with pytest.raises(CausalValueError):
+        pf.StructuralPolicy("minimax")  # type: ignore[arg-type]
+    # The typed structural policy and its kind as a string are the same contract.
+    typed = _contract(model, structural_policy=pf.StructuralPolicy.maximin())
+    named = _contract(model, structural_policy="maximin")
+    assert typed.structural_policy == named.structural_policy == pf.StructuralPolicy.maximin()
+    assert typed.identity == named.identity
+
+
+# --------------------------------------------------------------------------- hard constraints
+
+
+def test_a_hard_constraint_excludes_an_action_whatever_the_trade_off():
+    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    # treat has harm 0 or 1, each with weight one half; wait has harm 0.
+    cap = pf.constraint("harm_cap", HARM, at_most=0.5, units="events")
+    result = _decide(_contract(model, constraints=(cap,)))
+    by_id = {a.id: a for a in result.actions}
+    assert not by_id["treat"].admissible
+    (exclusion,) = by_id["treat"].exclusions
+    assert exclusion.constraint_id == "harm_cap"
+    assert exclusion.probability == pytest.approx(0.5)
+    assert exclusion.required == pytest.approx(1.0)
+    assert by_id["wait"].admissible
+    # Without the cap the choice depends on the trade-off; with it no trade-off buys treat back.
+    assert _decide(_contract(model)).kind == "preference_dependent"
+    assert result.selected == "wait"
+
+    nothing = pf.constraint("no_harm_at_all", HARM, at_most=-1.0, units="events")
+    none_left = _decide(_contract(model, constraints=(nothing,)))
+    assert none_left.kind == "no_admissible_action"
+    assert none_left.selected is None
+
+    with pytest.raises(CausalValueError, match="never a trade-off"):
+        pf.constraint("reads_a_weight", _weight() * HARM, at_most=1.0, units="events")
+
+
+def test_a_hard_constraint_demands_draws_at_compile():
+    # An affine value read by means alone; a constraint probability needs a law of the outcome.
+    benefit = pf.attribute("benefit", units="points")
+    model = _priced(0.2, 1.0)
+    affine = _dose_contract(model)
+    capped = _dose_contract(
+        model,
+        constraints=(pf.constraint("benefit_cap", benefit, at_most=100.0, units="points"),),
+    )
+    prepared = _prepared(_dose_table(), bayes=True)
+    assert require_success(affine.compile(prepared)).representation == "mean"
+    compiled = require_success(capped.compile(prepared))
+    assert compiled.representation == "joint_draws"
+    decided = require_success(compiled.execute())
+    assert all(a.admissible for a in decided.actions)
+    assert decided.selected == "high"
+
+
+# --------------------------------------------------------------------------- structures in hand
+
+
+def test_structures_in_hand_are_decided_with_the_trade_offs():
+    from antecedent.decision_robust import Claim
+
+    model = pf.ValueModel(BENEFIT - _weight(0.5, 1.5) * HARM, utility_units="qaly")
+    # Under both structures treat leads for every weight in [0.5, 1.5]: margins 1 - 0.5 w and
+    # 2 - 0.5 w.
+    stronger = _source([[1.0, 0.0, 1.0, 0.0], [5.0, 1.0, 1.0, 0.0]])
+    claims = (
+        Claim.evaluated("direct", _source(), probability=0.6),
+        Claim.evaluated("stronger", stronger, probability=0.3),
+        Claim.unidentified("cycle", probability=0.1),
+    )
+    reported = require_success(_contract(model).evaluate(pf.Structures.weighted_atoms(claims)))
+    by_id = {s.id: s for s in reported.structures}
+    assert (by_id["direct"].status, by_id["direct"].selected) == ("evaluated", "treat")
+    assert (by_id["stronger"].status, by_id["stronger"].selected) == ("evaluated", "treat")
+    assert by_id["cycle"].status == "unidentified"
+    assert reported.unidentified_mass == pytest.approx(0.1)
+    # The kind as a string is the same set of structures.
+    named = require_success(
+        _contract(model).evaluate(pf.Structures("weighted_graph_posterior", claims))
+    )
+    assert [(s.id, s.kind) for s in named.structures] == [
+        (s.id, s.kind) for s in reported.structures
+    ]
+
+    # Every structure evaluated, the worst case over them still leaves treat best everywhere.
+    maximin = _contract(model, structural_policy=pf.StructuralPolicy.maximin())
+    combined = require_success(maximin.evaluate(pf.Structures.weighted_atoms(claims[:2])))
+    assert combined.selected == "treat"
+
+
+# --------------------------------------------------------------------------- compiled artifacts
+
+
+def test_a_compiled_decision_on_draws_exports_and_replays():
+    prepared = _prepared(_dose_table(), bayes=True)
+    contract = _dose_contract(_priced(0.2, 1.0, kink=2.0))
+    decided = require_success(require_success(contract.compile(prepared)).execute())
+    assert isinstance(decided.source, JointDistributionArtifact)
+    exported = decided.export()
+    replayed = require_success(pf.replay(exported, contract=contract, source=decided.source))
+    assert replayed.kind == decided.kind
+    assert replayed.selected == decided.selected
+    assert [a.value_range for a in replayed.actions] == [a.value_range for a in decided.actions]
+
+    # A decision the compiled route answered from means has no draws to replay on.
+    by_means = require_success(
+        require_success(_dose_contract(_priced(0.2, 1.0)).compile(prepared)).execute()
+    )
+    with pytest.raises(pf.PreferenceRefusal) as refused:
+        by_means.export()
+    assert refused.value.reason_code == "route_not_supported"
+    assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE
+
+
+# --------------------------------------------------------------------------- preparation
+
+
+def test_a_column_no_analysis_reads_never_fails_preparation():
+    # A column of two values per row cannot be ingested as a table column; no analysis below
+    # reads it, so preparing still succeeds and both studies still name the one table.
+    table = _dose_table("b", 200, 1.2, 1.7)
+    table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
+    table["notes"] = np.zeros((200, 2))
+    first = _prepared(table, "b", bayes=True)
+    second = _prepared(table, "h", bayes=True)
+    with pytest.raises(pf.PreferenceRefusal) as shared:
+        require_success(_joined_contract().compile([first, second], draws=2000, seed=7))
+    assert shared.value.reason_code == "evidence_double_counted"
+
+
+# --------------------------------------------------------------------------- separation
+
+
+def test_the_stated_trade_offs_do_not_load_the_learning_module():
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys\n"
+        "import antecedent.preferences\n"
+        "loaded = sorted(m for m in sys.modules if m.startswith('antecedent.preference'))\n"
+        "assert 'antecedent.preference_learning' not in sys.modules, loaded\n"
+    )
+    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr

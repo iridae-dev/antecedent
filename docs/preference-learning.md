@@ -194,12 +194,24 @@ is the declared value of option `i` under its recorded expectations and `lambda 
 choice consistency: larger means choices follow the value more closely. This is the
 conditional logit of McFadden (1974), fitted by maximum likelihood. Each trade-off is the ratio
 of its coefficient to the consistency, so its standard error is a delta-method value
-(van der Vaart, 1998). With two or more decision-makers in a fit, the covariance is clustered
-by decider (Liang and Zeger, 1986), otherwise it is the inverse observed information.
+(van der Vaart, 1998). With one decision-maker the covariance is the inverse observed
+information. With `C` decision-makers and `q` coefficients, the covariance is clustered by
+decider (Liang and Zeger, 1986) and multiplied by `C / (C - 1)` (Cameron and Miller, 2015) when
+`C` is at least `2q + 1`; between two and `2q` decision-makers the fit is refused
+(`preference_choice_model.too_few_deciders_to_cluster`), because so few clusters cannot carry
+the covariance and the model covariance is not substituted.
 
 The measure is drawn from the normal approximation to the estimate (Krinsky and Robb, 1986),
-mapped to trade-off values and kept only inside the declared set. The share dropped is
+mapped to trade-off values and kept only inside the declared set. A draw that leaves some
+parameter unresolved is kept only when some value of the unresolved parameters completes it to
+a point of the set, the same check the evaluation applies to a measure. The share dropped is
 reported.
+
+A shape fit is polished by Fisher scoring, with Newton steps on the observed information where
+scoring stalls. A polish that does not reach a stationary point is refused
+(`preference_choice_model.not_converged`); a profile above the polished maximum starts the
+polish once more from the profile's best point, so the estimate and its intervals are read at
+the maximum.
 
 ```python
 fit = require_success(pl.ChoiceModel(draws=500, seed=7).learn(model, records))
@@ -230,7 +242,7 @@ must differ in the part of the value that parameter multiplies.
 | The fixed part never differs within a record | not applicable | refused: the scale of the trade-offs is not determined (`preference_choice_model.unit_of_account_missing`) |
 | Two parameters move together in every record | ranges reflect the joint constraint | refused (`preference_choice_model.rank_deficient`) |
 | Some trade-off values explain every choice with no error (separation) | ranges as computed | refused: the likelihood has no finite maximum (`preference_choice_model.separated`) |
-| A fixed parameter | folded into the fixed part; neither learned nor listed, and no review item | the same |
+| A fixed parameter | folded into the fixed part and not learned; listed in the ranges at its value, with no review item | folded into the fixed part; not estimated, not among the estimates, and no review item |
 | A shape parameter (inside a kink, `exp`, `ln` or a product of parameters) | learned by subdivision; see [shape parameters](#shape-parameters) | profiled; see [shape parameters](#shape-parameters) |
 | A shape parameter the value differences within a record never read (it adds the same amount to every option) | keeps its declared range | left out of the fit and listed as not learnable; review item `parameter_not_learnable` |
 
@@ -361,8 +373,14 @@ Choices are read per decider unless you name a pooling assumption.
 `accept(model, records, decider=name)` accepts one decider's preferences; a name the records do
 not hold is refused (`accepted_preferences.decider_unknown`). `accept(model, records)` with no
 decider takes the pooled outcome, which needs pooled records
-(`accepted_preferences.pooled_not_available` otherwise). With two or more deciders in a pooled
-choice-model fit, the covariance is clustered by decider.
+(`accepted_preferences.pooled_not_available` otherwise). A pooled choice-model fit clusters
+its covariance by decider under the rule above.
+
+Accepting a learned set or estimate directly (`AcceptedPreferences::from_compatible_set` or
+`from_estimate` in Rust) takes the records it was learned from: records whose digest differs
+are refused (`accepted_preferences.records_mismatch`), and the count of stated comparisons is
+read from them. A learned set that drops or changes a declared parameter, range or relation is
+refused (`accepted_preferences.declaration_not_kept`).
 
 ## Why a fit never mixes stated and recorded choices
 
@@ -404,7 +422,7 @@ Review items (`pl.ReviewItem`, with `kind`, `parameter` and `amount`):
 | `parameter_not_learnable` | `ParameterNotLearnable` | The estimate leaves the parameter unresolved |
 | `estimate_outside_declared` | `EstimateOutsideDeclared` | The point estimate lies outside the declared range |
 | `draws_outside_declared` | `DrawsOutsideDeclared` | A share of the measure's draws fell outside the declared set and was dropped |
-| not yet in Python | `StatedComparisonsUsed { count }` | The records the preferences were learned from include stated comparisons |
+| `stated_comparisons_used` | `StatedComparisonsUsed { count }` | The records the preferences were learned from include stated comparisons; `amount` is their number, also read as `accepted.stated_comparisons` |
 
 The handle is stored as `accepted_preferences_v1` in the checksummed container, with the
 declared model, the basis, the learning options, the decider selection, the version and the
@@ -479,7 +497,9 @@ regression revisited, doi:10.1016/j.ejor.2007.08.013. Chinneck, J. W. and Dravni
 (1991), locating minimal infeasible constraint sets in linear programs,
 doi:10.1287/ijoc.3.2.157. McFadden, D. (1974), conditional logit analysis of qualitative choice
 behavior, in *Frontiers in Econometrics*. Liang, K.-Y. and Zeger, S. L. (1986), longitudinal
-data analysis using generalized linear models, doi:10.1093/biomet/73.1.13. van der Vaart, A. W.
+data analysis using generalized linear models, doi:10.1093/biomet/73.1.13. Cameron, A. C.
+and Miller, D. L. (2015), a practitioner's guide to cluster-robust inference,
+doi:10.3368/jhr.50.2.317. van der Vaart, A. W.
 (1998), *Asymptotic Statistics*, doi:10.1017/CBO9780511802256. Krinsky, I. and Robb, A. L.
 (1986), on approximating the statistical properties of elasticities, doi:10.2307/1924536.
 Venzon, D. J. and Moolgavkar, S. H. (1988), a method for computing profile-likelihood-based

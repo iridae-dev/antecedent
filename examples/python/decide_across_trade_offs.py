@@ -170,13 +170,13 @@ def contract_for(preferences, policy=None) -> pf.Contract:
 
 
 compiled = require_success(contract_for(model).compile(studies))
-plan = compiled.inspect()
-assert plan["demand"]["representation"] == "mean"
-assert plan["demand"]["carrier"] == "mean"
-assert len(plan["plans"]) == 2  # one plan per study, each carrying the decision
-stated = plan["plans"][0]["evidence"]["decision"]["preference"]
-assert {p["id"] for p in stated["parameters"]} == {"margin", "return_cost"}
-print("reads:", [q["regime"] for q in stated["quantities"]])
+assert compiled.representation == "mean"
+assert compiled.carrier == "mean"
+assert len(compiled.plans) == 2  # one plan per study, each carrying the decision
+assert compiled.parameter_ranges == {"margin": (20.0, 20.0), "return_cost": (10.0, 60.0)}
+# Orders are read from the first study and returns from the second.
+assert {q.source for q in compiled.quantities} == {0, 1}
+print("reads:", sorted({q.quantity.regime_id for q in compiled.quantities}))
 
 decided = require_success(compiled.execute())
 print(decided.statement)

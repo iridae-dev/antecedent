@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import math
 import struct
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -118,34 +118,66 @@ def table_identity(data: Any, names: Sequence[str]) -> str:
     every column as ingested), so a study of a column projection and a study of the whole table
     name the same table. A table the engine cannot ingest whole (a column of a type no analysis
     reads) cannot be a study's table; its identity is then a digest of every column's name,
-    type and values, in order.
+    type and values, in order. Neither fails on a column the analysis never reads: such a
+    column is digested as it is, so preparing an analysis of the other columns never depends
+    on it.
     """
     from ._data import ingest_columns
     from ._native import table_content_identity
-    from .errors import CausalError
 
     try:
         ingested, arrays = ingest_columns(data)
         return table_content_identity(list(ingested), list(arrays))
-    except (CausalError, TypeError, ValueError):
+    except Exception:  # noqa: BLE001 - any column the engine cannot ingest is digested as it is
         return _column_digest(data, names)
+
+
+def _digest_array(digest: Any, array: np.ndarray) -> None:
+    _update_text(digest, array.dtype.str)
+    if array.ndim == 1:
+        digest.update(len(array).to_bytes(8, "little"))
+    else:
+        # A column that is not one value per row: its shape is part of its content.
+        _update_text(digest, f"shape:{array.shape}")
+    if array.dtype.kind in "biufcmM":
+        digest.update(np.ascontiguousarray(array).tobytes())
+    else:
+        for value in array.ravel().tolist():
+            _update_text(digest, _cell_text(value))
+
+
+def _unread_column(data: Any, name: str) -> Any:
+    """A column ``read_columns`` refuses (not one value per row, or another row count), as
+    the table holds it."""
+    if isinstance(data, Mapping):
+        return next((data[key] for key in data if str(key) == name), None)
+    return None
 
 
 def _column_digest(data: Any, names: Sequence[str]) -> str:
     """A digest of every column's name, type and values, in order."""
-    columns = read_columns(data, list(names), what="row provenance")
+    from .errors import CausalError
+
     digest = hashlib.blake2b(digest_size=32, person=_IDENTITY_PERSON)
-    digest.update(len(columns).to_bytes(8, "little"))
-    for name, column in columns.items():
-        array = np.asarray(column)
+    digest.update(len(names).to_bytes(8, "little"))
+    for name in names:
         _update_text(digest, str(name))
-        _update_text(digest, array.dtype.str)
-        digest.update(len(array).to_bytes(8, "little"))
-        if array.dtype.kind in "biufcmM":
-            digest.update(np.ascontiguousarray(array).tobytes())
-        else:
-            for value in array.tolist():
-                _update_text(digest, _cell_text(value))
+        try:
+            column = read_columns(data, [name], what="row provenance")[name]
+        except (CausalError, TypeError, ValueError):
+            raw = _unread_column(data, name)
+            _update_text(digest, "unread")
+            for dtype in (None, object):
+                try:
+                    array = np.asarray(raw, dtype=dtype)
+                except (TypeError, ValueError):
+                    continue
+                _digest_array(digest, array)
+                break
+            else:
+                _update_text(digest, _cell_text(raw))
+            continue
+        _digest_array(digest, np.asarray(column))
     return digest.hexdigest()
 
 

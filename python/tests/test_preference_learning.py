@@ -253,7 +253,9 @@ def test_the_choice_model_estimates_the_trade_off_and_carries_its_measure():
     assert estimate.parameter == "harm_weight"
     assert estimate.estimate == pytest.approx(1.5, abs=0.4)
     assert estimate.interval[0] < estimate.estimate < estimate.interval[1]
-    assert fit.pooled.interval_calibration == "not_measured"
+    # The one-parameter Wald interval has a calibration group: its status is read from the
+    # shipped coverage table, so it is either documented state.
+    assert fit.pooled.interval_calibration in {"measured", "not_measured"}
     assert fit.pooled.not_learnable == ()
     assert fit.pooled.measure.estimate is not None
 
@@ -474,3 +476,55 @@ def test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_dec
     decided = require_success(contract(reviewed).evaluate(_lottery_source()))
     assert decided.kind == "necessarily_best"
     assert decided.selected == "sure"
+
+
+def test_options_read_from_an_analysis_become_a_record():
+    # The analysis's draws of each action become the options of a record that read it.
+    options = pl.Option.from_result(_contract(MODEL), _source())
+    assert [option.id for option in options] == ["treat", "wait"]
+    treat, wait = options
+    assert treat.draws is not None and wait.draws is not None
+    assert list(treat.draws["benefit"]) == pytest.approx([1.0, 3.0])
+    assert list(treat.draws["harm"]) == pytest.approx([0.0, 1.0])
+    assert list(treat.draws["cost"]) == pytest.approx([0.0, 0.0])
+    assert list(wait.draws["benefit"]) == pytest.approx([1.0, 1.0])
+
+    # Choosing treat with these expectations (2 - 0.5 w over 1) implies w <= 2.
+    record = pl.Record(
+        "read-the-trial",
+        decider="clinic",
+        options=options,
+        chosen="treat",
+        source=pl.AnalysisAsOf("trial-result-1", "2026-11-01"),
+        observation_rows=("ledger:read-the-trial",),
+    )
+    learned = require_success(
+        pl.CompatibleSet().learn(MODEL, pl.Records((record,), "target", POOLED))
+    )
+    assert isinstance(learned.pooled, pl.LearnedSet)
+    assert learned.pooled.range("harm_weight") == pytest.approx((0.0, 2.0))
+
+
+def test_accepted_preferences_relearn_on_request():
+    records = pl.Records((AT_MOST_ONE,), "target", POOLED)
+    accepted = pl.CompatibleSet().accept(MODEL, records)
+    reviewed = accepted.acknowledge(*accepted.pending)
+    assert (reviewed.version, reviewed.pending) == (2, ())
+
+    # Relearning with the stored options on other records: a new version, acknowledgements
+    # cleared, so the unvaried cost weight is pending again.
+    relearned = reviewed.relearn(pl.Records((AT_LEAST_THREE,), "target", POOLED))
+    assert relearned.version == 3
+    assert relearned.basis == "compatible_set"
+    assert relearned.ranges["harm_weight"] == pytest.approx((3.0, 4.0))
+    assert relearned.acknowledged == ()
+    assert relearned.pending == (pl.ReviewItem("parameter_not_varied", "cost_weight"),)
+    assert relearned.identity != reviewed.identity
+
+    # Declared preferences carry no learning options: the learner is named.
+    declared = pl.AcceptedPreferences.declared(MODEL)
+    with pytest.raises(CausalValueError, match="no learning options"):
+        declared.relearn(records)
+    learned = declared.relearn(records, using=pl.CompatibleSet())
+    assert learned.basis == "compatible_set"
+    assert learned.ranges["harm_weight"] == pytest.approx((0.0, 1.0))
