@@ -96,8 +96,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "5f8f39df2aadd0169219e8ef188451b3f877e9f8e7abf5908938f47c247b36b6"
-checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
+inputs_digest = "09a38e5b3dc7f58f21b5a09fa454b63305ab7d09aa3b0f18c244ace3e74c3074"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "identity.order_insensitive_declarations"
@@ -313,8 +313,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "16523ba9e58ae62afaa74467dd621cb5ab11f3904554eccf63477bb0c7c021c3"
-checked_commit = "4382fb44cb96811da901aa99712269934ad48b64"
+inputs_digest = "1911f214f02b5056ce6cf6adde2512b7e66f6c1075aea25777e504784e2653cf"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "claim_standing.derivations_never_raised"
@@ -416,8 +416,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = ""
-checked_commit = ""
+inputs_digest = "613f7daf6b55569d6aacf6ab47efd87f88707c6f476bc68e1080be805104bc95"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "claim_standing.handoff_chain_keeps_losses"
@@ -492,8 +492,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = ""
-checked_commit = ""
+inputs_digest = "9a24aefc29d3a0b4903e94c4ed1a44a1846bba3ba84e83e0b6e2dcd431688916"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "revalidation.raised_only_by_recomputation"
