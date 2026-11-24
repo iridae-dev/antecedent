@@ -615,6 +615,15 @@
   "forecast.event_process": [
    "forecast.event_process"
   ],
+  "forecast.hawkes_excitation": [
+   "forecast.hawkes_excitation"
+  ],
+  "forecast.hawkes_parameter_bridge": [
+   "forecast.hawkes_parameter_bridge"
+  ],
+  "forecast.marked_event_process": [
+   "forecast.marked_event_process"
+  ],
   "gcm.attribute.mechanism_refit": [
    "gcm.attribute.mechanism_refit"
   ],
@@ -9844,6 +9853,91 @@
      ],
      "title": "Bootstrap inference for Hawkes and general point processes",
      "year": 2023
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Finite-horizon direct offspring is α(1 - exp(-β H)). Lifetime descendants are the column of (I - A)^{-1} - I, which removes the initiating event counted by the resolvent. Horizon descendants integrate the linear filter ODE with a fixed-step fourth-order Runge-Kutta scheme of at most 200000 steps and are not the resolvent of the horizon-discounted branching matrix. The same functionals of a marked kernel use the prototype branching matrix.",
+    "The immigrant challenge is repository-defined. It fits the constant-baseline model and a second model whose immigrant intensity adds a declared nonnegative piecewise-constant feature with its own coefficient, both by the fixed-decay projected-gradient likelihood fit. The diagnostic agrees only when the horizon-specific direct masses differ by at most a caller-supplied tolerance and neither fit is weakly identified or on its stability cap. Agreement is a robustness check on two conditional intensities, not an identification result, and the tolerance is declared rather than derived from an uncertainty test.",
+    "A release comparison scores one added event at each of two times over the remaining horizon of the publisher's window under the constant-baseline kernel, only when the challenge agreed and the kernel reproduces the reading's direct mass. It is a conditional scenario under that kernel, not an identified response to releasing."
+   ],
+   "digest": "58af978d448a8c2f3acf8a358c399a6a3f5905db2900f92852cbceffd00ef991",
+   "id": "forecast.hawkes_excitation",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Alan G. Hawkes",
+      "David Oakes"
+     ],
+     "doi": "10.2307/3212693",
+     "doi_verified": true,
+     "sections": [
+      "Cluster process representation"
+     ],
+     "title": "A cluster process representation of a self-exciting process",
+     "year": 1974
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Repository-defined. An agreed horizon direct mass may cross the parameter-intervention bridge when both functionals are direct_offspring and the map is an identity or affine map, the fitted regime is observational and the response names a different regime. Under an identity map the lifetime total offspring (total_offspring: the resolvent column entry, direct mass plus feedback descendants) may cross instead; under an affine map a total offspring refuses and, when excitation runs both ways (a two-way kernel or a feedback member), the resolvent value is reported beside the carried direct mass as the cyclic reading. Mutual excitation is read, not refused. A singular excitation Gram or an active stability cap refuses before the bridge is asked.",
+    "Class, posterior and cyclic reading. The structural reading is taken over every member of a declared structure, enumerated by the shared carrier antecedent::analysis::structure_members: one DAG, ADMG, temporal DAG or temporal ADMG; the completions of a CPDAG or PAG (from the class completion samplers, MAG completions read as ADMGs) or of a temporal CPDAG or PAG (the temporal class envelope's completions); an explicit candidate set with optional weights; the distinct atoms of a DAG or ADMG graph posterior with their mass; or a cyclic system whose directed edges are read as one-step lags, since an event process unfolds in time. A static member is identified by the complete ID algorithm (general identification) through the identification identify_structure runs, so a member where no directed path leaves the exposure identifies the effect as zero; a temporal member by the temporal identifier of its class for a one-step pulse. A member that orients the exposure into the outcome reads the bridged kernel value, a member where the edge is absent or reversed reads the bridged zero, and an unidentified member reads nothing. The reading reports the envelope over identified members, their weight (uniform enumeration weight for a form without weights, as class envelopes report it) and, for a weighted form, the mixture conditional on identified members. It refuses only when no member identifies the effect. A single accepted DAG keeps its earlier result and program identity; any other structure's identity adds the structure's canonical identity (form, canonical graph identities with node labels, names, weights, cyclic premises, provenance) and the reading mode. The bridge evidence is the provenance digest of the search the structure came from, or the declared structure's canonical identity.",
+    "An intervened continuation adds one event of the accepted source type now, later, or of a different mark, and draws the continuation conditional on the observed history and that event with the accepted kernel by Ogata thinning. A marked history is read as a catalog with one name per prototype. When an identified member reads zero the law is one weighted mixture: members that orient the edge draw with the added event exciting and null members draw path i on the same random stream i without it, so member differences are structural; group weights are the identified members' weights. The paths are a conditional scenario under the kernel the bridge kept, not by themselves the utility of releasing.",
+    "A release question compiles the immigrant challenge, the bridge and one release action as one program: a withheld reading returns the reading alone with no claim and no law.",
+    "A shock that moves the exposure and is excluded from the outcome leaves the Hawkes model as a lag-count query naming the exposure, the outcome, the lag and the instrument; it returns no excitation coefficient.",
+    "The release study is the existing future-study value of information composed on the accepted excitation's program, accepted only when every hypothesis of the belief is the catalog kernel the bridge kept and no identified member reads zero; a marked kernel is not priced that way. The member release study prices the release per member: an orienting member under the kept kernel, a null member under the kept kernel with the exposure's edge into the outcome removed, reported as the range of gross values over identified members, plus, for a weighted structure, the study whose belief weights the two kernels by the identified members' weights."
+   ],
+   "digest": "bae512028f5ffdbe5822f006135cfd7db8740997b874d0ab3ec0d4c51b18837e",
+   "id": "forecast.hawkes_parameter_bridge",
+   "review": "none",
+   "scope_limits": [],
+   "sources": []
+  },
+  {
+   "deviations": [
+    "The mark space is replaced by declared prototypes, each with nonnegative source features, target features and a reference mass. The kernel is finite-rank on those features with one fixed exponential decay per rank component. This parameterization is repository-defined; it is a quadrature or atom representation of a marked kernel, not the general marked Hawkes process of the cited papers.",
+    "With the decays and features fixed, the ground intensity is linear in the baseline and excitation coefficients, so the conditional log likelihood is concave in them. The fit is projected gradient ascent onto a half-space: no declared prototype may have more than a reproduction cap of lifetime direct children. That is a convex sufficient condition for spectral radius below one and is generally stricter than it, the same role the source-column cap plays for the catalog model.",
+    "Declared coefficients are checked with a positive subinvariance witness of the prototype branching matrix, not with the reproduction cap.",
+    "Rank and target basis are capped by the dense catalog allowance and the prototype count by the cost of the spectral witness, each derived from the per-invocation operation budget.",
+    "Draws condition on the observed arrivals strictly before the draw window and use Ogata thinning with the ground intensity as the bound after each accepted arrival. Paths are model-conditional draws, not a predictive law with parameter uncertainty."
+   ],
+   "digest": "bb60ca04b9eb78e4e6693ab3dcc337446f7e73821f9a8dc2e60fc6ad80bfe911",
+   "id": "forecast.marked_event_process",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1093/biomet/58.1.83",
+     "doi_verified": false,
+     "sections": [
+      "Mutually exciting processes"
+     ],
+     "title": "Spectra of some self-exciting and mutually exciting point processes"
+    },
+    {
+     "authors": [
+      "Alan G. Hawkes",
+      "David Oakes"
+     ],
+     "doi": "10.2307/3212693",
+     "doi_verified": true,
+     "sections": [
+      "Cluster process representation"
+     ],
+     "title": "A cluster process representation of a self-exciting process",
+     "year": 1974
+    },
+    {
+     "doi": "10.1109/TIT.1981.1056305",
+     "doi_verified": false,
+     "sections": [
+      "Thinning algorithm for multivariate processes"
+     ],
+     "title": "On Lewis' simulation method for point processes"
     }
    ]
   },
