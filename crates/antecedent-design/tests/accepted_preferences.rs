@@ -395,25 +395,99 @@ fn estimate_review_items_follow_parameter_order() {
     assert_eq!(accepted.model(), &model, "an estimate keeps the declared set");
     assert_eq!(accepted.learning_options(), Some(LearningOptions::ChoiceEstimate(quick())));
 
-    // A point estimate outside its range and dropped draws, stated on the estimate itself.
-    let mut flagged = (**estimate).clone();
-    flagged.parameters[0].inside_declared = false;
-    flagged.share_outside_declared = 0.25;
-    let flagged = AcceptedPreferences::from_estimate(&model, flagged, quick(), &records).unwrap();
-    let dropped = PendingReview::DrawsOutsideDeclared { share: 0.25 };
-    assert_eq!(flagged.pending(), vec![outside.clone(), not_learnable.clone(), dropped.clone()]);
+    // A point estimate outside its range and dropped draws: the choices are simulated with
+    // `w = 1`, above the declared range `[0, 0.85]`, so the estimate lies outside it and part of
+    // the measure draws fall outside the declared set.
+    let narrow = cost_model((0.0, 0.85), Some((0.0, 2.0)));
+    let narrow_records = simulated(&narrow, 400, 7);
+    let flagged = estimate_accepted(&narrow, &narrow_records, None, quick()).unwrap();
+    let PreferenceBasis::ChoiceEstimate(fitted) = flagged.basis() else { panic!("estimate") };
+    assert!(!fitted.parameters[0].inside_declared, "{:?}", fitted.parameters[0]);
+    let share = fitted.share_outside_declared;
+    assert!(share > 0.0 && share < 1.0, "{share}");
+    // Accepting the estimate as the estimator returned it reproduces the same handle.
+    let restated =
+        AcceptedPreferences::from_estimate(&narrow, (**fitted).clone(), quick(), &narrow_records)
+            .unwrap();
+    assert_eq!(restated.identity(), flagged.identity());
+    let dropped = PendingReview::DrawsOutsideDeclared { share };
+    let flagged_items = vec![outside.clone(), not_learnable.clone(), dropped.clone()];
+    assert_eq!(flagged.pending(), flagged_items);
 
     let reviewed = flagged.acknowledge(&[dropped.clone(), outside.clone()]).unwrap();
     assert_eq!(reviewed.version(), 2);
     assert_eq!(reviewed.pending(), vec![not_learnable]);
     assert_eq!(reviewed.acknowledged(), &[outside, dropped]);
 
-    // Re-estimating replaces the stated estimate with the fitted one and clears the review.
-    let relearned = reviewed.relearn_estimate(&records, None, quick()).unwrap();
+    // Re-estimating reproduces the fitted estimate and clears the review.
+    let relearned = reviewed.relearn_estimate(&narrow_records, None, quick()).unwrap();
     assert_eq!(relearned.version(), 3);
+    assert_eq!(relearned.basis(), flagged.basis());
+    assert_eq!(relearned.pending(), flagged_items);
+    assert!(relearned.acknowledged().is_empty());
+    let relearned = accepted.relearn_estimate(&records, None, quick()).unwrap();
     assert_eq!(relearned.basis(), accepted.basis());
     assert_eq!(relearned.pending(), expected);
-    assert!(relearned.acknowledged().is_empty());
+}
+
+#[test]
+fn edited_learned_content_is_refused_at_acceptance() {
+    let model = rate_model();
+    let records = rate_records(pooled());
+    let learned = learn_compatible_set_accepted(&model, &records, None, tolerant()).unwrap();
+    let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
+    let accept = |edited: &antecedent_design::preference_set_learning::LearnedPreferenceSet| {
+        AcceptedPreferences::from_compatible_set(&model, edited.clone(), tolerant(), &records)
+    };
+    // A learned range widened after learning.
+    let mut edited = (**set).clone();
+    edited.ranges[0].learned.1 += 0.5;
+    let error = accept(&edited).unwrap_err();
+    assert_eq!(error, E::LearnedNotReproduced { field: "ranges" });
+    assert_eq!(error.detail(), reason_details::accepted_preferences::LEARNED_NOT_REPRODUCED);
+    // An extra relation that no recorded choice implies.
+    let mut injected = (**set).clone();
+    injected.set.relations.push(antecedent_design::preference_model::LinearRelation {
+        id: "t0_floor".to_owned(),
+        terms: vec![(0, 1.0)],
+        sense: antecedent_design::preference_model::RelationSense::AtLeast,
+        bound: 1.0,
+        origin: RelationOrigin::Declared,
+    });
+    let error = accept(&injected).unwrap_err();
+    assert_eq!(error, E::AddedRelationNotFromChoices { relation: "t0_floor".into() });
+    assert_eq!(
+        error.detail(),
+        reason_details::accepted_preferences::ADDED_RELATION_NOT_FROM_CHOICES
+    );
+    // The same relation labelled as a recorded choice is still not what the records imply.
+    let record_id = records.records[0].id.clone();
+    let mut relabelled = injected.clone();
+    if let Some(relation) = relabelled.set.relations.last_mut() {
+        relation.origin = RelationOrigin::Choice { record_id, rejected_option: "b".to_owned() };
+    }
+    assert_eq!(accept(&relabelled).unwrap_err(), E::LearnedNotReproduced { field: "relations" });
+
+    // An estimate whose point estimate was moved.
+    let cost = cost_model((0.0, 3.0), None);
+    let estimate_records = simulated(&cost, 200, 5);
+    let estimated = estimate_accepted(&cost, &estimate_records, None, quick()).unwrap();
+    let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
+    let mut moved = (**estimate).clone();
+    moved.parameters[0].estimate += 0.1;
+    let error =
+        AcceptedPreferences::from_estimate(&cost, moved, quick(), &estimate_records).unwrap_err();
+    assert_eq!(error, E::LearnedNotReproduced { field: "parameter_estimates" });
+    // Accepted under other options than it was made with (another seed), it is not reproduced.
+    let reseeded = ChoiceModelOptions { seed: quick().seed + 1, ..quick() };
+    let error = AcceptedPreferences::from_estimate(
+        &cost,
+        (**estimate).clone(),
+        reseeded,
+        &estimate_records,
+    )
+    .unwrap_err();
+    assert!(matches!(error, E::LearnedNotReproduced { .. }), "{error:?}");
 }
 
 #[test]

@@ -803,7 +803,7 @@ fn compare_region(
     }
 }
 
-fn compare_learned(
+pub(crate) fn compare_learned(
     stored: &LearnedPreferenceSet,
     fresh: &LearnedPreferenceSet,
 ) -> Result<(), PreferenceArtifactError> {
@@ -831,7 +831,7 @@ fn compare_learned(
     ensure(stored.assumptions == fresh.assumptions, "assumptions")
 }
 
-fn compare_estimate(
+pub(crate) fn compare_estimate(
     stored: &ChoiceModelEstimate,
     fresh: &ChoiceModelEstimate,
 ) -> Result<(), PreferenceArtifactError> {

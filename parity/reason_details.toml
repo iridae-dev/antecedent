@@ -18,6 +18,12 @@ codes = ["invalid_argument"]
 meaning = "A review item is given twice; name each item once."
 
 [[detail]]
+id = "accepted_preferences.added_relation_not_from_choices"
+family = "accepted_preferences"
+codes = ["decision_contract_unsatisfied"]
+meaning = "A learned set adds a linear or value relation that no recorded choice implies; accept the set as the learner returned it and declare analyst relations in the value model."
+
+[[detail]]
 id = "accepted_preferences.choices_contradictory"
 family = "accepted_preferences"
 codes = ["decision_contract_unsatisfied"]
@@ -34,6 +40,12 @@ id = "accepted_preferences.declaration_not_kept"
 family = "accepted_preferences"
 codes = ["decision_contract_unsatisfied"]
 meaning = "The learned set drops or changes a declared parameter, range, linear relation or value relation, or an estimate's entries name other parameters or ranges; accept preferences learned under the declared model."
+
+[[detail]]
+id = "accepted_preferences.learned_not_reproduced"
+family = "accepted_preferences"
+codes = ["decision_contract_unsatisfied"]
+meaning = "Learning again from the supplied model, records and options does not reproduce the learned set or estimate; accept it as the learner returned it, with the records and options it was learned from."
 
 [[detail]]
 id = "accepted_preferences.model_mismatch"

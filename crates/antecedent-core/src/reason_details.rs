@@ -8,9 +8,11 @@
 pub const REASON_DETAILS: &[&str] = &[
     "accepted_preferences.acknowledge_empty",
     "accepted_preferences.acknowledge_repeated",
+    "accepted_preferences.added_relation_not_from_choices",
     "accepted_preferences.choices_contradictory",
     "accepted_preferences.decider_unknown",
     "accepted_preferences.declaration_not_kept",
+    "accepted_preferences.learned_not_reproduced",
     "accepted_preferences.model_mismatch",
     "accepted_preferences.not_pending",
     "accepted_preferences.options_mismatch",
@@ -2991,9 +2993,11 @@ pub const REASON_DETAILS: &[&str] = &[
 const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("accepted_preferences.acknowledge_empty", &["invalid_argument"]),
     ("accepted_preferences.acknowledge_repeated", &["invalid_argument"]),
+    ("accepted_preferences.added_relation_not_from_choices", &["decision_contract_unsatisfied"]),
     ("accepted_preferences.choices_contradictory", &["decision_contract_unsatisfied"]),
     ("accepted_preferences.decider_unknown", &["invalid_argument"]),
     ("accepted_preferences.declaration_not_kept", &["decision_contract_unsatisfied"]),
+    ("accepted_preferences.learned_not_reproduced", &["decision_contract_unsatisfied"]),
     ("accepted_preferences.model_mismatch", &["decision_contract_unsatisfied"]),
     ("accepted_preferences.not_pending", &["invalid_argument"]),
     ("accepted_preferences.options_mismatch", &["decision_contract_unsatisfied"]),
@@ -5985,12 +5989,16 @@ pub mod accepted_preferences {
     pub const ACKNOWLEDGE_EMPTY: &str = "accepted_preferences.acknowledge_empty";
     /// Detail `accepted_preferences.acknowledge_repeated`.
     pub const ACKNOWLEDGE_REPEATED: &str = "accepted_preferences.acknowledge_repeated";
+    /// Detail `accepted_preferences.added_relation_not_from_choices`.
+    pub const ADDED_RELATION_NOT_FROM_CHOICES: &str = "accepted_preferences.added_relation_not_from_choices";
     /// Detail `accepted_preferences.choices_contradictory`.
     pub const CHOICES_CONTRADICTORY: &str = "accepted_preferences.choices_contradictory";
     /// Detail `accepted_preferences.decider_unknown`.
     pub const DECIDER_UNKNOWN: &str = "accepted_preferences.decider_unknown";
     /// Detail `accepted_preferences.declaration_not_kept`.
     pub const DECLARATION_NOT_KEPT: &str = "accepted_preferences.declaration_not_kept";
+    /// Detail `accepted_preferences.learned_not_reproduced`.
+    pub const LEARNED_NOT_REPRODUCED: &str = "accepted_preferences.learned_not_reproduced";
     /// Detail `accepted_preferences.model_mismatch`.
     pub const MODEL_MISMATCH: &str = "accepted_preferences.model_mismatch";
     /// Detail `accepted_preferences.not_pending`.

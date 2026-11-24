@@ -22,9 +22,13 @@
 //!
 //! A learned basis is accepted only when it belongs to the declared model: the learned set keeps
 //! the declared parameters with their ranges, ids, units and assumptions and every declared
-//! relation, an estimate's parameter entries carry the declared ranges, and the records the
-//! caller supplies are the records the basis was learned from (the same digest). The number of
-//! stated comparisons is counted from those records, never taken from the caller.
+//! relation, every relation it adds carries a choice origin, an estimate's parameter entries
+//! carry the declared ranges, and the records the caller supplies are the records the basis was
+//! learned from (the same digest). A learned object the caller supplies
+//! ([`AcceptedPreferences::from_compatible_set`], [`AcceptedPreferences::from_estimate`]) is
+//! also learned again from those records and options and must be reproduced, so content edited
+//! after learning is refused. The number of stated comparisons is counted from those records,
+//! never taken from the caller.
 //!
 //! [`decide_with_accepted`] builds the contract over the accepted model and passes the accepted
 //! measure (an estimate's) to the route-choosing evaluation.
@@ -50,7 +54,7 @@ use crate::preference_choice_model::{
 };
 use crate::preference_contract::{PreferenceAction, PreferenceContract, PreferencePolicy};
 use crate::preference_decision::PreferenceMeasure;
-use crate::preference_model::{PreferenceModelError, ValueModel};
+use crate::preference_model::{PreferenceModelError, RelationOrigin, ValueModel};
 use crate::preference_refusal::{ACCEPT, refusal};
 use crate::preference_route_choice::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, decide_on_draws,
@@ -195,6 +199,21 @@ pub enum AcceptedPreferencesError {
         /// Digest of the supplied records in the learned object's scope.
         found: String,
     },
+    /// A learned set adds a linear or value relation that no recorded choice implies: every
+    /// relation beyond the declared ones carries a choice origin.
+    #[error("relation {relation} is not implied by a recorded choice")]
+    AddedRelationNotFromChoices {
+        /// Id of the relation.
+        relation: String,
+    },
+    /// Learning again from the supplied model, records and options does not reproduce the
+    /// learned object (within the replay tolerance): its content was edited after learning, or
+    /// it was learned under other options.
+    #[error("the learned preferences are not reproduced from the records: {field} differs")]
+    LearnedNotReproduced {
+        /// The first field that differs.
+        field: &'static str,
+    },
     /// The compatible-set learner refused its input.
     #[error("compatible set: {0}")]
     SetLearning(SetLearningError),
@@ -267,6 +286,12 @@ impl AcceptedPreferencesError {
                 reason_details::accepted_preferences::DECLARATION_NOT_KEPT
             }
             Self::RecordsMismatch { .. } => reason_details::accepted_preferences::RECORDS_MISMATCH,
+            Self::AddedRelationNotFromChoices { .. } => {
+                reason_details::accepted_preferences::ADDED_RELATION_NOT_FROM_CHOICES
+            }
+            Self::LearnedNotReproduced { .. } => {
+                reason_details::accepted_preferences::LEARNED_NOT_REPRODUCED
+            }
             Self::SetLearning(inner) => inner.detail(),
             Self::ChoiceModel(inner) => inner.detail(),
             Self::PooledNotAvailable => reason_details::accepted_preferences::POOLED_NOT_AVAILABLE,
@@ -310,11 +335,21 @@ impl AcceptedPreferences {
     /// must be the set's records digest. The number of stated comparisons among them is counted
     /// here; a positive count is a pending review item.
     ///
+    /// The set itself is verified, not trusted: every relation it adds to the declared ones must
+    /// carry a choice origin, and the set is learned again from `model`, `records` and `options`
+    /// and must be reproduced field by field (reals within the replay tolerance of
+    /// [`crate::preference_artifact::REPLAY_RELATIVE_TOLERANCE`]). Recomputing, rather than
+    /// checking a digest the learner stored, is what catches an edit: a digest over the content
+    /// can be recomputed by whoever edits the content. The cost is one run of the learner,
+    /// paid by this entry point only; [`learn_compatible_set_accepted`] accepts what it has just
+    /// learned without a second run.
+    ///
     /// # Errors
     /// An invalid model; a learned set whose model identity is not `model`'s; a learned set that
-    /// does not keep the declared parameters, ranges or relations; options whose tolerance
-    /// differs from the one the set was learned with; records other than the ones the set was
-    /// learned from.
+    /// does not keep the declared parameters, ranges or relations, or that adds a relation with
+    /// no choice origin; options whose tolerance differs from the one the set was learned with;
+    /// records other than the ones the set was learned from; a set the learner does not
+    /// reproduce from them; a refusal of the learner.
     pub fn from_compatible_set(
         model: &ValueModel,
         learned: LearnedPreferenceSet,
@@ -322,6 +357,25 @@ impl AcceptedPreferences {
         records: &ChoiceRecordSet,
     ) -> Result<Self, AcceptedPreferencesError> {
         check_records(&learned.records_digest, records, learned.decider.as_deref())?;
+        check_belongs(
+            model,
+            &PreferenceBasis::CompatibleSet(Box::new(learned.clone())),
+            &LearningOptions::CompatibleSet(options),
+        )?;
+        check_added_relations(model, &learned)?;
+        let fresh = select_learned(model, records, learned.decider.as_deref(), options, None)?;
+        crate::accepted_preferences_artifact::compare_learned(&learned, &fresh)
+            .map_err(|error| not_reproduced(&error))?;
+        Self::accept_set(model, learned, options, records)
+    }
+
+    /// Accept a set the caller has just learned from `model`, `records` and `options`.
+    fn accept_set(
+        model: &ValueModel,
+        learned: LearnedPreferenceSet,
+        options: SetLearningOptions,
+        records: &ChoiceRecordSet,
+    ) -> Result<Self, AcceptedPreferencesError> {
         let stated_comparisons = stated_in_scope(records, learned.decider.as_deref());
         Self::from_parts(
             model.clone(),
@@ -340,10 +394,16 @@ impl AcceptedPreferences {
     /// estimate's scope (the named decider's records, or every record for the pooled fit), is
     /// counted here; a positive count is a pending review item.
     ///
+    /// The estimate is verified as [`Self::from_compatible_set`] verifies a set: it is made
+    /// again from `model`, `records` and `options` (the seed included, so the measure draws are
+    /// the same) and must be reproduced field by field. [`estimate_accepted`] accepts what it
+    /// has just estimated without a second run.
+    ///
     /// # Errors
     /// An invalid model; an estimate whose model identity is not `model`'s; an estimate whose
     /// parameter entries name other parameters or ranges than the declared ones; options whose
-    /// level differs from the estimate's; records other than the ones the estimate was made from.
+    /// level differs from the estimate's; records other than the ones the estimate was made from;
+    /// an estimate not reproduced from them; a refusal of the estimator.
     pub fn from_estimate(
         model: &ValueModel,
         estimate: ChoiceModelEstimate,
@@ -351,6 +411,24 @@ impl AcceptedPreferences {
         records: &ChoiceRecordSet,
     ) -> Result<Self, AcceptedPreferencesError> {
         check_records(&estimate.records_digest, records, None)?;
+        check_belongs(
+            model,
+            &PreferenceBasis::ChoiceEstimate(Box::new(estimate.clone())),
+            &LearningOptions::ChoiceEstimate(options),
+        )?;
+        let fresh = select_estimate(model, records, estimate.decider.as_deref(), options, None)?;
+        crate::accepted_preferences_artifact::compare_estimate(&estimate, &fresh)
+            .map_err(|error| not_reproduced(&error))?;
+        Self::accept_estimate(model, estimate, options, records)
+    }
+
+    /// Accept an estimate the caller has just made from `model`, `records` and `options`.
+    fn accept_estimate(
+        model: &ValueModel,
+        estimate: ChoiceModelEstimate,
+        options: ChoiceModelOptions,
+        records: &ChoiceRecordSet,
+    ) -> Result<Self, AcceptedPreferencesError> {
         let stated_comparisons = stated_in_scope(records, estimate.decider.as_deref());
         Self::from_parts(
             model.clone(),
@@ -708,7 +786,7 @@ fn accept_learned(
     ctx: Option<&ExecutionContext>,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let learned = select_learned(model, records, decider, options, ctx)?;
-    AcceptedPreferences::from_compatible_set(model, learned, options, records)
+    AcceptedPreferences::accept_set(model, learned, options, records)
 }
 
 /// Estimate from `model` and `records` and accept the estimate. `decider: None` selects the
@@ -749,7 +827,7 @@ fn accept_estimate(
     ctx: Option<&ExecutionContext>,
 ) -> Result<AcceptedPreferences, AcceptedPreferencesError> {
     let estimate = select_estimate(model, records, decider, options, ctx)?;
-    AcceptedPreferences::from_estimate(model, estimate, options, records)
+    AcceptedPreferences::accept_estimate(model, estimate, options, records)
 }
 
 /// Decide with accepted preferences: the contract is built over the accepted model, and the
@@ -927,6 +1005,53 @@ fn check_records(
     }
 }
 
+/// The checks of [`AcceptedPreferences::from_parts`] that need no relearning: the basis belongs
+/// to the model and keeps its declarations, and the options match it. Run before relearning, so
+/// a learned object of another model or options is refused as such.
+fn check_belongs(
+    model: &ValueModel,
+    basis: &PreferenceBasis,
+    learning: &LearningOptions,
+) -> Result<(), AcceptedPreferencesError> {
+    let identity = model.identity().map_err(E::Model)?;
+    check_basis(&identity, basis, Some(learning))?;
+    check_declarations(model, basis)
+}
+
+/// A learned object that the learner does not reproduce names the first field that differs.
+fn not_reproduced(
+    error: &crate::preference_artifact::PreferenceArtifactError,
+) -> AcceptedPreferencesError {
+    use crate::preference_artifact::PreferenceArtifactError as A;
+    match error {
+        A::ReplayMismatch { field } => E::LearnedNotReproduced { field },
+        // The records digest was checked before learning again, so only a digest the learner
+        // itself computes differently remains.
+        _ => E::LearnedNotReproduced { field: "records_digest" },
+    }
+}
+
+/// Every linear or value relation a learned set holds beyond the declared ones is implied by a
+/// recorded choice.
+fn check_added_relations(
+    declared: &ValueModel,
+    learned: &LearnedPreferenceSet,
+) -> Result<(), AcceptedPreferencesError> {
+    let from_choice = |origin: &RelationOrigin| matches!(origin, RelationOrigin::Choice { .. });
+    let declared_set = &declared.preferences;
+    for relation in &learned.set.relations {
+        if !declared_set.relations.contains(relation) && !from_choice(&relation.origin) {
+            return Err(E::AddedRelationNotFromChoices { relation: relation.id.clone() });
+        }
+    }
+    for relation in &learned.set.value_relations {
+        if !declared_set.value_relations.contains(relation) && !from_choice(&relation.origin) {
+            return Err(E::AddedRelationNotFromChoices { relation: relation.id.clone() });
+        }
+    }
+    Ok(())
+}
+
 /// A learned basis keeps what the declared model declares. A learned set keeps the declared
 /// parameters exactly (ids, units, ranges and assumptions, in order), every declared linear
 /// relation and every declared value relation; the relations it adds come from the records. An
@@ -1101,6 +1226,18 @@ impl AcceptedPreferencesError {
                     .supplied(found.clone())
                     .build()
             }
+            Self::AddedRelationNotFromChoices { relation } => unsatisfied(
+                "accept the learned preferences as the learner returned them; declare an \
+                 analyst relation in the value model instead",
+            )
+            .offending(relation.clone())
+            .build(),
+            Self::LearnedNotReproduced { field } => unsatisfied(
+                "accept the learned preferences as the learner returned them, with the records \
+                 and options they were learned from",
+            )
+            .offending(*field)
+            .build(),
             Self::PooledNotAvailable => {
                 invalid("name the decider whose preferences to accept").build()
             }

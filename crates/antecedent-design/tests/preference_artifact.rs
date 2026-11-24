@@ -350,15 +350,13 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     assert!(matches!(&error, E::Accepted(AcceptedPreferencesError::Contradictory { .. })));
     assert_eq!(error.detail(), reason_details::accepted_preferences::CHOICES_CONTRADICTORY);
 
-    // A stored range that the records do not reproduce.
+    // A range that the records do not reproduce is refused already when it is accepted.
     let PreferenceBasis::CompatibleSet(set) = learned.basis() else { panic!("compatible set") };
     let mut edited = (**set).clone();
     edited.ranges[0].learned.1 += 0.5;
-    let edited =
-        AcceptedPreferences::from_compatible_set(&model, edited, tolerant(), &records).unwrap();
-    let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
-    assert_eq!(error, E::ReplayMismatch { field: "ranges" });
-    assert_eq!(error.detail(), reason_details::preference_artifact::REPLAY_MISMATCH);
+    let error =
+        AcceptedPreferences::from_compatible_set(&model, edited, tolerant(), &records).unwrap_err();
+    assert_eq!(error, AcceptedPreferencesError::LearnedNotReproduced { field: "ranges" });
 
     // An estimate: changed records, then a stored consistency the records do not reproduce.
     let records = simulated(300, 21);
@@ -371,9 +369,8 @@ fn a_replay_refuses_changed_records_and_a_changed_basis() {
     let PreferenceBasis::ChoiceEstimate(estimate) = estimated.basis() else { panic!("estimate") };
     let mut edited = (**estimate).clone();
     edited.consistency *= 1.01;
-    let edited = AcceptedPreferences::from_estimate(&model, edited, quick(), &records).unwrap();
-    let error = AcceptedPreferencesArtifact::new(edited).replay(&records).unwrap_err();
-    assert_eq!(error, E::ReplayMismatch { field: "consistency" });
+    let error = AcceptedPreferences::from_estimate(&model, edited, quick(), &records).unwrap_err();
+    assert_eq!(error, AcceptedPreferencesError::LearnedNotReproduced { field: "consistency" });
 
     // The stated count is read from the records an estimate was made from, so an estimate is
     // accepted only with those records.

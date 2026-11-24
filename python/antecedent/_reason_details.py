@@ -11,9 +11,11 @@ from typing import Final
 class accepted_preferences:  # noqa: N801
     ACKNOWLEDGE_EMPTY: Final = "accepted_preferences.acknowledge_empty"
     ACKNOWLEDGE_REPEATED: Final = "accepted_preferences.acknowledge_repeated"
+    ADDED_RELATION_NOT_FROM_CHOICES: Final = "accepted_preferences.added_relation_not_from_choices"
     CHOICES_CONTRADICTORY: Final = "accepted_preferences.choices_contradictory"
     DECIDER_UNKNOWN: Final = "accepted_preferences.decider_unknown"
     DECLARATION_NOT_KEPT: Final = "accepted_preferences.declaration_not_kept"
+    LEARNED_NOT_REPRODUCED: Final = "accepted_preferences.learned_not_reproduced"
     MODEL_MISMATCH: Final = "accepted_preferences.model_mismatch"
     NOT_PENDING: Final = "accepted_preferences.not_pending"
     OPTIONS_MISMATCH: Final = "accepted_preferences.options_mismatch"
@@ -3770,9 +3772,11 @@ class weighted_target:  # noqa: N801
 ALL: Final[tuple[str, ...]] = (
     "accepted_preferences.acknowledge_empty",
     "accepted_preferences.acknowledge_repeated",
+    "accepted_preferences.added_relation_not_from_choices",
     "accepted_preferences.choices_contradictory",
     "accepted_preferences.decider_unknown",
     "accepted_preferences.declaration_not_kept",
+    "accepted_preferences.learned_not_reproduced",
     "accepted_preferences.model_mismatch",
     "accepted_preferences.not_pending",
     "accepted_preferences.options_mismatch",
@@ -6752,9 +6756,11 @@ ALL: Final[tuple[str, ...]] = (
 CODES: Final[dict[str, tuple[str, ...]]] = {
     "accepted_preferences.acknowledge_empty": ("invalid_argument",),
     "accepted_preferences.acknowledge_repeated": ("invalid_argument",),
+    "accepted_preferences.added_relation_not_from_choices": ("decision_contract_unsatisfied",),
     "accepted_preferences.choices_contradictory": ("decision_contract_unsatisfied",),
     "accepted_preferences.decider_unknown": ("invalid_argument",),
     "accepted_preferences.declaration_not_kept": ("decision_contract_unsatisfied",),
+    "accepted_preferences.learned_not_reproduced": ("decision_contract_unsatisfied",),
     "accepted_preferences.model_mismatch": ("decision_contract_unsatisfied",),
     "accepted_preferences.not_pending": ("invalid_argument",),
     "accepted_preferences.options_mismatch": ("decision_contract_unsatisfied",),
