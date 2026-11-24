@@ -615,6 +615,7 @@ impl core::clone::Clone for antecedent_estimate::experimental_fit::TargetBlockFi
 impl core::clone::Clone for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
 impl core::clone::Clone for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::clone::Clone for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
+impl core::clone::Clone for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells
 impl core::clone::Clone for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::clone::Clone for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
@@ -1899,6 +1900,7 @@ impl core::cmp::PartialEq for antecedent_estimate::experimental_fit::TargetBlock
 impl core::cmp::PartialEq for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
 impl core::cmp::PartialEq for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::cmp::PartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
+impl core::cmp::PartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells
 impl core::cmp::PartialEq for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::cmp::PartialEq for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::cmp::PartialEq for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
@@ -3169,6 +3171,7 @@ impl core::fmt::Debug for antecedent_estimate::experimental_fit::TargetBlockFit
 impl core::fmt::Debug for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
 impl core::fmt::Debug for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::fmt::Debug for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
+impl core::fmt::Debug for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells
 impl core::fmt::Debug for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::fmt::Debug for antecedent_estimate::functional_distribution::EmpiricalFactorCache
@@ -4722,6 +4725,7 @@ impl core::marker::Freeze for antecedent_estimate::experimental_fit::TargetBlock
 impl core::marker::Freeze for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::marker::Freeze for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Freeze for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::marker::Freeze for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::marker::Freeze for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Freeze for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance [auto]
@@ -5848,6 +5852,7 @@ impl core::marker::Send for antecedent_estimate::experimental_fit::TargetBlockFi
 impl core::marker::Send for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::marker::Send for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Send for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::marker::Send for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::marker::Send for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Send for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
@@ -6856,6 +6861,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::experimental_fit
 impl core::marker::StructuralPartialEq for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 impl core::marker::StructuralPartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
+impl core::marker::StructuralPartialEq for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells
 impl core::marker::StructuralPartialEq for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure
 impl core::marker::StructuralPartialEq for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 impl core::marker::StructuralPartialEq for antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
@@ -7915,6 +7921,7 @@ impl core::marker::Sync for antecedent_estimate::experimental_fit::TargetBlockFi
 impl core::marker::Sync for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::marker::Sync for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Sync for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::marker::Sync for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::marker::Sync for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Sync for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
@@ -9044,6 +9051,7 @@ impl core::marker::Unpin for antecedent_estimate::experimental_fit::TargetBlockF
 impl core::marker::Unpin for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::marker::Unpin for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::marker::Unpin for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::marker::Unpin for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::marker::Unpin for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::marker::Unpin for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
@@ -10176,6 +10184,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
@@ -11304,6 +11313,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::experimental_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::external_cyclic_fit::ExternalFitPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2 [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::frontdoor::CheckedFrontDoorProcedure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::functional_distribution::EmpiricalFactorCache [auto]
@@ -15948,6 +15958,8 @@ pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::facto
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::factor_b_variance_bound: f64
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::interaction_effect: f64
 pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2::interaction_variance_bound: f64
+pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells::cell_variances: alloc::vec::Vec<f64>
+pub field antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells::contrasts: antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
 pub field antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot::provenance: antecedent_estimate::functional_distribution::EmpiricalProviderProvenance
 pub field antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot::provider: antecedent_expr::provider::EmpiricalProviderSnapshot
 pub field antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot::requirements: alloc::sync::Arc<[antecedent_expr::program::FactorRequirement]>
@@ -20000,6 +20012,7 @@ pub fn antecedent_estimate::experimental_fit::fit_experimental_recovery(rows: &a
 pub fn antecedent_estimate::experimental_fit::posterior_recovery(fit: &antecedent_estimate::experimental_fit::ExperimentalRecoveryFit, spec: &antecedent_estimate::experimental_fit::PosteriorSpec) -> core::result::Result<antecedent_estimate::experimental_fit::RecoveredEstimate, antecedent_estimate::experimental_fit::ExperimentalFitError>
 pub fn antecedent_estimate::external_cyclic_fit::fit_external_feedback(template: &antecedent_model::external_mechanism::ExternalFeedbackSystem, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::registry::TrustedMechanismResolver>, parameters: &[antecedent_model::external_mechanism::ExternalFitParameter], rows: &[antecedent_model::nonlinear_equilibrium::RegimeRow], policy: antecedent_estimate::external_cyclic_fit::ExternalFitPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2(outcome: &[f64], factor_a: &[bool], factor_b: &[bool], probability_a: &[f64], probability_b: &[f64]) -> core::result::Result<antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2, &'static str>
+pub fn antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2_cells(outcome: &[f64], cells: &[usize], cell_probability: &[f64]) -> core::result::Result<antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells, &'static str>
 pub fn antecedent_estimate::fit_factorized_joint_cells(data: &antecedent_data::dataset::TabularData, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId], orderings: &[alloc::vec::Vec<usize>], config: &antecedent_estimate::FactorizedJointConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::FactorizedJointFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::free_variables_diagnostic(free: &[antecedent_core::ids::VariableId]) -> core::option::Option<antecedent_core::diagnostic::Diagnostic>
@@ -21082,6 +21095,7 @@ pub struct antecedent_estimate::experimental_fit::TargetBlockFit
 pub struct antecedent_estimate::external_cyclic_fit::ExternalFeedbackFit
 pub struct antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 pub struct antecedent_estimate::factorial_bernoulli::BernoulliFactorial2x2
+pub struct antecedent_estimate::factorial_bernoulli::BernoulliFactorialCells
 pub struct antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot
 pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache
 pub struct antecedent_estimate::functional_distribution::EmpiricalFactorCache has private fields

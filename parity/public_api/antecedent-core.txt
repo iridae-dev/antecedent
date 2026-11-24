@@ -8973,6 +8973,7 @@ pub const antecedent_core::reason_details::matched_case_control::INVALID_DATA: &
 pub const antecedent_core::reason_details::matched_case_control::INVALID_LEVEL: &str
 pub const antecedent_core::reason_details::matched_case_control::NO_INFORMATIVE_SETS: &str
 pub const antecedent_core::reason_details::matched_case_control::SAMPLING_DESIGN: &str
+pub const antecedent_core::reason_details::matched_design_sensitivity::REENTRY: &str
 pub const antecedent_core::reason_details::measured_inference::ARTIFACT_MISMATCH: &str
 pub const antecedent_core::reason_details::measured_inference::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::measured_inference::CONSUMER_BOUNDS_EXCEEDED: &str
@@ -9513,6 +9514,7 @@ pub const antecedent_core::reason_details::predictive_assessment::TARGET_MISMATC
 pub const antecedent_core::reason_details::predictive_assessment::TOO_FEW_CLUSTERS: &str
 pub const antecedent_core::reason_details::predictive_assessment::UNKNOWN_SOURCE: &str
 pub const antecedent_core::reason_details::predictive_assessment::WRONG_CONTRACT: &str
+pub const antecedent_core::reason_details::prior_composition::UNIT_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::prior_signal::ADAPTED_PRIOR_NOT_DRAWS: &str
 pub const antecedent_core::reason_details::prior_signal::ARTIFACT_NOT_IN_CATALOG: &str
 pub const antecedent_core::reason_details::prior_signal::COEFFICIENT_PRIOR_NOT_SIGNAL: &str
@@ -10286,6 +10288,7 @@ pub const antecedent_core::reason_details::study_plan::INVALID_QUERY: &str
 pub const antecedent_core::reason_details::study_plan::NONE_CERTIFIED: &str
 pub const antecedent_core::reason_details::study_plan::NO_FAILURE_TO_REPAIR: &str
 pub const antecedent_core::reason_details::study_plan::THEOREM_LIMITED: &str
+pub const antecedent_core::reason_details::supplied_estimate_evalue::REENTRY: &str
 pub const antecedent_core::reason_details::survival_effect::ARM_NOT_POPULATED: &str
 pub const antecedent_core::reason_details::survival_effect::CANCELLED: &str
 pub const antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING: &str
@@ -10385,6 +10388,7 @@ pub const antecedent_core::reason_details::tier_diagnostics::OVERLAP_NOT_CARRIED
 pub const antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_EVALUE: &str
 pub const antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_OVERLAP: &str
 pub const antecedent_core::reason_details::transport_identification::REENTRY: &str
+pub const antecedent_core::reason_details::transport_response_grid::GRID_COLUMNS_MISMATCH: &str
 pub const antecedent_core::reason_details::transport_revalidation::CLAIM_TARGET_MISMATCH: &str
 pub const antecedent_core::reason_details::transport_revalidation::DUPLICATE_CLAIM: &str
 pub const antecedent_core::reason_details::transport_revalidation::IDENTITY_MISMATCH: &str
@@ -10573,6 +10577,12 @@ pub const antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_CO
 pub const antecedent_core::reason_details::vector_treatment::WEIGHTS_NEED_ROBUST_COVARIANCE: &str
 pub const antecedent_core::reason_details::vector_treatment::WRONG_CONTRACT: &str
 pub const antecedent_core::reason_details::weighted_target::OVERLAP_FAILED: &str
+pub const antecedent_core::reason_details::z_transport_estimate::COMBINATION_ATOM_LIMIT: &str
+pub const antecedent_core::reason_details::z_transport_estimate::COMPONENTS_NOT_INDEPENDENT: &str
+pub const antecedent_core::reason_details::z_transport_estimate::CROSS_SOURCE_INTERVAL_NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::z_transport_estimate::EMPIRICAL_COUNTS_REQUIRED: &str
+pub const antecedent_core::reason_details::z_transport_estimate::INVALID_INDEPENDENT_COMPONENT_LAW: &str
+pub const antecedent_core::reason_details::z_transport_estimate::PHYSICAL_PLAN_PROGRAM_MISMATCH: &str
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const antecedent_core::temporal::MAX_UNFOLDED_NODES: u32
@@ -13269,6 +13279,7 @@ pub mod antecedent_core::reason_details::learned_joint_transport
 pub mod antecedent_core::reason_details::learned_transport
 pub mod antecedent_core::reason_details::mapped_posterior_transfer
 pub mod antecedent_core::reason_details::matched_case_control
+pub mod antecedent_core::reason_details::matched_design_sensitivity
 pub mod antecedent_core::reason_details::measured_inference
 pub mod antecedent_core::reason_details::measured_interval
 pub mod antecedent_core::reason_details::measured_transport
@@ -13302,6 +13313,7 @@ pub mod antecedent_core::reason_details::penalized_propensity
 pub mod antecedent_core::reason_details::planning
 pub mod antecedent_core::reason_details::policy_value
 pub mod antecedent_core::reason_details::predictive_assessment
+pub mod antecedent_core::reason_details::prior_composition
 pub mod antecedent_core::reason_details::prior_signal
 pub mod antecedent_core::reason_details::program_binding
 pub mod antecedent_core::reason_details::propagation_chain
@@ -13343,6 +13355,7 @@ pub mod antecedent_core::reason_details::structure_posterior
 pub mod antecedent_core::reason_details::structured_refusals
 pub mod antecedent_core::reason_details::study_candidate
 pub mod antecedent_core::reason_details::study_plan
+pub mod antecedent_core::reason_details::supplied_estimate_evalue
 pub mod antecedent_core::reason_details::survival_effect
 pub mod antecedent_core::reason_details::synthetic_control_panel
 pub mod antecedent_core::reason_details::temporal_counterfactual
@@ -13353,6 +13366,7 @@ pub mod antecedent_core::reason_details::temporal_refresh
 pub mod antecedent_core::reason_details::temporal_transport
 pub mod antecedent_core::reason_details::tier_diagnostics
 pub mod antecedent_core::reason_details::transport_identification
+pub mod antecedent_core::reason_details::transport_response_grid
 pub mod antecedent_core::reason_details::transport_revalidation
 pub mod antecedent_core::reason_details::transport_sensitivity
 pub mod antecedent_core::reason_details::transported_counterfactual
@@ -13368,6 +13382,7 @@ pub mod antecedent_core::reason_details::unit_change
 pub mod antecedent_core::reason_details::vector_posterior
 pub mod antecedent_core::reason_details::vector_treatment
 pub mod antecedent_core::reason_details::weighted_target
+pub mod antecedent_core::reason_details::z_transport_estimate
 pub mod antecedent_core::recalc
 pub mod antecedent_core::refusal
 pub mod antecedent_core::response

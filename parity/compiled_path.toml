@@ -4128,11 +4128,6 @@ disposition = "deprecated"
 replacement = "route:CyclicFamily"
 
 [[python]]
-path = "python/antecedent/decision_evidence.py::evaluate"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
 path = "python/antecedent/decision_robust.py::robust"
 disposition = "deprecated"
 replacement = "antecedent::PreparedStudy::compile_for_robust_decision"
@@ -4225,21 +4220,6 @@ owner = "discovery engines"
 path = "python/antecedent/transport/discovered.py::estimate_discovered_transport"
 disposition = "pending"
 owner = "discovery engines"
-
-[[python]]
-path = "python/antecedent/transport/discovered.py::estimate_discovered_temporal_transport"
-disposition = "pending"
-owner = "discovery engines"
-
-[[python]]
-path = "python/antecedent/design/evidence.py::rank_studies"
-disposition = "pending"
-owner = "design planning and ranking"
-
-[[python]]
-path = "python/antecedent/priors.py::compose_external_priors_for_target"
-disposition = "pending"
-owner = "validation checks"
 
 [[python]]
 path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_discovered_transport"

@@ -1464,6 +1464,7 @@ pub variant antecedent_prob::ProbError::Shape { message: &'static str }
 pub variant antecedent_prob::TransportError::CoefIndexOutOfRange { index: usize, n_coef: usize }
 pub variant antecedent_prob::TransportError::InvalidWeights { message: &'static str }
 pub variant antecedent_prob::TransportError::PolicyRequired { source_population: alloc::sync::Arc<str>, target_population: alloc::sync::Arc<str> }
+pub variant antecedent_prob::TransportError::Refused { code: &'static str, message: alloc::string::String }
 pub variant antecedent_prob::TransportError::SourceCountMismatch { n_sources: usize, n_populations: usize }
 pub variant antecedent_prob::TransportError::UnknownPolicy { name: alloc::sync::Arc<str> }
 pub variant antecedent_prob::TransportPolicy::InvariantConditionalOutcome

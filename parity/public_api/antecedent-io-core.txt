@@ -11134,6 +11134,11 @@ pub const antecedent_io_core::graphless_support::ASSOCIATION_SLOPE_ROW_CODE: &st
 pub const antecedent_io_core::graphless_support::AUGMENTED_DID_ROW_CODE: &str
 pub const antecedent_io_core::graphless_support::CROSSFIT_CONTRAST_ROW_CODE: &str
 pub const antecedent_io_core::graphless_support::DESIGN_POSTERIOR_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::FACTORIAL_BERNOULLI_DESIGN: &str
+pub const antecedent_io_core::graphless_support::FACTORIAL_BERNOULLI_INTERVAL_UNCERTAINTY: &str
+pub const antecedent_io_core::graphless_support::FACTORIAL_BERNOULLI_KEY: antecedent_io_core::graphless_support::GraphlessSupportKey<'static>
+pub const antecedent_io_core::graphless_support::FACTORIAL_BERNOULLI_MIN_CELL_ROWS: usize
+pub const antecedent_io_core::graphless_support::FACTORIAL_BERNOULLI_POINT_UNCERTAINTY: &str
 pub const antecedent_io_core::graphless_support::IV_BOUNDS_ROW_CODE: &str
 pub const antecedent_io_core::graphless_support::PERIOD_HISTORY_ROW_CODE: &str
 pub const antecedent_io_core::graphless_support::SECTION_ROW_CODES: [&str; 6]
