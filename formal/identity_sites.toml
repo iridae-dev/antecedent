@@ -1074,12 +1074,12 @@ item = "fn:encode_set#0"
 feeds = "EvidenceCatalog (environments, regimes, bindings), Environment.variables, EvidenceRegime.intervention_values, ResponseQuery.observation_assumptions; query semantic digests"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing"]
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing", "assurance:identity.canonical_framing_injective"]
 note = "Multiset by design; per-item digests sorted. repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "items"
 class = "multiset"
-canonical = "per-item digest under domain tag antecedent.canonical_set_item, sort_unstable on [u8;32], repeats kept, length-prefixed"
+canonical = "per-item digest under domain tag antecedent.canonical_set_item; the digests framed by CanonicalWriter::digest_multiset (framing kernel frame_digest_multiset: sort_unstable on [u8;32], repeats kept, count-prefixed)"
 concern = "Repeats kept: for ResponseQuery.observation_assumptions the doc says the claims are a conjunction (a set) and nothing rejects duplicates, so a repeated claim changes identity. Catalog uses are unique by validate()."
 
 [[sites]]
@@ -1089,12 +1089,12 @@ item = "fn:encode_variable_set#0"
 feeds = "Every query/target CanonicalEncode that calls it (AverageEffectQuery, TemporalEffectQuery, MediationQuery, InterventionalDistributionQuery, PathSpecificEffectQuery, TransportQuery, TransportWeightedTarget, ObservationAssumption, transport catalog regimes/environments); hashed into the query semantic digest"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variable_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing", "adversarial:identity_sites.core.average_effect_modifiers"]
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variable_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing", "adversarial:identity_sites.core.average_effect_modifiers", "assurance:identity.canonical_framing_injective"]
 note = "Multiset by design (documented): callers whose meaning is a set rely on validation or the reading estimator to refuse repeats. repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "variables"
 class = "multiset"
-canonical = "to_vec + sort_unstable on VariableId, repeats kept, length-prefixed"
+canonical = "raw ids framed by CanonicalWriter::u32_multiset (framing kernel frame_u32_multiset: sort_unstable on u32, the order of VariableId, repeats kept, count-prefixed)"
 concern = "Doc says repeats are deliberately kept, but every caller's meaning is a set (effect modifiers, mediators, conditioning, path nodes, covariates, selection variables) and most callers' validate() never rejects duplicates, so [A, A] and [A] give different identities for one scientific question (split, not collision). Only TransportQuery.source_experiments, regime/environment sets (unique_variables) are validated unique."
 
 [[sites]]
@@ -1104,7 +1104,7 @@ item = "fn:encode_variables#0"
 feeds = "Order-significant variable lists in ~25 query/target encoders (outcomes, predictors, columns, confounders, histories...)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variables_is_ordered"]
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variables_is_ordered", "assurance:identity.canonical_framing_injective"]
 [[sites.collections]]
 name = "variables"
 class = "ordered"
@@ -6204,11 +6204,11 @@ item = "impl:<T:Canonical>Canonical for SetOf<'_,T>#0/fn:encode#0"
 feeds = "every set-valued declared input of the supplied families (capabilities, observed variables, lineage and observation ids, candidate observation ids, ...)"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_set_of_sorts_and_deduplicates_framed_items", "unit:crates/antecedent/src/analysis/supplied_identity.rs::an_ordered_list_is_order_significant_and_a_set_is_not"]
+checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_set_of_sorts_and_deduplicates_framed_items", "unit:crates/antecedent/src/analysis/supplied_identity.rs::an_ordered_list_is_order_significant_and_a_set_is_not", "assurance:identity.canonical_framing_injective"]
 [[sites.collections]]
 name = "items"
 class = "set"
-canonical = "each item's encoding hashed under its own tag into a sub-digest; sub-digests sorted ascending and deduplicated after a count word"
+canonical = "each item's encoding hashed under its own tag into a sub-digest; the sub-digests framed by CanonicalWriter::digest_set (framing kernel frame_digest_set: sorted ascending, deduplicated, count-prefixed)"
 concern = ""
 
 [[sites]]

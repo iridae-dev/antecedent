@@ -667,6 +667,12 @@ runner = "aeneas"
 test = "AntecedentRust.Support"
 
 [[cases]]
+id = "identity.translated_framing_proved"
+kind = "bound"
+runner = "aeneas"
+test = "AntecedentRust.Framing"
+
+[[cases]]
 id = "recalc.reuse_only_without_a_change"
 kind = "changing"
 runner = "rust"
@@ -1395,8 +1401,8 @@ caught_by = ["identity_sites.value_encoding_injective"]
 [[mutations]]
 id = "variable_set_keeps_listed_order"
 file = "crates/antecedent-core/src/canonical_encode.rs"
-old = "    sorted.sort_unstable();"
-new = "    let _ = &mut sorted;"
+old = "    writer.u32_multiset(variables.iter().map(|variable| variable.raw()).collect());"
+new = "    writer.u32s(&variables.iter().map(|variable| variable.raw()).collect::<Vec<_>>());"
 caught_by = ["identity_sites.core.average_effect_modifiers", "identity_sites.core.path_nodes"]
 
 [[mutations]]
@@ -1797,15 +1803,15 @@ caught_by = ["identity_sites.facade.kernel.sampled_recovery_rows_order"]
 [[mutations]]
 id = "decisions_core_set_of_unsorted"
 file = "crates/antecedent/src/analysis/supplied_identity.rs"
-old = "        items.sort_unstable();\n        items.dedup();"
-new = "        items.dedup();"
+old = "        out.digest_set(items);"
+new = "        out.digests(&items);"
 caught_by = ["identity_sites.facade.decisions.core_set_of"]
 
 [[mutations]]
 id = "decisions_core_set_of_repeats_kept"
 file = "crates/antecedent/src/analysis/supplied_identity.rs"
-old = "        items.dedup();\n        out.word(items.len() as u64);"
-new = "        out.word(items.len() as u64);"
+old = "        out.digest_set(items);"
+new = "        out.digest_multiset(items);"
 caught_by = ["identity_sites.facade.decisions.core_set_of"]
 
 [[mutations]]
@@ -2500,3 +2506,42 @@ file = "crates/antecedent/src/analysis/joint_panel/explanation/scientific/artifa
 old = "        || digest(result.transport.released_identity())? == archived)"
 new = "        || false)"
 caught_by = ["identity_sites.facade.panel4.population_released_replays"]
+
+[[mutations]]
+id = "byte_string_frame_drops_its_length"
+file = "crates/antecedent-core/src/framing.rs"
+old = """    frame_count(sink, payload.len());
+    sink.put(payload);"""
+new = "    sink.put(payload);"
+caught_by = ["identity.translated_framing_proved"]
+
+[[mutations]]
+id = "digest_set_keeps_repeats"
+file = "crates/antecedent-core/src/framing.rs"
+old = """    let distinct = dedup_sorted_digests(&digests);
+    frame_digests(sink, &distinct);"""
+new = "    frame_digests(sink, &digests);"
+caught_by = ["identity.translated_framing_proved"]
+
+[[mutations]]
+id = "digest_set_unsorted"
+file = "crates/antecedent-core/src/framing.rs"
+old = """    sort_digests(&mut digests);
+    let distinct = dedup_sorted_digests(&digests);"""
+new = "    let distinct = dedup_sorted_digests(&digests);"
+caught_by = ["identity.translated_framing_proved"]
+
+[[mutations]]
+id = "digest_multiset_unsorted"
+file = "crates/antecedent-core/src/framing.rs"
+old = """    sort_digests(&mut digests);
+    frame_digests(sink, &digests);"""
+new = "    frame_digests(sink, &digests);"
+caught_by = ["identity.translated_framing_proved"]
+
+[[mutations]]
+id = "presence_word_inverted"
+file = "crates/antecedent-core/src/framing.rs"
+old = "    frame_word(sink, u64::from(present));"
+new = "    frame_word(sink, u64::from(!present));"
+caught_by = ["identity.translated_framing_proved"]

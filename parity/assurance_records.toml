@@ -147,6 +147,168 @@ inputs_digest = "78158e7dd9c15620d4bc9561d0f0416a8d50f653ec2e7226e0844f88e80c7fb
 checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
 
 [[records]]
+id = "identity.canonical_framing_injective"
+proposition = "The canonical framing every identity is hashed from is uniquely decodable, and the production kernels that write it compute exactly that framing and never fail. A word is its eight little-endian bytes; a byte string, text or tag is its length word then the bytes; a presence word is 0 or 1; a real is the word of its IEEE-754 bits; an ordered list is its count then each item's frame. Each frame, a frame followed by another, a tag or presence word followed by what it selects, and a count-prefixed list of prefix-free items can be read back from the front of any longer stream, so a framed sequence determines its values and the rest of the stream. An ordered list's frame determines the list, order included. A set of digests (sorted, repeats removed) frames alike exactly when the inputs hold the same digests, so reordering or repeating keeps it; a multiset of digests or u32 values (sorted, repeats kept) frames alike exactly when one input is a reordering of the other, so a repeat changes it. -0.0 and 0.0, and NaNs with different payloads, frame apart. Under a hash collision-free on the streams, two framed values share an identity exactly when they are equal."
+scope = "The kernels of antecedent_core::framing as Charon and Aeneas translate them (frame_word, frame_count, frame_bytes, frame_presence, frame_real_bits, frame_words, frame_u32s, frame_digests, dedup_sorted_digests, frame_digest_set, frame_digest_multiset, frame_u32_multiset), run on a sink that keeps its bytes; and the specification of their composition in Antecedent.Framing. CanonicalWriter writes every frame through these kernels (try_bytes writes the byte-string frame with its payload in checked chunks). The order in which a CanonicalWriter method or a CanonicalEncode implementation calls the kernels, and which category (ordered, set, multiset) each identity site uses, are not translated: the identity-site inventory classifies each site and its checks cover it. Encodings that do not go through CanonicalWriter (CBOR wire values, payload_digest, derive-key digests) are outside this record."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate the kernels faithfully, and the Aeneas model of the standard-library operations they use (u64::to_le_bytes, u64::from on bool and u32, usize-to-u64 casts, usize addition and subtraction, slice indexing, Vec::push, equality of [u8; 32]) is correct",
+    "sort_unstable sorts ascending under Ord (lexicographic for [u8; 32], numeric for u32): sort_digests and sort_u32s are translated as opaque and modelled in formal/rust/AntecedentRust/Extracted/Framing/FunsExternal.lean",
+    "BLAKE3's incremental update hashes the concatenation of its inputs (the FrameSink implementation for blake3::Hasher calls update), and BLAKE3 is collision-resistant on the streams it is given",
+    "f64::to_bits is the IEEE-754 bit pattern",
+    "each identity site composes the kernels in the category its meaning needs; formal/identity_sites.toml records the classification and its checks cover the sites",
+]
+limitations = [
+    "Unique decoding is relative to the shape the reader expects: a word and an empty byte string are both eight zero bytes, so an identity is injective because each site writes a fixed sequence of frames chosen by its type and earlier tags, which the inventory and site tests check, not this record.",
+    "Counts and lengths are framed as 64-bit words; the theorems hold for lists and payloads shorter than 2^64, which every Rust slice is.",
+]
+
+[records.operation]
+inputs = ["the values of an identity: words, byte strings and texts, presence of optional values, real bit patterns, ordered lists, sets and multisets of digests or u32 values"]
+output = "the byte stream hashed by BLAKE3 into the identity"
+premises = ["the sink appends the bytes it is given in order", "sort_unstable sorts ascending"]
+transformation = "little-endian words; a length word before every byte string; a presence word before every optional value; IEEE-754 bits for reals; a count word before every list; sets sorted with repeats removed and multisets sorted with repeats kept before being written as lists"
+justification = [
+    "Antecedent.Framing.prefixFree_ordered",
+    "Antecedent.Framing.set_eq_iff",
+    "Antecedent.Framing.multiset_eq_iff",
+    "Antecedent.Framing.identity_eq_iff",
+    "AntecedentRust.Framing.frame_bytes_spec",
+    "AntecedentRust.Framing.frame_digest_set_spec",
+    "AntecedentRust.Framing.frame_digest_set_eq_iff",
+    "AntecedentRust.Framing.frame_digest_multiset_eq_iff",
+    "AntecedentRust.Framing.frame_u32_multiset_eq_iff",
+]
+implementation = [
+    "antecedent_core::framing::frame_word",
+    "antecedent_core::framing::frame_bytes",
+    "antecedent_core::framing::frame_presence",
+    "antecedent_core::framing::frame_real_bits",
+    "antecedent_core::framing::frame_words",
+    "antecedent_core::framing::frame_u32s",
+    "antecedent_core::framing::frame_digests",
+    "antecedent_core::framing::frame_digest_set",
+    "antecedent_core::framing::frame_digest_multiset",
+    "antecedent_core::framing::frame_u32_multiset",
+    "antecedent_core::identity::CanonicalWriter",
+]
+obligations = []
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Framing.lean", "formal/Antecedent/Identity.lean"]
+theorems = [
+    "Antecedent.Framing.prefixFree_of_width",
+    "Antecedent.Framing.PrefixFreeOn.seq",
+    "Antecedent.Framing.PrefixFreeOn.dseq",
+    "Antecedent.Framing.PrefixFreeOn.tag_separates",
+    "Antecedent.Framing.prefixFree_option",
+    "Antecedent.Framing.prefixFree_ordered",
+    "Antecedent.Framing.ordered_swap_ne",
+    "Antecedent.Framing.set_eq_iff",
+    "Antecedent.Framing.set_perm",
+    "Antecedent.Framing.set_dup",
+    "Antecedent.Framing.multiset_eq_iff",
+    "Antecedent.Framing.multiset_dup_ne",
+    "Antecedent.Framing.identity_eq_iff",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Framing.lean",
+    "formal/rust/AntecedentRust/Extracted/Framing/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Framing/Funs.lean",
+    "formal/rust/AntecedentRust/Extracted/Framing/FunsExternal.lean",
+]
+theorems = [
+    "AntecedentRust.Framing.word_prefixFree",
+    "AntecedentRust.Framing.count_prefixFree",
+    "AntecedentRust.Framing.bytes_prefixFree",
+    "AntecedentRust.Framing.presence_prefixFree",
+    "AntecedentRust.Framing.u32_prefixFree",
+    "AntecedentRust.Framing.digest_prefixFree",
+    "AntecedentRust.Framing.neg_zero_frames_apart",
+    "AntecedentRust.Framing.nan_payloads_frame_apart",
+    "AntecedentRust.Framing.frame_word_spec",
+    "AntecedentRust.Framing.frame_count_spec",
+    "AntecedentRust.Framing.frame_bytes_spec",
+    "AntecedentRust.Framing.frame_presence_spec",
+    "AntecedentRust.Framing.frame_real_bits_spec",
+    "AntecedentRust.Framing.frame_words_spec",
+    "AntecedentRust.Framing.frame_u32s_spec",
+    "AntecedentRust.Framing.frame_digests_spec",
+    "AntecedentRust.Framing.dedup_sorted_digests_spec",
+    "AntecedentRust.Framing.frame_digest_set_spec",
+    "AntecedentRust.Framing.frame_digest_multiset_spec",
+    "AntecedentRust.Framing.frame_u32_multiset_spec",
+    "AntecedentRust.Framing.ordered_words_prefixFree",
+    "AntecedentRust.Framing.ordered_digests_prefixFree",
+    "AntecedentRust.Framing.option_word_prefixFree",
+    "AntecedentRust.Framing.tags_separate",
+    "AntecedentRust.Framing.frame_bytes_eq_iff",
+    "AntecedentRust.Framing.frame_words_eq_iff",
+    "AntecedentRust.Framing.words_order_sensitive",
+    "AntecedentRust.Framing.frame_digest_set_eq_iff",
+    "AntecedentRust.Framing.digest_set_perm",
+    "AntecedentRust.Framing.digest_set_dup",
+    "AntecedentRust.Framing.frame_digest_multiset_eq_iff",
+    "AntecedentRust.Framing.digest_multiset_dup_ne",
+    "AntecedentRust.Framing.frame_u32_multiset_eq_iff",
+    "AntecedentRust.Framing.u32_multiset_dup_ne",
+    "AntecedentRust.Framing.frame_real_bits_eq_iff",
+    "AntecedentRust.Framing.frame_presence_eq_iff",
+]
+rust_items = [
+    { file = "crates/antecedent-core/src/framing.rs", items = [
+        "trait:FrameSink#0",
+        "fn:frame_word#0",
+        "fn:frame_count#0",
+        "fn:frame_bytes#0",
+        "fn:frame_presence#0",
+        "fn:frame_real_bits#0",
+        "fn:frame_words#0",
+        "fn:frame_u32s#0",
+        "fn:frame_digests#0",
+        "fn:sort_digests#0",
+        "fn:sort_u32s#0",
+        "fn:dedup_sorted_digests#0",
+        "fn:frame_digest_set#0",
+        "fn:frame_digest_multiset#0",
+        "fn:frame_u32_multiset#0",
+    ] },
+    { file = "crates/antecedent-core/src/identity.rs", items = [
+        "struct:CanonicalWriter#0",
+        "impl:CanonicalWriter#0/fn:new#0",
+        "impl:CanonicalWriter#0/fn:word#0",
+        "impl:CanonicalWriter#0/fn:presence#0",
+        "impl:CanonicalWriter#0/fn:text#0",
+        "impl:CanonicalWriter#0/fn:real#0",
+        "impl:CanonicalWriter#0/fn:bytes#0",
+        "impl:CanonicalWriter#0/fn:try_bytes#0",
+        "impl:CanonicalWriter#0/fn:reals#0",
+        "impl:CanonicalWriter#0/fn:u32s#0",
+        "impl:CanonicalWriter#0/fn:words#0",
+        "impl:CanonicalWriter#0/fn:digests#0",
+        "impl:CanonicalWriter#0/fn:digest_set#0",
+        "impl:CanonicalWriter#0/fn:digest_multiset#0",
+        "impl:CanonicalWriter#0/fn:u32_multiset#0",
+        "impl:CanonicalWriter#0/fn:texts#0",
+        "impl:CanonicalWriter#0/fn:opt_text#0",
+        "impl:CanonicalWriter#0/fn:opt_word#0",
+        "impl:CanonicalWriter#0/fn:opt_real#0",
+        "impl:FrameSink for blake3::Hasher#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
+checked_commit = "0000000000000000000000000000000000000000"
+
+[[records]]
 id = "acceptance.retained_expected_identity"
 proposition = "bind returns Bound only when the presented slot matches the required one, the consumer passed a retained expected identity, and every facet (payload, coordinates, prior, alignment, cyclic-solution tag) equals it. Without a retained expectation nothing is bound; a self-description can only cause a refusal; a matching presentation without a false self-description is bound. In the claim slot that accept_claim_expecting uses, a replayed claim binds exactly when its claim id equals the claim id the consumer retained."
 scope = "antecedent_io_core::bound_identity::bind for every input, with the facet digest replaced by an arbitrary function, and its claim slot as accept_claim_expecting and bind_retained_claim use it (io-core, and the IPW-replaying wrapper in antecedent-io). The deprecated accept_claim, which accepts any claim that replays, and loaders that take an optional expected identity and are called without one (FittedEffectModel::load, artifact from_bytes(bytes, None)) do not bind and are outside this record."
