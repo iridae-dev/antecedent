@@ -492,6 +492,9 @@
   "estimate.generalized_propensity_aipw": [
    "estimate.generalized_propensity_aipw"
   ],
+  "estimate.joint_cells_caller_learners": [
+   "estimate.joint_cells_caller_learners"
+  ],
   "estimate.latent_class_effects": [
    "estimate.latent_class_effects"
   ],
@@ -1280,6 +1283,9 @@
   ],
   "transport.temporal_path_specific": [
    "transport.temporal_path_specific"
+  ],
+  "transport.trial_aipw_caller_learners": [
+   "transport.trial_aipw_caller_learners"
   ],
   "transport.trial_ipw_decision": [
    "transport.trial_ipw_decision"
@@ -6945,6 +6951,26 @@
   },
   {
    "deviations": [
+    "The per-cell outcome regressions and the binary conditionals of the factorized cell propensity are fitted by caller factories the library does not verify; the fit records them as unverified (external_nuisances_unverified, trust=unverified on the score-table provenance).",
+    "Point-only, as every factorized joint-cell fit: no interval or covariance is published, calibration is reported as not_measured, and the run carries the calibration label of the declared learners.",
+    "The adjustment set is the caller's declaration, as on the direct entry; the route takes no graph and does not certify it."
+   ],
+   "digest": "45cc1987c9693a83a98dd25c6f96929590e8266a077be74d5d9c605c62f959b8",
+   "id": "estimate.joint_cells_caller_learners",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "Section 3.1, Definition 3.1: cross-fitting with a K-fold partition",
+      "Section 5.1: the doubly robust (AIPW) score"
+     ],
+     "title": "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Independent native owners for full-program randomization, finite-carryover schedule randomization, full-history finite and continuous longitudinal g-computation, joint endogenous structural-feature 2SLS, joint regime/cohort/time differences in differences, and supported donor-world synthetic rollout effects. A compiler alias never substitutes one estimator for another design.",
     "Randomized means use known whole-program probabilities and fixed preassignment population weights with independent-unit/cluster sandwich covariance. Gaussian common-arm-mean likelihood and proper priors are a distinct statistical model. A separate finite-population Gaussian latent potential-response model retains unequal population weights and uncertainty about unobserved unit-by-arm responses.",
     "Continuous longitudinal g-computation fits all full-history initial, state and outcome conditional Gaussian mechanisms and transformed joint treatment densities. Treatment-affected covariates are integrated under exact schedules, not frozen. Frequentist episode bootstrap refits the complete procedure with failed slots retained; Bayesian inference uses proper Gaussian/inverse-gamma priors and aligned full-mechanism draws. Finite policy covariance must have full joint rank. No release coverage support is inferred.",
@@ -12029,12 +12055,19 @@
      "year": 2000
     },
     {
+     "authors": [
+      "Joseph G. Ibrahim",
+      "Ming‐Hui Chen",
+      "Yeongjin Gwon",
+      "Fang Chen"
+     ],
      "doi": "10.1002/sim.6728",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Power prior with fixed a0 and multiple historical studies (one discount per study); conjugate closed forms"
      ],
-     "title": "The power prior: theory and applications"
+     "title": "The power prior: theory and applications",
+     "year": 2015
     },
     {
      "sections": [
@@ -14157,6 +14190,31 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "The source outcome regression and the source membership probability are fitted by caller factories the library does not verify; the estimate records them as unverified (external_nuisances_unverified) and keeps each fold model's provenance.",
+    "Caller learners run without joint outer bootstrap replicates: the route is point-only, calibration is reported as not_measured, and the run carries the calibration label of the declared learners, so the learned_trial_aipw coverage records measured with the library learners never annotate it.",
+    "The certificate, feature, row, randomization, sampling and fold refusals are those of the library-learner route and are decided before any learner is fitted."
+   ],
+   "digest": "4c2e3d689216eb61ba6ec8718dd6bce8e5f6a0eb95b0a34ed37b2657a3aa5bab",
+   "id": "transport.trial_aipw_caller_learners",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "Section 5.3, equation (4): doubly robust estimator DR1 (augmented inverse odds weighting)"
+     ],
+     "title": "Extending inferences from a randomized trial to a new target population (Dahabreh, Robertson, Steingrimsson, Stuart, Hernan, 2020)"
+    },
+    {
+     "sections": [
+      "Section 3.1, Definition 3.1: cross-fitting with a K-fold partition"
+     ],
+     "title": "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)"
+    }
+   ]
   },
   {
    "deviations": [

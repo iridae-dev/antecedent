@@ -1139,6 +1139,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "joint_cells.nuisance_provider",
     "joint_cells.ordering",
     "joint_cells.outcome_model_unsupported",
+    "joint_cells_caller_learners.built_in_learner_declared",
     "joint_law_propagation.alignment_mismatch",
     "joint_law_propagation.artifact_invalid",
     "joint_law_propagation.artifact_refused",
@@ -2806,6 +2807,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "treatment_levels.sparse_level",
     "treatment_levels.training_fold_missing_level",
     "treatment_levels.undeclared_level",
+    "trial_aipw_caller_learners.bootstrap_not_supported",
     "two_step_posterior.band_not_constructed",
     "two_step_posterior.empty_law",
     "two_step_posterior.external_power_prior",
@@ -4010,6 +4012,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("joint_cells.nuisance_provider", &["invalid_argument"]),
     ("joint_cells.ordering", &["invalid_argument"]),
     ("joint_cells.outcome_model_unsupported", &["joint_cell_unsupported"]),
+    ("joint_cells_caller_learners.built_in_learner_declared", &["option_not_applicable"]),
     ("joint_law_propagation.alignment_mismatch", &["joint_law_required"]),
     ("joint_law_propagation.artifact_invalid", &["invalid_argument"]),
     ("joint_law_propagation.artifact_refused", &["invalid_argument"]),
@@ -5677,6 +5680,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("treatment_levels.sparse_level", &["arm_not_populated"]),
     ("treatment_levels.training_fold_missing_level", &["arm_not_populated"]),
     ("treatment_levels.undeclared_level", &["treatment_level_undeclared"]),
+    ("trial_aipw_caller_learners.bootstrap_not_supported", &["route_not_supported"]),
     ("two_step_posterior.band_not_constructed", &["route_not_supported"]),
     ("two_step_posterior.empty_law", &["invalid_argument"]),
     ("two_step_posterior.external_power_prior", &["route_not_supported"]),
@@ -8379,6 +8383,12 @@ pub mod joint_cells {
     pub const ORDERING: &str = "joint_cells.ordering";
     /// Detail `joint_cells.outcome_model_unsupported`.
     pub const OUTCOME_MODEL_UNSUPPORTED: &str = "joint_cells.outcome_model_unsupported";
+}
+
+/// Details in the `joint_cells_caller_learners` family.
+pub mod joint_cells_caller_learners {
+    /// Detail `joint_cells_caller_learners.built_in_learner_declared`.
+    pub const BUILT_IN_LEARNER_DECLARED: &str = "joint_cells_caller_learners.built_in_learner_declared";
 }
 
 /// Details in the `joint_law_propagation` family.
@@ -12145,6 +12155,12 @@ pub mod treatment_levels {
     pub const TRAINING_FOLD_MISSING_LEVEL: &str = "treatment_levels.training_fold_missing_level";
     /// Detail `treatment_levels.undeclared_level`.
     pub const UNDECLARED_LEVEL: &str = "treatment_levels.undeclared_level";
+}
+
+/// Details in the `trial_aipw_caller_learners` family.
+pub mod trial_aipw_caller_learners {
+    /// Detail `trial_aipw_caller_learners.bootstrap_not_supported`.
+    pub const BOOTSTRAP_NOT_SUPPORTED: &str = "trial_aipw_caller_learners.bootstrap_not_supported";
 }
 
 /// Details in the `two_step_posterior` family.

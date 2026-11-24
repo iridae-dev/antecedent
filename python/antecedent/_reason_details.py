@@ -1453,6 +1453,10 @@ class joint_cells:  # noqa: N801
     OUTCOME_MODEL_UNSUPPORTED: Final = "joint_cells.outcome_model_unsupported"
 
 
+class joint_cells_caller_learners:  # noqa: N801
+    BUILT_IN_LEARNER_DECLARED: Final = "joint_cells_caller_learners.built_in_learner_declared"
+
+
 class joint_law_propagation:  # noqa: N801
     ALIGNMENT_MISMATCH: Final = "joint_law_propagation.alignment_mismatch"
     ARTIFACT_INVALID: Final = "joint_law_propagation.artifact_invalid"
@@ -3566,6 +3570,10 @@ class treatment_levels:  # noqa: N801
     UNDECLARED_LEVEL: Final = "treatment_levels.undeclared_level"
 
 
+class trial_aipw_caller_learners:  # noqa: N801
+    BOOTSTRAP_NOT_SUPPORTED: Final = "trial_aipw_caller_learners.bootstrap_not_supported"
+
+
 class two_step_posterior:  # noqa: N801
     BAND_NOT_CONSTRUCTED: Final = "two_step_posterior.band_not_constructed"
     EMPTY_LAW: Final = "two_step_posterior.empty_law"
@@ -4798,6 +4806,7 @@ ALL: Final[tuple[str, ...]] = (
     "joint_cells.nuisance_provider",
     "joint_cells.ordering",
     "joint_cells.outcome_model_unsupported",
+    "joint_cells_caller_learners.built_in_learner_declared",
     "joint_law_propagation.alignment_mismatch",
     "joint_law_propagation.artifact_invalid",
     "joint_law_propagation.artifact_refused",
@@ -6465,6 +6474,7 @@ ALL: Final[tuple[str, ...]] = (
     "treatment_levels.sparse_level",
     "treatment_levels.training_fold_missing_level",
     "treatment_levels.undeclared_level",
+    "trial_aipw_caller_learners.bootstrap_not_supported",
     "two_step_posterior.band_not_constructed",
     "two_step_posterior.empty_law",
     "two_step_posterior.external_power_prior",
@@ -7680,6 +7690,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "joint_cells.nuisance_provider": ("invalid_argument",),
     "joint_cells.ordering": ("invalid_argument",),
     "joint_cells.outcome_model_unsupported": ("joint_cell_unsupported",),
+    "joint_cells_caller_learners.built_in_learner_declared": ("option_not_applicable",),
     "joint_law_propagation.alignment_mismatch": ("joint_law_required",),
     "joint_law_propagation.artifact_invalid": ("invalid_argument",),
     "joint_law_propagation.artifact_refused": ("invalid_argument",),
@@ -9406,6 +9417,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "treatment_levels.sparse_level": ("arm_not_populated",),
     "treatment_levels.training_fold_missing_level": ("arm_not_populated",),
     "treatment_levels.undeclared_level": ("treatment_level_undeclared",),
+    "trial_aipw_caller_learners.bootstrap_not_supported": ("route_not_supported",),
     "two_step_posterior.band_not_constructed": ("route_not_supported",),
     "two_step_posterior.empty_law": ("invalid_argument",),
     "two_step_posterior.external_power_prior": ("route_not_supported",),

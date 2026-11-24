@@ -1163,6 +1163,16 @@
       "missing_evidence": []
     },
     {
+      "id": "transport.trial_aipw_caller_learners",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.joint_cells_caller_learners",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "recovery.chain_observation",
       "status": "supported",
       "missing_evidence": []
