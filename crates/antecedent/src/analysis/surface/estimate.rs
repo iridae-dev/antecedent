@@ -189,7 +189,7 @@ pub use antecedent_estimate::{CaliperScale, PropensityMatching};
 /// Factorized-propensity AIPW for bounded discrete joint cells.
 pub use antecedent_estimate::{
     CellStatus, FactorizedJointConfig, FactorizedJointFit, JointCellReport, JointContrast,
-    declared_joint_nuisance, fit_factorized_joint_cells_with_factories, orderings_for,
+    declared_joint_nuisance, orderings_for,
 };
 /// Cluster-aware cross-fitted AIPW: the independence unit is a declared cluster.
 pub use antecedent_estimate::{
@@ -218,9 +218,7 @@ pub use antecedent_estimate::{
 /// Smoothed dose-response transport grid.
 pub use antecedent_estimate::{SmoothedDoseInput, SmoothedDoseOptions};
 /// Cross-fitted trial-to-nonparticipant transport with explicit sampling design.
-pub use antecedent_estimate::{
-    TrialAipwInput, TrialAipwOptions, estimate_trial_aipw_with_factories,
-};
+pub use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
 /// Instrumental-variable estimators: Wald ratio and two-stage least squares.
 pub use antecedent_estimate::{TwoStageLeastSquares, WaldIv};
 /// Validated finite-discrete laws.
@@ -316,6 +314,77 @@ pub fn raw_contrast(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_estimate::RawContrast, antecedent_estimate::EstimationError> {
     antecedent_estimate::raw_contrast(outcome, treatment, ctx)
+}
+
+/// Fit factorized joint-cell scores with caller-supplied nuisance factories.
+///
+/// Factories receive only selected rows and must declare the required regression or
+/// binary-probability task. Their provenance is marked unverified; fit failures stop
+/// the operation instead of publishing a partial result. The existing per-cell support
+/// checks and point-only inference policy remain in force.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::fit_factorized_joint_cells_with_factories`].
+///
+/// # Errors
+/// Invalid declarations, incompatible factories, invalid predictions, fit failure,
+/// cancellation, or a support or resource refusal.
+#[deprecated(
+    since = "3.1.0",
+    note = "declare the learners with StudyBuilder::learner_factories and use Study::compile_joint_cells_learners(..)?.execute(ctx) (route JointCellsLearnerFit), which calls this kernel function with the same inputs"
+)]
+#[allow(clippy::too_many_arguments, reason = "the signature is the kernel function's, unchanged")]
+#[doc(hidden)]
+pub fn fit_factorized_joint_cells_with_factories(
+    data: &antecedent_data::dataset::TabularData,
+    treatments: &[antecedent_core::VariableId],
+    outcome: antecedent_core::VariableId,
+    adjustment: &[antecedent_core::VariableId],
+    orderings: &[Vec<usize>],
+    config: &antecedent_estimate::FactorizedJointConfig,
+    ctx: &antecedent_core::ExecutionContext,
+    outcome_factory: &dyn antecedent_learn::LearnerFactory,
+    propensity_factory: &dyn antecedent_learn::LearnerFactory,
+) -> Result<antecedent_estimate::FactorizedJointFit, antecedent_estimate::EstimationError> {
+    antecedent_estimate::fit_factorized_joint_cells_with_factories(
+        data,
+        treatments,
+        outcome,
+        adjustment,
+        orderings,
+        config,
+        ctx,
+        outcome_factory,
+        propensity_factory,
+    )
+}
+
+/// Fit a certified trial-to-target AIPW point with caller-supplied nuisance factories.
+///
+/// Each factory receives only its selected training and prediction rows. Provider
+/// validity and prior training overlap are not verified; the result records that
+/// boundary. External bootstrap refits are not implemented and are explicitly refused.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
+/// names. This forwards to [`antecedent_estimate::estimate_trial_aipw_with_factories`].
+///
+/// # Errors
+/// Invalid inputs, unsupported inference, incompatible factories, failed fit, or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "declare the learners with StudyBuilder::learner_factories and use Study::compile_trial_aipw_learners(..)?.execute(ctx) (route TrialAipwLearnerTransport), which calls this kernel function with the same inputs"
+)]
+pub fn estimate_trial_aipw_with_factories(
+    id: &antecedent_identify::transport::TransportIdentification,
+    input: &antecedent_estimate::TrialAipwInput,
+    options: &antecedent_estimate::TrialAipwOptions,
+    ctx: &antecedent_core::ExecutionContext,
+    outcome: &dyn antecedent_learn::LearnerFactory,
+    membership: &dyn antecedent_learn::LearnerFactory,
+) -> Result<antecedent_estimate::TrialAipwEstimate, antecedent_estimate::EstimationError> {
+    antecedent_estimate::estimate_trial_aipw_with_factories(
+        id, input, options, ctx, outcome, membership,
+    )
 }
 
 /// Execute a smoothed-dose point with caller factories that export portable predictors.

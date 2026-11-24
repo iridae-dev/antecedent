@@ -50,9 +50,17 @@ use super::selective_discovery::{DiscoveryClaimKeys, DiscoverySnapshot, add_disc
 /// The driver is returned so its retained per-population stores can serve a later request
 /// ([`PerPopulationDiscovery::run`] on the same driver).
 ///
+/// Deprecated since 3.1.0: the compiled `PerPopulationStructureSearch` program runs the same
+/// driver on the declared population row sets. It runs a fresh driver per request, so the
+/// retained stores of an earlier run are not reused; the report is the same.
+///
 /// # Errors
 ///
 /// As [`PerPopulationDiscovery::run`].
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_per_population_discovery(PerPopulationSearchRequest::new(contract, populations))?.execute(ctx) (route PerPopulationStructureSearch), which runs the same driver on the same rows; Python: PerPopulationDiscovery.compiled_run"
+)]
 pub fn discover_per_population(
     contract: &StaticDiscoveryContract,
     populations: &[PopulationRows<'_>],

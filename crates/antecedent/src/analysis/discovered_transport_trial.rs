@@ -1135,6 +1135,7 @@ fn trial_identity(treatment: u32, outcome: u32, rows: &[[u8; 2]]) -> [u8; 32] {
 }
 
 #[cfg(test)]
+#[allow(deprecated, reason = "the class tests start from the deprecated direct discover-and-transport entry")]
 mod tests {
     use super::*;
     use antecedent_core::{

@@ -472,7 +472,7 @@ pub fn simultaneous_hard_counterfactual(
 /// As `nested_counterfactual`.
 #[deprecated(
     since = "3.1.0",
-    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+    note = "use the Simulate query SimulationTarget::NestedCounterfactual on a study of the DAG and table (route GcmSimulateDag), or PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)), which runs the same executor"
 )]
 pub fn nested_hard_counterfactual(
     engine: &antecedent_counterfactual::CounterfactualEngine,
@@ -495,7 +495,7 @@ pub fn nested_hard_counterfactual(
 /// Unsupported intervention kinds, an invalid frozen set, or predict failures.
 #[deprecated(
     since = "3.1.0",
-    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+    note = "use the Simulate query SimulationTarget::NestedCounterfactual on a study of the DAG and table (route GcmSimulateDag), or PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)), which runs the same executor"
 )]
 pub fn nested_counterfactual_with_exo(
     engine: &antecedent_counterfactual::CounterfactualEngine,
@@ -535,7 +535,7 @@ pub fn nested_counterfactual_with_exo(
 /// outcome, unknown variables, abduction/predict failures.
 #[deprecated(
     since = "3.1.0",
-    note = "use PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)) on a study prepared on the DAG and table (program family FittedModelSimulation)"
+    note = "use the Simulate query SimulationTarget::NestedCounterfactual on a study of the DAG and table (route GcmSimulateDag), or PreparedStudy::model_operation(&ModelOperation::NestedCounterfactual(..)), which runs the same executor"
 )]
 pub fn nested_counterfactual(
     engine: &antecedent_counterfactual::CounterfactualEngine,
@@ -859,7 +859,7 @@ pub fn score_anomalies(
 /// Size / model failures.
 #[deprecated(
     since = "3.1.0",
-    note = "use PreparedStudy::model_operation(&ModelOperation::PopulationDoContrast(..)) (program family FittedModelAttribution); the draws follow the operation's seed, which equals a direct call under a context seeded with it"
+    note = "use the Attribute query AttributeTarget::PopulationDoContrast on a study of the DAG and table (route GcmAttributeDag), or PreparedStudy::model_operation(&ModelOperation::PopulationDoContrast(..)); the draws follow the operation's seed, which equals a direct call under a context seeded with it"
 )]
 pub fn population_do_contrast(
     model: &antecedent_model::compile::CompiledCausalModel,

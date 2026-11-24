@@ -215,7 +215,8 @@ def _collider(seed: int, n: int = N) -> dict[str, np.ndarray]:
 
 def test_the_compiled_per_population_run_equals_the_driver_run() -> None:
     populations = {"south": _collider(2), "north": _chain(1)}
-    direct = sd.PerPopulationDiscovery().run(POPULATION_CONTRACT, populations)
+    with pytest.warns(AntecedentDeprecationWarning, match="PerPopulationDiscovery.run"):
+        direct = sd.PerPopulationDiscovery().run(POPULATION_CONTRACT, populations)
     driver = sd.PerPopulationDiscovery()
     compiled = driver.compiled_run(POPULATION_CONTRACT, populations)
     assert compiled == direct
@@ -231,7 +232,10 @@ def test_the_compiled_per_population_run_equals_the_driver_run() -> None:
 def test_a_pooled_request_is_the_same_refusal_through_the_compiled_program() -> None:
     rows = _chain(1)
     driver = sd.PerPopulationDiscovery()
-    with pytest.raises(sd.SelectiveDiscoveryRefusal) as direct:
+    with (
+        pytest.warns(AntecedentDeprecationWarning),
+        pytest.raises(sd.SelectiveDiscoveryRefusal) as direct,
+    ):
         sd.PerPopulationDiscovery().run(POPULATION_CONTRACT, {"north": rows, "south": rows})
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as compiled:
         driver.compiled_run(POPULATION_CONTRACT, {"north": rows, "south": rows})

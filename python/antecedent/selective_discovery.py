@@ -1012,7 +1012,7 @@ class PerPopulationDiscovery(ScientificResult):
     set-level report is replaced only by a request in which every population succeeded::
 
         driver = sd.PerPopulationDiscovery()
-        report = driver.run(contract, {"north": north_data, "south": south_data})
+        report = driver.compiled_run(contract, {"north": north_data, "south": south_data})
         report.differing_edges          # descriptive; not a selection diagram
         driver.outcome("north")         # that population's structure
     """
@@ -1040,6 +1040,10 @@ class PerPopulationDiscovery(ScientificResult):
                 (``selective_discovery.pooled_population_data``) or a refused contract.
             CausalDiscoveryError: the algorithm failed or was cancelled.
         """
+        _deprecation.direct_path_deprecated(
+            "antecedent.selective_discovery.PerPopulationDiscovery.run",
+            "antecedent.selective_discovery.PerPopulationDiscovery.compiled_run(contract, populations)",
+        )
         if not isinstance(contract, StaticContract):
             raise CausalTypeError("contract must be a StaticContract")
         if not isinstance(populations, Mapping):

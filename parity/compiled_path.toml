@@ -256,6 +256,11 @@ disposition = "deprecated"
 replacement = "route:DiscoveredClassTransport"
 
 [[row]]
+path = "antecedent::analysis::per_population_discovery::discover_per_population"
+disposition = "deprecated"
+replacement = "route:PerPopulationStructureSearch"
+
+[[row]]
 path = "antecedent::analysis::compiled_discovered_transport::CompiledDiscoveredClassTransport::execute"
 disposition = "compiled"
 route = "DiscoveredClassTransport"
@@ -2099,7 +2104,7 @@ disposition = "deprecated"
 replacement = "route:SmoothedDoseLearnerTransport"
 
 [[row]]
-path = "antecedent_estimate::estimate_trial_aipw_with_factories"
+path = "antecedent::estimate::estimate_trial_aipw_with_factories"
 disposition = "deprecated"
 replacement = "route:TrialAipwLearnerTransport"
 
@@ -2119,7 +2124,7 @@ disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[row]]
-path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
+path = "antecedent::estimate::fit_factorized_joint_cells_with_factories"
 disposition = "deprecated"
 replacement = "route:JointCellsLearnerFit"
 
@@ -4226,6 +4231,7 @@ replacement = "route:Survival"
 path = "python/antecedent/transport/discovered.py::discover_and_transport"
 disposition = "deprecated"
 replacement = "route:DiscoveredClassTransport"
+
 [[python]]
 path = "python/antecedent/transport/discovered.py::estimate_discovered_transport"
 disposition = "deprecated"

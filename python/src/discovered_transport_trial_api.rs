@@ -10,6 +10,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::analysis::discovered_transport::{
     DEFAULT_ENVELOPE_MEMBER_BOUND, DiscoveredTransportError, DiscoveredTransportReport,
     DiscoveredTransportRun, discover_and_transport,
@@ -106,6 +110,10 @@ fn set_reply(set: &TrialCompatibleTransportConfidenceSet) -> TrialWorkResult<(St
 /// Discover on the source columns, enumerate the class and run `work` over the report, the query
 /// and the source and target evidence.
 #[allow(clippy::too_many_arguments, reason = "one request: contract, two tables, query, bounds")]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn run_trial<T, F>(
     py: Python<'_>,
     contract_json: &str,

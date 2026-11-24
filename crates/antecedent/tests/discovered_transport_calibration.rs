@@ -12,6 +12,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
+
 mod common;
 
 use std::collections::BTreeMap;

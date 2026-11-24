@@ -6,6 +6,8 @@
 //! structural verdicts per member are the ones the structural identifier fixes for the same
 //! DAGs and the same query (see the identify crate's discovered-transport tests).
 
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
+
 use std::sync::Arc;
 
 use antecedent::analysis::discovered_transport::{

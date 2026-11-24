@@ -11,6 +11,8 @@
 //! The oracle for the comparison is that hand derivation: both edges are present in both
 //! populations and both are marked differently.
 
+#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
+
 use antecedent::analysis::per_population_discovery::{
     PerPopulationDiscovery, PopulationRows, add_per_population_claims, discover_per_population,
     request_selection_targets_from_differences,

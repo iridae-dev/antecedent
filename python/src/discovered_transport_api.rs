@@ -13,6 +13,10 @@
 use crate::NumericColumn;
 use std::sync::Arc;
 
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 use antecedent::analysis::discovered_transport::{
     DEFAULT_ENVELOPE_MEMBER_BOUND, DiscoveredTransportError, DiscoveredTransportReport,
     DiscoveredTransportRun, EnvelopeStatus, MemberVerdict, discover_and_transport, formula_kind,
@@ -233,6 +237,10 @@ type RunReply = (Option<String>, Option<String>, Option<String>, Option<String>)
 #[pyfunction]
 #[pyo3(signature = (contract_json, names, columns, query_json, selection_targets, member_bound=None, *, threads=None, cancel=None))]
 #[allow(clippy::too_many_arguments, reason = "one request: contract, data, query, targets, bound")]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
+)]
 fn discovered_transport_run(
     py: Python<'_>,
     contract_json: &str,
@@ -349,6 +357,10 @@ type EstimateReply =
 #[allow(
     clippy::result_large_err,
     reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
+#[allow(
+    deprecated,
+    reason = "the Python binding of the deprecated direct path; the Python function warns"
 )]
 fn discovered_transport_estimate_run(
     py: Python<'_>,

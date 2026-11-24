@@ -304,6 +304,13 @@ pub struct DiscoveredTransportRun {
 ///
 /// A contract or data discovery refuses, or an algorithm failure or cancellation. A refusal of
 /// the transport request is returned inside the run, not as an error.
+///
+/// Deprecated since 3.1.0: the compiled `DiscoveredClassTransport` program runs the compiled
+/// search and the same transport request over its class.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_discovered_class_transport(DiscoveredClassTransportRequest::new(..), ctx)?.execute(ctx) with DiscoveredClassStage::Envelope (route DiscoveredClassTransport), which runs the compiled search and transport_discovered_structure_with_context with the same inputs; Python: antecedent.transport.discovered.analyze_discovered_transport"
+)]
 pub fn discover_and_transport(
     contract: &StaticDiscoveryContract,
     data: &TabularData,
