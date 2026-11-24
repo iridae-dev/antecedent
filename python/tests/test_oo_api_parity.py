@@ -576,7 +576,7 @@ def test_extensibility_exported():
         ),
         (
             "consume_joint_transport_posterior",
-            "data kind expected_identity",
+            "data kind expected_identity retained_identity",
             "JointTransportPosterior",
         ),
     ],

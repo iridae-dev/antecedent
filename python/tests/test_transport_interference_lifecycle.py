@@ -119,7 +119,9 @@ def _golden(data, graph, query, new_data):
         study = result.study
         updated = require_success(ant.estimate(ant.rebind(study, data=new_data)))
         report = result.inspect().to_dict()
-        loaded = require_success(ant.load(bytes(result.export())))
+        exported = bytes(result.export())
+        retained = ant.artifacts.artifact_identity(exported)
+        loaded = require_success(ant.load(exported, retained_identity=retained))
     return result, study, updated, report, loaded
 
 

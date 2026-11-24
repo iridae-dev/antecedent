@@ -84,9 +84,9 @@ def test_matching_digest_still_requires_native_semantic_parser(monkeypatch):
     original = _native.decode_posterior_artifact
     calls = []
 
-    def checked_decode(data):
+    def checked_decode(data, retained_identity=None):
         calls.append(data)
-        return original(data)
+        return original(data, retained_identity)
 
     monkeypatch.setattr(_native, "decode_posterior_artifact", checked_decode)
     malformed = b"invalid posterior layout"
