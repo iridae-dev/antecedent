@@ -115,7 +115,13 @@ from ._native import replay_decision_result as _replay
 from ._native import score_published_decision as _score_published
 from ._refusal import raise_refusal
 from ._validate import real, text
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
+from .errors import (
+    CausalCancelledError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+    StructuredRefusal,
+)
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .outcomes import Answer, outcome_operation, require_success
@@ -350,6 +356,16 @@ class Criterion:
         return cls(kind, threshold=args.get("threshold"), p=args.get("p"))
 
 
+# The refusals of an ordinary form that send a value contract to the trade-off engine: a value
+# that names a trade-off, and a value the ordinary utility language cannot state (exp or ln of
+# an attribute).
+_TRADEOFF_ENGINE_DETAILS = frozenset(
+    {
+        _reason_details.preference_contract.NO_ORDINARY_FORM,
+        _reason_details.preference_contract.NOT_LOWERABLE,
+    }
+)
+
 _VALUE_UTILITY = (
     "Action.utility reads inputs by position (decision.x(i)); a value over attributes goes in "
     "Contract(value=decision.Value(...))"
@@ -409,6 +425,15 @@ class Action:
         coerce_fields(self, inputs=inputs)
 
     def _named_inputs(self) -> None:
+        if (
+            isinstance(self.utility, str)
+            and self.utility in get_args(ActionKind)
+            and self.kind == "intervention"
+        ):
+            # Named inputs take no utility, so a kind given third by position is the kind, as
+            # the trade-off spelling Action(id, inputs, kind) reads it.
+            object.__setattr__(self, "kind", self.utility)
+            object.__setattr__(self, "utility", None)
         if self.utility is not None:
             raise CausalTypeError(
                 f"Action {self.id!r} names its inputs by attribute; its value is the contract's "
@@ -777,9 +802,24 @@ class Contract:
         return cached
 
     def _engine(self) -> Literal["ordinary", "tradeoff"]:
-        if self.value is None or self._describe().get("ordinary") is not None:
+        if self.value is None:
             return "ordinary"
-        return "tradeoff"
+        described = self._describe()
+        if described.get("ordinary") is not None:
+            return "ordinary"
+        refusal = described.get("ordinary_refusal")
+        if isinstance(refusal, str):
+            refusal = json.loads(refusal)
+        detail = refusal.get("detail") if isinstance(refusal, Mapping) else None
+        if detail in _TRADEOFF_ENGINE_DETAILS:
+            return "tradeoff"
+        # Any other refusal of the ordinary form is a fault of the declaration, not a reason to
+        # decide it across trade-offs.
+        if isinstance(refusal, Mapping):
+            raise PreferenceRefusal(refusal)
+        raise CausalUnsupportedError(
+            "this value contract has no ordinary form", reason_code="route_not_supported"
+        )
 
     _compile_form = _engine
 
@@ -976,6 +1016,7 @@ class Contract:
             execution=execution,
             **binding,
         )
+        _refuse_if_cancelled(execution, "before the decision was evaluated")
         if isinstance(source, Structures):
             from .decision_robust import AdmissibilityRules, AdmissibleContract, robust
 
@@ -1252,12 +1293,28 @@ class Decision(DecisionResult):
         def number(value: float | None) -> float:
             return float("nan") if value is None else float(value)
 
+        declared = (
+            frozenset(c.id for c in self._declared.constraints)
+            if self._declared is not None
+            else frozenset()
+        )
+
+        def constraint_id(action: str, bound: str) -> str:
+            # A value contract's constraint that reads an input one action knows exactly is
+            # bound per action as "{id}@{action}"; it is reported under the id it was declared
+            # with, as the trade-off routes report it.
+            base, _, suffix = bound.rpartition("@")
+            split = suffix == action and base in declared and bound not in declared
+            return base if split else bound
+
         return tuple(
             ActionOutcome(
                 id=a["id"],
                 admissible=a["admissible"],
                 exclusions=tuple(
-                    ConstraintExclusion(e["constraint_id"], e["probability"], e["required"])
+                    ConstraintExclusion(
+                        constraint_id(a["id"], e["constraint_id"]), e["probability"], e["required"]
+                    )
                     for e in a["exclusions"]
                 ),
                 expected_utility=float(a["expected_utility"]),
@@ -1495,12 +1552,21 @@ def replay(
 
         return replay_tradeoff(data, contract, source, execution)
     ordinary = contract._ordinary()
+    _refuse_if_cancelled(execution, "before the decision was replayed")
     result, refusal = _replay(data, json.dumps(ordinary._wire()), source._native)
     raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     return Decision(
         ordinary, source, json.loads(result), declared=None if ordinary is contract else contract
     )
+
+
+def _refuse_if_cancelled(execution: Any, where: str) -> None:
+    """The ordinary evaluators run in one native call that reads no cancellation token, so a
+    cancelled execution is refused once before they run."""
+    cancel = getattr(execution, "cancel", None)
+    if cancel is not None and cancel.is_cancelled():
+        raise CausalCancelledError(f"cancelled {where}")
 
 
 def source_digest(source: JointDistributionArtifact) -> str:
