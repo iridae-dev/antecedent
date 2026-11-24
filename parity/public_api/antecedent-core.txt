@@ -8848,6 +8848,7 @@ pub const antecedent_core::reason_details::joint_cells::NO_SUPPORTED_CELL: &str
 pub const antecedent_core::reason_details::joint_cells::NUISANCE_PROVIDER: &str
 pub const antecedent_core::reason_details::joint_cells::ORDERING: &str
 pub const antecedent_core::reason_details::joint_cells::OUTCOME_MODEL_UNSUPPORTED: &str
+pub const antecedent_core::reason_details::joint_cells_caller_learners::BUILT_IN_LEARNER_DECLARED: &str
 pub const antecedent_core::reason_details::joint_law_propagation::ALIGNMENT_MISMATCH: &str
 pub const antecedent_core::reason_details::joint_law_propagation::ARTIFACT_INVALID: &str
 pub const antecedent_core::reason_details::joint_law_propagation::ARTIFACT_REFUSED: &str
@@ -10515,6 +10516,7 @@ pub const antecedent_core::reason_details::treatment_levels::LEVEL_NOT_POPULATED
 pub const antecedent_core::reason_details::treatment_levels::SPARSE_LEVEL: &str
 pub const antecedent_core::reason_details::treatment_levels::TRAINING_FOLD_MISSING_LEVEL: &str
 pub const antecedent_core::reason_details::treatment_levels::UNDECLARED_LEVEL: &str
+pub const antecedent_core::reason_details::trial_aipw_caller_learners::BOOTSTRAP_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::two_step_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::two_step_posterior::EMPTY_LAW: &str
 pub const antecedent_core::reason_details::two_step_posterior::EXTERNAL_POWER_PRIOR: &str
@@ -13263,6 +13265,7 @@ pub mod antecedent_core::reason_details::inverse
 pub mod antecedent_core::reason_details::inverse_forward_source
 pub mod antecedent_core::reason_details::inverse_observational_scenarios
 pub mod antecedent_core::reason_details::joint_cells
+pub mod antecedent_core::reason_details::joint_cells_caller_learners
 pub mod antecedent_core::reason_details::joint_law_propagation
 pub mod antecedent_core::reason_details::joint_response
 pub mod antecedent_core::reason_details::joint_sensitivity
@@ -13371,6 +13374,7 @@ pub mod antecedent_core::reason_details::transported_effect
 pub mod antecedent_core::reason_details::transported_policy
 pub mod antecedent_core::reason_details::transported_synthesis
 pub mod antecedent_core::reason_details::treatment_levels
+pub mod antecedent_core::reason_details::trial_aipw_caller_learners
 pub mod antecedent_core::reason_details::two_step_posterior
 pub mod antecedent_core::reason_details::typed_mechanism_transport
 pub mod antecedent_core::reason_details::unit_change
@@ -14516,6 +14520,7 @@ pub variant antecedent_core::AttributeTarget::FeatureRelevance { outcome: antece
 pub variant antecedent_core::AttributeTarget::IntrinsicInfluence(antecedent_core::IntrinsicInfluenceTarget)
 pub variant antecedent_core::AttributeTarget::MechanismChange { query: antecedent_core::MechanismChangeQuery, test: antecedent_core::MechanismChangeTest }
 pub variant antecedent_core::AttributeTarget::Paths { sources: alloc::sync::Arc<[antecedent_core::VariableId]>, outcome: antecedent_core::VariableId, max_paths: usize, max_len: usize, through: alloc::sync::Arc<[antecedent_core::VariableId]> }
+pub variant antecedent_core::AttributeTarget::PopulationDoContrast(antecedent_core::PopulationDoContrastTarget)
 pub variant antecedent_core::AttributeTarget::RootCauses { change: antecedent_core::ChangeAttributionQuery, estimator: antecedent_core::ChangeEstimator }
 pub variant antecedent_core::AttributeTarget::StructureChange { change: antecedent_core::ChangeAttributionQuery, comparison: alloc::sync::Arc<[(antecedent_core::VariableId, antecedent_core::VariableId)]>, measure: antecedent_core::ChangeMeasure, n_samples: usize, seed: u64 }
 pub variant antecedent_core::AttributeTarget::UnitChange(antecedent_core::UnitChangeQuery)
@@ -15350,6 +15355,7 @@ pub variant antecedent_core::SimulateFault::SimultaneousTargetsOverlap
 pub variant antecedent_core::SimulateFault::UnitEffectLevels
 pub variant antecedent_core::SimulationTarget::Counterfactual { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, outcomes: alloc::sync::Arc<[antecedent_core::VariableId]> }
 pub variant antecedent_core::SimulationTarget::InterventionalSample { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, draws: usize, seed: u64 }
+pub variant antecedent_core::SimulationTarget::NestedCounterfactual(antecedent_core::NestedCounterfactualTarget)
 pub variant antecedent_core::SimulationTarget::NoiseReplay { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, noise: alloc::sync::Arc<[f64]>, n_rows: usize, policy_salt: u64 }
 pub variant antecedent_core::SimulationTarget::NoiseSample { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, draws: usize }
 pub variant antecedent_core::SimulationTarget::PolicyValue { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, outcome: antecedent_core::VariableId, draws: usize }

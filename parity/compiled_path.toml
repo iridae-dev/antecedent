@@ -529,7 +529,7 @@ disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent::gcm::distribution_change::distribution_change"
+path = "antecedent::gcm::distribution_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -549,12 +549,12 @@ disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent::gcm::feature_relevance::feature_relevance"
+path = "antecedent::gcm::feature_relevance"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent::gcm::intrinsic_influence::intrinsic_influence"
+path = "antecedent::gcm::intrinsic_influence"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -573,7 +573,7 @@ disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent::gcm::structure_change::structure_change"
+path = "antecedent::gcm::structure_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -583,7 +583,7 @@ disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
 [[row]]
-path = "antecedent::gcm::unit_change::unit_change"
+path = "antecedent::gcm::unit_change"
 disposition = "deprecated"
 replacement = "route:GcmAttributeDag"
 
@@ -1256,7 +1256,7 @@ path = "antecedent_design::proposal_receipt::verify"
 disposition = "consume"
 
 [[row]]
-path = "antecedent::design::repair::repair"
+path = "antecedent::design::repair"
 disposition = "deprecated"
 replacement = "route:IdentificationRepair"
 
