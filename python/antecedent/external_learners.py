@@ -3,6 +3,12 @@
 Each operation executes through :class:`ProviderRegistry`, so verification is evaluated
 for that exact request. This module does not by itself provide cross-fitting or establish
 that a pretrained model excludes evaluation rows.
+
+:func:`analyze_ate` declares two registered learners on a compiled study (:class:`Learners`):
+the study's static average-effect route fits the DML, AIPW, DR-learner or causal-forest
+estimator with them. The direct entries :func:`dml_ate`, :func:`aipw_ate`,
+:func:`dr_learner_ate`, :func:`causal_forest_ate` and :func:`cross_fit_aipw` run the same fit
+without the compiler and are deprecated in its favour.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from . import _deprecation
 from .errors import CausalValueError
 from .execution import Execution, native_controls
 from .extensibility import (
@@ -233,6 +240,158 @@ class ExternalAteEstimate:
     cate: tuple[float, ...] | None
     cate_standard_errors: tuple[float, ...] | None
     receipts: tuple[tuple[int, ProviderResult, ProviderResult], ...]
+    #: Out-of-fold treatment propensity of each analysed row, when the fit keeps an AIPW
+    #: score table (set by :func:`analyze_ate`; the direct entries leave it ``None``).
+    propensity: tuple[float, ...] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Learners:
+    """The outcome-regression and propensity learners a study declares.
+
+    ``outcome`` must be a ``regression`` learner and ``treatment`` a ``binary_probability``
+    learner. Each run pins both providers' specifications and configurations, and their names,
+    specification digests and configuration digests become the declaration's identity, so two
+    studies that differ only in their learners compile to different programs.
+    """
+
+    outcome: ExternalLearner
+    treatment: ExternalLearner
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, ExternalLearner) or not isinstance(
+            self.treatment, ExternalLearner
+        ):
+            raise CausalValueError("outcome and treatment must be ExternalLearner instances")
+
+
+def _learner_identity(learner: ExternalLearner) -> dict[str, Any]:
+    return {
+        "name": learner.name,
+        "task": learner.task,
+        "training": learner.training,
+        "supports_weights": learner.supports_weights,
+        "spec": learner._pinned_spec_digest,
+        "configuration": _request_digest(dict(learner.configuration or {})),
+    }
+
+
+def _columns(data: Mapping[str, Any]) -> tuple[list[str], list[NDArray[np.float64]], int]:
+    if (
+        not isinstance(data, Mapping)
+        or not data
+        or any(not isinstance(k, str) or not k for k in data)
+    ):
+        raise CausalValueError("data must map nonempty column names to numeric columns")
+    names = list(data)
+    raw_columns = [np.asarray(data[name], dtype=np.float64) for name in names]
+    n = len(raw_columns[0]) if raw_columns[0].ndim == 1 else 0
+    if not n or any(
+        column.shape != (n,) or not np.isfinite(column).all() for column in raw_columns
+    ):
+        raise CausalValueError("data columns must be nonempty, finite and equally sized")
+    return names, raw_columns, n
+
+
+def _check_estimator(estimator: str, score: str, fold_policy: str) -> None:
+    if fold_policy != "iid":
+        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
+    if estimator not in ("dml", "aipw", "dr_learner", "causal_forest"):
+        raise CausalValueError("unknown external learner estimator")
+    if score not in ("aipw", "partially_linear") or (estimator != "dml" and score != "aipw"):
+        raise CausalValueError("invalid score for the requested estimator")
+
+
+def analyze_ate(
+    data: Mapping[str, Any],
+    edges: Any,
+    treatment_name: str,
+    outcome_name: str,
+    *,
+    learners: Learners,
+    folds: int = 5,
+    weights: Any | None = None,
+    fold_policy: Literal["iid", "temporal"] = "iid",
+    estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
+    score: Literal["aipw", "partially_linear"] = "aipw",
+    execution: Execution | None = None,
+) -> ExternalAteEstimate:
+    """Analyze a static DAG average effect with the study's declared learners.
+
+    The study is compiled and run: the declared graph is identified, and the static
+    average-effect route prepares the configured estimator on the identified adjustment and
+    fits it with ``learners`` in place of its built-in nuisance learners. Only IID
+    cross-fitting is implemented; temporal training and validation are refused. Provider
+    receipts are returned for every fold and treatment arm, and ``propensity`` carries the
+    out-of-fold propensities of an AIPW score fit.
+    """
+    from . import _native
+
+    if not isinstance(learners, Learners):
+        raise CausalValueError("learners must be a Learners declaration")
+    _check_estimator(estimator, score, fold_policy)
+    outcome = _snapshot_learner(learners.outcome)
+    treatment = _snapshot_learner(learners.treatment)
+    identity = json.dumps(
+        {"outcome": _learner_identity(outcome), "treatment": _learner_identity(treatment)},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    names, raw_columns, n = _columns(data)
+    selected_weights = None if weights is None else _vector(weights, n, "weights")
+    (
+        point,
+        se,
+        rows,
+        fold_ids,
+        adjustment,
+        provenance,
+        assumptions,
+        cate,
+        cate_se,
+        receipts,
+        propensity,
+    ) = _native.declared_learner_ate(
+        names,
+        [col.tolist() for col in raw_columns],
+        list(edges),
+        treatment_name,
+        outcome_name,
+        outcome,
+        treatment,
+        identity=identity,
+        folds=folds,
+        weights=None if selected_weights is None else selected_weights.tolist(),
+        method=estimator,
+        score=score,
+        **native_controls(
+            execution,
+            seed="seed",
+            cancel="cancel",
+            memory="memory_limit_bytes",
+        ),
+    )
+    return ExternalAteEstimate(
+        estimator,
+        score,
+        point,
+        se,
+        tuple(rows),
+        tuple(fold_ids),
+        tuple(names[index] for index in adjustment),
+        tuple(tuple(item) for item in provenance),
+        tuple(json.loads(assumptions)),
+        None if cate is None else tuple(cate),
+        None if cate_se is None else tuple(cate_se),
+        tuple(receipts),
+        None if propensity is None else tuple(propensity),
+    )
+
+
+_ANALYZE_ATE = (
+    "antecedent.external_learners.analyze_ate(data, edges, treatment_name, outcome_name, "
+    "learners=Learners(outcome, treatment), estimator={estimator!r})"
+)
 
 
 def dml_ate(
@@ -255,31 +414,51 @@ def dml_ate(
     The supplied graph is the caller's causal assumption. Only IID cross-fitting
     is implemented; temporal training and validation are explicitly refused.
     Provider receipts are returned for every fold and treatment arm.
+
+    Deprecated: :func:`analyze_ate` declares the learners on a compiled study and returns the
+    same numbers.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.external_learners.dml_ate", _ANALYZE_ATE.format(estimator=estimator)
+    )
+    return _direct_ate(
+        data,
+        edges,
+        treatment_name,
+        outcome_name,
+        outcome=outcome,
+        treatment=treatment,
+        folds=folds,
+        weights=weights,
+        fold_policy=fold_policy,
+        estimator=estimator,
+        score=score,
+        execution=execution,
+    )
+
+
+def _direct_ate(
+    data: Mapping[str, Any],
+    edges: Any,
+    treatment_name: str,
+    outcome_name: str,
+    *,
+    outcome: ExternalLearner,
+    treatment: ExternalLearner,
+    folds: int = 5,
+    weights: Any | None = None,
+    fold_policy: Literal["iid", "temporal"] = "iid",
+    estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
+    score: Literal["aipw", "partially_linear"] = "aipw",
+    execution: Execution | None = None,
+) -> ExternalAteEstimate:
     from . import _native
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):
         raise CausalValueError("outcome and treatment must be ExternalLearner instances")
-    if fold_policy != "iid":
-        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
-    if estimator not in ("dml", "aipw", "dr_learner", "causal_forest"):
-        raise CausalValueError("unknown external learner estimator")
-    if score not in ("aipw", "partially_linear") or (estimator != "dml" and score != "aipw"):
-        raise CausalValueError("invalid score for the requested estimator")
+    _check_estimator(estimator, score, fold_policy)
     outcome, treatment = _snapshot_learner(outcome), _snapshot_learner(treatment)
-    if (
-        not isinstance(data, Mapping)
-        or not data
-        or any(not isinstance(k, str) or not k for k in data)
-    ):
-        raise CausalValueError("data must map nonempty column names to numeric columns")
-    names = list(data)
-    raw_columns = [np.asarray(data[name], dtype=np.float64) for name in names]
-    n = len(raw_columns[0]) if raw_columns[0].ndim == 1 else 0
-    if not n or any(
-        column.shape != (n,) or not np.isfinite(column).all() for column in raw_columns
-    ):
-        raise CausalValueError("data columns must be nonempty, finite and equally sized")
+    names, raw_columns, n = _columns(data)
     selected_weights = None if weights is None else _vector(weights, n, "weights")
     point, se, rows, fold_ids, adjustment, provenance, assumptions, cate, cate_se, receipts = (
         _native.external_dml_ate(
@@ -321,22 +500,45 @@ def dml_ate(
 def aipw_ate(
     data: Mapping[str, Any], edges: Any, treatment_name: str, outcome_name: str, **kwargs: Any
 ) -> ExternalAteEstimate:
-    """Identify a static DAG and fit the supported five-fold external AIPW route."""
-    return dml_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
+    """Identify a static DAG and fit the supported five-fold external AIPW route.
+
+    Deprecated: :func:`analyze_ate` with ``estimator="aipw"`` returns the same numbers.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.external_learners.aipw_ate", _ANALYZE_ATE.format(estimator="aipw")
+    )
+    return _direct_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
 
 
 def dr_learner_ate(
     data: Mapping[str, Any], edges: Any, treatment_name: str, outcome_name: str, **kwargs: Any
 ) -> ExternalAteEstimate:
-    """Fit external nuisances with the built-in linear DR-learner final stage."""
-    return dml_ate(data, edges, treatment_name, outcome_name, estimator="dr_learner", **kwargs)
+    """Fit external nuisances with the built-in linear DR-learner final stage.
+
+    Deprecated: :func:`analyze_ate` with ``estimator="dr_learner"`` returns the same numbers.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.external_learners.dr_learner_ate",
+        _ANALYZE_ATE.format(estimator="dr_learner"),
+    )
+    return _direct_ate(data, edges, treatment_name, outcome_name, estimator="dr_learner", **kwargs)
 
 
 def causal_forest_ate(
     data: Mapping[str, Any], edges: Any, treatment_name: str, outcome_name: str, **kwargs: Any
 ) -> ExternalAteEstimate:
-    """Fit native forest CATE trees and external nuisances for the marginal ATE."""
-    return dml_ate(data, edges, treatment_name, outcome_name, estimator="causal_forest", **kwargs)
+    """Fit native forest CATE trees and external nuisances for the marginal ATE.
+
+    Deprecated: :func:`analyze_ate` with ``estimator="causal_forest"`` returns the same
+    numbers.
+    """
+    _deprecation.direct_path_deprecated(
+        "antecedent.external_learners.causal_forest_ate",
+        _ANALYZE_ATE.format(estimator="causal_forest"),
+    )
+    return _direct_ate(
+        data, edges, treatment_name, outcome_name, estimator="causal_forest", **kwargs
+    )
 
 
 def cross_fit_aipw(
@@ -356,7 +558,13 @@ def cross_fit_aipw(
     This produces predictions, not a causal estimate. Every provider receives only
     the rows belonging to its fit or prediction call. The caller must choose a fold
     plan suitable for the data; no temporal validation is inferred here.
+
+    Deprecated: :func:`analyze_ate` runs this cross-fit inside the compiled study and returns
+    its out-of-fold propensities (``propensity``) on its fold plan (``fold_ids``).
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.external_learners.cross_fit_aipw", _ANALYZE_ATE.format(estimator="dml")
+    )
     from . import _native
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):

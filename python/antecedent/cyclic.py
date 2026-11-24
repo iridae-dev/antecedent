@@ -28,7 +28,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -784,7 +784,17 @@ class PreparedCyclicSystem:
         covariance uncertainty are not included. ``proposal_scale`` is the starting
         random-walk step and per-chain start spread: warmup tunes the step and
         proposal covariance, then freezes them for the retained draws.
+
+        Deprecated: the compiled ``parameter_posterior`` cyclic family
+        (:func:`posterior_responses`) samples the same posterior under the same seed; its
+        executed answer carries these draws as ``answer["result"]["posterior"]``.
         """
+        _deprecation.direct_path_deprecated(
+            "antecedent.cyclic.PreparedCyclicSystem.posterior",
+            "antecedent.cyclic.posterior_responses(model, parameters, rows, worlds, noise, "
+            "prior_sd=prior_sd, sampling=SamplingPolicy(chains, warmup, draws, proposal_scale))"
+            ".execute(), reading answer['result']['posterior']",
+        )
         assert execution is not None
         seed = _seed()
         result: dict[str, Any] = json.loads(
