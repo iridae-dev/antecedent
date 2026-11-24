@@ -298,13 +298,18 @@ pub enum TransportIdentificationError {
     ChainRecovery(ChainRecoveryError),
 }
 
+/// Refusal detail of [`TransportIdentificationError::Reentry`] (reason code
+/// `public_builder_reentry`).
+pub const REENTRY_DETAIL: &str = "transport_identification.reentry";
+
 impl fmt::Display for TransportIdentificationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotSupported(refusal) => write!(f, "{refusal}"),
-            Self::Reentry => f.write_str(
-                "public_builder_reentry: a lowered dispatch executes its retained program; it does \
-                 not compile or run another identification",
+            Self::Reentry => write!(
+                f,
+                "public_builder_reentry ({REENTRY_DETAIL}): a lowered dispatch executes its \
+                 retained program; it does not compile or run another identification"
             ),
             Self::Identification(error) => write!(f, "{error}"),
             Self::Recovery(error) => write!(f, "{error}"),
