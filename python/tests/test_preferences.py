@@ -536,6 +536,139 @@ def test_one_experiment_cannot_answer_a_kinked_term_from_its_means():
         require_success(_experiment_contract(experiment, kinked).evaluate(experiment))
 
 
+# --------------------------------------------------------------------------- one compiled design
+#
+# Fixture: a cluster-randomized design of 64 clusters of 10 rows, alternately assigned. The
+# treatment raises per-row benefit by 1.0 and harm by 0.5; each cluster carries a bounded shock.
+# Randomization alone does not identify the cross-arm dependence of the arm-mean estimators, so
+# a kinked value needs the declared premise that the clusters were sampled independently from a
+# larger population; then the clusters are resampled within each arm.
+
+
+SAMPLING = "assumption.clusters_sampled_from_a_larger_population"
+
+
+def _cluster_design(clusters: int = 64, rows: int = 10):
+    import math
+
+    from antecedent import joint_panel as jp
+
+    assigned = [c % 2 == 0 for c in range(clusters)]
+    shocks = [math.sin((c + 1.0) * 12.9898) for c in range(clusters)]
+    benefit = [
+        rows * (2.0 + (1.0 if a else 0.0) + 0.2 * s) for a, s in zip(assigned, shocks, strict=True)
+    ]
+    harm = [
+        rows * (1.0 + (0.5 if a else 0.0) + 0.1 * s) for a, s in zip(assigned, shocks, strict=True)
+    ]
+    return jp.prepare_native_joint_design(
+        {
+            "kind": "decision_cluster",
+            "recipe": {
+                "population": "target",
+                "treated_regime_id": "do(a=1)",
+                "control_regime_id": "do(a=0)",
+                "horizon": 0,
+                "cluster_ids": [f"cluster-{c}" for c in range(clusters)],
+                "cluster_sizes": [rows] * clusters,
+                "assignment_law": "complete randomization of half the clusters",
+                "treated_clusters": sum(assigned),
+                "consistency": "consistency",
+                "assignments": assigned,
+                "outcomes": [
+                    {
+                        "component_name": "benefit",
+                        "variable_id": "benefit",
+                        "units": "qaly",
+                        "values": benefit,
+                    },
+                    {
+                        "component_name": "harm",
+                        "variable_id": "harm",
+                        "units": "events",
+                        "values": harm,
+                    },
+                ],
+                "adjustments": [],
+                "exposure": {"kind": "no_interference", "assumption": "assumption.no_spillover"},
+            },
+        }
+    )
+
+
+def _design_contract(model: pf.ValueModel) -> pf.Contract:
+    def arm(regime: str) -> dict[str, ScientificQuantity]:
+        return {
+            "benefit": _quantity("benefit", "qaly", regime, "mean"),
+            "harm": _quantity("harm", "events", regime, "mean"),
+        }
+
+    return pf.Contract(
+        model=model,
+        actions=(
+            pf.Action("treat", inputs=arm("do(a=1)")),
+            pf.Action("wait", inputs=arm("do(a=0)")),
+        ),
+        target_population="target",
+    )
+
+
+def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_sampling_premise():
+    design = _cluster_design()
+    affine = _design_contract(
+        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * HARM, utility_units="qaly")
+    )
+    means = require_success(affine.compile(design))
+    assert means.inspect()["demand"]["representation"] == "mean"
+    assert means.plans[0]["evidence"]["decision"]["preference"]["design_law"] is None
+    assert require_success(means.execute()).selected == "treat"
+
+    kinked = _design_contract(
+        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+    )
+    for declared in ({}, {"refits": 99, "seed": 3}):
+        with pytest.raises(pf.PreferenceRefusal) as undeclared:
+            require_success(kinked.compile(design, **declared))  # type: ignore[arg-type]
+        assert undeclared.value.reason_code == "joint_law_required"
+        assert (
+            undeclared.value.detail == reason_details.preference_compile.DESIGN_SAMPLING_UNDECLARED
+        )
+    with pytest.raises(CausalValueError, match="refits="):
+        require_success(kinked.compile(design, sampling=SAMPLING))
+
+    compiled = require_success(kinked.compile(design, refits=99, seed=3, sampling=SAMPLING))
+    assert compiled.inspect()["demand"]["representation"] == "joint_draws"
+    (plan,) = compiled.plans
+    assert plan["evidence"]["decision"]["carrier"] == "decision_draws"
+    assert plan["evidence"]["decision"]["preference"]["design_law"] == {
+        "kind": "independent_unit_bootstrap",
+        "unit": "cluster",
+        "replicates": 99,
+        "seed": 3,
+        "sampling": SAMPLING,
+    }
+    reseeded = require_success(kinked.compile(design, refits=99, seed=4, sampling=SAMPLING))
+    assert reseeded.plans[0]["identity"] != plan["identity"]
+
+    decided = require_success(compiled.execute())
+    assert isinstance(decided.source, JointDistributionArtifact)
+    assert (
+        decided.source.identity.rng_id == "independent_unit_bootstrap:cluster:replicates=99:seed=3"
+    )
+    assert decided.selected == "treat"
+    assert SAMPLING in decided.assumptions
+
+    # Ten clusters in each arm are below the bootstrap's floor of thirty.
+    with pytest.raises(pf.PreferenceRefusal) as few:
+        require_success(
+            _design_contract(kinked.model).compile(
+                _cluster_design(20), refits=99, sampling=SAMPLING
+            )
+        )
+    assert few.value.reason_code == "too_few_clusters"
+    assert few.value.detail == reason_details.preference_compile.DESIGN_UNITS_TOO_FEW
+
+
 # --------------------------------------------------------------------------- the compiled route
 #
 # Fixture: dose tables ``y = intercept + slope * t + noise`` on ``t`` in [0, 2] with the graph
