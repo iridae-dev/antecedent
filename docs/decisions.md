@@ -545,7 +545,10 @@ returns a `TradeoffDecision`. An ordinary contract compiles with a study of one 
 several studies or a design; with a study over a graph posterior it refuses before anything is
 fitted (`preference_compile.ordinary_structures_not_compiled`), and `decision.Structures`
 decides it across structures instead. A quantity that no structure identifies refuses at
-compile time with `effect_not_identified`. The arguments (`draws=`, `seed=`, `refits=`, `sampling=`) and the
+compile time with `effect_not_identified`. The decision is its own program over the studies'
+programs, supported by its own unit (`decision.contract`, `preference_decision.exact` or
+`preference_decision.certified`) while each study keeps its own; it runs only when both are
+supported. The arguments (`draws=`, `seed=`, `refits=`, `sampling=`) and the
 studies' shared-evidence rules are in [Trade-off ranges in depth](preference-decisions.md#which-studies-share-evidence).
 
 ## Read any decision result

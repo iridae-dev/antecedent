@@ -114,7 +114,7 @@ pub const PROPAGATION_CHAIN_ASSUMPTION_TAG: &str = "antecedent.propagation_chain
 pub const PROPAGATION_CHAIN_JOINT_LAW_TAG: &str = "antecedent.propagation_chain_joint_law.v4";
 /// Required feature marker a compiled draft carries beside its format's marker while its
 /// family table is deferred: a reader that does not bind deferred tables refuses it.
-pub const PROPAGATION_CHAIN_DEFERRED_FEATURE: &str = "propagation_chain.deferred_sources";
+pub const PROPAGATION_CHAIN_DEFERRED_FEATURE: &str = "propagation_chain_deferred_sources_v1";
 /// Domain tag of the identity of a draft whose family table is deferred.
 pub const PROPAGATION_CHAIN_DEFERRED_TAG: &str = "antecedent.propagation_chain.deferred_sources.v1";
 /// The construction of a deferred family table: normal columns matched exactly to the bound

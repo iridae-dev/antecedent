@@ -128,8 +128,8 @@ is fitted, and each study's plan carries the decision's quantities and the decla
 is refused when the contract is bound. `execute` fits each study once.
 
 The same contract evaluated on means you already hold, with `contract_for(model).evaluate(source)`
-for a `MeanSource` of the six arm means, is the lower layer the compiled route calls; it gives the
-same verdict here.
+for a `MeanSource` of the six arm means, runs the compiled program for a source in hand; it gives
+the same verdict here, but cannot check how the means were estimated.
 
 A value with a kinked charge, say an extra cost for every return above 100 per store-week, is
 not affine in the outcomes, so it needs one law of orders and returns, not their means. The
