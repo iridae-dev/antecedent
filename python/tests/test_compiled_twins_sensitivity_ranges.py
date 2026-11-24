@@ -283,6 +283,7 @@ def _regime(n=400, seed=45):
         fold_ids=[i % 5 for i in range(n)],
         method="marginal_structural_model",
         stabilizing_numerator_probabilities=[0.5, 0.5],
+        covariates=["l1", "l2"],
     )
     data = {"y": y, "l1": l1, "l2": l2}
     study = ant.prepare(data, query=query, refute="none", execution=ant.Execution(seed=7))

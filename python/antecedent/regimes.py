@@ -56,6 +56,11 @@ class LongitudinalRegime:
     rule_id: str | None = None
     rule_version: str | None = None
     rule_provenance: str | None = None
+    #: Numeric columns the prepared study retains beside the outcome, for follow-up operations
+    #: on the study's own rows (the refitted weight models of
+    #: ``antecedent.validation.sensitivity_range(study, "msm_parameters_refit", ...)``). No
+    #: estimator of the regime reads them; a study that declares none retains the outcome alone.
+    covariates: Sequence[str] = ()
     kind: Literal["longitudinal_regime"] = field(
         default="longitudinal_regime", init=False, repr=False
     )
@@ -76,6 +81,18 @@ class LongitudinalRegime:
             return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must name a non-empty column")
+        covariates = (
+            (self.covariates,) if isinstance(self.covariates, str) else tuple(self.covariates)
+        )
+        if (
+            any(not isinstance(name, str) or not name.strip() for name in covariates)
+            or len(set(covariates)) != len(covariates)
+            or self.outcome in covariates
+        ):
+            raise CausalValueError(
+                "covariates must name distinct non-empty columns other than the outcome"
+            )
+        object.__setattr__(self, "covariates", covariates)
         history = np.asarray(self.treatment_history)
         if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
             raise CausalValueError(

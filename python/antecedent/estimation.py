@@ -918,8 +918,14 @@ def _continuous_dose_payload(
 def _longitudinal_regime_payload(
     data: Any, query: LongitudinalRegime
 ) -> tuple[list[str], list[Any]]:
-    """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
+    """Send the numeric endpoint and any declared covariates to Rust; histories remain frozen
+    query metadata."""
     outcome = read_columns(data, (query.outcome,), what="longitudinal outcome")[query.outcome]
+    covariates = (
+        read_columns(data, tuple(query.covariates), what="longitudinal covariate")
+        if query.covariates
+        else {}
+    )
     if len(outcome) != len(query.subject_ids):
         raise CausalValueError("longitudinal outcome rows must align with subject histories")
     if query.method in ("sequential_dr", "marginal_structural_model"):
@@ -928,7 +934,7 @@ def _longitudinal_regime_payload(
         if not np.isfinite(values[observed]).all():
             raise CausalValueError("observed terminal outcomes must be finite")
         outcome = np.where(observed, values, 0.0)
-    return ingest_columns({query.outcome: outcome})
+    return ingest_columns({query.outcome: outcome, **covariates})
 
 
 def _sequential_contrast_payload(
