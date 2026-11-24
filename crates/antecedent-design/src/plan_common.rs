@@ -145,3 +145,26 @@ pub(crate) fn same_assignments(a: &[InterventionAssignment], b: &[InterventionAs
 pub(crate) fn same_vars(a: &[VariableId], b: &[VariableId]) -> bool {
     a.iter().collect::<BTreeSet<_>>() == b.iter().collect::<BTreeSet<_>>()
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+
+    fn ids(raw: &[u32]) -> Vec<VariableId> {
+        raw.iter().map(|&r| VariableId::from_raw(r)).collect()
+    }
+
+    /// `id_list` is a multiset text: every ordering of a list gives one text, a repeat
+    /// changes it, and the comma between decimal ids keeps two different lists apart.
+    #[test]
+    fn identity_site_id_list_is_an_injective_multiset_text() {
+        let base = id_list(&ids(&[3, 1, 2]));
+        for order in [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 2, 1]] {
+            assert_eq!(base, id_list(&ids(&order)));
+        }
+        assert_ne!(base, id_list(&ids(&[1, 2, 3, 3])));
+        assert_ne!(base, id_list(&ids(&[1, 2])));
+        assert_ne!(id_list(&ids(&[1, 23])), id_list(&ids(&[12, 3])));
+        assert_ne!(id_list(&ids(&[])), id_list(&ids(&[0])));
+    }
+}

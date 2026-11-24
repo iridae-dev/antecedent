@@ -572,7 +572,23 @@ fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, ZTransportPlannin
 }
 /// Digest of the graph with sorted edge lists and sorted selection targets, so
 /// an equal diagram built in another insertion order has the same identity.
+///
+/// The snapshot stores the graph as a wire indexed by dense node, which names a
+/// variable only when dense node `i` is `Static(i)`. A diagram in any other
+/// layout is refused rather than digested: its wire would share the digest of a
+/// different graph over other variables.
 fn graph_digest(diagram: &SelectionDiagram) -> Result<String, ZTransportPlanningError> {
+    if diagram.causal_graph().nodes().iter().enumerate().any(|(index, node)| {
+        *node
+            != antecedent_core::NodeRef::Static(antecedent_core::VariableId::from_raw(
+                u32::try_from(index).unwrap_or(u32::MAX),
+            ))
+    }) {
+        return Err(ZTransportPlanningError::Invalid(
+            "a stored z-transport snapshot needs a selection diagram whose node i is variable i"
+                .into(),
+        ));
+    }
     let mut wire = antecedent_io_core::admg_to_wire(diagram.causal_graph())?;
     wire.directed.sort_unstable();
     wire.bidirected.sort_unstable();
@@ -1381,5 +1397,45 @@ mod tests {
             proposal.receive(&insufficient, "source-low-arrival").unwrap_err(),
             ZTransportPlanningError::Invalid(message) if message.contains("differs from proposal")
         ));
+    }
+
+    /// `graph_digest`: edge lists and selection targets are sets (sorted; the graph and
+    /// the diagram refuse repeats), so another insertion order keeps the digest and a
+    /// changed edge or target changes it. A diagram whose node `i` is not variable `i`
+    /// is refused: the stored wire would name the wrong variables.
+    #[test]
+    fn identity_site_graph_digest_is_order_free_and_label_bound() {
+        let edges = [(0, 1), (1, 2), (2, 3), (0, 3)];
+        let bidirected = [(0, 3), (1, 3), (1, 2)];
+        let diagram = |directed: &[(u32, u32)], targets: &[u32]| {
+            let mut graph = Admg::with_variables(4);
+            for &(a, b) in directed {
+                graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+            }
+            for &(a, b) in &bidirected {
+                graph
+                    .insert_bidirected(DenseNodeId::from_raw(b), DenseNodeId::from_raw(a))
+                    .unwrap();
+            }
+            let targets: Vec<VariableId> =
+                targets.iter().map(|&t| VariableId::from_raw(t)).collect();
+            SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(targets)).unwrap()
+        };
+        let mut reversed = edges;
+        reversed.reverse();
+        let base = graph_digest(&diagram(&edges, &[1, 2])).unwrap();
+        assert_eq!(base, graph_digest(&diagram(&reversed, &[2, 1])).unwrap());
+        assert_ne!(base, graph_digest(&diagram(&edges[1..], &[1, 2])).unwrap());
+        assert_ne!(base, graph_digest(&diagram(&edges, &[1])).unwrap());
+
+        let mut relabelled = Admg::empty();
+        for raw in [1, 0, 2, 3] {
+            relabelled
+                .add_node(antecedent_core::NodeRef::Static(VariableId::from_raw(raw)))
+                .unwrap();
+        }
+        let relabelled =
+            SelectionDiagram::try_new(relabelled, Arc::<[VariableId]>::from([])).unwrap();
+        assert!(matches!(graph_digest(&relabelled), Err(ZTransportPlanningError::Invalid(_))));
     }
 }

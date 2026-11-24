@@ -540,3 +540,40 @@ fn a_transport_with_no_assumption_or_a_self_target_is_refused_at_the_ledger() {
     // The design-level guard stays for identities that reach synthesis.
     assert!(add(&mut ledger, 1_000, transport(3)).is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `classify` and `synthesize_checked`: contributions are a set keyed by source (a source
+/// listed twice is refused, above), and the transport identities and populations are sets,
+/// so listing the contributions in another order keeps every reported identity and number.
+#[test]
+fn identity_site_contributions_are_a_set_of_sources() {
+    let run = |reverse: bool| {
+        let mut ledger = EvidenceLedger::new();
+        let cohort = native(&mut ledger, "registry cohort", 0, 100);
+        let first = claim(&mut ledger, "claim one", SourceKind::ExternalClaim, 1_000, 1_100, 1);
+        let second = claim(&mut ledger, "claim two", SourceKind::ExternalClaim, 2_000, 2_100, 2);
+        let mut contributions = vec![
+            contribution(cohort, 1.0, 1.0, None),
+            contribution(first, 2.0, 1.0, Some(0.5)),
+            contribution(second, 3.0, 1.0, Some(0.25)),
+        ];
+        if reverse {
+            contributions.reverse();
+        }
+        synthesize_transported(&mut ledger, "pooled", &contributions, &pool()).unwrap()
+    };
+    let (listed, reversed) = (run(false), run(true));
+    assert_eq!(listed.estimate.to_bits(), reversed.estimate.to_bits());
+    assert_eq!(listed.variance.to_bits(), reversed.variance.to_bits());
+    assert_eq!(listed.native_sources, reversed.native_sources);
+    assert_eq!(listed.transported_sources, reversed.transported_sources);
+    assert_eq!(listed.transport_identities, reversed.transport_identities);
+    assert_eq!(listed.transport_identities, {
+        let mut sorted = vec![transport(1).digest(), transport(2).digest()];
+        sorted.sort();
+        sorted
+    });
+}

@@ -1119,3 +1119,40 @@ fn rank_statements_on_independently_drawn_candidates_are_refused_by_the_propagat
     let shared = gaussian_pair(0.5, 200, false);
     assert!(rank(&shared, &RankingRequest::default(), &ctx()).is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `DecisionDraws::canonical_order` and `digest_hex`: candidates are a set keyed by id, so
+/// listing them in another order keeps both digests, and a changed utility (by bits, so
+/// `-0.0` is not `0.0`) or a dropped candidate changes them. Draws are ordered: reversing a
+/// candidate's utilities changes the digest. Even an unvalidated carrier that repeats an id
+/// has one digest whatever the listing order.
+#[test]
+fn identity_site_decision_draws_are_keyed_by_candidate_id() {
+    let columns = [
+        ("a", vec![1.0, 2.0, 3.0, 4.0]),
+        ("b", vec![0.0, 1.0, 0.0, 1.0]),
+        ("c", vec![4.0, 3.0, 2.0, 1.0]),
+    ];
+    let base = carrier(&columns);
+    let mut reversed_columns = columns.clone();
+    reversed_columns.reverse();
+    let reversed = carrier(&reversed_columns);
+    assert_eq!(base.digest_hex(), reversed.digest_hex());
+    assert_eq!(base.candidate_set_digest(), reversed.candidate_set_digest());
+    assert_ne!(base.digest_hex(), carrier(&columns[1..]).digest_hex());
+    let mut signed_zero = columns.clone();
+    signed_zero[1].1[0] = -0.0;
+    assert_ne!(base.digest_hex(), carrier(&signed_zero).digest_hex());
+    let mut reordered_draws = columns.clone();
+    reordered_draws[0].1.reverse();
+    assert_ne!(base.digest_hex(), carrier(&reordered_draws).digest_hex());
+
+    let repeated = [columns[0].clone(), ("a", vec![9.0, 9.0, 9.0, 9.0]), columns[1].clone()];
+    let mut repeated_reversed = repeated.clone();
+    repeated_reversed.reverse();
+    assert!(carrier(&repeated).validate().is_err());
+    assert_eq!(carrier(&repeated).digest_hex(), carrier(&repeated_reversed).digest_hex());
+}

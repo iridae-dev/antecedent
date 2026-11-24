@@ -586,3 +586,29 @@ fn the_in_test_closed_forms_match_the_conformance_document() {
     assert!((-(p * 4.0 + 12.0 * p) - get("lq", "closed_loop_value")).abs() < 1e-9);
     assert!((0.9 * p / (0.5 + p) - get("lq", "gain")).abs() < 1e-12);
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `PreparedAdaptivePolicySearch::identity`: the families are an ordered list (the baseline
+/// is an index into it), so one declaration has one identity and listing the families in
+/// another order is another search.
+#[test]
+fn identity_site_prepared_search_families_are_ordered() {
+    let make = |families: Vec<AdaptivePolicyFamily>, baseline: usize| {
+        PreparedAdaptivePolicySearch::compile(
+            families,
+            Some(baseline),
+            PolicyConstraints::default(),
+            PolicyObjective::ExpectedUtility,
+            options(21),
+        )
+        .unwrap()
+        .identity()
+    };
+    let listed = make(vec![schedule_family(10, 0.0, 1.0), threshold_family("t")], 0);
+    assert_eq!(listed, make(vec![schedule_family(10, 0.0, 1.0), threshold_family("t")], 0));
+    assert_ne!(listed, make(vec![threshold_family("t"), schedule_family(10, 0.0, 1.0)], 1));
+    assert_ne!(listed, make(vec![schedule_family(10, 0.0, 1.0), threshold_family("u")], 0));
+}

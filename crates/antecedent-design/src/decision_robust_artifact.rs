@@ -610,7 +610,10 @@ fn profile_to_wire(profile: &ClaimProfile) -> ProfileWire {
                     status: p.status.as_str().to_owned(),
                 })
                 .collect();
-            per_input.sort_by(|a, b| (&a.action_id, a.input).cmp(&(&b.action_id, b.input)));
+            // The status breaks a tie, so a repeated (action, input) never keeps caller order.
+            per_input.sort_by(|a, b| {
+                (&a.action_id, a.input, &a.status).cmp(&(&b.action_id, b.input, &b.status))
+            });
             SupportEntryWire {
                 atom_id: id.clone(),
                 overall: s.overall.as_str().to_owned(),
@@ -618,7 +621,20 @@ fn profile_to_wire(profile: &ClaimProfile) -> ProfileWire {
             }
         })
         .collect();
-    support.sort_by(|a, b| a.atom_id.cmp(&b.atom_id));
+    // Atom ids identify a support entry; the rest of the entry breaks a tie, so a repeated id
+    // never keeps caller order.
+    support.sort_by(|a, b| {
+        a.atom_id.cmp(&b.atom_id).then_with(|| a.overall.cmp(&b.overall)).then_with(|| {
+            let key = |entry: &SupportEntryWire| {
+                entry
+                    .per_input
+                    .iter()
+                    .map(|p| (p.action_id.clone(), p.input, p.status.clone()))
+                    .collect::<Vec<_>>()
+            };
+            key(a).cmp(&key(b))
+        })
+    });
     ProfileWire { uncertainty: profile.uncertainty.name().to_owned(), support }
 }
 
@@ -674,21 +690,21 @@ fn verdict_to_wire(verdict: &RobustVerdict) -> VerdictWire {
                 unrestricted_choice: unrestricted_choice.clone(),
             }
         }
-        RobustVerdict::GraphDependentChoice(leaders) => VerdictWire::GraphDependentChoice(
-            leaders
-                .iter()
-                .map(|(atom, ids)| {
-                    let mut ids = ids.clone();
-                    ids.sort();
-                    (atom.clone(), ids)
-                })
-                .collect(),
-        ),
+        // Leaders per structure are a set of action ids, and the structures a set keyed by id:
+        // both are written sorted and deduplicated.
+        RobustVerdict::GraphDependentChoice(leaders) => {
+            let mut leaders: Vec<(String, Vec<String>)> =
+                leaders.iter().map(|(atom, ids)| (atom.clone(), sorted_distinct(ids))).collect();
+            leaders.sort();
+            leaders.dedup();
+            VerdictWire::GraphDependentChoice(leaders)
+        }
         RobustVerdict::UnsupportedExtrapolation => VerdictWire::UnsupportedExtrapolation,
         RobustVerdict::InsufficientClaims(why) => VerdictWire::InsufficientClaims(why.clone()),
         RobustVerdict::NoAdmissibleAction => VerdictWire::NoAdmissibleAction,
         RobustVerdict::WorstCaseChoice(id) => VerdictWire::WorstCaseChoice(id.clone()),
-        RobustVerdict::Tied(ids) => VerdictWire::Tied(ids.clone()),
+        // A tie is a set of action ids: written in id order, as the result wire states.
+        RobustVerdict::Tied(ids) => VerdictWire::Tied(sorted_distinct(ids)),
         RobustVerdict::BayesChoice { action, evaluated_mass } => {
             VerdictWire::BayesChoice { action: action.clone(), evaluated_mass: *evaluated_mass }
         }
@@ -754,6 +770,14 @@ struct ResultWire {
     assumptions: Vec<String>,
 }
 
+/// Ids of a set (structures, actions) in ascending order, each once.
+fn sorted_distinct(ids: &[String]) -> Vec<String> {
+    let mut ids = ids.to_vec();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
 /// Canonical wire of a result: actions, shortfalls and tied leaders are ordered
 /// by identity, so reordering the contract's actions leaves it unchanged.
 fn result_wire(result: &RobustDecisionResult) -> ResultWire {
@@ -761,8 +785,7 @@ fn result_wire(result: &RobustDecisionResult) -> ResultWire {
         .actions
         .iter()
         .map(|a| {
-            let mut unsupported_in = a.unsupported_in.clone();
-            unsupported_in.sort();
+            let unsupported_in = sorted_distinct(&a.unsupported_in);
             ActionRobustWire {
                 id: a.id.clone(),
                 declared_exclusion: a.declared_exclusion.clone(),
@@ -784,9 +807,16 @@ fn result_wire(result: &RobustDecisionResult) -> ResultWire {
             weakest_allowed: s.weakest_allowed.as_str().to_owned(),
         })
         .collect();
-    shortfalls.sort_by(|a, b| (&a.atom, &a.action, a.input).cmp(&(&b.atom, &b.action, b.input)));
-    let mut unsupported_atoms = result.unsupported_atoms.clone();
-    unsupported_atoms.sort();
+    shortfalls.sort_by(|a, b| {
+        (&a.atom, &a.action, a.input, &a.status, &a.weakest_allowed).cmp(&(
+            &b.atom,
+            &b.action,
+            b.input,
+            &b.status,
+            &b.weakest_allowed,
+        ))
+    });
+    let unsupported_atoms = sorted_distinct(&result.unsupported_atoms);
     ResultWire {
         contract_identity: result.contract_identity.clone(),
         base_contract_identity: result.base_contract_identity.clone(),
@@ -1209,3 +1239,132 @@ mod scenario_carrier;
 pub use scenario_carrier::{
     JointScenarioCarrier, MAX_COMPILED_ROBUST_ITEMS, MAX_SCENARIO_CARRIER_BYTES, ScenarioDecision,
 };
+
+#[cfg(test)]
+mod identity_site_tests {
+    //! Identity sites (formal/identity_sites.toml): the canonical result, verdict and profile
+    //! wires. Sets of ids are written sorted and once; entries keyed by part of their content
+    //! are ordered by the whole entry, so no listing order reaches the bytes.
+
+    use super::*;
+
+    fn result(verdict: RobustVerdict, unsupported: Vec<String>) -> RobustDecisionResult {
+        RobustDecisionResult {
+            contract_identity: "contract".into(),
+            base_contract_identity: "base".into(),
+            verdict,
+            actions: vec![
+                ActionRobustness {
+                    id: "b".into(),
+                    declared_exclusion: None,
+                    range: Some((0.0, 1.0)),
+                    supported_range: None,
+                    unsupported_in: unsupported.clone(),
+                },
+                ActionRobustness {
+                    id: "a".into(),
+                    declared_exclusion: None,
+                    range: None,
+                    supported_range: None,
+                    unsupported_in: Vec::new(),
+                },
+            ],
+            shortfalls: vec![
+                SupportShortfall {
+                    atom: "g1".into(),
+                    action: "a".into(),
+                    input: 0,
+                    status: SupportStatus::Extrapolative,
+                    weakest_allowed: SupportStatus::Supported,
+                },
+                SupportShortfall {
+                    atom: "g1".into(),
+                    action: "a".into(),
+                    input: 0,
+                    status: SupportStatus::WeakOverlap,
+                    weakest_allowed: SupportStatus::Supported,
+                },
+            ],
+            unsupported_atoms: unsupported,
+            unsupported_mass: None,
+            unidentified_mass: None,
+            unevaluated_mass: None,
+            evaluated_mass: None,
+            uncertainty_required: UncertaintyRequirement::None,
+            uncertainty_supplied: UncertaintyKind::Point,
+            assumptions: vec!["declared".into()],
+        }
+    }
+
+    fn bytes(result: &RobustDecisionResult) -> Vec<u8> {
+        to_cbor(&result_wire(result)).unwrap()
+    }
+
+    fn ids(values: &[&str]) -> Vec<String> {
+        values.iter().map(|v| (*v).to_owned()).collect()
+    }
+
+    /// `result_wire` and `verdict_to_wire`: actions keyed by id; unsupported atoms, tied
+    /// leaders and graph-dependent leaders are sets; shortfalls ordered by the whole entry.
+    #[test]
+    fn identity_site_result_wire_writes_sets_once_in_order() {
+        let tied = |leaders: &[&str]| RobustVerdict::Tied(ids(leaders));
+        let base = result(tied(&["a", "b"]), ids(&["g1", "g2"]));
+        let mut reordered = result(tied(&["b", "a"]), ids(&["g2", "g1", "g2"]));
+        reordered.actions.reverse();
+        reordered.shortfalls.reverse();
+        assert_eq!(bytes(&base), bytes(&reordered));
+        assert_ne!(bytes(&base), bytes(&result(tied(&["a"]), ids(&["g1", "g2"]))));
+        assert_ne!(bytes(&base), bytes(&result(tied(&["a", "b"]), ids(&["g1"]))));
+
+        let graph = |pairs: Vec<(&str, Vec<&str>)>| {
+            RobustVerdict::GraphDependentChoice(
+                pairs.into_iter().map(|(atom, leaders)| (atom.to_owned(), ids(&leaders))).collect(),
+            )
+        };
+        let listed = result(graph(vec![("g1", vec!["a", "b"]), ("g2", vec!["a"])]), Vec::new());
+        let permuted =
+            result(graph(vec![("g2", vec!["a", "a"]), ("g1", vec!["b", "a"])]), Vec::new());
+        assert_eq!(bytes(&listed), bytes(&permuted));
+        let changed = result(graph(vec![("g1", vec!["a"]), ("g2", vec!["a"])]), Vec::new());
+        assert_ne!(bytes(&listed), bytes(&changed));
+    }
+
+    /// `profile_to_wire`: support entries keyed by atom id and per-input rows keyed by
+    /// (action, input) are written by the whole entry, so the listing order never reaches
+    /// the bytes; a changed status changes them.
+    #[test]
+    fn identity_site_profile_wire_is_order_free() {
+        let row = |action: &str, input: usize, status: SupportStatus| InputSupport {
+            action_id: action.into(),
+            input,
+            status,
+        };
+        let atom = |rows: Vec<InputSupport>| AtomSupport {
+            overall: SupportStatus::Supported,
+            per_input: rows,
+        };
+        let profile = |support: Vec<(String, AtomSupport)>| ClaimProfile {
+            uncertainty: UncertaintyKind::Point,
+            support,
+        };
+        let rows = vec![
+            row("a", 0, SupportStatus::Supported),
+            row("a", 0, SupportStatus::Extrapolative),
+            row("b", 1, SupportStatus::WeakOverlap),
+        ];
+        let mut reversed_rows = rows.clone();
+        reversed_rows.reverse();
+        let listed =
+            profile(vec![("g1".into(), atom(rows.clone())), ("g2".into(), atom(Vec::new()))]);
+        let permuted =
+            profile(vec![("g2".into(), atom(Vec::new())), ("g1".into(), atom(reversed_rows))]);
+        let bytes = |profile: &ClaimProfile| to_cbor(&profile_to_wire(profile)).unwrap();
+        assert_eq!(bytes(&listed), bytes(&permuted));
+        let mut changed_rows = rows;
+        changed_rows[2].status = SupportStatus::Supported;
+        let changed =
+            profile(vec![("g1".into(), atom(changed_rows)), ("g2".into(), atom(Vec::new()))]);
+        assert_ne!(bytes(&listed), bytes(&changed));
+    }
+}

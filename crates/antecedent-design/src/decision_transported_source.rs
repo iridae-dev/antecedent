@@ -104,7 +104,10 @@ pub const TRANSPORTED_RESPONSE_INFERENCE: &str = "point_only";
 
 const TAG_RECEIPT: &str = "antecedent.transported_response.receipt";
 const TAG_DECISION: &str = "antecedent.transported_response.decision";
-const TAG_MERGE: &str = "antecedent.transported_response.merge";
+/// Merged-point source identity, v2: every member's identity together with the coordinates
+/// and means it carried. (v1, `antecedent.transported_response.merge`, bound only the
+/// member identities, so two merges of the same members with different values shared it.)
+const TAG_MERGE: &str = "antecedent.transported_response.merge.v2";
 const TAG_SHIFT: &str = "antecedent.transported_response.covariate_shift";
 const STAGE: &str = "transported_decision";
 
@@ -833,7 +836,7 @@ impl TransportedResponse {
         };
         let mut coordinates = Vec::new();
         let mut means = Vec::new();
-        let mut identities: Vec<&str> = Vec::new();
+        let mut members: Vec<(String, Vec<String>, Vec<u64>)> = Vec::new();
         for response in responses {
             let TransportedValue::Means(mean) = &response.value else {
                 return Err(TransportedRefusal::InvalidValue("only transported points merge"));
@@ -850,11 +853,21 @@ impl TransportedResponse {
             }
             coordinates.extend(mean.coordinates.iter().cloned());
             means.extend(mean.means.iter().copied());
-            identities.push(a.source_identity.as_str());
+            members.push((
+                a.source_identity.clone(),
+                mean.coordinates.iter().map(ScientificQuantity::canonical_identity).collect(),
+                mean.means.iter().map(|m| m.to_bits()).collect(),
+            ));
         }
-        identities.sort_unstable();
+        // The members are a multiset: each is written with its values, in sorted order, so
+        // the merge does not depend on the order responses were passed and two merges of the
+        // same member identities with different values never share an identity.
+        members.sort_unstable();
         let mut writer = CanonicalWriter::new(TAG_MERGE);
-        writer.texts(&identities);
+        writer.word(members.len() as u64);
+        for (identity, member_coordinates, member_means) in &members {
+            writer.text(identity).texts(member_coordinates).words(member_means);
+        }
         let merged = writer.finish_hex();
         let TransportedValue::Means(head) = &first.value else {
             return Err(TransportedRefusal::InvalidValue("only transported points merge"));
