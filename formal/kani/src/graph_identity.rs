@@ -6,6 +6,12 @@
 //! order its nodes were added in, and two labelled graphs with different variables or edges
 //! never share a wire. The released unlabelled wire failed the second property (the same
 //! edges over different variables shared one wire).
+//!
+//! No stubs: graph construction and both encoders run as in production. Their loops are
+//! bounded by the node count (three) or the edge count (at most three per kind), and they run
+//! no recursion, hashing or tree code, so an unwind of six covers every loop with margin.
+//! The reference side is written with bit masks rather than sorted vectors, so the
+//! specification adds no sort of its own.
 
 use antecedent_core::{NodeRef, VariableId};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
@@ -58,23 +64,38 @@ fn dag(labels: [u32; NODES], edges: [bool; 3], order: [usize; NODES]) -> Dag {
     graph
 }
 
-/// The labelled graph as sorted variables and sorted variable-pair edges.
-fn labelled(labels: [u32; NODES], edges: [bool; 3]) -> ([u32; NODES], Vec<(u32, u32)>) {
-    let mut variables = labels;
-    variables.sort_unstable();
-    let mut pairs: Vec<(u32, u32)> = PAIRS
-        .iter()
-        .enumerate()
-        .filter(|&(index, _)| edges[index])
-        .map(|(_, &(from, to))| (labels[from], labels[to]))
-        .collect();
-    pairs.sort_unstable();
-    (variables, pairs)
+/// The variable set as a mask (bit `v` for variable `v`). Labels are distinct, so two label
+/// triples name the same variables exactly when their masks agree.
+fn variables(labels: [u32; NODES]) -> u8 {
+    labels.iter().fold(0, |mask, &label| mask | (1 << label))
+}
+
+/// The directed variable pairs as a mask (bit `4 * from + to`).
+fn directed_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
+    let mut mask = 0u16;
+    for (index, &(from, to)) in PAIRS.iter().enumerate() {
+        if edges[index] {
+            mask |= 1 << (labels[from] * 4 + labels[to]);
+        }
+    }
+    mask
+}
+
+/// The unordered variable pairs as a mask (bit `4 * min + max`).
+fn unordered_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
+    let mut mask = 0u16;
+    for (index, &(a, b)) in PAIRS.iter().enumerate() {
+        if edges[index] {
+            let (low, high) = (labels[a].min(labels[b]), labels[a].max(labels[b]));
+            mask |= 1 << (low * 4 + high);
+        }
+    }
+    mask
 }
 
 /// The DAG identity does not depend on the dense order of the nodes, and is canonical.
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(6)]
 fn dag_identity_ignores_dense_order() {
     let labels = any_labels();
     let edges = any_edges();
@@ -87,21 +108,24 @@ fn dag_identity_ignores_dense_order() {
 /// Two DAGs share an identity wire only when they have the same variables and the same
 /// directed edges between them.
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(6)]
 fn dag_identity_binds_labels_and_edges() {
     let (left_labels, left_edges) = (any_labels(), any_edges());
     let (right_labels, right_edges) = (any_labels(), any_edges());
     let left = dag_identity(&dag(left_labels, left_edges, any_order())).unwrap();
     let right = dag_identity(&dag(right_labels, right_edges, any_order())).unwrap();
     if left == right {
-        assert!(labelled(left_labels, left_edges) == labelled(right_labels, right_edges));
+        assert!(variables(left_labels) == variables(right_labels));
+        assert!(
+            directed_pairs(left_labels, left_edges) == directed_pairs(right_labels, right_edges)
+        );
     }
 }
 
 /// A schema-aligned DAG (variables 0, 1, 2) is written in the unlabelled form of earlier
 /// releases; any other is labelled.
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(6)]
 fn dag_identity_keeps_the_aligned_form() {
     let labels = any_labels();
     let identity = dag_identity(&dag(labels, any_edges(), any_order())).unwrap();
@@ -135,7 +159,7 @@ fn admg(
 /// The ADMG identity does not depend on dense order, and two ADMGs share it only when their
 /// variables, directed edges and bidirected pairs agree.
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(6)]
 fn admg_identity_binds_labels_not_dense_order() {
     let (labels, directed, bidirected) = (any_labels(), any_edges(), any_edges());
     let first = admg_identity(&admg(labels, directed, bidirected, any_order())).unwrap();
@@ -146,17 +170,10 @@ fn admg_identity_binds_labels_not_dense_order() {
     let other =
         admg_identity(&admg(other_labels, other_directed, other_bidirected, any_order())).unwrap();
     if first == other {
-        assert!(labelled(labels, directed) == labelled(other_labels, other_directed));
-        let undirected = |labels: [u32; NODES], edges: [bool; 3]| {
-            let mut pairs: Vec<(u32, u32)> = PAIRS
-                .iter()
-                .enumerate()
-                .filter(|&(index, _)| edges[index])
-                .map(|(_, &(a, b))| (labels[a].min(labels[b]), labels[a].max(labels[b])))
-                .collect();
-            pairs.sort_unstable();
-            pairs
-        };
-        assert!(undirected(labels, bidirected) == undirected(other_labels, other_bidirected));
+        assert!(variables(labels) == variables(other_labels));
+        assert!(directed_pairs(labels, directed) == directed_pairs(other_labels, other_directed));
+        assert!(
+            unordered_pairs(labels, bidirected) == unordered_pairs(other_labels, other_bidirected)
+        );
     }
 }
