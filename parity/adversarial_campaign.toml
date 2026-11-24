@@ -39,6 +39,12 @@ command = ["lake", "build"]
 directory = "."
 command = ["bash", "-c", "bash formal/rust/extract.sh && cd formal/rust && lake build"]
 
+# The in-crate site tests of the facade crate (unit tests named `site_*`): the compiled
+# surface's program identities and question digests are private, so no public crate reaches them.
+[runners.facade]
+directory = "."
+command = ["cargo", "test", "-p", "antecedent", "--lib", "--no-fail-fast", "--", "site_"]
+
 [[cases]]
 id = "identity.permutation_keeps_digest"
 kind = "preserving"
@@ -732,6 +738,560 @@ kind = "bound"
 runner = "kani"
 test = "loader_runs_only_after_binding"
 
+# Compiled surface (formal/identity_sites.toml): in-crate site tests of the facade crate.
+
+[[cases]]
+id = "identity_sites.facade.intervals.adaptive_contrast_arms"
+kind = "changing"
+runner = "facade"
+test = "site_compiled_adaptive_interval_question_orders_the_arms_and_frames_the_request"
+
+[[cases]]
+id = "identity_sites.facade.intervals.cohort_question_framing"
+kind = "changing"
+runner = "facade"
+test = "site_compiled_cohort_interval_question_frames_the_identities_and_the_level"
+
+[[cases]]
+id = "identity_sites.facade.intervals.count_fitted_evidence_set"
+kind = "preserving"
+runner = "facade"
+test = "site_compiled_count_fitted_interval_question_reads_the_evidence_as_a_set"
+
+[[cases]]
+id = "identity_sites.facade.intervals.external_feedback_clamp_set"
+kind = "preserving"
+runner = "facade"
+test = "site_compiled_external_feedback_source_orders_rows_and_sets_clamps"
+
+[[cases]]
+id = "identity_sites.facade.intervals.per_population_label_set"
+kind = "preserving"
+runner = "facade"
+test = "site_compiled_per_population_discovery_populations_are_a_set_keyed_by_label"
+
+[[cases]]
+id = "identity_sites.facade.intervals.scenario_world_set"
+kind = "preserving"
+runner = "facade"
+test = "site_compiled_transport_scenarios_source_orders_samples_and_sets_their_worlds"
+
+[[cases]]
+id = "identity_sites.facade.intervals.temporal_sequence_and_law_order"
+kind = "changing"
+runner = "facade"
+test = "site_compiled_temporal_interval_question_orders_the_sequence_and_the_law"
+
+[[cases]]
+id = "identity_sites.facade.kernel.input_digest_framing"
+kind = "changing"
+runner = "facade"
+test = "site_kernel_programs_input_digest_frames_the_plan_and_the_bytes"
+
+[[cases]]
+id = "identity_sites.facade.kernel.chain_premises_order"
+kind = "changing"
+runner = "facade"
+test = "site_chain_recovery_request_premises_are_ordered_and_framed"
+
+[[cases]]
+id = "identity_sites.facade.kernel.nested_markov_edge_set"
+kind = "preserving"
+runner = "facade"
+test = "site_nested_markov_fisher_edges_are_sets"
+
+[[cases]]
+id = "identity_sites.facade.kernel.scenario_pattern_set"
+kind = "preserving"
+runner = "facade"
+test = "site_scenario_covariance_patterns_are_sets_and_scenarios_ordered"
+
+[[cases]]
+id = "identity_sites.facade.kernel.sampled_tables_set"
+kind = "preserving"
+runner = "facade"
+test = "site_sampled_counterfactual_transport_tables_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.kernel.sampled_interval_expectation"
+kind = "changing"
+runner = "facade"
+test = "site_sampled_counterfactual_transport_interval_binds_the_expectation"
+
+[[cases]]
+id = "identity_sites.facade.kernel.transport_selection_set"
+kind = "preserving"
+runner = "facade"
+test = "site_transport_identification_question_selections_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.kernel.sampled_recovery_rows_order"
+kind = "changing"
+runner = "facade"
+test = "site_sampled_recovery_request_rows_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_set_of"
+kind = "preserving"
+runner = "facade"
+test = "site_supplied_identity_set_of_sorts_and_deduplicates_framed_items"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_list_order"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_list_is_counted_and_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_field_framing"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_fields_are_named_and_framed"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_contract_order"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_decision_contract_orders_actions_and_constraints"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_atom_support_order"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_atom_support_and_exclusions_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_graph_edges"
+kind = "preserving"
+runner = "facade"
+test = "site_supplied_identity_graph_edges_are_a_set_and_labels_dense_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_node_ref_tags"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_node_ref_variants_are_tagged"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_wire_order"
+kind = "changing"
+runner = "facade"
+test = "site_supplied_identity_wire_lists_keep_their_order"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_claims_order"
+kind = "changing"
+runner = "facade"
+test = "site_claim_decision_programs_claims_are_ordered_and_their_reading_tagged"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_point_support_order"
+kind = "changing"
+runner = "facade"
+test = "site_claim_decision_programs_point_support_entries_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_carrier_order"
+kind = "changing"
+runner = "facade"
+test = "site_claim_decision_programs_carrier_actions_inputs_and_exclusions_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_means_order"
+kind = "changing"
+runner = "facade"
+test = "site_claim_decision_programs_means_are_ordered_pairs_and_the_source_tagged"
+
+[[cases]]
+id = "identity_sites.facade.decisions.core_functional_parts"
+kind = "changing"
+runner = "facade"
+test = "site_claim_decision_programs_functional_frames_its_parts"
+
+[[cases]]
+id = "identity_sites.facade.transport.policy_request_rows"
+kind = "changing"
+runner = "facade"
+test = "site_observational_policy_request_digest_orders_rows_and_frames_columns"
+
+[[cases]]
+id = "identity_sites.facade.transport.joint_measured_indicators"
+kind = "preserving"
+runner = "facade"
+test = "site_observation_query_joint_measured_indicators_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.transport.cyclic_action_outputs"
+kind = "changing"
+runner = "facade"
+test = "site_cyclic_action_world_decision_question_orders_outputs_and_binds_parts"
+
+[[cases]]
+id = "identity_sites.facade.transport.exact_laws_set"
+kind = "preserving"
+runner = "facade"
+test = "site_temporal_path_transport_exact_laws_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.composition.union_fingerprint_chain_order"
+kind = "changing"
+runner = "facade"
+test = "site_sampling_assumption_union_fingerprint_orders_chains_and_keeps_bits"
+
+[[cases]]
+id = "identity_sites.facade.composition.component_set"
+kind = "preserving"
+runner = "facade"
+test = "site_cyclic_component_composition_identity_is_a_set_of_components_and_connections"
+
+[[cases]]
+id = "identity_sites.facade.composition.chain_source_framing"
+kind = "changing"
+runner = "facade"
+test = "site_chain_source_digest_orders_rows_and_frames_its_texts"
+
+[[cases]]
+id = "identity_sites.facade.lowering.local_cyclic_clamps"
+kind = "preserving"
+runner = "facade"
+test = "site_local_cyclic_callback_clamps_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.lowering.local_cyclic_system_and_run"
+kind = "changing"
+runner = "facade"
+test = "site_local_cyclic_callback_system_and_run_are_ordered_and_framed"
+
+[[cases]]
+id = "identity_sites.facade.lowering.graph_falsification_graph"
+kind = "changing"
+runner = "facade"
+test = "site_graph_falsification_edges_are_a_set_and_labels_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.lowering.graph_falsification_query"
+kind = "changing"
+runner = "facade"
+test = "site_graph_falsification_query_reads_reals_by_bits_and_options_by_presence"
+
+[[cases]]
+id = "identity_sites.facade.lowering.model_operation_model"
+kind = "changing"
+runner = "facade"
+test = "site_model_operation_model_edges_are_a_set_and_labels_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.lowering.model_operation_query"
+kind = "changing"
+runner = "facade"
+test = "site_model_operation_query_frames_the_study_the_label_and_the_operation"
+
+[[cases]]
+id = "identity_sites.facade.lowering.transported_component_framing"
+kind = "changing"
+runner = "facade"
+test = "site_transported_path_specific_component_digest_frames_role_and_value"
+
+[[cases]]
+id = "identity_sites.facade.lowering.discovery_check_grids"
+kind = "changing"
+runner = "facade"
+test = "site_discovery_validation_check_grids_are_ordered_and_variants_tagged"
+
+[[cases]]
+id = "identity_sites.facade.lowering.graph_imputation_declaration"
+kind = "changing"
+runner = "facade"
+test = "site_graph_imputation_declaration_orders_domains_and_refuses_unordered_atoms"
+
+[[cases]]
+id = "identity_sites.facade.lowering.categorical_candidate_program"
+kind = "changing"
+runner = "facade"
+test = "site_categorical_posterior_candidate_program_binds_the_source_and_the_query"
+
+[[cases]]
+id = "identity_sites.facade.lowering.latent_candidates"
+kind = "preserving"
+runner = "facade"
+test = "site_latent_soft_intervention_source_sets_and_orders"
+
+[[cases]]
+id = "identity_sites.facade.lowering.events_source"
+kind = "changing"
+runner = "facade"
+test = "site_events_source_digest_orders_the_catalog_and_the_arrivals"
+
+[[cases]]
+id = "identity_sites.facade.lowering.events_program"
+kind = "changing"
+runner = "facade"
+test = "site_events_program_binds_the_route_operation_source_and_parent"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_search_question"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_search_question_frames_its_parts_with_presence_words"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_experiment_question"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_experiment_question_tags_the_operation_and_orders_its_parts"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_native_design"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_design_native_digest_orders_and_frames_its_lists"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_imputation_declaration"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_imputation_declaration_orders_worlds_and_channels"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_response_model"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_response_model_binds_the_source_and_the_fit_policy"
+
+[[cases]]
+id = "identity_sites.facade.lowering.joint_panel_contracts"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact"
+
+[[cases]]
+id = "identity_sites.facade.planner.builder_cells"
+kind = "changing"
+runner = "facade"
+test = "site_lowered_every_builder_binds_its_cell_and_layers"
+
+[[cases]]
+id = "identity_sites.facade.planner.query_variable_order"
+kind = "changing"
+runner = "facade"
+test = "site_lowered_scientific_problem_keeps_target_and_variable_order"
+
+[[cases]]
+id = "identity_sites.facade.planner.retained_cache_order"
+kind = "changing"
+runner = "facade"
+test = "site_lowered_identification_layer_orders_caches_and_tags_variants"
+
+[[cases]]
+id = "identity_sites.facade.planner.unresolved_directions_set"
+kind = "preserving"
+runner = "facade"
+test = "site_lowered_unresolved_directions_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.planner.selection_targets_set"
+kind = "preserving"
+runner = "facade"
+test = "site_query_digest_selection_targets_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.planner.posterior_atom_order"
+kind = "changing"
+runner = "facade"
+test = "site_query_digest_posterior_atoms_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.planner.model_slot_order"
+kind = "changing"
+runner = "facade"
+test = "site_statistical_models_and_their_inputs_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.planner.evsi_framing"
+kind = "changing"
+runner = "facade"
+test = "site_decision_evsi_frames_candidates_prior_ids_and_reals"
+
+[[cases]]
+id = "identity_sites.facade.planner2.operator_content"
+kind = "changing"
+runner = "facade"
+test = "site_statistical_operators_are_bound_by_content_in_order"
+
+[[cases]]
+id = "identity_sites.facade.planner2.released_layer_layout"
+kind = "preserving"
+runner = "facade"
+test = "site_statistical_lowered_layer_digest_keeps_the_released_layout"
+
+[[cases]]
+id = "identity_sites.facade.planner2.prior_scale_bits"
+kind = "changing"
+runner = "facade"
+test = "site_statistical_prior_scale_is_named_by_its_bits"
+
+[[cases]]
+id = "identity_sites.facade.planner2.chain_dependence_word"
+kind = "changing"
+runner = "facade"
+test = "site_chain_program_writes_the_dependence_status_by_its_fixed_word"
+
+[[cases]]
+id = "identity_sites.facade.composition2.ledger_presence_word"
+kind = "changing"
+runner = "facade"
+test = "site_cyclic_component_composition_ledger_has_a_presence_word"
+
+[[cases]]
+id = "identity_sites.facade.composition2.component_wire_set"
+kind = "preserving"
+runner = "facade"
+test = "site_cyclic_component_wire_digest_is_a_set_of_components_and_connections"
+
+[[cases]]
+id = "identity_sites.facade.composition2.vector_wire_set"
+kind = "preserving"
+runner = "facade"
+test = "site_cyclic_component_vector_wire_digest_is_a_set_of_outputs_ports_and_connections"
+
+[[cases]]
+id = "identity_sites.facade.refuse2.unencodable_refuses"
+kind = "invalid"
+runner = "facade"
+test = "site_supplied_identity_an_unencodable_value_refuses_and_never_hashes_error_text"
+
+[[cases]]
+id = "identity_sites.facade.refuse2.discovery_error_by_kind"
+kind = "changing"
+runner = "facade"
+test = "site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind"
+
+[[cases]]
+id = "identity_sites.facade.panel2.history_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact"
+
+[[cases]]
+id = "identity_sites.facade.panel2.released_context_validates"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_contracts_released_context_law_still_validates"
+
+[[cases]]
+id = "identity_sites.facade.panel2.imputation_domain_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_imputation_declaration_orders_worlds_and_channels"
+
+[[cases]]
+id = "identity_sites.facade.panel2.prior_origins_order"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact"
+
+[[cases]]
+id = "identity_sites.facade.panel2.search_controls_order"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_search_domain_controls_and_restrictions_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.events2.external_tie_order"
+kind = "changing"
+runner = "facade"
+test = "site_events_external_request_binds_tied_arrivals_in_declared_order"
+
+[[cases]]
+id = "identity_sites.facade.transport2.policy_graph_set"
+kind = "preserving"
+runner = "facade"
+test = "site_observational_policy_graph_and_information_are_sets"
+
+[[cases]]
+id = "identity_sites.facade.transport2.policy_spec_framing"
+kind = "changing"
+runner = "facade"
+test = "site_observational_policy_spec_reals_are_bits_and_options_are_framed"
+
+[[cases]]
+id = "identity_sites.facade.transport2.policy_released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_observational_policy_v1_identity_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.transport2.trial_selection_set"
+kind = "preserving"
+runner = "facade"
+test = "site_trial_ipw_transport_decision_selection_targets_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.transport2.trial_released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_trial_ipw_transport_decision_released_identity_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.transport2.temporal_active_edges_set"
+kind = "preserving"
+runner = "facade"
+test = "site_temporal_path_transport_active_edges_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.transport2.sequential_log_set"
+kind = "preserving"
+runner = "facade"
+test = "site_sequential_policy_reliability_off_policy_log_is_a_set"
+
+[[cases]]
+id = "identity_sites.facade.transport2.sequential_released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_sequential_policy_reliability_released_identity_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.design3.arm_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_designs_longitudinal_arms_are_a_set_keyed_by_code"
+
+[[cases]]
+id = "identity_sites.facade.design3.released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_designs_released_dependency_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.panel4.native_target_framing"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_native_experiment_target_frames_the_binding_by_bits"
+
+[[cases]]
+id = "identity_sites.facade.panel4.native_target_released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_native_experiment_released_target_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.panel4.joint_mapping_count"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_joint_dependency_counts_each_component_mapping"
+
+[[cases]]
+id = "identity_sites.facade.panel4.static_graph_edge_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_static_source_binds_the_labelled_graph_as_a_set_of_edges"
+
+[[cases]]
+id = "identity_sites.facade.panel4.population_released_replays"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_population_reference_released_digest_still_replays"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -1128,3 +1688,815 @@ old = """        let mut relations: Vec<[u8; 32]> =
 new = """        let relations: Vec<[u8; 32]> =
             self.preferences.relations.iter().map(encode_relation).collect();"""
 caught_by = ["identity_sites.preferences.value_model_relations_and_terms"]
+
+[[mutations]]
+id = "intervals_adaptive_contrast_arms_sorted"
+file = "crates/antecedent/src/analysis/compiled_adaptive_interval.rs"
+old = "writer.word(1).word(u64::from(*plus)).word(u64::from(*minus));"
+new = "writer.word(1).word(u64::from(*plus.min(minus))).word(u64::from(*plus.max(minus)));"
+caught_by = ["identity_sites.facade.intervals.adaptive_contrast_arms"]
+
+[[mutations]]
+id = "intervals_cohort_question_unframed"
+file = "crates/antecedent/src/analysis/compiled_cohort_interval.rs"
+old = "writer.text(export).text(source).real(level);"
+new = "writer.bytes(&[export.as_bytes(), source.as_bytes()].concat()).real(level);"
+caught_by = ["identity_sites.facade.intervals.cohort_question_framing"]
+
+[[mutations]]
+id = "intervals_count_fitted_evidence_unsorted"
+file = "crates/antecedent/src/analysis/compiled_count_fitted_interval.rs"
+old = "    evidence.sort_unstable();\n    evidence.dedup();"
+new = "    evidence.dedup();"
+caught_by = ["identity_sites.facade.intervals.count_fitted_evidence_set"]
+
+[[mutations]]
+id = "intervals_count_fitted_evidence_unframed"
+file = "crates/antecedent/src/analysis/compiled_count_fitted_interval.rs"
+old = "writer.text(variable).text(value);"
+new = "writer.bytes(&[variable.as_bytes(), value.as_bytes()].concat());"
+caught_by = ["identity_sites.facade.intervals.count_fitted_evidence_set"]
+
+[[mutations]]
+id = "intervals_external_feedback_clamps_unsorted"
+file = "crates/antecedent/src/analysis/compiled_external_feedback.rs"
+old = "clamps.sort_by_key(|clamp| clamp.variable);"
+new = "clamps.truncate(clamps.len());"
+caught_by = ["identity_sites.facade.intervals.external_feedback_clamp_set"]
+
+[[mutations]]
+id = "intervals_per_population_labels_unsorted"
+file = "crates/antecedent/src/analysis/compiled_per_population_discovery.rs"
+old = "entries.sort_by(|a, b| a.label.cmp(b.label));"
+new = "entries.truncate(entries.len());"
+caught_by = ["identity_sites.facade.intervals.per_population_label_set"]
+
+[[mutations]]
+id = "intervals_scenario_world_unsorted"
+file = "crates/antecedent/src/analysis/compiled_transport_scenarios.rs"
+old = "interventions.sort_by_key(|intervention| intervention.variable);"
+new = "interventions.truncate(interventions.len());"
+caught_by = ["identity_sites.facade.intervals.scenario_world_set"]
+
+[[mutations]]
+id = "intervals_temporal_sequence_sorted"
+file = "crates/antecedent/src/analysis/compiled_temporal_interval.rs"
+old = "writer.text(&request.snapshot_id).u32s(&request.sequence);"
+new = "writer.text(&request.snapshot_id).u32s(&{ let mut sorted = request.sequence; sorted.sort_unstable(); sorted });"
+caught_by = ["identity_sites.facade.intervals.temporal_sequence_and_law_order"]
+
+[[mutations]]
+id = "kernel_input_digest_unframed"
+file = "crates/antecedent/src/analysis/kernel_programs/mod.rs"
+old = "writer.text(shape.plan_id).bytes(canonical);"
+new = "writer.bytes(&[shape.plan_id.as_bytes(), canonical].concat());"
+caught_by = ["identity_sites.facade.kernel.input_digest_framing"]
+
+[[mutations]]
+id = "kernel_chain_premises_sorted"
+file = "crates/antecedent/src/analysis/kernel_programs/chain_recovery.rs"
+old = "for premise in &plan.premises {"
+new = "for premise in &{ let mut sorted = plan.premises.clone(); sorted.sort(); sorted } {"
+caught_by = ["identity_sites.facade.kernel.chain_premises_order"]
+
+[[mutations]]
+id = "kernel_nested_markov_edges_not_deduplicated"
+file = "crates/antecedent/src/analysis/kernel_programs/nested_markov.rs"
+old = "    directed.dedup();\n"
+new = ""
+caught_by = ["identity_sites.facade.kernel.nested_markov_edge_set"]
+
+[[mutations]]
+id = "kernel_scenario_pattern_not_sorted"
+file = "crates/antecedent/src/analysis/kernel_programs/scenario_covariance.rs"
+old = "term.pattern.sort_unstable();"
+new = "let _ = &term.pattern;"
+caught_by = ["identity_sites.facade.kernel.scenario_pattern_set"]
+
+[[mutations]]
+id = "kernel_sampled_tables_in_declared_order"
+file = "crates/antecedent/src/analysis/kernel_programs/sampled_counterfactual_transport.rs"
+old = "sorted.sort_by_cached_key(|table| (table.key(), table.content_identity()));"
+new = "let _ = &mut sorted;"
+caught_by = ["identity_sites.facade.kernel.sampled_tables_set"]
+
+[[mutations]]
+id = "kernel_sampled_interval_ignores_expectation"
+file = "crates/antecedent/src/analysis/kernel_programs/sampled_counterfactual_transport.rs"
+old = ".opt_text(input.expected.premises_digest.as_deref())"
+new = ""
+caught_by = ["identity_sites.facade.kernel.sampled_interval_expectation"]
+
+[[mutations]]
+id = "kernel_sampled_recovery_rows_sorted"
+file = "crates/antecedent/src/analysis/kernel_programs/sampled_recovery.rs"
+old = "for row in &input.rows {"
+new = "for row in &{ let mut rows = input.rows.clone(); rows.sort_by_key(|row| row.pattern); rows } {"
+caught_by = ["identity_sites.facade.kernel.sampled_recovery_rows_order"]
+
+[[mutations]]
+id = "decisions_core_set_of_unsorted"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        items.sort_unstable();\n        items.dedup();"
+new = "        items.dedup();"
+caught_by = ["identity_sites.facade.decisions.core_set_of"]
+
+[[mutations]]
+id = "decisions_core_set_of_repeats_kept"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        items.dedup();\n        out.word(items.len() as u64);"
+new = "        out.word(items.len() as u64);"
+caught_by = ["identity_sites.facade.decisions.core_set_of"]
+
+[[mutations]]
+id = "decisions_core_field_name_dropped"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        self.writer.text(name);\n        value.encode(&mut self.writer);"
+new = "        let _ = name;\n        value.encode(&mut self.writer);"
+caught_by = ["identity_sites.facade.decisions.core_field_framing"]
+
+[[mutations]]
+id = "decisions_core_per_input_as_a_set"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        self.per_input.encode(out);"
+new = "        SetOf(&self.per_input).encode(out);"
+caught_by = ["identity_sites.facade.decisions.core_atom_support_order", "identity_sites.facade.decisions.core_point_support_order"]
+
+[[mutations]]
+id = "decisions_core_contract_action_ids_dropped"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        let constraints: Vec<&str> = self.constraints.iter().map(|c| c.id.as_str()).collect();\n        out.texts(&actions).texts(&constraints);"
+new = "        let constraints: Vec<&str> = self.constraints.iter().map(|c| c.id.as_str()).collect();\n        let _ = &actions;\n        out.texts(&constraints);"
+caught_by = ["identity_sites.facade.decisions.core_contract_order"]
+
+[[mutations]]
+id = "decisions_core_carrier_actions_as_a_set"
+file = "crates/antecedent/src/analysis/claim_decision_programs.rs"
+old = "        self.actions.encode(out);"
+new = "        crate::analysis::supplied_identity::SetOf(&self.actions).encode(out);"
+caught_by = ["identity_sites.facade.decisions.core_carrier_order"]
+
+[[cases]]
+id = "identity_sites.facade.decisions.input_inverse_query_order"
+kind = "changing"
+runner = "facade"
+test = "site_input_decision_programs_inverse_query_grid_constraints_and_members_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.input_observed_set"
+kind = "preserving"
+runner = "facade"
+test = "site_input_decision_programs_observed_variables_are_a_set"
+
+[[cases]]
+id = "identity_sites.facade.decisions.input_prior_signal"
+kind = "changing"
+runner = "facade"
+test = "site_input_decision_programs_prior_signal_sets_and_sources"
+
+[[mutations]]
+id = "decisions_input_inverse_grid_order_as_a_set"
+file = "crates/antecedent/src/analysis/input_decision_programs.rs"
+old = "        query.grid_order.encode(out);"
+new = "        SetOf(&query.grid_order).encode(out);"
+caught_by = ["identity_sites.facade.decisions.input_inverse_query_order"]
+
+[[mutations]]
+id = "decisions_input_observed_in_declared_order"
+file = "crates/antecedent/src/analysis/input_decision_programs.rs"
+old = ".field(\"observed\", &SetOf(&observed))"
+new = ".field(\"observed\", &observed)"
+caught_by = ["identity_sites.facade.decisions.input_observed_set"]
+
+[[mutations]]
+id = "decisions_input_prior_lineage_in_declared_order"
+file = "crates/antecedent/src/analysis/input_decision_programs.rs"
+old = "        SetOf(&source.lineage).encode(out);"
+new = "        source.lineage.encode(out);"
+caught_by = ["identity_sites.facade.decisions.input_prior_signal"]
+
+[[mutations]]
+id = "decisions_input_prior_source_texts_unframed"
+file = "crates/antecedent/src/analysis/input_decision_programs.rs"
+old = "out.text(&source.artifact_id).text(&source.source_population);"
+new = "out.text(&(source.artifact_id.clone() + &source.source_population));"
+caught_by = ["identity_sites.facade.decisions.input_prior_signal"]
+
+[[cases]]
+id = "identity_sites.facade.decisions.design_repair_candidates"
+kind = "preserving"
+runner = "facade"
+test = "site_design_planning_programs_repair_candidates_are_a_multiset_by_semantic_id"
+
+[[cases]]
+id = "identity_sites.facade.decisions.design_evaluation_unlocks"
+kind = "changing"
+runner = "facade"
+test = "site_design_planning_programs_evaluation_unlocks_are_sets_and_entries_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.design_ranking_candidates"
+kind = "changing"
+runner = "facade"
+test = "site_design_planning_programs_ranking_candidates_are_ordered"
+
+[[cases]]
+id = "identity_sites.facade.decisions.design_choice_ranking"
+kind = "changing"
+runner = "facade"
+test = "site_design_planning_programs_choice_ranking_lists_are_ordered_and_reals_bits"
+
+[[cases]]
+id = "identity_sites.facade.decisions.design_structure_samples"
+kind = "changing"
+runner = "facade"
+test = "site_design_planning_programs_structure_samples_and_targets_are_ordered"
+
+[[mutations]]
+id = "decisions_design_kernel_ordered_unsorted"
+file = "crates/antecedent/src/analysis/design_planning_programs.rs"
+old = "        items.sort_by_key(|item| key(item));\n"
+new = ""
+caught_by = ["identity_sites.facade.decisions.design_repair_candidates"]
+
+[[mutations]]
+id = "decisions_design_unlock_list_unsorted"
+file = "crates/antecedent/src/analysis/design_planning_programs.rs"
+old = "    words.sort_unstable();\n    words.dedup();\n"
+new = "    words.dedup();\n"
+caught_by = ["identity_sites.facade.decisions.design_evaluation_unlocks"]
+
+[[mutations]]
+id = "decisions_design_ranking_candidates_as_set"
+file = "crates/antecedent/src/analysis/design_planning_programs.rs"
+old = ".field(\"candidates\", &candidates.iter().map(CandidateField).collect::<Vec<_>>())"
+new = ".field(\"candidates\", &crate::analysis::supplied_identity::SetOf(&candidates.iter().map(CandidateField).collect::<Vec<_>>()))"
+caught_by = ["identity_sites.facade.decisions.design_ranking_candidates"]
+
+[[mutations]]
+id = "decisions_design_unlock_entry_unframed"
+file = "crates/antecedent/src/analysis/design_planning_programs.rs"
+old = "            out.word(u64::from(query.raw()));\n            out.words(&raw_set(unlocked"
+new = "            out.words(&raw_set(unlocked"
+caught_by = ["identity_sites.facade.decisions.design_evaluation_unlocks"]
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_parent_of"
+kind = "changing"
+runner = "facade"
+test = "site_compile_preference_parent_of_orders_weights_and_frames_identities"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_member_key"
+kind = "changing"
+runner = "facade"
+test = "site_atoms_member_key_frames_the_class_and_the_fingerprint"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_resampling_recipe"
+kind = "changing"
+runner = "facade"
+test = "site_design_resampling_recipe_names_kind_unit_refits_and_seed"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_rows_digest"
+kind = "changing"
+runner = "facade"
+test = "site_evidence_rows_digest_orders_the_rows_and_ignores_the_mask"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_unit_observation"
+kind = "changing"
+runner = "facade"
+test = "site_evidence_unit_observation_frames_the_namespace"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_parent_over"
+kind = "changing"
+runner = "facade"
+test = "site_compile_decision_program_parent_over_names_the_answer_and_the_carrier"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_learning"
+kind = "changing"
+runner = "facade"
+test = "site_preference_learning_programs_record_ids_are_ordered_and_options_enter"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_tradeoff_declare"
+kind = "changing"
+runner = "facade"
+test = "site_tradeoff_decision_programs_declare_sets_orders_and_frames"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_tradeoff_compiled"
+kind = "changing"
+runner = "facade"
+test = "site_tradeoff_decision_programs_compiled_declarations_cover_source_and_claims"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_structure_declared"
+kind = "changing"
+runner = "facade"
+test = "site_structure_members_declared_identity_orders_candidates_and_sets_cyclic_edges"
+
+[[cases]]
+id = "identity_sites.facade.decisions.pref_structure_member_key"
+kind = "changing"
+runner = "facade"
+test = "site_structure_members_member_key_sets_edges_and_tags_kinds"
+
+[[mutations]]
+id = "decisions_pref_tradeoff_unresolved_in_declared_order"
+file = "crates/antecedent/src/analysis/tradeoff_decision_programs.rs"
+old = "        unresolved.sort_unstable();\n        unresolved.dedup();"
+new = "        unresolved.dedup();"
+caught_by = ["identity_sites.facade.decisions.pref_tradeoff_declare"]
+
+[[mutations]]
+id = "decisions_pref_learning_record_ids_sorted"
+file = "crates/antecedent/src/analysis/preference_learning_programs.rs"
+old = "    let ids: Vec<&str> = records.records.iter().map(|record| record.id.as_str()).collect();"
+new = "    let mut ids: Vec<&str> = records.records.iter().map(|record| record.id.as_str()).collect();\n    ids.sort_unstable();"
+caught_by = ["identity_sites.facade.decisions.pref_learning"]
+
+[[mutations]]
+id = "decisions_pref_parent_weights_as_a_set"
+file = "crates/antecedent/src/analysis/execute/compile_preference.rs"
+old = "        .field(\"weights\", weights)"
+new = "        .field(\"weights\", &crate::analysis::supplied_identity::SetOf(weights))"
+caught_by = ["identity_sites.facade.decisions.pref_parent_of"]
+
+[[mutations]]
+id = "decisions_pref_unit_observation_unframed_namespace"
+file = "crates/antecedent/src/analysis/execute/compile_preference/evidence.rs"
+old = "    key.extend_from_slice(&(namespace.len() as u64).to_le_bytes());\n"
+new = ""
+caught_by = ["identity_sites.facade.decisions.pref_unit_observation"]
+
+[[mutations]]
+id = "decisions_pref_member_key_unordered_pair"
+file = "crates/antecedent/src/analysis/execute/compile_preference/atoms.rs"
+old = "    writer.word(class).word(fingerprint);"
+new = "    writer.word(class ^ fingerprint);"
+caught_by = ["identity_sites.facade.decisions.pref_member_key"]
+
+[[cases]]
+id = "identity_sites.facade.decisions.robust_source_and_declaration"
+kind = "changing"
+runner = "facade"
+test = "site_compile_robust_source_and_declaration_frame_their_parts"
+
+[[cases]]
+id = "identity_sites.facade.decisions.robust_randomized_slot_covariates"
+kind = "changing"
+runner = "facade"
+test = "site_design_based_randomized_slot_names_its_covariates"
+
+[[mutations]]
+id = "decisions_robust_declaration_fields_swapped"
+file = "crates/antecedent/src/analysis/execute/compile_robust.rs"
+old = """
+            .field("decision", decision.identity())
+            .field("source", source.identity())
+"""
+new = """
+            .field("source", source.identity())
+            .field("decision", decision.identity())
+"""
+caught_by = ["identity_sites.facade.decisions.robust_source_and_declaration"]
+
+[[mutations]]
+id = "decisions_robust_declaration_field_name_shared"
+file = "crates/antecedent/src/analysis/execute/compile_robust.rs"
+old = """.field("source", source.identity())"""
+new = """.field("decision", source.identity())"""
+caught_by = ["identity_sites.facade.decisions.robust_source_and_declaration"]
+
+[[mutations]]
+id = "decisions_robust_source_digest_drops_the_carrier"
+file = "crates/antecedent/src/analysis/execute/compile_robust.rs"
+old = "writer.text(source.identity());"
+new = "writer.text(\"\");"
+caught_by = ["identity_sites.facade.decisions.robust_source_and_declaration"]
+
+[[mutations]]
+id = "decisions_robust_randomized_adjustment_covariate_dropped"
+file = "crates/antecedent/src/analysis/lowering/design_based.rs"
+old = """
+        covariates.extend(
+            adjustment.map(crate::analysis::randomized_adjustment::RandomizedAdjustment::covariate),
+        );
+"""
+new = """
+"""
+caught_by = ["identity_sites.facade.decisions.robust_randomized_slot_covariates"]
+
+[[mutations]]
+id = "transport_policy_adjustment_columns_sorted_by_name"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+old = "    writer.word(request.adjustment.len() as u64);\n    for column in &request.adjustment {\n"
+new = "    writer.word(request.adjustment.len() as u64);\n    let mut sorted: Vec<_> = request.adjustment.iter().collect();\n    sorted.sort_by(|left, right| left.name.cmp(&right.name));\n    for column in sorted {\n"
+caught_by = ["identity_sites.facade.transport.policy_request_rows"]
+
+[[mutations]]
+id = "transport_policy_outcome_count_dropped"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+old = "    writer.word(seed).word(request.outcome.len() as u64);\n"
+new = "    writer.word(seed);\n"
+caught_by = ["identity_sites.facade.transport.policy_request_rows"]
+
+[[mutations]]
+id = "transport_joint_measured_query_not_canonical"
+file = "crates/antecedent/src/analysis/observation_query.rs"
+old = "            dependence: request.dependence.clone(),\n        }\n        .canonical();\n"
+new = "            dependence: request.dependence.clone(),\n        };\n"
+caught_by = ["identity_sites.facade.transport.joint_measured_indicators"]
+
+[[mutations]]
+id = "transport_exact_laws_in_declared_order"
+file = "crates/antecedent/src/analysis/temporal_path_transport.rs"
+old = "    law_bytes.sort();\n"
+new = "    law_bytes.reverse();\n"
+caught_by = ["identity_sites.facade.transport.exact_laws_set"]
+
+[[mutations]]
+id = "transport_cyclic_action_outputs_sorted_by_world"
+file = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+old = "    let outputs_bytes = antecedent_io::to_cbor(&outputs)?;\n"
+new = "    let mut sorted_outputs = outputs.clone();\n    sorted_outputs.sort_by_key(|output| output.world);\n    let outputs_bytes = antecedent_io::to_cbor(&sorted_outputs)?;\n"
+caught_by = ["identity_sites.facade.transport.cyclic_action_outputs"]
+
+[[mutations]]
+id = "composition_union_fingerprint_sorts_chain_identities"
+file = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+old = """.texts(&result.chain_identities);"""
+new = """.texts(&{
+            let mut ids = result.chain_identities.clone();
+            ids.sort();
+            ids
+        });"""
+caught_by = ["identity_sites.facade.composition.union_fingerprint_chain_order"]
+
+[[mutations]]
+id = "composition_component_order_left_as_declared"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+old = """.sort_by(|left, right| left.interface.component.cmp(&right.interface.component));"""
+new = """.sort_by(|_, _| std::cmp::Ordering::Equal);"""
+caught_by = ["identity_sites.facade.composition.component_set"]
+
+[[mutations]]
+id = "composition_chain_source_texts_unframed"
+file = "crates/antecedent/src/analysis/lowering/chain.rs"
+old = """writer.text(&source.id).text(&source.representation).word(source.values.len() as u64);"""
+new = """writer.text(&format!("{}{}", source.id, source.representation)).word(source.values.len() as u64);"""
+caught_by = ["identity_sites.facade.composition.chain_source_framing"]
+
+[[mutations]]
+id = "lowering_local_cyclic_clamps_in_declared_order"
+file = "crates/antecedent/src/analysis/lowering/local_cyclic_callback.rs"
+old = "    clamps.sort_unstable();"
+new = "    clamps.reverse();"
+caught_by = ["identity_sites.facade.lowering.local_cyclic_clamps"]
+
+[[mutations]]
+id = "lowering_latent_candidates_unsorted"
+file = "crates/antecedent/src/analysis/latent_soft_intervention.rs"
+old = "        self.candidates.sort_unstable();"
+new = "        self.candidates.reverse();"
+caught_by = ["identity_sites.facade.lowering.latent_candidates"]
+
+[[mutations]]
+id = "lowering_discovery_alpha_grid_sorted"
+file = "crates/antecedent/src/analysis/discovery_validation.rs"
+old = "                writer.reals(&alphas[..]);"
+new = "                writer.reals(&{ let mut sorted = alphas.to_vec(); sorted.sort_by(f64::total_cmp); sorted });"
+caught_by = ["identity_sites.facade.lowering.discovery_check_grids"]
+
+[[mutations]]
+id = "lowering_transported_component_unframed"
+file = "crates/antecedent/src/analysis/lowering/transported_path_specific.rs"
+old = "    writer.text(component).text(value);"
+new = "    writer.bytes(format!(\"{component}{value}\").as_bytes());"
+caught_by = ["identity_sites.facade.lowering.transported_component_framing"]
+
+[[mutations]]
+id = "planner_cyclic_family_name_dropped"
+file = "crates/antecedent/src/planner/lowered.rs"
+old = "writer.text(cell.as_str()).text(self.family).text(depth.as_str());"
+new = "writer.text(cell.as_str()).text(depth.as_str());"
+caught_by = ["identity_sites.facade.planner.builder_cells"]
+
+[[mutations]]
+id = "planner_query_variables_sorted"
+file = "crates/antecedent/src/planner/lowered.rs"
+old = "        for variable in &*self.query_variables {"
+new = "        for variable in self.query_variables.iter().collect::<std::collections::BTreeSet<_>>() {"
+caught_by = ["identity_sites.facade.planner.query_variable_order"]
+
+[[mutations]]
+id = "planner_retained_caches_sorted"
+file = "crates/antecedent/src/planner/lowered.rs"
+old = """
+                for cache in &*retained.caches {
+                    writer.text(cache.kind());
+                }
+"""
+new = """
+                let mut kinds: Vec<&str> =
+                    retained.caches.iter().map(IdentificationCache::kind).collect();
+                kinds.sort_unstable();
+                for kind in kinds {
+                    writer.text(kind);
+                }
+"""
+caught_by = ["identity_sites.facade.planner.retained_cache_order"]
+
+[[mutations]]
+id = "planner_selection_targets_unsorted"
+file = "crates/antecedent/src/analysis/lowering/query_digest.rs"
+old = """
+    let mut sorted = variables.to_vec();
+    sorted.sort_unstable();
+"""
+new = """
+    let sorted = variables.to_vec();
+"""
+caught_by = ["identity_sites.facade.planner.selection_targets_set"]
+
+[[mutations]]
+id = "planner_posterior_graph_keys_sorted"
+file = "crates/antecedent/src/analysis/lowering/query_digest.rs"
+old = """
+    for key in posterior.graph_keys().iter() {
+        writer.word(*key);
+    }
+"""
+new = """
+    let mut keys = posterior.graph_keys().to_vec();
+    keys.sort_unstable();
+    for key in &keys {
+        writer.word(*key);
+    }
+"""
+caught_by = ["identity_sites.facade.planner.posterior_atom_order"]
+
+[[mutations]]
+id = "planner_model_inputs_sorted"
+file = "crates/antecedent/src/planner/statistical.rs"
+old = "            for input in &*model.inputs {"
+new = "            for input in model.inputs.iter().collect::<std::collections::BTreeSet<_>>() {"
+caught_by = ["identity_sites.facade.planner.model_slot_order"]
+
+[[mutations]]
+id = "planner_evsi_prior_ids_unframed"
+file = "crates/antecedent/src/planner/lowered/decision.rs"
+old = "            .texts(&self.prior_observation_ids[..])"
+new = "            .text(&self.prior_observation_ids.concat())"
+caught_by = ["identity_sites.facade.planner.evsi_framing"]
+
+[[mutations]]
+id = "planner2_operator_content_dropped"
+file = "crates/antecedent/src/planner/statistical.rs"
+old = "                write_operator(&mut writer, operator);"
+new = "                let _ = operator;"
+caught_by = ["identity_sites.facade.planner2.operator_content"]
+
+[[mutations]]
+id = "planner2_operator_inputs_sorted_by_name"
+file = "crates/antecedent/src/planner/statistical.rs"
+old = "    for role in operator.inputs() {"
+new = "    let mut inputs = operator.inputs().to_vec();\n    inputs.sort_by_key(|role| role.as_str());\n    for role in &inputs {"
+caught_by = ["identity_sites.facade.planner2.operator_content"]
+
+[[mutations]]
+id = "planner2_lowered_layer_binds_operator_content"
+file = "crates/antecedent/src/planner/statistical.rs"
+old = "        self.digest(STATISTICAL_PROGRAM_TAG, false)"
+new = "        self.digest(STATISTICAL_PROGRAM_TAG, true)"
+caught_by = ["identity_sites.facade.planner2.operator_content"]
+
+[[mutations]]
+id = "planner2_prior_scale_nan_by_display"
+file = "crates/antecedent/src/planner/statistical.rs"
+old = "    if scale.is_nan() && scale.to_bits() != f64::NAN.to_bits() {"
+new = "    if false {"
+caught_by = ["identity_sites.facade.planner2.prior_scale_bits"]
+
+[[mutations]]
+id = "planner2_chain_status_word_constant"
+file = "crates/antecedent/src/planner/lowered/chain.rs"
+old = "                        .text(dependence.status.identity_word())"
+new = "                        .text(\"Dependent\")"
+caught_by = ["identity_sites.facade.planner2.chain_dependence_word"]
+
+[[mutations]]
+id = "composition2_ledger_presence_word_dropped"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+old = """        (IdentityEncoding::Current, Some(digest)) => {
+            writer.word(1).bytes(digest.as_bytes());
+        }
+        (IdentityEncoding::Current, None) => {
+            writer.word(0);
+        }"""
+new = """        (IdentityEncoding::Current, Some(digest)) => {
+            writer.bytes(digest.as_bytes());
+        }
+        (IdentityEncoding::Current, None) => {}"""
+caught_by = ["identity_sites.facade.composition2.ledger_presence_word"]
+
+[[mutations]]
+id = "composition2_component_wire_left_in_declared_order"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+old = """wire.components.sort_by(|left, right| left.0.component.cmp(&right.0.component));"""
+new = """let _ = &mut wire.components;"""
+caught_by = ["identity_sites.facade.composition2.component_wire_set"]
+
+[[mutations]]
+id = "composition2_vector_outputs_left_in_declared_order"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+old = """component.outputs.sort_by(|left, right| left.produced_port.cmp(&right.produced_port));"""
+new = """let _ = &mut component.outputs;"""
+caught_by = ["identity_sites.facade.composition2.vector_wire_set"]
+
+[[mutations]]
+id = "refuse2_unencodable_not_recorded"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        slot.borrow_mut().get_or_insert(what);"
+new = "        let _ = slot;"
+caught_by = ["identity_sites.facade.refuse2.unencodable_refuses"]
+
+[[mutations]]
+id = "refuse2_discovery_error_message_hashed"
+file = "crates/antecedent/src/analysis/supplied_identity.rs"
+old = "        variant(out, \"discovery\").text(self.kind()).opt_text(self.refusal_code());"
+new = "        variant(out, \"discovery\").text(&self.to_string());"
+caught_by = ["identity_sites.facade.refuse2.discovery_error_by_kind"]
+
+[[mutations]]
+id = "panel2_channel_histories_in_declared_order"
+file = "crates/antecedent/src/analysis/joint_panel/contracts.rs"
+old = "            histories.sort_by(|a, b| a.id.cmp(&b.id));"
+new = "            histories.reverse();"
+caught_by = ["identity_sites.facade.panel2.history_set"]
+
+[[mutations]]
+id = "panel2_released_context_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/contracts.rs"
+old = "    for encoding in [ContextEncoding::Current, ContextEncoding::Released] {"
+new = "    for encoding in [ContextEncoding::Current] {"
+caught_by = ["identity_sites.facade.panel2.released_context_validates"]
+
+[[mutations]]
+id = "panel2_imputation_domains_in_declared_order"
+file = "crates/antecedent/src/analysis/lowering/joint_panel/imputation.rs"
+old = "    domains.sort_by(|a, b| a.0.cmp(&b.0));"
+new = "    domains.reverse();"
+caught_by = ["identity_sites.facade.panel2.imputation_domain_set"]
+
+[[mutations]]
+id = "panel2_prior_origins_sorted"
+file = "crates/antecedent/src/analysis/joint_panel/experiment.rs"
+old = """
+        for origin in &self.prior_origins {
+            writer.bytes(origin.digest().as_bytes());"""
+new = """
+        let mut origins = self.prior_origins.clone();
+        origins.sort_unstable();
+        for origin in &origins {
+            writer.bytes(origin.digest().as_bytes());"""
+caught_by = ["identity_sites.facade.panel2.prior_origins_order"]
+
+[[mutations]]
+id = "panel2_search_controls_sorted_by_variable"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+old = """
+    for control in &domain.controls {
+        writer
+            .word(u64::from(control.variable.raw()))"""
+new = """
+    let mut controls: Vec<_> = domain.controls.iter().collect();
+    controls.sort_by_key(|control| control.variable);
+    for control in controls {
+        writer
+            .word(u64::from(control.variable.raw()))"""
+caught_by = ["identity_sites.facade.panel2.search_controls_order"]
+
+[[mutations]]
+id = "events2_external_request_ties_canonicalized"
+file = "crates/antecedent/src/analysis/events/mod.rs"
+old = "&(&self.history, self.forecast, paths, self.max_events, self.seed),"
+new = "&({ let mut h = self.history.clone(); h.events.sort_by_key(|e| e.kind); h }, self.forecast, paths, self.max_events, self.seed),"
+caught_by = ["identity_sites.facade.events2.external_tie_order"]
+
+[[mutations]]
+id = "transport2_policy_graph_nodes_in_declared_order"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+old = "            let nodes: BTreeSet<&str> = graph.nodes.iter().map(String::as_str).collect();"
+new = "            let nodes: Vec<&str> = graph.nodes.iter().map(String::as_str).collect();"
+caught_by = ["identity_sites.facade.transport2.policy_graph_set"]
+
+[[mutations]]
+id = "transport2_policy_spec_option_presence_dropped"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+old = "            writer.word(1).real(value);"
+new = "            writer.real(value);"
+caught_by = ["identity_sites.facade.transport2.policy_spec_framing"]
+
+[[mutations]]
+id = "transport2_policy_released_digest_not_accepted"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+old = "        let released = compile_observational_policy_as(request, ctx, PolicyDigest::V1)?;"
+new = "        let released = compile_observational_policy_as(request, ctx, PolicyDigest::Current)?;"
+caught_by = ["identity_sites.facade.transport2.policy_released_verifies"]
+
+[[mutations]]
+id = "transport2_trial_selection_targets_unsorted"
+file = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
+old = """    if version == Question::Current {
+        words.sort_unstable();
+    }"""
+new = """    if version == Question::V1 {
+        words.sort_unstable();
+    }"""
+caught_by = ["identity_sites.facade.transport2.trial_selection_set"]
+
+[[mutations]]
+id = "transport2_trial_released_question_not_accepted"
+file = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
+old = "        plan = compile_trial_ipw_transport_decision_as(request, Question::V1)?;"
+new = "        plan = compile_trial_ipw_transport_decision_as(request, Question::Current)?;"
+caught_by = ["identity_sites.facade.transport2.trial_released_verifies"]
+
+[[mutations]]
+id = "transport2_temporal_active_edges_unsorted"
+file = "crates/antecedent/src/analysis/temporal_path_transport.rs"
+old = "            canonical.active_edges.sort_unstable();"
+new = "            canonical.active_edges.reverse();"
+caught_by = ["identity_sites.facade.transport2.temporal_active_edges_set"]
+
+[[mutations]]
+id = "transport2_sequential_log_unsorted"
+file = "crates/antecedent/src/analysis/sequential_policy_reliability.rs"
+old = "                log.sort_by(|a, b| a.id.cmp(&b.id));"
+new = "                log.reverse();"
+caught_by = ["identity_sites.facade.transport2.sequential_log_set"]
+
+[[mutations]]
+id = "transport2_sequential_released_question_not_accepted"
+file = "crates/antecedent/src/analysis/sequential_policy_reliability.rs"
+old = "        plan = compile_as(Question::V1)?;"
+new = "        plan = compile_as(Question::Current)?;"
+caught_by = ["identity_sites.facade.transport2.sequential_released_verifies"]
+
+[[mutations]]
+id = "design3_arms_in_declared_order"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+old = "            arms.sort_by_key(|arm| arm.arm);"
+new = ""
+caught_by = ["identity_sites.facade.design3.arm_set"]
+
+[[mutations]]
+id = "design3_released_dependency_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+old = """        if identity(&target, &wire.proof)? != self.dependency
+            && identity_as(&target, &wire.proof, DesignEncoding::Released)?
+                != self.released_dependency
+        {"""
+new = """        if identity(&target, &wire.proof)? != self.dependency {"""
+caught_by = ["identity_sites.facade.design3.released_verifies"]
+
+[[mutations]]
+id = "panel4_native_coefficients_sorted"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+old = "        writer.reals(&self.coefficients).text(&self.outcome_units);"
+new = "        let mut sorted = self.coefficients.clone();\n        sorted.sort_by(f64::total_cmp);\n        writer.reals(&sorted).text(&self.outcome_units);"
+caught_by = ["identity_sites.facade.panel4.native_target_framing"]
+
+[[mutations]]
+id = "panel4_native_released_target_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+old = "            || *target == self.experiment_quantity_as(binding, TargetEncoding::Released)?)"
+new = "            || false)"
+caught_by = ["identity_sites.facade.panel4.native_target_released_verifies"]
+
+[[mutations]]
+id = "panel4_joint_mapping_count_dropped"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+old = "        joint.word(pairs as u64);"
+new = "        let _ = pairs;"
+caught_by = ["identity_sites.facade.panel4.joint_mapping_count"]
+
+[[mutations]]
+id = "panel4_static_graph_insertion_order"
+file = "crates/antecedent/src/analysis/joint_panel/static_source.rs"
+old = "                &antecedent_io::dag_identity(graph).map_err(JointPanelError::compile)?,"
+new = "                &antecedent_io::dag_to_wire(graph).map_err(JointPanelError::compile)?,"
+caught_by = ["identity_sites.facade.panel4.static_graph_edge_set"]
+
+[[mutations]]
+id = "panel4_population_released_digest_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/explanation/scientific/artifact.rs"
+old = "        || digest(result.transport.released_identity())? == archived)"
+new = "        || false)"
+caught_by = ["identity_sites.facade.panel4.population_released_replays"]

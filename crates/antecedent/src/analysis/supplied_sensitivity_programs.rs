@@ -574,3 +574,134 @@ impl Canonical for SuppliedEstimate {
         }
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::SemanticDigest;
+    use antecedent_validate::target_native::{TargetFamily, TargetQuadrant};
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    fn target(labels: &[&str]) -> RefutationTarget {
+        RefutationTarget::new(
+            TargetFamily::ConditionalEffect,
+            TargetQuadrant::STATIC_FREQUENTIST,
+            labels.iter().copied(),
+            [7_u8; 32],
+        )
+        .unwrap()
+    }
+
+    fn matched(design: MatchedDesign) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        compile_matched_design_sensitivity(design, &ctx).unwrap().lowered().identity()
+    }
+
+    fn pairs(differences: &[f64], gammas: &[f64], alpha: f64) -> MatchedDesign {
+        MatchedDesign::Pairs {
+            target: target(&["effect"]),
+            differences: differences.to_vec(),
+            gammas: gammas.to_vec(),
+            alpha,
+        }
+    }
+
+    fn set(outcomes: &[f64], treated: usize) -> MatchedSet {
+        MatchedSet { outcomes: outcomes.to_vec(), treated }
+    }
+
+    /// `compile_matched_design_sensitivity`: the differences, the matched sets (and the
+    /// outcomes inside a set, which the treated index points into) and the Gamma grid are ordered
+    /// and count-framed; the design and the score are tagged; reals by their bits.
+    #[test]
+    fn site_supplied_sensitivity_matched_design_is_ordered_and_tagged() {
+        let grid = [1.0, 1.5, 2.0];
+        ordered_laws(&[0.5, -0.25, 1.0], |differences| {
+            Some(matched(pairs(differences, &grid, 0.05)))
+        });
+        ordered_laws(&grid, |gammas| Some(matched(pairs(&[0.5, -0.25], gammas, 0.05))));
+        let sets = |sets: &[MatchedSet], score: MatchedSetScore| MatchedDesign::Sets {
+            sets: sets.to_vec(),
+            score,
+            gammas: grid.to_vec(),
+            alpha: 0.05,
+        };
+        ordered_laws(&[set(&[1.0, 0.0], 0), set(&[2.0, 1.0, 0.0], 1), set(&[0.5, 0.0], 1)], |s| {
+            Some(matched(sets(s, MatchedSetScore::Outcomes)))
+        });
+        let vector = MatchedDesign::PairVector {
+            target: target(&["a", "b"]),
+            differences: vec![vec![0.5, -0.25], vec![1.0]],
+            gammas: grid.to_vec(),
+            alpha: 0.05,
+        };
+        all_distinct(&[
+            matched(pairs(&[0.5, -0.25], &grid, 0.05)),
+            matched(pairs(&[0.5], &[-0.25, 1.0, 1.5, 2.0], 0.05)),
+            matched(sets(&[set(&[1.0, 0.0], 0)], MatchedSetScore::Outcomes)),
+            matched(sets(&[set(&[1.0, 0.0], 0)], MatchedSetScore::AlignedRanks)),
+            matched(sets(&[set(&[1.0, 0.0], 1)], MatchedSetScore::Outcomes)),
+            matched(vector),
+        ]);
+        bit_exact(|alpha| Some(matched(pairs(&[0.5, -0.25], &grid, alpha))));
+    }
+
+    fn evalue(estimate: SuppliedEstimate) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        compile_supplied_estimate_evalue(estimate, &ctx).unwrap().lowered().identity()
+    }
+
+    fn ratio(estimate: f64, lower: Option<f64>) -> EffectInterval {
+        EffectInterval::Ratio { estimate, lower, upper: None }
+    }
+
+    /// `compile_supplied_estimate_evalue`: the coordinates are ordered (one per target label,
+    /// in label order) and the posterior draws are ordered (aligned across coordinates); the
+    /// estimate form, the interval form, the scale and the component model are tagged, and the
+    /// optional limits carry presence words.
+    #[test]
+    fn site_supplied_sensitivity_evalue_coordinates_are_ordered() {
+        let vector = |coordinates: &[f64]| SuppliedEstimate::Vector {
+            target: target(&["a", "b", "c"]),
+            coordinates: coordinates.iter().map(|&estimate| ratio(estimate, None)).collect(),
+            scale: EffectScale::RiskRatio,
+            model: None,
+        };
+        ordered_laws(&[1.5, 2.0, 3.0], |coordinates| Some(evalue(vector(coordinates))));
+        let posterior = |draws: &[f64]| SuppliedEstimate::Posterior {
+            target: target(&["a"]),
+            draws: draws.iter().map(|&draw| vec![draw]).collect(),
+            scale: EffectScale::RiskRatio,
+            level: 0.9,
+            model: None,
+        };
+        ordered_laws(&[1.5, 2.0, 3.0], |draws| Some(evalue(posterior(draws))));
+        let scalar = |interval: EffectInterval| SuppliedEstimate::Scalar {
+            target: target(&["a"]),
+            interval,
+            scale: EffectScale::RiskRatio,
+        };
+        all_distinct(&[
+            evalue(scalar(ratio(2.0, None))),
+            evalue(scalar(ratio(2.0, Some(1.5)))),
+            evalue(scalar(EffectInterval::Standardized {
+                estimate: 2.0,
+                standard_error: Some(0.5),
+            })),
+            evalue(SuppliedEstimate::Scalar {
+                target: target(&["a"]),
+                interval: ratio(2.0, None),
+                scale: EffectScale::OddsRatio { common_outcome: false },
+            }),
+            evalue(SuppliedEstimate::Vector {
+                target: target(&["a", "b", "c"]),
+                coordinates: vec![ratio(1.5, None), ratio(2.0, None), ratio(3.0, None)],
+                scale: EffectScale::RiskRatio,
+                model: Some(ComponentModel::Mediation),
+            }),
+            evalue(vector(&[1.5, 2.0, 3.0])),
+        ]);
+        bit_exact(|x| Some(evalue(scalar(ratio(2.0, Some(x))))));
+    }
+}

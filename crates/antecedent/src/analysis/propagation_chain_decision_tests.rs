@@ -430,3 +430,78 @@ fn weighted_transport_rows_are_shared_across_two_decision_coordinates() {
     assert_eq!(replay.decision, result.decision);
     assert_eq!(replay.chain.joint_output_law(), result.chain.joint_output_law());
 }
+
+/// [`transported_response`] over the given draws.
+fn site_transported_response(draws: Vec<f64>, weights: Option<Vec<f64>>) -> TransportedResponse {
+    let identity = DistributionIdentity::new(
+        DistributionMeaningWire::InterventionalPredictive,
+        &[outcome()],
+        DrawAlignment::Joint,
+        DistributionProvenance {
+            source_id: "transported-wishlists".into(),
+            provider_id: "declared-transport".into(),
+            rng_id: "aligned-transport".into(),
+            snapshot_id: "snapshot-1".into(),
+            causal_contract_id: "transport-contract".into(),
+        },
+    )
+    .expect("law identity");
+    let law = DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity,
+            axes: ["draw".into(), "quantity".into()],
+            shape: [draws.len(), 1],
+            weights,
+            supported: None,
+            calibration: DistributionCalibration::PointOnly,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: None,
+            legacy_bindings: None,
+        },
+        draws,
+    )
+    .expect("aligned law");
+    TransportedResponse::declared_law(
+        law,
+        &TransportDeclaration {
+            route: TransportedRoute::Declared,
+            source_identity: "source-trial".into(),
+            source_populations: vec!["trial".into()],
+            target_population: "game-a".into(),
+            transport_identities: vec!["selection-diagram".into()],
+            assumptions: vec!["transport mechanism declared".into()],
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: "declared-transport".into(),
+            snapshot_id: "snapshot-1".into(),
+            causal_contract_id: "transport-contract".into(),
+        },
+    )
+    .expect("transport receipt")
+}
+
+/// The positive-mass rows of a weighted law are a set of row indices: two laws whose retained
+/// values and weights agree but whose retained rows differ compile to different programs.
+#[test]
+fn site_propagation_chain_decision_positive_rows_bind_the_retained_row_set() {
+    use crate::identity_laws::all_distinct;
+    let ctx = ExecutionContext::for_tests(19);
+    let accepting = SupportPolicy {
+        unsupported: UnsupportedActionPolicy::RequireAllActions,
+        weakest_support: SupportStatus::Extrapolative,
+    };
+    let identity = |weights: Option<Vec<f64>>| {
+        let response = site_transported_response(vec![2.0, 2.0, 3.0, 3.0], weights);
+        compile_transported_law_chain_decision(&response, decision(), &accepting, &ctx)
+            .expect("transported law compiler")
+            .lowered()
+            .identity()
+    };
+    all_distinct(&[
+        identity(Some(vec![0.0, 1.0, 3.0, 0.0])),
+        identity(Some(vec![1.0, 0.0, 0.0, 3.0])),
+        identity(Some(vec![1.0, 3.0, 0.0, 0.0])),
+        identity(None),
+    ]);
+}

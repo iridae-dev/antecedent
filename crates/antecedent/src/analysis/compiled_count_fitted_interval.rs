@@ -49,8 +49,14 @@ pub struct CompiledCountFittedInterval {
     lowered: Arc<LoweredProgram>,
 }
 
+/// The question: the model's nodes in topological order (each node's levels in table column
+/// order and its parents in table order, since parent indices and configurations are read by
+/// position), the target, the evidence, the level and the posterior settings. The evidence is
+/// a set: the posterior conditions on the conjunction of its `(variable, level)` observations,
+/// so their order and an exact repeat do not change the question (two levels of one variable
+/// have probability zero and are refused when the program runs).
 fn question_digest(source: &CountFittedIntervalArtifactWire, level: f64) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.count_fitted_interval.question.v1");
+    let mut writer = CanonicalWriter::new("antecedent.count_fitted_interval.question.v2");
     writer.word(u64::from(source.version)).word(source.nodes.len() as u64);
     for node in &source.nodes {
         writer.text(&node.name).texts(&node.levels).u32s(&node.parents);
@@ -59,8 +65,15 @@ fn question_digest(source: &CountFittedIntervalArtifactWire, level: f64) -> [u8;
             None => writer.word(0),
         };
     }
-    writer.text(&source.target).text(&source.target_level).word(source.evidence.len() as u64);
-    for (variable, value) in &source.evidence {
+    let mut evidence: Vec<(&str, &str)> = source
+        .evidence
+        .iter()
+        .map(|(variable, value)| (variable.as_str(), value.as_str()))
+        .collect();
+    evidence.sort_unstable();
+    evidence.dedup();
+    writer.text(&source.target).text(&source.target_level).word(evidence.len() as u64);
+    for (variable, value) in evidence {
         writer.text(variable).text(value);
     }
     writer
@@ -181,5 +194,92 @@ impl CompiledCountFittedInterval {
             lowered_program_identity: self.lowered.identity(),
             calibration_route: ROUTE,
         })
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::{CountFittedIntervalArtifactWire, question_digest, source_digest};
+    use crate::analysis::count_fitted_observation::CountFittedNodeWire;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
+    };
+
+    fn node(name: &str, levels: &[&str], parents: &[u32], counts: Vec<u64>) -> CountFittedNodeWire {
+        CountFittedNodeWire {
+            name: name.to_owned(),
+            levels: levels.iter().map(|level| (*level).to_owned()).collect(),
+            parents: parents.to_vec(),
+            counts: Some(counts),
+            declared_bits: None,
+        }
+    }
+
+    fn wire(
+        nodes: Vec<CountFittedNodeWire>,
+        evidence: &[(&str, &str)],
+    ) -> CountFittedIntervalArtifactWire {
+        CountFittedIntervalArtifactWire {
+            version: 1,
+            nodes,
+            rows: 10,
+            target: "Y".to_owned(),
+            target_level: "1".to_owned(),
+            evidence: evidence
+                .iter()
+                .map(|(variable, value)| ((*variable).to_owned(), (*value).to_owned()))
+                .collect(),
+            level_bits: 0.95_f64.to_bits(),
+            prior_alpha_bits: 1.0_f64.to_bits(),
+            draws: 2000,
+            seed: 7,
+        }
+    }
+
+    fn model() -> Vec<CountFittedNodeWire> {
+        vec![
+            node("Z", &["0", "1"], &[], vec![4, 6]),
+            node("X", &["0", "1"], &[0], vec![1, 3, 2, 4]),
+            node("Y", &["0", "1"], &[0, 1], vec![1, 1, 2, 2, 3, 3, 4, 4]),
+        ]
+    }
+
+    #[test]
+    fn site_compiled_count_fitted_interval_question_reads_the_evidence_as_a_set() {
+        set_laws(&[("Z", "1"), ("X", "0"), ("X", "1")], |evidence| {
+            Some(question_digest(&wire(model(), evidence), 0.95))
+        });
+        bit_exact(|level| Some(question_digest(&wire(model(), &[]), level)));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(variable, value)| Some(question_digest(&wire(model(), &[(variable, value)]), 0.95)),
+        );
+    }
+
+    #[test]
+    fn site_compiled_count_fitted_interval_question_orders_nodes_levels_and_parents() {
+        ordered_laws(&model(), |nodes| Some(question_digest(&wire(nodes.to_vec(), &[]), 0.95)));
+        ordered_laws(&["0", "1", "2"], |levels| {
+            Some(question_digest(&wire(vec![node("Y", levels, &[], vec![1, 2, 3])], &[]), 0.95))
+        });
+        ordered_laws(&[0_u32, 1], |parents| {
+            let mut nodes = model();
+            nodes[2].parents = parents.to_vec();
+            Some(question_digest(&wire(nodes, &[]), 0.95))
+        });
+    }
+
+    #[test]
+    fn site_compiled_count_fitted_interval_source_orders_the_counts() {
+        ordered_laws(&[1_u64, 3, 2, 4], |counts| {
+            let mut nodes = model();
+            nodes[1].counts = Some(counts.to_vec());
+            Some(source_digest(&wire(nodes, &[])))
+        });
+        let mut declared = model();
+        declared[0].counts = None;
+        declared[0].declared_bits = Some(vec![0.4_f64.to_bits(), 0.6_f64.to_bits()]);
+        all_distinct(&[source_digest(&wire(model(), &[])), source_digest(&wire(declared, &[]))]);
     }
 }

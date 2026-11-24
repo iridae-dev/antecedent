@@ -86,15 +86,24 @@ struct MeasuredSampledRecoveryRequest {
 /// Canonical bytes of a sampled-recovery request: the derivation identity, the snapshot, every
 /// row in order and every configuration field.
 fn request_bytes(request: &SampledRecoveryRequest) -> [u8; 32] {
+    request_digest(&request.derivation.identity(), &request.input, &request.config)
+}
+
+/// [`request_bytes`] over the derivation's identity text. The rows are ordered: the whole-row
+/// bootstrap draws them by position and the kernel's own input digest keeps their order.
+fn request_digest(
+    derivation: &str,
+    input: &SampledObservationInput,
+    config: &SampledRecoveryConfig,
+) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.kernel_program.sampled_observation_recovery");
-    writer.text(&request.derivation.identity());
-    writer.text(&request.input.snapshot_id);
-    writer.word(request.input.rows.len() as u64);
-    for row in &request.input.rows {
+    writer.text(derivation);
+    writer.text(&input.snapshot_id);
+    writer.word(input.rows.len() as u64);
+    for row in &input.rows {
         writer.word(row.id);
         writer.bytes(&[row.pattern.responses, row.pattern.proxies, row.pattern.fully]);
     }
-    let config = &request.config;
     writer
         .text(config.interval_method.name())
         .word(config.replicates as u64)
@@ -278,5 +287,91 @@ impl CompiledMeasuredSampledObservationRecovery {
             request.limits,
             ctx,
         )
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_estimate::{ObservationPattern, ObservationRow};
+
+    use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    fn row(id: u64, responses: u8) -> ObservationRow {
+        ObservationRow { id, pattern: ObservationPattern { responses, proxies: 0, fully: 1 } }
+    }
+
+    fn digest(derivation: &str, snapshot: &str, rows: &[ObservationRow]) -> [u8; 32] {
+        let input =
+            SampledObservationInput { snapshot_id: snapshot.to_owned(), rows: rows.to_vec() };
+        request_digest(derivation, &input, &SampledRecoveryConfig::bca(7))
+    }
+
+    /// `request_bytes`: the rows are ordered (the whole-row bootstrap draws them by position),
+    /// count-framed; the derivation identity and the snapshot are framed texts.
+    #[test]
+    fn site_sampled_recovery_request_rows_are_ordered() {
+        ordered_laws(&[row(0, 1), row(1, 3), row(2, 0)], |rows| Some(digest("d", "s", rows)));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(derivation, snapshot)| Some(digest(derivation, snapshot, &[row(0, 1)])),
+        );
+        let with_config = |change: fn(&mut SampledRecoveryConfig)| {
+            let mut config = SampledRecoveryConfig::bca(7);
+            change(&mut config);
+            let input =
+                SampledObservationInput { snapshot_id: "s".to_owned(), rows: vec![row(0, 1)] };
+            request_digest("d", &input, &config)
+        };
+        all_distinct(&[
+            with_config(|_| {}),
+            with_config(|c| c.seed += 1),
+            with_config(|c| c.replicates += 1),
+            with_config(|c| c.treated_level = 0.5),
+            with_config(|c| c.control_level = 0.5),
+        ]);
+        bit_exact(|x| {
+            let mut config = SampledRecoveryConfig::bca(7);
+            config.max_failed_fraction = x;
+            let input =
+                SampledObservationInput { snapshot_id: "s".to_owned(), rows: vec![row(0, 1)] };
+            Some(request_digest("d", &input, &config))
+        });
+    }
+
+    fn measured(
+        source: &[u8],
+        premises: Option<&str>,
+        data: Option<&str>,
+        max_rows: usize,
+    ) -> [u8; 32] {
+        measured_bytes(&MeasuredSampledRecoveryRequest {
+            source: Arc::from(source),
+            expected: SampledRecoveryExpectation {
+                premises_digest: premises.map(str::to_owned),
+                data_digest: data.map(str::to_owned),
+            },
+            limits: SampledRecoveryConsumeLimits {
+                max_rows,
+                ..SampledRecoveryConsumeLimits::default()
+            },
+        })
+    }
+
+    /// `measured_bytes`: the source bytes are framed, each expected digest carries a presence
+    /// word in its own position, and the consumer limits are read.
+    #[test]
+    fn site_sampled_recovery_measured_binds_the_expectation_and_limits() {
+        all_distinct(&[
+            measured(b"source", None, None, 10),
+            measured(b"source", Some("p"), None, 10),
+            measured(b"source", None, Some("p"), 10),
+            measured(b"source", Some(""), None, 10),
+            measured(b"source", None, None, 11),
+            measured(b"sourc", None, None, 10),
+        ]);
     }
 }

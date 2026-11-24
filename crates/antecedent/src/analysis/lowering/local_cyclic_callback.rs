@@ -67,13 +67,18 @@ fn system_digest(mechanisms: &[DeclaredCyclicMechanism]) -> [u8; 32] {
     writer.finish()
 }
 
+/// Digest of the run. The clamps are keyed by the variable they fix (the solve sets each
+/// clamped coordinate and refuses a variable clamped twice), so they are written sorted.
 fn run_digest(system: [u8; 32], run: &LocalCyclicRun) -> [u8; 32] {
     let mut writer = CanonicalWriter::new(RUN_TAG);
     writer.bytes(&system);
     writer.reals(&run.noise);
-    writer.word(run.clamps.len() as u64);
-    for clamp in &run.clamps {
-        writer.word(clamp.variable as u64).real(clamp.value);
+    let mut clamps: Vec<(usize, u64)> =
+        run.clamps.iter().map(|clamp| (clamp.variable, clamp.value.to_bits())).collect();
+    clamps.sort_unstable();
+    writer.word(clamps.len() as u64);
+    for (variable, value) in clamps {
+        writer.word(variable as u64).word(value);
     }
     writer.reals(&run.initial);
     match &run.factual {
@@ -163,4 +168,129 @@ pub(crate) fn lower(
         claim,
     }
     .finish())
+}
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec,
+        ExecutionContext,
+    };
+    use antecedent_model::local_cyclic::LocalCyclicPolicy;
+    use antecedent_model::nonlinear_equilibrium::Clamp;
+
+    use super::{run_digest, system_digest};
+    use crate::analysis::compiled_local_cyclic::{
+        DeclaredCyclicMechanism, LocalCyclicRun, compile_local_cyclic,
+    };
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
+    };
+    use crate::planner::lowered::ProblemTarget;
+
+    #[derive(Debug)]
+    struct Declared(CallbackSpec);
+
+    impl BatchCallback for Declared {
+        fn spec(&self) -> &CallbackSpec {
+            &self.0
+        }
+        fn call(&self, _inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError> {
+            out.fill(0.0);
+            Ok(())
+        }
+        fn value_and_derivatives(&self, inputs: &[f64]) -> Result<(f64, Vec<f64>), CallbackError> {
+            Ok((0.0, vec![0.0; inputs.len()]))
+        }
+    }
+
+    fn mechanism(id: &str, name: &str, reads: Vec<usize>) -> DeclaredCyclicMechanism {
+        let inputs: Vec<String> = reads.iter().map(|read| format!("x{read}")).collect();
+        DeclaredCyclicMechanism {
+            id: id.to_owned(),
+            reads,
+            callback: Arc::new(Declared(CallbackSpec {
+                name: name.to_owned(),
+                inputs: Arc::from(inputs),
+                output: CallbackOutput::Real,
+                dependencies: Arc::from([]),
+                implementation: CallbackImplementation::Runtime,
+            })),
+        }
+    }
+
+    /// A three-variable feedback loop: x0 reads x1, x1 reads x2, x2 reads x0.
+    fn system() -> Vec<DeclaredCyclicMechanism> {
+        vec![
+            mechanism("x0", "f0", vec![1]),
+            mechanism("x1", "f1", vec![2]),
+            mechanism("x2", "f2", vec![0]),
+        ]
+    }
+
+    fn run(clamps: Vec<Clamp>, noise: Vec<f64>, factual: Option<Vec<f64>>) -> LocalCyclicRun {
+        LocalCyclicRun {
+            noise,
+            clamps,
+            initial: vec![0.0; 3],
+            factual,
+            policy: LocalCyclicPolicy::default(),
+        }
+    }
+
+    /// The question digest of the compiled run, `None` when compilation or the solve refuses it.
+    fn question(run: &LocalCyclicRun) -> Option<[u8; 32]> {
+        let ctx = ExecutionContext::for_tests(3);
+        let compiled = compile_local_cyclic(&system(), run, &ctx).ok()?;
+        match compiled.lowered().scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn site_local_cyclic_callback_clamps_are_a_set() {
+        // Each clamp fixes one variable, and the solve refuses a variable clamped twice.
+        let clamps = [Clamp { variable: 0, value: 0.5 }, Clamp { variable: 1, value: -0.25 }];
+        set_laws(&clamps, |clamps| question(&run(clamps.to_vec(), vec![0.4, -0.2, 0.1], None)));
+    }
+
+    #[test]
+    fn site_local_cyclic_callback_system_and_run_are_ordered_and_framed() {
+        // Mechanism i is variable i, and the reads are the callback's inputs in call order.
+        let declared = [("x0", "f0", 1_usize), ("x1", "f1", 0)];
+        ordered_laws(&declared, |order| {
+            let mechanisms: Vec<_> =
+                order.iter().map(|&(id, name, read)| mechanism(id, name, vec![read])).collect();
+            Some(system_digest(&mechanisms))
+        });
+        ordered_laws(&[0_usize, 2], |reads| {
+            Some(system_digest(&[mechanism("x", "f", reads.to_vec())]))
+        });
+        injective(
+            &ADVERSARIAL_TEXT,
+            |pair| *pair,
+            |pair| Some(system_digest(&[mechanism(pair.0, pair.1, vec![0])])),
+        );
+        // Noise is in variable order; reals are written by their bits.
+        let declared_system = system_digest(&system());
+        ordered_laws(&[0.4, -0.2], |noise| {
+            Some(run_digest(declared_system, &run(Vec::new(), noise.to_vec(), None)))
+        });
+        bit_exact(|value| {
+            Some(run_digest(
+                declared_system,
+                &run(vec![Clamp { variable: 0, value }], vec![value, 0.0, 0.0], None),
+            ))
+        });
+        // The factual state has a presence word.
+        let noise = || vec![0.4, -0.2, 0.1];
+        all_distinct(&[
+            run_digest(declared_system, &run(Vec::new(), noise(), None)),
+            run_digest(declared_system, &run(Vec::new(), noise(), Some(Vec::new()))),
+            run_digest(declared_system, &run(Vec::new(), noise(), Some(vec![0.0; 3]))),
+        ]);
+    }
 }

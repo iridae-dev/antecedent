@@ -507,3 +507,83 @@ impl CompiledDoseGridBiasAware {
         })
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::{
+        ClaimSet, DoseDesign, DoseFunctional, DoseGridBiasAwareRequest, DoseGridRequest,
+        question_digest, source_digest,
+    };
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    fn request(
+        dose: &[f64],
+        grid: &[f64],
+        functional: DoseFunctional,
+        curvature_bound: f64,
+    ) -> DoseGridBiasAwareRequest {
+        let outcome: Vec<f64> = dose.iter().map(|d| 2.0 * d).collect();
+        let row = DoseGridRequest {
+            dose,
+            outcome: &outcome,
+            grid,
+            bandwidth: 0.5,
+            bandwidth_range: (0.1, 1.0),
+            minimum_local_ess: 5.0,
+            functional,
+            claims: ClaimSet { pointwise_level: true, derivative: false, simultaneous_band: false },
+            design: DoseDesign::RandomizedDose,
+        };
+        DoseGridBiasAwareRequest::new(&row, curvature_bound, 100)
+    }
+
+    fn base() -> DoseGridBiasAwareRequest {
+        request(&[0.0, 1.0, 2.0], &[0.5, 1.5], DoseFunctional::Level, 1.0)
+    }
+
+    #[test]
+    fn site_compiled_dose_grid_bias_aware_question_orders_grid_and_clusters() {
+        ordered_laws(&[0.5, 1.0, 1.5], |grid| {
+            Some(question_digest(&request(&[0.0, 1.0], grid, DoseFunctional::Level, 1.0)))
+        });
+        ordered_laws(&[0_u32, 0, 1], |clusters| {
+            Some(question_digest(&base().clusters(clusters.to_vec())))
+        });
+        bit_exact(|bound| {
+            Some(question_digest(&request(&[0.0, 1.0], &[0.5], DoseFunctional::Level, bound)))
+        });
+        all_distinct(&[
+            question_digest(&base()),
+            question_digest(&request(
+                &[0.0, 1.0, 2.0],
+                &[0.5, 1.5],
+                DoseFunctional::Derivative,
+                1.0,
+            )),
+            question_digest(&request(
+                &[0.0, 1.0, 2.0],
+                &[0.5, 1.5],
+                DoseFunctional::Contrast { from: 0.0, to: 1.0 },
+                1.0,
+            )),
+            question_digest(&base().clusters(vec![0, 0, 1])),
+            question_digest(&base().serial_lag(1)),
+            question_digest(&base().serial_lag(0)),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_dose_grid_bias_aware_source_orders_the_rows() {
+        ordered_laws(&[0.0, 1.0, 2.0], |dose| {
+            Some(source_digest(&request(dose, &[0.5], DoseFunctional::Level, 1.0)))
+        });
+        bit_exact(|dose| {
+            Some(source_digest(&request(&[dose, 1.0], &[0.5], DoseFunctional::Level, 1.0)))
+        });
+        all_distinct(&[
+            source_digest(&base()),
+            source_digest(&base().sampling_weights(vec![1.0, 1.0, 1.0])),
+            source_digest(&base().sampling_weights(vec![1.0, 2.0, 1.0])),
+        ]);
+    }
+}

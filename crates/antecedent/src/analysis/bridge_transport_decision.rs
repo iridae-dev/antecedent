@@ -2115,4 +2115,122 @@ mod reference_tests {
         assert_eq!(view.supported(), view.missing_evidence().is_empty());
         assert!(!view.supported() || ctx.would_refuse().is_empty());
     }
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    fn trial_bridge(seed: u64, decision: DecisionContract) -> CompiledBridgeTransportDecision {
+        let independent = SourceMappingDependence::Independent {
+            evidence: "study-1 is not among the source validation trials".into(),
+        };
+        let (source, _) = draws(0.0, 0.1);
+        compile_bridge_transport_decision(
+            bridge(
+                BridgeMapping::TrialLevelLinear(validation(0.0)),
+                Some(independent),
+                Some(premise()),
+            ),
+            source,
+            seed,
+            decision,
+        )
+        .expect("a trial-level predictive bridge")
+    }
+
+    fn assessed(
+        target_shift: f64,
+        seed: u64,
+        criterion: DecisionCriterion,
+    ) -> CompiledAssessedBridgeTransportDecision {
+        let assessment =
+            compile_bridge_transport_premise_assessment(assessment_request(0.0, target_shift))
+                .expect("a matching premise assessment");
+        compile_assessed_bridge_transport_decision(
+            assessment,
+            trial_bridge(seed, choice(criterion)),
+        )
+        .expect("an assessed bridge decision")
+    }
+
+    #[test]
+    fn site_bridge_transport_decision_question_binds_source_bridge_decision_and_seed() {
+        let compile = |mean: f64, slope: f64, seed: u64, decision: DecisionContract| {
+            let (source, _) = draws(mean, 0.3);
+            compile_bridge_transport_decision(
+                bridge(BridgeMapping::Affine { intercept: 0.5, slope }, None, Some(premise())),
+                source,
+                seed,
+                decision,
+            )
+            .ok()
+            .map(|plan| query_of(plan.lowered()))
+        };
+        let utility = || choice(DecisionCriterion::PosteriorExpectedUtility);
+        let mut units = utility();
+        units.utility_units = "points".into();
+        crate::identity_laws::all_distinct(&[
+            compile(1.0, 2.0, 9, utility()),
+            compile(1.1, 2.0, 9, utility()),
+            compile(1.0, 2.1, 9, utility()),
+            compile(1.0, 2.0, 10, utility()),
+            compile(1.0, 2.0, 9, units),
+        ]);
+    }
+
+    #[test]
+    fn site_assessed_bridge_transport_decision_question_binds_both_programs() {
+        let utility = DecisionCriterion::PosteriorExpectedUtility;
+        crate::identity_laws::all_distinct(&[
+            query_of(assessed(0.05, 11, utility).lowered()),
+            query_of(assessed(0.06, 11, utility).lowered()),
+            query_of(assessed(0.05, 12, utility).lowered()),
+        ]);
+    }
+
+    #[test]
+    fn site_assessed_bridge_robust_decision_question_binds_child_and_contract() {
+        let robust = |target_shift: f64, contract: DecisionContract| {
+            let child = assessed(target_shift, 11, DecisionCriterion::PosteriorExpectedUtility);
+            let plan = compile_assessed_bridge_robust_decision(child, contract)
+                .expect("a maximin contract on the bridge target");
+            query_of(plan.lowered())
+        };
+        let maximin = || choice(DecisionCriterion::MaximinOverStructures);
+        let mut units = maximin();
+        units.utility_units = "points".into();
+        crate::identity_laws::all_distinct(&[
+            robust(0.05, maximin()),
+            robust(0.06, maximin()),
+            robust(0.05, units),
+        ]);
+    }
+
+    #[test]
+    fn site_assessed_bridge_posterior_decision_question_binds_child_premises_and_seed() {
+        let posterior = |target_shift: f64, design: &str, seed: u64| {
+            let child = assessed(target_shift, 11, DecisionCriterion::ExpectedRegret);
+            let premises = BridgeTargetPosteriorPremises {
+                validation_design: design.into(),
+                target_validation_independent: true,
+                source_innovation_transfers: true,
+            };
+            let plan = compile_assessed_bridge_posterior_decision(
+                child,
+                premises,
+                &ExecutionContext::for_tests(seed),
+            )
+            .expect("an independent target-line posterior");
+            query_of(plan.lowered())
+        };
+        crate::identity_laws::all_distinct(&[
+            posterior(0.05, "target-validation", 43),
+            posterior(0.06, "target-validation", 43),
+            posterior(0.05, "another-validation", 43),
+            posterior(0.05, "target-validation", 44),
+        ]);
+    }
 }

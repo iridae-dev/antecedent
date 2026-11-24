@@ -1017,6 +1017,68 @@ mod compiled_tests {
     }
 
     #[test]
+    fn site_graph_imputation_declaration_orders_domains_and_refuses_unordered_atoms() {
+        use crate::identity_laws::{all_distinct, ordered_laws};
+        use crate::planner::lowered::ProblemTarget;
+        use antecedent_discovery::graph_imputation_enumeration::graph_imputation_supported_masks;
+        let support = GraphImputationSupport::TreatmentRootDirectEffect;
+        let plan = compiled(support, 3, 12, false);
+        let supported = graph_imputation_supported_masks(3, 0, 1, support).len() as u64;
+        let declaration = |domains: &[u8], atoms: &[RetainedAtomBinding], seed: u64| {
+            let ctx = ExecutionContext::for_tests(19);
+            let Ok(mut budget) = SearchBudget::with_memory(
+                SearchLimits { operations: 4096, depth: 1 },
+                25 * 1024 * 1024,
+                &ctx,
+            ) else {
+                panic!("a search budget for the lowering");
+            };
+            let input = LoweringInput {
+                source_digest: [1; 32],
+                schema_digest: [2; 32],
+                rows: 12,
+                variables: (0..3).map(VariableId::from_raw).collect(),
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                support,
+                contract: [3; 32],
+                excluded: supported.saturating_sub(atoms.len() as u64),
+                imputation: ImputationSpec::new()
+                    .with_imputations(2)
+                    .with_iterations(2)
+                    .with_seed(17),
+                domains: Arc::from(domains),
+                posterior_draws: 100,
+                prior_scale: 1.0,
+                execution_seed: seed,
+                atoms: atoms.to_vec(),
+            };
+            let program = lower(input, &mut budget).ok()?;
+            match program.scientific().target() {
+                ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+                _ => None,
+            }
+        };
+        // Domains are read by variable index.
+        ordered_laws(&[1_u8, 0, 1], |domains| declaration(domains, &plan.atoms, 19));
+        // The retained graphs are an increasing subset of the support, each written once:
+        // another order or a repeat is refused, and dropping one is another declaration.
+        let base = declaration(&[1, 0, 0], &plan.atoms, 19);
+        assert!(base.is_some());
+        let mut reversed = plan.atoms.clone();
+        reversed.reverse();
+        assert!(declaration(&[1, 0, 0], &reversed, 19).is_none());
+        let mut repeated = plan.atoms.clone();
+        repeated.insert(1, plan.atoms[0].clone());
+        assert!(declaration(&[1, 0, 0], &repeated, 19).is_none());
+        all_distinct(&[
+            base,
+            declaration(&[1, 0, 0], &plan.atoms[1..], 19),
+            declaration(&[1, 0, 0], &plan.atoms, 20),
+        ]);
+    }
+
+    #[test]
     fn four_variable_cell_executes_every_retained_graph() {
         let ctx = ExecutionContext::for_tests(19);
         let plan = compiled(GraphImputationSupport::TreatmentDirectEffect, 4, 40, true);

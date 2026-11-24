@@ -504,6 +504,39 @@ mod tests {
         );
     }
 
+    /// `question` (with `encode_design` and `series_digest`): the lagged parents are ordered
+    /// (coefficient order), each a (variable, lag) pair; the request kind is tagged; the series
+    /// enters by its content digest; the held variable and its level are read, the level by its
+    /// bits.
+    #[test]
+    fn site_temporal_linear_prediction_question_orders_the_parents() {
+        use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+        let policy = KernelPolicy::default_policy();
+        ordered_laws(&[(0, 1), (1, 1), (0, 2)], |parents| Some(with_parents(parents, 1.0, policy)));
+        let parents = [LaggedColumn { variable: VariableId::from_raw(0), lag: Lag::from_raw(1) }];
+        let fit = |shift: f64| {
+            question(&TemporalPredictionRequest::fit(
+                series(shift),
+                VariableId::from_raw(1),
+                parents,
+                policy,
+            ))
+        };
+        let held = |variable: u32| {
+            question(&TemporalPredictionRequest::predict_conditional(
+                series(0.0),
+                VariableId::from_raw(1),
+                parents,
+                VariableId::from_raw(variable),
+                1.0,
+                policy,
+            ))
+        };
+        all_distinct(&[fit(0.0), fit(1.0), held(0), held(1), with_parents(&[(1, 0)], 1.0, policy)]);
+        bit_exact(|level| Some(with_parents(&[(0, 1)], level, policy)));
+    }
+
     #[test]
     fn a_compiled_prediction_refuses_reentry() {
         let ctx = ExecutionContext::for_tests(0);

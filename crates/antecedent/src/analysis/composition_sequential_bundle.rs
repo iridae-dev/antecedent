@@ -774,4 +774,79 @@ mod tests {
             .is_err()
         );
     }
+
+    #[test]
+    fn site_composition_sequential_bundle_question_binds_names_program_and_graph() {
+        use crate::identity_laws::all_distinct;
+        let (model, policies) = fixture();
+        let producer = compile_sequential_policy_reliability(
+            model,
+            policies,
+            "utility".into(),
+            SequentialReliabilityMode::Rollout(RolloutConfig { seed: 5, rollouts: 128 }),
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = producer.execute(&ctx).unwrap();
+        // Compilation reads the declarations; it never refits, so the producer bytes are opaque.
+        let fit = |program: u8| {
+            antecedent_io::to_cbor(&FitWire {
+                feature: FIT.into(),
+                seed: 5,
+                program: [program; 32],
+                artifact: vec![1, 2, 3],
+            })
+            .unwrap()
+        };
+        let carrier = antecedent_io::to_cbor(&DrawWire {
+            feature: DRAWS.into(),
+            draws: result.draws.clone(),
+        })
+        .unwrap();
+        let diagnostic = antecedent_io::to_cbor(&DiagnosticWire {
+            feature: DIAGNOSTIC.into(),
+            draws: result.draws.clone(),
+            report: result.report.clone(),
+        })
+        .unwrap();
+        let identity = |names: [&str; 3], program: u8| {
+            let [fit_id, draws_id, terminal_id] = names;
+            let nodes = vec![
+                BundleNode::embedded(
+                    fit_id,
+                    NodeKind::SequentialPolicyReliabilityFit,
+                    "fit",
+                    fit(program),
+                ),
+                BundleNode::embedded(
+                    draws_id,
+                    NodeKind::SequentialDecisionDraws,
+                    "draws",
+                    carrier.clone(),
+                ),
+                BundleNode::embedded(
+                    terminal_id,
+                    NodeKind::SequentialReliabilityDiagnostic,
+                    "diagnostic",
+                    diagnostic.clone(),
+                ),
+            ];
+            let edges = [
+                (fit_id.to_owned(), draws_id.to_owned()),
+                (draws_id.to_owned(), terminal_id.to_owned()),
+            ];
+            let bundle = CompositionBundle::new(nodes, &edges, &BundleLimits::default()).unwrap();
+            compile_sequential_reliability_node_bundle(bundle, fit_id, draws_id, terminal_id)
+                .unwrap()
+                .lowered()
+                .identity()
+        };
+        all_distinct(&[
+            identity(["fit", "draws", "diagnostic"], 1),
+            identity(["fit-b", "draws", "diagnostic"], 1),
+            identity(["fit", "draws-b", "diagnostic"], 1),
+            identity(["fit", "draws", "diagnostic-b"], 1),
+            identity(["fit", "draws", "diagnostic"], 2),
+        ]);
+    }
 }

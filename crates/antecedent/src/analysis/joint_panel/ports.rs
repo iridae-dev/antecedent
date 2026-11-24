@@ -23,7 +23,10 @@ impl JointPanelResult {
         let source = self.program.state.source_identity.to_hex();
         let mut coordinates = Vec::new();
         for world in &request.worlds {
-            let context = contracts::context_identity(&world.program).to_hex();
+            // The context law the validated target retains: a target built by an earlier
+            // release carries the released encoding, and its coordinates keep their ids.
+            let context = contracts::retained_context(&request.target, world.world)
+                .unwrap_or_else(|| contracts::context_identity(&world.program).to_hex());
             for period in 0..world.horizon() {
                 coordinates.push(ScientificQuantity {
                     variable_id: format!("panel:{source}:{}", request.columns.outcome.raw()),
@@ -415,12 +418,6 @@ impl JointPanelResult {
         for world in &self.request().worlds {
             let h = world.horizon();
             let values = functional_weights(h, functional)?;
-            let mut writer =
-                antecedent_core::CanonicalWriter::new("antecedent.panel.response_functional.v1");
-            writer.bytes(self.request().target.identity().as_bytes()).word(values.len() as u64);
-            for value in &values {
-                writer.word(value.to_bits());
-            }
             let mut quantity = coordinates[start + h - 1].clone();
             if quantity.horizon != 0 {
                 quantity.horizon = u32::try_from(
@@ -430,7 +427,7 @@ impl JointPanelResult {
             }
             quantity.functional_id = format!(
                 "weighted_mean:{}",
-                antecedent_core::SemanticDigest::from_bytes(writer.finish())
+                response_functional_digest(self.request().target.identity(), &values)
             );
             projected.push(quantity);
             weights.push(values);
@@ -786,5 +783,41 @@ impl JointPanelResult {
         let (standard_error, interval) =
             JointPanelContrast::uncertainty_from_draws(&draws, level, uncertainty, authorized);
         Ok(JointPanelContrast { point, draws, standard_error, interval, level, uncertainty })
+    }
+}
+
+/// Identity of a world's response functional: the target identity, then the period weights in
+/// period order, count-prefixed and by their bits (weight `t` weighs period `t`).
+fn response_functional_digest(
+    target: antecedent_core::SemanticDigest,
+    values: &[f64],
+) -> antecedent_core::SemanticDigest {
+    let mut writer =
+        antecedent_core::CanonicalWriter::new("antecedent.panel.response_functional.v1");
+    writer.bytes(target.as_bytes()).word(values.len() as u64);
+    for value in values {
+        writer.word(value.to_bits());
+    }
+    antecedent_core::SemanticDigest::from_bytes(writer.finish())
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::response_functional_digest;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    use antecedent_core::SemanticDigest;
+
+    #[test]
+    fn site_joint_panel_ports_response_functional_orders_the_period_weights() {
+        let target = SemanticDigest::from_bytes([1; 32]);
+        ordered_laws(&[0.25, 0.5, 0.25, 0.0], |values| {
+            Some(response_functional_digest(target, values))
+        });
+        bit_exact(|x| Some(response_functional_digest(target, &[x, 1.0])));
+        all_distinct(&[
+            response_functional_digest(target, &[1.0]),
+            response_functional_digest(target, &[1.0, 0.0]),
+            response_functional_digest(SemanticDigest::from_bytes([2; 32]), &[1.0]),
+        ]);
     }
 }

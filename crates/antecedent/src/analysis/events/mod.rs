@@ -1033,3 +1033,91 @@ mod limits {
         assert!(history(n + 1).validate(true).is_err());
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::{
+        Arrival, EventForecastRequest, EventHistory, EventSource, EventWindow,
+        ProviderObjectIdentity, digest,
+    };
+    use crate::identity_laws::{bit_exact, injective, ordered_laws};
+
+    fn history(catalog: &[&str], events: Vec<Arrival>, start: f64) -> EventHistory {
+        EventHistory {
+            catalog: catalog.iter().map(|name| (*name).to_owned()).collect(),
+            time_unit: "hour".into(),
+            origin: "origin".into(),
+            source: "log".into(),
+            empty_origin: start,
+            window: EventWindow { start, end: 10.0 },
+            left: vec![],
+            events,
+            gaps: vec![],
+        }
+    }
+
+    /// The source digest of a history the native route accepts, `None` when it refuses it.
+    fn source(history: &EventHistory) -> Option<[u8; 32]> {
+        history.validate(true).ok()?;
+        digest("antecedent.events.site", history).ok().map(|digest| *digest.as_bytes())
+    }
+
+    #[test]
+    fn site_events_source_digest_orders_the_catalog_and_the_arrivals() {
+        // An arrival names its type by catalog index, so the catalog is ordered.
+        ordered_laws(&["a", "b", "c"], |catalog| {
+            source(&history(catalog, vec![Arrival { time: 1.0, kind: 0 }], 0.0))
+        });
+        // Arrivals are read in time order, which validation enforces: another order is refused.
+        let arrivals = vec![Arrival { time: 1.0, kind: 0 }, Arrival { time: 2.0, kind: 1 }];
+        assert!(source(&history(&["a", "b"], arrivals.clone(), 0.0)).is_some());
+        let mut reversed = arrivals;
+        reversed.reverse();
+        assert!(source(&history(&["a", "b"], reversed, 0.0)).is_none());
+        // Times are written exactly; the encoding frames and escapes every text.
+        bit_exact(|start| source(&history(&["a"], Vec::new(), start)));
+        let parts = [("ab", "c"), ("a", "bc"), ("a\",\"origin\":\"b", "c")];
+        injective(
+            &parts,
+            |pair| *pair,
+            |pair| {
+                let mut declared = history(&["a"], Vec::new(), 0.0);
+                declared.time_unit = pair.0.to_owned();
+                declared.origin = pair.1.to_owned();
+                source(&declared)
+            },
+        );
+    }
+
+    /// Tied arrivals are admitted only for fixture and external sources, whose history no kernel
+    /// here reads: an external provider receives the payload as declared and binds its request
+    /// identifier to it, so the order of tied arrivals is part of the request it answered.
+    #[test]
+    fn site_events_external_request_binds_tied_arrivals_in_declared_order() {
+        let tied = vec![Arrival { time: 1.0, kind: 0 }, Arrival { time: 1.0, kind: 1 }];
+        let request = |events: Vec<Arrival>| {
+            let mut declared = history(&["a", "b"], events, 0.0);
+            declared.window = EventWindow { start: 0.0, end: 2.0 };
+            EventForecastRequest {
+                history: declared,
+                forecast: EventWindow { start: 2.0, end: 3.0 },
+                source: EventSource::External {
+                    identity: ProviderObjectIdentity {
+                        provider_id: "provider".into(),
+                        object_id: "paths".into(),
+                        version_id: "v".into(),
+                        snapshot_id: "snapshot".into(),
+                        request_id: "pending".into(),
+                    },
+                    paths: vec![vec![]],
+                },
+                paths: 1,
+                max_events: 8,
+                seed: 1,
+            }
+        };
+        // The native routes refuse the tie, so no likelihood or sampler reads its order.
+        assert!(request(tied.clone()).history.validate(true).is_err());
+        ordered_laws(&tied, |events| request(events.to_vec()).provider_request_id().ok());
+    }
+}

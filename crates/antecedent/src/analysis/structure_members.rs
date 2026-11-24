@@ -58,7 +58,7 @@ use antecedent_identify::cyclic_id::{CyclicIdPremises, CyclicIdStatus, identify_
 use antecedent_io_core::identity::GraphIdentityWire;
 use serde::Serialize;
 
-use super::supplied_identity::{Canonical, Declaration, Wire};
+use super::supplied_identity::{Canonical, Declaration, Wire, encoded, unencodable};
 use crate::StructureProvenance;
 use crate::accepted::{AcceptedGraph, GraphRef};
 use crate::error::CausalError;
@@ -616,7 +616,7 @@ impl DeclaredStructure {
                 let member = MemberGraph::Cyclic(graph.clone());
                 let (status, identification) =
                     identify_cyclic_member(graph, pair, *premises, cyclic, ctx)?;
-                raw.push(member, None, status, identification, pair);
+                raw.push(member, None, status, identification, pair)?;
                 None
             }
         };
@@ -669,14 +669,15 @@ impl Raw {
         status: MemberStatus,
         identification: Option<IdentificationStatus>,
         pair: Pair,
-    ) {
+    ) -> Result<(), CausalError> {
         if self.members.len() >= MAX_MEMBERS {
             self.truncated = true;
-            return;
+            return Ok(());
         }
         let relation = relation(&graph, pair);
-        let key = member_key(&graph);
+        let key = member_key(&graph)?;
         self.members.push(StructureMember { graph, weight, relation, status, identification, key });
+        Ok(())
     }
 }
 
@@ -786,7 +787,7 @@ fn temporal_class_members(
             TemporalCompletionGraph::Dag(dag) => MemberGraph::TemporalDag(dag),
             TemporalCompletionGraph::Mag(mag) => MemberGraph::TemporalMag(mag),
         };
-        raw.push(member, weight, member_status(status), Some(status), pair);
+        raw.push(member, weight, member_status(status), Some(status), pair)?;
     }
     Ok(())
 }
@@ -851,7 +852,7 @@ fn single(
     raw: &mut Raw,
 ) -> Result<(), CausalError> {
     let (status, identification) = identify_member(&member, pair, ctx)?;
-    raw.push(member, weight, status, identification, pair);
+    raw.push(member, weight, status, identification, pair)?;
     Ok(())
 }
 
@@ -1089,16 +1090,15 @@ fn variable(nodes: &[NodeRef], id: DenseNodeId) -> Option<usize> {
     usize::try_from(variable.raw()).ok()
 }
 
-/// A canonical graph identity wire, or the reason it could not be encoded.
-struct GraphWire(Result<GraphIdentityWire, String>);
+/// A canonical graph identity wire, or none when it could not be encoded: then the encoding is
+/// recorded as refused ([`unencodable`]) and [`member_key`] refuses, never hashing error text.
+struct GraphWire(Option<GraphIdentityWire>);
 
 impl Canonical for GraphWire {
     fn encode(&self, out: &mut antecedent_core::CanonicalWriter) {
         match &self.0 {
-            Ok(wire) => Wire(wire).encode(out),
-            Err(error) => {
-                out.text("unencodable").text(error);
-            }
+            Some(wire) => Wire(wire).encode(out),
+            None => unencodable(out, "member graph"),
         }
     }
 }
@@ -1153,7 +1153,14 @@ impl Canonical for CyclicIdentity<'_> {
 }
 
 /// Canonical identity of one member structure with its node labels.
-fn member_key(graph: &MemberGraph) -> [u8; 32] {
+///
+/// # Errors
+/// A member graph whose canonical identity cannot be encoded.
+fn member_key(graph: &MemberGraph) -> Result<[u8; 32], CausalError> {
+    encoded("antecedent.structure_members.member.v1", || member_key_unchecked(graph))
+}
+
+fn member_key_unchecked(graph: &MemberGraph) -> [u8; 32] {
     use antecedent_io_core::identity::{
         admg_identity, dag_identity, temporal_admg_identity, temporal_dag_identity,
         temporal_pag_identity,
@@ -1161,34 +1168,23 @@ fn member_key(graph: &MemberGraph) -> [u8; 32] {
     let mut declaration = Declaration::new("antecedent.structure_members.member.v1");
     match graph {
         MemberGraph::Dag(g) => {
-            declaration
-                .field("dag", &GraphWire(dag_identity(g).map_err(|error| error.to_string())));
+            declaration.field("dag", &GraphWire(dag_identity(g).ok()));
             declaration.field("nodes", g.nodes());
         }
         MemberGraph::Admg(g) => {
-            declaration
-                .field("admg", &GraphWire(admg_identity(g).map_err(|error| error.to_string())));
+            declaration.field("admg", &GraphWire(admg_identity(g).ok()));
             declaration.field("nodes", g.nodes());
         }
         MemberGraph::TemporalDag(g) => {
-            declaration.field(
-                "temporal_dag",
-                &GraphWire(temporal_dag_identity(g).map_err(|error| error.to_string())),
-            );
+            declaration.field("temporal_dag", &GraphWire(temporal_dag_identity(g).ok()));
             declaration.field("nodes", g.nodes());
         }
         MemberGraph::TemporalMag(g) => {
-            declaration.field(
-                "temporal_mag",
-                &GraphWire(temporal_pag_identity(g).map_err(|error| error.to_string())),
-            );
+            declaration.field("temporal_mag", &GraphWire(temporal_pag_identity(g).ok()));
             declaration.field("nodes", g.nodes());
         }
         MemberGraph::TemporalAdmg(g) => {
-            declaration.field(
-                "temporal_admg",
-                &GraphWire(temporal_admg_identity(g).map_err(|error| error.to_string())),
-            );
+            declaration.field("temporal_admg", &GraphWire(temporal_admg_identity(g).ok()));
             declaration.field("nodes", g.nodes());
         }
         MemberGraph::Cyclic(g) => {

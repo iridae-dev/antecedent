@@ -369,15 +369,11 @@ impl<T: CanonicalEncode> Canonical for Encoded<'_, T> {
 
 /// The selective data identity of a table's searched columns (rows and digest), or the reason
 /// it has none (the kernel that reads the table refuses it when the program runs).
-struct RowSet(Result<(u64, [u8; 32]), String>);
+struct RowSet(Result<(u64, [u8; 32]), antecedent_discovery::DiscoveryError>);
 
 impl RowSet {
     fn of(data: &TabularData, variables: &[VariableId]) -> Self {
-        Self(
-            static_data_identity(data, variables)
-                .map(|identity| (identity.rows, identity.digest))
-                .map_err(|error| error.to_string()),
-        )
+        Self(static_data_identity(data, variables).map(|identity| (identity.rows, identity.digest)))
     }
 
     fn rows(&self) -> u64 {
@@ -398,7 +394,10 @@ impl Canonical for RowSet {
                 out.text("rows").word(*rows).bytes(digest);
             }
             Err(error) => {
-                out.text("unreadable").text(error);
+                // The failure's stable kind and code: the kernel refuses this table when the
+                // program runs, so the identity names that refusal, never its message.
+                out.text("unreadable");
+                error.encode(out);
             }
         }
     }
@@ -498,7 +497,9 @@ impl Canonical for ContractIdentity<'_> {
                 out.text("contract").bytes(&digest);
             }
             Err(error) => {
-                out.text("unencodable").text(&error.to_string());
+                // The refusal's registered code and detail, never its message.
+                out.text("unencodable");
+                error.encode(out);
             }
         }
     }
@@ -857,5 +858,114 @@ impl CompiledDiscoveredClassTransport {
             .map_err(discovered_transport_io_failure)
             .map(|set| DiscoveredClassStageResult::TrialConfidenceSet(Box::new(set))),
         })
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        CanonicalWriter, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
+        SemanticDigest, TransportQuery, VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
+
+    use super::{
+        DiscoveredClassEvidence, DiscoveredClassStage, DiscoveredClassTransportRequest, RowSet,
+        lower,
+    };
+    use crate::analysis::supplied_identity::Canonical;
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    fn table(shift: f64) -> TabularData {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = x.map(|value| value + shift);
+        let z = [1.0, 0.0, 1.0, 0.0];
+        TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..]), ("z", &z[..])])
+            .expect("a table")
+    }
+
+    fn request(
+        targets: Vec<VariableId>,
+        stage: DiscoveredClassStage,
+    ) -> DiscoveredClassTransportRequest {
+        let contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Pc,
+            vec![v(0), v(1), v(2)],
+            CiTestSpec::named("parcorr"),
+            7,
+        );
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: v(2),
+                treatment: ContinuousDomain::new(v(0), GridSpec::Values(Arc::from([0.0, 1.0]))),
+            }),
+            "trial",
+            "clinic",
+            [v(0)],
+        );
+        DiscoveredClassTransportRequest::new(contract, table(0.0), targets, query, stage)
+    }
+
+    fn identity(request: &DiscoveredClassTransportRequest, search: u8) -> SemanticDigest {
+        lower(request, SemanticDigest::from_bytes([search; 32])).expect("lowered").identity()
+    }
+
+    fn estimate(replicates: u32) -> DiscoveredClassStage {
+        let mut evidence = DiscoveredClassEvidence::new(table(0.0), table(1.0));
+        evidence.bootstrap_replicates = replicates;
+        DiscoveredClassStage::Estimate { evidence }
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_question_sets_the_targets_and_binds_the_stage() {
+        set_laws(&[v(1), v(2)], |targets| {
+            Some(identity(&request(targets.to_vec(), DiscoveredClassStage::Envelope), 0))
+        });
+        let envelope = request(vec![v(1)], DiscoveredClassStage::Envelope);
+        all_distinct(&[
+            identity(&envelope, 0),
+            identity(&envelope, 1),
+            identity(&envelope.clone().with_member_bound(5), 0),
+            identity(&request(vec![v(1)], estimate(0)), 0),
+            identity(&request(vec![v(1)], estimate(10)), 0),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_rows_follow_the_search_order() {
+        ordered_laws(&[v(0), v(1), v(2)], |variables| {
+            Some(RowSet::of(&table(0.0), variables).digest())
+        });
+        all_distinct(&[
+            RowSet::of(&table(0.0), &[v(0), v(1), v(2)]).digest(),
+            RowSet::of(&table(1.0), &[v(0), v(1), v(2)]).digest(),
+            RowSet::of(&table(0.0), &[v(0), v(9)]).digest(),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind() {
+        // A table the kernel refuses is named by the failure's stable kind and code, never by
+        // its message: the searched variables are bound by the contract, not repeated here.
+        let missing_nine = RowSet::of(&table(0.0), &[v(0), v(9)]);
+        let missing_eight = RowSet::of(&table(0.0), &[v(0), v(8)]);
+        assert!(missing_nine.0.is_err() && missing_eight.0.is_err());
+        assert_eq!(missing_nine.digest(), missing_eight.digest());
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::data_msg("first wording").encode(&mut writer);
+        let first = writer.finish();
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::data_msg("second wording").encode(&mut writer);
+        assert_eq!(first, writer.finish(), "the message never enters the identity");
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::Cancelled.encode(&mut writer);
+        assert_ne!(first, writer.finish(), "another kind is another identity");
     }
 }

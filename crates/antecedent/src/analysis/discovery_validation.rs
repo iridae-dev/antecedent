@@ -500,3 +500,54 @@ impl CompiledProgramHandle for DiscoveryValidation {
         &self.lowered
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::CanonicalWriter;
+
+    use super::{DiscoveryCheck, NullTransform};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    fn encoded(check: &DiscoveryCheck) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("site");
+        check.write(&mut writer);
+        writer.finish()
+    }
+
+    #[test]
+    fn site_discovery_validation_check_grids_are_ordered_and_variants_tagged() {
+        // Each grid is reported point by point in the declared order.
+        ordered_laws(&[0.01, 0.05, 0.1], |alphas| {
+            Some(encoded(&DiscoveryCheck::Alpha { alphas: Arc::from(alphas) }))
+        });
+        ordered_laws(&[1_u32, 2, 3], |max_lags| {
+            Some(encoded(&DiscoveryCheck::LagWindow { max_lags: Arc::from(max_lags) }))
+        });
+        ordered_laws(&["parcorr", "gpdc"], |names| {
+            let ci_names: Vec<Arc<str>> = names.iter().map(|name| Arc::from(*name)).collect();
+            Some(encoded(&DiscoveryCheck::CiTest { ci_names: Arc::from(ci_names) }))
+        });
+        bit_exact(|alpha| Some(encoded(&DiscoveryCheck::Alpha { alphas: Arc::from([alpha]) })));
+        // Variants with the same option words are told apart by their id, and options by value.
+        all_distinct(&[
+            encoded(&DiscoveryCheck::BlockBootstrap { replicates: 4, block_size: 20 }),
+            encoded(&DiscoveryCheck::Orientation { replicates: 4, block_size: 20 }),
+            encoded(&DiscoveryCheck::RegimeStability { replicates: 4, block_size: 20 }),
+            encoded(&DiscoveryCheck::BlockBootstrap { replicates: 20, block_size: 4 }),
+            encoded(&DiscoveryCheck::FalsePositive {
+                transform: NullTransform::ColumnPermute,
+                replicates: 4,
+            }),
+            encoded(&DiscoveryCheck::FalsePositive {
+                transform: NullTransform::PhaseRandomize,
+                replicates: 4,
+            }),
+            encoded(&DiscoveryCheck::SyntheticNull { n_sim: 4, n_obs: 20, n_vars: 3 }),
+            encoded(&DiscoveryCheck::EnvironmentHoldout { n_discovery: 4 }),
+            encoded(&DiscoveryCheck::Alpha { alphas: Arc::from([]) }),
+            encoded(&DiscoveryCheck::LagWindow { max_lags: Arc::from([]) }),
+        ]);
+    }
+}

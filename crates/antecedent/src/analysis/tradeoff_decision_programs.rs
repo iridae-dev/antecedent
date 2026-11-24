@@ -164,6 +164,12 @@ impl Canonical for Measure<'_> {
                 variant(out, "choice_estimate").text(estimate_identity);
             }
         }
+        // The unresolved parameters are a set of indices (the kernel reads them by membership
+        // and refuses a repeat): written sorted and each once, so the order a caller listed
+        // them in does not reach the identity.
+        let mut unresolved = unresolved.clone();
+        unresolved.sort_unstable();
+        unresolved.dedup();
         unresolved.encode(out);
     }
 }
@@ -796,5 +802,240 @@ impl CompiledTradeoffStructures {
             Self::Exact(program) => program.execute(ctx),
             Self::Certified(program) => program.execute(ctx),
         }
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_design::decision_adapters::{ClaimProbability, SuppliedClaim};
+    use antecedent_design::decision_contract::ActionKind;
+    use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
+    use antecedent_design::decision_robustness::AtomSupport;
+    use antecedent_design::decision_structural::AtomEvidence;
+    use antecedent_design::preference_contract::{ActionInput, PreferenceAction};
+    use antecedent_design::preference_model::{
+        Attribute, PreferenceExpr as P, PreferenceParameter, PreferenceSet, ValueModel, shape,
+    };
+
+    use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
+    };
+
+    fn quantity(variable: &str, regime: &str, units: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: QuantityRole::Outcome,
+            units: units.into(),
+            population_id: "target".into(),
+            regime_id: regime.into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn attributes() -> Vec<Attribute> {
+        vec![
+            Attribute { id: "benefit".into(), units: "events".into() },
+            Attribute { id: "cost".into(), units: "usd".into() },
+        ]
+    }
+
+    /// `benefit - w * cost`, `w` in `[0, 3]`, over actions `A` and `B`.
+    fn fixture_contract() -> PreferenceContract {
+        let model = ValueModel {
+            attributes: attributes(),
+            preferences: PreferenceSet::new(
+                vec![PreferenceParameter {
+                    id: "w".into(),
+                    units: "events/usd".into(),
+                    lower: 0.0,
+                    upper: 3.0,
+                    assumption_id: "w-judgment".into(),
+                }],
+                vec![],
+            ),
+            value: P::difference(shape::rate(0), P::product(P::Parameter(0), shape::rate(1))),
+            utility_units: "events".into(),
+        };
+        let actions = ["A", "B"]
+            .iter()
+            .enumerate()
+            .map(|(a, id)| PreferenceAction {
+                id: (*id).into(),
+                kind: ActionKind::Intervention,
+                inputs: attributes()
+                    .iter()
+                    .map(|attribute| {
+                        ActionInput::Quantity(quantity(
+                            &attribute.id,
+                            &format!("do(a={a})"),
+                            &attribute.units,
+                        ))
+                    })
+                    .collect(),
+            })
+            .collect();
+        PreferenceContract {
+            model,
+            actions,
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+            preference_policy: PreferencePolicy::RequireInvariantBestAction,
+        }
+    }
+
+    fn fixture_measure() -> PreferenceMeasure {
+        PreferenceMeasure {
+            points: vec![vec![0.5], vec![2.5], vec![1.5]],
+            weights: Some(vec![3.0, 1.0, 2.0]),
+            labels: Some(vec!["low".to_owned(), "high".to_owned(), "mid".to_owned()]),
+            origin: MeasureOrigin::Declared { assumption_id: "panel".to_owned() },
+            unresolved: vec![],
+        }
+    }
+
+    fn declared(
+        contract: &PreferenceContract,
+        identity: &str,
+        measure: Option<&PreferenceMeasure>,
+        options: &PreferenceEvaluationOptions,
+        accepted: Option<&str>,
+    ) -> [u8; 32] {
+        let mut declaration = Declaration::new(LAW_TAG);
+        declare(&mut declaration, contract, identity, measure, options, accepted);
+        declaration.finish()
+    }
+
+    fn with_measure(edit: impl Fn(&mut PreferenceMeasure)) -> Option<[u8; 32]> {
+        let mut measure = fixture_measure();
+        edit(&mut measure);
+        let options = PreferenceEvaluationOptions::default();
+        Some(declared(&fixture_contract(), "contract", Some(&measure), &options, None))
+    }
+
+    /// `declare`: the measure's unresolved indices are a set; its points, weights and labels
+    /// are ordered and aligned; the action ids are ordered; every option enters; the contract
+    /// identity and the accepted identity are framed; reals enter by their bits.
+    #[test]
+    fn site_tradeoff_decision_programs_declare_sets_orders_and_frames() {
+        set_laws(&[0_usize, 2, 1], |items| with_measure(|m| m.unresolved = items.to_vec()));
+        ordered_laws(&fixture_measure().points, |items| {
+            with_measure(|m| m.points = items.to_vec())
+        });
+        ordered_laws(&[3.0, 1.0, 2.0], |items| with_measure(|m| m.weights = Some(items.to_vec())));
+        ordered_laws(&fixture_measure().labels.unwrap_or_default(), |items| {
+            with_measure(|m| m.labels = Some(items.to_vec()))
+        });
+        bit_exact(|x| with_measure(|m| m.weights = Some(vec![x, 1.0, 2.0])));
+
+        let base = fixture_contract();
+        let options = PreferenceEvaluationOptions::default();
+        ordered_laws(&[0_usize, 1], |order| {
+            let mut contract = base.clone();
+            contract.actions = order.iter().map(|&i| base.actions[i].clone()).collect();
+            Some(declared(&contract, "contract", None, &options, None))
+        });
+
+        let edits: [fn(&mut PreferenceEvaluationOptions); 8] = [
+            |o| o.exact.tie_tolerance *= 2.0,
+            |o| o.exact.vertex_cap += 1,
+            |o| o.exact.lp.feasibility_tolerance *= 2.0,
+            |o| o.exact.lp.optimality_tolerance *= 2.0,
+            |o| o.exact.lp.max_pivots += 1,
+            |o| o.certified.max_boxes += 1,
+            |o| o.certified.min_width_fraction *= 2.0,
+            |o| o.certified.tie_tolerance *= 2.0,
+        ];
+        let mut identities = vec![declared(&base, "contract", None, &options, None)];
+        for edit in edits {
+            let mut changed = options;
+            edit(&mut changed);
+            identities.push(declared(&base, "contract", None, &changed, None));
+        }
+        let empty = PreferenceMeasure {
+            points: vec![],
+            weights: None,
+            labels: None,
+            origin: MeasureOrigin::Declared { assumption_id: String::new() },
+            unresolved: vec![],
+        };
+        identities.push(declared(&base, "contract", Some(&empty), &options, None));
+        identities.push(declared(&base, "contract", None, &options, Some("")));
+        all_distinct(&identities);
+
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(identity, accepted)| Some(declared(&base, identity, None, &options, Some(accepted))),
+        );
+    }
+
+    fn claim(id: &str) -> SuppliedClaim {
+        SuppliedClaim {
+            id: id.into(),
+            probability: ClaimProbability::Unspecified,
+            evidence: AtomEvidence::Unidentified,
+            support: AtomSupport::supported(),
+        }
+    }
+
+    fn means(values: Vec<f64>) -> MeanSource {
+        let mut coordinates = Vec::new();
+        for a in 0..2 {
+            for attribute in attributes() {
+                coordinates.push(quantity(&attribute.id, &format!("do(a={a})"), &attribute.units));
+            }
+        }
+        MeanSource {
+            coordinates,
+            means: values,
+            estimate: MeanEstimate::Posterior,
+            provider_id: "lab".into(),
+            snapshot_id: "snap-1".into(),
+            causal_contract_id: "checked-contract".into(),
+            rng_id: "none:mean_grid".into(),
+        }
+    }
+
+    /// The compiled declarations: a law decision covers the source, the measure and the
+    /// accepted identity beside `declare`; a structural decision covers its claims in order
+    /// (the adapted atoms keep it).
+    #[test]
+    fn site_tradeoff_decision_programs_compiled_declarations_cover_source_and_claims() {
+        let ctx = ExecutionContext::for_tests(5);
+        let options = PreferenceEvaluationOptions::default();
+        let law = |values: Vec<f64>, measure: Option<PreferenceMeasure>, accepted: Option<&str>| {
+            let source = ContractSource::Means(means(values));
+            compile_law(fixture_contract(), measure, options, source, accepted, &ctx)
+                .ok()
+                .map(|program| program.identity())
+                .expect("the decision compiles")
+        };
+        let base = law(vec![10.0, 4.0, 5.5, 1.0], None, None);
+        assert_eq!(base, law(vec![10.0, 4.0, 5.5, 1.0], None, None));
+        all_distinct(&[
+            base,
+            law(vec![4.0, 10.0, 5.5, 1.0], None, None),
+            law(vec![10.0, 4.0, 5.5, 1.0], Some(fixture_measure()), None),
+            law(vec![10.0, 4.0, 5.5, 1.0], None, Some("accepted")),
+        ]);
+
+        let claims = [claim("s1"), claim("s2"), claim("s3")];
+        ordered_laws(&[0_usize, 1, 2], |order| {
+            let set = SuppliedClaimSet::FiniteScenarios(
+                order.iter().map(|&i| claims[i].clone()).collect(),
+            );
+            compile_tradeoff_structural_decision(fixture_contract(), None, options, set, &ctx)
+                .ok()
+                .map(|program| program.identity())
+        });
     }
 }

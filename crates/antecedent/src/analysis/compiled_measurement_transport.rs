@@ -242,6 +242,19 @@ fn write_declaration(
     Ok(())
 }
 
+/// The question: the transport decision's receipt identity and the re-bound model's identity,
+/// then the declared inputs of the request (binding, population structure, provider).
+fn question_digest(
+    receipt: &[u8],
+    model: &[u8],
+    request: &MeasurementTransportRequest,
+) -> Result<[u8; 32], CausalError> {
+    let mut question = CanonicalWriter::new("antecedent.measurement_transport.question.v2");
+    question.bytes(receipt).bytes(model);
+    write_declaration(&mut question, request)?;
+    Ok(question.finish())
+}
+
 /// Digest of the outcome-side data: the variant tag, then every field in declaration order,
 /// reals by their bits. Every list is ordered (rows, draws, columns, levels).
 fn input_digest(input: &MeasurementInput) -> [u8; 32] {
@@ -353,12 +366,12 @@ impl Study {
         let transported =
             transport_measurement(&request.models, request.structure.as_ref(), &request.binding)?;
         let receipt = transported.receipt();
-        let mut question = CanonicalWriter::new("antecedent.measurement_transport.question.v2");
-        question
-            .bytes(receipt.identity.as_bytes())
-            .bytes(transported.model().identities().model.as_bytes());
-        write_declaration(&mut question, &request).map_err(|error| lowering_refusal(&error))?;
-        let question = question.finish();
+        let question = question_digest(
+            receipt.identity.as_bytes(),
+            transported.model().identities().model.as_bytes(),
+            &request,
+        )
+        .map_err(|error| lowering_refusal(&error))?;
         let source = input_digest(&request.input);
         let lowered = PointProgram {
             cell: ProgramCell::MeasurementModelTransport,
@@ -512,6 +525,36 @@ fn write_counts(writer: &mut CanonicalWriter, validation: &PopulationValidation)
     ]);
 }
 
+/// The pooled transport's question: the target population and the propagation draws.
+fn pooled_question_digest(request: &PooledDifferentialTransportRequest) -> [u8; 32] {
+    let mut question = CanonicalWriter::new("antecedent.pooled_differential_transport.question.v1");
+    question.text(&request.target_population).word(request.draws as u64);
+    question.finish()
+}
+
+/// The pooled transport's counts: every source population's validation counts in declared
+/// order (the Paule-Mandel pool sums the sources in that order, so the reported bits follow
+/// it; repeated labels are refused by the kernel), the target's own validation sample when it
+/// has one, and the target's recorded positives and size.
+fn pooled_source_digest(request: &PooledDifferentialTransportRequest) -> [u8; 32] {
+    let mut source = CanonicalWriter::new("antecedent.pooled_differential_transport.counts.v1");
+    source.word(request.sources.len() as u64);
+    for validation in &request.sources {
+        write_counts(&mut source, validation);
+    }
+    match &request.target_validation {
+        Some(validation) => {
+            source.word(1);
+            write_counts(&mut source, validation);
+        }
+        None => {
+            source.word(0);
+        }
+    }
+    source.words(&[request.observed_positive, request.observed_total]);
+    source.finish()
+}
+
 impl Study {
     /// Bind a pooled-differential measurement transport into a compiled program.
     ///
@@ -524,25 +567,7 @@ impl Study {
     pub fn compile_pooled_differential_transport(
         request: PooledDifferentialTransportRequest,
     ) -> Result<CompiledPooledDifferentialTransport, CausalError> {
-        let mut question =
-            CanonicalWriter::new("antecedent.pooled_differential_transport.question.v1");
-        question.text(&request.target_population).word(request.draws as u64);
-        let mut source = CanonicalWriter::new("antecedent.pooled_differential_transport.counts.v1");
-        source.word(request.sources.len() as u64);
-        for validation in &request.sources {
-            write_counts(&mut source, validation);
-        }
-        match &request.target_validation {
-            Some(validation) => {
-                source.word(1);
-                write_counts(&mut source, validation);
-            }
-            None => {
-                source.word(0);
-            }
-        }
-        source.words(&[request.observed_positive, request.observed_total]);
-        let (question, source) = (question.finish(), source.finish());
+        let (question, source) = (pooled_question_digest(&request), pooled_source_digest(&request));
         let lowered = PointProgram {
             cell: ProgramCell::PooledDifferentialTransport,
             plan_id: "pooled_differential_transport.v1",
@@ -622,10 +647,100 @@ mod identity_tests {
         ErrorParameter, InvarianceDeclaration, PopulationErrorStructure,
     };
 
+    use antecedent_estimate::measurement_transport_pooled::PopulationValidation;
+
     use super::{
-        MeasurementAnalysisBinding, MeasurementInput, input_digest, write_binding,
-        write_population_structure,
+        MeasurementAnalysisBinding, MeasurementInput, MeasurementTransportRequest,
+        PooledDifferentialTransportRequest, input_digest, pooled_question_digest,
+        pooled_source_digest, question_digest, write_binding, write_population_structure,
     };
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
+    };
+
+    fn question(receipt: u8, model: u8, arm_id: Option<&str>) -> [u8; 32] {
+        let request = MeasurementTransportRequest::new(
+            Vec::new(),
+            None,
+            binding(arm_id),
+            linear(vec![1.0, 2.0]),
+        );
+        question_digest(&[receipt; 32], &[model; 32], &request).expect("encoded")
+    }
+
+    #[test]
+    fn site_compiled_measurement_transport_question_binds_receipt_model_and_declaration() {
+        all_distinct(&[
+            question(0, 0, None),
+            question(1, 0, None),
+            question(0, 1, None),
+            question(1, 2, None),
+            question(2, 1, None),
+            question(0, 0, Some("a")),
+        ]);
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(construct, population)| {
+                let mut declared = binding(None);
+                construct.clone_into(&mut declared.construct_id);
+                population.clone_into(&mut declared.population_id);
+                Some(binding_digest(&declared))
+            },
+        );
+    }
+
+    #[test]
+    fn site_compiled_measurement_transport_invariant_parameters_are_a_set() {
+        set_laws(&[ErrorParameter::Sensitivity, ErrorParameter::Specificity], |invariant| {
+            let declared = PopulationErrorStructure::Invariant(InvarianceDeclaration::new(
+                "source", "target", "analyst", invariant,
+            ));
+            Some(structure_digest(Some(&declared)))
+        });
+    }
+
+    #[test]
+    fn site_compiled_measurement_transport_input_rows_are_ordered() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| Some(input_digest(&linear(outcome.to_vec()))));
+        bit_exact(|value| Some(input_digest(&linear(vec![value, 2.0]))));
+    }
+
+    fn validation(population: &str, true_positive: u64) -> PopulationValidation {
+        PopulationValidation {
+            population: population.to_owned(),
+            true_positive,
+            false_negative: 2,
+            true_negative: 9,
+            false_positive: 1,
+        }
+    }
+
+    fn pooled(sources: &[PopulationValidation]) -> PooledDifferentialTransportRequest {
+        PooledDifferentialTransportRequest::new(sources.to_vec(), "target", 12, 40, 1000)
+    }
+
+    #[test]
+    fn site_compiled_measurement_transport_pooled_sources_are_ordered_and_framed() {
+        let three = [validation("north", 8), validation("south", 5), validation("east", 7)];
+        ordered_laws(&three, |sources| Some(pooled_source_digest(&pooled(sources))));
+        let sources = [validation("north", 8), validation("south", 5)];
+        all_distinct(&[
+            pooled_source_digest(&pooled(&sources)),
+            pooled_source_digest(&pooled(&sources).with_target_validation(validation("t", 3))),
+            pooled_source_digest(&pooled(&sources[..1])),
+            pooled_source_digest(&pooled(&[validation("north", 8), validation("south", 6)])),
+        ]);
+        let mut more_draws = pooled(&sources);
+        more_draws.draws = 2000;
+        let mut elsewhere = pooled(&sources);
+        elsewhere.target_population = "elsewhere".to_owned();
+        all_distinct(&[
+            pooled_question_digest(&pooled(&sources)),
+            pooled_question_digest(&more_draws),
+            pooled_question_digest(&elsewhere),
+        ]);
+    }
 
     fn binding(arm_id: Option<&str>) -> MeasurementAnalysisBinding {
         MeasurementAnalysisBinding {

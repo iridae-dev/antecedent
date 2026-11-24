@@ -713,3 +713,21 @@ pub(super) fn compile_posterior(
     };
     Ok((structures, basis))
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::injective;
+
+    /// `member_key`: the pair (class key, member fingerprint) is ordered and framed, so no
+    /// two different pairs share a key (each word fixed-width under the versioned tag).
+    #[test]
+    fn site_atoms_member_key_frames_the_class_and_the_fingerprint() {
+        let pairs = [(1_u64, 2_u64), (2, 1), (1, 3), (3, 1), (0, 0), (u64::MAX, 0), (0, u64::MAX)];
+        injective(
+            &pairs,
+            |pair| *pair,
+            |&(class, fingerprint)| Some(member_key(class, fingerprint)),
+        );
+    }
+}

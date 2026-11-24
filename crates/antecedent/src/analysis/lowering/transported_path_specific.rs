@@ -124,3 +124,23 @@ pub(crate) fn lower(
     }
     .finish())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::digest;
+    use crate::identity_laws::{ADVERSARIAL_TEXT, all_distinct, injective};
+
+    #[test]
+    fn site_transported_path_specific_component_digest_frames_role_and_value() {
+        injective(&ADVERSARIAL_TEXT, |pair| *pair, |pair| Some(digest(pair.0, pair.1)));
+        // One sealed hex value read in two roles is two different digests.
+        let value = "00ff";
+        all_distinct(&[
+            digest("spec", value),
+            digest("evidence", value),
+            digest("model", value),
+            digest("source_law", value),
+            digest("target_law", value),
+        ]);
+    }
+}

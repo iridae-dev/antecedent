@@ -584,3 +584,174 @@ impl CompiledRepeatCodings {
         fit_repeat_codings(&request.codings.data(), &request.constraints, &request.settings, ctx)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_stats::measurement_error::DetectionAnchor;
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    const COUNTS: ExposureOutcomeCounts =
+        ExposureOutcomeCounts { exposed_cases: 3, cases: 10, exposed_controls: 2, controls: 12 };
+
+    fn rates(sensitivity: f64) -> BinaryErrorRates {
+        BinaryErrorRates {
+            sensitivity,
+            specificity: 0.9,
+            sensitivity_variance: 0.0,
+            specificity_variance: 0.0,
+        }
+    }
+
+    fn misclassification(
+        counts: ExposureOutcomeCounts,
+        structure: ExposureErrorStructure,
+        min_youden: f64,
+    ) -> [u8; 32] {
+        misclassification_bytes(&MisclassificationRequest { counts, structure, min_youden })
+    }
+
+    /// `misclassification_bytes`: the four counts are positional, the error structure is tagged
+    /// and the by-outcome rates keep their outcome level; reals by their bits.
+    #[test]
+    fn site_exposure_measurement_misclassification_tags_the_structure() {
+        let shared = ExposureErrorStructure::Shared(rates(0.8));
+        let by_outcome = |controls: f64, cases: f64| ExposureErrorStructure::ByOutcome {
+            controls: rates(controls),
+            cases: rates(cases),
+        };
+        let swapped = ExposureOutcomeCounts {
+            exposed_cases: 2,
+            cases: 10,
+            exposed_controls: 3,
+            controls: 12,
+        };
+        all_distinct(&[
+            misclassification(COUNTS, shared, 0.1),
+            misclassification(swapped, shared, 0.1),
+            misclassification(COUNTS, by_outcome(0.8, 0.8), 0.1),
+            misclassification(COUNTS, by_outcome(0.8, 0.7), 0.1),
+            misclassification(COUNTS, by_outcome(0.7, 0.8), 0.1),
+            misclassification(COUNTS, shared, 0.2),
+        ]);
+        bit_exact(|x| {
+            Some(misclassification(COUNTS, ExposureErrorStructure::Shared(rates(x)), 0.1))
+        });
+    }
+
+    fn soft(outcome: Vec<f64>, probability: Vec<f64>, method: SoftExposureMethod) -> [u8; 32] {
+        let columns = SoftExposureColumns {
+            outcome,
+            probability,
+            covariates: vec![1.0, 2.0],
+            covariate_count: 1,
+        };
+        soft_exposure_bytes(&SoftExposureRequest { columns, method })
+    }
+
+    /// `soft_exposure_bytes`: the columns are unit-ordered (index `i` of every column is unit
+    /// `i`) and count-framed; the combination method is tagged.
+    #[test]
+    fn site_exposure_measurement_soft_columns_are_unit_ordered() {
+        let probability = vec![0.2, 0.8, 0.5];
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| {
+            Some(soft(outcome.to_vec(), probability.clone(), SoftExposureMethod::PosteriorMean))
+        });
+        let imputation = |seed: u64| SoftExposureMethod::MultipleImputation { draw_count: 2, seed };
+        let supplied = |draws: Vec<f64>| SoftExposureMethod::SuppliedDraws { draws, draw_count: 2 };
+        let pair = || vec![0.2, 0.8];
+        all_distinct(&[
+            soft(vec![1.0, 2.0], pair(), SoftExposureMethod::PosteriorMean),
+            soft(vec![1.0, 2.0], pair(), imputation(1)),
+            soft(vec![1.0, 2.0], pair(), imputation(2)),
+            soft(vec![1.0, 2.0], pair(), supplied(vec![0.0, 1.0, 1.0, 0.0])),
+            soft(vec![1.0, 2.0], pair(), supplied(vec![1.0, 0.0, 0.0, 1.0])),
+            // A value moved across the outcome / probability boundary.
+            soft(vec![1.0], vec![2.0, 0.2, 0.8], SoftExposureMethod::PosteriorMean),
+        ]);
+        bit_exact(|x| Some(soft(vec![x, 2.0], pair(), SoftExposureMethod::PosteriorMean)));
+    }
+
+    fn detection(detected: Vec<bool>, declaration: DetectionDeclaration) -> [u8; 32] {
+        detection_bytes(&DetectionRequest {
+            columns: DetectionColumns { detected, covariate: vec![0.0, 1.0] },
+            declaration,
+            false_positive: FalsePositiveRate::NONE,
+            min_net_detection: 0.1,
+        })
+    }
+
+    fn anchor(covariate: f64) -> DetectionAnchor {
+        DetectionAnchor { covariate, lower: 0.2, upper: 0.9 }
+    }
+
+    fn envelope(
+        direction: DetectionDirection,
+        anchors: &[DetectionAnchor],
+    ) -> DetectionDeclaration {
+        DetectionDeclaration::Partial { direction, anchors: anchors.to_vec() }
+    }
+
+    fn logistic(intercept: f64) -> DetectionDeclaration {
+        DetectionDeclaration::Full(DetectionFunction::Logistic {
+            intercept,
+            slope: 1.0,
+            intercept_variance: 0.0,
+            covariance: 0.0,
+            slope_variance: 0.0,
+        })
+    }
+
+    /// `detection_bytes`: the anchors are ordered (the kernel refuses any order but increasing
+    /// covariate), the declaration form and direction are tagged, the detections are unit-ordered.
+    #[test]
+    fn site_exposure_measurement_detection_tags_the_declaration() {
+        let up = DetectionDirection::Nondecreasing;
+        ordered_laws(&[anchor(0.0), anchor(1.0), anchor(2.0)], |anchors| {
+            Some(detection(vec![true, false], envelope(up, anchors)))
+        });
+        let table = |knots: Vec<f64>, values: Vec<f64>| {
+            DetectionDeclaration::Full(DetectionFunction::Table { knots, values })
+        };
+        all_distinct(&[
+            detection(vec![true, false], logistic(0.5)),
+            detection(vec![false, true], logistic(0.5)),
+            detection(vec![true, false], table(vec![0.0, 1.0], vec![0.5, 0.9])),
+            detection(vec![true, false], table(vec![0.0], vec![1.0, 0.5, 0.9])),
+            detection(vec![true, false], envelope(up, &[anchor(0.0)])),
+            detection(
+                vec![true, false],
+                envelope(DetectionDirection::Nonincreasing, &[anchor(0.0)]),
+            ),
+        ]);
+        bit_exact(|x| Some(detection(vec![true, false], logistic(x))));
+    }
+
+    fn codings(codings: Vec<u8>, lowest_level: Option<Vec<f64>>) -> [u8; 32] {
+        repeat_codings_bytes(&RepeatCodingsRequest {
+            codings: RepeatCodings {
+                codings,
+                units: 2,
+                coding_count: 2,
+                categories: 2,
+                latent_levels: 2,
+            },
+            constraints: LatentClassConstraints { exchangeable: true, lowest_level },
+            settings: LatentClassSettings::default(),
+        })
+    }
+
+    /// `repeat_codings_bytes`: the codings are unit-major and ordered; the declared lowest-level
+    /// law carries a presence word.
+    #[test]
+    fn site_exposure_measurement_repeat_codings_are_ordered() {
+        ordered_laws(&[0_u8, 1, 1, 0], |items| Some(codings(items.to_vec(), None)));
+        all_distinct(&[
+            codings(vec![0, 1, 1, 0], None),
+            codings(vec![0, 1, 1, 0], Some(vec![])),
+            codings(vec![0, 1, 1, 0], Some(vec![0.9, 0.1])),
+        ]);
+        bit_exact(|x| Some(codings(vec![0, 1, 1, 0], Some(vec![x, 0.1]))));
+    }
+}

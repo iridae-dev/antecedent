@@ -250,3 +250,42 @@ pub(crate) fn lower(
     }
     .finish())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::SemanticDigest;
+
+    use super::lower;
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::{EventProcessRoute, ProblemTarget};
+
+    #[test]
+    fn site_events_program_binds_the_route_operation_source_and_parent() {
+        let source = SemanticDigest::from_bytes([1; 32]);
+        let other = SemanticDigest::from_bytes([2; 32]);
+        let identity = |route: EventProcessRoute,
+                        source: SemanticDigest,
+                        operation: &'static str,
+                        parent: Option<SemanticDigest>| {
+            *lower(route, source, 0, operation, "events.site", parent, None)
+                .expect("a lowered event program")
+                .identity()
+                .as_bytes()
+        };
+        all_distinct(&[
+            identity(EventProcessRoute::Forecast, source, "forecast", None),
+            identity(EventProcessRoute::Forecast, other, "forecast", None),
+            identity(EventProcessRoute::Forecast, source, "likelihood", None),
+            identity(EventProcessRoute::Forecast, source, "forecast", Some(other)),
+            identity(EventProcessRoute::Marked, source, "forecast", None),
+        ]);
+        // The question is the source digest itself: the request's canonical encoding.
+        let program =
+            lower(EventProcessRoute::Forecast, source, 0, "forecast", "events.site", None, None)
+                .expect("a lowered event program");
+        assert!(matches!(
+            program.scientific().target(),
+            ProblemTarget::QueryFunctional { query, .. } if query == source.as_bytes()
+        ));
+    }
+}

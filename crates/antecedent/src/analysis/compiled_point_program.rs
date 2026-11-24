@@ -151,3 +151,57 @@ impl PointProgram {
         ))
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_contract::ClaimKind;
+    use antecedent_core::{SemanticDigest, VariableId};
+
+    use super::PointProgram;
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    use crate::planner::lowered::{EvidenceRole, FunctionalKind, ProgramCell};
+
+    fn identity(
+        question: [u8; 32],
+        source: [u8; 32],
+        supplied: &[(&'static str, Option<VariableId>)],
+    ) -> SemanticDigest {
+        PointProgram {
+            cell: ProgramCell::TransportScenarioSet,
+            plan_id: "transport_scenario_set.v1",
+            kind: FunctionalKind::IdentifiedSet,
+            outcome: None,
+            graph_class: "finite_selection_scenario_set",
+            query_variables: std::sync::Arc::from([]),
+            question,
+            source,
+            source_role: EvidenceRole::JointScenarios,
+            evaluator: "site_evaluator",
+            supplied: supplied.to_vec(),
+            rows: 2,
+            columns: 2,
+            input_bytes: 64,
+            claim: ClaimKind::Mixture,
+        }
+        .lower()
+        .expect("a point program lowers")
+        .identity()
+    }
+
+    #[test]
+    fn site_compiled_point_program_lower_binds_the_parts_and_orders_the_supplied_nuisances() {
+        all_distinct(&[
+            identity([0; 32], [0; 32], &[]),
+            identity([1; 32], [0; 32], &[]),
+            identity([0; 32], [1; 32], &[]),
+            identity([1; 32], [2; 32], &[]),
+            identity([2; 32], [1; 32], &[]),
+        ]);
+        let supplied = [
+            ("supplied_grid_regression", Some(VariableId::from_raw(7))),
+            ("supplied_grid_regression", Some(VariableId::from_raw(8))),
+            ("supplied_response_weight", Some(VariableId::from_raw(9))),
+        ];
+        ordered_laws(&supplied, |items| Some(identity([0; 32], [0; 32], items)));
+    }
+}

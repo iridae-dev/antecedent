@@ -1095,4 +1095,41 @@ mod tests {
                 .expect("independent fitted decision replay");
         assert_eq!(replay.decision.decision, result.decision.decision);
     }
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    #[test]
+    fn site_cyclic_posterior_action_decision_question_orders_outputs_and_binds_parts() {
+        let compile = |request: CyclicPosteriorDecisionRequest,
+                       outputs: &[CyclicDecisionOutput],
+                       contract: DecisionContract,
+                       seed: u64| {
+            let ctx = ExecutionContext::for_tests(seed);
+            compile_cyclic_posterior_action_decision(request, outputs.to_vec(), contract, &ctx)
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // Output i becomes the i-th joint chain stage and the first is the reported quantity.
+        crate::identity_laws::ordered_laws(&outputs(), |outputs: &[CyclicDecisionOutput]| {
+            compile(request(), outputs, contract(), 47)
+        });
+        let mut units = contract();
+        units.utility_units = "wishlist_value".into();
+        let mut row = request();
+        row.training[0].values[0] += 0.5;
+        let mut prior = request();
+        prior.prior_sd = 2.0;
+        crate::identity_laws::all_distinct(&[
+            compile(request(), &outputs(), contract(), 47),
+            compile(request(), &outputs(), contract(), 48),
+            compile(request(), &outputs(), units, 47),
+            compile(row, &outputs(), contract(), 47),
+            compile(prior, &outputs(), contract(), 47),
+        ]);
+    }
 }

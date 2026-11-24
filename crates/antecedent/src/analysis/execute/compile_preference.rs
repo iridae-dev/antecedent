@@ -1508,6 +1508,8 @@ fn retained_response(result: &crate::StudyResult) -> Option<antecedent_core::Cau
 
 #[cfg(test)]
 mod tests {
+    use antecedent_design::decision_contract::DecisionCriterion;
+
     use super::*;
 
     #[test]
@@ -1610,5 +1612,76 @@ mod tests {
         assert_ne!(bind::bound_identity("contract", &shifted), base);
         assert_ne!(bind::bound_identity("contract", &causal[..1]), base);
         assert_ne!(bind::bound_identity("contrac", &[pair("tt1", "i1"), pair("t2", "i2")]), base);
+    }
+
+    fn ordinary() -> CompiledContract {
+        CompiledContract::Ordinary(DecisionContract {
+            actions: Vec::new(),
+            utility_units: "units".to_owned(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".to_owned(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        })
+    }
+
+    fn mean_demand() -> PreferenceDemand {
+        PreferenceDemand {
+            quantities: Vec::new(),
+            route: None,
+            requirement: SourceRequirement {
+                any_of: vec![SourceRepresentation::Mean],
+                sampled_needs_error_receipt: false,
+            },
+            representation: SourceRepresentation::Mean,
+            carrier: Some(CarrierDemand::Mean),
+        }
+    }
+
+    fn mean_program() -> DecisionProgram {
+        DecisionProgram {
+            carrier: CarrierDemand::Mean,
+            utility: DecisionProgram::utility_form(None),
+            actions: 0,
+            constraints: 0,
+            chance_threshold: 0.0,
+            utility_unit: None,
+            contract_identity: None,
+            information_value: None,
+            scenario_source: None,
+        }
+    }
+
+    /// `parent_of`: the decision's declaration frames the bound and contract identities, and
+    /// its structure weights are ordered (aligned with the children, in posterior order);
+    /// reals enter by their bits; the children are covered by `parent_identity`.
+    #[test]
+    fn site_compile_preference_parent_of_orders_weights_and_frames_identities() {
+        let children = [
+            Some(SemanticDigest::from_bytes([1; 32])),
+            Some(SemanticDigest::from_bytes([2; 32])),
+            Some(SemanticDigest::from_bytes([3; 32])),
+        ];
+        let parent = |identities: (&str, &str), weights: &[f64]| {
+            parent_of(
+                &ordinary(),
+                (&mean_demand(), mean_program()),
+                identities,
+                (&children[..], weights),
+                Composition::AtomMixture { atoms: children.len() },
+            )
+            .ok()
+            .map(|program| program.identity())
+        };
+        crate::identity_laws::ordered_laws(&[0.5, 0.25, 0.125], |weights| {
+            parent(("bound", "contract"), weights)
+        });
+        crate::identity_laws::bit_exact(|x| parent(("bound", "contract"), &[x, 0.25, 0.125]));
+        crate::identity_laws::injective(
+            &crate::identity_laws::ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&parts| parent(parts, &[0.5, 0.25, 0.125]),
+        );
     }
 }

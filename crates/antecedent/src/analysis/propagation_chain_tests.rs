@@ -412,3 +412,66 @@ fn the_chain_reads_the_support_decision_of_its_unit_and_execution_consults_it() 
         executed.expect("the chain runs");
     }
 }
+
+/// The chain layer as released: the dependence status rendered through `Debug`.
+fn released_chain_digest(program: &crate::planner::lowered::ChainProgram) -> [u8; 32] {
+    let mut writer = antecedent_core::CanonicalWriter::new("antecedent.test.chain_layer");
+    writer.text(program.declaration_identity()).text(program.plan().label);
+    writer.word(program.plan().stages.len() as u64);
+    for stage in &program.plan().stages {
+        writer.text(&stage.id).text(stage.kind.as_str()).text(stage.representation.as_str());
+        writer.texts(&stage.sources);
+        match &stage.dependence {
+            Some(dependence) => {
+                writer.word(1).text(&format!("{:?}", dependence.status)).texts(&dependence.shared);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+    }
+    writer.finish()
+}
+
+fn chain_digest(program: &crate::planner::lowered::ChainProgram) -> [u8; 32] {
+    let mut writer = antecedent_core::CanonicalWriter::new("antecedent.test.chain_layer");
+    program.write(&mut writer);
+    writer.finish()
+}
+
+#[test]
+fn site_chain_program_writes_the_dependence_status_by_its_fixed_word() {
+    use crate::planner::lowered::ChainProgram;
+    use antecedent_contract::dependence::DependenceStatus;
+    let statuses =
+        [DependenceStatus::Independent, DependenceStatus::Dependent, DependenceStatus::Unknown];
+    // The identity word is the name released identities hashed through `Debug`.
+    for status in statuses {
+        assert_eq!(status.identity_word(), format!("{status:?}"));
+    }
+    let plan =
+        compile_propagation_chain(draft(ChainReading::Spread, LawMeaning::Posterior), &ctx())
+            .expect("compiles");
+    let program = plan.lowered().propagation_chain().expect("the program carries the chain");
+    assert!(
+        program.plan().stages.iter().any(|stage| stage.dependence.is_some()),
+        "the draft has a combining stage"
+    );
+    assert_eq!(chain_digest(program), released_chain_digest(program), "released bytes kept");
+    // Every status is its own program.
+    let with_status = |status: DependenceStatus| {
+        let mut chain_plan = program.plan().clone();
+        for stage in &mut chain_plan.stages {
+            if let Some(dependence) = stage.dependence.as_mut() {
+                dependence.status = status;
+            }
+        }
+        chain_digest(&ChainProgram::new(
+            program.draft().clone(),
+            program.deferred().cloned(),
+            chain_plan,
+            program.declaration_identity().to_owned(),
+        ))
+    };
+    crate::identity_laws::all_distinct(&statuses.map(with_status));
+}

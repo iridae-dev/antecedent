@@ -30,6 +30,9 @@ pub struct PopulationReferenceBindings {
 pub struct PopulationReferenceTransportProof {
     diagram: SelectionDiagram,
     identity: SemanticDigest,
+    /// The same theorem under the released encoding, which an archived artifact's numeric
+    /// digest may bind.
+    released: SemanticDigest,
 }
 impl PopulationReferenceTransportProof {
     /// Exact source/target mechanism-invariance diagram consumed by the proof.
@@ -41,6 +44,12 @@ impl PopulationReferenceTransportProof {
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         self.identity
+    }
+    /// The identity under the released encoding (unlabelled, insertion-ordered graph wire),
+    /// accepted when an archived artifact is replayed.
+    #[must_use]
+    pub(crate) const fn released_identity(&self) -> SemanticDigest {
+        self.released
     }
     /// Identifying functional; exogenous-root intervention equals baseline conditioning.
     #[must_use]
@@ -200,26 +209,10 @@ fn validate_transport(
             return Err(invalid("transport graph omits an intervention component"));
         }
     }
-    let graph_wire = antecedent_io::admg_to_wire(graph).map_err(JointPanelError::compile)?;
-    let bytes = antecedent_io::convert::to_cbor(&graph_wire).map_err(JointPanelError::compile)?;
-    let mut writer =
-        antecedent_core::CanonicalWriter::new("antecedent.reference.population.root_transport.v1");
-    writer
-        .bytes(source.question_identity().as_bytes())
-        .bytes(&bytes)
-        .word(u64::from(bindings.baseline.raw()));
-    for (j, stratum) in bindings.strata.iter().enumerate() {
-        writer
-            .word(stratum.to_bits())
-            .word(bindings.before_weights[j].to_bits())
-            .word(bindings.after_weights[j].to_bits());
-        for id in bindings.stratum_worlds[j] {
-            writer.word(u64::from(id.raw()));
-        }
-    }
     Ok(PopulationReferenceTransportProof {
         diagram: diagram.clone(),
-        identity: SemanticDigest::from_bytes(writer.finish()),
+        identity: transport_identity(source.question_identity(), diagram, bindings)?,
+        released: released_transport_identity(source.question_identity(), diagram, bindings)?,
     })
 }
 /// Standardize identified root-stratum responses to separately supplied population laws.
@@ -455,5 +448,142 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             }
             Err(error) => Err(error),
         }
+    }
+}
+
+/// Identity of the root-covariate transport theorem: the source question, the diagram's
+/// canonical identity wire (nodes by label, edges sorted) and its selection targets as a
+/// sorted set, the baseline, then the strata in declared order (count-prefixed), each with
+/// its before and after weights by their bits and its world basis. Strata are ordered: the
+/// mixture is summed in that order and the weights and world bases are aligned with it.
+fn transport_identity(
+    question: SemanticDigest,
+    diagram: &SelectionDiagram,
+    bindings: &PopulationReferenceBindings,
+) -> Result<SemanticDigest, JointPanelError> {
+    let graph =
+        antecedent_io::admg_identity(diagram.causal_graph()).map_err(JointPanelError::compile)?;
+    let bytes = antecedent_io::convert::to_cbor(&graph).map_err(JointPanelError::compile)?;
+    let mut targets: Vec<u64> =
+        diagram.selection_targets().iter().map(|v| u64::from(v.raw())).collect();
+    targets.sort_unstable();
+    targets.dedup();
+    let mut writer =
+        antecedent_core::CanonicalWriter::new("antecedent.reference.population.root_transport.v2");
+    writer
+        .bytes(question.as_bytes())
+        .bytes(&bytes)
+        .words(&targets)
+        .word(u64::from(bindings.baseline.raw()))
+        .word(bindings.strata.len() as u64);
+    for (j, stratum) in bindings.strata.iter().enumerate() {
+        writer.real(*stratum).real(bindings.before_weights[j]).real(bindings.after_weights[j]);
+        for id in bindings.stratum_worlds[j] {
+            writer.word(u64::from(id.raw()));
+        }
+    }
+    Ok(SemanticDigest::from_bytes(writer.finish()))
+}
+
+/// The released identity of the same theorem: the diagram's dense, insertion-ordered graph
+/// wire without its labels and the strata without a count. Kept byte-identical so an artifact
+/// whose numeric digest binds it still replays.
+fn released_transport_identity(
+    question: SemanticDigest,
+    diagram: &SelectionDiagram,
+    bindings: &PopulationReferenceBindings,
+) -> Result<SemanticDigest, JointPanelError> {
+    let graph = diagram.causal_graph();
+    let graph_wire = antecedent_io::admg_to_wire(graph).map_err(JointPanelError::compile)?;
+    let bytes = antecedent_io::convert::to_cbor(&graph_wire).map_err(JointPanelError::compile)?;
+    let mut writer =
+        antecedent_core::CanonicalWriter::new("antecedent.reference.population.root_transport.v1");
+    writer.bytes(question.as_bytes()).bytes(&bytes).word(u64::from(bindings.baseline.raw()));
+    for (j, stratum) in bindings.strata.iter().enumerate() {
+        writer
+            .word(stratum.to_bits())
+            .word(bindings.before_weights[j].to_bits())
+            .word(bindings.after_weights[j].to_bits());
+        for id in bindings.stratum_worlds[j] {
+            writer.word(u64::from(id.raw()));
+        }
+    }
+    Ok(SemanticDigest::from_bytes(writer.finish()))
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    use antecedent_graph::admg::Admg;
+
+    fn diagram(labels: &[u32], edges: &[(u32, u32)], targets: &[u32]) -> SelectionDiagram {
+        let mut graph = Admg::empty();
+        for &label in labels {
+            graph.add_node(NodeRef::Static(VariableId::from_raw(label))).unwrap();
+        }
+        for &(from, to) in edges {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let targets: Vec<VariableId> = targets.iter().map(|&t| VariableId::from_raw(t)).collect();
+        SelectionDiagram::try_new(graph, targets).unwrap()
+    }
+
+    fn basis(offset: u32) -> [ScientificWorldId; 16] {
+        std::array::from_fn(|i| ScientificWorldId::from_raw(offset + i as u32))
+    }
+
+    fn bindings(strata: &[f64]) -> PopulationReferenceBindings {
+        let n = strata.len();
+        PopulationReferenceBindings {
+            baseline: VariableId::from_raw(0),
+            strata: strata.to_vec(),
+            stratum_worlds: (0..n).map(|j| basis(16 * j as u32)).collect(),
+            before_weights: vec![1.0 / n as f64; n],
+            after_weights: (0..n).map(|j| if j == 0 { 1.0 } else { 0.0 }).collect(),
+            components: ReferenceComponentBindings {
+                exposure: vec![VariableId::from_raw(1)],
+                saturation: vec![],
+                mechanism: vec![],
+                hybrids: basis(0),
+                order: [
+                    super::super::ChangeComponent::Exposure,
+                    super::super::ChangeComponent::Saturation,
+                    super::super::ChangeComponent::Population,
+                    super::super::ChangeComponent::Mechanism,
+                ],
+            },
+        }
+    }
+
+    #[test]
+    fn site_joint_panel_population_transport_binds_the_labelled_graph_and_ordered_strata() {
+        let question = SemanticDigest::from_bytes([1; 32]);
+        let id = |d: &SelectionDiagram, b: &PopulationReferenceBindings| {
+            transport_identity(question, d, b).unwrap()
+        };
+        let released = |d: &SelectionDiagram, b: &PopulationReferenceBindings| {
+            released_transport_identity(question, d, b).unwrap()
+        };
+        let two = bindings(&[0.0, 1.0]);
+        let base = diagram(&[0, 1, 2], &[(0, 2), (1, 2)], &[0]);
+        // The graph is its labelled identity wire: insertion and dense order are not meaning.
+        assert_eq!(id(&base, &two), id(&diagram(&[0, 1, 2], &[(1, 2), (0, 2)], &[0]), &two));
+        assert_eq!(id(&base, &two), id(&diagram(&[2, 1, 0], &[(2, 0), (1, 0)], &[0]), &two));
+        // The same edges over other variables are another theorem; the released encoding,
+        // which wrote the graph without its labels, did not see the difference.
+        let relabelled = diagram(&[0, 1, 3], &[(0, 2), (1, 2)], &[0]);
+        assert_ne!(id(&base, &two), id(&relabelled, &two));
+        assert_eq!(released(&base, &two), released(&relabelled, &two));
+        // Strata are ordered: the mixture is summed in their order, aligned with their weights
+        // and world bases.
+        ordered_laws(&[0.0, 1.0, 2.0], |strata| Some(id(&base, &bindings(strata))));
+        bit_exact(|x| Some(id(&base, &bindings(&[x, 1.0]))));
+        all_distinct(&[
+            id(&base, &two),
+            id(&base, &bindings(&[0.0, 1.0, 2.0])),
+            transport_identity(SemanticDigest::from_bytes([2; 32]), &base, &two).unwrap(),
+            released(&base, &two),
+        ]);
     }
 }

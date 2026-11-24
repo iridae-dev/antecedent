@@ -39,7 +39,7 @@ impl PanelFutureRegime {
     /// Identity of this regime as declared for the candidate `study`: the study identity,
     /// bridge, functional, paired mapping and mapping origin. The ranking program binds it
     /// before the regime is validated against the law.
-    fn declaration_identity(&self, study: &str) -> SemanticDigest {
+    pub(super) fn declaration_identity(&self, study: &str) -> SemanticDigest {
         let mut writer =
             CanonicalWriter::new("antecedent.joint_panel.future_regime_declaration.v1");
         writer.text(study).bytes(self.bridge.identity().as_bytes());
@@ -199,19 +199,7 @@ impl PanelExperimentResult {
         regime: &PanelFutureRegime,
         weights: &[Vec<f64>],
     ) -> SemanticDigest {
-        let mut writer = antecedent_core::CanonicalWriter::new("antecedent.panel.future_regime.v1");
-        writer
-            .bytes(regime.bridge.identity().as_bytes())
-            .bytes(self.dependency.as_bytes())
-            .text(&regime.mapping_evidence.to_hex())
-            .word(weights.iter().map(Vec::len).sum::<usize>() as u64);
-        for value in weights.iter().flatten() {
-            writer.word(value.to_bits());
-        }
-        for value in regime.mapping.intercepts.iter().chain(&regime.mapping.slopes) {
-            writer.word(value.to_bits());
-        }
-        SemanticDigest::from_bytes(writer.finish())
+        future_regime_digest(regime, self.dependency, weights)
     }
 
     /// Rank candidate studies, each in its own regime, by the value of the update it would cause.
@@ -299,25 +287,10 @@ impl PanelExperimentResult {
         observed_mean: f64,
         ledger: &EvidenceLedger,
     ) -> Result<PanelFutureStudyUpdate, JointPanelError> {
-        let mut declared = CanonicalWriter::new("antecedent.joint_panel.future_study_outcome.v1");
-        declared
-            .bytes(self.dependency.as_bytes())
-            .text(&study.sample.id)
-            .word(study.sample.sample_size)
-            .real(study.sample.observation_variance)
-            .real(observed_mean);
-        match &study.regime {
-            Some(regime) => {
-                declared.word(1).bytes(regime.declaration_identity(&study.sample.id).as_bytes());
-            }
-            None => {
-                declared.word(0);
-            }
-        }
         let program = lower(
             ExperimentOperation::Condition,
             self.program.identity(),
-            SemanticDigest::from_bytes(declared.finish()),
+            future_study_outcome_digest(self.dependency, study, observed_mean),
             law_bytes(&self.law),
             None,
         )?;
@@ -392,4 +365,56 @@ fn mapped_means(
         return Err(JointPanelError::compile("future experiment mapped mean overflow"));
     }
     Ok(means)
+}
+
+/// Identity of a regime as the ranking binds it: the bridge, the update's dependency, the
+/// mapping origin, the projection weights (one row per world, flattened in world and period
+/// order behind their total count) and the paired mapping (intercepts then slopes, one per draw
+/// slot). Every list is ordered: weight `t` of world `w` weighs period `t`, realization `s`
+/// pairs with draw `s`. The row widths and the realization count are fixed by the dependency
+/// (the target's worlds and the retained draws), so the flattening is injective.
+pub(super) fn future_regime_digest(
+    regime: &PanelFutureRegime,
+    dependency: SemanticDigest,
+    weights: &[Vec<f64>],
+) -> SemanticDigest {
+    let mut writer = antecedent_core::CanonicalWriter::new("antecedent.panel.future_regime.v1");
+    writer
+        .bytes(regime.bridge.identity().as_bytes())
+        .bytes(dependency.as_bytes())
+        .text(&regime.mapping_evidence.to_hex())
+        .word(weights.iter().map(Vec::len).sum::<usize>() as u64);
+    for value in weights.iter().flatten() {
+        writer.word(value.to_bits());
+    }
+    for value in regime.mapping.intercepts.iter().chain(&regime.mapping.slopes) {
+        writer.word(value.to_bits());
+    }
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+/// Identity of a hypothetical outcome of a candidate study, the trial evidence its condition
+/// program cites: the update's dependency, the study id, its sample model, the outcome by its
+/// bits and the declared regime behind a presence word.
+pub(super) fn future_study_outcome_digest(
+    dependency: SemanticDigest,
+    study: &PanelFutureStudy,
+    observed_mean: f64,
+) -> SemanticDigest {
+    let mut declared = CanonicalWriter::new("antecedent.joint_panel.future_study_outcome.v1");
+    declared
+        .bytes(dependency.as_bytes())
+        .text(&study.sample.id)
+        .word(study.sample.sample_size)
+        .real(study.sample.observation_variance)
+        .real(observed_mean);
+    match &study.regime {
+        Some(regime) => {
+            declared.word(1).bytes(regime.declaration_identity(&study.sample.id).as_bytes());
+        }
+        None => {
+            declared.word(0);
+        }
+    }
+    SemanticDigest::from_bytes(declared.finish())
 }

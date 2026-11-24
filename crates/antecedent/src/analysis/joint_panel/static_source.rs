@@ -55,33 +55,9 @@ impl PreparedStudy<JointPanelState> {
         validate_static_source(self, &proof, proof_data)?;
         let original = proof.source_identification();
         let current_worlds = contracts::target_worlds(&self.request().target)?;
-        let graph = match proof.source_graph().graph_ref() {
-            crate::accepted::GraphRef::Dag(graph) => (
-                GraphFamily::Dag,
-                antecedent_io::to_cbor(
-                    &antecedent_io::dag_to_wire(graph).map_err(JointPanelError::compile)?,
-                )
-                .map_err(JointPanelError::compile)?,
-            ),
-            crate::accepted::GraphRef::Admg(graph) => (
-                GraphFamily::Admg,
-                antecedent_io::to_cbor(
-                    &antecedent_io::admg_to_wire(graph).map_err(JointPanelError::compile)?,
-                )
-                .map_err(JointPanelError::compile)?,
-            ),
-            _ => {
-                return Err(JointPanelError::Unsupported(
-                    "static source has no accepted point graph".into(),
-                ));
-            }
-        };
-        let mut writer = CanonicalWriter::new("antecedent.panel.static_source_binding.v1");
-        writer
-            .bytes(&graph.1)
-            .bytes(&proof.source_digest())
-            .bytes(proof.identification().identity().as_bytes());
-        let binding = SemanticDigest::from_bytes(writer.finish());
+        let graph = source_graph(proof.source_graph().graph_ref())?;
+        let binding =
+            static_binding(&graph.1, &proof.source_digest(), &proof.identification().identity());
         let mut assumptions = self.request().target.assumptions().records().clone();
         assumptions.extend_unique(&original.required_assumptions.entries);
         assumptions.push(AssumptionRecord{assumption:Assumption::Custom{id:"panel.static_empirical_source_identity".into(),description:binding.to_hex().into()},source:AssumptionSource::Derived{from:"retained static common-adjustment proof with exact balanced empirical row/group law".into()},scope:AssumptionScope::Identification,status:AssumptionStatus::Supported});
@@ -378,4 +354,85 @@ fn exact_rows_and_context(
         }
     }
     Ok(())
+}
+
+/// The family and identity wire of a static source graph: its canonical identity wire (nodes
+/// by label, edge lists sorted), so the same graph built in another insertion or dense order
+/// binds the same source.
+fn source_graph(
+    graph: crate::accepted::GraphRef<'_>,
+) -> Result<(GraphFamily, Vec<u8>), JointPanelError> {
+    match graph {
+        crate::accepted::GraphRef::Dag(graph) => Ok((
+            GraphFamily::Dag,
+            antecedent_io::to_cbor(
+                &antecedent_io::dag_identity(graph).map_err(JointPanelError::compile)?,
+            )
+            .map_err(JointPanelError::compile)?,
+        )),
+        crate::accepted::GraphRef::Admg(graph) => Ok((
+            GraphFamily::Admg,
+            antecedent_io::to_cbor(
+                &antecedent_io::admg_identity(graph).map_err(JointPanelError::compile)?,
+            )
+            .map_err(JointPanelError::compile)?,
+        )),
+        _ => Err(JointPanelError::Unsupported("static source has no accepted point graph".into())),
+    }
+}
+
+/// The static empirical source binding: the graph's identity wire, the proof's source digest
+/// and its identification identity, each framed. It is written into the target as an
+/// assumption and never stored apart from it, so no released binding is re-checked.
+fn static_binding(graph: &[u8], source: &[u8], identification: &SemanticDigest) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new("antecedent.panel.static_source_binding.v2");
+    writer.bytes(graph).bytes(source).bytes(identification.as_bytes());
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::{source_graph, static_binding};
+    use crate::accepted::GraphRef;
+    use crate::identity_laws::{all_distinct, set_laws};
+    use antecedent_core::{SemanticDigest, VariableId};
+    use antecedent_graph::{Dag, DenseNodeId, NodeRef};
+
+    fn graph_bytes(labels: &[u32], edges: &[(u32, u32)]) -> Vec<u8> {
+        let mut dag = Dag::empty();
+        for &label in labels {
+            dag.add_node(NodeRef::Static(VariableId::from_raw(label))).unwrap();
+        }
+        for &(from, to) in edges {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        source_graph(GraphRef::Dag(&dag)).unwrap().1
+    }
+
+    #[test]
+    fn site_joint_panel_static_source_binds_the_labelled_graph_as_a_set_of_edges() {
+        // The proof's graph is its labelled identity wire: edges are a set (the graph refuses a
+        // repeat), and neither insertion order nor dense order is meaning.
+        set_laws(&[(0, 1), (0, 2), (1, 2)], |edges| {
+            let mut seen = std::collections::BTreeSet::new();
+            if !edges.iter().all(|edge| seen.insert(*edge)) {
+                return None;
+            }
+            Some(graph_bytes(&[0, 1, 2], edges))
+        });
+        assert_eq!(graph_bytes(&[0, 1, 2], &[(0, 1)]), graph_bytes(&[1, 0, 2], &[(1, 0)]));
+        all_distinct(&[
+            graph_bytes(&[0, 1, 2], &[(0, 1)]),
+            graph_bytes(&[5, 6, 7], &[(0, 1)]),
+            graph_bytes(&[0, 1, 2], &[(1, 0)]),
+        ]);
+        let graph = graph_bytes(&[0, 1, 2], &[(0, 1)]);
+        let identification = SemanticDigest::from_bytes([1; 32]);
+        all_distinct(&[
+            static_binding(&graph, &[1; 32], &identification),
+            static_binding(&graph, &[2; 32], &identification),
+            static_binding(&graph, &[1; 32], &SemanticDigest::from_bytes([2; 32])),
+            static_binding(&graph_bytes(&[0, 1, 2], &[(1, 2)]), &[1; 32], &identification),
+        ]);
+    }
 }

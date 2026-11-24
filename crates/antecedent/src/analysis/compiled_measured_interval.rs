@@ -175,3 +175,45 @@ impl MeasuredIntervalProgram {
         ))
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_contract::ClaimKind;
+    use antecedent_core::SemanticDigest;
+
+    use super::{MeasuredIntervalProgram, frequentist};
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::{EvidenceRole, FunctionalKind, ProgramCell, UncertaintyReading};
+
+    fn identity(question: [u8; 32], source: [u8; 32]) -> SemanticDigest {
+        MeasuredIntervalProgram {
+            cell: ProgramCell::CohortMeanInterval,
+            plan_id: "cohort_mean_interval.v1",
+            kind: FunctionalKind::AssignmentContrast,
+            graph_class: "as_the_cohort_mean_contrast_route",
+            question,
+            source,
+            source_role: EvidenceRole::Observations,
+            realization: frequentist("ols_hc3_treatment_by_basis_student_t", "site")
+                .expect("score"),
+            uncertainty: UncertaintyReading::Sampling,
+            rows: 3,
+            columns: 2,
+            claim: ClaimKind::Point,
+        }
+        .lower()
+        .expect("a measured interval program lowers")
+        .identity()
+    }
+
+    #[test]
+    fn site_compiled_measured_interval_lower_binds_the_question_and_the_source_in_place() {
+        all_distinct(&[
+            identity([0; 32], [0; 32]),
+            identity([1; 32], [0; 32]),
+            identity([0; 32], [1; 32]),
+            identity([1; 32], [2; 32]),
+            identity([2; 32], [1; 32]),
+        ]);
+    }
+}

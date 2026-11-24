@@ -4306,6 +4306,10 @@ mod joint_transport_bundle_tests;
 #[path = "composition_predictive_bundle_tests.rs"]
 mod predictive_bundle_tests;
 
+#[cfg(test)]
+#[path = "composition_site_tests.rs"]
+mod site_tests;
+
 #[path = "composition_sequential_bundle.rs"]
 mod sequential_live;
 pub use sequential_live::*;

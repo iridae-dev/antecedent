@@ -24,7 +24,8 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_expr::ExactTransportData;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::BoundZTransportFunctional;
-use antecedent_io_core::expr_wire::expr_arena_to_wire;
+use antecedent_io_core::TransportIdentityWire;
+use antecedent_io_core::expr_wire::{ExprArenaWire, expr_arena_to_wire};
 use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
 use antecedent_io_core::transport_query_wire::ZTransportQueryWire;
 use antecedent_validate::{
@@ -69,9 +70,13 @@ pub fn compile_z_transport_mechanism_sensitivity(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportMechanismSensitivity, CausalError> {
     admit_compile(ctx)?;
+    // Both wires are encoded before the question is written: an input that does not encode
+    // refuses the compile, so no error text ever enters the identity.
+    let diagram_wire = antecedent_io_core::transport_identity(Some(&diagram), None)?;
+    let arena_wire = expr_arena_to_wire(functional.arena())?;
     let question = Declaration::new("antecedent.z_transport_mechanism_sensitivity.v2")
-        .field("diagram", &DiagramField(&diagram))
-        .field("functional", &FunctionalField(&functional))
+        .field("diagram", &DiagramField { diagram: &diagram, wire: &diagram_wire })
+        .field("functional", &FunctionalField { functional: &functional, arena: &arena_wire })
         .field("data", &DataField(&data))
         .field("max_fraction", &max_fraction)
         .field("decision_threshold", &decision_threshold)
@@ -139,37 +144,33 @@ impl CompiledZTransportMechanismSensitivity {
 
 // --- canonical identity of the declared inputs -----------------------------------------------
 
-/// A selection diagram by io-core's transport identity wire.
-struct DiagramField<'a>(&'a SelectionDiagram);
+/// A selection diagram by io-core's transport identity wire (encoded before the question).
+struct DiagramField<'a> {
+    diagram: &'a SelectionDiagram,
+    wire: &'a TransportIdentityWire,
+}
 
 impl Canonical for DiagramField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
-        match antecedent_io_core::transport_identity(Some(self.0), None) {
-            Ok(wire) => Wire(&wire).encode(out),
-            Err(error) => {
-                out.text("unencodable").text(&error.to_string());
-            }
-        }
+        Wire(self.wire).encode(out);
         // The wire indexes dense nodes; each dense node's label names its variable.
-        self.0.causal_graph().nodes().encode(out);
+        self.diagram.causal_graph().nodes().encode(out);
     }
 }
 
 /// A catalog-bound z functional: its derivation record and query wire, its provider-bound arena
 /// and root, its catalog (canonical when it canonicalizes) and its cited regimes in order.
-struct FunctionalField<'a>(&'a BoundZTransportFunctional);
+struct FunctionalField<'a> {
+    functional: &'a BoundZTransportFunctional,
+    arena: &'a ExprArenaWire,
+}
 
 impl Canonical for FunctionalField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
-        let functional = self.0;
+        let functional = self.functional;
         Wire(&functional.derivation().to_record()).encode(out);
         Wire(&ZTransportQueryWire::from_query(functional.derivation().query())).encode(out);
-        match expr_arena_to_wire(functional.arena()) {
-            Ok(wire) => Wire(&wire).encode(out),
-            Err(error) => {
-                out.text("unencodable").text(&error.to_string());
-            }
-        }
+        Wire(self.arena).encode(out);
         out.word(u64::from(functional.root().raw()));
         if let Ok(canonical) = functional.catalog().canonicalized() {
             variant(out, "canonical");
@@ -195,5 +196,58 @@ impl Canonical for DataField<'_> {
             out.bytes(identity.as_bytes());
         }
         out.word(self.0.max_support_rows() as u64);
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::SemanticDigest;
+
+    use super::*;
+    use crate::analysis::z_transport::tests::fixture;
+    use crate::identity_laws::{all_distinct, bit_exact};
+
+    fn identity(
+        reverse_laws: bool,
+        max_fraction: f64,
+        decision_threshold: Option<f64>,
+    ) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        let (diagram, functional, data, _) = fixture(false);
+        let data = if reverse_laws {
+            let mut laws = data.laws().to_vec();
+            laws.reverse();
+            ExactTransportData::try_new(laws, data.max_support_rows()).unwrap()
+        } else {
+            data
+        };
+        compile_z_transport_mechanism_sensitivity(
+            diagram,
+            functional,
+            data,
+            max_fraction,
+            decision_threshold,
+            &ctx,
+        )
+        .unwrap()
+        .lowered()
+        .identity()
+    }
+
+    /// `compile_z_transport_mechanism_sensitivity`: the diagram and the arena enter by wires
+    /// encoded before the question (an input that does not encode refuses the compile, so no
+    /// error text is hashed); the laws' content identities are ordered (the provider takes each
+    /// coordinate's domain order from the first law listing it); the bound and the optional
+    /// threshold (presence word) by their bits.
+    #[test]
+    fn site_z_transport_sensitivity_reads_every_declared_input() {
+        all_distinct(&[
+            identity(false, 0.1, None),
+            identity(true, 0.1, None),
+            identity(false, 0.2, None),
+            identity(false, 0.1, Some(0.0)),
+            identity(false, 0.1, Some(0.5)),
+        ]);
+        bit_exact(|fraction| Some(identity(false, fraction, None)));
     }
 }

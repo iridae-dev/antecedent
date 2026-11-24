@@ -357,4 +357,25 @@ mod tests {
         assert_eq!(update.claim().uncertainty(), UncertaintyReading::Posterior);
         assert_eq!(update.semantic_identity(), Some(update.identity()));
     }
+
+    #[test]
+    fn site_joint_panel_experiment_question_tags_the_operation_and_orders_its_parts() {
+        use crate::identity_laws::all_distinct;
+        use crate::planner::lowered::ProblemTarget;
+        let parent = SemanticDigest::from_bytes([1; 32]);
+        let experiment = SemanticDigest::from_bytes([2; 32]);
+        let question = |operation, parent, experiment| {
+            let program = lower(operation, parent, experiment, 0, None).unwrap();
+            match program.scientific().target() {
+                ProblemTarget::QueryFunctional { query, .. } => *query,
+                _ => panic!("an experiment program answers a query functional"),
+            }
+        };
+        let mut questions: Vec<[u8; 32]> =
+            OPERATIONS.iter().map(|&operation| question(operation, parent, experiment)).collect();
+        // The parent and the experiment are two roles: exchanging them is another question.
+        questions.push(question(ExperimentOperation::Condition, experiment, parent));
+        questions.push(question(ExperimentOperation::Condition, parent, parent));
+        all_distinct(&questions);
+    }
 }

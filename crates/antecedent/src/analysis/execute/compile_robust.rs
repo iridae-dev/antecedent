@@ -283,3 +283,243 @@ impl PreparedStudy {
         compile(self.study(), &self.contract()?, decision, source, ctx)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::RefuteSuite;
+    use crate::analysis::attached_decision::parent_identity;
+    use crate::analysis::program_handle::CompiledProgramHandle;
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::{EvidenceRole, NonGraphicalIdentification};
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_core::{AverageEffectQuery, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_design::decision_adapters::{
+        ClaimProbability, SuppliedClaim, adapt_finite_scenarios,
+    };
+    use antecedent_design::decision_contract::{
+        ActionKind, AdmissibilityRules, AdmissibleDecisionContract, DecisionAction,
+        DecisionContract, DecisionCriterion, UtilityExpr,
+    };
+    use antecedent_design::decision_robustness::AtomSupport;
+    use antecedent_design::decision_structural::AtomEvidence;
+    use antecedent_estimate::LinearAdjustmentAte;
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_io::distribution_artifact::{
+        DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+        DistributionProvenance, DistributionTrust, DrawAlignment,
+    };
+    use antecedent_io::quantity_wire::DistributionMeaningWire;
+
+    fn prepared(ctx: &ExecutionContext) -> PreparedStudy {
+        let t = [0., 1., 0., 1., 0., 1., 0., 1.];
+        let z = [0., 0., 1., 1., 0., 0., 1., 1.];
+        let y = [0., 2., 1., 3., 1., 3., 2., 4.];
+        let data = TabularData::from_f64_columns(vec![
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (a, b) in [(2, 0), (2, 1), (0, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(0))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(ctx)
+            .unwrap()
+    }
+
+    fn quantity(name: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: name.into(),
+            variable_name: name.into(),
+            role: QuantityRole::Outcome,
+            units: "units".into(),
+            population_id: "target".into(),
+            regime_id: "do(joint)".into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn law(values: Vec<f64>) -> Box<DistributionArtifact> {
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::InterventionalPredictive,
+            &[quantity("a"), quantity("b")],
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "declared".into(),
+                provider_id: "enumeration".into(),
+                rng_id: "none".into(),
+                snapshot_id: "fixture".into(),
+                causal_contract_id: "conditional".into(),
+            },
+        )
+        .unwrap();
+        Box::new(
+            DistributionArtifact::new(
+                DistributionMetadata {
+                    version: 1,
+                    identity,
+                    axes: ["draw".into(), "quantity".into()],
+                    shape: [2, 2],
+                    weights: None,
+                    supported: None,
+                    calibration: DistributionCalibration::Exact,
+                    trust: DistributionTrust::Unverified,
+                    legacy_posterior: None,
+                    legacy_bindings: None,
+                },
+                values,
+            )
+            .unwrap(),
+        )
+    }
+
+    fn contract(policy: StructuralPolicy) -> AdmissibleDecisionContract {
+        AdmissibleDecisionContract {
+            contract: DecisionContract {
+                actions: vec![
+                    DecisionAction {
+                        id: "pair".into(),
+                        kind: ActionKind::Intervention,
+                        inputs: vec![quantity("a"), quantity("b")],
+                        utility: UtilityExpr::Mul(
+                            Box::new(UtilityExpr::Input(0)),
+                            Box::new(UtilityExpr::Input(1)),
+                        ),
+                    },
+                    DecisionAction {
+                        id: "safe".into(),
+                        kind: ActionKind::Intervention,
+                        inputs: vec![quantity("a")],
+                        utility: UtilityExpr::sum(
+                            UtilityExpr::product(UtilityExpr::Const(0.), UtilityExpr::Input(0)),
+                            UtilityExpr::Const(0.3),
+                        ),
+                    },
+                ],
+                utility_units: "units".into(),
+                criterion: DecisionCriterion::PosteriorExpectedUtility,
+                constraints: vec![],
+                target_population: "target".into(),
+                horizon: 0,
+                structural_policy: policy,
+            },
+            rules: AdmissibilityRules::default(),
+        }
+    }
+
+    fn scenario(id: &str, values: Vec<f64>) -> SuppliedClaim {
+        SuppliedClaim {
+            id: id.into(),
+            probability: ClaimProbability::CompletionCount(1),
+            evidence: AtomEvidence::Evaluated(law(values)),
+            support: AtomSupport::supported(),
+        }
+    }
+
+    fn source(
+        prepared: &PreparedStudy,
+        claims: Vec<SuppliedClaim>,
+        ctx: &ExecutionContext,
+    ) -> JointScenarioCarrier {
+        let causal = prepared.contract().unwrap();
+        JointScenarioCarrier::checked(
+            &causal.identities.target.to_hex(),
+            &causal.identities.identification.to_hex(),
+            "common paired states across actions",
+            true,
+            None,
+            adapt_finite_scenarios(claims, StructuralPolicy::ReportOnly).unwrap(),
+            ctx,
+        )
+        .unwrap()
+    }
+
+    /// The anchor's joint-scenario source digest and the parent's question digest.
+    fn digests(compiled: &CompiledRobustDecision) -> ([u8; 32], [u8; 32]) {
+        let anchor = compiled.plan().lowered().expect("a lowered anchor");
+        let joint: Vec<[u8; 32]> = anchor
+            .evidence()
+            .sources()
+            .iter()
+            .filter(|source| source.role() == EvidenceRole::JointScenarios)
+            .filter_map(|source| source.digest())
+            .collect();
+        assert_eq!(joint.len(), 1, "the anchor reads one joint scenario source");
+        let question = match compiled.parent.program().non_graphical_identification() {
+            Some(NonGraphicalIdentification::SharedEvidenceContract { contract }) => *contract,
+            other => panic!("the parent declares its question as a shared contract: {other:?}"),
+        };
+        (joint[0], question)
+    }
+
+    /// The anchor's source digest is the carrier's identity under its own tag, and the parent's
+    /// question is the anchor's identity then the declaration of (bound decision, source) in
+    /// that fixed field order; a changed decision or source changes every digest it reaches.
+    #[test]
+    fn site_compile_robust_source_and_declaration_frame_their_parts() {
+        let ctx = ExecutionContext::for_tests(43);
+        let prepared = prepared(&ctx);
+        let first = || {
+            vec![
+                scenario("positive", vec![0., 0., 1., 1.]),
+                scenario("negative", vec![0., 1., 1., 0.]),
+            ]
+        };
+        let compile = |claims: Vec<SuppliedClaim>, policy: StructuralPolicy| {
+            let causal = prepared.contract().unwrap();
+            prepared
+                .compile_for_robust_decision(
+                    BoundDecisionContract::bind(&causal, contract(policy)).expect("binds"),
+                    source(&prepared, claims, &ctx),
+                    &ctx,
+                )
+                .unwrap()
+        };
+        let base = compile(first(), StructuralPolicy::Maximin);
+        let other_decision = compile(first(), StructuralPolicy::ReportOnly);
+        let other_source =
+            compile(vec![scenario("positive", vec![0., 0., 1., 1.])], StructuralPolicy::Maximin);
+        for compiled in [&base, &other_decision, &other_source] {
+            let (joint, question) = digests(compiled);
+            let mut writer =
+                CanonicalWriter::new("antecedent.lowered_program.joint_scenarios.source.v1");
+            writer.text(compiled.source().identity());
+            assert_eq!(joint, writer.finish(), "the source digest frames the carrier identity");
+            let anchor = compiled.plan().lowered_program_identity().expect("a lowered anchor");
+            let declaration = Declaration::new(DECLARATION_TAG)
+                .field("decision", compiled.decision_contract().identity())
+                .field("source", compiled.source().identity())
+                .finish();
+            assert_eq!(
+                question,
+                parent_identity(PARENT_TAG, &[Some(anchor)], declaration),
+                "the question is the anchor then (decision, source) in field order"
+            );
+        }
+        assert_eq!(digests(&base), digests(&compile(first(), StructuralPolicy::Maximin)));
+        let (base_joint, base_question) = digests(&base);
+        let (decision_joint, decision_question) = digests(&other_decision);
+        let (source_joint, source_question) = digests(&other_source);
+        assert_eq!(base_joint, decision_joint, "the source digest reads only the source");
+        all_distinct(&[base_joint, source_joint]);
+        all_distinct(&[base_question, decision_question, source_question]);
+        all_distinct(&[
+            base.decision_program_identity(),
+            other_decision.decision_program_identity(),
+            other_source.decision_program_identity(),
+        ]);
+    }
+}

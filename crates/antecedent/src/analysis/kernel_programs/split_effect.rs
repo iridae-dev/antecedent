@@ -171,3 +171,31 @@ impl CompiledParentSetEffect {
         split_parent_set_effect::measure(self.program.input(), ctx)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::all_distinct;
+
+    /// `compile_split_effect_source` / `compile_split_parent_set_effect_source`: the source
+    /// artifact's bytes are the whole input, framed under each family's plan id, so a changed
+    /// byte or the other family is another program.
+    #[test]
+    fn site_split_effect_sources_are_bound_under_their_family() {
+        let ctx = ExecutionContext::for_tests(0);
+        let split = |bytes: &[u8]| {
+            Study::compile_split_effect_source(bytes, &ctx).unwrap().lowered().identity()
+        };
+        let parent_set = |bytes: &[u8]| {
+            Study::compile_split_parent_set_effect_source(bytes, &ctx).unwrap().lowered().identity()
+        };
+        all_distinct(&[
+            split(b"source"),
+            split(b"sourcf"),
+            split(b"sourc"),
+            split(b""),
+            parent_set(b"source"),
+            parent_set(b"sourcf"),
+        ]);
+    }
+}

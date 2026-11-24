@@ -335,3 +335,97 @@ impl CompiledJointCellsLearners {
         })
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::VariableId;
+    use antecedent_data::TabularData;
+    use antecedent_estimate::{
+        FactorizedJointConfig, LearnerSpec, LinearSpec, LogisticSpec, RidgeTuning,
+    };
+    use antecedent_learn::{LearnerFactory, PredictionTask, resolve_for};
+
+    use super::{JointCellsLearnersRequest, LearnerFactories, question_digest, source_digest};
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    fn learners() -> LearnerFactories {
+        let outcome: Arc<dyn LearnerFactory> = Arc::from(
+            resolve_for(LearnerSpec::Linear(LinearSpec::default()), PredictionTask::Regression)
+                .expect("a regression learner"),
+        );
+        let propensity: Arc<dyn LearnerFactory> = Arc::from(
+            resolve_for(
+                LearnerSpec::Logistic(LogisticSpec::default()),
+                PredictionTask::BinaryProbability,
+            )
+            .expect("a probability learner"),
+        );
+        LearnerFactories::new(outcome, propensity, "pair").expect("declared learners")
+    }
+
+    fn table(shift: f64) -> TabularData {
+        let t = [0.0, 1.0, 0.0, 1.0];
+        let y = t.map(|value| value + shift);
+        TabularData::from_f64_columns([("t0", &t[..]), ("t1", &t[..]), ("y", &y[..])])
+            .expect("a table")
+    }
+
+    fn question(
+        treatments: &[VariableId],
+        adjustment: &[VariableId],
+        orderings: Vec<Vec<usize>>,
+        tuning: RidgeTuning,
+    ) -> [u8; 32] {
+        question_digest(&JointCellsLearnersRequest::new(
+            table(0.0),
+            treatments.to_vec(),
+            v(2),
+            adjustment.to_vec(),
+            orderings,
+            FactorizedJointConfig::new(tuning),
+            learners(),
+        ))
+    }
+
+    fn base_orderings() -> Vec<Vec<usize>> {
+        vec![vec![0, 1], vec![1, 0]]
+    }
+
+    #[test]
+    fn site_compiled_joint_cells_learners_question_orders_components_and_orderings() {
+        ordered_laws(&[v(0), v(1), v(3)], |treatments| {
+            Some(question(treatments, &[v(4)], base_orderings(), RidgeTuning::default()))
+        });
+        ordered_laws(&[v(4), v(5)], |adjustment| {
+            Some(question(&[v(0), v(1)], adjustment, base_orderings(), RidgeTuning::default()))
+        });
+        ordered_laws(&base_orderings(), |orderings| {
+            Some(question(&[v(0), v(1)], &[v(4)], orderings.to_vec(), RidgeTuning::default()))
+        });
+        // The penalty grid is canonical by construction: `RidgeTuning::new` sorts and
+        // deduplicates it.
+        set_laws(&[0.1, 1.0, 10.0], |lambdas| {
+            let tuning = RidgeTuning::new(lambdas, 3).ok()?;
+            Some(question(&[v(0), v(1)], &[v(4)], base_orderings(), tuning))
+        });
+    }
+
+    #[test]
+    fn site_compiled_joint_cells_learners_source_binds_the_table() {
+        let data = |shift: f64| source_digest(&table(shift));
+        all_distinct(&[data(0.0), data(1.0)]);
+        let renamed = TabularData::from_f64_columns([
+            ("t0", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("t1", &[0.0, 1.0, 0.0, 1.0][..]),
+            ("outcome", &[0.0, 1.0, 0.0, 1.0][..]),
+        ])
+        .expect("a table");
+        all_distinct(&[data(0.0), source_digest(&renamed)]);
+    }
+}

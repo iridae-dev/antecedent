@@ -578,3 +578,152 @@ impl crate::analysis::program_handle::CompiledProgramHandle
         &self.lowered
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::analysis::composition::BundleNode;
+    use crate::identity_laws::all_distinct;
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_design::decision_contract::{
+        ActionKind, DecisionAction, StructuralPolicy, UtilityExpr,
+    };
+    use antecedent_io::distribution_artifact::{
+        DistributionCalibration, DistributionMetadata, DistributionProvenance, DistributionTrust,
+        DrawAlignment,
+    };
+
+    fn quantity() -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: "coefficient".into(),
+            variable_name: "coefficient".into(),
+            role: QuantityRole::Outcome,
+            units: "units".into(),
+            population_id: "target".into(),
+            regime_id: "observational".into(),
+            horizon: 0,
+            functional_id: "coefficient".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn source(draws: Vec<f64>) -> DistributionArtifact {
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::ParameterPosterior,
+            &[quantity()],
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "declared".into(),
+                provider_id: "fixture".into(),
+                rng_id: "fixture".into(),
+                snapshot_id: "one".into(),
+                causal_contract_id: "model".into(),
+            },
+        )
+        .expect("identity");
+        DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [draws.len(), 1],
+                weights: None,
+                supported: None,
+                calibration: DistributionCalibration::PointOnly,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            draws,
+        )
+        .expect("source law")
+    }
+
+    fn contract(id: &str) -> DecisionContract {
+        DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: id.into(),
+                    kind: ActionKind::Policy,
+                    inputs: vec![quantity()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "baseline".into(),
+                    kind: ActionKind::Policy,
+                    inputs: vec![quantity()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: "units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        }
+    }
+
+    /// A graph holding one embedded decision terminal under `terminal`. Compilation reads
+    /// only the terminal's kind and presence; its bytes enter through the bundle identity.
+    fn bundle(terminal: &str, bytes: Vec<u8>) -> CompositionBundle {
+        CompositionBundle::new(
+            vec![BundleNode::embedded(terminal, NodeKind::DecisionResult, "terminal", bytes)],
+            &[],
+            &BundleLimits::default(),
+        )
+        .expect("bundle")
+    }
+
+    #[test]
+    fn site_composition_decision_terminal_question_binds_graph_contract_and_source() {
+        let identity = |bundle: CompositionBundle,
+                        terminal: &str,
+                        contract: DecisionContract,
+                        source: DistributionArtifact| {
+            compile_posterior_decision_bundle_recomputation(bundle, terminal, contract, source)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        all_distinct(&[
+            identity(
+                bundle("result", vec![1]),
+                "result",
+                contract("use"),
+                source(vec![1.0, 2.0, 3.0]),
+            ),
+            identity(
+                bundle("result-b", vec![1]),
+                "result-b",
+                contract("use"),
+                source(vec![1.0, 2.0, 3.0]),
+            ),
+            identity(
+                bundle("result", vec![2]),
+                "result",
+                contract("use"),
+                source(vec![1.0, 2.0, 3.0]),
+            ),
+            identity(
+                bundle("result", vec![1]),
+                "result",
+                contract("adopt"),
+                source(vec![1.0, 2.0, 3.0]),
+            ),
+            identity(
+                bundle("result", vec![1]),
+                "result",
+                contract("use"),
+                source(vec![1.0, 2.0, 4.0]),
+            ),
+            identity(
+                bundle("result", vec![1]),
+                "result",
+                contract("use"),
+                source(vec![2.0, 1.0, 3.0]),
+            ),
+        ]);
+    }
+}
