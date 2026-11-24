@@ -778,8 +778,12 @@ decision (the study or design refusing to compile or fit) raises the analysis's 
 as the analysis would alone, with its registered reason code. A malformed
 argument (a `Policy` kind that does not exist, a `shared=` block of the wrong shape, an argument
 `compile` does not read) raises `CausalValueError` before anything runs, and exceeding the
-execution's memory limit raises `CausalResourceError`, as elsewhere. The full tables are in
-[preference sets and recorded choices](reference/refusal-codes.md#preference-sets-and-recorded-choices).
+execution's memory limit raises `CausalResourceError`, as elsewhere. A refusal of the ordinary
+decision evaluator (a quantity the source does not hold, a non-finite utility) is that refusal
+exactly: the same code, detail and `evaluate` stage as in a decision contract. A declaration
+check reached by an evaluation keeps its code and detail and is reported at `evaluate`, as a
+decision contract reports one, and a structure check stays at `structural`. The full tables are
+in [preference sets and recorded choices](reference/refusal-codes.md#preference-sets-and-recorded-choices).
 
 | Detail | Code | Cause | Remedy |
 | --- | --- | --- | --- |

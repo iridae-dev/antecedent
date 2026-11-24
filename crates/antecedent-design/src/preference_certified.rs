@@ -2527,7 +2527,7 @@ impl PreferenceCertifiedError {
         match self {
             Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
             Self::Model(error) => at_stage(error.to_refusal(), EVALUATE),
-            Self::Eval(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Eval(error) => error.to_refusal(),
             Self::StructureInputsRequired => unsupported(
                 EVALUATE,
                 "evaluate across structures with evaluate_preference_certified_structural",

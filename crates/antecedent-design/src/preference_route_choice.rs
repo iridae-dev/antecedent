@@ -510,13 +510,14 @@ impl PreferenceEvaluationError {
     /// Structured refusal for a failure of the route-choosing evaluation across a preference
     /// set.
     ///
-    /// A contract, exact-route or certified-route refusal keeps its own refusal.
+    /// A contract refusal is reported at the evaluate stage that surfaced it; an exact-route or
+    /// certified-route refusal is that route's own refusal, stage included.
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         match self {
             Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
-            Self::Exact(error) => at_stage(error.to_refusal(), EVALUATE),
-            Self::Certified(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Exact(error) => error.to_refusal(),
+            Self::Certified(error) => error.to_refusal(),
             Self::JointDrawsRequired { reason } => refusal(
                 antecedent_core::reason_code!("joint_law_required"),
                 EVALUATE,

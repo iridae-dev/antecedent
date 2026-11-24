@@ -2948,7 +2948,7 @@ impl PreferenceDecisionError {
         };
         match self {
             Self::Contract(error) => at_stage(error.to_refusal(), EVALUATE),
-            Self::Eval(error) => at_stage(error.to_refusal(), EVALUATE),
+            Self::Eval(error) => error.to_refusal(),
             Self::Lp(error) => refusal(
                 antecedent_core::reason_code!("invalid_argument"),
                 EVALUATE,

@@ -3,10 +3,19 @@
 //!
 //! Each typed error's `to_refusal()` lives beside its `detail()` in the error's own module and
 //! maps the error to one registered reason code, a stage and its registered detail
-//! (`family.slot`), with a remedy wherever the caller can act. A wrapped error that has its own
-//! refusal keeps that refusal and names the stage that surfaced it; a wrapped linear-program or
+//! (`family.slot`), with a remedy wherever the caller can act. A wrapped linear-program or
 //! conditional-logit refusal is reported under the wrapping error's detail with the inner detail
 //! and message as the supplied text.
+//!
+//! A wrapped error that has its own refusal keeps that refusal: code, detail and every field.
+//! Its stage follows the rule of the ordinary decision layer, whose evaluator reports a contract
+//! refusal at `evaluate`: a refusal of a declaration check keeps its code and detail but is
+//! reported at the stage of the operation that ran the check (`evaluate` for an evaluation,
+//! `learn`, `estimate` or `accept` for learning, `consume` for reading an artifact), and a refusal
+//! raised by an evaluation keeps its own stage when another evaluation surfaces it. An ordinary
+//! evaluator refusal surfaced by an evaluation across a preference set is therefore exactly the
+//! ordinary refusal, at `evaluate`, and a structure-check refusal surfaced by the route-choosing
+//! entry point stays at `structural`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -291,6 +300,43 @@ mod tests {
         .to_refusal();
         registered(&nested, "evaluate");
         assert_eq!(nested.detail, reason_details::preference_decision::LINEAR_PROGRAM_REFUSED);
+    }
+
+    #[test]
+    fn an_ordinary_evaluator_refusal_keeps_its_own_stage_through_every_preference_route() {
+        use crate::decision_contract::DecisionContractError;
+        use crate::decision_eval::DecisionEvalError;
+        let errors = [
+            DecisionEvalError::NonFiniteUtility { action: "treat".into() },
+            DecisionEvalError::QuantityNotFound { action: "treat".into(), input: 1 },
+            DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration("units")),
+        ];
+        for error in errors {
+            let ordinary = error.to_refusal();
+            assert_eq!(ordinary.stage, "evaluate");
+            let exact = PreferenceDecisionError::Eval(error.clone());
+            let certified = PreferenceCertifiedError::Eval(error.clone());
+            assert_eq!(exact.to_refusal(), ordinary);
+            assert_eq!(certified.to_refusal(), ordinary);
+            assert_eq!(PreferenceEvaluationError::Exact(exact).to_refusal(), ordinary);
+            assert_eq!(PreferenceEvaluationError::Certified(certified).to_refusal(), ordinary);
+        }
+        // A structure check keeps its own stage through the route-choosing entry point.
+        let structural = PreferenceEvaluationError::Exact(
+            PreferenceDecisionError::StructureProbabilitiesRequired,
+        )
+        .to_refusal();
+        registered(&structural, "structural");
+        assert_eq!(
+            structural,
+            PreferenceDecisionError::StructureProbabilitiesRequired.to_refusal()
+        );
+        // A declaration check run by an evaluation is reported at the evaluate stage, as the
+        // ordinary evaluator reports a contract refusal.
+        let declared = PreferenceContractError::TooFewActions { count: 1 };
+        let surfaced = PreferenceEvaluationError::Contract(declared.clone()).to_refusal();
+        registered(&surfaced, "evaluate");
+        assert_eq!(surfaced.detail, declared.to_refusal().detail);
     }
 
     #[test]
