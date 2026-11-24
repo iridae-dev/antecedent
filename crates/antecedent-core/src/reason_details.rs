@@ -815,12 +815,31 @@ pub const REASON_DETAILS: &[&str] = &[
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.bridge_contract_refused",
     "events.budget",
+    "events.descendant_not_carried",
+    "events.diagnostic_withheld",
+    "events.discovery_unbound",
+    "events.evidence_missing",
+    "events.evidence_not_discovery",
     "events.fit_failed",
     "events.incomplete_law",
+    "events.incomplete_mapping",
     "events.interval_unmeasured",
     "events.invalid_request",
+    "events.kernel_mismatch",
+    "events.mapping_not_affine",
+    "events.names_not_in_discovery",
+    "events.not_parameter_mean",
     "events.numerical",
+    "events.on_stability_cap",
+    "events.reading_not_identified",
+    "events.regime_not_intervened",
+    "events.same_variable",
+    "events.singular_gram",
+    "events.study_kernel_mismatch",
+    "events.study_marked_kernel",
+    "events.study_needs_members",
     "events.unstable",
     "events.unverified_source",
     "evidence_ledger.cancelled",
@@ -3688,12 +3707,31 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("effect_constancy_consumer.partition_missing", &["invalid_argument"]),
     ("effect_constancy_consumer.quantity_mismatch", &["invalid_argument"]),
     ("effect_constancy_consumer.support_unsupported", &["route_not_supported"]),
+    ("events.bridge_contract_refused", &["scientific_bridge_invalid"]),
     ("events.budget", &["execution_resource_limit"]),
+    ("events.descendant_not_carried", &["bridge_mapping_not_supported"]),
+    ("events.diagnostic_withheld", &["bridge_substitution_refused"]),
+    ("events.discovery_unbound", &["schema_mismatch"]),
+    ("events.evidence_missing", &["bridge_assumption_missing"]),
+    ("events.evidence_not_discovery", &["bridge_assumption_missing"]),
     ("events.fit_failed", &["dynamics_not_identified"]),
     ("events.incomplete_law", &["invalid_argument"]),
+    ("events.incomplete_mapping", &["scientific_bridge_invalid"]),
     ("events.interval_unmeasured", &["uncertainty_representation_insufficient"]),
     ("events.invalid_request", &["invalid_argument"]),
+    ("events.kernel_mismatch", &["bridge_binding_mismatch"]),
+    ("events.mapping_not_affine", &["bridge_mapping_not_supported"]),
+    ("events.names_not_in_discovery", &["unknown_variable"]),
+    ("events.not_parameter_mean", &["bridge_substitution_refused"]),
     ("events.numerical", &["invalid_argument"]),
+    ("events.on_stability_cap", &["dynamics_not_identified"]),
+    ("events.reading_not_identified", &["effect_not_identified"]),
+    ("events.regime_not_intervened", &["bridge_binding_mismatch"]),
+    ("events.same_variable", &["invalid_argument"]),
+    ("events.singular_gram", &["dynamics_not_identified"]),
+    ("events.study_kernel_mismatch", &["bridge_binding_mismatch"]),
+    ("events.study_marked_kernel", &["bridge_binding_mismatch"]),
+    ("events.study_needs_members", &["bridge_binding_mismatch"]),
     ("events.unstable", &["invalid_argument"]),
     ("events.unverified_source", &["external_verification_failed"]),
     ("evidence_ledger.cancelled", &["cancelled_no_claim"]),
@@ -7627,18 +7665,56 @@ pub mod effect_constancy_consumer {
 
 /// Details in the `events` family.
 pub mod events {
+    /// Detail `events.bridge_contract_refused`.
+    pub const BRIDGE_CONTRACT_REFUSED: &str = "events.bridge_contract_refused";
     /// Detail `events.budget`.
     pub const BUDGET: &str = "events.budget";
+    /// Detail `events.descendant_not_carried`.
+    pub const DESCENDANT_NOT_CARRIED: &str = "events.descendant_not_carried";
+    /// Detail `events.diagnostic_withheld`.
+    pub const DIAGNOSTIC_WITHHELD: &str = "events.diagnostic_withheld";
+    /// Detail `events.discovery_unbound`.
+    pub const DISCOVERY_UNBOUND: &str = "events.discovery_unbound";
+    /// Detail `events.evidence_missing`.
+    pub const EVIDENCE_MISSING: &str = "events.evidence_missing";
+    /// Detail `events.evidence_not_discovery`.
+    pub const EVIDENCE_NOT_DISCOVERY: &str = "events.evidence_not_discovery";
     /// Detail `events.fit_failed`.
     pub const FIT_FAILED: &str = "events.fit_failed";
     /// Detail `events.incomplete_law`.
     pub const INCOMPLETE_LAW: &str = "events.incomplete_law";
+    /// Detail `events.incomplete_mapping`.
+    pub const INCOMPLETE_MAPPING: &str = "events.incomplete_mapping";
     /// Detail `events.interval_unmeasured`.
     pub const INTERVAL_UNMEASURED: &str = "events.interval_unmeasured";
     /// Detail `events.invalid_request`.
     pub const INVALID_REQUEST: &str = "events.invalid_request";
+    /// Detail `events.kernel_mismatch`.
+    pub const KERNEL_MISMATCH: &str = "events.kernel_mismatch";
+    /// Detail `events.mapping_not_affine`.
+    pub const MAPPING_NOT_AFFINE: &str = "events.mapping_not_affine";
+    /// Detail `events.names_not_in_discovery`.
+    pub const NAMES_NOT_IN_DISCOVERY: &str = "events.names_not_in_discovery";
+    /// Detail `events.not_parameter_mean`.
+    pub const NOT_PARAMETER_MEAN: &str = "events.not_parameter_mean";
     /// Detail `events.numerical`.
     pub const NUMERICAL: &str = "events.numerical";
+    /// Detail `events.on_stability_cap`.
+    pub const ON_STABILITY_CAP: &str = "events.on_stability_cap";
+    /// Detail `events.reading_not_identified`.
+    pub const READING_NOT_IDENTIFIED: &str = "events.reading_not_identified";
+    /// Detail `events.regime_not_intervened`.
+    pub const REGIME_NOT_INTERVENED: &str = "events.regime_not_intervened";
+    /// Detail `events.same_variable`.
+    pub const SAME_VARIABLE: &str = "events.same_variable";
+    /// Detail `events.singular_gram`.
+    pub const SINGULAR_GRAM: &str = "events.singular_gram";
+    /// Detail `events.study_kernel_mismatch`.
+    pub const STUDY_KERNEL_MISMATCH: &str = "events.study_kernel_mismatch";
+    /// Detail `events.study_marked_kernel`.
+    pub const STUDY_MARKED_KERNEL: &str = "events.study_marked_kernel";
+    /// Detail `events.study_needs_members`.
+    pub const STUDY_NEEDS_MEMBERS: &str = "events.study_needs_members";
     /// Detail `events.unstable`.
     pub const UNSTABLE: &str = "events.unstable";
     /// Detail `events.unverified_source`.

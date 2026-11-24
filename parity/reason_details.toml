@@ -17112,6 +17112,120 @@ codes = ["option_not_applicable"]
 meaning = "An observed-window synthetic control is combined with an option that reads a balanced panel (synthetic difference in differences, unit randomization, a rollout, or the Bayesian posterior)."
 
 [[detail]]
+id = "events.bridge_contract_refused"
+family = "events"
+codes = ["scientific_bridge_invalid"]
+meaning = "The scientific bridge refused to derive the parameter-intervention claim from a contract the excitation checks accepted; the message carries the bridge's own code, scientific_bridge detail and remedy."
+
+[[detail]]
+id = "events.descendant_not_carried"
+family = "events"
+codes = ["bridge_mapping_not_supported"]
+meaning = "The bridge asks to carry a descendant functional, or the total offspring under a map other than the identity; only the horizon direct mass is affine in the kernel."
+
+[[detail]]
+id = "events.diagnostic_withheld"
+family = "events"
+codes = ["bridge_substitution_refused"]
+meaning = "The immigrant diagnostic did not agree, so the mass stays a conditional intensity and is not offered as an intervention response."
+
+[[detail]]
+id = "events.discovery_unbound"
+family = "events"
+codes = ["schema_mismatch"]
+meaning = "The declared structure is not bound to its variable names."
+
+[[detail]]
+id = "events.evidence_missing"
+family = "events"
+codes = ["bridge_assumption_missing"]
+meaning = "The bridge declares no parameter-interpretation assumption, or one that names no evidence."
+
+[[detail]]
+id = "events.evidence_not_discovery"
+family = "events"
+codes = ["bridge_assumption_missing"]
+meaning = "The parameter-interpretation evidence is a label other than the declared structure's provenance digest or canonical identity."
+
+[[detail]]
+id = "events.incomplete_mapping"
+family = "events"
+codes = ["scientific_bridge_invalid"]
+meaning = "An affine bridge map was declared with only one of its intercept and slope."
+
+[[detail]]
+id = "events.kernel_mismatch"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "The offered kernel does not reproduce the agreed direct mass of the reading."
+
+[[detail]]
+id = "events.mapping_not_affine"
+family = "events"
+codes = ["bridge_mapping_not_supported"]
+meaning = "The bridge map is neither an identity nor an affine map."
+
+[[detail]]
+id = "events.names_not_in_discovery"
+family = "events"
+codes = ["unknown_variable"]
+meaning = "The exposure or outcome name is not a variable of the declared structure."
+
+[[detail]]
+id = "events.not_parameter_mean"
+family = "events"
+codes = ["bridge_substitution_refused"]
+meaning = "The bridge is not a parameter-intervention bridge from a model-parameter mean to an intervention-response mean."
+
+[[detail]]
+id = "events.on_stability_cap"
+family = "events"
+codes = ["dynamics_not_identified"]
+meaning = "The kernel's source column or prototype sits on its stability or reproduction cap."
+
+[[detail]]
+id = "events.reading_not_identified"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "No member of the declared structure (graph, class completion, candidate, posterior atom or cyclic system) identifies the exposure's effect on the outcome, so the excitation mass has no structural reading."
+
+[[detail]]
+id = "events.regime_not_intervened"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "The fitted mass is not observational, or the response names the same regime."
+
+[[detail]]
+id = "events.same_variable"
+family = "events"
+codes = ["invalid_argument"]
+meaning = "The structural reading names the same variable as exposure and outcome."
+
+[[detail]]
+id = "events.singular_gram"
+family = "events"
+codes = ["dynamics_not_identified"]
+meaning = "The excitation Gram of the history the kernel was fitted on is singular."
+
+[[detail]]
+id = "events.study_kernel_mismatch"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "A release study's belief holds a hypothesis other than the kernel the bridge kept."
+
+[[detail]]
+id = "events.study_needs_members"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "A single-kernel release study was asked for an excitation whose structure has an identified member that reads zero; the release is priced per member."
+
+[[detail]]
+id = "events.study_marked_kernel"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "A release study was asked for a marked kernel; it prices only the catalog kernel the bridge kept."
+
+[[detail]]
 id = "events.invalid_request"
 family = "events"
 codes = ["invalid_argument"]

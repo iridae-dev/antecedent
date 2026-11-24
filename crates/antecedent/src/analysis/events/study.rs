@@ -19,6 +19,7 @@ use super::{
     EventWorldRequest, MAX_EVENTS, PreparedKernel, admit, digest, history_bytes, path_bytes,
     release_supported, validate_arrivals, validate_budget,
 };
+use crate::planner::lowered::EventProcessRoute;
 
 /// One weighted hypothesis conditional on the declared initial history.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -144,6 +145,9 @@ pub struct PreparedEventStudy {
     cost: Option<f64>,
     prior_identity: String,
     plan: PreparedKernel,
+    /// The support unit the study's route runs under.
+    unit: &'static str,
+    release_information: bool,
     _lease: AdmissionLease,
 }
 
@@ -291,7 +295,276 @@ impl crate::Study {
             cost,
             prior_identity,
             plan,
+            unit: CAPABILITY,
+            release_information: false,
             _lease: lease,
+        })
+    }
+
+    /// Compile the same study only when the belief is the kernel a bridge kept.
+    ///
+    /// The program is the future study composed on the accepted excitation's program, under the
+    /// parameter-bridge route: the signal prices the release only under that kernel. When an
+    /// identified member of the declared structure leaves the edge absent or reversed, price
+    /// the release per member with [`Self::prepare_member_release_study`].
+    ///
+    /// # Errors
+    /// A hypothesis is not that kernel, the kernel is marked, an identified member reads zero,
+    /// or the study declaration is invalid.
+    pub fn prepare_release_study(
+        accepted: &super::question::AcceptedExcitation,
+        prior: EventBelief,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: DecisionContract,
+        study_cost: Option<(StudyCostSpec, CostToUtilityMap)>,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedEventStudy, EventError> {
+        let Some(parameters) = accepted.catalog_parameters() else {
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_MARKED_KERNEL,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
+                "the observation study prices a catalog kernel the bridge kept",
+            ));
+        };
+        if accepted.mixture.null > 0.0 {
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_NEEDS_MEMBERS,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
+                "an identified member of the structure reads zero; price the release per member",
+            ));
+        }
+        if prior.hypotheses.iter().any(|hypothesis| {
+            hypothesis.parameters.baseline != parameters.baseline
+                || hypothesis.parameters.branching != parameters.branching
+                || hypothesis.parameters.decay != parameters.decay
+        }) {
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_KERNEL_MISMATCH,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
+                "value of information uses the kernel the bridge kept",
+            ));
+        }
+        let prepared =
+            Self::prepare_event_study(prior, request, worlds, contract, study_cost, ctx)?;
+        release_study_on(prepared, accepted)
+    }
+
+    /// Price observing the stream for the release under every member of the accepted
+    /// excitation's structure.
+    ///
+    /// A member that orients the exposure into the outcome is priced under the kernel the
+    /// bridge kept; a member where the edge is absent or reversed is priced under the same
+    /// kernel with that edge's excitation removed, since under it the exposure does not excite
+    /// the outcome. Each distinct member kernel is one single-hypothesis study on `history`;
+    /// with weights, the mixture is the study whose belief weights the member kernels by the
+    /// identified members' weights. Every study is composed on the accepted excitation's
+    /// program.
+    ///
+    /// # Errors
+    /// The kernel is marked, or a study declaration is invalid (a mixture study allocates its
+    /// paths equally over its two kernels).
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the optional cost is part of the public signature and is passed as an owned value"
+    )]
+    pub fn prepare_member_release_study(
+        accepted: &super::question::AcceptedExcitation,
+        history: EventHistory,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: DecisionContract,
+        study_cost: Option<(StudyCostSpec, CostToUtilityMap)>,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedMemberReleaseStudy, EventError> {
+        let Some(parameters) = accepted.catalog_parameters() else {
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_MARKED_KERNEL,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
+                "the observation study prices a catalog kernel the bridge kept",
+            ));
+        };
+        let mixture = accepted.mixture;
+        let oriented = parameters.clone();
+        let mut null = parameters.clone();
+        let n = null.baseline.len();
+        if let Some(edge) = null.branching.get_mut(accepted.target * n + accepted.source) {
+            *edge = 0.0;
+        }
+        let belief =
+            |hypotheses: Vec<EventHypothesis>| EventBelief { history: history.clone(), hypotheses };
+        let study = |hypotheses: Vec<EventHypothesis>| -> Result<PreparedEventStudy, EventError> {
+            let prepared = Self::prepare_event_study(
+                belief(hypotheses),
+                request.clone(),
+                worlds.clone(),
+                contract.clone(),
+                study_cost.clone(),
+                ctx,
+            )?;
+            release_study_on(prepared, accepted)
+        };
+        let single = |parameters: &HawkesParameters| {
+            vec![EventHypothesis { weight: 1.0, parameters: parameters.clone() }]
+        };
+        let oriented_study =
+            (mixture.oriented > 0.0).then(|| study(single(&oriented))).transpose()?;
+        let null_study = (mixture.null > 0.0).then(|| study(single(&null))).transpose()?;
+        let weighted = accepted.structure.mixture.is_some();
+        let mixture_study = (weighted && mixture.oriented > 0.0 && mixture.null > 0.0)
+            .then(|| {
+                study(vec![
+                    EventHypothesis { weight: mixture.oriented, parameters: oriented.clone() },
+                    EventHypothesis { weight: mixture.null, parameters: null.clone() },
+                ])
+            })
+            .transpose()?;
+        let children: Vec<String> = [&oriented_study, &null_study, &mixture_study]
+            .into_iter()
+            .map(|study| {
+                study.as_ref().map(|item| item.plan.identity().to_hex()).unwrap_or_default()
+            })
+            .collect();
+        let source = digest(
+            "antecedent.events.member_release_study.v1",
+            &(children, accepted.identity().to_hex()),
+        )?;
+        let contract_ref =
+            oriented_study.as_ref().or(null_study.as_ref()).map(|study| study.contract.clone());
+        let plan = PreparedKernel::composed_on(
+            EventProcessRoute::ParameterBridge,
+            source,
+            accepted.identity(),
+            "release_study",
+            contract_ref.as_ref(),
+        )?;
+        Ok(PreparedMemberReleaseStudy {
+            oriented: oriented_study,
+            null: null_study,
+            mixture: mixture_study,
+            members: accepted
+                .structure
+                .members
+                .iter()
+                .map(|member| (member.relation.forward(), member.weight, member.status))
+                .collect(),
+            identified_weight: accepted.structure.identified_weight,
+            plan,
+        })
+    }
+}
+
+/// Compose a future study on an accepted excitation's program, under the parameter-bridge
+/// route and its unit.
+fn release_study_on(
+    mut prepared: PreparedEventStudy,
+    accepted: &super::question::AcceptedExcitation,
+) -> Result<PreparedEventStudy, EventError> {
+    let source = digest(
+        "antecedent.events.release_study.v1",
+        &(prepared.plan.identity().to_hex(), accepted.identity().to_hex()),
+    )?;
+    prepared.plan = PreparedKernel::composed_on(
+        EventProcessRoute::ParameterBridge,
+        source,
+        accepted.identity(),
+        "release_study",
+        Some(&prepared.contract),
+    )?;
+    prepared.unit = super::BRIDGE_UNIT;
+    prepared.release_information = true;
+    Ok(prepared)
+}
+
+/// Compiled per-member pricing of a release: one study per distinct member kernel and, for a
+/// weighted structure, the mixture study.
+pub struct PreparedMemberReleaseStudy {
+    oriented: Option<PreparedEventStudy>,
+    null: Option<PreparedEventStudy>,
+    mixture: Option<PreparedEventStudy>,
+    members: Vec<(bool, Option<f64>, crate::analysis::structure_members::MemberStatus)>,
+    identified_weight: f64,
+    plan: PreparedKernel,
+}
+
+/// One member's price of observing the stream for the release.
+#[derive(Clone, Copy, Debug, Serialize)]
+#[non_exhaustive]
+pub struct MemberStudyValue {
+    /// The member orients the exposure into the outcome.
+    pub oriented: bool,
+    /// Normalized weight, when the structure has weights.
+    pub weight: Option<f64>,
+    /// Whether the member identifies the reading.
+    pub status: crate::analysis::structure_members::MemberStatus,
+    /// Gross value of observing under the member's kernel, for an identified member.
+    pub gross_value: Option<f64>,
+}
+
+/// The release priced per member: the value under each member kernel, the range of gross
+/// values over the identified members, and the mixture where weights exist.
+#[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
+pub struct MemberReleaseStudy {
+    /// The study under the kernel the bridge kept, when a member orients the edge.
+    pub oriented: Option<EventStudyValue>,
+    /// The study under the kernel without the edge, when a member reads zero.
+    pub null: Option<EventStudyValue>,
+    /// One price per member, in enumeration order.
+    pub members: Vec<MemberStudyValue>,
+    /// Smallest and largest gross value over the identified members.
+    pub envelope: [f64; 2],
+    /// The study under the belief that weights the member kernels, for a weighted structure.
+    pub mixture: Option<EventStudyValue>,
+    /// Weight of the identified members.
+    pub identified_weight: f64,
+}
+
+impl PreparedMemberReleaseStudy {
+    /// Inspect the compiled per-member pricing without generating arrivals.
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        self.plan.plan_view()
+    }
+
+    /// Price the release under every member kernel and, with weights, their mixture.
+    ///
+    /// # Errors
+    /// Numerical, resource, decision-contract or cancellation refusal of any study.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<MemberReleaseStudy, EventError> {
+        // Gate the composed program; each member study runs under its own compiled program.
+        drop(super::scoped_execution(ctx, &self.plan)?);
+        let run = |study: &Option<PreparedEventStudy>| {
+            study.as_ref().map(|study| study.execute(ctx)).transpose()
+        };
+        let oriented = run(&self.oriented)?;
+        let null = run(&self.null)?;
+        let mixture = run(&self.mixture)?;
+        let members: Vec<MemberStudyValue> = self
+            .members
+            .iter()
+            .map(|&(forward, weight, status)| {
+                let identified =
+                    status == crate::analysis::structure_members::MemberStatus::Identified;
+                let study = if forward { oriented.as_ref() } else { null.as_ref() };
+                MemberStudyValue {
+                    oriented: forward,
+                    weight,
+                    status,
+                    gross_value: study.filter(|_| identified).map(|value| value.gross_value),
+                }
+            })
+            .collect();
+        let values: Vec<f64> = members.iter().filter_map(|member| member.gross_value).collect();
+        let envelope = values
+            .iter()
+            .fold([f64::INFINITY, f64::NEG_INFINITY], |[low, high], v| [low.min(*v), high.max(*v)]);
+        Ok(MemberReleaseStudy {
+            oriented,
+            null,
+            members,
+            envelope,
+            mixture,
+            identified_weight: self.identified_weight,
         })
     }
 }
@@ -405,6 +678,13 @@ impl PreparedEventUpdate {
 }
 
 impl PreparedEventStudy {
+    /// Whether the signal prices a release: the study was compiled on the kernel an accepted
+    /// excitation kept.
+    #[must_use]
+    pub const fn release_information(&self) -> bool {
+        self.release_information
+    }
+
     /// Inspect without generating arrivals or solving worlds.
     pub fn plan_view(&self) -> crate::planner::PlanView {
         self.plan.plan_view()
@@ -561,7 +841,7 @@ impl PreparedEventStudy {
             branch_actions: branches.map(|index| index.map(|i| actions[i].id.clone())),
             prior: self.prior_identity.clone(),
             decision_time: r.decision_time,
-            release_supported: release_supported(CAPABILITY),
+            release_supported: release_supported(self.unit),
         })
     }
 }

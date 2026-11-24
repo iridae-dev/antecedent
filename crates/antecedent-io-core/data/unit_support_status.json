@@ -2393,6 +2393,21 @@
       "missing_evidence": []
     },
     {
+      "id": "forecast.marked_event_process",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "forecast.hawkes_excitation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "forecast.hawkes_parameter_bridge",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "transport.bridge_decision",
       "status": "supported",
       "missing_evidence": []

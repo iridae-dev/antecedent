@@ -2,17 +2,27 @@
 
 use antecedent::Study;
 use antecedent::analysis::events::{
-    EventBelief, EventError, EventForecastRequest, EventHistory, EventLaw, EventObservation,
-    EventStudyRequest, EventWindow, EventWorldRequest, ForecastAssessmentRequest, HawkesParameters,
-    PreparedEventForecast, PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate,
-    PreparedEventWorlds, PreparedForecastAssessment,
+    AcceptedExcitation, BaselineFeature, BridgeContract, DeclaredQuantity, EventBelief, EventError,
+    EventForecastRequest, EventHistory, EventLaw, EventObservation, EventStudyRequest, EventWindow,
+    EventWorldRequest, ExcitationChallenge, ExcludedShock, ForecastAssessmentRequest,
+    HawkesParameters, MarkPrototype, MarkedExcitationChallenge, MarkedFitSpec, MarkedHistory,
+    MarkedParameters, MarkedReleaseComparisonRequest, PreparedEventForecast,
+    PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate, PreparedEventWorlds,
+    PreparedExcitationChallenge, PreparedExcitationOffspring, PreparedForecastAssessment,
+    PreparedMarkedChallenge, PreparedMarkedFit, PreparedMarkedLikelihood, PreparedMarkedOffspring,
+    PreparedMemberReleaseStudy, PreparedReleaseComparison, PreparedReleaseQuestion, PreparedShock,
+    QuestionChallenge, ReleaseAction, ReleaseComparisonRequest, ReleaseDraw, ReleaseQuestion,
+    parameter_bridge,
 };
+use antecedent::analysis::structure_members::{DeclaredStructure, StructureMembers};
 use antecedent::design::decision_artifact::{contract_from_json, result_to_json};
 use antecedent::design::evsi::{CostToUtilityMap, StudyCostSpec};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::provider_api::PyProviderVerificationReceipt;
 use crate::transport_common::execution_context;
@@ -48,6 +58,16 @@ enum Prepared {
     Assessment(PreparedForecastAssessment),
     Update(PreparedEventUpdate),
     Study(PreparedEventStudy),
+    Challenge(PreparedExcitationChallenge),
+    MarkedLikelihood(PreparedMarkedLikelihood),
+    MarkedFit(PreparedMarkedFit),
+    MarkedChallenge(PreparedMarkedChallenge),
+    Offspring(PreparedExcitationOffspring),
+    MarkedOffspring(PreparedMarkedOffspring),
+    Release(PreparedReleaseComparison),
+    Question(Box<PreparedReleaseQuestion>),
+    Shock(PreparedShock),
+    MemberStudy(PreparedMemberReleaseStudy),
 }
 
 fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
@@ -58,6 +78,16 @@ fn plan_view_of(prepared: &Prepared) -> antecedent::planner::PlanView {
         Prepared::Assessment(p) => p.plan_view(),
         Prepared::Update(p) => p.plan_view(),
         Prepared::Study(p) => p.plan_view(),
+        Prepared::Challenge(p) => p.plan_view(),
+        Prepared::MarkedLikelihood(p) => p.plan_view(),
+        Prepared::MarkedFit(p) => p.plan_view(),
+        Prepared::MarkedChallenge(p) => p.plan_view(),
+        Prepared::Offspring(p) => p.plan_view(),
+        Prepared::MarkedOffspring(p) => p.plan_view(),
+        Prepared::Release(p) => p.plan_view(),
+        Prepared::Question(p) => p.plan_view(),
+        Prepared::Shock(p) => p.plan_view(),
+        Prepared::MemberStudy(p) => p.plan_view(),
     }
 }
 
@@ -76,7 +106,19 @@ impl NativePreparedEventProgram {
     }
 
     fn inspect(&self) -> String {
-        plan_view_of(&self.inner).to_json().to_string()
+        let view = plan_view_of(&self.inner).to_json();
+        match &self.inner {
+            // The question's structural evidence is the provenance digest or the identity of the
+            // declared structure it cites, with the structure's members, beside the compiled plan.
+            Prepared::Question(plan) => json!({
+                "operation": "excitation_question",
+                "evidence": plan.evidence(),
+                "structure": members_json(plan.members()),
+                "plan": view,
+            })
+            .to_string(),
+            _ => view.to_string(),
+        }
     }
 
     #[pyo3(signature = (memory_bytes=None, cancel=None))]
@@ -87,16 +129,17 @@ impl NativePreparedEventProgram {
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<NativeEventResult> {
         let ctx = execution_context(0, memory_bytes, cancel);
-        let (law, report, artifact) = detach_catch(py, || -> PyResult<_> {
+        let (law, report, artifact, accepted) = detach_catch(py, || -> PyResult<_> {
             match &self.inner {
                 Prepared::Forecast(p) => {
-                    Ok((Some(p.execute(&ctx).map_err(error)?), Value::Null, None))
+                    Ok((Some(p.execute(&ctx).map_err(error)?), Value::Null, None, None))
                 }
                 Prepared::Likelihood(p) => {
                     let likelihood = p.execute(&ctx).map_err(error)?;
                     Ok((
                         None,
                         json!({"log_likelihood": likelihood, "zero_density": likelihood == f64::NEG_INFINITY}),
+                        None,
                         None,
                     ))
                 }
@@ -125,17 +168,58 @@ impl NativePreparedEventProgram {
                             "provider_receipt": w.provider_receipt, "distribution_identity": w.distribution.metadata().identity,
                         }),
                         Some(artifact),
+                        None,
                     ))
                 }
-                Prepared::Assessment(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
-                Prepared::Study(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
+                Prepared::Assessment(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::Study(p) => {
+                    let mut value = json!(p.execute(&ctx).map_err(error)?);
+                    // Only a release study reports that its signal prices the release.
+                    if p.release_information()
+                        && let Some(object) = value.as_object_mut()
+                    {
+                        object.insert("release_information".into(), Value::Bool(true));
+                    }
+                    Ok((None, value, None, None))
+                }
+                Prepared::Challenge(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::MarkedLikelihood(p) => {
+                    let likelihood = p.execute(&ctx).map_err(error)?;
+                    Ok((None, json!({"log_likelihood": likelihood}), None, None))
+                }
+                Prepared::MarkedFit(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::MarkedChallenge(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::Offspring(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::MarkedOffspring(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::Release(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None, None))
+                }
                 Prepared::Update(p) => {
                     let (law, belief) = p.execute_with_belief(&ctx).map_err(error)?;
-                    Ok((Some(law), json!({"updated_belief": belief}), None))
+                    Ok((Some(law), json!({"updated_belief": belief}), None, None))
                 }
+                Prepared::Shock(plan) => {
+                    Ok((None, json!(plan.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::MemberStudy(plan) => {
+                    Ok((None, json!(plan.execute(&ctx).map_err(error)?), None, None))
+                }
+                Prepared::Question(plan) => execute_question(plan, &ctx),
             }
         })?;
-        Ok(NativeEventResult { law, report, artifact })
+        Ok(NativeEventResult { law, report, artifact, accepted })
     }
 
     #[pyo3(signature = (kind, memory_bytes=None, cancel=None))]
@@ -160,6 +244,7 @@ struct NativeEventResult {
     law: Option<EventLaw>,
     report: Value,
     artifact: Option<Vec<u8>>,
+    accepted: Option<Arc<AcceptedExcitation>>,
 }
 
 #[pymethods]
@@ -229,6 +314,80 @@ enum Request {
         contract: String,
         cost: Option<Cost>,
     },
+    Offspring {
+        parameters: HawkesParameters,
+        source: usize,
+        horizon: f64,
+    },
+    Challenge {
+        request: ExcitationChallenge,
+    },
+    Release {
+        parameters: HawkesParameters,
+        challenge: ExcitationChallenge,
+        earlier: f64,
+        later: f64,
+        window_end: f64,
+    },
+    MarkedLikelihood {
+        history: MarkedHistory,
+        parameters: MarkedParameters,
+    },
+    MarkedFit {
+        history: MarkedHistory,
+        fit: MarkedFitSpec,
+    },
+    MarkedOffspring {
+        parameters: MarkedParameters,
+        prototypes: Vec<MarkPrototype>,
+        prototype: usize,
+        horizon: f64,
+    },
+    MarkedChallenge {
+        request: MarkedExcitationChallenge,
+    },
+    MarkedRelease {
+        parameters: MarkedParameters,
+        prototypes: Vec<MarkPrototype>,
+        challenge: MarkedExcitationChallenge,
+        earlier: f64,
+        later: f64,
+        window_end: f64,
+    },
+    ExcitationQuestion {
+        challenge: ExcitationChallenge,
+        bridge: BridgeWire,
+        action: ActionWire,
+        draw: DrawWire,
+    },
+    MarkedExcitationQuestion {
+        challenge: MarkedExcitationChallenge,
+        bridge: BridgeWire,
+        action: ActionWire,
+        draw: DrawWire,
+    },
+    Shock {
+        history: EventHistory,
+        feature: BaselineFeature,
+        source: usize,
+        target: usize,
+        horizon: f64,
+        instrument: String,
+    },
+    ReleaseStudy {
+        prior: EventBelief,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: String,
+        cost: Option<Cost>,
+    },
+    MemberReleaseStudy {
+        history: EventHistory,
+        request: EventStudyRequest,
+        worlds: EventWorldRequest,
+        contract: String,
+        cost: Option<Cost>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -242,26 +401,45 @@ struct Cost {
 }
 
 #[pyfunction]
-#[pyo3(signature = (request, source=None, receipt=None, memory_bytes=None, cancel=None))]
+#[pyo3(signature = (request, source=None, receipt=None, graph=None, provenance=None, weights=None, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "the keyword arguments of events.prepare")]
 fn events_prepare(
     py: Python<'_>,
     request: &str,
     source: Option<PyRef<'_, NativeEventResult>>,
     receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
+    graph: Option<&Bound<'_, PyAny>>,
+    provenance: Option<HashMap<String, String>>,
+    weights: Option<Vec<f64>>,
     memory_bytes: Option<u64>,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<NativePreparedEventProgram> {
-    let law = source.as_ref().and_then(|s| s.law.clone());
-    if source.is_some() && law.is_none() {
+    let law = source.as_ref().and_then(|item| item.law.clone());
+    let accepted = source.as_ref().and_then(|item| item.accepted.clone());
+    if source.is_some() && law.is_none() && accepted.is_none() {
         return Err(crate::errors::value_err("source result does not retain an event law"));
     }
     let receipt = receipt.as_ref().map(|r| r.inner.clone());
+    let discovery = match graph {
+        Some(graph) => Some(declared_structure(graph, provenance, weights)?),
+        None if provenance.is_none() && weights.is_none() => None,
+        None => return Err(crate::errors::value_err(NEEDS_STRUCTURE)),
+    };
     let ctx = execution_context(0, memory_bytes, cancel);
     let inner = detach_catch(py, || -> PyResult<_> {
         let request: Request = parse(request)?;
-        if law.is_some() && !matches!(&request, Request::Worlds { .. }) {
+        if law.is_some()
+            && !matches!(&request, Request::Worlds { .. } | Request::ReleaseStudy { .. })
+        {
             return Err(crate::errors::value_err(
                 "retained event law is only used by world composition",
+            ));
+        }
+        if matches!(&request, Request::ReleaseStudy { .. } | Request::MemberReleaseStudy { .. })
+            && accepted.is_none()
+        {
+            return Err(crate::errors::value_err(
+                "a release study needs the excitation the bridge accepted",
             ));
         }
         if receipt.is_some() && !matches!(&request, Request::Forecast { .. }) {
@@ -328,9 +506,459 @@ fn events_prepare(
                     .map_err(error)?,
                 )
             }
+            Request::Offspring { parameters, source, horizon } => Prepared::Offspring(
+                Study::prepare_excitation_offspring(parameters, source, horizon, &ctx)
+                    .map_err(error)?,
+            ),
+            Request::Challenge { request } => Prepared::Challenge(
+                Study::prepare_excitation_challenge(request, &ctx).map_err(error)?,
+            ),
+            Request::Release { parameters, challenge, earlier, later, window_end } => {
+                Prepared::Release(
+                    Study::prepare_release_comparison(
+                        ReleaseComparisonRequest {
+                            parameters,
+                            challenge,
+                            earlier,
+                            later,
+                            window_end,
+                        },
+                        &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
+            Request::MarkedLikelihood { history, parameters } => Prepared::MarkedLikelihood(
+                Study::prepare_marked_likelihood(history, parameters, &ctx).map_err(error)?,
+            ),
+            Request::MarkedFit { history, fit } => {
+                Prepared::MarkedFit(Study::prepare_marked_fit(history, fit, &ctx).map_err(error)?)
+            }
+            Request::MarkedOffspring { parameters, prototypes, prototype, horizon } => {
+                Prepared::MarkedOffspring(
+                    Study::prepare_marked_offspring(
+                        parameters, prototypes, prototype, horizon, &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
+            Request::MarkedChallenge { request } => Prepared::MarkedChallenge(
+                Study::prepare_marked_challenge(request, &ctx).map_err(error)?,
+            ),
+            Request::MarkedRelease {
+                parameters,
+                prototypes,
+                challenge,
+                earlier,
+                later,
+                window_end,
+            } => Prepared::Release(
+                Study::prepare_marked_release_comparison(
+                    MarkedReleaseComparisonRequest {
+                        parameters,
+                        prototypes,
+                        challenge,
+                        earlier,
+                        later,
+                        window_end,
+                    },
+                    &ctx,
+                )
+                .map_err(error)?,
+            ),
+            Request::ExcitationQuestion { challenge, bridge, action, draw } => {
+                let discovery =
+                    discovery.clone().ok_or_else(|| crate::errors::value_err(NEEDS_STRUCTURE))?;
+                let question = ReleaseQuestion {
+                    challenge: QuestionChallenge::Catalog(challenge),
+                    bridge: bridge_contract(bridge)?,
+                    action: release_action(action),
+                    draw: release_draw(draw),
+                };
+                Prepared::Question(Box::new(
+                    Study::prepare_release_question(question, &discovery, &ctx).map_err(error)?,
+                ))
+            }
+            Request::MarkedExcitationQuestion { challenge, bridge, action, draw } => {
+                let discovery =
+                    discovery.clone().ok_or_else(|| crate::errors::value_err(NEEDS_STRUCTURE))?;
+                let question = ReleaseQuestion {
+                    challenge: QuestionChallenge::Marked(challenge),
+                    bridge: bridge_contract(bridge)?,
+                    action: release_action(action),
+                    draw: release_draw(draw),
+                };
+                Prepared::Question(Box::new(
+                    Study::prepare_release_question(question, &discovery, &ctx).map_err(error)?,
+                ))
+            }
+            Request::Shock { history, feature, source, target, horizon, instrument } => {
+                Prepared::Shock(
+                    Study::prepare_shock_query(
+                        ExcludedShock { history, feature, source, target, horizon, instrument },
+                        &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
+            Request::ReleaseStudy { prior, request, worlds, contract: declaration, cost } => {
+                let accepted = accepted.clone().ok_or_else(|| {
+                    crate::errors::value_err(
+                        "a release study needs the excitation the bridge accepted",
+                    )
+                })?;
+                let cost = cost.map(|c| {
+                    (
+                        StudyCostSpec { amount: c.amount, unit: c.unit.clone() },
+                        CostToUtilityMap {
+                            cost_unit: c.unit,
+                            utility_unit: c.utility_unit,
+                            utility_per_cost: c.utility_rate,
+                        },
+                    )
+                });
+                Prepared::Study(
+                    Study::prepare_release_study(
+                        &accepted,
+                        prior,
+                        request,
+                        worlds,
+                        contract(&declaration)?,
+                        cost,
+                        &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
+            Request::MemberReleaseStudy {
+                history,
+                request,
+                worlds,
+                contract: declaration,
+                cost,
+            } => {
+                let accepted = accepted.clone().ok_or_else(|| {
+                    crate::errors::value_err(
+                        "a release study needs the excitation the bridge accepted",
+                    )
+                })?;
+                let cost = cost.map(|c| {
+                    (
+                        StudyCostSpec { amount: c.amount, unit: c.unit.clone() },
+                        CostToUtilityMap {
+                            cost_unit: c.unit,
+                            utility_unit: c.utility_unit,
+                            utility_per_cost: c.utility_rate,
+                        },
+                    )
+                });
+                Prepared::MemberStudy(
+                    Study::prepare_member_release_study(
+                        &accepted,
+                        history,
+                        request,
+                        worlds,
+                        contract(&declaration)?,
+                        cost,
+                        &ctx,
+                    )
+                    .map_err(error)?,
+                )
+            }
         })
     })?;
     Ok(NativePreparedEventProgram { inner })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QuantityWire {
+    variable_id: String,
+    variable_name: String,
+    units: String,
+    population_id: String,
+    regime_id: String,
+    horizon: u32,
+    functional_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BridgeWire {
+    source: QuantityWire,
+    target: QuantityWire,
+    #[serde(default)]
+    intercept: Option<f64>,
+    #[serde(default)]
+    slope: Option<f64>,
+    statement: String,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ActionWire {
+    Now,
+    Delay { release: f64 },
+    ChangeMark { mark: usize, release: f64 },
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DrawWire {
+    release: f64,
+    window_end: f64,
+    paths: usize,
+    max_events: usize,
+    seed: u64,
+}
+
+fn bridge_contract(wire: BridgeWire) -> PyResult<BridgeContract> {
+    let declared = |wire: QuantityWire| DeclaredQuantity {
+        variable_id: wire.variable_id,
+        variable_name: wire.variable_name,
+        units: wire.units,
+        population_id: wire.population_id,
+        regime_id: wire.regime_id,
+        horizon: wire.horizon,
+        functional_id: wire.functional_id,
+    };
+    parameter_bridge(
+        declared(wire.source),
+        declared(wire.target),
+        wire.intercept,
+        wire.slope,
+        &wire.statement,
+    )
+    .map_err(error)
+}
+
+fn release_action(wire: ActionWire) -> ReleaseAction {
+    match wire {
+        ActionWire::Now => ReleaseAction::Now,
+        ActionWire::Delay { release } => ReleaseAction::Delay { release },
+        ActionWire::ChangeMark { mark, release } => {
+            ReleaseAction::ChangeMark { kind: mark, release }
+        }
+    }
+}
+
+fn release_draw(wire: DrawWire) -> ReleaseDraw {
+    ReleaseDraw {
+        release: wire.release,
+        window_end: wire.window_end,
+        paths: wire.paths,
+        max_events: wire.max_events,
+        seed: wire.seed,
+    }
+}
+
+type Executed = (Option<EventLaw>, Value, Option<Vec<u8>>, Option<Arc<AcceptedExcitation>>);
+
+fn execute_question(
+    plan: &PreparedReleaseQuestion,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<Executed> {
+    let outcome = plan.execute(ctx).map_err(error)?;
+    let reading = outcome.reading;
+    let (Some(accepted), Some(law)) = (outcome.accepted, outcome.law) else {
+        return Ok((None, json!({"reading": reading, "accepted": false}), None, None));
+    };
+    let report = json!({
+        "reading": reading,
+        "accepted": true,
+        "bridged_direct": accepted.bridged_direct,
+        "conditional_direct": accepted.conditional_direct,
+        "horizon_descendants": accepted.horizon_descendants,
+        "lifetime_descendants": accepted.lifetime_descendants,
+        "transported": accepted.transported,
+        "structure": accepted.structure,
+    });
+    Ok((Some(law), report, None, Some(Arc::new(accepted))))
+}
+
+const NEEDS_STRUCTURE: &str = "an excitation question needs a declared structure: the discovered \
+     graph and its provenance, an equivalence class, a list of graphs with optional weights, a \
+     graph posterior, or a cyclic declaration";
+
+/// The members of a compiled question's structure, for inspection.
+fn members_json(members: &StructureMembers) -> Value {
+    json!({
+        "form": members.form(),
+        "identity": members.identity().to_hex(),
+        "weighted": members.weighted(),
+        "truncated": members.truncated(),
+        "cyclic_reading": members.cyclic_reading(),
+        "members": members.members().iter().map(|member| json!({
+            "relation": member.relation(),
+            "weight": member.weight(),
+            "status": member.status(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// A cyclic system declared by name.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CyclicWire {
+    names: Vec<String>,
+    directed: Vec<(String, String)>,
+    #[serde(default)]
+    bidirected: Vec<(String, String)>,
+    io_scm: bool,
+    scc_product_density: bool,
+}
+
+/// The structure a question reads: one graph or class, a list of graphs (with `weights`), a
+/// graph posterior, or a cyclic declaration (a mapping). `provenance` cites the search it came
+/// from; a single graph without one is a declared structure.
+fn declared_structure(
+    graph: &Bound<'_, PyAny>,
+    provenance: Option<HashMap<String, String>>,
+    weights: Option<Vec<f64>>,
+) -> PyResult<DeclaredStructure> {
+    let provenance = provenance.as_ref().map(structure_provenance).transpose()?.map(Arc::new);
+    let cite = |structure: DeclaredStructure| match &provenance {
+        Some(provenance) => structure.with_provenance(Arc::clone(provenance)),
+        None => structure,
+    };
+    if let Ok(posterior) = graph.extract::<PyRef<'_, crate::bayesian::PyGraphPosterior>>() {
+        if weights.is_some() {
+            return Err(crate::errors::value_err("a graph posterior carries its own weights"));
+        }
+        let names = posterior.names().to_vec();
+        return Ok(cite(DeclaredStructure::posterior(posterior.to_rust()?, names)));
+    }
+    if graph.cast::<pyo3::types::PyDict>().is_ok() {
+        if weights.is_some() {
+            return Err(crate::errors::value_err("a cyclic declaration carries no weights"));
+        }
+        let text: String = graph.py().import("json")?.call_method1("dumps", (graph,))?.extract()?;
+        let wire: CyclicWire = parse(&text)?;
+        return Ok(cite(cyclic_structure(wire)?));
+    }
+    if let Ok(list) = graph.cast::<pyo3::types::PyList>() {
+        let graphs = list.iter().map(|item| accepted_graph(&item)).collect::<PyResult<Vec<_>>>()?;
+        return Ok(cite(DeclaredStructure::candidates(graphs, weights)));
+    }
+    if weights.is_some() {
+        return Err(crate::errors::value_err("weights belong to a list of candidate graphs"));
+    }
+    Ok(cite(DeclaredStructure::graph(accepted_graph(graph)?)))
+}
+
+fn cyclic_structure(wire: CyclicWire) -> PyResult<DeclaredStructure> {
+    DeclaredStructure::cyclic_named(
+        wire.names,
+        &wire.directed,
+        &wire.bidirected,
+        wire.io_scm,
+        wire.scc_product_density,
+    )
+    .map_err(crate::errors::py_err)
+}
+
+fn accepted_graph(graph: &Bound<'_, PyAny>) -> PyResult<antecedent::AcceptedGraph> {
+    if let Ok(item) = graph.extract::<crate::graphs::Dag>() {
+        return bind(antecedent::AcceptedGraph::dag(item.dag), &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::Cpdag>() {
+        let graph = antecedent::AcceptedGraph::cpdag(item.cpdag)
+            .map_err(|err| crate::errors::value_err(err.to_string()))?;
+        return bind(graph, &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::Pag>() {
+        return bind(antecedent::AcceptedGraph::pag(item.pag), &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::Admg>() {
+        return bind(antecedent::AcceptedGraph::admg(item.admg), &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::TemporalDag>() {
+        return bind(antecedent::AcceptedGraph::temporal_dag(item.dag), &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::TemporalCpdag>() {
+        let graph = antecedent::AcceptedGraph::temporal_cpdag(item.cpdag)
+            .map_err(|err| crate::errors::value_err(err.to_string()))?;
+        return bind(graph, &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::TemporalPag>() {
+        return bind(antecedent::AcceptedGraph::temporal_pag(item.pag), &item.names);
+    }
+    if let Ok(item) = graph.extract::<crate::graphs::TemporalAdmg>() {
+        return bind(antecedent::AcceptedGraph::temporal_admg(item.graph), &item.names);
+    }
+    Err(crate::errors::value_err(
+        "the structure is not a compiled graph, a list of graphs, a graph posterior or a cyclic \
+         declaration",
+    ))
+}
+
+fn bind(graph: antecedent::AcceptedGraph, names: &[String]) -> PyResult<antecedent::AcceptedGraph> {
+    use antecedent::prelude::CausalSchemaBuilder;
+    let mut builder = CausalSchemaBuilder::new();
+    for name in names {
+        builder = builder.continuous(name.as_str()).context();
+    }
+    let schema = builder.build().map_err(|err| crate::errors::value_err(err.to_string()))?;
+    Ok(graph.with_schema(&schema))
+}
+
+fn structure_provenance(
+    fields: &HashMap<String, String>,
+) -> PyResult<antecedent::StructureProvenance> {
+    let text = |key: &str| {
+        fields.get(key).cloned().ok_or_else(|| {
+            crate::errors::value_err(format!("discovery provenance is missing {key}"))
+        })
+    };
+    let digest = |key: &str| -> PyResult<[u8; 32]> {
+        let text = text(key)?;
+        if text.len() != 64 {
+            return Err(crate::errors::value_err("provenance digest fields are 32 bytes of hex"));
+        }
+        let mut out = [0_u8; 32];
+        for (index, chunk) in text.as_bytes().chunks(2).enumerate() {
+            let pair = std::str::from_utf8(chunk)
+                .map_err(|_| crate::errors::value_err("provenance digest is not hex"))?;
+            out[index] = u8::from_str_radix(pair, 16)
+                .map_err(|_| crate::errors::value_err("provenance digest is not hex"))?;
+        }
+        Ok(out)
+    };
+    let pooling = match (
+        fields.get("pooling_method"),
+        fields.get("pooled_imputations"),
+        fields.get("pooling_source"),
+    ) {
+        (None, None, None) => None,
+        (Some(method), Some(imputations), Some(source)) => Some(antecedent::StructurePooling {
+            method: method.clone().into(),
+            imputations: imputations
+                .parse()
+                .map_err(|_| crate::errors::value_err("pooled_imputations is not a count"))?,
+            source: source.clone().into(),
+        }),
+        _ => {
+            return Err(crate::errors::value_err(
+                "pooling provenance needs a method, an imputation count, and a source",
+            ));
+        }
+    };
+    Ok(antecedent::StructureProvenance {
+        method: text("method")?.into(),
+        inference: text("inference")?.into(),
+        discovered_class: text("discovered_class")?.into(),
+        query: digest("query")?,
+        search_bounds: text("search_bounds")?.into(),
+        data_snapshot: digest("data_snapshot")?,
+        program: digest("program")?,
+        claim: digest("claim")?,
+        review: text("review")?.into(),
+        resolved_marks: text("resolved_marks")?
+            .parse()
+            .map_err(|_| crate::errors::value_err("resolved_marks is not a count"))?,
+        structure_prior: fields.get("structure_prior").cloned().map(Into::into),
+        pooling,
+    })
 }
 
 #[pyfunction]

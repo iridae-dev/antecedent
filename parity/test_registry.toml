@@ -25242,6 +25242,13 @@ path = "crates/antecedent/tests/events.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "hawkes-marks"
+crate = "antecedent"
+cargo_target = "hawkes_marks"
+path = "crates/antecedent/tests/hawkes_marks.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "fitted-dependent-measurement-calibration"
 crate = "antecedent"
 cargo_target = "fitted_dependent_measurement_calibration"
@@ -25517,6 +25524,55 @@ id = "events-study-unit"
 crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/events/study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-challenge-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/challenge.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-hawkes-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/hawkes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-marked-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/marked.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-limits-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/mod.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "events-question-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/question.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-structure-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/structure_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "structure-members-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/structure_members_tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]

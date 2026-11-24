@@ -10,34 +10,107 @@ use serde::{Deserialize, Serialize};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::Study;
-use crate::planner::{PlanStage, PlanView, lowered::LoweredProgram};
+use crate::planner::lowered::{EventProcessRoute, LoweredProgram};
+use crate::planner::{PlanStage, PlanView};
 
 mod assessment;
+mod challenge;
+mod discovery;
 mod dynamics;
 mod hawkes;
+mod marked;
+mod offspring;
+mod question;
+mod release;
+#[cfg(test)]
+mod structure_tests;
 mod study;
 
+pub use antecedent_contract::bridge::BridgeContract;
 pub use assessment::{
     CountCoverageCandidate, ForecastAssessment, ForecastAssessmentRequest, ForecastOrigin,
     ForecastScore, PreparedForecastAssessment, PublishedCountInterval, ReliabilityBin,
 };
+pub use challenge::{
+    DiagnosticStatus, ExcitationChallenge, ExcitationReading, MarkedExcitationChallenge,
+    MarkedReleaseComparisonRequest, PreparedExcitationChallenge, PreparedMarkedChallenge,
+    PreparedReleaseComparison, ReleaseChoice, ReleaseComparison, ReleaseComparisonRequest,
+};
+pub use discovery::{MemberReading, StructuralReading};
 pub use dynamics::{
     EventBinding, EventDecision, EventWorldRequest, GridDifference, PathFunctional, PathOutput,
     PreparedEventWorlds,
 };
-pub use hawkes::{HawkesFit, HawkesFitSpec, HawkesParameters};
+pub use hawkes::{
+    BaselineFeature, ExcitationOffspring, HawkesFit, HawkesFitSpec, HawkesParameters,
+};
+pub use marked::{
+    MAX_PROTOTYPES, MarkPrototype, MarkedArrival, MarkedFit, MarkedFitSpec, MarkedHistory,
+    MarkedOffspring, MarkedParameters, PreparedMarkedDraw, PreparedMarkedFit,
+    PreparedMarkedLikelihood,
+};
+pub use offspring::{PreparedExcitationOffspring, PreparedMarkedOffspring};
+pub use question::{
+    AcceptedExcitation, Continuation, DeclaredQuantity, ExcitationSubject, ExcludedShock,
+    LagCountQuery, PreparedExcitationQuestion, PreparedShock, ReleaseAction, ReleaseDraw,
+    parameter_bridge,
+};
+pub use release::{
+    PreparedReleaseLaw, PreparedReleaseQuestion, QuestionChallenge, ReleaseQuestion,
+    ReleaseQuestionOutcome,
+};
 pub use study::{
     EventBelief, EventHypothesis, EventObservation, EventStudyRequest, EventStudyValue,
-    PreparedEventStudy, PreparedEventUpdate,
+    MemberReleaseStudy, MemberStudyValue, PreparedEventStudy, PreparedEventUpdate,
+    PreparedMemberReleaseStudy,
 };
 
 pub(crate) const CAPABILITY: &str =
     crate::support::units_generated::FORECAST_EVENT_PROCESS.as_str();
 pub(crate) const COUNT_INTERVAL: &str = "forecast.event_count_interval";
+/// The support unit of the finite-rank marked kernel routes.
+pub(crate) const MARKED_UNIT: &str =
+    crate::support::units_generated::FORECAST_MARKED_EVENT_PROCESS.as_str();
+/// The support unit of the offspring, immigrant-challenge and release-comparison routes.
+pub(crate) const EXCITATION_UNIT: &str =
+    crate::support::units_generated::FORECAST_HAWKES_EXCITATION.as_str();
+/// The support unit of the parameter-intervention bridge and what it composes.
+pub(crate) const BRIDGE_UNIT: &str =
+    crate::support::units_generated::FORECAST_HAWKES_PARAMETER_BRIDGE.as_str();
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_TYPES: usize = 16;
-const MAX_EVENTS: usize = 100_000;
+/// Operation charges for one event-process invocation, shared with the Hawkes work counter.
+pub(super) const OPERATION_BUDGET: usize = 250_000_000;
+pub(super) const MAX_EVENTS: usize = 100_000;
 const MAX_PATHS: usize = 4096;
+
+/// Largest dense event catalog.
+///
+/// A likelihood build charges `(MAX_EVENTS + 1) * n²` operations. This is the
+/// largest `n` for which that build uses at most half the operation budget, so
+/// gradient evaluations still fit in the same invocation. The work counter
+/// refuses a fit or forecast that exceeds the budget even inside this cap.
+/// The bound is the dense per-pair kernel's arithmetic, not a property of the
+/// Hawkes process.
+pub const MAX_EVENT_TYPES: usize = max_dense_types(MAX_EVENTS, OPERATION_BUDGET);
+
+/// Largest `n` with `(max_events + 1) * n² <= budget / 2`.
+#[must_use]
+pub const fn max_dense_types(max_events: usize, budget: usize) -> usize {
+    let allowance = budget / 2;
+    let rows = max_events.saturating_add(1);
+    let mut n = 1usize;
+    loop {
+        let next = n + 1;
+        if next > 4096 {
+            return n;
+        }
+        let cost = rows.saturating_mul(next).saturating_mul(next);
+        if cost > allowance {
+            return n;
+        }
+        n = next;
+    }
+}
 
 /// A typed refusal from event compilation or execution.
 #[derive(Debug, thiserror::Error)]
@@ -76,6 +149,16 @@ pub enum EventError {
     /// Native compiler or retained execution failure.
     #[error(transparent)]
     Compiler(#[from] crate::error::CausalError),
+    /// The parameter-intervention bridge refused the structural reading of an excitation mass.
+    #[error("{detail}: {message}")]
+    BridgeRefused {
+        /// Registered `events` refusal detail of the bridge.
+        detail: &'static str,
+        /// Registered runtime reason code.
+        code: &'static str,
+        /// What refused, and the declaration or evidence that would support it.
+        message: String,
+    },
 }
 
 impl EventError {
@@ -93,6 +176,7 @@ impl EventError {
             Self::IntervalUnmeasured => Some(events::INTERVAL_UNMEASURED),
             Self::IncompleteLaw { .. } => Some(events::INCOMPLETE_LAW),
             Self::Compiler(_) => None,
+            Self::BridgeRefused { detail, .. } => Some(*detail),
         }
     }
 
@@ -109,11 +193,21 @@ impl EventError {
             Self::Unverified => reason_code!("external_verification_failed"),
             Self::IntervalUnmeasured => reason_code!("uncertainty_representation_insufficient"),
             Self::Compiler(_) => return None,
+            Self::BridgeRefused { code, .. } => code,
         })
     }
 
     pub(super) fn invalid(error: impl std::fmt::Display) -> Self {
         Self::Invalid(error.to_string())
+    }
+
+    /// A refusal of the parameter-intervention bridge under its registered detail and code.
+    pub(super) fn bridge(
+        detail: &'static str,
+        code: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::BridgeRefused { detail, code, message: message.into() }
     }
 }
 
@@ -215,7 +309,7 @@ impl EventHistory {
         self.window.validate()?;
         let valid_name = |s: &str| !s.trim().is_empty() && s.len() <= 256;
         if self.catalog.is_empty()
-            || self.catalog.len() > MAX_TYPES
+            || self.catalog.len() > MAX_EVENT_TYPES
             || self.catalog.iter().collect::<BTreeSet<_>>().len() != self.catalog.len()
             || self.catalog.iter().any(|kind| !valid_name(kind))
             || [&self.time_unit, &self.origin, &self.source].iter().any(|name| !valid_name(name))
@@ -422,6 +516,10 @@ pub enum EventLawMeaning {
     RecursiveRefit,
     /// Conditional on an explicitly weighted finite parameter belief.
     WeightedBelief,
+    /// Continuation after one added event, once a parameter bridge has accepted the direct mass.
+    ///
+    /// These paths are not an observational forecast.
+    Intervened,
 }
 
 /// Immutable forecast compiled by the causal compiler.
@@ -494,7 +592,13 @@ impl Study {
             _ => "forecast",
         };
         let program = Arc::new(super::lowering::events::lower(
-            source, bytes, operation, CAPABILITY, None, None,
+            EventProcessRoute::Forecast,
+            source,
+            bytes,
+            operation,
+            CAPABILITY,
+            None,
+            None,
         )?);
         Ok(PreparedEventForecast {
             request: Arc::new(request),
@@ -743,6 +847,16 @@ pub fn external_execution_contract(identity: ProviderObjectIdentity) -> Executio
 
 struct PreparedKernel(Arc<LoweredProgram>);
 
+/// The support unit a route's programs run under, as the lowering annotates it.
+const fn route_unit(route: EventProcessRoute) -> &'static str {
+    match route {
+        EventProcessRoute::Forecast => CAPABILITY,
+        EventProcessRoute::Marked => MARKED_UNIT,
+        EventProcessRoute::Excitation => EXCITATION_UNIT,
+        EventProcessRoute::ParameterBridge => BRIDGE_UNIT,
+    }
+}
+
 impl PreparedKernel {
     fn new(
         source: SemanticDigest,
@@ -750,7 +864,30 @@ impl PreparedKernel {
         capability: &'static str,
     ) -> Result<Self, EventError> {
         Ok(Self(Arc::new(super::lowering::events::lower(
-            source, 0, operation, capability, None, None,
+            EventProcessRoute::Forecast,
+            source,
+            0,
+            operation,
+            capability,
+            None,
+            None,
+        )?)))
+    }
+
+    /// A program of `route`, read under that route's support unit.
+    fn on(
+        route: EventProcessRoute,
+        source: SemanticDigest,
+        operation: &'static str,
+    ) -> Result<Self, EventError> {
+        Ok(Self(Arc::new(super::lowering::events::lower(
+            route,
+            source,
+            0,
+            operation,
+            route_unit(route),
+            None,
+            None,
         )?)))
     }
 
@@ -760,11 +897,23 @@ impl PreparedKernel {
         operation: &'static str,
         contract: Option<&antecedent_design::DecisionContract>,
     ) -> Result<Self, EventError> {
+        Self::composed_on(EventProcessRoute::Forecast, source, parent, operation, contract)
+    }
+
+    /// A program of `route` composed on the parent program `parent`.
+    fn composed_on(
+        route: EventProcessRoute,
+        source: SemanticDigest,
+        parent: SemanticDigest,
+        operation: &'static str,
+        contract: Option<&antecedent_design::DecisionContract>,
+    ) -> Result<Self, EventError> {
         Ok(Self(Arc::new(super::lowering::events::lower(
+            route,
             source,
             0,
             operation,
-            CAPABILITY,
+            route_unit(route),
             Some(parent),
             contract,
         )?)))
@@ -847,5 +996,40 @@ impl PreparedEventLikelihood {
         let scoped = scoped_execution(ctx, &self.plan)?;
         let _scratch = admit(&scoped, history_bytes(&self.history) * 12, 0)?;
         hawkes::log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
+    }
+}
+
+#[cfg(test)]
+mod limits {
+    use super::{
+        EventHistory, EventWindow, MAX_EVENT_TYPES, MAX_EVENTS, OPERATION_BUDGET, max_dense_types,
+    };
+
+    fn history(types: usize) -> EventHistory {
+        EventHistory {
+            catalog: (0..types).map(|i| format!("type-{i}")).collect(),
+            time_unit: "hour".into(),
+            origin: "origin".into(),
+            source: "log".into(),
+            empty_origin: 0.0,
+            window: EventWindow { start: 0.0, end: 1.0 },
+            left: vec![],
+            events: vec![],
+            gaps: vec![],
+        }
+    }
+
+    #[test]
+    fn dense_catalog_cap_is_half_the_likelihood_build() {
+        let n = MAX_EVENT_TYPES;
+        let build = (MAX_EVENTS + 1) * n * n;
+        assert!(build <= OPERATION_BUDGET / 2, "{build}");
+        let next = (MAX_EVENTS + 1) * (n + 1) * (n + 1);
+        assert!(next > OPERATION_BUDGET / 2, "{next}");
+        assert!(n > 16);
+        assert_eq!(n, max_dense_types(MAX_EVENTS, OPERATION_BUDGET));
+        history(n).validate(true).unwrap();
+        history(17).validate(true).unwrap();
+        assert!(history(n + 1).validate(true).is_err());
     }
 }

@@ -80,6 +80,11 @@ pub(crate) const ESTIMATE_OBSERVATIONAL_POLICY_VALUE: UnitId =
 pub(crate) const ESTIMATE_TEMPORAL_LINEAR_PREDICTION: UnitId =
     UnitId::new("estimate.temporal_linear_prediction");
 pub(crate) const FORECAST_EVENT_PROCESS: UnitId = UnitId::new("forecast.event_process");
+pub(crate) const FORECAST_HAWKES_EXCITATION: UnitId = UnitId::new("forecast.hawkes_excitation");
+pub(crate) const FORECAST_HAWKES_PARAMETER_BRIDGE: UnitId =
+    UnitId::new("forecast.hawkes_parameter_bridge");
+pub(crate) const FORECAST_MARKED_EVENT_PROCESS: UnitId =
+    UnitId::new("forecast.marked_event_process");
 pub(crate) const GCM_ATTRIBUTE_MECHANISM_REFIT: UnitId =
     UnitId::new("gcm.attribute.mechanism_refit");
 pub(crate) const GCM_MODEL_GRAPH_FALSIFICATION: UnitId =
@@ -232,6 +237,9 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "ObservationalPolicy" | "PolicySubsampling" => Some(ESTIMATE_OBSERVATIONAL_POLICY_VALUE),
         "TemporalLinearPrediction" => Some(ESTIMATE_TEMPORAL_LINEAR_PREDICTION),
         "EventProcess" => Some(FORECAST_EVENT_PROCESS),
+        "HawkesExcitation" => Some(FORECAST_HAWKES_EXCITATION),
+        "HawkesParameterBridge" => Some(FORECAST_HAWKES_PARAMETER_BRIDGE),
+        "MarkedEventProcess" => Some(FORECAST_MARKED_EVENT_PROCESS),
         "FittedModelAttribution" => Some(GCM_ATTRIBUTE_MECHANISM_REFIT),
         "GraphFalsification" => Some(GCM_MODEL_GRAPH_FALSIFICATION),
         "FittedModelSimulation" => Some(GCM_SIMULATE_MECHANISM_REFIT),

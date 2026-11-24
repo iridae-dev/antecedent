@@ -13193,6 +13193,9 @@ def events_prepare(
     request: str,
     source: NativeEventResult | None = None,
     receipt: ProviderVerificationReceipt | None = None,
+    graph: Any | None = None,
+    provenance: dict[str, str] | None = None,
+    weights: list[float] | None = None,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> NativePreparedEventProgram: ...

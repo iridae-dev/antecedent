@@ -1314,8 +1314,39 @@ impl LatentSoftInterventionLoweredParts {
     }
 }
 
-/// The six layers of a compiled event-process program.
+/// The compiled route of an event-process program. Every event-process family lowers through
+/// [`EventProcessLoweredParts`], which names the program cell by this route.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) enum EventProcessRoute {
+    /// Forecasts, likelihoods, worlds, assessments, updates and future studies of a catalog
+    /// Hawkes process.
+    Forecast,
+    /// Likelihood, fit and conditional draws of a finite-rank marked Hawkes kernel.
+    Marked,
+    /// Offspring functionals, immigrant-trend challenges and release-time comparisons of a
+    /// Hawkes excitation kernel.
+    Excitation,
+    /// An agreed direct mass carried by the parameter-intervention bridge, and the intervened
+    /// continuations, shock handoff and release study composed on it.
+    ParameterBridge,
+}
+
+impl EventProcessRoute {
+    /// The program cell a program of this route is lowered for.
+    pub(crate) const fn cell(self) -> ProgramCell {
+        match self {
+            Self::Forecast => ProgramCell::EventProcess,
+            Self::Marked => ProgramCell::MarkedEventProcess,
+            Self::Excitation => ProgramCell::HawkesExcitation,
+            Self::ParameterBridge => ProgramCell::HawkesParameterBridge,
+        }
+    }
+}
+
+/// The six layers of a compiled event-process program, for the route it was lowered for.
 pub(crate) struct EventProcessLoweredParts {
+    /// The event-process route the program is lowered for; it names the program cell.
+    pub(crate) route: EventProcessRoute,
     pub(crate) scientific: ScientificProblem,
     pub(crate) identification: IdentificationLayer,
     pub(crate) statistical: StatisticalProgram,
@@ -1327,7 +1358,7 @@ pub(crate) struct EventProcessLoweredParts {
 impl EventProcessLoweredParts {
     /// Bind all semantic layers; physical quotes do not alter scientific identity.
     pub(crate) fn finish(self) -> LoweredProgram {
-        let cell = ProgramCell::EventProcess;
+        let cell = self.route.cell();
         let depth = LoweringDepth::Complete;
         let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
         writer.text(cell.as_str()).text(depth.as_str());

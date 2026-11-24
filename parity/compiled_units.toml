@@ -458,6 +458,24 @@ unit = "forecast.event_process"
 entry = { rust = "crates/antecedent/src/analysis/events/mod.rs", python = "python/antecedent/events.py" }
 
 [[route]]
+lowering = "MarkedEventProcess"
+unit_kind = "capability"
+unit = "forecast.marked_event_process"
+entry = { rust = "crates/antecedent/src/analysis/events/marked.rs", python = "python/antecedent/events.py" }
+
+[[route]]
+lowering = "HawkesExcitation"
+unit_kind = "capability"
+unit = "forecast.hawkes_excitation"
+entry = { rust = "crates/antecedent/src/analysis/events/challenge.rs", python = "python/antecedent/events.py" }
+
+[[route]]
+lowering = "HawkesParameterBridge"
+unit_kind = "capability"
+unit = "forecast.hawkes_parameter_bridge"
+entry = { rust = "crates/antecedent/src/analysis/events/release.rs", python = "python/antecedent/events.py" }
+
+[[route]]
 lowering = "GraphFalsification"
 unit_kind = "capability"
 unit = "gcm.model.graph_falsification"

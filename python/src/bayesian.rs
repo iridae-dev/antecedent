@@ -244,6 +244,11 @@ impl PyGraphPosterior {
         self.lagged_edge_marginals.is_some() && self.max_lag.is_some()
     }
 
+    /// Variable names of the posterior's nodes, in node order.
+    pub(crate) fn names(&self) -> &[String] {
+        &self.names
+    }
+
     pub(crate) fn require_bound_to(&self, names: &[String]) -> PyResult<()> {
         if self.names != names || self.n_vars != names.len() {
             return Err(crate::value_err(

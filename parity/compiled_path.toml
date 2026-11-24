@@ -20,7 +20,7 @@
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
-seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport"]
+seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy"]
 
 [[row]]
 path = "antecedent::AcceptedPosterior::posterior"
@@ -49,6 +49,101 @@ route = "GraphFalsification"
 path = "antecedent::analysis::graph_falsification::CompiledGraphFalsification::report"
 disposition = "compiled"
 route = "GraphFalsification"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedEventForecast::execute"
+disposition = "compiled"
+route = "EventProcess"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedEventForecast::replay"
+disposition = "compiled"
+route = "EventProcess"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedEventUpdate::execute"
+disposition = "compiled"
+route = "EventProcess"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedEventUpdate::execute_with_belief"
+disposition = "compiled"
+route = "EventProcess"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMarkedFit::execute"
+disposition = "compiled"
+route = "MarkedEventProcess"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedExcitationOffspring::execute"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMarkedOffspring::execute"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedExcitationChallenge::execute"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedExcitationChallenge::kernel"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMarkedChallenge::execute"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMarkedChallenge::kernel"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedReleaseComparison::execute"
+disposition = "compiled"
+route = "HawkesExcitation"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedExcitationQuestion::execute"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedReleaseLaw::execute"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedReleaseQuestion::execute"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedShock::execute"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::AcceptedExcitation::intervened_law"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::AcceptedExcitation::release_law"
+disposition = "compiled"
+route = "HawkesParameterBridge"
+
+[[row]]
+path = "antecedent::analysis::events::PreparedMemberReleaseStudy::execute"
+disposition = "compiled"
+route = "HawkesParameterBridge"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate"

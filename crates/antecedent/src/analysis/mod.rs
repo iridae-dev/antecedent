@@ -240,6 +240,7 @@ pub use joint_interval_artifact::{
     JointIntervalNumerics, JointSensitivityIntervalArtifact,
 };
 pub mod events;
+pub mod structure_members;
 pub mod fitted_dependent_measurement;
 pub mod latent_class_effects;
 pub mod latent_soft_intervention;
