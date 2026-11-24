@@ -180,6 +180,7 @@ pub mod supplied_sensitivity_programs;
 mod supplied_terminal;
 mod targeted_refit;
 mod weighted_target;
+pub mod z_transport_sensitivity_program;
 pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;
 pub(crate) mod functional_sensitivity;
