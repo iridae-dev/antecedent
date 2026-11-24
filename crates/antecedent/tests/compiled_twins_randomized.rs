@@ -16,9 +16,11 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::randomized_adjustment::RandomizedAdjustment;
 use antecedent::prelude::ExecutionContext;
-use antecedent::{RandomizedEffectEstimate, RandomizedEffectQuery, Study};
-use antecedent_core::{RandomizationDesign, VariableId};
+use antecedent::{EstimatorId, RandomizedEffectEstimate, RandomizedEffectQuery, Study};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::{CausalQuery, RandomizationDesign, VariableId};
 use antecedent_data::TabularData;
 
 fn labels(prefix: &str, n: usize) -> Vec<Arc<str>> {
@@ -59,8 +61,25 @@ fn same_interval(left: Option<[f64; 2]>, right: Option<[f64; 2]>) {
     }
 }
 
-/// Same-sample CUPED: the compiled route is `estimated_cuped_contrast`, which wraps
-/// `cuped_ht_effect`; the effect, the pooled slope's standard error and the interval agree.
+/// The structured fields of every estimated-slope CUPED diagnostic of a portable result.
+fn stated_covariates(wire: &antecedent_io::AnalysisResultWire) -> Vec<Vec<(String, String)>> {
+    wire.diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.code == antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC
+        })
+        .map(|diagnostic| diagnostic.fields.clone())
+        .collect()
+}
+
+/// The same-sample CUPED adjustment of the covariate in column 1.
+const ESTIMATED_CUPED: RandomizedAdjustment =
+    RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(1) };
+
+/// Same-sample CUPED: the study declares the adjustment beside an unadjusted Bernoulli query,
+/// and the compiled route is `estimated_cuped_contrast`, which wraps `cuped_ht_effect`; the
+/// effect, the pooled slope's standard error and the interval agree. The result binds the
+/// graphless coordinate the support row's coverage is recorded under.
 #[test]
 fn estimated_slope_cuped_matches_the_direct_kernel() {
     let n = 400;
@@ -76,19 +95,57 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
     let direct =
         antecedent::estimate::randomized_scores::cuped_ht_effect(&y, &x, &assigned, &probabilities)
             .unwrap();
-    let query = bernoulli(n, assigned.clone(), probabilities.clone())
-        .with_estimated_cuped(VariableId::from_raw(1));
+    let query = bernoulli(n, assigned.clone(), probabilities.clone());
+    let ctx = ExecutionContext::for_tests(0x7717_0A);
+    let prepared = Study::tabular(data.clone())
+        .query(query.clone())
+        .randomized_adjustment(ESTIMATED_CUPED)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    // The query keeps its own meaning: the adjustment is the study's, not the query's.
+    assert_eq!(prepared.query(), &CausalQuery::RandomizedEffect(query));
     assert_eq!(
-        query.graphless_coordinate(),
-        (
-            "randomized_effect",
-            "bernoulli",
-            "estimated_cuped_ht_score",
-            "unit",
-            "pointwise_95_normal_interval"
-        )
+        prepared.plan().logical.record.estimator.as_deref(),
+        Some("randomized.estimated_cuped_ht_itt")
     );
-    let fit = run(&data, query);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract_for_result(&result).unwrap();
+    assert_eq!(contract.resolved_estimator.as_deref(), Some("randomized.estimated_cuped_ht_itt"));
+    match &contract.reasoning.support {
+        SlotAvailability::Available(slot) => assert_eq!(
+            slot.matrix_coordinate.as_deref(),
+            Some(
+                "graphless:randomized_effect/bernoulli/estimated_cuped_ht_score/\
+                 pointwise_95_normal_interval"
+            )
+        ),
+        other => panic!("unavailable support: {other:?}"),
+    }
+    // The result states its pre-assignment covariate as structured data, and the portable
+    // result carrying it passes the artifact verifier.
+    prepared.encode_contracted_result(&result, "estimated-slope-cuped", &ctx).unwrap();
+    let wire = result.analysis_result_wire(prepared.query()).unwrap();
+    assert_eq!(stated_covariates(&wire), vec![vec![("covariate".to_owned(), "1".to_owned())]]);
+    let names = vec!["outcome".to_owned(), "baseline".to_owned()];
+    antecedent_io::encode_analysis_result_artifact(&wire, names.clone(), "stated").unwrap();
+    // A result labelled estimated-slope CUPED that states no covariate, or states the outcome,
+    // is refused.
+    for fields in [vec![], vec![("covariate".to_owned(), "0".to_owned())]] {
+        let mut forged = wire.clone();
+        for diagnostic in &mut forged.diagnostics {
+            if diagnostic.code == antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC {
+                diagnostic.fields.clone_from(&fields);
+            }
+        }
+        let refusal = antecedent_io::encode_analysis_result_artifact(&forged, names.clone(), "x")
+            .expect_err("a result that states no pre-assignment covariate is refused")
+            .to_string();
+        assert!(refusal.contains("states no pre-assignment covariate"), "{fields:?}: {refusal}");
+    }
+    let fit = result.into_randomized_effect().unwrap();
+    assert_eq!(&*fit.uncertainty, "bernoulli_estimated_cuped_ht_score_normal_interval");
     assert_eq!(fit.effect.to_bits(), direct.effect.to_bits());
     assert_eq!(
         fit.variance_upper_bound.to_bits(),
@@ -111,24 +168,79 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
 }
 
 /// The same-sample slope is not the fixed route: a coefficient fixed at the slope the kernel
-/// estimates reproduces a different contrast (the fixed route does not centre the covariate), so
-/// the two routes are kept apart by their query declarations.
+/// estimates reproduces a different contrast (the fixed route does not centre the covariate).
+/// The fixed coefficient is the query's; the estimated slope is the study's declared
+/// adjustment, which composes with no other adjustment, enters the program identity, and is
+/// required by its estimator.
 #[test]
 fn estimated_and_fixed_cuped_are_distinct_declarations() {
     let n = 400;
+    let x = (0..n).map(|i| (0.13 * i as f64).cos()).collect::<Vec<_>>();
     let assigned = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+    let y = (0..n).map(|i| x[i] + f64::from(assigned[i])).collect::<Vec<_>>();
+    let z = (0..n).map(|i| (0.07 * i as f64).sin()).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline", x.as_slice()),
+        ("other", z.as_slice()),
+    ])
+    .unwrap();
     let base = bernoulli(n, assigned, vec![0.5; n]);
-    let estimated = base.clone().with_estimated_cuped(VariableId::from_raw(1));
-    let fixed = base.with_fixed_cuped(VariableId::from_raw(1), 1.3);
-    assert_ne!(estimated.graphless_coordinate().2, fixed.graphless_coordinate().2);
-    assert_eq!(estimated.estimated_cuped(), Some(VariableId::from_raw(1)));
-    assert_eq!(estimated.fixed_cuped_coefficient(), None);
-    assert_eq!(fixed.estimated_cuped(), None);
-    assert_eq!(fixed.fixed_cuped_coefficient(), Some((VariableId::from_raw(1), 1.3)));
-    // The two declarations share one slot: a later one replaces the earlier one.
-    let replaced = estimated.clone().with_fixed_cuped(VariableId::from_raw(1), 1.3);
-    assert_eq!(replaced, fixed);
-    assert!(estimated.with_ancova(vec![VariableId::from_raw(2)]).validate().is_err());
+    let adjusted = |query: RandomizedEffectQuery| {
+        Study::tabular(data.clone()).query(query).randomized_adjustment(ESTIMATED_CUPED)
+    };
+    let refused = |builder: antecedent::StudyBuilder| {
+        builder.build().expect_err("the declaration is refused").to_string()
+    };
+    // Fixed and estimated CUPED are two adjustments: the pair is refused, as is ANCOVA beside
+    // the estimated slope, and a covariate that is the outcome.
+    for query in [
+        base.clone().with_fixed_cuped(VariableId::from_raw(1), 1.3),
+        base.clone().with_ancova(vec![VariableId::from_raw(2)]),
+    ] {
+        assert!(refused(adjusted(query)).contains("estimated-slope CUPED"));
+    }
+    let outcome_covariate =
+        RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(0) };
+    assert!(
+        refused(
+            Study::tabular(data.clone())
+                .query(base.clone())
+                .randomized_adjustment(outcome_covariate)
+        )
+        .contains("estimated-slope CUPED")
+    );
+    // The estimator needs the covariate the adjustment names, and the adjustment no other
+    // estimator.
+    assert!(
+        refused(
+            Study::tabular(data.clone())
+                .query(base.clone())
+                .estimator(EstimatorId::RandomizedEstimatedCupedHt)
+        )
+        .contains("required_option_missing")
+    );
+    assert!(
+        refused(adjusted(base.clone()).estimator(EstimatorId::RandomizedHt))
+            .contains("option_not_applicable")
+    );
+    let ctx = ExecutionContext::for_tests(0x7717_0B);
+    let program = |builder: antecedent::StudyBuilder| {
+        builder.build().unwrap().prepare(&ctx).unwrap().contract().unwrap().identities.program
+    };
+    let plain = program(Study::tabular(data.clone()).query(base.clone()));
+    let estimated = program(adjusted(base.clone()));
+    // Declaring the estimator beside the adjustment is admitted.
+    assert!(
+        program(adjusted(base.clone()).estimator(EstimatorId::RandomizedEstimatedCupedHt))
+            .is_some()
+    );
+    let fixed = program(
+        Study::tabular(data.clone()).query(base.with_fixed_cuped(VariableId::from_raw(1), 1.3)),
+    );
+    assert!(estimated.is_some() && plain.is_some(), "prepared studies have program identities");
+    assert_ne!(estimated, plain);
+    assert_ne!(estimated, fixed);
 }
 
 /// ANCOVA: the compiled route is `fit_ancova` plus the calibrated Bernoulli interval.

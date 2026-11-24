@@ -136,6 +136,7 @@ fn bind_graphless_reasoning(
     contract: &mut CausalContract,
     result: &StudyResult,
     query: &CausalQuery,
+    adjustment: Option<&crate::analysis::randomized_adjustment::RandomizedAdjustment>,
 ) -> Result<(), CausalError> {
     let graphless = result.continuous_dose_response().is_some()
         || result.policy_value().is_some()
@@ -151,7 +152,7 @@ fn bind_graphless_reasoning(
     }
     let support_status = result.support_status;
     let coordinate = if support_status == Some(CellStatus::Supported) {
-        Some(graphless_coordinate(result, query)?)
+        Some(graphless_coordinate(result, query, adjustment)?)
     } else {
         None
     };
@@ -182,6 +183,7 @@ fn bind_graphless_reasoning(
 fn graphless_coordinate(
     result: &StudyResult,
     query: &CausalQuery,
+    adjustment: Option<&crate::analysis::randomized_adjustment::RandomizedAdjustment>,
 ) -> Result<Arc<str>, CausalError> {
     const MISMATCH: CausalError = CausalError::Conflict {
         what: "result",
@@ -254,9 +256,10 @@ fn graphless_coordinate(
         // executed graphless support binds in the result-specific reasoning
         // and claim only after estimation. The Wald complier effect is its
         // own graphless family; a Bernoulli assignment design does not fold
-        // it into ITT.
+        // it into ITT. A declared same-sample CUPED adjustment is read under its own row.
         let CausalQuery::RandomizedEffect(query) = query else { return Err(MISMATCH) };
-        let (family, design, method, _assignment_unit, claim) = query.graphless_coordinate();
+        let (family, design, method, _assignment_unit, claim) =
+            crate::analysis::randomized_adjustment::graphless_coordinate(query, adjustment);
         coordinate = Some(format!("graphless:{family}/{design}/{method}/{claim}"));
         // The independent-factor 2x2 reading of a four-cell multi-arm design is selected by its
         // estimator, not by the query, and is supported under its own row.
@@ -975,7 +978,12 @@ impl PreparedStudy {
             });
         }
         let mut contract = compiled.contract.clone();
-        bind_graphless_reasoning(&mut contract, result, self.query())?;
+        bind_graphless_reasoning(
+            &mut contract,
+            result,
+            self.query(),
+            self.study().declared.randomized_adjustment.as_ref(),
+        )?;
         // Interference is on the geometric support axis: its contract keeps the
         // geometric `InterferenceQuery` coordinate and calibration basis. The
         // off-axis exposure-contrast interval support is carried instead in

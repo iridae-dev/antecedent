@@ -742,23 +742,21 @@ impl PyPreparedAnalysis {
                 outcome_units.into_iter().map(Arc::<str>::from).collect::<Vec<_>>(),
                 (Arc::<str>::from(treatment_arms.0), Arc::<str>::from(treatment_arms.1)),
             );
-            // The two CUPED declarations share one slot of the query; declaring both is refused
-            // here, as the query's own validation refuses an estimated slope combined with any
-            // other adjustment.
-            if fixed_cuped.is_some() && estimated_cuped.is_some() {
-                return Err(py_msg(
-                    "estimated-slope CUPED requires independent Bernoulli assignment, a distinct \
-                     pre-assignment covariate, and no other adjustment or exact test",
-                ));
-            }
             if let Some((covariate, coefficient)) = fixed_cuped {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
             }
-            if let Some(covariate) = estimated_cuped {
-                let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
-                query = query.with_estimated_cuped(covariate_id);
-            }
+            // Same-sample CUPED is the study's declared adjustment, not part of the query; the
+            // build refuses it beside a fixed coefficient or any other adjustment.
+            let adjustment = estimated_cuped
+                .map(|covariate| {
+                    crate::graph_build::schema_var_id(data.schema(), &covariate).map(|covariate| {
+                        antecedent::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCuped {
+                            covariate,
+                        }
+                    })
+                })
+                .transpose()?;
             if let Some(covariates) = ancova_covariates
                 && !covariates.is_empty() {
                     let ids = covariates
@@ -783,7 +781,10 @@ impl PyPreparedAnalysis {
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             let _ = accepted;
-            let builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
+            let mut builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
+            if let Some(adjustment) = adjustment {
+                builder = builder.randomized_adjustment(adjustment);
+            }
             req.finish_applied(builder, false)
         })
         })

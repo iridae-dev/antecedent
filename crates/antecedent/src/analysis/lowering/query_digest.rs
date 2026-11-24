@@ -254,6 +254,9 @@ fn audit_identification_inputs(study: &Study) {
         // Declared policy limits are checked at estimation; they enter the lowered program
         // through a model slot of the policy-value cell, never identification.
         binary_policy_constraints: _,
+        // A declared randomized adjustment is a choice of estimator; it enters the lowered
+        // program through the method and covariate of the randomized cell's outcome slot.
+        randomized_adjustment: _,
         // Estimation-stage declarations: overlap, population, row binding, missing values and
         // sampling design.
         overlap_policy: _,

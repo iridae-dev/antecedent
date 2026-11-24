@@ -214,6 +214,23 @@ pub const FACTORIAL_BERNOULLI_INTERVAL_UNCERTAINTY: &str =
 pub const FACTORIAL_BERNOULLI_POINT_UNCERTAINTY: &str =
     "factorial_bernoulli_ht_young_variance_bound_no_interval";
 
+/// Code of the diagnostic a same-sample (estimated-slope) CUPED result carries: the
+/// estimator's own diagnostic, whose structured fields state the covariate the adjustment read
+/// (a scientific premise: it must be pre-assignment). Execution writes the fields and artifact
+/// verification requires them.
+pub const ESTIMATED_CUPED_DIAGNOSTIC: &str = "estimate.randomized.estimated_cuped_ht_itt";
+
+/// Field of the [`ESTIMATED_CUPED_DIAGNOSTIC`] that holds the covariate's variable id, in
+/// decimal.
+pub const ESTIMATED_CUPED_COVARIATE_FIELD: &str = "covariate";
+
+/// The structured fields of the [`ESTIMATED_CUPED_DIAGNOSTIC`] of an adjustment by the
+/// covariate with variable id `covariate`.
+#[must_use]
+pub fn estimated_cuped_fields(covariate: u32) -> Vec<(String, String)> {
+    vec![(ESTIMATED_CUPED_COVARIATE_FIELD.to_owned(), covariate.to_string())]
+}
+
 /// Code of the diagnostic by which a Bayesian design posterior states the support row it ran
 /// under. Such a result has no design section of its own, so the row key and the observed
 /// support ride in the diagnostic's fields.

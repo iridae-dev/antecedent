@@ -243,6 +243,10 @@ pub(crate) struct StudyDeclarations {
     /// the net-value policy route (see [`crate::analysis::binary_policy_constraints`]).
     pub(crate) binary_policy_constraints:
         Option<crate::analysis::binary_policy_constraints::BinaryPolicyConstraints>,
+    /// Declared covariate adjustment of a randomized-effect study's estimator (see
+    /// [`crate::analysis::randomized_adjustment`]).
+    pub(crate) randomized_adjustment:
+        Option<crate::analysis::randomized_adjustment::RandomizedAdjustment>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
 }

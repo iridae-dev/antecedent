@@ -277,6 +277,7 @@ pub mod propagation_chain_decision;
 pub mod propagation_chain_robust_decision;
 pub mod provider_callbacks;
 pub(crate) mod query_support;
+pub mod randomized_adjustment;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;

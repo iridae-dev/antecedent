@@ -76,6 +76,9 @@ pub(super) struct Declarations {
     /// Declared capacity, budget and availability limits of a fixed binary policy.
     pub(super) binary_policy_constraints:
         Option<crate::analysis::binary_policy_constraints::BinaryPolicyConstraints>,
+    /// Declared covariate adjustment of a randomized-effect study's estimator.
+    pub(super) randomized_adjustment:
+        Option<crate::analysis::randomized_adjustment::RandomizedAdjustment>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     pub(super) tiered: Option<TieredBackground>,
     /// Refused at build: coarsened continuous coordinate is not a point CDE.

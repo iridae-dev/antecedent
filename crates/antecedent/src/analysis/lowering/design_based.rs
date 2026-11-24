@@ -502,8 +502,10 @@ impl DesignLowering for InterferenceQuery {
 impl DesignLowering for RandomizedEffectQuery {
     fn design_cell(&self, env: &DesignEnv<'_>) -> Result<DesignCell, CausalError> {
         let query = self;
-        let (identification, _) = randomized_identification(query);
-        let (_, _, method, assignment_unit, _) = query.graphless_coordinate();
+        let adjustment = env.study.declared.randomized_adjustment.as_ref();
+        let (identification, _) = randomized_identification(query, adjustment);
+        let (_, _, method, assignment_unit, _) =
+            crate::analysis::randomized_adjustment::graphless_coordinate(query, adjustment);
         // A declared independent-factor 2x2 reading of a four-cell multi-arm design fits its
         // own method; every other study keeps the query's.
         let method = if env.study.declared.estimator
@@ -515,6 +517,11 @@ impl DesignLowering for RandomizedEffectQuery {
         };
         let mut covariates: Vec<VariableId> = query.ancova_covariates.to_vec();
         covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
+        // A declared same-sample CUPED adjustment names its covariate in the outcome slot, as
+        // a fixed coefficient's covariate is named, so the adjustment enters the program.
+        covariates.extend(
+            adjustment.map(crate::analysis::randomized_adjustment::RandomizedAdjustment::covariate),
+        );
         let ancova = !query.ancova_covariates.is_empty();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::AssignmentContrast, query.outcome),

@@ -34,15 +34,17 @@ impl super::super::Study {
                 // The declared independent-factor 2x2 reading of a four-cell multi-arm design;
                 // the checked operation refuses it on any other design.
                 EstimatorId::RandomizedFactorialBernoulliHt.as_str()
+            } else if self.declared.randomized_adjustment.is_some() {
+                // A declared same-sample CUPED adjustment; the build refuses it on any query
+                // but an unadjusted independent Bernoulli ITT.
+                EstimatorId::RandomizedEstimatedCupedHt.as_str()
             } else {
                 match &q.design {
                     antecedent_core::RandomizationDesign::Bernoulli => {
                         if q.received_treatment.is_some() {
                             "randomized.wald_cace_late"
-                        } else if q.fixed_cuped_coefficient().is_some() {
+                        } else if q.fixed_cuped.is_some() {
                             "randomized.fixed_cuped_ht_itt"
-                        } else if q.estimated_cuped().is_some() {
-                            "randomized.estimated_cuped_ht_itt"
                         } else if !q.ancova_covariates.is_empty() {
                             "randomized.ancova_itt"
                         } else {
@@ -50,7 +52,7 @@ impl super::super::Study {
                         }
                     }
                     antecedent_core::RandomizationDesign::Cluster { .. }
-                        if q.fixed_cuped_coefficient().is_some() =>
+                        if q.fixed_cuped.is_some() =>
                     {
                         "randomized.cluster_fixed_cuped_itt"
                     }

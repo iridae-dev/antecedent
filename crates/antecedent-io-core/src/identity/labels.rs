@@ -223,12 +223,8 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             (
                 "precision_adjustment".into(),
                 if query.ancova_covariates.is_empty() {
-                    query.fixed_cuped_coefficient().map_or_else(
-                        || {
-                            query
-                                .estimated_cuped()
-                                .map_or_else(|| "none".into(), |id| format!("estimated_cuped:{id}"))
-                        },
+                    query.fixed_cuped.map_or_else(
+                        || "none".into(),
                         |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
                     )
                 } else {

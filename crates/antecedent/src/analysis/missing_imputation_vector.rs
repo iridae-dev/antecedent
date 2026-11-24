@@ -71,10 +71,20 @@ fn add(ids: &mut Vec<VariableId>, id: VariableId) {
     }
 }
 
+/// The variables a study reads, in the order the imputation model anchors on them: those its
+/// query names ([`query_variables`]), then the covariate of a declared randomized adjustment.
+pub(super) fn study_variables(study: &Study) -> Vec<VariableId> {
+    let mut ids = query_variables(&study.query);
+    if let Some(adjustment) = study.declared.randomized_adjustment.as_ref() {
+        add(&mut ids, adjustment.covariate());
+    }
+    ids
+}
+
 /// The variables a query names, in the order the imputation model anchors on them: the
 /// treatment and outcome (or outcomes) first, then the modifiers, mediators and conditioning
 /// variables it reads.
-pub(super) fn query_variables(query: &CausalQuery) -> Vec<VariableId> {
+fn query_variables(query: &CausalQuery) -> Vec<VariableId> {
     let mut ids: Vec<VariableId> = Vec::new();
     match query {
         CausalQuery::AverageEffect(q) => {

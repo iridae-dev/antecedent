@@ -73,11 +73,6 @@ pub enum RandomizedEstimand {
 /// Most rows of a Bernoulli design whose probability-weighted assignments are enumerated.
 const BERNOULLI_EXACT_TEST_MAX_ROWS: usize = 20;
 
-/// Whether a [`RandomizedEffectQuery::fixed_cuped`] coefficient is the estimated-slope marker.
-fn is_estimated_slope(coefficient: f64) -> bool {
-    coefficient == RandomizedEffectQuery::ESTIMATED_SLOPE
-}
-
 /// The exact graphless support-key tuple `(family, design, method,
 /// assignment_unit, inference_claim)` for a retained randomized query, shared by
 /// the execute-side support handshake and the contract-side matrix coordinate so
@@ -202,12 +197,6 @@ pub struct RandomizedEffectQuery {
     pub treatment_arms: (Arc<str>, Arc<str>),
     /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
     /// Valid under Bernoulli rows and complete cluster randomization.
-    ///
-    /// The coefficient [`RandomizedEffectQuery::ESTIMATED_SLOPE`] declares no fixed
-    /// coefficient: the covariate's pooled outcome slope is estimated from these rows
-    /// (same-sample CUPED, [`RandomizedEffectQuery::with_estimated_cuped`]). Read the two
-    /// declarations with [`RandomizedEffectQuery::fixed_cuped_coefficient`] and
-    /// [`RandomizedEffectQuery::estimated_cuped`].
     pub fixed_cuped: Option<(VariableId, f64)>,
     /// Pre-assignment covariates fitted jointly with assignment by ANCOVA.
     pub ancova_covariates: Arc<[VariableId]>,
@@ -285,23 +274,15 @@ impl CanonicalEncode for RandomizedEffectQuery {
             .texts(&self.outcome_units)
             .text(&self.treatment_arms.0)
             .text(&self.treatment_arms.1);
-        match self.fixed_cuped_coefficient() {
+        match self.fixed_cuped {
             Some((covariate, coefficient)) => {
                 writer.word(1);
                 covariate.encode(writer);
                 writer.real(coefficient);
             }
-            // The estimated-slope declaration takes the third tag of the same slot, so a query
-            // that declares no estimated slope keeps its existing identity.
-            None => match self.estimated_cuped() {
-                Some(covariate) => {
-                    writer.word(2);
-                    covariate.encode(writer);
-                }
-                None => {
-                    writer.word(0);
-                }
-            },
+            None => {
+                writer.word(0);
+            }
         }
         encode_variables(writer, &self.ancova_covariates);
         match &self.received_treatment {
@@ -371,63 +352,6 @@ impl RandomizedEffectQuery {
     pub fn with_fixed_cuped(mut self, covariate: VariableId, coefficient: f64) -> Self {
         self.fixed_cuped = Some((covariate, coefficient));
         self
-    }
-
-    /// The [`RandomizedEffectQuery::fixed_cuped`] coefficient that declares a slope estimated
-    /// from the rows instead of a fixed one. A fixed coefficient must be finite, so the
-    /// marker is never a fixed declaration.
-    pub const ESTIMATED_SLOPE: f64 = f64::INFINITY;
-
-    /// Declare a pre-assignment covariate whose pooled slope is estimated from these rows
-    /// (same-sample CUPED). The declaration shares the [`RandomizedEffectQuery::fixed_cuped`]
-    /// slot, with the coefficient [`RandomizedEffectQuery::ESTIMATED_SLOPE`]: it replaces a
-    /// fixed CUPED declaration, as a later fixed declaration replaces it.
-    #[must_use]
-    pub fn with_estimated_cuped(mut self, covariate: VariableId) -> Self {
-        self.fixed_cuped = Some((covariate, Self::ESTIMATED_SLOPE));
-        self
-    }
-
-    /// The covariate whose pooled slope is estimated from these rows, when the query
-    /// declares same-sample CUPED.
-    #[must_use]
-    pub fn estimated_cuped(&self) -> Option<VariableId> {
-        self.fixed_cuped.and_then(|(covariate, coefficient)| {
-            is_estimated_slope(coefficient).then_some(covariate)
-        })
-    }
-
-    /// The covariate and externally fixed coefficient, when the query declares fixed CUPED
-    /// (not the estimated-slope declaration).
-    #[must_use]
-    pub fn fixed_cuped_coefficient(&self) -> Option<(VariableId, f64)> {
-        self.fixed_cuped.filter(|&(_, coefficient)| !is_estimated_slope(coefficient))
-    }
-
-    /// The graphless support-key tuple `(family, design, method, assignment_unit,
-    /// inference_claim)` of this query: [`randomized_graphless_coordinate`] with the
-    /// estimated-slope CUPED method for a query that declares one.
-    #[must_use]
-    pub fn graphless_coordinate(
-        &self,
-    ) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
-        if self.estimated_cuped().is_some() && matches!(self.design, RandomizationDesign::Bernoulli)
-        {
-            return (
-                "randomized_effect",
-                "bernoulli",
-                "estimated_cuped_ht_score",
-                "unit",
-                "pointwise_95_normal_interval",
-            );
-        }
-        randomized_graphless_coordinate(
-            &self.design,
-            self.estimand,
-            self.received_treatment.is_some(),
-            self.fixed_cuped_coefficient().is_some(),
-            !self.ancova_covariates.is_empty(),
-        )
     }
 
     /// Fit a multi-covariate ANCOVA on independent Bernoulli trial rows.
@@ -582,7 +506,7 @@ impl RandomizedEffectQuery {
                 RandomizedEffectFault::ReceiptWithoutComplier,
             ));
         }
-        if let Some((covariate, coefficient)) = self.fixed_cuped_coefficient() {
+        if let Some((covariate, coefficient)) = self.fixed_cuped {
             // A coefficient fixed outside the experiment turns the adjusted outcome into
             // another potential outcome with the same contrast, so it composes with any
             // design whose own estimator and unit of analysis are kept: independent
@@ -599,25 +523,11 @@ impl RandomizedEffectQuery {
                 ));
             }
         }
-        if let Some(covariate) = self.estimated_cuped() {
-            // The slope is estimated from these rows, so the adjustment is a property of the
-            // independent Bernoulli score and composes with nothing else.
-            if !matches!(self.design, RandomizationDesign::Bernoulli)
-                || covariate == self.outcome
-                || !self.ancova_covariates.is_empty()
-                || self.received_treatment.is_some()
-                || self.exact_randomization_test
-            {
-                return Err(QueryError::RandomizedEffectRefused(
-                    RandomizedEffectFault::EstimatedCupedDesign,
-                ));
-            }
-        }
         if !self.ancova_covariates.is_empty() {
             let unique =
                 self.ancova_covariates.iter().copied().collect::<std::collections::HashSet<_>>();
             if !matches!(self.design, RandomizationDesign::Bernoulli)
-                || self.fixed_cuped_coefficient().is_some()
+                || self.fixed_cuped.is_some()
                 || self.received_treatment.is_some()
                 || self.ancova_covariates.contains(&self.outcome)
                 || unique.len() != self.ancova_covariates.len()

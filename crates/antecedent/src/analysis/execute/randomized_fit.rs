@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, EstimatorId, TableView, TabularData};
+use crate::analysis::randomized_adjustment::RandomizedAdjustment;
 use antecedent_core::{
     ExecutionContext, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand,
 };
@@ -16,9 +17,10 @@ pub(super) type MultiArmValues = Arc<[(Arc<str>, f64, f64, usize)]>;
 
 type Interval = Option<[f64; 2]>;
 
-/// The estimator branch a randomized query takes. Query validation makes
-/// receipt adjustment, CUPED and ANCOVA mutually exclusive and Bernoulli-only,
-/// so the branch is a function of the query alone.
+/// The estimator branch a randomized study takes. Query validation makes receipt adjustment,
+/// fixed CUPED and ANCOVA mutually exclusive and Bernoulli-only, and the build admits a declared
+/// [`RandomizedAdjustment`] on an unadjusted Bernoulli ITT query only, so the branch is a
+/// function of the query and the study's declared adjustment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RandomizedMethod {
     Ancova,
@@ -37,10 +39,13 @@ pub(super) enum RandomizedMethod {
 }
 
 impl RandomizedMethod {
-    pub(super) fn of(query: &RandomizedEffectQuery) -> Self {
+    pub(super) fn of(
+        query: &RandomizedEffectQuery,
+        adjustment: Option<&RandomizedAdjustment>,
+    ) -> Self {
         if !query.ancova_covariates.is_empty() {
             Self::Ancova
-        } else if query.estimated_cuped().is_some()
+        } else if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCuped { .. }))
             && matches!(query.design, RandomizationDesign::Bernoulli)
         {
             Self::EstimatedCuped
@@ -52,14 +57,10 @@ impl RandomizedMethod {
             }
         } else {
             match &query.design {
-                RandomizationDesign::Bernoulli if query.fixed_cuped_coefficient().is_some() => {
-                    Self::FixedCuped
-                }
+                RandomizationDesign::Bernoulli if query.fixed_cuped.is_some() => Self::FixedCuped,
                 RandomizationDesign::Bernoulli => Self::Bernoulli,
                 RandomizationDesign::Complete { .. } => Self::Complete,
-                RandomizationDesign::Cluster { .. }
-                    if query.fixed_cuped_coefficient().is_some() =>
-                {
+                RandomizationDesign::Cluster { .. } if query.fixed_cuped.is_some() => {
                     Self::ClusterFixedCuped
                 }
                 RandomizationDesign::Cluster { .. } => Self::Cluster,
@@ -118,7 +119,8 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => "estimate.randomized.wald_cace_late",
             Self::FixedCuped => "estimate.randomized.fixed_cuped_ht_itt",
-            Self::EstimatedCuped => "estimate.randomized.estimated_cuped_ht_itt",
+            // The code the result verifier reads the covariate's structured field under.
+            Self::EstimatedCuped => antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC,
             Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",
@@ -361,18 +363,21 @@ impl TrialFit {
     }
 }
 
-/// Fits the declared randomized design on (possibly CUPED-adjusted) outcomes.
+/// Fits the declared randomized design on (possibly CUPED-adjusted) outcomes, under the
+/// study's declared adjustment.
 pub(super) fn fit_randomized(
     query: &RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     data: &TabularData,
     outcomes: &[f64],
 ) -> Result<TrialFit, CausalError> {
+    let method = RandomizedMethod::of(query, adjustment);
     if let Some(weights) = data.storage().weights() {
-        return fit_sampling_weighted(query, outcomes, weights);
+        return fit_sampling_weighted(query, method, outcomes, weights);
     }
-    match RandomizedMethod::of(query) {
+    match method {
         RandomizedMethod::Ancova => fit_ancova(query, data, outcomes),
-        RandomizedMethod::EstimatedCuped => fit_estimated_cuped(query, data, outcomes),
+        RandomizedMethod::EstimatedCuped => fit_estimated_cuped(query, adjustment, data, outcomes),
         RandomizedMethod::TreatmentOnTreated | RandomizedMethod::ComplierEffect => {
             fit_complier(query, outcomes)
         }
@@ -399,6 +404,7 @@ pub(super) fn fit_randomized(
 /// assignment to the responders, and neither publishes an interval.
 pub(super) fn fit_missing_outcomes(
     query: &RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     data: &TabularData,
     outcomes: &[f64],
     observed: &[bool],
@@ -413,10 +419,17 @@ pub(super) fn fit_missing_outcomes(
         });
     }
     if !matches!(
-        RandomizedMethod::of(query),
+        RandomizedMethod::of(query, adjustment),
         RandomizedMethod::Bernoulli | RandomizedMethod::Complete
     ) {
-        return fit_design_with_missing_outcomes(query, data, outcomes, observed, declaration);
+        return fit_design_with_missing_outcomes(
+            query,
+            adjustment,
+            data,
+            outcomes,
+            observed,
+            declaration,
+        );
     }
     match declaration.policy {
         MissingPolicy::CompleteCase => {
@@ -480,6 +493,7 @@ pub(super) fn fit_missing_outcomes(
 /// are treated as independent of the shared coefficients).
 fn fit_design_with_missing_outcomes(
     query: &RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     data: &TabularData,
     outcomes: &[f64],
     observed: &[bool],
@@ -529,7 +543,7 @@ fn fit_design_with_missing_outcomes(
         &covariates,
         ncov,
     )?;
-    fit_randomized(query, data, &pseudo)
+    fit_randomized(query, adjustment, data, &pseudo)
 }
 
 /// The small-arm Student interval of a trial whose arms are below the normal interval's support,
@@ -590,12 +604,14 @@ fn fit_ancova(
 /// come from the one kernel the direct Python entry runs, on the raw outcomes.
 fn fit_estimated_cuped(
     query: &RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     data: &TabularData,
     outcomes: &[f64],
 ) -> Result<TrialFit, CausalError> {
-    let covariate = query.estimated_cuped().ok_or(CausalError::Unsupported {
-        message: "estimated-slope CUPED requires a declared pre-assignment covariate",
-    })?;
+    let covariate =
+        adjustment.map(RandomizedAdjustment::covariate).ok_or(CausalError::Unsupported {
+            message: "estimated-slope CUPED requires a declared pre-assignment covariate",
+        })?;
     let values = match data.column(covariate).map_err(CausalError::from)? {
         antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
         _ => {
@@ -1163,13 +1179,12 @@ pub(super) const SAMPLING_WEIGHTED_DIAGNOSTIC: &str = "Sampling-weighted ITT: th
 /// clusters, blocks, factors, extra arms or sequences have no sampling-weighted contrast.
 fn fit_sampling_weighted(
     query: &RandomizedEffectQuery,
+    method: RandomizedMethod,
     outcomes: &[f64],
     weights: &[f64],
 ) -> Result<TrialFit, CausalError> {
-    if !matches!(
-        RandomizedMethod::of(query),
-        RandomizedMethod::Bernoulli | RandomizedMethod::Complete
-    ) || query.exact_randomization_test
+    if !matches!(method, RandomizedMethod::Bernoulli | RandomizedMethod::Complete)
+        || query.exact_randomization_test
     {
         return Err(CausalError::Estimate(
             antecedent_estimate::sampling_weights::unsupported_route(

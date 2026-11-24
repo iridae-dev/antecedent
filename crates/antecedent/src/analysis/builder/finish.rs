@@ -2036,6 +2036,7 @@ fn into_study(exposure: BoundExposure) -> Study {
             custom_validators: declared.custom_validators,
             learner_factories: declared.learner_factories,
             binary_policy_constraints: declared.binary_policy_constraints,
+            randomized_adjustment: declared.randomized_adjustment,
             tiered: declared.tiered,
         },
         settings: StudyInference {

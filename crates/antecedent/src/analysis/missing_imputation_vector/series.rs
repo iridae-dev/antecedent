@@ -7,7 +7,7 @@ use super::{
     Imputer, MissingDeclaration, MissingRoute, OwnedColumn, Pooling, RowAccounting, Study,
     StudyResult, TableView, TabularData, TimeSeriesData, VariableId, add, analysed_variables,
     complete_float_columns, declared_imputation, failure, missing_data, multiple_imputation,
-    pool_into_result, query_variables, refused, route_missing_support,
+    pool_into_result, refused, route_missing_support, study_variables,
 };
 
 /// Neighbouring steps on each side the series' imputation model conditions on: the deepest lag
@@ -65,7 +65,7 @@ fn series_model_variables(
         }
         return Ok(float_ids);
     }
-    let mut ids = query_variables(&study.query);
+    let mut ids = study_variables(study);
     if ids.is_empty() {
         return Err(refused("this query names no variable the imputation model can anchor on"));
     }

@@ -9,6 +9,37 @@ use super::{
     graphless_status_ok, interval_bound_replay, late_ratio_matches, sampling_weighted_uncertainty,
 };
 
+/// Point-only and interval uncertainty labels of the same-sample (estimated-slope) CUPED
+/// reading of an independent Bernoulli design.
+const ESTIMATED_CUPED_UNCERTAINTY: [&str; 2] = [
+    "bernoulli_estimated_cuped_ht_standard_error_no_interval",
+    "bernoulli_estimated_cuped_ht_score_normal_interval",
+];
+
+/// The covariate a same-sample CUPED result states: the one
+/// [`crate::graphless_support::ESTIMATED_CUPED_COVARIATE_FIELD`] of its one
+/// [`crate::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC`], a variable id in canonical decimal.
+/// `None` when the result states none, or states it more than once.
+fn stated_estimated_cuped_covariate(diagnostics: &[crate::DiagnosticWire]) -> Option<u32> {
+    let mut stated = diagnostics.iter().filter(|diagnostic| {
+        diagnostic.code == crate::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC
+    });
+    let diagnostic = stated.next()?;
+    if stated.next().is_some() {
+        return None;
+    }
+    let mut values = diagnostic
+        .fields
+        .iter()
+        .filter(|(name, _)| name == crate::graphless_support::ESTIMATED_CUPED_COVARIATE_FIELD);
+    let (_, value) = values.next()?;
+    if values.next().is_some() {
+        return None;
+    }
+    let covariate = value.parse::<u32>().ok()?;
+    (*value == covariate.to_string()).then_some(covariate)
+}
+
 /// Recompute the design-specific conditions for publishing an interval.
 fn randomized_interval_supported(
     query: &crate::query_wire::RandomizedEffectQueryWire,
@@ -116,6 +147,29 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             allow_legacy_graphless_missing,
         );
     }
+    // Same-sample CUPED is a method the study declares, not a facet of its query: the query is
+    // an unadjusted independent Bernoulli ITT, and the reading is selected by the estimator's
+    // own uncertainty label, as the factorial reading is by its assignment design.
+    let estimated_cuped = matches!(query.design, crate::RandomizationDesignWire::Bernoulli)
+        && query.estimand == crate::RandomizedEstimandWire::Itt
+        && query.received_treatment.is_none()
+        && query.fixed_cuped.is_none()
+        && query.ancova_covariates.is_empty()
+        && !query.exact_randomization_test
+        && ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
+    // The covariate is a scientific premise (it must be pre-assignment), so the result must
+    // state it, as structured data: the estimator's diagnostic names one covariate other than
+    // the outcome.
+    if estimated_cuped
+        && stated_estimated_cuped_covariate(&result.diagnostics)
+            .is_none_or(|covariate| covariate == query.outcome)
+    {
+        return Err(IoError::Convert(
+            "estimated-slope CUPED result states no pre-assignment covariate other than the \
+             outcome"
+                .into(),
+        ));
+    }
     let (design, point_uncertainty, interval_uncertainty) = match &query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
@@ -135,16 +189,14 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 Some("bernoulli_one_sided_tot_influence_normal_interval"),
             )
         }
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped_coefficient().is_some() => (
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => (
             "bernoulli",
             "bernoulli_fixed_cuped_ht_conservative_variance_no_interval",
             Some("bernoulli_fixed_cuped_ht_score_normal_interval"),
         ),
-        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped().is_some() => (
-            "bernoulli",
-            "bernoulli_estimated_cuped_ht_standard_error_no_interval",
-            Some("bernoulli_estimated_cuped_ht_score_normal_interval"),
-        ),
+        crate::RandomizationDesignWire::Bernoulli if estimated_cuped => {
+            ("bernoulli", ESTIMATED_CUPED_UNCERTAINTY[0], Some(ESTIMATED_CUPED_UNCERTAINTY[1]))
+        }
         crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => (
             "bernoulli",
             "bernoulli_ancova_hc0_variance_no_interval",
@@ -160,15 +212,11 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "complete_neyman_variance_upper_bound_no_interval",
             Some("complete_neyman_normal_interval"),
         ),
-        crate::RandomizationDesignWire::Cluster { .. }
-            if query.fixed_cuped_coefficient().is_some() =>
-        {
-            (
-                "cluster",
-                "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
-                Some("cluster_fixed_cuped_neyman_normal_interval"),
-            )
-        }
+        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => (
+            "cluster",
+            "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
+            Some("cluster_fixed_cuped_neyman_normal_interval"),
+        ),
         crate::RandomizationDesignWire::Cluster { .. } => (
             "cluster",
             "cluster_neyman_variance_upper_bound_no_interval",
@@ -304,16 +352,14 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 "pointwise_95_normal_interval",
             ))
         }
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped_coefficient().is_some() => {
-            Some((
-                "randomized_effect",
-                "bernoulli",
-                "fixed_cuped_ht_score",
-                "unit",
-                "pointwise_95_normal_interval",
-            ))
-        }
-        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped().is_some() => Some((
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => Some((
+            "randomized_effect",
+            "bernoulli",
+            "fixed_cuped_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Bernoulli if estimated_cuped => Some((
             "randomized_effect",
             "bernoulli",
             "estimated_cuped_ht_score",
@@ -341,17 +387,13 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "unit",
             "pointwise_95_normal_interval",
         )),
-        crate::RandomizationDesignWire::Cluster { .. }
-            if query.fixed_cuped_coefficient().is_some() =>
-        {
-            Some((
-                "randomized_effect",
-                "cluster",
-                "fixed_cuped_cluster_totals",
-                "cluster",
-                "pointwise_95_normal_interval",
-            ))
-        }
+        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => Some((
+            "randomized_effect",
+            "cluster",
+            "fixed_cuped_cluster_totals",
+            "cluster",
+            "pointwise_95_normal_interval",
+        )),
         crate::RandomizationDesignWire::Cluster { .. } => Some((
             "randomized_effect",
             "cluster",

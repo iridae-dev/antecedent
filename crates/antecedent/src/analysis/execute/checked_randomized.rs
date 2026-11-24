@@ -16,21 +16,44 @@ use super::{
     finish_identified_execute_with_context,
 };
 use crate::analysis::missing_data;
+use crate::analysis::randomized_adjustment::{self, RandomizedAdjustment};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
 /// Frozen randomized-design analysis. Assignment metadata is part of query identity.
-pub(crate) type CheckedRandomizedOperation = RandomizedTrialOperation<
-    antecedent_core::RandomizedEffectQuery,
-    Option<antecedent_data::MissingDeclaration>,
->;
+pub(crate) type CheckedRandomizedOperation =
+    RandomizedTrialOperation<antecedent_core::RandomizedEffectQuery, RandomizedDeclarations>;
+
+/// The study declarations a randomized-design analysis freezes at prepare beside its query.
+#[derive(Clone, Debug)]
+pub(crate) struct RandomizedDeclarations {
+    /// Declared handling of missing outcomes, when the caller declared one.
+    missing: Option<antecedent_data::MissingDeclaration>,
+    /// Declared covariate adjustment the estimator makes from the rows.
+    adjustment: Option<RandomizedAdjustment>,
+}
 
 mod bayesian_arms;
 mod bayesian_switchback;
 mod factorial_bernoulli;
 mod policy_net;
 pub(super) use bayesian_arms::bayesian_randomized_estimator;
+
+/// Structured fields of the estimator diagnostic: the covariate of a same-sample CUPED fit, which
+/// the result states as data so a portable result names its pre-assignment premise; none for any
+/// other fit.
+fn estimated_cuped_fields(
+    method: RandomizedMethod,
+    adjustment: Option<&RandomizedAdjustment>,
+) -> Vec<(String, String)> {
+    match (method, adjustment) {
+        (RandomizedMethod::EstimatedCuped, Some(adjustment)) => {
+            antecedent_io::graphless_support::estimated_cuped_fields(adjustment.covariate().raw())
+        }
+        _ => Vec::new(),
+    }
+}
 
 /// Uncertainty label of a fit that handled missing outcomes; no interval is published.
 fn responder_uncertainty(
@@ -72,6 +95,7 @@ fn responder_diagnostic(
 /// Receipt-adjusted, CUPED and ANCOVA fits read further inputs that have no responder form.
 fn check_declaration_for_design(
     query: &antecedent_core::RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     declaration: &antecedent_data::MissingDeclaration,
 ) -> Result<(), CausalError> {
     use antecedent_data::MissingPolicy;
@@ -80,7 +104,7 @@ fn check_declaration_for_design(
     if declaration.policy == MissingPolicy::ErrorOnMissing
         || declaration.policy.imputation().is_some()
         || !matches!(
-            RandomizedMethod::of(query),
+            RandomizedMethod::of(query, adjustment),
             RandomizedMethod::Ancova
                 | RandomizedMethod::TreatmentOnTreated
                 | RandomizedMethod::ComplierEffect
@@ -117,6 +141,10 @@ impl CheckedRandomizedOperation {
             });
         };
         query.validate()?;
+        let adjustment = study.declared.randomized_adjustment.as_ref();
+        if let Some(adjustment) = adjustment {
+            randomized_adjustment::check(query, adjustment)?;
+        }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || study.settings.refute != RefuteSuite::None
@@ -132,6 +160,11 @@ impl CheckedRandomizedOperation {
         let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => false,
             InferenceMode::Bayesian(config) => {
+                if adjustment.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "the Bayesian randomized estimators read no estimated-slope CUPED adjustment",
+                    });
+                }
                 if matches!(query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
                     bayesian_switchback::admit(query, config)?;
                 } else if bayesian_arms::is_complier_query(query) {
@@ -154,6 +187,9 @@ impl CheckedRandomizedOperation {
         for &covariate in query.ancova_covariates.iter() {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
+        if let Some(adjustment) = adjustment {
+            data.schema().get(adjustment.covariate()).map_err(CausalError::rejected)?;
+        }
         let factorial = !bayesian && factorial_bernoulli::selected(study.declared.estimator);
         if factorial {
             factorial_bernoulli::admit(query, study.declared.missing.as_ref())?;
@@ -163,7 +199,7 @@ impl CheckedRandomizedOperation {
         } else if factorial {
             EstimatorId::RandomizedFactorialBernoulliHt
         } else {
-            RandomizedMethod::of(query).estimator_id()
+            RandomizedMethod::of(query, adjustment).estimator_id()
         };
         if planned_estimator == EstimatorId::BayesianComplierEffect
             && !bayesian_arms::is_complier_query(query)
@@ -180,10 +216,10 @@ impl CheckedRandomizedOperation {
             });
         }
         if let Some(declaration) = &study.declared.missing {
-            check_declaration_for_design(query, declaration)?;
+            check_declaration_for_design(query, adjustment, declaration)?;
         }
-        let (identification, estimand) =
-            study.design_identification_or(physical, || randomized_identification(query));
+        let (identification, estimand) = study
+            .design_identification_or(physical, || randomized_identification(query, adjustment));
         Ok(Self::freeze(
             study,
             query,
@@ -191,7 +227,10 @@ impl CheckedRandomizedOperation {
             physical,
             identification,
             estimand,
-            study.declared.missing.clone(),
+            RandomizedDeclarations {
+                missing: study.declared.missing.clone(),
+                adjustment: adjustment.copied(),
+            },
         ))
     }
 
@@ -220,7 +259,8 @@ impl CheckedRandomizedOperation {
             });
         };
         let raw_outcomes = column.values.as_slice();
-        let method = RandomizedMethod::of(&self.query);
+        let adjustment = self.extra.adjustment.as_ref();
+        let method = RandomizedMethod::of(&self.query, adjustment);
         let observed: Vec<bool> =
             (0..raw_outcomes.len()).map(|i| column.validity.is_valid(i)).collect();
         let complete = observed.iter().all(|seen| *seen);
@@ -233,7 +273,7 @@ impl CheckedRandomizedOperation {
             }
             adjusted_outcomes = self.cuped_adjusted_outcomes(data, raw_outcomes)?;
             let outcomes = adjusted_outcomes.as_deref().unwrap_or(raw_outcomes);
-            (fit_randomized(&self.query, data, outcomes)?, outcomes)
+            (fit_randomized(&self.query, adjustment, data, outcomes)?, outcomes)
         } else {
             if data.storage().weights().is_some() {
                 return Err(CausalError::Estimate(
@@ -245,8 +285,15 @@ impl CheckedRandomizedOperation {
             }
             let declaration = self.require_missing_policy(data)?;
             (
-                fit_missing_outcomes(&self.query, data, raw_outcomes, &observed, declaration)?
-                    .closed(),
+                fit_missing_outcomes(
+                    &self.query,
+                    adjustment,
+                    data,
+                    raw_outcomes,
+                    &observed,
+                    declaration,
+                )?
+                .closed(),
                 raw_outcomes,
             )
         };
@@ -255,7 +302,7 @@ impl CheckedRandomizedOperation {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
             });
         }
-        let weighted = self.extra.as_ref().filter(|_| !complete);
+        let weighted = self.extra.missing.as_ref().filter(|_| !complete);
         let interval_published = fit.interval_95.is_some();
         let sampled = fit.sampling.is_some();
         let small_arm = fit.small_arm_df.zip(method.small_arm());
@@ -305,12 +352,15 @@ impl CheckedRandomizedOperation {
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    method.diagnostic_id(),
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    diagnostic,
-                )],
+                extra_diagnostics: vec![
+                    Diagnostic::new(
+                        method.diagnostic_id(),
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        diagnostic,
+                    )
+                    .with_fields(estimated_cuped_fields(method, adjustment)),
+                ],
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
@@ -356,7 +406,7 @@ impl CheckedRandomizedOperation {
         data: &TabularData,
     ) -> Result<&antecedent_data::MissingDeclaration, CausalError> {
         let supported = missing_data::MissingRoute::Randomized.supported();
-        let Some(declaration) = self.extra.as_ref().filter(|declaration| {
+        let Some(declaration) = self.extra.missing.as_ref().filter(|declaration| {
             declaration.policy != antecedent_data::MissingPolicy::ErrorOnMissing
         }) else {
             let cell = antecedent_data::first_missing_cell(data, &[self.query.outcome])?.ok_or(
@@ -396,7 +446,7 @@ impl CheckedRandomizedOperation {
     ) -> Result<crate::result::MissingDataReport, CausalError> {
         let (policy, declared) = missing_data::effective_policy(
             missing_data::MissingRoute::Randomized,
-            self.extra.as_ref(),
+            self.extra.missing.as_ref(),
         );
         let mask = data.storage().analysis_mask();
         let accounting = antecedent_data::RowAccounting::from_selection(
@@ -422,7 +472,7 @@ impl CheckedRandomizedOperation {
                 let kept = accounting.rows_kept;
                 accounting.with_denominator(kept)
             };
-        let covariates = self.extra.as_ref().map_or_else(
+        let covariates = self.extra.missing.as_ref().map_or_else(
             || Arc::from([]),
             |declaration| {
                 declaration
@@ -446,7 +496,7 @@ impl CheckedRandomizedOperation {
         data: &TabularData,
         outcomes: &[f64],
     ) -> Result<Option<Vec<f64>>, CausalError> {
-        let Some((covariate, coefficient)) = self.query.fixed_cuped_coefficient() else {
+        let Some((covariate, coefficient)) = self.query.fixed_cuped else {
             return Ok(None);
         };
         let n = outcomes.len();
@@ -523,7 +573,11 @@ impl CheckedRandomizedOperation {
         small_arm: bool,
     ) -> Option<crate::support::CellStatus> {
         let fit = result.randomized_effect().expect("randomized result was just set");
-        let (family, design, method_id, assignment_unit, claim) = self.query.graphless_coordinate();
+        let (family, design, method_id, assignment_unit, claim) =
+            randomized_adjustment::graphless_coordinate(
+                &self.query,
+                self.extra.adjustment.as_ref(),
+            );
         let switchback = method == RandomizedMethod::Switchback;
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
         let support_blocks = if switchback { &self.query.assignment_units } else { &fit.blocks };
@@ -766,7 +820,7 @@ impl CheckedPolicyValueOperation {
             .as_ref()
             .map_or(query.assignment.len(), |multi| multi.assignment.len());
         let synthetic = policy_binary_query(query, n);
-        let (mut identification, mut estimand) = randomized_identification(&synthetic);
+        let (mut identification, mut estimand) = randomized_identification(&synthetic, None);
         identification.query = CausalQuery::PolicyValue(query.clone());
         estimand.method = Arc::from(antecedent_expr::EstimandMethod::RandomizedPolicyValue);
         identification.estimands = vec![estimand.clone()];
@@ -1375,12 +1429,13 @@ fn push_randomized_design_assumptions(
     });
 }
 
-/// Fixed CUPED and ANCOVA pre-assignment covariate assumptions.
+/// Estimated-slope CUPED, fixed CUPED and ANCOVA pre-assignment covariate assumptions.
 fn push_randomized_covariate_assumptions(
     query: &antecedent_core::RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
     assumptions: &mut antecedent_core::AssumptionSet,
 ) {
-    if query.estimated_cuped().is_some() {
+    if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCuped { .. })) {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("estimated_pre_assignment_cuped"),
@@ -1391,7 +1446,7 @@ fn push_randomized_covariate_assumptions(
             status: AssumptionStatus::Declared,
         });
     }
-    if query.fixed_cuped_coefficient().is_some() {
+    if query.fixed_cuped.is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("fixed_pre_assignment_cuped"),
@@ -1417,11 +1472,12 @@ fn push_randomized_covariate_assumptions(
 
 pub(crate) fn randomized_identification(
     query: &antecedent_core::RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     push_randomized_core_assumptions(query, &mut assumptions);
     push_randomized_design_assumptions(query, &mut assumptions);
-    push_randomized_covariate_assumptions(query, &mut assumptions);
+    push_randomized_covariate_assumptions(query, adjustment, &mut assumptions);
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
