@@ -117,6 +117,21 @@
     "url": "https://api.crossref.org/works/10.1002/sim.4780080407",
     "year": 1989
   },
+  "10.1002/sim.6728": {
+    "authors": [
+      "Joseph G. Ibrahim",
+      "Ming\u2010Hui Chen",
+      "Yeongjin Gwon",
+      "Fang Chen"
+    ],
+    "doi": "10.1002/sim.6728",
+    "response_sha256": "659476eea3266fd974df4c6eade8943a9d843f641c2cabfb934bf168d49beb81",
+    "titles": [
+      "The power prior: theory and applications"
+    ],
+    "url": "https://api.crossref.org/works/10.1002/sim.6728",
+    "year": 2015
+  },
   "10.1002/sim.8426": {
     "authors": [
       "Issa J. Dahabreh",
