@@ -1420,10 +1420,78 @@ pub mod learned_joint_transport {
 }
 /// Items of `antecedent-estimate::longitudinal_regime`.
 pub mod longitudinal_regime {
-    pub use antecedent_estimate::longitudinal_regime::{
-        SequentialDrInputs, SubjectHistories, evaluate_g_formula_value, evaluate_regime_value,
-        evaluate_sequential_dr_value,
-    };
+    use antecedent_estimate::longitudinal_regime::{RegimeKernelError, RegimeValueSummary};
+    pub use antecedent_estimate::longitudinal_regime::{SequentialDrInputs, SubjectHistories};
+
+    /// Evaluate a caller-prescribed regime by inverse probability weighting
+    /// (`antecedent_estimate::longitudinal_regime::evaluate_regime_value`).
+    ///
+    /// # Errors
+    ///
+    /// As the kernel function.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled LongitudinalRegime route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_regime_value(
+        outcomes: &[f64],
+        histories: &SubjectHistories<'_>,
+        actions: &[bool],
+    ) -> Result<RegimeValueSummary, RegimeKernelError> {
+        antecedent_estimate::longitudinal_regime::evaluate_regime_value(
+            outcomes, histories, actions,
+        )
+    }
+
+    /// Evaluate supplied conditional period rewards under a prescribed regime
+    /// (`antecedent_estimate::longitudinal_regime::evaluate_g_formula_value`).
+    ///
+    /// # Errors
+    ///
+    /// As the kernel function.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled LongitudinalRegime route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_g_formula_value(
+        predictions: &[f64],
+        actions: &[bool],
+        treatment_probability: &[f64],
+        censoring_probability: &[f64],
+        subjects: usize,
+        periods: usize,
+        minimum_probability: f64,
+    ) -> Result<RegimeValueSummary, RegimeKernelError> {
+        antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+            predictions,
+            actions,
+            treatment_probability,
+            censoring_probability,
+            subjects,
+            periods,
+            minimum_probability,
+        )
+    }
+
+    /// The backward-recursive sequential doubly robust regime value
+    /// (`antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value`).
+    ///
+    /// # Errors
+    ///
+    /// As the kernel function.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled LongitudinalRegime route, which calls this kernel function with the same inputs"
+    )]
+    pub fn evaluate_sequential_dr_value(
+        outcomes: &[f64],
+        histories: &SubjectHistories<'_>,
+        sequential: &SequentialDrInputs<'_>,
+    ) -> Result<RegimeValueSummary, RegimeKernelError> {
+        antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
+            outcomes, histories, sequential,
+        )
+    }
 }
 /// Corrected functionals under a declared measurement model.
 pub mod measurement {

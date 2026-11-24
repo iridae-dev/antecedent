@@ -107,6 +107,10 @@ fn evaluate_longitudinal_regime_value(
     let r = r.iter().copied().collect::<Vec<_>>();
     let g = g.iter().copied().collect::<Vec<_>>();
     let d = d.iter().copied().collect::<Vec<_>>();
+    #[allow(
+        deprecated,
+        reason = "the deprecated Python direct path calls the deprecated facade evaluator"
+    )]
     let summary = detach_catch(py, move || {
         antecedent::estimate::longitudinal_regime::evaluate_regime_value(
             &y,
@@ -187,6 +191,10 @@ fn evaluate_sequential_gformula(
     let actions = actions.iter().copied().collect::<Vec<_>>();
     let p = p.iter().copied().collect::<Vec<_>>();
     let g = g.iter().copied().collect::<Vec<_>>();
+    #[allow(
+        deprecated,
+        reason = "the deprecated Python direct path calls the deprecated facade evaluator"
+    )]
     let summary = detach_catch(py, move || {
         antecedent::estimate::longitudinal_regime::evaluate_g_formula_value(
             &q,
@@ -283,6 +291,10 @@ fn evaluate_sequential_doubly_robust(
     let d = d.iter().copied().collect::<Vec<_>>();
     let observed = observed.iter().copied().collect::<Vec<_>>();
     let q = q.iter().copied().collect::<Vec<_>>();
+    #[allow(
+        deprecated,
+        reason = "the deprecated Python direct path calls the deprecated facade evaluator"
+    )]
     let summary = detach_catch(py, move || {
         antecedent::estimate::longitudinal_regime::evaluate_sequential_dr_value(
             &y,

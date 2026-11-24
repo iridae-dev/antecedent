@@ -7,6 +7,7 @@
 //! wraps). The assertions are on `to_bits()` of the value, its summary fields and, where the
 //! support floors let the compiled route publish one, the standard error and interval bounds
 //! against the kernel interval functions applied to the direct summary.
+#![allow(deprecated, reason = "the deprecated facade evaluators are the paths under comparison")]
 #![allow(
     clippy::float_cmp,
     clippy::cast_lossless,
