@@ -541,7 +541,7 @@ pub(crate) fn discover_pooled_order_mcmc(
             discover_order_mcmc(table, variables, params, schedule, require_diagnostics_gate, ctx)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    super::pool_posteriors_over_imputations(&posteriors)
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
 }
 
 /// Structure MCMC pooled across imputations.
@@ -560,7 +560,7 @@ pub(crate) fn discover_pooled_structure_mcmc(
         .iter()
         .map(|table| discover_structure_mcmc(table, variables, params, schedule, ctx))
         .collect::<Result<Vec<_>, _>>()?;
-    super::pool_posteriors_over_imputations(&posteriors)
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
 }
 
 /// CI-screened posterior pooled across imputations: the screen and the chains run on every
@@ -592,7 +592,7 @@ pub(crate) fn discover_pooled_ci_screened_posterior(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    super::pool_posteriors_over_imputations(&posteriors)
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
 }
 
 /// Bounded-lag DBN template posterior pooled across completed series.
@@ -615,7 +615,7 @@ pub(crate) fn discover_pooled_dbn_posterior(
             discover_dbn_posterior(one, variables, params, max_lag, force_mcmc, schedule, ctx)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    super::pool_posteriors_over_imputations(&posteriors)
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
 }
 
 /// Order MCMC DAG posterior (Gaussian BIC).
