@@ -10489,7 +10489,7 @@
     "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators. For a Bernoulli design the recorded statistic is the absolute Horvitz-Thompson contrast over every Bernoulli assignment weighted by its known probability; fixed-count designs record the absolute difference in means (exhaustive or Monte Carlo).",
     "A fixed CUPED coefficient records a pre-assignment covariate fixed independently of the outcomes as an identification assumption. An estimated-slope CUPED adjustment records its pre-assignment covariate as an estimation assumption that states the slope is estimated from these outcomes and that the independent-row score variance does not propagate that estimation."
    ],
-   "digest": "145463a5d705c86ce5ddd1247703d0a68657912d2a77f118b0660788cc2e28aa",
+   "digest": "726c28c8eb01e2ef632b133eebfd4bd4269ab1e9226b7b06c2f633146487412f",
    "id": "identify.randomized.design",
    "review": "none",
    "scope_limits": [],
