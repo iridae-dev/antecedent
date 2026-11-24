@@ -206,16 +206,29 @@ class Snapshots:
             self.fields[variant.group(1).split("::")[-1]].append(variant.group(2))
 
     def resolve(self, path: str) -> str:
+        """The canonical path of `path`, following item and module re-exports.
+
+        A path can name an item through a re-exported module (`pub use k::m = core::m` makes
+        `k::m::Item` name `core::m::Item`), so the longest aliased prefix is rewritten too.
+        """
         merged = self._merged
         if merged is None:
             merged = {}
             for table in self.alias.values():
                 merged.update(table)
             self._merged = merged
-        seen = 0
-        while path in merged and seen < 16:
-            path = merged[path]
-            seen += 1
+        for _ in range(16):
+            if path in merged:
+                path = merged[path]
+                continue
+            parts = path.split("::")
+            for cut in range(len(parts) - 1, 0, -1):
+                prefix = "::".join(parts[:cut])
+                if prefix in merged:
+                    path = merged[prefix] + "::" + "::".join(parts[cut:])
+                    break
+            else:
+                return path
         return path
 
 

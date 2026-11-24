@@ -177,6 +177,44 @@ def case_module_namespace_reexport(root: Path) -> str:
     return "antecedent_estimate::planted_ns::go: unclassified"
 
 
+def plant_module_relay(root: Path) -> None:
+    """A kernel module relayed by a second kernel crate, then reached by the facade through it."""
+    append(
+        root,
+        "parity/public_api/antecedent-io-core.txt",
+        "pub mod antecedent_io_core::planted_relay\n"
+        "pub struct antecedent_io_core::planted_relay::PlantedFit\n"
+        f"pub fn antecedent_io_core::planted_relay::relay_fit(ctx: {CTX}) -> {RESULT}\n"
+        f"pub fn <antecedent_io_core::planted_relay::PlantedFit>::fn refit(&self, ctx: {CTX}) -> "
+        f"{RESULT}\n",
+    )
+    append(
+        root,
+        "parity/public_api/antecedent-io.txt",
+        "pub use antecedent_io::planted_relay = antecedent_io_core::planted_relay\n",
+    )
+
+
+def case_item_through_reexported_module(root: Path) -> str:
+    plant_module_relay(root)
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        "pub use antecedent::analysis::relay_fit = antecedent_io::planted_relay::relay_fit\n",
+    )
+    return "antecedent_io_core::planted_relay::relay_fit: unclassified"
+
+
+def case_method_through_reexported_module(root: Path) -> str:
+    plant_module_relay(root)
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        "pub use antecedent::analysis::PlantedFit = antecedent_io::planted_relay::PlantedFit\n",
+    )
+    return "antecedent_io_core::planted_relay::PlantedFit::refit: unclassified"
+
+
 def case_deprecated_without_replacement(root: Path) -> str:
     plant_deprecated_entry(root, replacement=None, warn=True)
     return "disposition deprecated requires a non-empty 'replacement'"
@@ -394,6 +432,8 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("a _with_context re-export", case_with_context_reexport),
     ("a method on a re-exported type", case_method_on_reexported_type),
     ("a module-namespace re-export", case_module_namespace_reexport),
+    ("an item re-exported through a re-exported module", case_item_through_reexported_module),
+    ("a method of a type re-exported through a re-exported module", case_method_through_reexported_module),
     ("a deprecated row without a replacement", case_deprecated_without_replacement),
     ("a deprecated row whose replacement is not compiled", case_deprecated_replacement_not_compiled),
     ("a kernel row without a reason", case_kernel_without_reason),
