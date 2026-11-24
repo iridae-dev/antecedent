@@ -12,6 +12,11 @@
 //! coordinate, the bias-aware (folded-normal) pointwise intervals and, for a grid of two or
 //! more doses, the simultaneous band.
 //!
+//! [`Study::seal_dose_grid_bias_aware`] is the sealed row of a bias-aware request: it checks the
+//! request as `DoseGridFunctional::evaluate_with_context` checks it, evaluates the compiled
+//! program once under the band's declared seed and seals the program's fit, so the artifact is
+//! the one that entry seals and the kernel runs once.
+//!
 //! The coverage of these intervals and of the band is measured for the estimator
 //! `dose_grid_bias_aware` (the coverage records cited by the `estimate.dose_grid_bias_aware`
 //! capability record); [`DoseGridBiasAwareRun::calibration_estimator`] names that key.
@@ -25,11 +30,16 @@ use antecedent_core::{
     ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
     ScoreFrequentist, ScoreModel, SemanticDigest,
 };
+use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
     BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, RowDeclaration,
     RowDependence, estimate_dose_grid_bias_aware_declared,
 };
+use antecedent_io::dose_grid_functional_artifact::{
+    DoseGridArtifactError, DoseGridArtifactWire, DoseGridRequestWire,
+};
 
+use super::dose_grid_functional::DoseGridFunctional;
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -186,6 +196,69 @@ pub struct DoseGridBiasAwareRun {
     pub calibration_estimator: &'static str,
 }
 
+/// A bias-aware row sealed from the one evaluation of its compiled program.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct SealedDoseGridBiasAware {
+    /// The sealed row: the artifact `DoseGridFunctional::evaluate_with_context` seals for the
+    /// same request and context.
+    pub sealed: DoseGridFunctional,
+    /// The program's run the row was sealed from.
+    pub run: DoseGridBiasAwareRun,
+    /// The program that evaluated the row.
+    pub compiled: CompiledDoseGridBiasAware,
+}
+
+/// The compiled request of a checked bias-aware wire request: its premises and rows.
+fn bound_request(
+    wire: &DoseGridRequestWire,
+    replicates: usize,
+) -> Result<DoseGridBiasAwareRequest, DoseGridArtifactError> {
+    let unsupported = DoseGridArtifactError::UnsupportedSemantics;
+    let declared =
+        wire.bias_aware.ok_or(unsupported("a bias-aware row declares a curvature bound"))?;
+    let design = match wire.design.as_str() {
+        "randomized_dose" => DoseDesign::RandomizedDose,
+        "observational" => DoseDesign::Observational,
+        _ => return Err(unsupported("design spelling")),
+    };
+    let functional = match (wire.functional.kind.as_str(), wire.functional.from, wire.functional.to)
+    {
+        ("level", None, None) => DoseFunctional::Level,
+        ("derivative", None, None) => DoseFunctional::Derivative,
+        ("contrast", Some(from), Some(to)) => DoseFunctional::Contrast { from, to },
+        _ => return Err(unsupported("functional kind")),
+    };
+    let row = DoseGridRequest {
+        dose: &wire.dose,
+        outcome: &wire.outcome,
+        grid: &wire.grid,
+        bandwidth: wire.bandwidth,
+        bandwidth_range: wire.bandwidth_range,
+        minimum_local_ess: wire.minimum_local_ess,
+        functional,
+        claims: ClaimSet {
+            pointwise_level: wire.claims.pointwise_level,
+            derivative: wire.claims.derivative,
+            simultaneous_band: wire.claims.simultaneous_band,
+        },
+        design,
+    };
+    let mut request = DoseGridBiasAwareRequest::new(&row, declared.curvature_bound, replicates);
+    if let Some(weights) = &wire.sampling_weights {
+        request = request.sampling_weights(weights.clone());
+    }
+    if let Some(clusters) = &wire.cluster {
+        request = request.clusters(clusters.clone());
+    }
+    if let Some(lag) = wire.serial_lag {
+        let lag = usize::try_from(lag)
+            .map_err(|_| DoseGridArtifactError::LimitsExceeded("serial lag"))?;
+        request = request.serial_lag(lag);
+    }
+    Ok(request)
+}
+
 fn functional_word(functional: DoseFunctional) -> (u64, f64, f64) {
     match functional {
         DoseFunctional::Level => (0, 0.0, 0.0),
@@ -323,6 +396,44 @@ impl Study {
         let lowered = lower(&request)?;
         Ok(CompiledDoseGridBiasAware { request, lowered })
     }
+
+    /// Check, evaluate and seal a bias-aware dose-grid request through its compiled program.
+    ///
+    /// The request is checked exactly as `DoseGridFunctional::evaluate_with_context` checks it
+    /// before fitting, bound into the `DoseGridBiasAware` program, evaluated once under the
+    /// band's declared seed (as the sealed artifact draws its band, whatever the caller's seed)
+    /// and sealed from that fit. The sealed artifact equals the one
+    /// `DoseGridFunctional::evaluate_with_context` seals for the same request and context.
+    ///
+    /// # Errors
+    ///
+    /// The refusals `DoseGridFunctional::evaluate_with_context` returns for the same request
+    /// (spellings, limits, declared rows, the separate exact-quadratic premise, every refusal of
+    /// the row and the bound, a non-finite result, cancellation), and the support gate once it
+    /// is on.
+    pub fn seal_dose_grid_bias_aware(
+        request: DoseGridRequestWire,
+        ctx: &ExecutionContext,
+    ) -> Result<SealedDoseGridBiasAware, DoseGridArtifactError> {
+        let replicates = request.check_bias_aware()?;
+        let band_seed = request.bias_aware.map_or(0, |declared| declared.band_seed);
+        let compiled = Self::compile_dose_grid_bias_aware(bound_request(&request, replicates)?)
+            .map_err(|error| DoseGridArtifactError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                detail: antecedent_core::reason_details::dose_grid::INVALID_REQUEST.to_owned(),
+                message: error.to_string(),
+            })?;
+        // The band is drawn from its declared seed, as the sealed artifact draws it.
+        let mut band_ctx = ctx.clone();
+        band_ctx.rng = antecedent_core::RngFactory::from_seed(band_seed);
+        let run = compiled.evaluate(&band_ctx)?;
+        let artifact = DoseGridArtifactWire::seal_bias_aware_fit(request, run.fit.clone())?;
+        Ok(SealedDoseGridBiasAware {
+            sealed: DoseGridFunctional::from_artifact(artifact),
+            run,
+            compiled,
+        })
+    }
 }
 
 impl CompiledProgramHandle for CompiledDoseGridBiasAware {
@@ -358,6 +469,26 @@ impl CompiledDoseGridBiasAware {
     /// non-finite curvature bound, too few band replicates, declared rows), admission,
     /// cancellation, or the support gate once it is on.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, CausalError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)?;
+        }
+        let fit = estimate_dose_grid_bias_aware_declared(
+            &self.request.row_request(),
+            &self.request.row_declaration(),
+            self.request.curvature_bound,
+            self.request.band_replicates,
+            &scoped,
+        )?;
+        Ok(DoseGridBiasAwareRun {
+            fit,
+            lowered_program_identity: self.lowered.identity(),
+            calibration_estimator: CALIBRATION_ESTIMATOR,
+        })
+    }
+
+    /// [`Self::execute`] with the kernel's own refusal, for the sealed row.
+    fn evaluate(&self, ctx: &ExecutionContext) -> Result<DoseGridBiasAwareRun, EstimationError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if GATE_ON_UNIT_SUPPORT {
             gate_program(&scoped, self)?;

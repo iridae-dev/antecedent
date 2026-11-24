@@ -1,0 +1,254 @@
+//! Compiled trial-to-target AIPW transport fitted with caller-supplied learners.
+//!
+//! [`Study::compile_trial_aipw_learners`] checks the binary trial contrast, decides the
+//! transport by the sID identifier on the declared selection diagram (as
+//! [`crate::StudyBuilder::learned_trial_transport`] does) and validates the rows and options
+//! against the certificate before anything is fitted; it binds the diagram, the query, the
+//! options, the declared learners and the rows into a lowered program.
+//! [`CompiledTrialAipwLearners::execute`] cross-fits the source outcome with the declared
+//! outcome-regression factory and source membership with the declared binary-probability
+//! factory through `antecedent_estimate::estimate_trial_aipw_with_factories`, the kernel the
+//! direct entry is, under the caller's execution context, and returns the kernel's estimate
+//! unchanged.
+//!
+//! The learners are the study's caller-learner declaration ([`LearnerFactories`], what
+//! [`crate::StudyBuilder::learner_factories`] declares): the outcome factory fits the source
+//! outcome regression and the treatment factory the source membership probability. They are
+//! external code the library does not verify: the estimate records them as unverified
+//! (`external_nuisances_unverified`). The kernel refuses bootstrap replicates for caller
+//! learners, so the route is point-only and reports calibration `not_measured`; the run carries
+//! the declaration's own calibration label, so coverage measured with the library learners
+//! (the `learned_trial_aipw` coverage records) never annotates a factory fit.
+//!
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_contract::ClaimKind;
+use antecedent_core::{ExecutionContext, SemanticDigest, TransportQuery, VariableId};
+use antecedent_estimate::{TrialAipwEstimate, TrialAipwInput, TrialAipwOptions};
+use antecedent_graph::SelectionDiagram;
+use antecedent_identify::{TransportIdentification, TransportIdentifier};
+
+use super::compiled_point_program::PointProgram;
+use super::declared_learners::{LearnerFactories, calibration_label};
+use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{Declaration, SetOf, Wire};
+use crate::analysis::execute::Study;
+use crate::error::CausalError;
+use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
+use crate::planner::{PlanStage, PlanView};
+
+const PLAN_ID: &str = "trial_aipw_learner_transport.v1";
+const EVALUATOR: &str = "antecedent_estimate::estimate_trial_aipw_with_factories";
+/// Whether `execute` passes the support gate of the unit the route is bound to
+/// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
+/// so no valid use refuses before then.
+const GATE_ON_UNIT_SUPPORT: bool = false;
+
+/// A trial-to-target AIPW transport request whose nuisances the caller's learners fit.
+///
+/// `learners` pairs the source outcome factory (`outcome`, a regression) with the source
+/// membership factory (`treatment`, a binary probability); its declared identity enters the
+/// program.
+#[derive(Clone, Debug)]
+pub struct TrialAipwLearnersRequest {
+    diagram: SelectionDiagram,
+    query: TransportQuery,
+    input: TrialAipwInput,
+    options: TrialAipwOptions,
+    learners: LearnerFactories,
+}
+
+impl TrialAipwLearnersRequest {
+    /// Declare the diagram, query, rows, options and caller learners.
+    #[must_use]
+    pub fn new(
+        diagram: SelectionDiagram,
+        query: TransportQuery,
+        input: TrialAipwInput,
+        options: TrialAipwOptions,
+        learners: LearnerFactories,
+    ) -> Self {
+        Self { diagram, query, input, options, learners }
+    }
+}
+
+/// A trial AIPW transport with caller learners, decided and bound to its lowered program.
+#[derive(Clone, Debug)]
+pub struct CompiledTrialAipwLearners {
+    request: TrialAipwLearnersRequest,
+    identification: TransportIdentification,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// The contrast the bound request evaluates to, bound to the program that evaluated it.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct TrialAipwLearnersRun {
+    /// The contrast, scores, out-of-fold nuisances, diagnostics and overlap, as the kernel
+    /// returned them.
+    pub estimate: TrialAipwEstimate,
+    /// Identity of the lowered program.
+    pub lowered_program_identity: SemanticDigest,
+    /// Always `point_only`: caller learners run no bootstrap.
+    pub claim: &'static str,
+    /// Always `not_measured`.
+    pub calibration: &'static str,
+    /// The calibration label of the declared learners (`learners=caller_factory:<digest of the
+    /// declared identity>`): a record measured with other learners, the library's among them,
+    /// never binds to it.
+    pub calibration_label: String,
+}
+
+/// Digest of every row the kernel reads, bit for bit, with the declared sampling design.
+fn source_digest(input: &TrialAipwInput) -> [u8; 32] {
+    Declaration::new("antecedent.trial_aipw_caller_learners.rows.v1")
+        .field("rows", &Wire(input))
+        .finish()
+}
+
+/// Digest of the question: the diagram, the query, the options and the declared learners.
+fn question_digest(request: &TrialAipwLearnersRequest) -> Result<[u8; 32], CausalError> {
+    let query = antecedent_io::query_wire::transport_query_to_wire(&request.query)?;
+    let mut declaration = Declaration::new("antecedent.trial_aipw_caller_learners.question.v1");
+    declaration
+        .field("causal_graph", request.diagram.causal_graph())
+        .field("selection_targets", &SetOf(request.diagram.selection_targets()))
+        .field("query", &Wire(&query))
+        .field("options", &Wire(&request.options))
+        .callback("caller_learner_pair", Some(request.learners.identity()));
+    Ok(declaration.finish())
+}
+
+fn lower(request: &TrialAipwLearnersRequest) -> Result<Arc<LoweredProgram>, CausalError> {
+    let question = question_digest(request)?;
+    let source = source_digest(&request.input);
+    let rows = request.input.source.len() as u64;
+    let columns = 4 + request.input.covariates.len() as u64;
+    let (treatment, outcome) = contrast_variables(&request.query);
+    PointProgram {
+        cell: ProgramCell::TrialAipwLearnerTransport,
+        plan_id: PLAN_ID,
+        kind: FunctionalKind::InterventionalDistribution,
+        outcome,
+        graph_class: "selection_admg_with_a_trial_transport_certificate",
+        query_variables: treatment.into_iter().chain(outcome).collect(),
+        question,
+        source,
+        source_role: EvidenceRole::Trial,
+        evaluator: EVALUATOR,
+        supplied: vec![("caller_outcome_regression", outcome), ("caller_source_membership", None)],
+        rows,
+        columns,
+        input_bytes: rows.saturating_mul(columns).saturating_mul(8),
+        claim: ClaimKind::Point,
+    }
+    .lower()
+}
+
+/// The treatment and outcome of the binary mean contrast `validate_trial_query` admits.
+fn contrast_variables(query: &TransportQuery) -> (Option<VariableId>, Option<VariableId>) {
+    match &query.response.functional {
+        antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => {
+            (Some(treatment.variable), Some(*outcome))
+        }
+        _ => (None, None),
+    }
+}
+
+impl Study {
+    /// Decide the transport and bind a trial AIPW request with caller learners.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap replicates (`route_not_supported`,
+    /// `trial_aipw_caller_learners.bootstrap_not_supported`: the kernel refuses them for caller
+    /// learners, so they are refused here before anything is fitted), a query other than the
+    /// binary trial mean contrast, an identification failure, a request
+    /// the estimator would refuse before fitting (certificate, features, rows, randomization,
+    /// sampling, folds), an unencodable query, cancellation, or a physical operator that cannot
+    /// be declared.
+    pub fn compile_trial_aipw_learners(
+        request: TrialAipwLearnersRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<CompiledTrialAipwLearners, CausalError> {
+        antecedent_estimate::validate_trial_query(&request.query)?;
+        if request.options.bootstrap != 0 {
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                detail =
+                    antecedent_core::reason_details::trial_aipw_caller_learners::BOOTSTRAP_NOT_SUPPORTED,
+                "caller learners run no joint outer bootstrap, so the route is point-only. Next \
+                 attempt: declare bootstrap 0"
+            ));
+        }
+        let identification = TransportIdentifier::new().identify_with_context(
+            &request.diagram,
+            &request.query,
+            ctx,
+        )?;
+        antecedent_estimate::validate_trial_aipw(
+            &identification,
+            &request.input,
+            &request.options,
+        )?;
+        let lowered = lower(&request)?;
+        Ok(CompiledTrialAipwLearners { request, identification, lowered })
+    }
+}
+
+impl CompiledProgramHandle for CompiledTrialAipwLearners {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl CompiledTrialAipwLearners {
+    /// Inspect all six compiler layers.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Inspect the plan, including the support decision of its unit, without evaluating.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// The transport certificate the program was decided on.
+    #[must_use]
+    pub const fn identification(&self) -> &TransportIdentification {
+        &self.identification
+    }
+
+    /// Cross-fit the caller learners and evaluate the target contrast.
+    ///
+    /// # Errors
+    ///
+    /// Bootstrap replicates (`route_not_supported`), a learner without the required task, a
+    /// budget, fit or overlap refusal, cancellation, or the support gate once it is on.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<TrialAipwLearnersRun, CausalError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self)?;
+        }
+        let request = &self.request;
+        let estimate = antecedent_estimate::estimate_trial_aipw_with_factories(
+            &self.identification,
+            &request.input,
+            &request.options,
+            &scoped,
+            request.learners.outcome(),
+            request.learners.treatment(),
+        )?;
+        Ok(TrialAipwLearnersRun {
+            estimate,
+            lowered_program_identity: self.lowered.identity(),
+            claim: "point_only",
+            calibration: "not_measured",
+            calibration_label: calibration_label(Some(&request.learners)).unwrap_or_default(),
+        })
+    }
+}

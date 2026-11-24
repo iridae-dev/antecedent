@@ -79,7 +79,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from .. import _native
+from .. import _deprecation, _native
 from .._artifact_protocol import ExportedArtifact, artifact_consumer, container_bytes
 from .._refusal import raise_refusal
 from .._scientific import ScientificResult
@@ -109,6 +109,8 @@ __all__ = [
     "TemporalStructuralEnvelope",
     "TransportAnswer",
     "VerifiedEstimate",
+    "analyze_discovered_transport",
+    "analyze_discovered_transport_estimate",
     "discover_and_transport",
     "estimate_discovered_temporal_transport",
     "estimate_discovered_transport",
@@ -430,7 +432,14 @@ def discover_and_transport(
         CausalDiscoveryError: the algorithm failed or was cancelled.
         CausalTypeError: ``contract`` is not a ``StaticContract``.
         CausalValueError: a variable name is not in the contract, or ``grid`` is empty.
+
+    Deprecated: :func:`analyze_discovered_transport` takes the same arguments and returns the
+    identical result through the compiled ``DiscoveredClassTransport`` program.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.discovered.discover_and_transport",
+        "antecedent.transport.discovered.analyze_discovered_transport(...)",
+    )
     from ..selective_discovery import SelectiveDiscoveryRefusal
 
     if not isinstance(contract, StaticContract):
@@ -592,7 +601,14 @@ def estimate_discovered_transport(
             member that is not identified or cannot be estimated, evidence that is not usable).
         SelectiveDiscoveryRefusal: a refused contract.
         CausalDiscoveryError: the algorithm failed or was cancelled.
+
+    Deprecated: :func:`analyze_discovered_transport_estimate` takes the same arguments and
+    returns the identical estimate through the compiled ``DiscoveredClassTransport`` program.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.discovered.estimate_discovered_transport",
+        "antecedent.transport.discovered.analyze_discovered_transport_estimate(...)",
+    )
     from ..selective_discovery import SelectiveDiscoveryRefusal
 
     if not isinstance(contract, StaticContract):
@@ -633,6 +649,161 @@ def estimate_discovered_transport(
     _raise_transport(refusal, names, outcome=found, report=report)
     assert estimate_text is not None and artifact is not None
     return _estimate_of(json.loads(estimate_text), bytes(artifact), found, report)
+
+
+def _compiled_class_transport(
+    stage: str,
+    contract: StaticContract,
+    columns: Any,
+    query: str,
+    targets: list[int],
+    bound: int | None,
+    execution: Execution | None,
+    **settings: Any,
+) -> tuple[str, bytes | None, Outcome, RunReport]:
+    """Run ``stage`` through the compiled ``DiscoveredClassTransport`` program.
+
+    ``columns`` are the searched table's columns; ``settings`` the stage's evidence columns and
+    settings. A transport or stage refusal raises :class:`DiscoveredTransportRefusal` with the
+    discovery attached; a refusal of the search is the compiler's error.
+    """
+    names = tuple(contract.variables)
+    body, refusal, discovery_text, _program, artifact = call_native(
+        execution,
+        _native.discovered_class_transport_compiled,
+        stage,
+        json.dumps(contract.to_wire(), sort_keys=True),
+        list(names),
+        columns,
+        query,
+        targets,
+        bound,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
+        **settings,
+    )
+    discovery = json.loads(discovery_text)
+    report = _report(json.dumps(discovery["report"]))
+    found = _outcome(json.dumps(discovery["outcome"]), names)
+    _raise_transport(refusal, names, outcome=found, report=report)
+    assert body is not None
+    return body, None if artifact is None else bytes(artifact), found, report
+
+
+def analyze_discovered_transport(
+    contract: StaticContract,
+    data: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    source_population: str = "source",
+    target_population: str = "target",
+    source_experiments: Sequence[str] = (),
+    member_bound: int | None = None,
+    execution: Execution | None = None,
+) -> DiscoveredTransport:
+    """Discover on ``data`` and request the envelope, through the compiled program.
+
+    The study searches ``data`` under ``contract`` (the compiled ``DiscoverStatic`` program of
+    its algorithm) and the request over the class it returns runs as the
+    ``DiscoveredClassTransport`` program composed over that search. Arguments and the result
+    are those of :func:`discover_and_transport`, and the search, the class and the envelope are
+    identical.
+
+    Returns:
+        A :class:`DiscoveredTransport`; read ``envelope.status`` first.
+
+    Raises:
+        DiscoveredTransportRefusal: see the module documentation; the discovery that ran is
+            attached.
+        CausalError: the compiler's refusal of the contract or of the table, or a failed or
+            cancelled search.
+        CausalTypeError: ``contract`` is not a ``StaticContract``.
+        CausalValueError: a variable name is not in the contract, or ``grid`` is empty.
+    """
+    if not isinstance(contract, StaticContract):
+        raise CausalTypeError("contract must be a StaticContract")
+    names = tuple(contract.variables)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=source_experiments,
+    )
+    targets = _target_ids(names, selection_targets)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    body, _, found, report = _compiled_class_transport(
+        "envelope", contract, _columns(contract, data), query, targets, bound, execution
+    )
+    return DiscoveredTransport(_envelope(body, names), found, report)
+
+
+def analyze_discovered_transport_estimate(
+    contract: StaticContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    execution: Execution | None = None,
+) -> DiscoveredTransportEstimate:
+    """Discover on ``source`` and estimate across the class, through the compiled program.
+
+    The ``DiscoveredClassTransport`` program searches ``source`` with the compiled
+    ``DiscoverStatic`` program and estimates the transported response in every member from
+    ``source`` and ``target``. Arguments and the result are those of
+    :func:`estimate_discovered_transport`, and the estimate and its artifact are identical.
+
+    Returns:
+        A :class:`DiscoveredTransportEstimate`; read ``answer.kind`` first.
+
+    Raises:
+        DiscoveredTransportRefusal: a refusal of the transport request or of the estimate.
+        CausalError: the compiler's refusal of the contract or of the table, or a failed or
+            cancelled search.
+    """
+    if not isinstance(contract, StaticContract):
+        raise CausalTypeError("contract must be a StaticContract")
+    names = tuple(contract.variables)
+    query = _query_wire(
+        names,
+        outcome=outcome,
+        treatment=treatment,
+        grid=grid,
+        source_population=source_population,
+        target_population=target_population,
+        source_experiments=[treatment],
+    )
+    targets = _target_ids(names, selection_targets)
+    bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
+    replicates = count(bootstrap_replicates, "bootstrap_replicates", minimum=0)
+    source_columns = _columns(contract, source)
+    body, artifact, found, report = _compiled_class_transport(
+        "estimate",
+        contract,
+        source_columns,
+        query,
+        targets,
+        bound,
+        execution,
+        source_columns=source_columns,
+        target_columns=_columns(contract, target),
+        bootstrap_replicates=replicates,
+    )
+    assert artifact is not None
+    return _estimate_of(json.loads(body), artifact, found, report)
 
 
 def _estimate_of(

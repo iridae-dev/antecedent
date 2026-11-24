@@ -227,7 +227,11 @@ fn parse_provider(
 
 #[pymethods]
 impl PreparedTransportScenariosStage {
-    /// Evaluate every compiled scenario; the report keeps every scenario.
+    /// Evaluate every compiled scenario through the `TransportScenarioSet` program; the report
+    /// keeps every scenario. The decided set is bound into its program
+    /// (`Study::compile_transport_scenarios`) and the program evaluates it with the prepared
+    /// set's refusals, so the report, the error classes and the stage report the decision,
+    /// invariance and composition adapters read are unchanged.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None))]
     fn estimate(
         &mut self,
@@ -237,9 +241,12 @@ impl PreparedTransportScenariosStage {
     ) -> PyResult<String> {
         let ctx = execution_context(0, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
-        let report = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = report_json(&report, &self.graph.names)?.to_string();
-        self.last = Some(report);
+        let run = crate::detach_catch(py, move || {
+            let compiled = antecedent::Study::compile_transport_scenarios(inner).map_err(error)?;
+            compiled.estimate(&ctx).map_err(error)
+        })?;
+        let payload = report_json(&run.report, &self.graph.names)?.to_string();
+        self.last = Some(run.report);
         Ok(payload)
     }
 

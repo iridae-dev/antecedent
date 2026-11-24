@@ -4,7 +4,8 @@
 //! * `Study::compile_transport_scenarios`: the report equals the one
 //!   `PreparedScenarioSet::evaluate` returns on the same prepared set, before and after a
 //!   refresh; the identified scenarios read the standardized and direct transport formulas
-//!   worked by hand from the laws.
+//!   worked by hand from the laws. `CompiledTransportScenarios::estimate`, what the prepared
+//!   stage's `estimate()` runs, is the prepared set's estimate with its refusals.
 //! * `Study::compile_measurement_transport`: the receipt and re-bound model are the ones
 //!   `transport_measurement_model` issues, and the corrected point and standard error equal the
 //!   direct correction and the inverted misclassification algebra at the carried rates.
@@ -200,6 +201,30 @@ fn compiled_scenarios_report_what_the_prepared_set_evaluates() {
     assert_eq!(format!("{:?}", run.report), format!("{direct:?}"));
     assert!((mean_of(&run.report, "direct") - 0.6).abs() < 1e-12);
     assert_ne!(refreshed.lowered().identity(), compiled.lowered().identity(), "new source");
+}
+
+#[test]
+fn the_prepared_stage_estimate_through_the_program_is_the_prepared_estimate() {
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = prepared_scenarios(&ctx);
+    let compiled = Study::compile_transport_scenarios(prepared.clone()).unwrap();
+    let run = compiled.estimate(&ctx).unwrap();
+    let direct = prepared.estimate(&ctx).unwrap();
+    assert_eq!(format!("{:?}", run.report), format!("{direct:?}"));
+    assert_eq!(
+        format!("{:?}", run.report),
+        format!("{:?}", compiled.execute(&ctx).unwrap().report),
+        "the program's evaluation"
+    );
+    assert_eq!(run.lowered_program_identity, compiled.lowered().identity());
+    assert_eq!(run.claim, "per_scenario_points");
+    assert_eq!(run.calibration, "not_measured");
+    // A refusal is the prepared set's own, so the Python stage keeps its error class.
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let compiled_refusal = compiled.estimate(&cancelled).unwrap_err();
+    let direct_refusal = prepared.estimate(&cancelled).unwrap_err();
+    assert_eq!(compiled_refusal.to_string(), direct_refusal.to_string());
 }
 
 // ---- measurement transport (fixture of tests/transported_measurement_facade.rs) --------------

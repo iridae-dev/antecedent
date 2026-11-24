@@ -59,6 +59,11 @@ impl DoseGridFunctional {
         Ok(Self { artifact: DoseGridArtifactWire::seal(request)? })
     }
 
+    /// Wrap an artifact sealed by this crate.
+    pub(crate) const fn from_artifact(artifact: DoseGridArtifactWire) -> Self {
+        Self { artifact }
+    }
+
     /// Evaluate with bounded worker, memory and cancellation controls.
     /// # Errors
     /// As [`Self::evaluate`], including execution refusals.

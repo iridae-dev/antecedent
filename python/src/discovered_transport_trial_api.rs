@@ -33,6 +33,8 @@ use serde_json::{Value as Json, json};
 use crate::discovered_transport_api::{answer_json, estimate_json, query_of, refusal_of};
 use crate::selective_discovery_api as sd;
 
+mod compiled;
+
 /// `(result, transport refusal, discovery, discovery refusal)`.
 type TrialReply<T> = (Option<T>, Option<String>, Option<String>, Option<String>);
 
@@ -404,5 +406,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module
         .add_function(wrap_pyfunction!(discovered_transport_trial_confidence_set_run, module)?)?;
     module.add_function(wrap_pyfunction!(verify_trial_confidence_set_against_inputs, module)?)?;
+    compiled::register(module)?;
     Ok(())
 }

@@ -12,6 +12,10 @@
 //! renormalizes) is the one the prepared set returns. Refreshing with new laws or samples
 //! keeps the decisions and recompiles the program over the new source.
 //!
+//! [`CompiledTransportScenarios::estimate`] is that evaluation with the prepared set's own
+//! refusals ([`PreparedTransportScenarios::estimate`] under the program's scope), so a prepared
+//! stage that estimates through the program keeps its callers' error classes.
+//!
 //! The report is per-scenario points; no inferential statement across scenarios is made
 //! ([`crate::PreparedTransportScenarios::aggregate_interval`] refuses).
 //!
@@ -28,6 +32,7 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::sid::scenarios::{
     ScenarioDecisionLimits, ScenarioQuestion, TransportScenarioSet,
 };
+use antecedent_io::IoError;
 
 use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
@@ -270,6 +275,28 @@ impl CompiledTransportScenarios {
             gate_program(&scoped, self)?;
         }
         let report = self.prepared.prepared().evaluate(&scoped)?;
+        Ok(TransportScenariosRun {
+            report,
+            lowered_program_identity: self.lowered.identity(),
+            claim: "per_scenario_points",
+            calibration: "not_measured",
+        })
+    }
+
+    /// [`Self::execute`] with the refusals of [`PreparedTransportScenarios::estimate`]: the
+    /// prepared set's estimate under the program's scope, bound to the program.
+    ///
+    /// # Errors
+    ///
+    /// As [`PreparedTransportScenarios::estimate`], and the support gate once it is on.
+    pub fn estimate(&self, ctx: &ExecutionContext) -> Result<TransportScenariosRun, IoError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if GATE_ON_UNIT_SUPPORT {
+            gate_program(&scoped, self).map_err(|refusal| {
+                IoError::from(antecedent_estimate::EstimationError::from(refusal))
+            })?;
+        }
+        let report = self.prepared.estimate(&scoped)?;
         Ok(TransportScenariosRun {
             report,
             lowered_program_identity: self.lowered.identity(),
