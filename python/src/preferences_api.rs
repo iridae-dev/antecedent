@@ -11,24 +11,19 @@
 
 mod learning;
 
+use antecedent::analysis::claim_decision_programs::ContractSource;
 use antecedent::analysis::inverse_query::{DistributionArtifact, MeanSource};
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
     ActionInput, ActionKind, Attribute, BeliefRows, CertifiedPreferenceResult, CertifiedVerdict,
-    HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction, PreferenceContract,
-    PreferenceContractError, PreferenceDecisionArtifact, PreferenceDecisionResult,
-    PreferenceEvaluation, PreferenceEvaluationOptions, PreferenceExpr, PreferenceMeasure,
-    PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict,
-    RegionStatus, RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
-    StructuralPreferenceEvaluation, StructuralPreferenceResult, StructuralPreferenceVerdict,
-    ValueModel, ValueRelation, experiment_arm_quantity, preference_route, source_requirement,
-};
-// The direct trade-off kernels and source builders are not API; the bridge reaches them through
-// the hidden seam until each native goes through a compiled family.
-use antecedent::analysis::preference_decision::bridge::{
-    chain_joint_law, decide_across_structures_with_context,
-    decide_preferences_on_means_with_context, decide_preferences_with_context,
-    experiment_mean_source, joint_law_of,
+    HardConstraint, LinearRelation, MeasureOrigin, PreferenceAction, PreferenceArtifactError,
+    PreferenceContract, PreferenceContractError, PreferenceDecisionArtifact,
+    PreferenceDecisionResult, PreferenceEvaluation, PreferenceEvaluationOptions, PreferenceExpr,
+    PreferenceMeasure, PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet,
+    PreferenceVerdict, RegionStatus, RelationOrigin, RelationSense, StructuralCertifiedResult,
+    StructuralPolicy, StructuralPreferenceEvaluation, StructuralPreferenceResult,
+    StructuralPreferenceVerdict, ValueModel, ValueRelation, experiment_arm_quantity,
+    preference_route, source_requirement,
 };
 use antecedent::analysis::preference_decision::{
     ClassSampling, ClassSize, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
@@ -38,7 +33,13 @@ use antecedent::analysis::preference_decision::{
     compile_contract_decision_across_prepared_studies,
     compile_preference_decision_across_prepared_studies,
 };
+use antecedent::analysis::preference_decision::{
+    chain_joint_law, experiment_mean_source, joint_law_of,
+};
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
+use antecedent::analysis::tradeoff_decision_programs::{
+    TerminalError, compile_tradeoff_decision, compile_tradeoff_structural_decision,
+};
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_artifact::{
     contract_from_json_refusal, contract_to_json, mean_result_to_json, result_to_json,
@@ -62,7 +63,7 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
-use crate::decision_claims::adapt_claims;
+use crate::decision_claims::supplied_claims;
 use crate::distribution_api::PyJointDistributionArtifact;
 use crate::program_claims_api::PyNativeResponseClaim;
 
@@ -1087,18 +1088,28 @@ fn decide_preferences_joint(
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(reply(
-            decide_preferences_with_context(
-                &contract,
-                source.inner(),
-                measure.as_ref(),
-                options,
-                &ctx,
-            )
-            .map(|e| evaluation_json(&e, &contract))
-            .map_err(|e| refusal(&e.to_refusal())),
-        ))
+        let source = ContractSource::Law(source.inner().clone());
+        decide_tradeoff(contract, measure, options, source, &ctx).map(reply)
     })
+}
+
+/// Compile the decision of `contract` on `source` into the family of the route that answers it
+/// and execute it. A refusal of the kernel is its refusal JSON; a refusal of the compiler (a
+/// release build's support gate) is raised.
+fn decide_tradeoff(
+    contract: PreferenceContract,
+    measure: Option<PreferenceMeasure>,
+    options: PreferenceEvaluationOptions,
+    source: ContractSource,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<Result<Value, String>> {
+    let outcome = compile_tradeoff_decision(contract, measure, options, source, ctx)
+        .and_then(|program| Ok((program.execute(ctx)?, program)));
+    match outcome {
+        Ok((evaluation, program)) => Ok(Ok(evaluation_json(&evaluation, program.contract()))),
+        Err(TerminalError::Kernel(error)) => Ok(Err(refusal(&error.to_refusal()))),
+        Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
+    }
 }
 
 /// Decide a preference contract on a mean-only source (exact route only). The decision reads
@@ -1118,17 +1129,7 @@ fn decide_preferences_means(
         let options = options_from(options_json)?;
         let source = mean_source_from(mean_source_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(reply(
-            decide_preferences_on_means_with_context(
-                &contract,
-                &source,
-                measure.as_ref(),
-                options,
-                &ctx,
-            )
-            .map(|e| evaluation_json(&e, &contract))
-            .map_err(|e| refusal(&e.to_refusal())),
-        ))
+        decide_tradeoff(contract, measure, options, ContractSource::Means(source), &ctx).map(reply)
     })
 }
 
@@ -1153,25 +1154,18 @@ fn decide_preferences_structures(
         let options = options_from(options_json)?;
         check_declared_size(claims_json, MAX_PREFERENCE_JSON_BYTES, "structures")?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        let run = || -> Result<Value, String> {
-            let claims = adapt_claims(
-                contract.structural_policy,
-                kind,
-                claims_json,
-                &sources,
-                "structures",
-            )?;
-            let evaluation = decide_across_structures_with_context(
-                &contract,
-                &claims,
-                measure.as_ref(),
-                options,
-                &ctx,
-            )
-            .map_err(|e| refusal(&e))?;
-            Ok(structural_json(&evaluation, &contract))
+        let claims = match supplied_claims(kind, claims_json, &sources, "structures") {
+            Ok(claims) => claims,
+            Err(refused) => return Ok(reply(Err(refused))),
         };
-        Ok(reply(run()))
+        let outcome =
+            compile_tradeoff_structural_decision(contract, measure, options, claims, &ctx)
+                .and_then(|program| Ok((program.execute(&ctx)?, program)));
+        Ok(reply(match outcome {
+            Ok((evaluation, program)) => Ok(structural_json(&evaluation, program.contract())),
+            Err(TerminalError::Kernel(error)) => Err(refusal(&error.to_refusal())),
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        }))
     })
 }
 
@@ -1193,17 +1187,24 @@ fn export_preference_decision<'py>(
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        let outcome = PreferenceDecisionArtifact::evaluate_with_context(
-            contract,
-            source.inner(),
-            measure,
-            options,
-            &ctx,
-        )
-        .and_then(|artifact| artifact.to_bytes(artifact_id));
-        Ok(match outcome {
-            Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
-            Err(error) => (None, Some(refusal(&error.to_refusal()))),
+        let source = ContractSource::Law(source.inner().clone());
+        // A contract the compiler refuses before the decision runs is the record's evaluation
+        // refusal, as on the record's own evaluation.
+        let program = match compile_tradeoff_decision(contract, measure, options, source, &ctx) {
+            Ok(program) => program,
+            Err(TerminalError::Kernel(error)) => {
+                let error = PreferenceArtifactError::Evaluation(error);
+                return Ok((None, Some(refusal(&error.to_refusal()))));
+            }
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        };
+        Ok(match program.record(&ctx) {
+            Ok(artifact) => match artifact.to_bytes(artifact_id) {
+                Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
+                Err(error) => (None, Some(refusal(&error.to_refusal()))),
+            },
+            Err(TerminalError::Kernel(error)) => (None, Some(refusal(&error.to_refusal()))),
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
         })
     })
 }

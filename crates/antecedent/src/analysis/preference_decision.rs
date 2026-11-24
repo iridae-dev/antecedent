@@ -15,8 +15,11 @@
 //! [`CompiledPreferenceDecision::execute`] runs the plan once.
 //! [`compile_preference_decision_across_studies`] and
 //! [`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_preference_decision`]
-//! compile several outcomes. The direct functions that decide on a source a caller already
-//! holds are crate-internal: they are the lower layer that route calls, not a second way in.
+//! compile several outcomes. A decision on a law, a grid of means or structure claims a caller
+//! already holds compiles through
+//! [`crate::analysis::tradeoff_decision_programs`], and learning the preference set from
+//! recorded choices through [`crate::analysis::preference_learning_programs`]: each is a
+//! program of its own family, gated on its support unit. There is no other way in.
 //!
 //! What this module makes public owns no scientific rule of its own:
 //!
@@ -31,6 +34,10 @@
 //!   analysis-backed records;
 //! * [`experiment_arm_quantity`], the coordinate of one outcome's arm mean in a
 //!   several-outcome experiment;
+//! * [`experiment_mean_source`], [`chain_joint_law`] and [`joint_law_of`], which assemble the
+//!   source a contract is decided on from what was already estimated: the arm means of one
+//!   experiment, the joint output law of a sealed propagation chain, and laws whose rows
+//!   already pair. They estimate nothing and pair nothing the joint-law rule refuses;
 //! * [`export_accepted`], [`consume_accepted`], [`export_decision`] and [`consume_decision`],
 //!   which move the two durable records through the checksummed container, recomputing on
 //!   consumption.
@@ -89,8 +96,7 @@ pub use antecedent_design::accepted_preferences::{
 };
 pub use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
-    ChoiceSetFeatures, OptionBelief, Pooling, UnavailableOption, choice_features,
-    choice_features_at,
+    ChoiceSetFeatures, OptionBelief, Pooling, UnavailableOption,
 };
 pub use antecedent_design::decision_contract::{
     ActionKind, DecisionContract, DecisionCriterion, HardConstraint, StructuralPolicy,
@@ -109,7 +115,7 @@ pub use antecedent_design::preference_choice_model::{
     ASSUMPTION_LOGIT_CHOICE, CALIBRATION_ESTIMATOR, CALIBRATION_INTERVAL_METHOD, CALIBRATION_QUERY,
     CALIBRATION_SHAPE_ESTIMATOR, CALIBRATION_SHAPE_INTERVAL_METHOD, ChoiceModelError,
     ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, CovarianceKind, EstimateOutcome,
-    ParameterEstimate, ParameterIntervalMethod, calibration_basis, shape_calibration_basis,
+    ParameterEstimate, ParameterIntervalMethod,
 };
 pub use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
@@ -1291,7 +1297,7 @@ pub fn experiment_arm_quantity(
 /// # Errors
 /// Evidence whose exposure is not declared free of between-unit interference: under bounded or
 /// unspecified spillover the arm means are assumption ranges, not means.
-pub(crate) fn experiment_mean_source(
+pub fn experiment_mean_source(
     evidence: &JointExperimentEvidence,
 ) -> Result<MeanSource, DecisionFacadeRefusal> {
     if !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. }) {
@@ -1334,7 +1340,7 @@ pub(crate) fn experiment_mean_source(
 /// A chain without a retained joint output law (a point or spread reading, a withdrawn source):
 /// `joint_law_required`; a chain read as neither a posterior nor a predictive law; an invalid
 /// output coordinate.
-pub(crate) fn chain_joint_law(
+pub fn chain_joint_law(
     chain: &PropagationChain,
 ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
     let unpaired = || {
@@ -1416,7 +1422,7 @@ pub(crate) fn chain_joint_law(
 /// # Errors
 /// No laws; the rule's refusal; laws that share an alignment identity but differ in meaning,
 /// weights or calibration.
-pub(crate) fn joint_law_of(
+pub fn joint_law_of(
     laws: &[&DistributionArtifact],
 ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
     match laws {
@@ -1503,85 +1509,4 @@ pub(crate) fn joint_law_of(
         rows,
     )
     .map_err(|_| invalid("the paired columns form a distribution artifact"))
-}
-
-/// Not API: the Python bridge's access to the trade-off kernels and source builders until
-/// each of its natives decides or learns through a compiled family.
-///
-/// Nothing but `python/src` and this crate's tests of the source builders may use these items.
-/// They are hidden, carry no semver promise and are removed when the compiled supplied-evidence
-/// and learning families replace them.
-#[doc(hidden)]
-pub mod bridge {
-    use antecedent_core::ExecutionContext;
-    use antecedent_design::decision_adapters::AdaptedClaims;
-    use antecedent_design::decision_eval::MeanSource;
-    use antecedent_design::decision_evidence::JointExperimentEvidence;
-    use antecedent_io::distribution_artifact::DistributionArtifact;
-
-    use super::{
-        DecisionFacadeRefusal, PreferenceContract, PreferenceEvaluationOptions, PreferenceMeasure,
-        PropagationChain, StructuralPreferenceEvaluation,
-    };
-
-    #[doc(hidden)]
-    pub use antecedent_design::accepted_preferences::{
-        estimate_accepted_with_context, learn_compatible_set_accepted_with_context,
-    };
-    #[doc(hidden)]
-    pub use antecedent_design::preference_choice_model::estimate_choice_model_with_context;
-    #[doc(hidden)]
-    pub use antecedent_design::preference_evaluation::{
-        decide_preferences_on_means_with_context, decide_preferences_with_context,
-    };
-    #[doc(hidden)]
-    pub use antecedent_design::preference_set_learning::learn_compatible_set_with_context;
-
-    /// Not API; see the module.
-    ///
-    /// # Errors
-    /// As the crate-internal function it forwards to.
-    #[doc(hidden)]
-    pub fn decide_across_structures_with_context(
-        contract: &PreferenceContract,
-        claims: &AdaptedClaims,
-        measure: Option<&PreferenceMeasure>,
-        options: PreferenceEvaluationOptions,
-        ctx: &ExecutionContext,
-    ) -> Result<StructuralPreferenceEvaluation, DecisionFacadeRefusal> {
-        super::decide_across_structures_with_context(contract, claims, measure, options, ctx)
-    }
-
-    /// Not API; see the module.
-    ///
-    /// # Errors
-    /// As the crate-internal function it forwards to.
-    #[doc(hidden)]
-    pub fn experiment_mean_source(
-        evidence: &JointExperimentEvidence,
-    ) -> Result<MeanSource, DecisionFacadeRefusal> {
-        super::experiment_mean_source(evidence)
-    }
-
-    /// Not API; see the module.
-    ///
-    /// # Errors
-    /// As the crate-internal function it forwards to.
-    #[doc(hidden)]
-    pub fn chain_joint_law(
-        chain: &PropagationChain,
-    ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
-        super::chain_joint_law(chain)
-    }
-
-    /// Not API; see the module.
-    ///
-    /// # Errors
-    /// As the crate-internal function it forwards to.
-    #[doc(hidden)]
-    pub fn joint_law_of(
-        laws: &[&DistributionArtifact],
-    ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
-        super::joint_law_of(laws)
-    }
 }

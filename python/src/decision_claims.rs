@@ -158,21 +158,9 @@ fn claim_from(
     Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
 }
 
-/// Parse the claims of `kind`, one per source, and adapt them under `policy`. `subject` names
-/// the claims in the refusal of draws too large to copy. The error is a refusal JSON.
-pub(crate) fn adapt_claims(
-    policy: StructuralPolicy,
-    kind: &str,
-    claims_json: &str,
-    sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
-    subject: &str,
-) -> Result<AdaptedClaims, String> {
-    adapt_supplied(supplied_claims(kind, claims_json, sources, subject)?, policy)
-}
-
 /// Adapt a supplied claim set under `policy` with the direct adapters. The error is a refusal
-/// JSON. Only the deprecated direct paths and the trade-off structural decision, until it runs
-/// through its compiled program, adapt here; compiled decisions adapt inside their program.
+/// JSON. Only the deprecated direct paths adapt here; compiled decisions adapt inside their
+/// program.
 #[allow(
     deprecated,
     reason = "the Python binding of the deprecated direct path; the Python function warns"

@@ -233,7 +233,7 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
         action("high", &arm("benefit", true), &arm("harm", true)),
         action("low", &arm("benefit", false), &arm("harm", false)),
     ];
-    let source = NativeDecisionSource::Mean(pd::bridge::experiment_mean_source(&evidence).unwrap());
+    let source = NativeDecisionSource::Mean(pd::experiment_mean_source(&evidence).unwrap());
     let gain = evidence.treated_means[0] - evidence.control_means[0];
     let extra_harm = evidence.treated_means[1] - evidence.control_means[1];
     assert!(gain > 0.5 && extra_harm > 0.2, "{gain} {extra_harm}");
@@ -271,7 +271,7 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
         assumption_id: "assumption.bounded_spillover".into(),
         bias_bounds: vec![0.1, 0.1],
     };
-    assert!(pd::bridge::experiment_mean_source(&bounded).is_err());
+    assert!(pd::experiment_mean_source(&bounded).is_err());
 }
 
 fn harm_cap(cap: f64) -> HardConstraint {
@@ -445,7 +445,7 @@ fn chain_law(
                 .collect(),
         );
     let chain = compile_propagation_chain(draft, ctx).unwrap().execute(ctx).unwrap();
-    pd::bridge::chain_joint_law(&chain).unwrap()
+    pd::chain_joint_law(&chain).unwrap()
 }
 
 #[test]
@@ -461,10 +461,10 @@ fn separately_fitted_outcomes_meet_through_a_declared_dependence() {
     ];
 
     // The two analyses' draws are separate laws: their rows are never paired.
-    let refused = pd::bridge::joint_law_of(&[&law_of(&benefit), &law_of(&harm)]).unwrap_err();
+    let refused = pd::joint_law_of(&[&law_of(&benefit), &law_of(&harm)]).unwrap_err();
     assert_eq!(refused.code, "joint_law_required");
     assert!(refused.detail.ends_with("alignment_mismatch"), "{}", refused.detail);
-    let one = pd::bridge::joint_law_of(&[&law_of(&benefit)]).unwrap();
+    let one = pd::joint_law_of(&[&law_of(&benefit)]).unwrap();
     assert_eq!(one, law_of(&benefit));
 
     let law = chain_law(&benefit, &harm, &ctx);
@@ -588,7 +588,7 @@ fn a_predictive_chain_answers_outcome_inputs() {
             .collect(),
     );
     let chain = compile_propagation_chain(draft, &ctx).unwrap().execute(&ctx).unwrap();
-    let law = pd::bridge::chain_joint_law(&chain).unwrap();
+    let law = pd::chain_joint_law(&chain).unwrap();
     let source = NativeDecisionSource::JointLaw(Box::new(law.clone()));
     let actions = vec![
         action("high", &outputs[0].3, &outputs[1].3),
