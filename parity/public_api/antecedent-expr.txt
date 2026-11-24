@@ -774,8 +774,10 @@ pub fn <antecedent_expr::EstimandMethod>::const fn is_temporal_mediation(self) -
 pub fn <antecedent_expr::ExactDiscreteLaw>::const fn origin(&self) -> antecedent_expr::LawOrigin
 pub fn <antecedent_expr::ExactDiscreteLaw>::const fn regime(&self) -> antecedent_core::ids::RegimeId
 pub fn <antecedent_expr::ExactDiscreteLaw>::const fn tolerance(&self) -> antecedent_expr::LawTolerance
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn accepts_content_identity(&self, stored: &antecedent_core::recalc::StageIdentity) -> bool
 pub fn <antecedent_expr::ExactDiscreteLaw>::fn axes(&self) -> &[antecedent_expr::DiscreteAxis]
 pub fn <antecedent_expr::ExactDiscreteLaw>::fn content_identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_expr::ExactDiscreteLaw>::fn content_identity_v1(&self) -> antecedent_core::recalc::StageIdentity
 pub fn <antecedent_expr::ExactDiscreteLaw>::fn empirical_counts(&self) -> core::option::Option<&[u64]>
 pub fn <antecedent_expr::ExactDiscreteLaw>::fn interventions(&self) -> &[antecedent_expr::InterventionAssignment]
 pub fn <antecedent_expr::ExactDiscreteLaw>::fn population(&self) -> &str

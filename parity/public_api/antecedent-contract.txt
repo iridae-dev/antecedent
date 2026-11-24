@@ -6964,6 +6964,7 @@ pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn ce
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn declaration(&self) -> &antecedent_contract::adaptive_design::ChoiceDesignDeclaration
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn evidence(&self) -> &antecedent_contract::adaptive_design::ChoiceEvidence
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn accepts_identity_hex(&self, stored: &str) -> bool
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn admit_paradigm(&self, paradigm: antecedent_contract::adaptive_design::InferenceParadigm) -> core::result::Result<antecedent_contract::adaptive_design::RouteAuthorization, antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn ensure_current(&self) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn looks(&self) -> usize
@@ -7215,7 +7216,9 @@ pub fn <antecedent_contract::evidence_ledger::SynthesisKind>::const fn as_str(se
 pub fn <antecedent_contract::evidence_ledger::SynthesisKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::evidence_ledger::SynthesisOperation>::const fn kind(&self) -> antecedent_contract::evidence_ledger::SynthesisKind
 pub fn <antecedent_contract::evidence_ledger::SynthesisOperation>::fn direct_sources(&self) -> alloc::vec::Vec<antecedent_contract::evidence_ledger::SourceId>
+pub fn <antecedent_contract::evidence_ledger::TransportIdentity>::fn as_sets(&self) -> Self
 pub fn <antecedent_contract::evidence_ledger::TransportIdentity>::fn digest(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::evidence_ledger::TransportIdentity>::fn set_digest(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::interface_contract::CalibrationRequirement>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::interface_contract::CalibrationRequirement>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::interface_contract::CalibrationStatus>::const fn is_measured(&self) -> bool
