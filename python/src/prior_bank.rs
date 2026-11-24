@@ -1470,8 +1470,14 @@ fn select_beta_power_prior_alpha_py<'py>(
         successes: source_successes,
         trials: source_trials,
     };
+    // The compiled `PowerPriorBetaSelection` route: the same kernel selection behind its
+    // unit's support gate. The selection reads the options' seed, never the context's.
+    let ctx = crate::py_execution_context(seed, 1);
     let (prior, report) =
-        antecedent::inference::select_beta_prior(source, &outcomes, &options).map_err(pyvalue)?;
+        antecedent::Study::compile_beta_power_prior_selection(source, outcomes, options, &ctx)
+            .map_err(py_err)?
+            .select_prior(&ctx)
+            .map_err(pyvalue)?;
     let d = report_dict(py, &report)?;
     d.set_item("prior", (prior.alpha, prior.beta))?;
     Ok(d)
@@ -1504,8 +1510,13 @@ fn select_gamma_power_prior_alpha_py<'py>(
         total_count: source_total_count,
         exposure: source_exposure,
     };
+    // The compiled `PowerPriorGammaSelection` route, as for the Beta selection.
+    let ctx = crate::py_execution_context(seed, 1);
     let (prior, report) =
-        antecedent::inference::select_gamma_prior(source, &counts, &options).map_err(pyvalue)?;
+        antecedent::Study::compile_gamma_power_prior_selection(source, counts, options, &ctx)
+            .map_err(py_err)?
+            .select_prior(&ctx)
+            .map_err(pyvalue)?;
     let d = report_dict(py, &report)?;
     d.set_item("prior", (prior.shape, prior.rate))?;
     Ok(d)
@@ -1554,9 +1565,14 @@ fn select_linear_power_prior_alpha_py<'py>(
         n_cols,
         functional: &functional,
     };
-    let (composed, report) =
-        antecedent::inference::select_linear_prior(&srcs, &baseline, target, &options)
-            .map_err(pyvalue)?;
+    // The compiled `PowerPriorLinearSelection` route, as for the Beta selection.
+    let ctx = crate::py_execution_context(seed, 1);
+    let (composed, report) = antecedent::Study::compile_linear_power_prior_selection(
+        srcs, baseline, target, options, &ctx,
+    )
+    .map_err(py_err)?
+    .select_prior(&ctx)
+    .map_err(pyvalue)?;
     let d = report_dict(py, &report)?;
     let coefficients = composed
         .prior
