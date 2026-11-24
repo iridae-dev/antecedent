@@ -318,7 +318,9 @@ impl crate::Study {
         ctx: &ExecutionContext,
     ) -> Result<PreparedEventStudy, EventError> {
         let Some(parameters) = accepted.catalog_parameters() else {
-            return Err(EventError::Fit(
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_MARKED_KERNEL,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
                 "the observation study prices a catalog kernel the bridge kept",
             ));
         };
@@ -327,7 +329,11 @@ impl crate::Study {
                 || hypothesis.parameters.branching != parameters.branching
                 || hypothesis.parameters.decay != parameters.decay
         }) {
-            return Err(EventError::Fit("value of information uses the kernel the bridge kept"));
+            return Err(EventError::bridge(
+                antecedent_core::reason_details::events::STUDY_KERNEL_MISMATCH,
+                antecedent_core::reason_code!("bridge_binding_mismatch"),
+                "value of information uses the kernel the bridge kept",
+            ));
         }
         let mut prepared =
             Self::prepare_event_study(prior, request, worlds, contract, study_cost, ctx)?;

@@ -145,6 +145,16 @@ pub enum EventError {
     /// Native compiler or retained execution failure.
     #[error(transparent)]
     Compiler(#[from] crate::error::CausalError),
+    /// The parameter-intervention bridge refused the structural reading of an excitation mass.
+    #[error("{detail}: {message}")]
+    BridgeRefused {
+        /// Registered `events` refusal detail of the bridge.
+        detail: &'static str,
+        /// Registered runtime reason code.
+        code: &'static str,
+        /// What refused, and the declaration or evidence that would support it.
+        message: String,
+    },
 }
 
 impl EventError {
@@ -162,6 +172,7 @@ impl EventError {
             Self::IntervalUnmeasured => Some(events::INTERVAL_UNMEASURED),
             Self::IncompleteLaw { .. } => Some(events::INCOMPLETE_LAW),
             Self::Compiler(_) => None,
+            Self::BridgeRefused { detail, .. } => Some(*detail),
         }
     }
 
@@ -178,11 +189,21 @@ impl EventError {
             Self::Unverified => reason_code!("external_verification_failed"),
             Self::IntervalUnmeasured => reason_code!("uncertainty_representation_insufficient"),
             Self::Compiler(_) => return None,
+            Self::BridgeRefused { code, .. } => code,
         })
     }
 
     pub(super) fn invalid(error: impl std::fmt::Display) -> Self {
         Self::Invalid(error.to_string())
+    }
+
+    /// A refusal of the parameter-intervention bridge under its registered detail and code.
+    pub(super) fn bridge(
+        detail: &'static str,
+        code: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::BridgeRefused { detail, code, message: message.into() }
     }
 }
 

@@ -33,6 +33,8 @@ use super::{
     Arrival, EventError, EventHistory, EventLaw, EventWindow, PreparedKernel, admit, digest,
 };
 use crate::planner::lowered::EventProcessRoute::ParameterBridge;
+use antecedent_core::reason_code;
+use antecedent_core::reason_details::events;
 
 /// The kernel whose agreed direct mass is offered to the bridge.
 #[derive(Clone, Debug)]
@@ -180,7 +182,11 @@ pub fn parameter_bridge(
         (None, None) => BridgeMapping::Identity,
         (Some(intercept), Some(slope)) => BridgeMapping::Affine { intercept, slope },
         _ => {
-            return Err(EventError::Fit("an affine map needs both an intercept and a slope"));
+            return Err(EventError::bridge(
+                events::INCOMPLETE_MAPPING,
+                reason_code!("scientific_bridge_invalid"),
+                "an affine map needs both an intercept and a slope",
+            ));
         }
     };
     let source_quantity = declared_quantity(source);
@@ -332,11 +338,16 @@ pub(super) fn accept(
         &BridgeSource { claim: &claim, quantity: &bridge.source.quantity },
     )
     .map_err(|refusal| {
-        EventError::invalid(format!(
-            "{}: {}",
-            refusal.detail,
-            refusal.remedy.unwrap_or("the bridge names the declaration that would support it")
-        ))
+        EventError::bridge(
+            events::BRIDGE_CONTRACT_REFUSED,
+            reason_code!("scientific_bridge_invalid"),
+            format!(
+                "{} {}: {}",
+                refusal.code,
+                refusal.detail,
+                refusal.remedy.unwrap_or("the bridge names the declaration that would support it")
+            ),
+        )
     })?;
     Ok(AcceptedExcitation {
         bridged_direct: derived.value,
@@ -412,7 +423,9 @@ fn offered_mass(
     subject: &ExcitationSubject,
 ) -> Result<Mass, EventError> {
     if reading.status != DiagnosticStatus::Agreed {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::DIAGNOSTIC_WITHHELD,
+            reason_code!("bridge_substitution_refused"),
             "immigrant diagnostic did not agree; the mass stays a conditional intensity",
         ));
     }
@@ -436,7 +449,9 @@ fn offered_mass(
         }
     };
     if (mass.direct - reading.conditional_direct).abs() > 1e-8 {
-        return Err(EventError::invalid(
+        return Err(EventError::bridge(
+            events::KERNEL_MISMATCH,
+            reason_code!("bridge_binding_mismatch"),
             "question kernel does not reproduce the agreed direct mass",
         ));
     }
@@ -457,19 +472,25 @@ fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
         || bridge.source_value != ValueKind::Mean
         || bridge.target_value != ValueKind::Mean
     {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::NOT_PARAMETER_MEAN,
+            reason_code!("bridge_substitution_refused"),
             "an excitation mass enters the decision loop only as a parameter-intervention mean",
         ));
     }
     if bridge.source.quantity.functional_id != "direct_offspring"
         || bridge.target.quantity.functional_id != "direct_offspring"
     {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::DESCENDANT_NOT_CARRIED,
+            reason_code!("bridge_mapping_not_supported"),
             "only the horizon direct mass is affine; descendants stay a conditional intensity",
         ));
     }
     if !matches!(bridge.mapping, BridgeMapping::Identity | BridgeMapping::Affine { .. }) {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::MAPPING_NOT_AFFINE,
+            reason_code!("bridge_mapping_not_supported"),
             "the parameter bridge carries the direct mass by an identity or affine map",
         ));
     }
@@ -480,7 +501,9 @@ fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
     {
         Some(reading) if reading.evidence.as_ref().is_some_and(|text| !text.trim().is_empty()) => {}
         _ => {
-            return Err(EventError::Fit(
+            return Err(EventError::bridge(
+                events::EVIDENCE_MISSING,
+                reason_code!("bridge_assumption_missing"),
                 "a structural reading of the excitation mass must name its evidence",
             ));
         }
@@ -488,7 +511,9 @@ fn direct_bridge(bridge: &BridgeContract) -> Result<(), EventError> {
     if bridge.source.quantity.regime_id != "observational"
         || bridge.source.quantity.regime_id == bridge.target.quantity.regime_id
     {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::REGIME_NOT_INTERVENED,
+            reason_code!("bridge_binding_mismatch"),
             "the fitted mass is observational and the response must name a different regime",
         ));
     }
@@ -511,12 +536,16 @@ fn cite_discovery(bridge: &BridgeContract, evidence: &str) -> Result<BridgeContr
         .iter_mut()
         .find(|item| item.kind == AssumptionKind::ParameterInterpretation)
     else {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::EVIDENCE_MISSING,
+            reason_code!("bridge_assumption_missing"),
             "a structural reading of the excitation mass must name its evidence",
         ));
     };
     if reading.evidence.as_ref().is_some_and(|text| text != evidence) {
-        return Err(EventError::Fit(
+        return Err(EventError::bridge(
+            events::EVIDENCE_NOT_DISCOVERY,
+            reason_code!("bridge_assumption_missing"),
             "the structural evidence is the accepted discovery, not a separate label",
         ));
     }
@@ -557,13 +586,17 @@ fn kernel_gate(
                 return Err(EventError::invalid("the column cap stays inside (0, 1)"));
             }
             if hawkes::singular_gram(history, &parameters.decay, &mut work)? {
-                return Err(EventError::Fit("the excitation Gram is singular"));
+                return Err(singular_gram());
             }
             let n = parameters.baseline.len();
             let column: f64 =
                 (0..n).map(|target| parameters.branching[target * n + reading.source]).sum();
             if column >= column_cap - 1e-7 {
-                return Err(EventError::Fit("the source column is on its stability cap"));
+                return Err(EventError::bridge(
+                    events::ON_STABILITY_CAP,
+                    reason_code!("dynamics_not_identified"),
+                    "the source column is on its stability cap",
+                ));
             }
             if reading.source != reading.target {
                 direction_gate(
@@ -578,14 +611,18 @@ fn kernel_gate(
                 return Err(EventError::invalid("the reproduction cap stays inside (0, 1)"));
             }
             if marked::singular_gram(history, &parameters.decay, &mut work)? {
-                return Err(EventError::Fit("the excitation Gram is singular"));
+                return Err(singular_gram());
             }
             let forward = lifetime_direct(parameters, prototypes, reading.source, reading.target)?;
             let reverse = lifetime_direct(parameters, prototypes, reading.target, reading.source)?;
             let offspring = parameters.excitation_offspring(prototypes, reading.source, 1.0)?;
             let column: f64 = offspring.lifetime_direct.iter().sum();
             if column >= reproduction_cap - 1e-7 {
-                return Err(EventError::Fit("the source prototype is on its reproduction cap"));
+                return Err(EventError::bridge(
+                    events::ON_STABILITY_CAP,
+                    reason_code!("dynamics_not_identified"),
+                    "the source prototype is on its reproduction cap",
+                ));
             }
             if reading.source != reading.target {
                 direction_gate(forward, reverse)?;
@@ -610,12 +647,28 @@ fn lifetime_direct(
     component(&offspring.lifetime_direct, target)
 }
 
+fn singular_gram() -> EventError {
+    EventError::bridge(
+        events::SINGULAR_GRAM,
+        reason_code!("dynamics_not_identified"),
+        "the excitation Gram is singular",
+    )
+}
+
 fn direction_gate(forward: f64, reverse: f64) -> Result<(), EventError> {
     if reverse > forward + 1e-8 {
-        return Err(EventError::Fit("the queried edge is a lead of the other type"));
+        return Err(EventError::bridge(
+            events::KERNEL_LEAD,
+            reason_code!("effect_not_identified"),
+            "the queried edge is a lead of the other type",
+        ));
     }
     if forward > 1e-8 && reverse > 1e-8 && (forward - reverse).abs() <= 1e-8 {
-        return Err(EventError::Fit("the kernel is symmetric on the queried edge"));
+        return Err(EventError::bridge(
+            events::KERNEL_SYMMETRIC,
+            reason_code!("effect_not_identified"),
+            "the kernel is symmetric on the queried edge",
+        ));
     }
     Ok(())
 }
@@ -800,6 +853,7 @@ mod question_tests {
     use crate::AcceptedGraph;
     use crate::Study;
     use crate::accepted::StructureProvenance;
+    use crate::analysis::events::EventError;
     use crate::analysis::events::challenge::{DiagnosticStatus, ExcitationReading};
     use crate::analysis::events::hawkes::{BaselineFeature, HawkesParameters};
     use crate::analysis::events::marked::{
@@ -813,6 +867,8 @@ mod question_tests {
     use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_core::CausalSchemaBuilder;
     use antecedent_core::ExecutionContext;
+    use antecedent_core::reason_code;
+    use antecedent_core::reason_details::events;
     use antecedent_graph::Dag;
     use std::sync::Arc;
 
@@ -938,6 +994,19 @@ mod question_tests {
         ))
     }
 
+    /// The question refused under the registered bridge detail `slot` and reason code `code`.
+    fn refused(
+        result: Result<crate::analysis::events::AcceptedExcitation, EventError>,
+        slot: &str,
+        code: &str,
+    ) {
+        let Err(error) = result else {
+            panic!("the bridge accepted a reading it should refuse under {slot}");
+        };
+        assert_eq!(error.detail(), Some(slot), "{error}");
+        assert_eq!(error.reason_code(), Some(code), "{error}");
+    }
+
     fn ask(
         reading: ExcitationReading,
         alpha: f64,
@@ -999,7 +1068,11 @@ mod question_tests {
             .unwrap();
         assert_eq!(changed.paths()[0][0].kind, 1);
         let withheld = ExcitationReading { status: DiagnosticStatus::Withheld, ..reading };
-        assert!(ask(withheld, 0.4, None, "direct_offspring", "do_one_release", &graph).is_err());
+        refused(
+            ask(withheld, 0.4, None, "direct_offspring", "do_one_release", &graph),
+            events::DIAGNOSTIC_WITHHELD,
+            reason_code!("bridge_substitution_refused"),
+        );
         let quiet = ask(agreed(0.0), 0.0, None, "direct_offspring", "do_one_release", &graph)
             .unwrap()
             .intervened_law(
@@ -1015,37 +1088,43 @@ mod question_tests {
     fn a_label_a_reverse_edge_and_a_descendant_stay_out_of_the_bridge() {
         let reading = agreed(0.4);
         let graph = discovered("release", "activity");
-        assert!(
-            ask(reading.clone(), 0.4, None, "lifetime_descendants", "do_one_release", &graph)
-                .is_err()
+        refused(
+            ask(reading.clone(), 0.4, None, "lifetime_descendants", "do_one_release", &graph),
+            events::DESCENDANT_NOT_CARRIED,
+            reason_code!("bridge_mapping_not_supported"),
         );
-        assert!(
+        refused(
             ask(
                 reading.clone(),
                 0.4,
                 Some("kernel_audit"),
                 "direct_offspring",
                 "do_one_release",
-                &graph
-            )
-            .is_err()
+                &graph,
+            ),
+            events::EVIDENCE_NOT_DISCOVERY,
+            reason_code!("bridge_assumption_missing"),
         );
-        assert!(
-            ask(reading.clone(), 0.4, None, "direct_offspring", "observational", &graph).is_err()
+        refused(
+            ask(reading.clone(), 0.4, None, "direct_offspring", "observational", &graph),
+            events::REGIME_NOT_INTERVENED,
+            reason_code!("bridge_binding_mismatch"),
         );
         let reverse = discovered("activity", "release");
-        assert!(
-            ask(reading.clone(), 0.4, None, "direct_offspring", "do_one_release", &reverse)
-                .is_err()
+        refused(
+            ask(reading.clone(), 0.4, None, "direct_offspring", "do_one_release", &reverse),
+            events::DISCOVERY_REVERSED,
+            reason_code!("effect_not_identified"),
         );
         let mut predictive = bridge("direct_offspring", None, "do_one_release");
         predictive.kind = BridgeKind::PredictiveCausalQuantity;
         let ctx = ExecutionContext::for_tests(0);
-        assert!(
+        refused(
             Study::prepare_excitation_question(reading, subject(0.4), predictive, &graph, &ctx)
                 .unwrap()
-                .execute(&ctx)
-                .is_err()
+                .execute(&ctx),
+            events::NOT_PARAMETER_MEAN,
+            reason_code!("bridge_substitution_refused"),
         );
         let shock = Study::prepare_shock_query(
             super::ExcludedShock {

@@ -815,12 +815,36 @@ pub const REASON_DETAILS: &[&str] = &[
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.bridge_contract_refused",
     "events.budget",
+    "events.descendant_not_carried",
+    "events.diagnostic_withheld",
+    "events.discovery_confounded",
+    "events.discovery_missing",
+    "events.discovery_reversed",
+    "events.discovery_symmetric",
+    "events.discovery_unbound",
+    "events.discovery_unoriented",
+    "events.evidence_missing",
+    "events.evidence_not_discovery",
     "events.fit_failed",
     "events.incomplete_law",
+    "events.incomplete_mapping",
     "events.interval_unmeasured",
     "events.invalid_request",
+    "events.kernel_lead",
+    "events.kernel_mismatch",
+    "events.kernel_symmetric",
+    "events.mapping_not_affine",
+    "events.names_not_in_discovery",
+    "events.not_parameter_mean",
     "events.numerical",
+    "events.on_stability_cap",
+    "events.regime_not_intervened",
+    "events.same_variable",
+    "events.singular_gram",
+    "events.study_kernel_mismatch",
+    "events.study_marked_kernel",
     "events.unstable",
     "events.unverified_source",
     "evidence_ledger.cancelled",
@@ -1139,6 +1163,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "joint_cells.nuisance_provider",
     "joint_cells.ordering",
     "joint_cells.outcome_model_unsupported",
+    "joint_cells_caller_learners.built_in_learner_declared",
     "joint_law_propagation.alignment_mismatch",
     "joint_law_propagation.artifact_invalid",
     "joint_law_propagation.artifact_refused",
@@ -2806,6 +2831,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "treatment_levels.sparse_level",
     "treatment_levels.training_fold_missing_level",
     "treatment_levels.undeclared_level",
+    "trial_aipw_caller_learners.bootstrap_not_supported",
     "two_step_posterior.band_not_constructed",
     "two_step_posterior.empty_law",
     "two_step_posterior.external_power_prior",
@@ -3686,12 +3712,36 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("effect_constancy_consumer.partition_missing", &["invalid_argument"]),
     ("effect_constancy_consumer.quantity_mismatch", &["invalid_argument"]),
     ("effect_constancy_consumer.support_unsupported", &["route_not_supported"]),
+    ("events.bridge_contract_refused", &["scientific_bridge_invalid"]),
     ("events.budget", &["execution_resource_limit"]),
+    ("events.descendant_not_carried", &["bridge_mapping_not_supported"]),
+    ("events.diagnostic_withheld", &["bridge_substitution_refused"]),
+    ("events.discovery_confounded", &["effect_not_identified"]),
+    ("events.discovery_missing", &["bridge_assumption_missing"]),
+    ("events.discovery_reversed", &["effect_not_identified"]),
+    ("events.discovery_symmetric", &["effect_not_identified"]),
+    ("events.discovery_unbound", &["schema_mismatch"]),
+    ("events.discovery_unoriented", &["discovered_structure_unresolved"]),
+    ("events.evidence_missing", &["bridge_assumption_missing"]),
+    ("events.evidence_not_discovery", &["bridge_assumption_missing"]),
     ("events.fit_failed", &["dynamics_not_identified"]),
     ("events.incomplete_law", &["invalid_argument"]),
+    ("events.incomplete_mapping", &["scientific_bridge_invalid"]),
     ("events.interval_unmeasured", &["uncertainty_representation_insufficient"]),
     ("events.invalid_request", &["invalid_argument"]),
+    ("events.kernel_lead", &["effect_not_identified"]),
+    ("events.kernel_mismatch", &["bridge_binding_mismatch"]),
+    ("events.kernel_symmetric", &["effect_not_identified"]),
+    ("events.mapping_not_affine", &["bridge_mapping_not_supported"]),
+    ("events.names_not_in_discovery", &["unknown_variable"]),
+    ("events.not_parameter_mean", &["bridge_substitution_refused"]),
     ("events.numerical", &["invalid_argument"]),
+    ("events.on_stability_cap", &["dynamics_not_identified"]),
+    ("events.regime_not_intervened", &["bridge_binding_mismatch"]),
+    ("events.same_variable", &["invalid_argument"]),
+    ("events.singular_gram", &["dynamics_not_identified"]),
+    ("events.study_kernel_mismatch", &["bridge_binding_mismatch"]),
+    ("events.study_marked_kernel", &["bridge_binding_mismatch"]),
     ("events.unstable", &["invalid_argument"]),
     ("events.unverified_source", &["external_verification_failed"]),
     ("evidence_ledger.cancelled", &["cancelled_no_claim"]),
@@ -4010,6 +4060,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("joint_cells.nuisance_provider", &["invalid_argument"]),
     ("joint_cells.ordering", &["invalid_argument"]),
     ("joint_cells.outcome_model_unsupported", &["joint_cell_unsupported"]),
+    ("joint_cells_caller_learners.built_in_learner_declared", &["option_not_applicable"]),
     ("joint_law_propagation.alignment_mismatch", &["joint_law_required"]),
     ("joint_law_propagation.artifact_invalid", &["invalid_argument"]),
     ("joint_law_propagation.artifact_refused", &["invalid_argument"]),
@@ -5677,6 +5728,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("treatment_levels.sparse_level", &["arm_not_populated"]),
     ("treatment_levels.training_fold_missing_level", &["arm_not_populated"]),
     ("treatment_levels.undeclared_level", &["treatment_level_undeclared"]),
+    ("trial_aipw_caller_learners.bootstrap_not_supported", &["route_not_supported"]),
     ("two_step_posterior.band_not_constructed", &["route_not_supported"]),
     ("two_step_posterior.empty_law", &["invalid_argument"]),
     ("two_step_posterior.external_power_prior", &["route_not_supported"]),
@@ -7623,18 +7675,66 @@ pub mod effect_constancy_consumer {
 
 /// Details in the `events` family.
 pub mod events {
+    /// Detail `events.bridge_contract_refused`.
+    pub const BRIDGE_CONTRACT_REFUSED: &str = "events.bridge_contract_refused";
     /// Detail `events.budget`.
     pub const BUDGET: &str = "events.budget";
+    /// Detail `events.descendant_not_carried`.
+    pub const DESCENDANT_NOT_CARRIED: &str = "events.descendant_not_carried";
+    /// Detail `events.diagnostic_withheld`.
+    pub const DIAGNOSTIC_WITHHELD: &str = "events.diagnostic_withheld";
+    /// Detail `events.discovery_confounded`.
+    pub const DISCOVERY_CONFOUNDED: &str = "events.discovery_confounded";
+    /// Detail `events.discovery_missing`.
+    pub const DISCOVERY_MISSING: &str = "events.discovery_missing";
+    /// Detail `events.discovery_reversed`.
+    pub const DISCOVERY_REVERSED: &str = "events.discovery_reversed";
+    /// Detail `events.discovery_symmetric`.
+    pub const DISCOVERY_SYMMETRIC: &str = "events.discovery_symmetric";
+    /// Detail `events.discovery_unbound`.
+    pub const DISCOVERY_UNBOUND: &str = "events.discovery_unbound";
+    /// Detail `events.discovery_unoriented`.
+    pub const DISCOVERY_UNORIENTED: &str = "events.discovery_unoriented";
+    /// Detail `events.evidence_missing`.
+    pub const EVIDENCE_MISSING: &str = "events.evidence_missing";
+    /// Detail `events.evidence_not_discovery`.
+    pub const EVIDENCE_NOT_DISCOVERY: &str = "events.evidence_not_discovery";
     /// Detail `events.fit_failed`.
     pub const FIT_FAILED: &str = "events.fit_failed";
     /// Detail `events.incomplete_law`.
     pub const INCOMPLETE_LAW: &str = "events.incomplete_law";
+    /// Detail `events.incomplete_mapping`.
+    pub const INCOMPLETE_MAPPING: &str = "events.incomplete_mapping";
     /// Detail `events.interval_unmeasured`.
     pub const INTERVAL_UNMEASURED: &str = "events.interval_unmeasured";
     /// Detail `events.invalid_request`.
     pub const INVALID_REQUEST: &str = "events.invalid_request";
+    /// Detail `events.kernel_lead`.
+    pub const KERNEL_LEAD: &str = "events.kernel_lead";
+    /// Detail `events.kernel_mismatch`.
+    pub const KERNEL_MISMATCH: &str = "events.kernel_mismatch";
+    /// Detail `events.kernel_symmetric`.
+    pub const KERNEL_SYMMETRIC: &str = "events.kernel_symmetric";
+    /// Detail `events.mapping_not_affine`.
+    pub const MAPPING_NOT_AFFINE: &str = "events.mapping_not_affine";
+    /// Detail `events.names_not_in_discovery`.
+    pub const NAMES_NOT_IN_DISCOVERY: &str = "events.names_not_in_discovery";
+    /// Detail `events.not_parameter_mean`.
+    pub const NOT_PARAMETER_MEAN: &str = "events.not_parameter_mean";
     /// Detail `events.numerical`.
     pub const NUMERICAL: &str = "events.numerical";
+    /// Detail `events.on_stability_cap`.
+    pub const ON_STABILITY_CAP: &str = "events.on_stability_cap";
+    /// Detail `events.regime_not_intervened`.
+    pub const REGIME_NOT_INTERVENED: &str = "events.regime_not_intervened";
+    /// Detail `events.same_variable`.
+    pub const SAME_VARIABLE: &str = "events.same_variable";
+    /// Detail `events.singular_gram`.
+    pub const SINGULAR_GRAM: &str = "events.singular_gram";
+    /// Detail `events.study_kernel_mismatch`.
+    pub const STUDY_KERNEL_MISMATCH: &str = "events.study_kernel_mismatch";
+    /// Detail `events.study_marked_kernel`.
+    pub const STUDY_MARKED_KERNEL: &str = "events.study_marked_kernel";
     /// Detail `events.unstable`.
     pub const UNSTABLE: &str = "events.unstable";
     /// Detail `events.unverified_source`.
@@ -8379,6 +8479,12 @@ pub mod joint_cells {
     pub const ORDERING: &str = "joint_cells.ordering";
     /// Detail `joint_cells.outcome_model_unsupported`.
     pub const OUTCOME_MODEL_UNSUPPORTED: &str = "joint_cells.outcome_model_unsupported";
+}
+
+/// Details in the `joint_cells_caller_learners` family.
+pub mod joint_cells_caller_learners {
+    /// Detail `joint_cells_caller_learners.built_in_learner_declared`.
+    pub const BUILT_IN_LEARNER_DECLARED: &str = "joint_cells_caller_learners.built_in_learner_declared";
 }
 
 /// Details in the `joint_law_propagation` family.
@@ -12145,6 +12251,12 @@ pub mod treatment_levels {
     pub const TRAINING_FOLD_MISSING_LEVEL: &str = "treatment_levels.training_fold_missing_level";
     /// Detail `treatment_levels.undeclared_level`.
     pub const UNDECLARED_LEVEL: &str = "treatment_levels.undeclared_level";
+}
+
+/// Details in the `trial_aipw_caller_learners` family.
+pub mod trial_aipw_caller_learners {
+    /// Detail `trial_aipw_caller_learners.bootstrap_not_supported`.
+    pub const BOOTSTRAP_NOT_SUPPORTED: &str = "trial_aipw_caller_learners.bootstrap_not_supported";
 }
 
 /// Details in the `two_step_posterior` family.

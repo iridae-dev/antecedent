@@ -22,22 +22,19 @@ class EventRefusal(ValueError):
         super().__init__(message)
 
 
+# Every registered event-process refusal detail, the parameter-intervention bridge's included.
+_EVENT_DETAILS = frozenset(
+    value for name, value in vars(_reason_details.events).items() if name.isupper()
+)
+
+
 def _call(operation: Any, *args: Any, **kwargs: Any) -> Any:
     try:
         return operation(*args, **kwargs)
     except ValueError as error:
         message = str(error)
         detail = message.split(":", 1)[0]
-        if detail in {
-            _reason_details.events.INVALID_REQUEST,
-            _reason_details.events.UNSTABLE,
-            _reason_details.events.FIT_FAILED,
-            _reason_details.events.BUDGET,
-            _reason_details.events.NUMERICAL,
-            _reason_details.events.UNVERIFIED_SOURCE,
-            _reason_details.events.INCOMPLETE_LAW,
-            _reason_details.events.INTERVAL_UNMEASURED,
-        }:
+        if detail in _EVENT_DETAILS:
             raise EventRefusal(detail, message) from error
         raise
 

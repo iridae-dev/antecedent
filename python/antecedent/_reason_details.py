@@ -1038,12 +1038,36 @@ class effect_constancy_consumer:  # noqa: N801
 
 
 class events:  # noqa: N801
+    BRIDGE_CONTRACT_REFUSED: Final = "events.bridge_contract_refused"
     BUDGET: Final = "events.budget"
+    DESCENDANT_NOT_CARRIED: Final = "events.descendant_not_carried"
+    DIAGNOSTIC_WITHHELD: Final = "events.diagnostic_withheld"
+    DISCOVERY_CONFOUNDED: Final = "events.discovery_confounded"
+    DISCOVERY_MISSING: Final = "events.discovery_missing"
+    DISCOVERY_REVERSED: Final = "events.discovery_reversed"
+    DISCOVERY_SYMMETRIC: Final = "events.discovery_symmetric"
+    DISCOVERY_UNBOUND: Final = "events.discovery_unbound"
+    DISCOVERY_UNORIENTED: Final = "events.discovery_unoriented"
+    EVIDENCE_MISSING: Final = "events.evidence_missing"
+    EVIDENCE_NOT_DISCOVERY: Final = "events.evidence_not_discovery"
     FIT_FAILED: Final = "events.fit_failed"
     INCOMPLETE_LAW: Final = "events.incomplete_law"
+    INCOMPLETE_MAPPING: Final = "events.incomplete_mapping"
     INTERVAL_UNMEASURED: Final = "events.interval_unmeasured"
     INVALID_REQUEST: Final = "events.invalid_request"
+    KERNEL_LEAD: Final = "events.kernel_lead"
+    KERNEL_MISMATCH: Final = "events.kernel_mismatch"
+    KERNEL_SYMMETRIC: Final = "events.kernel_symmetric"
+    MAPPING_NOT_AFFINE: Final = "events.mapping_not_affine"
+    NAMES_NOT_IN_DISCOVERY: Final = "events.names_not_in_discovery"
+    NOT_PARAMETER_MEAN: Final = "events.not_parameter_mean"
     NUMERICAL: Final = "events.numerical"
+    ON_STABILITY_CAP: Final = "events.on_stability_cap"
+    REGIME_NOT_INTERVENED: Final = "events.regime_not_intervened"
+    SAME_VARIABLE: Final = "events.same_variable"
+    SINGULAR_GRAM: Final = "events.singular_gram"
+    STUDY_KERNEL_MISMATCH: Final = "events.study_kernel_mismatch"
+    STUDY_MARKED_KERNEL: Final = "events.study_marked_kernel"
     UNSTABLE: Final = "events.unstable"
     UNVERIFIED_SOURCE: Final = "events.unverified_source"
 
@@ -1451,6 +1475,10 @@ class joint_cells:  # noqa: N801
     NUISANCE_PROVIDER: Final = "joint_cells.nuisance_provider"
     ORDERING: Final = "joint_cells.ordering"
     OUTCOME_MODEL_UNSUPPORTED: Final = "joint_cells.outcome_model_unsupported"
+
+
+class joint_cells_caller_learners:  # noqa: N801
+    BUILT_IN_LEARNER_DECLARED: Final = "joint_cells_caller_learners.built_in_learner_declared"
 
 
 class joint_law_propagation:  # noqa: N801
@@ -3566,6 +3594,10 @@ class treatment_levels:  # noqa: N801
     UNDECLARED_LEVEL: Final = "treatment_levels.undeclared_level"
 
 
+class trial_aipw_caller_learners:  # noqa: N801
+    BOOTSTRAP_NOT_SUPPORTED: Final = "trial_aipw_caller_learners.bootstrap_not_supported"
+
+
 class two_step_posterior:  # noqa: N801
     BAND_NOT_CONSTRUCTED: Final = "two_step_posterior.band_not_constructed"
     EMPTY_LAW: Final = "two_step_posterior.empty_law"
@@ -4474,12 +4506,36 @@ ALL: Final[tuple[str, ...]] = (
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.bridge_contract_refused",
     "events.budget",
+    "events.descendant_not_carried",
+    "events.diagnostic_withheld",
+    "events.discovery_confounded",
+    "events.discovery_missing",
+    "events.discovery_reversed",
+    "events.discovery_symmetric",
+    "events.discovery_unbound",
+    "events.discovery_unoriented",
+    "events.evidence_missing",
+    "events.evidence_not_discovery",
     "events.fit_failed",
     "events.incomplete_law",
+    "events.incomplete_mapping",
     "events.interval_unmeasured",
     "events.invalid_request",
+    "events.kernel_lead",
+    "events.kernel_mismatch",
+    "events.kernel_symmetric",
+    "events.mapping_not_affine",
+    "events.names_not_in_discovery",
+    "events.not_parameter_mean",
     "events.numerical",
+    "events.on_stability_cap",
+    "events.regime_not_intervened",
+    "events.same_variable",
+    "events.singular_gram",
+    "events.study_kernel_mismatch",
+    "events.study_marked_kernel",
     "events.unstable",
     "events.unverified_source",
     "evidence_ledger.cancelled",
@@ -4798,6 +4854,7 @@ ALL: Final[tuple[str, ...]] = (
     "joint_cells.nuisance_provider",
     "joint_cells.ordering",
     "joint_cells.outcome_model_unsupported",
+    "joint_cells_caller_learners.built_in_learner_declared",
     "joint_law_propagation.alignment_mismatch",
     "joint_law_propagation.artifact_invalid",
     "joint_law_propagation.artifact_refused",
@@ -6465,6 +6522,7 @@ ALL: Final[tuple[str, ...]] = (
     "treatment_levels.sparse_level",
     "treatment_levels.training_fold_missing_level",
     "treatment_levels.undeclared_level",
+    "trial_aipw_caller_learners.bootstrap_not_supported",
     "two_step_posterior.band_not_constructed",
     "two_step_posterior.empty_law",
     "two_step_posterior.external_power_prior",
@@ -7352,12 +7410,36 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "effect_constancy_consumer.partition_missing": ("invalid_argument",),
     "effect_constancy_consumer.quantity_mismatch": ("invalid_argument",),
     "effect_constancy_consumer.support_unsupported": ("route_not_supported",),
+    "events.bridge_contract_refused": ("scientific_bridge_invalid",),
     "events.budget": ("execution_resource_limit",),
+    "events.descendant_not_carried": ("bridge_mapping_not_supported",),
+    "events.diagnostic_withheld": ("bridge_substitution_refused",),
+    "events.discovery_confounded": ("effect_not_identified",),
+    "events.discovery_missing": ("bridge_assumption_missing",),
+    "events.discovery_reversed": ("effect_not_identified",),
+    "events.discovery_symmetric": ("effect_not_identified",),
+    "events.discovery_unbound": ("schema_mismatch",),
+    "events.discovery_unoriented": ("discovered_structure_unresolved",),
+    "events.evidence_missing": ("bridge_assumption_missing",),
+    "events.evidence_not_discovery": ("bridge_assumption_missing",),
     "events.fit_failed": ("dynamics_not_identified",),
     "events.incomplete_law": ("invalid_argument",),
+    "events.incomplete_mapping": ("scientific_bridge_invalid",),
     "events.interval_unmeasured": ("uncertainty_representation_insufficient",),
     "events.invalid_request": ("invalid_argument",),
+    "events.kernel_lead": ("effect_not_identified",),
+    "events.kernel_mismatch": ("bridge_binding_mismatch",),
+    "events.kernel_symmetric": ("effect_not_identified",),
+    "events.mapping_not_affine": ("bridge_mapping_not_supported",),
+    "events.names_not_in_discovery": ("unknown_variable",),
+    "events.not_parameter_mean": ("bridge_substitution_refused",),
     "events.numerical": ("invalid_argument",),
+    "events.on_stability_cap": ("dynamics_not_identified",),
+    "events.regime_not_intervened": ("bridge_binding_mismatch",),
+    "events.same_variable": ("invalid_argument",),
+    "events.singular_gram": ("dynamics_not_identified",),
+    "events.study_kernel_mismatch": ("bridge_binding_mismatch",),
+    "events.study_marked_kernel": ("bridge_binding_mismatch",),
     "events.unstable": ("invalid_argument",),
     "events.unverified_source": ("external_verification_failed",),
     "evidence_ledger.cancelled": ("cancelled_no_claim",),
@@ -7680,6 +7762,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "joint_cells.nuisance_provider": ("invalid_argument",),
     "joint_cells.ordering": ("invalid_argument",),
     "joint_cells.outcome_model_unsupported": ("joint_cell_unsupported",),
+    "joint_cells_caller_learners.built_in_learner_declared": ("option_not_applicable",),
     "joint_law_propagation.alignment_mismatch": ("joint_law_required",),
     "joint_law_propagation.artifact_invalid": ("invalid_argument",),
     "joint_law_propagation.artifact_refused": ("invalid_argument",),
@@ -9406,6 +9489,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "treatment_levels.sparse_level": ("arm_not_populated",),
     "treatment_levels.training_fold_missing_level": ("arm_not_populated",),
     "treatment_levels.undeclared_level": ("treatment_level_undeclared",),
+    "trial_aipw_caller_learners.bootstrap_not_supported": ("route_not_supported",),
     "two_step_posterior.band_not_constructed": ("route_not_supported",),
     "two_step_posterior.empty_law": ("invalid_argument",),
     "two_step_posterior.external_power_prior": ("route_not_supported",),

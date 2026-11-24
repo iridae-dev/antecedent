@@ -17112,6 +17112,150 @@ codes = ["option_not_applicable"]
 meaning = "An observed-window synthetic control is combined with an option that reads a balanced panel (synthetic difference in differences, unit randomization, a rollout, or the Bayesian posterior)."
 
 [[detail]]
+id = "events.bridge_contract_refused"
+family = "events"
+codes = ["scientific_bridge_invalid"]
+meaning = "The scientific bridge refused to derive the parameter-intervention claim from a contract the excitation checks accepted; the message carries the bridge's own code, scientific_bridge detail and remedy."
+
+[[detail]]
+id = "events.descendant_not_carried"
+family = "events"
+codes = ["bridge_mapping_not_supported"]
+meaning = "The bridge asks to carry a descendant functional; only the horizon direct mass is affine in the kernel."
+
+[[detail]]
+id = "events.diagnostic_withheld"
+family = "events"
+codes = ["bridge_substitution_refused"]
+meaning = "The immigrant diagnostic did not agree, so the mass stays a conditional intensity and is not offered as an intervention response."
+
+[[detail]]
+id = "events.discovery_confounded"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "The accepted discovery joins the exposure and the outcome by a bidirected (confounded) edge."
+
+[[detail]]
+id = "events.discovery_missing"
+family = "events"
+codes = ["bridge_assumption_missing"]
+meaning = "The structural reading names no accepted discovery as its evidence."
+
+[[detail]]
+id = "events.discovery_reversed"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "The accepted discovery orients the outcome into the exposure."
+
+[[detail]]
+id = "events.discovery_symmetric"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "The accepted discovery orients the edge both ways."
+
+[[detail]]
+id = "events.discovery_unbound"
+family = "events"
+codes = ["schema_mismatch"]
+meaning = "The accepted discovery is not bound to its variable names."
+
+[[detail]]
+id = "events.discovery_unoriented"
+family = "events"
+codes = ["discovered_structure_unresolved"]
+meaning = "The accepted discovery does not orient a directed edge from the exposure to the outcome."
+
+[[detail]]
+id = "events.evidence_missing"
+family = "events"
+codes = ["bridge_assumption_missing"]
+meaning = "The bridge declares no parameter-interpretation assumption, or one that names no evidence."
+
+[[detail]]
+id = "events.evidence_not_discovery"
+family = "events"
+codes = ["bridge_assumption_missing"]
+meaning = "The parameter-interpretation evidence is a label other than the accepted discovery's provenance."
+
+[[detail]]
+id = "events.incomplete_mapping"
+family = "events"
+codes = ["scientific_bridge_invalid"]
+meaning = "An affine bridge map was declared with only one of its intercept and slope."
+
+[[detail]]
+id = "events.kernel_lead"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "The fitted kernel excites the exposure from the outcome more than the reverse: the queried edge is a lead."
+
+[[detail]]
+id = "events.kernel_mismatch"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "The offered kernel does not reproduce the agreed direct mass of the reading."
+
+[[detail]]
+id = "events.kernel_symmetric"
+family = "events"
+codes = ["effect_not_identified"]
+meaning = "The fitted kernel is symmetric on the queried edge."
+
+[[detail]]
+id = "events.mapping_not_affine"
+family = "events"
+codes = ["bridge_mapping_not_supported"]
+meaning = "The bridge map is neither an identity nor an affine map."
+
+[[detail]]
+id = "events.names_not_in_discovery"
+family = "events"
+codes = ["unknown_variable"]
+meaning = "The exposure or outcome name is not a variable of the accepted discovery."
+
+[[detail]]
+id = "events.not_parameter_mean"
+family = "events"
+codes = ["bridge_substitution_refused"]
+meaning = "The bridge is not a parameter-intervention bridge from a model-parameter mean to an intervention-response mean."
+
+[[detail]]
+id = "events.on_stability_cap"
+family = "events"
+codes = ["dynamics_not_identified"]
+meaning = "The kernel's source column or prototype sits on its stability or reproduction cap."
+
+[[detail]]
+id = "events.regime_not_intervened"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "The fitted mass is not observational, or the response names the same regime."
+
+[[detail]]
+id = "events.same_variable"
+family = "events"
+codes = ["invalid_argument"]
+meaning = "The structural reading names the same variable as exposure and outcome."
+
+[[detail]]
+id = "events.singular_gram"
+family = "events"
+codes = ["dynamics_not_identified"]
+meaning = "The excitation Gram of the history the kernel was fitted on is singular."
+
+[[detail]]
+id = "events.study_kernel_mismatch"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "A release study's belief holds a hypothesis other than the kernel the bridge kept."
+
+[[detail]]
+id = "events.study_marked_kernel"
+family = "events"
+codes = ["bridge_binding_mismatch"]
+meaning = "A release study was asked for a marked kernel; it prices only the catalog kernel the bridge kept."
+
+[[detail]]
 id = "events.invalid_request"
 family = "events"
 codes = ["invalid_argument"]
