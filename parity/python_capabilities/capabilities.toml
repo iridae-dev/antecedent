@@ -18060,6 +18060,8 @@ assertion_contract = "Weights given to an estimator that does not read them are 
 
 [[capability]]
 id = "preferences.decide_exact"
+rust = ["antecedent::analysis::preference_decision::decide"]
+legacy_internal = ["antecedent::analysis::preference_decision::decide"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Decide across a declared preference set by linear programs when the value is affine in the parameters and the criterion is an expectation."
@@ -18089,6 +18091,8 @@ assertion_contract = "An empty parameter range and too few actions refuse with t
 
 [[capability]]
 id = "preferences.compiled_decision"
+rust = ["antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
+legacy_internal = ["antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Compile a decision across a preference set with the prepared studies or design that estimate its quantities: the plan shows the decision's quantities, source and ranges before fitting, what cannot be answered refuses at compile, and execution returns the decision."
@@ -18123,6 +18127,8 @@ assertion_contract = "Two studies meet by their means for an affine value; a kin
 
 [[capability]]
 id = "preferences.compiled_evidence_overlap"
+rust = ["antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence"]
+legacy_internal = ["antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Judge which separately prepared studies share evidence before joining their outcomes: studies of one table share its rows whether or not columns were dropped, and studies of different tables are compared by a declared unit key in one namespace."
@@ -18152,6 +18158,8 @@ assertion_contract = "A blank namespace, an unknown key column and a missing ide
 
 [[capability]]
 id = "preferences.class_member_measure"
+rust = ["antecedent::analysis::preference_decision::decide_on_sampled_structures", "antecedent::analysis::preference_decision::clopper_pearson", "antecedent::analysis::preference_decision::clopper_pearson_upper"]
+legacy_internal = ["antecedent::analysis::preference_decision::decide_on_sampled_structures", "antecedent::analysis::preference_decision::clopper_pearson", "antecedent::analysis::preference_decision::clopper_pearson_upper"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Weigh the members of CPDAG or PAG atoms of a graph posterior by a declared class prior, uniform under a named assumption or keyed by member fingerprint, enumerated up to an exact limit and sampled uniformly above it, without ever calling a sampled class best for every member."
