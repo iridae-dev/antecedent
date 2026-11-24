@@ -168,6 +168,69 @@ kind = "bound"
 runner = "lean"
 test = "Antecedent.Generated"
 
+# Identity sites (formal/identity_sites.toml): exact-law content identity, static graph
+# identity and canonical values on the production encoders.
+
+[[cases]]
+id = "identity_sites.law_intervention_order_keeps_identity"
+kind = "preserving"
+runner = "rust"
+test = "law_identity_intervention_order_keeps_identity"
+
+[[cases]]
+id = "identity_sites.law_identity_injective"
+kind = "changing"
+runner = "rust"
+test = "law_identity_is_injective_on_law_fields"
+
+[[cases]]
+id = "identity_sites.law_separator_collision_distinct"
+kind = "changing"
+runner = "rust"
+test = "law_identity_separator_collision_is_distinct"
+
+[[cases]]
+id = "identity_sites.graph_dense_order_keeps_identity"
+kind = "preserving"
+runner = "rust"
+test = "graph_identity_dense_order_keeps_identity"
+
+[[cases]]
+id = "identity_sites.graph_identity_binds_labels"
+kind = "changing"
+runner = "rust"
+test = "graph_identity_binds_variables_and_edges"
+
+[[cases]]
+id = "identity_sites.value_encoding_injective"
+kind = "changing"
+runner = "rust"
+test = "value_encoding_is_injective"
+
+[[cases]]
+id = "identity_sites.dag_dense_order_bound"
+kind = "bound"
+runner = "kani"
+test = "dag_identity_ignores_dense_order"
+
+[[cases]]
+id = "identity_sites.dag_labels_bound"
+kind = "bound"
+runner = "kani"
+test = "dag_identity_binds_labels_and_edges"
+
+[[cases]]
+id = "identity_sites.dag_aligned_form_bound"
+kind = "bound"
+runner = "kani"
+test = "dag_identity_keeps_the_aligned_form"
+
+[[cases]]
+id = "identity_sites.admg_labels_bound"
+kind = "bound"
+runner = "kani"
+test = "admg_identity_binds_labels_not_dense_order"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -230,3 +293,40 @@ new = """    pub const fn claim(claim_id: SemanticDigest) -> Self {
         Self {
             payload: UNUSED_FACET,"""
 caught_by = ["acceptance.claim_slot_binds_only_retained_id"]
+
+[[mutations]]
+id = "law_identity_drops_snapshot"
+file = "crates/antecedent-expr/src/exact.rs"
+old = "        writer.text(&self.snapshot_identity);"
+new = "        let _ = &self.snapshot_identity;"
+caught_by = ["identity_sites.law_identity_injective"]
+
+[[mutations]]
+id = "law_identity_keeps_listed_intervention_order"
+file = "crates/antecedent-expr/src/exact.rs"
+old = "        interventions.sort_by_key(|assignment| assignment.variable);"
+new = "        let _ = &mut interventions;"
+caught_by = ["identity_sites.law_intervention_order_keeps_identity"]
+
+[[mutations]]
+id = "dag_identity_drops_labels"
+file = "crates/antecedent-io-core/src/identity/graph.rs"
+old = """    if schema_aligned(&order.nodes) {
+        return Ok(GraphIdentityWire::Dag(DagWire {"""
+new = """    if true {
+        return Ok(GraphIdentityWire::Dag(DagWire {"""
+caught_by = ["identity_sites.graph_identity_binds_labels", "identity_sites.dag_labels_bound"]
+
+[[mutations]]
+id = "graph_identity_keeps_dense_order"
+file = "crates/antecedent-io-core/src/identity/graph.rs"
+old = "        order.sort_by(|&a, &b| labels[a].cmp(&labels[b]).then(a.cmp(&b)));"
+new = "        let _ = &labels;"
+caught_by = ["identity_sites.graph_dense_order_keeps_identity", "identity_sites.dag_dense_order_bound"]
+
+[[mutations]]
+id = "value_encoding_merges_signed_zero"
+file = "crates/antecedent-core/src/value.rs"
+old = "writer.word(1).real(*number);"
+new = "writer.word(1).real(*number + 0.0);"
+caught_by = ["identity_sites.value_encoding_injective"]
