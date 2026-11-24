@@ -302,6 +302,14 @@ macro_rules! program_families {
             CountFittedInterval => Structural, unit "observation_query.calibrated_probability";
             /// Measured whole-unit interval of a finite two-step temporal response.
             TemporalDependentInterval => Temporal, unit "temporal.dependent_interval";
+            /// Rosenbaum hidden-bias bounds of supplied matched pairs, pair vectors or matched
+            /// sets.
+            MatchedDesignSensitivity => DesignBased, unit "sensitivity.matched_hidden_bias";
+            /// E-values of an effect estimate, a vector of estimates or posterior draws a caller
+            /// supplies.
+            SuppliedEstimateEValue => PropagationChain, unit "sensitivity.supplied_estimate_evalue";
+            /// The outcome-kernel contamination range of a checked z-transport formula.
+            ZTransportMechanismSensitivity => Structural, unit "sensitivity.joint_mechanism";
         }
     };
 }

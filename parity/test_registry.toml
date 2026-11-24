@@ -23777,6 +23777,34 @@ path = "python/tests/test_compiled_twins_sensitivity_ranges.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-twins-supplied-sensitivity"
+crate = "antecedent"
+cargo_target = "compiled_twins_supplied_sensitivity"
+path = "crates/antecedent/tests/compiled_twins_supplied_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-msm-posterior-sensitivity"
+crate = "antecedent"
+cargo_target = "compiled_msm_posterior_sensitivity"
+path = "crates/antecedent/tests/compiled_msm_posterior_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-z-mechanism-sensitivity"
+crate = "antecedent"
+cargo_target = "compiled_twins_z_mechanism_sensitivity"
+path = "crates/antecedent/tests/compiled_twins_z_mechanism_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-compiled-twins-supplied-sensitivity"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_supplied_sensitivity.py"
+gates = ["inventory"]
+
+[[test]]
 id = "python-compiled-robust"
 crate = "python"
 cargo_target = "script"

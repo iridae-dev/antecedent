@@ -1263,6 +1263,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "matched_case_control.invalid_level",
     "matched_case_control.no_informative_sets",
     "matched_case_control.sampling_design",
+    "matched_design_sensitivity.reentry",
     "measured_inference.artifact_mismatch",
     "measured_inference.bounds_exceeded",
     "measured_inference.consumer_bounds_exceeded",
@@ -2577,6 +2578,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "study_plan.no_failure_to_repair",
     "study_plan.none_certified",
     "study_plan.theorem_limited",
+    "supplied_estimate_evalue.reentry",
     "survival_effect.arm_not_populated",
     "survival_effect.cancelled",
     "survival_effect.censoring_assumption_missing",
@@ -4132,6 +4134,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("matched_case_control.invalid_level", &["invalid_argument"]),
     ("matched_case_control.no_informative_sets", &["effect_not_identified"]),
     ("matched_case_control.sampling_design", &["invalid_argument"]),
+    ("matched_design_sensitivity.reentry", &["public_builder_reentry"]),
     ("measured_inference.artifact_mismatch", &["invalid_argument"]),
     ("measured_inference.bounds_exceeded", &["route_not_supported"]),
     ("measured_inference.consumer_bounds_exceeded", &[]),
@@ -5446,6 +5449,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("study_plan.no_failure_to_repair", &["invalid_argument"]),
     ("study_plan.none_certified", &["transport_not_certified"]),
     ("study_plan.theorem_limited", &["transport_proven_non_transportable"]),
+    ("supplied_estimate_evalue.reentry", &["public_builder_reentry"]),
     ("survival_effect.arm_not_populated", &["arm_not_populated"]),
     ("survival_effect.cancelled", &["cancelled_no_claim"]),
     ("survival_effect.censoring_assumption_missing", &["required_option_missing"]),
@@ -8669,6 +8673,12 @@ pub mod matched_case_control {
     pub const SAMPLING_DESIGN: &str = "matched_case_control.sampling_design";
 }
 
+/// Details in the `matched_design_sensitivity` family.
+pub mod matched_design_sensitivity {
+    /// Detail `matched_design_sensitivity.reentry`.
+    pub const REENTRY: &str = "matched_design_sensitivity.reentry";
+}
+
 /// Details in the `measured_inference` family.
 pub mod measured_inference {
     /// Detail `measured_inference.artifact_mismatch`.
@@ -11595,6 +11605,12 @@ pub mod study_plan {
     pub const NONE_CERTIFIED: &str = "study_plan.none_certified";
     /// Detail `study_plan.theorem_limited`.
     pub const THEOREM_LIMITED: &str = "study_plan.theorem_limited";
+}
+
+/// Details in the `supplied_estimate_evalue` family.
+pub mod supplied_estimate_evalue {
+    /// Detail `supplied_estimate_evalue.reentry`.
+    pub const REENTRY: &str = "supplied_estimate_evalue.reentry";
 }
 
 /// Details in the `survival_effect` family.

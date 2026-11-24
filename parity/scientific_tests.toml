@@ -3144,6 +3144,13 @@ evidence_assertion = "the_three_goals_invert_one_another"
 kind = "known_truth"
 fixtures = []
 why = "The smallest size reaching power 0.85 reaches it, one fewer unit does not, and the minimum detectable effect at that size is at most the planned effect with power 0.85 to 1e-6. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/compiled_msm_posterior_sensitivity.rs"
+evidence_assertion = "the_msm_posterior_is_the_conjugate_weighted_least_squares_posterior"
+kind = "posterior"
+fixtures = []
+why = "On a 600-subject two-period sequentially randomized trial the posterior of the marginal structural model's weighted design has the weighted least-squares fit, residual sum of squares, n_eff - p degrees of freedom and Frisch-Waugh exposure scales written out here from the normal equations, and 20000 draws match the conjugate moments: parameter means within four standard errors, variances RSS / (n_eff - p - 2) [(X^T W X)^-1]_tt within 5% and E[sigma^2] within 2%. This source assertion is unearned."
 [[test]]
 evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
 evidence_assertion = "gaussian_power_composition_of_one_and_two_sources_equals_the_precision_weighted_closed_form"

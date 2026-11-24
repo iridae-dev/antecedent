@@ -7416,6 +7416,12 @@ codes = ["invalid_argument"]
 meaning = "A sampling design other than matched_case_control (matched sets sampled on the outcome)."
 
 [[detail]]
+id = "matched_design_sensitivity.reentry"
+family = "matched_design_sensitivity"
+codes = ["public_builder_reentry"]
+meaning = "A compiled matched-design sensitivity analysis is compiled inside the lowered dispatch of another program."
+
+[[detail]]
 id = "measured_inference.artifact_mismatch"
 family = "measured_inference"
 codes = ["invalid_argument"]
@@ -15292,6 +15298,12 @@ id = "study_plan.theorem_limited"
 family = "study_plan"
 codes = ["transport_proven_non_transportable"]
 meaning = "The base multi-source decision is a replayed checked obstruction over the declared controllable sets: no in-controllable study repairs it; a new population or a wider controllable set is outside this universe."
+
+[[detail]]
+id = "supplied_estimate_evalue.reentry"
+family = "supplied_estimate_evalue"
+codes = ["public_builder_reentry"]
+meaning = "A compiled E-value analysis of a supplied estimate is compiled inside the lowered dispatch of another program."
 
 [[detail]]
 id = "survival_effect.arm_not_populated"

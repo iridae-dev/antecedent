@@ -1089,6 +1089,9 @@
   "sensitivity.marginal_structural_model.bayesian": [
    "sensitivity.marginal_structural_model.bayesian"
   ],
+  "sensitivity.matched_hidden_bias": [
+   "sensitivity.matched_hidden_bias"
+  ],
   "sensitivity.mechanism_discrepancy": [
    "sensitivity.mechanism_discrepancy"
   ],
@@ -1100,6 +1103,9 @@
   ],
   "sensitivity.source_lineage": [
    "sensitivity.source_lineage"
+  ],
+  "sensitivity.supplied_estimate_evalue": [
+   "sensitivity.supplied_estimate_evalue"
   ],
   "sequential.crossfit_contrast.wald": [
    "estimate.sequential_aipw_inference"
@@ -12902,6 +12908,39 @@
   },
   {
    "deviations": [
+    "The signed-rank bound is computed exactly by a dynamic program over doubled average ranks while pairs times the doubled rank sum stays within 1e8 table updates (about 460 untied pairs), and by the normal approximation with the tie-corrected variance beyond it; which law was used is reported (exact). Zero differences are dropped and tied absolute differences share an average rank.",
+    "The break-even Gamma is the largest Gamma whose upper bound is at most alpha, found by doubling and bisection on log Gamma to a relative width of 1e-10, reported as infinite beyond 1e12 and absent when the test does not reject at Gamma = 1.",
+    "The matched-set bound is the separable normal approximation only; no exact law is computed for sets with several controls. Scores are the outcomes or Hodges-Lehmann aligned ranks (outcomes minus their set mean, ranked across all sets).",
+    "A vector target (one matched design per coordinate) is read at its weakest coordinate: the largest upper bound across coordinates at every Gamma, and the smallest break-even Gamma (absent when some coordinate does not reject at Gamma = 1). This aggregation is repository-defined, not from the cited works.",
+    "The program reads only what the caller supplies (pair differences or matched sets): the matching itself, the outcome model and the claim the bound is about are the caller's, and nothing about them is checked. Every number is an assumption range of the supplied design; no calibration is measured."
+   ],
+   "digest": "dca90222956b872c378db9096ee13ab9774b8469601f001b2a9a39f27d3478f0",
+   "id": "sensitivity.matched_hidden_bias",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "The sensitivity model with parameter Gamma and the bound on the signed-rank statistic for matched pairs"
+     ],
+     "title": "Sensitivity analysis for certain permutation inferences in matched observational studies"
+    },
+    {
+     "sections": [
+      "Ch. 4: sensitivity to hidden bias; the bounding Bernoulli law of the signed-rank statistic and the sensitivity value"
+     ],
+     "title": "Observational Studies"
+    },
+    {
+     "sections": [
+      "The separable approximation: per-set worst-case expectation then variance, referred to the normal law with summed moments"
+     ],
+     "title": "Asymptotic separability in sensitivity analysis"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Claim policy: the statistic, degrees of freedom, p-values, Holm-adjusted p-values, standard errors and minimal detectable differences are diagnostics labelled calibration 'not_measured' (inference claim asymptotic_wald_calibration_not_measured). Wald's chi-square limit is asymptotic and is not checked for size or power at finite samples here; no interval, coverage or invariance support is granted.",
     "Non-rejection never certifies invariance: non_rejection_certifies_invariance is false on every result, and the minimal detectable differences are attached so a non-rejection reads as 'differences smaller than these were not detectable'. The minimal detectable difference is the closed-form two-sided single-coefficient normal value at the observed standard error, with no multiplicity adjustment.",
     "The covariance of the coefficient difference is the SUM of the two OLS covariance matrices sigma^2 (X'X)^-1, which is valid only for independent samples; declared shared units or an unknown dependence refuse (mechanism_discrepancy.dependence_unknown) rather than being corrected.",
@@ -12993,6 +13032,41 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "A rare-outcome odds ratio and a rare-outcome hazard ratio are read as risk ratios; a common-outcome odds ratio converts by its square root and a common-outcome hazard ratio by (1 - 0.5^sqrt(HR)) / (1 - 0.5^sqrt(1/HR)); a standardized mean difference by exp(0.91 d) with limits d -+ 1.78 / 0.91 times its standard error. These are the cited approximations; their accuracy is not assessed.",
+    "The range is tabulated on a fixed grid of confounder strengths from 1 to 10 (equal association with treatment and outcome): at each the worst-case adjusted risk ratio RR / B(s) (RR B(s) for a protective effect), capped at the null, and the adjusted limit nearest the null. The grid is repository policy.",
+    "A vector of estimates is read at its weakest coordinate (the smallest point and limit E-values, the weakest adjusted ratio at each strength); under a component model (mediation components or marginal structural model parameters) the same numbers are bound to that model's assumption. This aggregation is repository-defined.",
+    "Posterior draws are converted draw by draw; the reported E-values are those of the posterior median and the equal-tailed credible limit nearest the null (type-7 quantiles), and the retention at each strength is the joint posterior share of draws that keep the median's side of the null after the worst-case adjustment. This posterior reading is repository-defined, not from the cited works.",
+    "The program reads only the supplied estimate, limits, standard error or draws: how they were estimated, and whether their scale and outcome prevalence are as declared, is the caller's and is not checked. Every number is an assumption range of the supplied estimate; no calibration is measured."
+   ],
+   "digest": "2d900fdea1205622ec420325604f5a2a803bffc4ac99ee25a95e759882a6ca0a",
+   "id": "sensitivity.supplied_estimate_evalue",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Tyler J. VanderWeele",
+      "Peng Ding"
+     ],
+     "doi": "10.7326/M16-2607",
+     "doi_verified": true,
+     "sections": [
+      "E-value formula",
+      "conversions of odds ratios, hazard ratios and standardized mean differences to the risk-ratio scale"
+     ],
+     "title": "Sensitivity Analysis in Observational Research: Introducing the E-Value",
+     "year": 2017
+    },
+    {
+     "sections": [
+      "The bounding factor of a confounder's associations with treatment and outcome"
+     ],
+     "title": "Sensitivity Analysis Without Assumptions"
+    }
+   ]
   },
   {
    "deviations": [

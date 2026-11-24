@@ -1270,6 +1270,18 @@ path = "tests/compiled_twins_sensitivity_ranges.rs"
 [[test]]
 name = "compiled_twins_sensitivity_vectors"
 path = "tests/compiled_twins_sensitivity_vectors.rs"
+
+[[test]]
+name = "compiled_twins_supplied_sensitivity"
+path = "tests/compiled_twins_supplied_sensitivity.rs"
+
+[[test]]
+name = "compiled_msm_posterior_sensitivity"
+path = "tests/compiled_msm_posterior_sensitivity.rs"
+
+[[test]]
+name = "compiled_twins_z_mechanism_sensitivity"
+path = "tests/compiled_twins_z_mechanism_sensitivity.rs"
 [[test]]
 name = "compiled_twins_selective_and_observed"
 path = "tests/compiled_twins_selective_and_observed.rs"

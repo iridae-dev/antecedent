@@ -482,6 +482,24 @@ unit = "estimate.temporal_linear_prediction"
 entry = { rust = "crates/antecedent/src/analysis/temporal_linear_prediction.rs", python = "python/antecedent/model.py" }
 
 [[route]]
+lowering = "MatchedDesignSensitivity"
+unit_kind = "capability"
+unit = "sensitivity.matched_hidden_bias"
+entry = { rust = "crates/antecedent/src/analysis/supplied_sensitivity_programs.rs", python = "python/antecedent/validation.py" }
+
+[[route]]
+lowering = "SuppliedEstimateEValue"
+unit_kind = "capability"
+unit = "sensitivity.supplied_estimate_evalue"
+entry = { rust = "crates/antecedent/src/analysis/supplied_sensitivity_programs.rs", python = "python/antecedent/validation.py" }
+
+[[route]]
+lowering = "ZTransportMechanismSensitivity"
+unit_kind = "capability"
+unit = "sensitivity.joint_mechanism"
+entry = { rust = "crates/antecedent/src/analysis/z_transport_sensitivity_program.rs", python = "python/antecedent/transport/_impl/identify.py" }
+
+[[route]]
 lowering = "ObservationalPolicy"
 unit_kind = "capability"
 unit = "estimate.observational_policy_value"

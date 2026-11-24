@@ -251,6 +251,7 @@ mod state_api;
 mod structure_stability_api;
 mod study_planning_api;
 mod support_matrix_api;
+mod supplied_sensitivity_api;
 mod survival_api;
 mod target_validation_api;
 mod temporal_api;

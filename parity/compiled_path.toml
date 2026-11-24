@@ -4014,18 +4014,18 @@ replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_validate::matched_sets_break_even"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
 path = "antecedent_validate::matched_sets_upper_p"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
 path = "antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:ZTransportMechanismSensitivity"
 
 [[row]]
 path = "antecedent_validate::mediation_range"
@@ -4079,13 +4079,13 @@ reason = "a proper scoring rule evaluated at one caller-supplied law and realize
 
 [[row]]
 path = "antecedent_validate::rosenbaum::rosenbaum_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
 path = "antecedent_validate::rosenbaum_vector_range"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[row]]
 path = "antecedent_validate::staleness::dependency_class"
@@ -4273,8 +4273,8 @@ replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/validation.py::rosenbaum_bounds"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[python]]
 path = "python/antecedent/validation.py::evalue_vector"
@@ -4323,13 +4323,13 @@ replacement = "route:LongitudinalRegime"
 
 [[python]]
 path = "python/antecedent/validation.py::rosenbaum_bounds_vector"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[python]]
 path = "python/antecedent/validation.py::matched_sets_sensitivity"
-disposition = "pending"
-owner = "sensitivity ranges"
+disposition = "deprecated"
+replacement = "route:MatchedDesignSensitivity"
 
 [[python]]
 path = "python/antecedent/validation.py::mediation_sensitivity"

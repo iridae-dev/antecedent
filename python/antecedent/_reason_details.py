@@ -1624,6 +1624,10 @@ class matched_case_control:  # noqa: N801
     SAMPLING_DESIGN: Final = "matched_case_control.sampling_design"
 
 
+class matched_design_sensitivity:  # noqa: N801
+    REENTRY: Final = "matched_design_sensitivity.reentry"
+
+
 class measured_inference:  # noqa: N801
     ARTIFACT_MISMATCH: Final = "measured_inference.artifact_mismatch"
     BOUNDS_EXCEEDED: Final = "measured_inference.bounds_exceeded"
@@ -3255,6 +3259,10 @@ class study_plan:  # noqa: N801
     NO_FAILURE_TO_REPAIR: Final = "study_plan.no_failure_to_repair"
     NONE_CERTIFIED: Final = "study_plan.none_certified"
     THEOREM_LIMITED: Final = "study_plan.theorem_limited"
+
+
+class supplied_estimate_evalue:  # noqa: N801
+    REENTRY: Final = "supplied_estimate_evalue.reentry"
 
 
 class survival_effect:  # noqa: N801
@@ -4914,6 +4922,7 @@ ALL: Final[tuple[str, ...]] = (
     "matched_case_control.invalid_level",
     "matched_case_control.no_informative_sets",
     "matched_case_control.sampling_design",
+    "matched_design_sensitivity.reentry",
     "measured_inference.artifact_mismatch",
     "measured_inference.bounds_exceeded",
     "measured_inference.consumer_bounds_exceeded",
@@ -6228,6 +6237,7 @@ ALL: Final[tuple[str, ...]] = (
     "study_plan.no_failure_to_repair",
     "study_plan.none_certified",
     "study_plan.theorem_limited",
+    "supplied_estimate_evalue.reentry",
     "survival_effect.arm_not_populated",
     "survival_effect.cancelled",
     "survival_effect.censoring_assumption_missing",
@@ -7798,6 +7808,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "matched_case_control.invalid_level": ("invalid_argument",),
     "matched_case_control.no_informative_sets": ("effect_not_identified",),
     "matched_case_control.sampling_design": ("invalid_argument",),
+    "matched_design_sensitivity.reentry": ("public_builder_reentry",),
     "measured_inference.artifact_mismatch": ("invalid_argument",),
     "measured_inference.bounds_exceeded": ("route_not_supported",),
     "measured_inference.consumer_bounds_exceeded": (),
@@ -9167,6 +9178,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "study_plan.no_failure_to_repair": ("invalid_argument",),
     "study_plan.none_certified": ("transport_not_certified",),
     "study_plan.theorem_limited": ("transport_proven_non_transportable",),
+    "supplied_estimate_evalue.reentry": ("public_builder_reentry",),
     "survival_effect.arm_not_populated": ("arm_not_populated",),
     "survival_effect.cancelled": ("cancelled_no_claim",),
     "survival_effect.censoring_assumption_missing": ("required_option_missing",),

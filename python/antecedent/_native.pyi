@@ -6247,6 +6247,75 @@ def sensitivity_matched_sets(
     gammas: list[float] | None = None,
     alpha: float = 0.05,
 ) -> str: ...
+def sensitivity_matched_pairs_compiled(
+    differences: list[float],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    target_source: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def sensitivity_matched_pair_vector_compiled(
+    differences: list[list[float]],
+    labels: list[str],
+    *,
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def sensitivity_matched_sets_compiled(
+    sets: list[tuple[list[float], int]],
+    *,
+    score: str = "aligned_ranks",
+    gammas: list[float] | None = None,
+    alpha: float = 0.05,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def sensitivity_supplied_evalue_compiled(
+    estimate: float,
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+    standard_error: float | None = None,
+    scale: str = "risk_ratio",
+    target_source: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def sensitivity_supplied_evalue_vector_compiled(
+    estimates: list[float],
+    labels: list[str],
+    *,
+    lowers: list[float] | None = None,
+    uppers: list[float] | None = None,
+    standard_errors: list[float] | None = None,
+    scale: str = "risk_ratio",
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def sensitivity_supplied_evalue_posterior_compiled(
+    draws: list[list[float]],
+    labels: list[str],
+    *,
+    scale: str = "risk_ratio",
+    level: float = 0.95,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
 def sensitivity_amplify(gamma: float, lam: float) -> float | None: ...
 def sensitivity_mediation(
     treatment: list[float],

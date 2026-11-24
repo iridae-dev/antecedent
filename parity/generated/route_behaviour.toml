@@ -403,6 +403,8 @@ routes = [
   { route = "antecedent.transport.advanced.joint_mechanism_sensitivity", stage = "evaluate", status = "supported", claim = "assumption_range" },
   { route = "antecedent.transport.advanced.export_joint_mechanism_sensitivity", stage = "representation", status = "supported", claim = "assumption_range" },
   { route = "antecedent.transport.advanced.consume_joint_mechanism_sensitivity_artifact", stage = "consume", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.analysis.z_transport_sensitivity_program.compile_z_transport_mechanism_sensitivity", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.z_transport_sensitivity_program.CompiledZTransportMechanismSensitivity.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
 ]
 
 [[record]]
@@ -4569,6 +4571,32 @@ routes = [
   { route = "antecedent.analysis.temporal_linear_prediction.compile_temporal_prediction", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.analysis.temporal_linear_prediction.CompiledTemporalPrediction.run", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.model.predict_conditional_summary", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "sensitivity.matched_hidden_bias"
+status = "supported"
+refusals = [
+  { code = "public_builder_reentry", detail = "matched_design_sensitivity.reentry" },
+]
+routes = [
+  { route = "antecedent.analysis.supplied_sensitivity_programs.compile_matched_design_sensitivity", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.supplied_sensitivity_programs.CompiledMatchedDesignSensitivity.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.validation.matched_design_sensitivity", stage = "evaluate", status = "supported", claim = "assumption_range" },
+]
+
+[[record]]
+id = "sensitivity.supplied_estimate_evalue"
+status = "supported"
+refusals = [
+  { code = "public_builder_reentry", detail = "supplied_estimate_evalue.reentry" },
+]
+routes = [
+  { route = "antecedent.analysis.supplied_sensitivity_programs.compile_supplied_estimate_evalue", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.supplied_sensitivity_programs.CompiledSuppliedEstimateEValue.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.validation.supplied_evalue", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.validation.supplied_evalue_vector", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent.validation.supplied_evalue_posterior", stage = "evaluate", status = "supported", claim = "assumption_range" },
 ]
 
 [[record]]

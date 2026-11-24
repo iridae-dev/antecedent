@@ -608,6 +608,24 @@ const PINNED: &[(C, R, &str, F)] = &[
         "TemporalDependentInterval",
         F::Temporal,
     ),
+    (
+        C::MatchedDesignSensitivity,
+        R::MatchedDesignSensitivity,
+        "MatchedDesignSensitivity",
+        F::DesignBased,
+    ),
+    (
+        C::SuppliedEstimateEValue,
+        R::SuppliedEstimateEValue,
+        "SuppliedEstimateEValue",
+        F::PropagationChain,
+    ),
+    (
+        C::ZTransportMechanismSensitivity,
+        R::ZTransportMechanismSensitivity,
+        "ZTransportMechanismSensitivity",
+        F::Structural,
+    ),
 ];
 
 #[test]

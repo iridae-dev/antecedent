@@ -116,6 +116,11 @@ pub(crate) const PRIOR_EXTERNAL_COMPOSITION: UnitId = UnitId::new("prior.externa
 pub(crate) const RECOVERY_BINARY_OBSERVATION: UnitId = UnitId::new("recovery.binary_observation");
 pub(crate) const RECOVERY_CHAIN_OBSERVATION: UnitId = UnitId::new("recovery.chain_observation");
 pub(crate) const RECOVERY_SAMPLED_OBSERVATION: UnitId = UnitId::new("recovery.sampled_observation");
+pub(crate) const SENSITIVITY_JOINT_MECHANISM: UnitId = UnitId::new("sensitivity.joint_mechanism");
+pub(crate) const SENSITIVITY_MATCHED_HIDDEN_BIAS: UnitId =
+    UnitId::new("sensitivity.matched_hidden_bias");
+pub(crate) const SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE: UnitId =
+    UnitId::new("sensitivity.supplied_estimate_evalue");
 pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: UnitId = UnitId::new("temporal.dependent_interval");
 pub(crate) const TRANSPORT_ADMG_CONDITIONAL: UnitId = UnitId::new("transport.admg_conditional");
 pub(crate) const TRANSPORT_AUGMENTED_RESPONSE_GRID: UnitId =
@@ -269,6 +274,9 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "MeasuredSampledObservationRecovery" | "SampledObservationRecovery" => {
             Some(RECOVERY_SAMPLED_OBSERVATION)
         }
+        "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
+        "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),
+        "SuppliedEstimateEValue" => Some(SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE),
         "TemporalDependentInterval" => Some(TEMPORAL_DEPENDENT_INTERVAL),
         "AdmgConditionalTransportIdentification" => Some(TRANSPORT_ADMG_CONDITIONAL),
         "TransportResponseGrid" => Some(TRANSPORT_AUGMENTED_RESPONSE_GRID),

@@ -1613,6 +1613,16 @@
       "missing_evidence": []
     },
     {
+      "id": "sensitivity.matched_hidden_bias",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.supplied_estimate_evalue",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "measurement.model_contract",
       "status": "supported",
       "missing_evidence": []
