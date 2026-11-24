@@ -6,6 +6,8 @@
 //!   its declared-rows form) under the same context; on a noise-free cubic response the
 //!   interval of every coordinate contains the analytic truth and the error is within the
 //!   worst-case bias bound, and a noise-free quadratic is reproduced exactly with zero bias.
+//!   `Study::seal_dose_grid_bias_aware` seals the artifact (and refuses) exactly as
+//!   `DoseGridFunctional::evaluate_with_context` does, from the program's one evaluation.
 //! * `Study::compile_smoothed_dose_learners` (`SmoothedDoseLearnerTransport`): the grid equals
 //!   `estimate_smoothed_dose_with_factories` with the same factories, and with the library's
 //!   learners as caller factories it matches the 50-digit reference of
@@ -311,6 +313,91 @@ mod dose_grid {
             identity(DoseGridBiasAwareRequest::new(&contrast, 6.0, 300)),
             "functional"
         );
+    }
+
+    /// A bias-aware wire request over the cubic rows, as the Python entry declares it.
+    fn wire_request(
+        kind: &str,
+        contrast: Option<(f64, f64)>,
+        band_seed: u64,
+    ) -> antecedent::analysis::dose_grid_functional::DoseGridRequestWire {
+        use antecedent::analysis::dose_grid_functional::{
+            DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire, DoseGridRequestWire,
+        };
+        let (dose, outcome) = rows(cubic, 0.05);
+        DoseGridRequestWire {
+            design: "randomized_dose".into(),
+            quadratic_mean: false,
+            functional: DoseFunctionalWire {
+                kind: kind.into(),
+                from: contrast.map(|pair| pair.0),
+                to: contrast.map(|pair| pair.1),
+            },
+            grid: if contrast.is_some() { Vec::new() } else { GRID.to_vec() },
+            bandwidth: 0.4,
+            bandwidth_range: (0.1, 1.0),
+            minimum_local_ess: 10.0,
+            claims: DoseClaimsWire {
+                pointwise_level: kind != "derivative",
+                derivative: kind == "derivative",
+                simultaneous_band: contrast.is_none(),
+            },
+            dose,
+            outcome,
+            bias_aware: Some(DoseBiasAwareRequestWire {
+                curvature_bound: 6.0,
+                band_replicates: 300,
+                band_seed,
+            }),
+            sampling_weights: None,
+            cluster: None,
+            serial_lag: None,
+        }
+    }
+
+    #[test]
+    fn the_sealed_bias_aware_row_is_the_direct_seal_from_one_program_run() {
+        use antecedent::analysis::dose_grid_functional::DoseGridFunctional;
+        for (kind, contrast) in
+            [("level", None), ("derivative", None), ("contrast", Some((0.6, 2.4)))]
+        {
+            let request = wire_request(kind, contrast, 7);
+            // The caller's seed differs from the band's: both paths draw the band from its own.
+            let ctx = ExecutionContext::for_tests(3);
+            let direct = DoseGridFunctional::evaluate_with_context(request.clone(), &ctx).unwrap();
+            let sealed = Study::seal_dose_grid_bias_aware(request, &ctx).unwrap();
+            assert_eq!(sealed.sealed, direct, "{kind}: the sealed artifact");
+            assert_eq!(sealed.sealed.export().unwrap(), direct.export().unwrap(), "{kind}: bytes");
+            assert_eq!(sealed.compiled.plan_view().route().as_str(), "DoseGridBiasAware");
+            assert_eq!(sealed.run.lowered_program_identity, sealed.compiled.lowered().identity());
+            assert_eq!(sealed.run.calibration_estimator, "dose_grid_bias_aware");
+            let section = direct.result().bias_aware.as_ref().unwrap();
+            let lower: Vec<f64> = sealed.run.fit.intervals.iter().map(|i| i.lower).collect();
+            let upper: Vec<f64> = sealed.run.fit.intervals.iter().map(|i| i.upper).collect();
+            assert_eq!(bits(&lower), bits(&section.lower), "{kind}: the run is the sealed row");
+            assert_eq!(bits(&upper), bits(&section.upper), "{kind}: the run is the sealed row");
+        }
+    }
+
+    #[test]
+    fn a_sealed_bias_aware_refusal_is_the_direct_seal_refusal() {
+        use antecedent::analysis::dose_grid_functional::DoseGridFunctional;
+        let ctx = ExecutionContext::for_tests(3);
+        let mut negative = wire_request("level", None, 7);
+        negative.bias_aware.as_mut().unwrap().curvature_bound = -1.0;
+        let mut quadratic = wire_request("level", None, 7);
+        quadratic.quadratic_mean = true;
+        let mut replicates = wire_request("level", None, 7);
+        replicates.bias_aware.as_mut().unwrap().band_replicates = 100_001;
+        let mut outside = wire_request("level", None, 7);
+        outside.grid = vec![0.6, 9.0];
+        for request in [negative, quadratic, replicates, outside] {
+            let direct =
+                DoseGridFunctional::evaluate_with_context(request.clone(), &ctx).unwrap_err();
+            let sealed = Study::seal_dose_grid_bias_aware(request, &ctx).unwrap_err();
+            assert_eq!(sealed, direct);
+            assert_eq!(sealed.refusal(), direct.refusal());
+        }
     }
 }
 

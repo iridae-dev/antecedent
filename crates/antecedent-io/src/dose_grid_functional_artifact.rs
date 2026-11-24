@@ -47,8 +47,8 @@
 use antecedent_core::{IdentityDomain, SupportReport, SupportStatus};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
-    ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow, IntervalCalibration,
-    PointwiseInterval, RowDeclaration, RowDependence, dose_support_report,
+    BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow,
+    IntervalCalibration, PointwiseInterval, RowDeclaration, RowDependence, dose_support_report,
     estimate_dose_grid_bias_aware_declared, estimate_dose_grid_functional_declared,
     estimate_dose_grid_quadratic_mean_declared,
 };
@@ -687,24 +687,7 @@ impl DoseGridRequestWire {
         let (row, bias_aware) = match self.bias_aware {
             Some(declared) => {
                 let rows = self.row_declaration()?;
-                if self.quadratic_mean {
-                    return Err(DoseGridArtifactError::UnsupportedSemantics(
-                        "the exact-quadratic premise and a curvature bound are separate rows",
-                    ));
-                }
-                let replicates = usize::try_from(declared.band_replicates)
-                    .map_err(|_| DoseGridArtifactError::LimitsExceeded("band replicates"))?;
-                if replicates > 100_000 {
-                    return Err(DoseGridArtifactError::LimitsExceeded("band replicates"));
-                }
-                // Each replicate costs rows x grid doses, so the product is bounded, not just
-                // the replicate count.
-                let work = (replicates as u128)
-                    .saturating_mul(self.dose.len() as u128)
-                    .saturating_mul(self.grid.len().max(1) as u128);
-                if work > MAX_BAND_WORK {
-                    return Err(DoseGridArtifactError::LimitsExceeded("band work"));
-                }
+                let replicates = self.bias_aware_replicates(declared)?;
                 // The band is replayed from its own seed, whatever the caller's context.
                 let mut band_ctx = ctx.clone();
                 band_ctx.rng = antecedent_core::RngFactory::from_seed(declared.band_seed);
@@ -715,16 +698,7 @@ impl DoseGridRequestWire {
                     replicates,
                     &band_ctx,
                 )?;
-                let section = DoseBiasAwareResultWire {
-                    curvature_bound: fit.curvature_bound,
-                    smoothing_bias_bound: fit.smoothing_bias_bound.clone(),
-                    lower: fit.intervals.iter().map(|interval| interval.lower).collect(),
-                    upper: fit.intervals.iter().map(|interval| interval.upper).collect(),
-                    band_lower: fit.band.as_ref().map(|band| band.lower.clone()),
-                    band_upper: fit.band.as_ref().map(|band| band.upper.clone()),
-                    band_critical_value: fit.band_critical_value,
-                    band_replicates: fit.band_replicates as u64,
-                };
+                let section = bias_aware_section(&fit);
                 (fit.row, Some(section))
             }
             None if self.quadratic_mean => (
@@ -740,8 +714,66 @@ impl DoseGridRequestWire {
                 None,
             ),
         };
+        self.finish(&row, bias_aware, functional, design)
+    }
+
+    /// The band replicate count of a declared curvature bound, checked as the row checks it
+    /// before fitting: the exact-quadratic premise is a separate row, and the replicates and
+    /// the band's work are bounded.
+    fn bias_aware_replicates(
+        &self,
+        declared: DoseBiasAwareRequestWire,
+    ) -> Result<usize, DoseGridArtifactError> {
+        if self.quadratic_mean {
+            return Err(DoseGridArtifactError::UnsupportedSemantics(
+                "the exact-quadratic premise and a curvature bound are separate rows",
+            ));
+        }
+        let replicates = usize::try_from(declared.band_replicates)
+            .map_err(|_| DoseGridArtifactError::LimitsExceeded("band replicates"))?;
+        if replicates > 100_000 {
+            return Err(DoseGridArtifactError::LimitsExceeded("band replicates"));
+        }
+        // Each replicate costs rows x grid doses, so the product is bounded, not just
+        // the replicate count.
+        let work = (replicates as u128)
+            .saturating_mul(self.dose.len() as u128)
+            .saturating_mul(self.grid.len().max(1) as u128);
+        if work > MAX_BAND_WORK {
+            return Err(DoseGridArtifactError::LimitsExceeded("band work"));
+        }
+        Ok(replicates)
+    }
+
+    /// Check a bias-aware request exactly as [`DoseGridArtifactWire::seal_with_context`]
+    /// checks it before it fits: the consumer bounds, the design and functional spellings, the
+    /// declared rows, the separate exact-quadratic premise and the band's replicate and work
+    /// bounds. Returns the band replicate count the kernel is to draw.
+    ///
+    /// # Errors
+    /// The refusal `seal_with_context` returns for the same request before fitting; a request
+    /// that declares no curvature bound is `UnsupportedSemantics`.
+    pub fn check_bias_aware(&self) -> Result<usize, DoseGridArtifactError> {
+        self.check_limits(&DoseGridConsumeLimits::default())?;
+        self.design()?;
+        self.functional()?;
+        let declared = self.bias_aware.ok_or(DoseGridArtifactError::UnsupportedSemantics(
+            "a bias-aware row declares a curvature bound",
+        ))?;
+        self.row_declaration()?;
+        self.bias_aware_replicates(declared)
+    }
+
+    /// Render a fitted row (and its bias-aware section) as the stored result.
+    fn finish(
+        &self,
+        row: &DoseGridRow,
+        bias_aware: Option<DoseBiasAwareResultWire>,
+        functional: DoseFunctional,
+        design: DoseDesign,
+    ) -> Result<DoseGridResultWire, DoseGridArtifactError> {
         let points = self.evaluation_points(functional);
-        let mut result = self.render(&row, &points, design);
+        let mut result = self.render(row, &points, design);
         if let Some(section) = bias_aware {
             if section.band_lower.is_some() {
                 DOSE_GRID_BAND_BIAS_AWARE.clone_into(&mut result.simultaneous_band);
@@ -916,6 +948,20 @@ fn result_is_finite(result: &DoseGridResultWire) -> bool {
 /// Most `replicates x rows x grid doses` a declared simultaneous band may cost.
 const MAX_BAND_WORK: u128 = 10_000_000_000;
 
+/// The stored bias-aware section of a fit.
+fn bias_aware_section(fit: &BiasAwareDoseGrid) -> DoseBiasAwareResultWire {
+    DoseBiasAwareResultWire {
+        curvature_bound: fit.curvature_bound,
+        smoothing_bias_bound: fit.smoothing_bias_bound.clone(),
+        lower: fit.intervals.iter().map(|interval| interval.lower).collect(),
+        upper: fit.intervals.iter().map(|interval| interval.upper).collect(),
+        band_lower: fit.band.as_ref().map(|band| band.lower.clone()),
+        band_upper: fit.band.as_ref().map(|band| band.upper.clone()),
+        band_critical_value: fit.band_critical_value,
+        band_replicates: fit.band_replicates as u64,
+    }
+}
+
 impl DoseGridArtifactWire {
     /// Evaluate the row on `request` and seal the result with both digests.
     ///
@@ -935,6 +981,53 @@ impl DoseGridArtifactWire {
     ) -> Result<Self, DoseGridArtifactError> {
         request.check_limits(&DoseGridConsumeLimits::default())?;
         let result = request.evaluate(ctx)?;
+        let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
+        let wire = Self {
+            version: DOSE_GRID_ARTIFACT_VERSION,
+            required_features: required_features(
+                request.quadratic_mean,
+                request.bias_aware.is_some(),
+                request.declares_rows(),
+            ),
+            premises_digest: request.premises_digest().map_err(undecodable)?,
+            data_digest: request.data_digest().map_err(undecodable)?,
+            request,
+            result,
+        };
+        wire.validate_shape()?;
+        Ok(wire)
+    }
+
+    /// Seal a bias-aware request with the fit its kernel evaluation returned, without fitting
+    /// again.
+    ///
+    /// `fit` is what `estimate_dose_grid_bias_aware_declared` returns for this request's row,
+    /// declared rows, curvature bound and band replicates under the band's declared seed (the
+    /// compiled `DoseGridBiasAware` program evaluates exactly that). The request is checked as
+    /// [`Self::seal_with_context`] checks it, and the result is rendered and checked as that
+    /// entry renders and checks it, so the artifact equals the one `seal_with_context` seals.
+    /// Sealing grants nothing: every consumer recomputes the whole result and refuses one
+    /// that does not replay.
+    ///
+    /// # Errors
+    /// The refusals [`DoseGridRequestWire::check_bias_aware`] returns, `ResultMismatch` for a
+    /// fit under another curvature bound, a non-finite result, or a stored collection above
+    /// the default consumer bounds.
+    pub fn seal_bias_aware_fit(
+        request: DoseGridRequestWire,
+        fit: BiasAwareDoseGrid,
+    ) -> Result<Self, DoseGridArtifactError> {
+        request.check_bias_aware()?;
+        let declared = request.bias_aware.ok_or(DoseGridArtifactError::UnsupportedSemantics(
+            "a bias-aware row declares a curvature bound",
+        ))?;
+        if fit.curvature_bound.to_bits() != declared.curvature_bound.to_bits() {
+            return Err(DoseGridArtifactError::ResultMismatch);
+        }
+        let design = request.design()?;
+        let functional = request.functional()?;
+        let section = bias_aware_section(&fit);
+        let result = request.finish(&fit.row, Some(section), functional, design)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: DOSE_GRID_ARTIFACT_VERSION,
