@@ -661,16 +661,54 @@ fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
 
 /// The `EstablishAssumption` obligations of every unresolved assumption record.
 ///
-/// This skips an unresolved record that cannot form an obligation (an id with a
-/// reserved identity separator); prefer [`try_unresolved_assumption_obligations`],
-/// which refuses instead.
+/// An unresolved record that cannot form an obligation under its own id (an id with a
+/// reserved identity separator, a blank description) is never dropped: it is owed as an
+/// obligation keyed by the digest of its id ([`unrepresentable_assumption_obligation`]).
+/// [`try_unresolved_assumption_obligations`] refuses such a record instead.
 #[must_use]
 pub fn unresolved_assumption_obligations(records: &[ObligationRecord]) -> Vec<EvidenceObligation> {
     records
         .iter()
-        .filter_map(EvidenceObligation::from_unresolved_record)
-        .filter_map(Result::ok)
+        .filter_map(|record| {
+            EvidenceObligation::from_unresolved_record(record).map(|built| {
+                built.unwrap_or_else(|_| unrepresentable_assumption_obligation(record))
+            })
+        })
         .collect()
+}
+
+/// Provenance family of the obligation that stands for an unresolved assumption record
+/// whose own id cannot name an obligation.
+pub const UNREPRESENTABLE_ASSUMPTION_FAMILY: &str = "unrepresentable_assumption_record";
+
+/// The obligation owed for an unresolved assumption record whose id cannot name one: an
+/// `EstablishAssumption` obligation whose slot and provenance source are the BLAKE3 digest of
+/// the record's id, so the assumption stays owed and two such records stay distinct.
+///
+/// # Panics
+/// Never: the slot, source and reason are fixed hex and text that always validate.
+#[must_use]
+pub fn unrepresentable_assumption_obligation(record: &ObligationRecord) -> EvidenceObligation {
+    let digest = antecedent_core::identity::blake3_hex(record.id.as_bytes());
+    EvidenceObligation::try_new(EvidenceObligationSpec {
+        quantities: std::collections::BTreeMap::new(),
+        kind: EvidenceObligationKind::EstablishAssumption,
+        scope: record.scope,
+        variables: Arc::from([]),
+        population: None,
+        regime: ObligationRegime::observational(false),
+        reason: Arc::from(
+            "an unresolved assumption whose record id cannot name an obligation slot",
+        ),
+        required_slots: Arc::from([Arc::from(format!("assumption_record_{digest}"))]),
+        min_additional_samples: None,
+        provenance: ObligationProvenance {
+            family: Arc::from(UNREPRESENTABLE_ASSUMPTION_FAMILY),
+            source: Arc::from(format!("assumption_record_{digest}")),
+            proof_step: None,
+        },
+    })
+    .expect("a digest-keyed assumption obligation always validates")
 }
 
 /// The `EstablishAssumption` obligations of every unresolved assumption record,
@@ -776,6 +814,22 @@ mod tests {
             "owed",
         );
         assert!(try_unresolved_assumption_obligations(std::slice::from_ref(&record)).is_err());
+        // The infallible form keeps it owed, under the digest of its id.
+        let owed = unresolved_assumption_obligations(std::slice::from_ref(&record));
+        assert_eq!(owed.len(), 1);
+        assert_eq!(owed[0].kind, EvidenceObligationKind::EstablishAssumption);
+        assert_eq!(&*owed[0].provenance.family, UNREPRESENTABLE_ASSUMPTION_FAMILY);
+        let other = ObligationRecord::new(
+            "a|c",
+            ObligationScope::Program,
+            antecedent_core::assumption::AssumptionSource::UserDeclared,
+            crate::ObligationKind::CheckNotRun,
+            antecedent_core::assumption::AssumptionStatus::Declared,
+            "owed",
+        );
+        let both = unresolved_assumption_obligations(&[record, other]);
+        assert_eq!(both.len(), 2);
+        assert_ne!(both[0].id, both[1].id, "two unrepresentable records stay distinct");
     }
 
     #[test]

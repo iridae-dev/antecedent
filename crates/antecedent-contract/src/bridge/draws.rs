@@ -42,7 +42,8 @@ use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::identity::{CanonicalWriter, ContractIdentities, SemanticDigest};
 
 use super::super::claim::{
-    BRIDGE_CLAIM_IDENTITY_VERSION, bridged_identities, mismatch_name, node, obligation,
+    BRIDGE_CLAIM_IDENTITY_VERSION, SOURCE_ASSUMPTIONS_UNAVAILABLE, bridged_domains,
+    bridged_identities, mismatch_name, node, obligation, source_assumptions_unavailable,
 };
 use super::super::kind::{BridgeKind, ValueKind};
 use super::super::mapping::{
@@ -57,9 +58,7 @@ use super::super::refusal::{
     validation_trials_too_few, wrong_value_kind,
 };
 use super::{BridgeContract, SourceMappingDependence, Support};
-use crate::claim::{
-    ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, DomainStatus, HandoffReceipt,
-};
+use crate::claim::{ClaimEnvelope, ClaimFreshness, ClaimKind, DomainStatus, HandoffReceipt};
 use crate::obligation::{ObligationKind, ObligationRecord, ObligationScope};
 use crate::provenance::ProvenanceGraph;
 use crate::quantity::ScientificQuantity;
@@ -447,7 +446,8 @@ pub struct BridgeDrawsSource<'a> {
     pub execution: Option<SemanticDigest>,
     /// Evidence references the source carries.
     pub evidence: &'a [Arc<str>],
-    /// Evaluated-domain status of the source.
+    /// Evaluated-domain status of the source. It is the source's own: the bridged claim
+    /// does not restate it, since nothing about the target quantity was evaluated.
     pub evaluated: DomainStatus,
     /// Whether the rows of the table are paired joint realizations.
     pub joint: bool,
@@ -468,7 +468,6 @@ pub struct DrawsPlan {
     source_identities: ContractIdentities,
     source_execution: Option<SemanticDigest>,
     source_evidence: Vec<Arc<str>>,
-    source_evaluated: DomainStatus,
     alignment: String,
     stream: u64,
 }
@@ -529,7 +528,6 @@ impl BridgeContract {
             source_identities: *source.identities,
             source_execution: source.execution,
             source_evidence: source.evidence.to_vec(),
-            source_evaluated: source.evaluated,
             alignment: source.alignment_identity.to_owned(),
             stream,
         })
@@ -648,7 +646,9 @@ impl DrawsPlan {
             Some(summary.mean),
             Some(Arc::from(self.contract.target.quantity.units.as_str())),
             self.reasoning(),
-            ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, self.source_evaluated),
+            // The source's evaluated status is about the source quantity; nothing about the
+            // target quantity was evaluated on data.
+            bridged_domains(),
             self.source_execution,
             evidence,
         );
@@ -698,6 +698,8 @@ impl DrawsPlan {
             record.evidence = premise.evidence.as_deref().map(Arc::from);
             obligations.push(record);
         }
+        // The draws carry no assumption slot: the source's premises stand unseen.
+        obligations.push(source_assumptions_unavailable());
         let source = if self.source_kind == ValueKind::Posterior {
             UncertaintyComponent::new(UncertaintySource::Parameter, "source_draws", false)
         } else {
@@ -749,6 +751,7 @@ impl DrawsPlan {
         // with another column of the table assumes the mapping's evidence is independent of
         // that column's, which the bridge cannot check.
         unresolved.push(Arc::from("mapping_independent_of_sibling_columns"));
+        unresolved.push(Arc::from(format!("source_assumption:{SOURCE_ASSUMPTIONS_UNAVAILABLE}")));
         let mut retained = vec![
             Arc::from("claim.envelope"),
             Arc::from("parents"),

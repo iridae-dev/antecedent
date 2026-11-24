@@ -325,6 +325,15 @@ fn draws_in_draws_out_keep_the_alignment_and_every_other_column() {
     // The bridged table is read as an uncalibrated spread and carries no trust it was not given.
     assert_eq!(output.metadata().calibration, DistributionCalibration::NotMeasured);
     assert_eq!(output.metadata().trust, DistributionTrust::Unverified);
+    // Neither the source table nor the bridged claim asserts a domain: a table states no
+    // identification, support or evaluation of its own.
+    let unknown = antecedent_contract::ClaimDomains::new(
+        antecedent_contract::DomainStatus::Unknown,
+        antecedent_contract::DomainStatus::Unknown,
+        antecedent_contract::DomainStatus::Unknown,
+    );
+    assert_eq!(bridged.source_envelope().domains, unknown);
+    assert_eq!(bridged.envelope().domains, unknown);
 
     // An exact map is bit for bit the map of each draw.
     let exact = contract(

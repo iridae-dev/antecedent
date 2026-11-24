@@ -87,7 +87,8 @@ pub use evidence_envelope::{
 pub use evidence_obligation::{
     EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
     EvidenceOffer, MAX_OBLIGATION_COORDINATES, ObligationProvenance, ObligationRegime,
-    try_unresolved_assumption_obligations, unresolved_assumption_obligations,
+    UNREPRESENTABLE_ASSUMPTION_FAMILY, try_unresolved_assumption_obligations,
+    unrepresentable_assumption_obligation, unresolved_assumption_obligations,
 };
 pub use evidence_ports::{DecisionRequest, EvidencePort, EvidencePortError};
 pub use external::{

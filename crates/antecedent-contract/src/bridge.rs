@@ -57,8 +57,9 @@ mod mapping;
 mod refusal;
 
 pub use claim::{
-    BRIDGE_CLAIM_IDENTITY_VERSION, BridgeSource, BridgedClaim, bridged_claim_id,
-    bridged_claim_id_with_propagation, derive_bridged_claim, derive_bridged_claim_propagating,
+    BRIDGE_CLAIM_IDENTITY_VERSION, BridgeSource, BridgedClaim, SOURCE_ASSUMPTIONS_UNAVAILABLE,
+    bridged_claim_id, bridged_claim_id_with_propagation, derive_bridged_claim,
+    derive_bridged_claim_propagating,
 };
 pub use contract::{
     AffineDrawLaw, AffineInnovation, AnalyticLaw, BRIDGE_IDENTITY_VERSION, BRIDGE_SOURCE_PORT,

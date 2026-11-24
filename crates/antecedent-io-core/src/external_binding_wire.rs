@@ -598,3 +598,39 @@ pub fn native_contract_identity(
             })?;
     Ok(format!("contract:{digest}"))
 }
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+
+    fn wire(identification: &str) -> ContractWire {
+        ContractWire {
+            graph_id: "graph".to_owned(),
+            identification: identification.to_owned(),
+            estimand: Vec::new(),
+            accepted_meanings: Vec::new(),
+            required_evidence_ids: Vec::new(),
+            required_assumption_ids: Vec::new(),
+            equivalences: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn site_a_declared_identification_is_carried_never_strengthened() {
+        // The decoded contract carries exactly the status the declaration names: no spelling
+        // decodes to a stronger status, and an unknown one is refused, never defaulted.
+        for status in [
+            IdentificationStatus::NonparametricallyIdentified,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions,
+            IdentificationStatus::PartiallyIdentified,
+            IdentificationStatus::GraphDependent,
+            IdentificationStatus::NotIdentified,
+        ] {
+            let decoded = core_contract(&wire(status.as_str())).expect("a known status");
+            assert_eq!(decoded.identification, status);
+        }
+        assert!(core_contract(&wire("identified")).is_err());
+        assert!(core_contract(&wire("")).is_err());
+    }
+}

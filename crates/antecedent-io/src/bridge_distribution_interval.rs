@@ -24,13 +24,11 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::ExternalRefusal;
 use antecedent_contract::bridge::{
     BridgeSource, SourceMappingDependence, ValueKind, derive_bridged_claim,
 };
-use antecedent_contract::{
-    ClaimDomains, ClaimEnvelope, ClaimKind, ReasoningView, SlotAvailability,
-};
-use antecedent_contract::{DomainStatus, ExternalRefusal};
+use antecedent_contract::{ClaimEnvelope, ClaimKind, ReasoningView, SlotAvailability};
 use antecedent_core::reason_code;
 use antecedent_io_core::bridge_distribution::BridgedDistribution;
 
@@ -93,7 +91,8 @@ pub fn bridged_distribution_interval(
             SlotAvailability::unavailable("draws_summary"),
             SlotAvailability::unavailable("draws_summary"),
         ),
-        ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Evaluated),
+        // The table's own domains (all unknown): the twin asserts nothing the table does not.
+        template.domains.clone(),
         None,
         Vec::<Arc<str>>::new(),
     );

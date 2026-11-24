@@ -524,6 +524,15 @@ fn the_derived_claim_is_one_realization_of_the_bridge() {
     // The source is separately inspectable, the alignment is the source's and nothing is calibrated.
     assert_eq!(first.alignment_identity, "alignment-a");
     assert_eq!(first.claim.kind, ClaimKind::Mixture);
+    // The source draws were evaluated on their own quantity; the bridged target was not, and
+    // the source's premises, which the draws do not carry, stand unresolved.
+    assert_eq!(first.claim.domains.evaluated, DomainStatus::Unknown);
+    let obligations = &first.claim.reasoning.assumptions.as_ref().unwrap().obligations;
+    assert!(
+        obligations.iter().any(|record| &*record.id
+            == super::super::super::claim::SOURCE_ASSUMPTIONS_UNAVAILABLE
+            && record.is_unresolved())
+    );
     assert_eq!(first.value_kind, ValueKind::PredictiveLaw);
     let evidence: Vec<&str> = first.claim.evidence.iter().map(|item| &**item).collect();
     assert!(evidence.contains(&"snapshot:panel-2024"));

@@ -203,10 +203,12 @@ pub fn ledger_effects(
 ) -> Result<BTreeMap<String, ObservedEffect>, GraphError> {
     let mut out = BTreeMap::new();
     for (key, id) in bindings {
-        let Some(record) = ledger.result(*id) else {
+        // The status after any reclassification the ledger has pending, so a result resting
+        // on one a combination just replaced is never read as valid.
+        let Some(status) = ledger.effective_status(*id) else {
             return Err(GraphError::UnknownNode(format!("ledger result {id}")));
         };
-        if let Some(effect) = ObservedEffect::from_result_status(&record.status) {
+        if let Some(effect) = ObservedEffect::from_result_status(&status) {
             out.insert((*key).to_owned(), effect);
         }
     }
