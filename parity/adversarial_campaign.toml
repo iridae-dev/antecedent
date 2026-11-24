@@ -231,6 +231,355 @@ kind = "bound"
 runner = "kani"
 test = "admg_identity_binds_labels_not_dense_order"
 
+
+[[cases]]
+id = "identity_sites.core.average_effect_modifiers"
+kind = "changing"
+runner = "rust"
+test = "site_core_average_effect_modifiers"
+
+[[cases]]
+id = "identity_sites.core.path_nodes"
+kind = "changing"
+runner = "rust"
+test = "site_core_path_nodes"
+
+[[cases]]
+id = "identity_sites.core.policy_reads"
+kind = "changing"
+runner = "rust"
+test = "site_core_policy_reads"
+
+[[cases]]
+id = "identity_sites.core.dynamic_schedule"
+kind = "changing"
+runner = "rust"
+test = "site_core_dynamic_schedule"
+
+[[cases]]
+id = "identity_sites.core.callback_levels"
+kind = "changing"
+runner = "rust"
+test = "site_core_callback_levels"
+
+[[cases]]
+id = "identity_sites.io_graph.graph_posterior_premises"
+kind = "preserving"
+runner = "rust"
+test = "site_graph_posterior_premises"
+
+[[cases]]
+id = "identity_sites.io_graph.dag_identity"
+kind = "changing"
+runner = "rust"
+test = "site_dag_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.admg_identity"
+kind = "changing"
+runner = "rust"
+test = "site_admg_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.canonical_dag_wire"
+kind = "changing"
+runner = "rust"
+test = "site_canonical_dag_wire"
+
+[[cases]]
+id = "identity_sites.io_graph.transport_identity"
+kind = "changing"
+runner = "rust"
+test = "site_transport_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.cpdag_identity"
+kind = "changing"
+runner = "rust"
+test = "site_cpdag_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.pag_identity"
+kind = "changing"
+runner = "rust"
+test = "site_pag_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.canonical_temporal_dag_wire"
+kind = "changing"
+runner = "rust"
+test = "site_canonical_temporal_dag_wire"
+
+[[cases]]
+id = "identity_sites.io_graph.canonical_temporal_admg_wire"
+kind = "changing"
+runner = "rust"
+test = "site_canonical_temporal_admg_wire"
+
+[[cases]]
+id = "identity_sites.io_graph.temporal_class_identity"
+kind = "changing"
+runner = "rust"
+test = "site_temporal_class_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.prior_mapping_from_mapping"
+kind = "changing"
+runner = "rust"
+test = "site_prior_mapping_from_mapping"
+
+[[cases]]
+id = "identity_sites.io_graph.observation_identity_wire"
+kind = "changing"
+runner = "rust"
+test = "site_observation_identity_wire"
+
+[[cases]]
+id = "identity_sites.io_graph.propagation_chain_identity"
+kind = "changing"
+runner = "rust"
+test = "site_propagation_chain_identity"
+
+[[cases]]
+id = "identity_sites.io_graph.write_factors"
+kind = "changing"
+runner = "rust"
+test = "site_write_factors"
+
+[[cases]]
+id = "identity_sites.io_artifacts.temporal_recalc_premises"
+kind = "preserving"
+runner = "rust"
+test = "site_io_artifacts_temporal_recalc_premises"
+
+[[cases]]
+id = "identity_sites.io_artifacts.covariate_shift_modifiers"
+kind = "preserving"
+runner = "rust"
+test = "site_io_artifacts_covariate_shift_modifiers"
+
+[[cases]]
+id = "identity_sites.io_artifacts.observation_query_canonical"
+kind = "preserving"
+runner = "rust"
+test = "site_io_artifacts_observation_query_canonical"
+
+[[cases]]
+id = "identity_sites.io_artifacts.canonical_json"
+kind = "changing"
+runner = "rust"
+test = "site_io_artifacts_canonical_json"
+
+[[cases]]
+id = "identity_sites.contract.adaptive_design_identity_lists_are_ordered"
+kind = "changing"
+runner = "rust"
+test = "site_adaptive_design_identity_lists_are_ordered"
+
+[[cases]]
+id = "identity_sites.contract.adaptive_interim_evidence"
+kind = "changing"
+runner = "rust"
+test = "site_adaptive_interim_evidence"
+
+[[cases]]
+id = "identity_sites.contract.admitted_provider_source_sets"
+kind = "changing"
+runner = "rust"
+test = "site_admitted_provider_source_sets"
+
+[[cases]]
+id = "identity_sites.contract.bridge_contract_assumptions"
+kind = "changing"
+runner = "rust"
+test = "site_bridge_contract_assumptions"
+
+[[cases]]
+id = "identity_sites.contract.bridge_mapping_trials"
+kind = "changing"
+runner = "rust"
+test = "site_bridge_mapping_trials"
+
+[[cases]]
+id = "identity_sites.contract.callback_declaration_collections"
+kind = "changing"
+runner = "rust"
+test = "site_callback_declaration_collections"
+
+[[cases]]
+id = "identity_sites.contract.callback_request_input_digests"
+kind = "changing"
+runner = "rust"
+test = "site_callback_request_input_digests"
+
+[[cases]]
+id = "identity_sites.contract.choice_retained_rows_are_a_set"
+kind = "changing"
+runner = "rust"
+test = "site_choice_retained_rows_are_a_set"
+
+[[cases]]
+id = "identity_sites.contract.composition_components_and_connections"
+kind = "changing"
+runner = "rust"
+test = "site_composition_components_and_connections"
+
+[[cases]]
+id = "identity_sites.contract.composition_cyclic_components"
+kind = "changing"
+runner = "rust"
+test = "site_composition_cyclic_components"
+
+[[cases]]
+id = "identity_sites.contract.composition_graph_nodes_and_edges"
+kind = "changing"
+runner = "rust"
+test = "site_composition_graph_nodes_and_edges"
+
+[[cases]]
+id = "identity_sites.contract.composition_node_sets"
+kind = "changing"
+runner = "rust"
+test = "site_composition_node_sets"
+
+[[cases]]
+id = "identity_sites.contract.composition_view"
+kind = "changing"
+runner = "rust"
+test = "site_composition_view"
+
+[[cases]]
+id = "identity_sites.contract.graph_revalidation_removed"
+kind = "changing"
+runner = "rust"
+test = "site_graph_revalidation_removed"
+
+[[cases]]
+id = "identity_sites.contract.interface_contract_ports"
+kind = "preserving"
+runner = "rust"
+test = "site_interface_contract_ports"
+
+[[cases]]
+id = "identity_sites.contract.lineage_inputs"
+kind = "preserving"
+runner = "rust"
+test = "site_lineage_inputs"
+
+[[cases]]
+id = "identity_sites.contract.mass_account_sources"
+kind = "preserving"
+runner = "rust"
+test = "site_mass_account_sources"
+
+[[cases]]
+id = "identity_sites.contract.program_binding_dose_grid"
+kind = "changing"
+runner = "rust"
+test = "site_program_binding_dose_grid"
+
+[[cases]]
+id = "identity_sites.contract.program_binding_framing"
+kind = "changing"
+runner = "rust"
+test = "site_program_binding_framing"
+
+[[cases]]
+id = "identity_sites.contract.source_declaration_observation_rows"
+kind = "preserving"
+runner = "rust"
+test = "site_source_declaration_observation_rows"
+
+[[cases]]
+id = "identity_sites.contract.state_digest"
+kind = "changing"
+runner = "rust"
+test = "site_state_digest"
+
+[[cases]]
+id = "identity_sites.contract.synthesis_operation_sources"
+kind = "changing"
+runner = "rust"
+test = "site_synthesis_operation_sources"
+
+[[cases]]
+id = "identity_sites.contract.transport_identity_framing"
+kind = "changing"
+runner = "rust"
+test = "site_transport_identity_framing"
+
+[[cases]]
+id = "identity_sites.contract.transport_identity_lists"
+kind = "changing"
+runner = "rust"
+test = "site_transport_identity_lists"
+
+[[cases]]
+id = "identity_sites.contract.transport_revalidation_sets"
+kind = "changing"
+runner = "rust"
+test = "site_transport_revalidation_sets"
+
+[[cases]]
+id = "identity_sites.contract.transported_claim_offer_sets"
+kind = "changing"
+runner = "rust"
+test = "site_transported_claim_offer_sets"
+
+[[cases]]
+id = "identity_sites.design_a.study_candidate_semantic_id"
+kind = "changing"
+runner = "rust"
+test = "site_study_candidate_semantic_id"
+
+[[cases]]
+id = "identity_sites.design_a.expected_evidence_canonical"
+kind = "changing"
+runner = "rust"
+test = "site_expected_evidence_canonical"
+
+[[cases]]
+id = "identity_sites.design_a.evidence_plan_identity"
+kind = "changing"
+runner = "rust"
+test = "site_evidence_plan_identity"
+
+[[cases]]
+id = "identity_sites.design_a.signal_request_fingerprint"
+kind = "changing"
+runner = "rust"
+test = "site_signal_request_fingerprint"
+
+[[cases]]
+id = "identity_sites.design_b.transported_policy_selection_diagram"
+kind = "preserving"
+runner = "rust"
+test = "site_transported_policy_selection_diagram"
+
+[[cases]]
+id = "identity_sites.design_b.temporal_time_invariance"
+kind = "preserving"
+runner = "rust"
+test = "site_temporal_time_invariance"
+
+[[cases]]
+id = "identity_sites.design_b.adaptive_trial_selection_diagram"
+kind = "preserving"
+runner = "rust"
+test = "site_adaptive_trial_selection_diagram"
+
+[[cases]]
+id = "identity_sites.design_b.bridge_selection_diagram"
+kind = "preserving"
+runner = "rust"
+test = "site_bridge_selection_diagram"
+
+[[cases]]
+id = "identity_sites.design_b.compile_joint_experiment"
+kind = "changing"
+runner = "rust"
+test = "site_compile_joint_experiment"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -330,3 +679,157 @@ file = "crates/antecedent-core/src/value.rs"
 old = "writer.word(1).real(*number);"
 new = "writer.word(1).real(*number + 0.0);"
 caught_by = ["identity_sites.value_encoding_injective"]
+
+[[mutations]]
+id = "variable_set_keeps_listed_order"
+file = "crates/antecedent-core/src/canonical_encode.rs"
+old = "    sorted.sort_unstable();"
+new = "    let _ = &mut sorted;"
+caught_by = ["identity_sites.core.average_effect_modifiers", "identity_sites.core.path_nodes"]
+
+[[mutations]]
+id = "policy_reads_keep_repeats"
+file = "crates/antecedent-core/src/value_expr.rs"
+old = "        current.dedup();"
+new = "        let _ = &mut current;"
+caught_by = ["identity_sites.core.policy_reads"]
+
+[[mutations]]
+id = "dynamic_schedule_keeps_repeats"
+file = "crates/antecedent-core/src/intervention.rs"
+old = "        steps.dedup();"
+new = "        let _ = &mut steps;"
+caught_by = ["identity_sites.core.dynamic_schedule"]
+
+[[mutations]]
+id = "marked_graph_identity_keeps_dense_orientation"
+file = "crates/antecedent-io-core/src/identity/graph.rs"
+old = "            if a <= b {"
+new = "            if true {"
+caught_by = ["identity_sites.io_graph.pag_identity", "identity_sites.io_graph.cpdag_identity"]
+
+[[mutations]]
+id = "selection_graph_drops_labels"
+file = "crates/antecedent-io-core/src/identity/graph.rs"
+old = "    if dense_schema_aligned(admg.nodes()) {"
+new = "    if true {"
+caught_by = ["identity_sites.io_graph.transport_identity"]
+
+[[mutations]]
+id = "chain_factors_drop_kind"
+file = "crates/antecedent-io-core/src/propagation_chain_record/identity.rs"
+old = "        canonical.insert((tag, factor.id.clone()));"
+new = "        canonical.insert((0, factor.id.clone()));"
+caught_by = ["identity_sites.io_graph.write_factors"]
+
+[[mutations]]
+id = "posterior_premises_keep_atom_order"
+file = "crates/antecedent-io-core/src/identity/graph.rs"
+old = "                keyed.sort_by(|left, right| left.0.cmp(&right.0));"
+new = "                let _ = &mut keyed;"
+caught_by = ["identity_sites.io_graph.graph_posterior_premises"]
+
+[[mutations]]
+id = "temporal_recalc_premises_keep_bidirected_orientation"
+file = "crates/antecedent-io-core/src/temporal_recalc_artifact.rs"
+old = "            r.bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();"
+new = "            r.bidirected.clone();"
+caught_by = ["identity_sites.io_artifacts.temporal_recalc_premises"]
+
+[[mutations]]
+id = "covariate_shift_keeps_repeated_modifiers"
+file = "crates/antecedent-io-core/src/cohort_decision.rs"
+old = "        invariant_modifiers.dedup();"
+new = "        let _ = &invariant_modifiers;"
+caught_by = ["identity_sites.io_artifacts.covariate_shift_modifiers"]
+
+[[mutations]]
+id = "observation_query_canonical_keeps_listing_order"
+file = "crates/antecedent-io-core/src/observation_query_artifact/wire.rs"
+old = "        self = self.canonical_order();"
+new = "        let _ = 0;"
+caught_by = ["identity_sites.io_artifacts.observation_query_canonical"]
+
+[[mutations]]
+id = "transport_set_digest_keeps_repeated_population"
+file = "crates/antecedent-contract/src/evidence_ledger/source.rs"
+old = "        out.source_populations.dedup();"
+new = "        let _ = &out.source_populations;"
+caught_by = ["identity_sites.contract.transported_claim_offer_sets", "identity_sites.contract.transport_identity_lists"]
+
+[[mutations]]
+id = "choice_identity_keeps_row_spelling"
+file = "crates/antecedent-contract/src/adaptive_design/choice.rs"
+old = """        ids.iter().map(|id| source_row(id).unwrap_or_else(|| format!("!{id}"))).collect();"""
+new = """        ids.iter().cloned().collect();"""
+caught_by = ["identity_sites.contract.choice_retained_rows_are_a_set"]
+
+[[mutations]]
+id = "composition_node_keeps_repeated_assumption"
+file = "crates/antecedent-contract/src/composition_verification/graph.rs"
+old = "        node.assumptions.dedup();"
+new = "        let _ = &node.assumptions;"
+caught_by = ["identity_sites.contract.composition_node_sets"]
+
+[[mutations]]
+id = "composition_connections_keep_caller_order"
+file = "crates/antecedent-contract/src/interface_contract/composition.rs"
+old = """    ordered.sort_by(|a, b| {
+        (a.consumer.as_str(), a.consumed_port.as_str())
+            .cmp(&(b.consumer.as_str(), b.consumed_port.as_str()))
+    });"""
+new = """    let _ = &mut ordered;"""
+caught_by = ["identity_sites.contract.composition_components_and_connections"]
+
+[[mutations]]
+id = "study_candidate_notes_kept_as_multiset"
+file = "crates/antecedent-design/src/study_candidate.rs"
+old = """            notes.dedup();
+            evidence.dedup();"""
+new = """            evidence.dedup();"""
+caught_by = ["identity_sites.design_a.study_candidate_semantic_id"]
+
+[[mutations]]
+id = "evidence_plan_resolution_lists_unframed"
+file = "crates/antecedent-design/src/evidence_plan.rs"
+old = "                writer.texts(&option.resolves).texts(&option.unresolved);"
+new = "                for id in option.resolves.iter().chain(option.unresolved.iter()) { writer.text(id); }"
+caught_by = ["identity_sites.design_a.evidence_plan_identity"]
+
+[[mutations]]
+id = "signal_fingerprint_ignores_lineage_order"
+file = "crates/antecedent-design/src/signal.rs"
+old = """        let mut lineage = self.evidence_lineage.clone();
+        lineage.sort();
+        hasher.texts(&lineage);"""
+new = """        let lineage = self.evidence_lineage.clone();
+        hasher.texts(&lineage);"""
+caught_by = ["identity_sites.design_a.signal_request_fingerprint"]
+
+[[mutations]]
+id = "selection_diagram_keeps_listed_mechanism_order"
+file = "crates/antecedent-design/src/transported_policy.rs"
+old = "        rows.sort();"
+new = "        let _ = &mut rows;"
+caught_by = ["identity_sites.design_b.transported_policy_selection_diagram"]
+
+[[mutations]]
+id = "time_invariance_keeps_listed_mechanism_order"
+file = "crates/antecedent-design/src/temporal_policy_transport.rs"
+old = "        rows.sort();"
+new = "        let _ = &mut rows;"
+caught_by = ["identity_sites.design_b.temporal_time_invariance"]
+
+[[mutations]]
+id = "bridge_selection_targets_keep_repeats"
+file = "crates/antecedent-design/src/transported_bridge.rs"
+old = "        targets.dedup();"
+new = "        let _ = &mut targets;"
+caught_by = ["identity_sites.design_b.bridge_selection_diagram"]
+
+[[mutations]]
+id = "joint_experiment_admits_a_second_adjustment"
+file = "crates/antecedent-design/src/decision_evidence/compile.rs"
+old = "        if !adjusted.insert(adjustment.component.as_str()) {"
+new = "        if false && !adjusted.insert(adjustment.component.as_str()) {"
+caught_by = ["identity_sites.design_b.compile_joint_experiment"]

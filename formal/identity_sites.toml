@@ -17,9 +17,8 @@ file = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
 item = "impl:AdaptiveDesignContract#0/fn:interim_evidence#0"
 feeds = "SourceDeclaration -> SourceId of each interim look in InterimEvidence.look_sources (in-memory ledger returned to the caller)"
 released = false
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.adaptive_interim_evidence", "adversarial:identity_sites.contract.source_declaration_observation_rows"]
 [[sites.collections]]
 name = "rows (per-look observation ids)"
 class = "set"
@@ -32,9 +31,8 @@ file = "crates/antecedent-contract/src/adaptive_design/choice.rs"
 item = "fn:account#0"
 feeds = "SourceDeclaration -> SourceId of the respondents source and each retained source in ChoiceEvidence (in-memory ledger)"
 released = false
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.choice_retained_rows_are_a_set"]
 [[sites.collections]]
 name = "respondent rows"
 class = "set"
@@ -52,28 +50,28 @@ file = "crates/antecedent-contract/src/adaptive_design/choice.rs"
 item = "fn:identity_of#0"
 feeds = "choice design contract identity (antecedent.choice_design.contract), ChoiceDesign.identity / contract_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.choice_retained_rows_are_a_set"]
+note = "Identity version 2 (CHOICE_DESIGN_VERSION = 2); version-1 identities still verify through ChoiceDesignContract::accepts_identity_hex, which the choice-inference result artifact uses on consume."
 [[sites.collections]]
 name = "respondents"
 class = "ordered"
-canonical = "written in declared order with per-respondent counts; looks are prefixes of the respondent order so order is scientific meaning"
+canonical = "enrolment order (looks are prefixes)"
 concern = ""
 [[sites.collections]]
 name = "retained_sources"
 class = "ordered"
-canonical = "declared order (sources list is 'in declaration order')"
+canonical = "declaration order (sources are distinct labels; their order is the ledger registration order)"
 concern = ""
 [[sites.collections]]
 name = "retained_sources[].observation_ids"
-class = "ordered"
-canonical = "texts() in declared order"
-concern = "meaning is a set of distinct observation ids (account() sorts+dedups them and 'a'/'a#0' are one observation) but identity writes the raw caller order and spelling: permuting or respelling the ids changes the contract identity (false distinction, not a collision)"
+class = "set"
+canonical = "version 2: each id in its row spelling (a and a#0 are one row), sorted + dedup (canonical_source_rows)"
+concern = ""
 [[sites.collections]]
 name = "option_labels"
 class = "ordered"
-canonical = "declared order (option index is meaning; counts are per option)"
+canonical = "option order aligns the counts"
 concern = ""
 
 [[sites]]
@@ -82,9 +80,8 @@ file = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
 item = "fn:identity_of#0"
 feeds = "adaptive design contract identity (antecedent.adaptive_design.contract)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.adaptive_design_identity_lists_are_ordered"]
 [[sites.collections]]
 name = "arm_labels, assigned_arm, outcomes, assignment_probabilities, looks"
 class = "ordered"
@@ -97,9 +94,8 @@ file = "crates/antecedent-contract/src/bridge/contract.rs"
 item = "impl:BridgeContract#0/fn:identity#0"
 feeds = "BridgeContract::identity -> SemanticDigest (TAG_CONTRACT); bridged claim ids and contract_identity in BridgedDistributionClaim / point propagation"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.bridge_contract_assumptions"]
 [[sites.collections]]
 name = "assumptions"
 class = "multiset"
@@ -112,9 +108,8 @@ file = "crates/antecedent-contract/src/bridge/mapping.rs"
 item = "impl:BridgeMapping#0/fn:write_canonical#0"
 feeds = "BridgeContract::identity (mapping section)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.bridge_mapping_trials"]
 [[sites.collections]]
 name = "trial pairs (surrogate_effect bits, terminal_effect bits)"
 class = "multiset"
@@ -127,34 +122,33 @@ file = "crates/antecedent-contract/src/callback_protocol/declaration.rs"
 item = "impl:CallbackDeclaration#0/fn:canonical_identity#0"
 feeds = "CallbackDeclaration::canonical_identity -> SemanticDigest (TAG_DECLARATION); callback request identity, ledger"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.callback_declaration_collections"]
 [[sites.collections]]
 name = "inputs"
-class = "multiset"
-canonical = "per-input digest, then sort_by (name, own digest); validation refuses repeated names"
+class = "set"
+canonical = "sorted by (name, own encoding); validation refuses a repeated name"
 concern = ""
 [[sites.collections]]
 name = "dependencies (DependencyDeclaration::Complete)"
-class = "multiset"
-canonical = "sort() of whole CallbackDependency (kind, name, version), no dedup; validate_dependencies_and_replay refuses a repeated (kind, name)"
-concern = "set meaning but duplicates kept; only validation prevents a repeated dependency from changing identity (canonical_identity itself does not validate)"
+class = "set"
+canonical = "sorted; validation refuses a repeated (kind, name)"
+concern = ""
 [[sites.collections]]
 name = "operations"
 class = "set"
-canonical = "BTreeSet<CallbackOperation> iterated in order (implicit dedup)"
+canonical = "BTreeSet"
 concern = ""
 [[sites.collections]]
 name = "evidence (EvidenceBasis::Declared via write_evidence)"
 class = "set"
-canonical = "BTreeSet<SourceId> iterated in order (implicit dedup)"
+canonical = "BTreeSet"
 concern = ""
 [[sites.collections]]
 name = "support Categorical levels (write_support)"
-class = "ordered"
-canonical = "levels written in declared order"
-concern = "level order is probably category-code meaning, so ordered is right; but repeated or blank levels are not rejected by this encoder"
+class = "set"
+canonical = "admitted only strictly ascending (SupportDomain::is_well_formed)"
+concern = ""
 
 [[sites]]
 id = "contract.callback_protocol.plan.CallbackRequest.identity"
@@ -162,9 +156,8 @@ file = "crates/antecedent-contract/src/callback_protocol/plan.rs"
 item = "impl:CallbackRequest#0/fn:identity#0"
 feeds = "CallbackRequest::identity -> SemanticDigest (TAG_REQUEST); callback replay / idempotency identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.callback_request_input_digests"]
 [[sites.collections]]
 name = "input_digests"
 class = "set"
@@ -177,19 +170,18 @@ file = "crates/antecedent-contract/src/claim/world_point.rs"
 item = "fn:compose_checked_world_points#0"
 feeds = "CheckedWorldPoint::proof_identity (CanonicalWriter antecedent.checked_world_point.v1) and parent_ids"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/tests/checked_world_composition.rs::site_checked_world_point_parents_and_evidence"]
 [[sites.collections]]
 name = "ordered_terms"
-class = "multiset"
-canonical = "terms paired with their expected world-target identity, sort_by_key(identity) (stable); each term then must match exactly one unused parent"
-concern = "key is the target identity only, not the whole (identity, term) element; ties would keep caller order, but two terms on the same world make candidates.len() == 2 and the call refuses WitnessMismatch, so no tie reaches the bytes"
+class = "set"
+canonical = "sorted by target identity; two parents on one world are refused (WitnessMismatch), so keys are unique"
+concern = ""
 [[sites.collections]]
 name = "parent evidence"
-class = "ordered"
-canonical = "each parent's claim.evidence written in stored order (writer.text per item) inside its parent block; separately a BTreeSet<Arc<str>> for the result's evidence list"
-concern = "per-parent evidence order is whatever the ClaimEnvelope stores; if a claim holds the same evidence in a different order its proof_identity differs (confirm ClaimEnvelope canonicalizes evidence order)"
+class = "set"
+canonical = "each parent's evidence references sorted + dedup before the proof identity"
+concern = ""
 
 [[sites]]
 id = "contract.composition_provenance.link_digest"
@@ -197,9 +189,9 @@ file = "crates/antecedent-contract/src/composition_provenance.rs"
 item = "fn:link_digest#0"
 feeds = "ProvenanceChain Merkle link digests"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/composition_provenance.rs::site_link_digest_parents_are_ordered_and_framed"]
+note = "Parents are written in declared order, the documented Merkle form; reordering a link's parents is a different link digest."
 [[sites.collections]]
 name = "parent_digests"
 class = "ordered"
@@ -212,9 +204,8 @@ file = "crates/antecedent-contract/src/composition_verification/graph.rs"
 item = "impl:CompositionGraph#0/fn:add_node#0"
 feeds = "stored node, then CompositionGraph::identity (encode_node: texts(coordinates), texts(assumptions), evidence digests) -> graph identity, revalidation previous/current ids"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_node_sets"]
 [[sites.collections]]
 name = "unsupported coordinates"
 class = "set"
@@ -237,9 +228,8 @@ file = "crates/antecedent-contract/src/composition_verification/graph.rs"
 item = "impl:CompositionGraph#0/fn:identity#0"
 feeds = "CompositionGraph::identity -> SemanticDigest (antecedent.composition_verification.graph)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_graph_nodes_and_edges"]
 [[sites.collections]]
 name = "nodes"
 class = "set"
@@ -257,9 +247,8 @@ file = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
 item = "impl:GraphRevalidation#0/fn:identity#0"
 feeds = "GraphRevalidation::identity -> SemanticDigest (antecedent.composition_verification.revalidation)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.graph_revalidation_removed"]
 [[sites.collections]]
 name = "removed"
 class = "set"
@@ -277,9 +266,8 @@ file = "crates/antecedent-contract/src/composition_verification/view.rs"
 item = "impl:CompositionView#0/fn:of#0"
 feeds = "CompositionView::identity -> SemanticDigest (antecedent.composition_verification.view)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_view"]
 [[sites.collections]]
 name = "edges"
 class = "set"
@@ -307,9 +295,8 @@ file = "crates/antecedent-contract/src/evidence_envelope.rs"
 item = "fn:write_binding#0"
 feeds = "EvidenceEnvelope::identity -> SemanticDigest (antecedent.contract.evidence_envelope.v1)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/evidence_envelope.rs::site_write_binding_premises"]
 [[sites.collections]]
 name = "premises"
 class = "set"
@@ -322,9 +309,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
 item = "impl:EvidenceLedger#0/fn:account#0"
 feeds = "ResultRecord.observations_digest (antecedent.evidence_ledger.observations) and ResultRecord.transport_identities, public fields of registered results"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.synthesis_operation_sources"]
 [[sites.collections]]
 name = "transports"
 class = "set"
@@ -343,7 +329,7 @@ item = "impl:EvidenceLedger#0/fn:canonical_source#0"
 feeds = "SourceDeclaration::identity -> SourceId (antecedent.evidence_ledger.source); public source ids in results, results' direct sources, state_digest"
 released = true
 status = "checked"
-checks = ["adversarial:ledger.reordered_transport_keeps_identity", "adversarial:ledger.repeated_transport_declaration_keeps_identity", "adversarial:ledger.transport_change_changes_identity"]
+checks = ["adversarial:identity_sites.contract.source_declaration_observation_rows", "adversarial:identity_sites.contract.lineage_inputs", "adversarial:ledger.reordered_transport_keeps_identity", "adversarial:ledger.repeated_transport_declaration_keeps_identity", "adversarial:ledger.transport_change_changes_identity"]
 [[sites.collections]]
 name = "observation rows"
 class = "set"
@@ -371,9 +357,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
 item = "impl:EvidenceLedger#0/fn:mass_account#0"
 feeds = "MassAccount (sources, declared_slots, distinct_observations) stored in ResultRecord.mass -> state_digest and the public ResultRecord"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.mass_account_sources"]
 [[sites.collections]]
 name = "ids"
 class = "set"
@@ -386,9 +371,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
 item = "impl:EvidenceLedger#0/fn:state_digest#0"
 feeds = "EvidenceLedger::state_digest -> SemanticDigest (antecedent.evidence_ledger.state)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.state_digest"]
 [[sites.collections]]
 name = "sources"
 class = "set"
@@ -406,9 +390,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/operation.rs"
 item = "impl:SynthesisOperation#0/fn:encode#0"
 feeds = "ResultId (antecedent.evidence_ledger.result) via finish_combination; public result ids"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.synthesis_operation_sources"]
 [[sites.collections]]
 name = "sources / priors / likelihood / transported / native / repeated-use sources (via write_ids)"
 class = "multiset"
@@ -422,7 +405,7 @@ item = "fn:write_ids#0"
 feeds = "SynthesisOperation::encode"
 released = true
 status = "checked"
-checks = ["adversarial:ledger.reordered_pooling_keeps_identity", "adversarial:ledger.dropped_source_changes_identity", "assurance:identity.order_insensitive_declarations"]
+checks = ["adversarial:identity_sites.contract.synthesis_operation_sources", "adversarial:ledger.reordered_pooling_keeps_identity", "adversarial:ledger.dropped_source_changes_identity", "assurance:identity.order_insensitive_declarations"]
 [[sites.collections]]
 name = "ids"
 class = "multiset"
@@ -435,9 +418,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/overlap.rs"
 item = "fn:union_sorted#0"
 feeds = "MassAccount.distinct_observations (-> state_digest) and the observations digest in account"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.mass_account_sources"]
 [[sites.collections]]
 name = "all"
 class = "set"
@@ -450,9 +432,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/source.rs"
 item = "impl:Lineage#0/fn:encode#0"
 feeds = "SourceDeclaration::identity (lineage section)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.lineage_inputs"]
 [[sites.collections]]
 name = "inputs (DerivedFromUsedData)"
 class = "multiset"
@@ -465,9 +446,8 @@ file = "crates/antecedent-contract/src/evidence_ledger/source.rs"
 item = "impl:SourceDeclaration#0/fn:identity#0"
 feeds = "SourceId digest (pub(crate); reached only after canonical_source)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.source_declaration_observation_rows"]
 [[sites.collections]]
 name = "observation rows"
 class = "set"
@@ -481,17 +461,17 @@ item = "impl:TransportIdentity#0/fn:encode#0"
 feeds = "TransportIdentity::digest, SourceDeclaration::identity (transport section), TransportedClaimOffer::canonical_identity and TransportedHandoff identity"
 released = true
 status = "checked"
-checks = ["adversarial:identity.permutation_keeps_digest", "adversarial:identity.relevant_change_breaks_digest", "adversarial:identity.lists_cannot_trade_elements", "assurance:identity.order_insensitive_declarations"]
+checks = ["adversarial:identity_sites.contract.transport_identity_lists", "adversarial:identity_sites.contract.transport_identity_framing", "adversarial:identity.permutation_keeps_digest", "adversarial:identity.relevant_change_breaks_digest", "adversarial:identity.lists_cannot_trade_elements", "assurance:identity.order_insensitive_declarations"]
 [[sites.collections]]
 name = "source_populations"
 class = "multiset"
-canonical = "clone, sort_unstable, texts(); no dedup here (the ledger dedups before identity)"
-concern = "set meaning but duplicates kept: ['p','p'] and ['p'] digest differently; TransportedClaimOffer.validate does not dedup or reject repeats, so an offer's canonical_identity and handoff identity differ for repeated populations while the same declaration registered in the ledger collapses to one source id (inconsistent)"
+canonical = "sorted, repeats kept in digest(); every offer, handoff and ledger source reads set_digest() / the deduplicated form"
+concern = ""
 [[sites.collections]]
 name = "assumptions"
 class = "multiset"
-canonical = "clone, sort_unstable, texts(); no dedup here"
-concern = "same as source_populations: repeated assumption text changes TransportIdentity::digest outside the ledger path"
+canonical = "sorted, repeats kept in digest(); set_digest() deduplicates"
+concern = ""
 
 [[sites]]
 id = "contract.evidence_obligation.canonical_content"
@@ -499,23 +479,23 @@ file = "crates/antecedent-contract/src/evidence_obligation.rs"
 item = "fn:canonical_content#0"
 feeds = "EvidenceObligation id: eo1:<kind>:<first 32 hex of blake3(canonical content)> (derive_id), persisted in obligation lists"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/evidence_obligation.rs::site_canonical_content_sets", "unit:crates/antecedent-contract/src/evidence_obligation.rs::site_canonical_content_is_injective_on_accepted_text"]
+note = "The unframed content is injective on every accepted spec: validation refuses a free-text field holding the separator followed by a later key, a slot holding `|`, and repeats. The stored eo1 ids are re-derived by validate(); a framed v2 would move every stored id for no accepted collision, so the encoding is kept and checked."
 [[sites.collections]]
 name = "required_slots"
 class = "set"
-canonical = "sort_unstable, joined with '|'; a repeated slot and a '|' inside a slot are refused by validation (duplicates impossible by construction)"
-concern = "separator-joined unframed text; injectivity relies on validation refusing separators in free text (documented at derive_id)"
+canonical = "sorted; validation refuses a repeat and the `|` join"
+concern = ""
 [[sites.collections]]
 name = "variables, regime.interventions, regime.conditioned_on (via sorted_ids / id_list)"
-class = "multiset"
-canonical = "sorted_ids: raw u32 ids sort_unstable, no dedup, comma-joined; distinct() validation refuses repeats"
-concern = "set meaning, multiset implementation; only validation prevents a repeat from changing the id"
+class = "set"
+canonical = "sorted; validation refuses a repeat"
+concern = ""
 [[sites.collections]]
 name = "quantities"
 class = "set"
-canonical = "BTreeMap<VariableId, ScientificQuantity> iterated in key order"
+canonical = "BTreeMap"
 concern = ""
 
 [[sites]]
@@ -524,9 +504,8 @@ file = "crates/antecedent-contract/src/interface_contract/composition.rs"
 item = "fn:check_composition_with_cyclic_components#0"
 feeds = "ComposedInterfaces.identity (antecedent.interface_contract.composition.cyclic_components)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_cyclic_components"]
 [[sites.collections]]
 name = "ordered (cyclic declarations)"
 class = "set"
@@ -539,9 +518,8 @@ file = "crates/antecedent-contract/src/interface_contract/composition.rs"
 item = "fn:compose#0"
 feeds = "ComposedInterfaces.identity (TAG_COMPOSITION)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_components_and_connections"]
 [[sites.collections]]
 name = "components (by_name)"
 class = "set"
@@ -559,9 +537,8 @@ file = "crates/antecedent-contract/src/interface_contract/composition.rs"
 item = "fn:decide_connections#0"
 feeds = "ComposedInterfaces.connections -> compose() identity (antecedent.interface_contract.composition) by each connection identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.composition_components_and_connections"]
 [[sites.collections]]
 name = "ordered (connections)"
 class = "ordered"
@@ -574,34 +551,33 @@ file = "crates/antecedent-contract/src/interface_contract/declaration.rs"
 item = "impl:InterfaceContract#0/fn:canonical_identity#0"
 feeds = "InterfaceContract::canonical_identity -> SemanticDigest (TAG_CONTRACT), connection and composition identities"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.interface_contract_ports"]
 [[sites.collections]]
 name = "produced ports"
-class = "multiset"
-canonical = "per-port digest, sort_by (name, own digest); duplicate port names refused by validation"
+class = "set"
+canonical = "sorted by (name, own encoding); validation refuses a repeated name"
 concern = ""
 [[sites.collections]]
 name = "consumed ports"
-class = "multiset"
-canonical = "per-port digest, sort_by (name, own digest); duplicate port names refused by validation"
+class = "set"
+canonical = "sorted by (name, own encoding); validation refuses a repeated name"
 concern = ""
 [[sites.collections]]
 name = "port operations, measurement_models, provenance (write_operations / write_set)"
 class = "set"
-canonical = "BTreeSet iterated in order (implicit dedup)"
+canonical = "BTreeSet"
 concern = ""
 [[sites.collections]]
 name = "port evidence"
 class = "set"
-canonical = "EvidenceBasis::Declared(BTreeSet<SourceId>) written as hex in order"
+canonical = "BTreeSet"
 concern = ""
 [[sites.collections]]
 name = "support Categorical levels (write_support)"
-class = "ordered"
-canonical = "levels written in declared order via texts()"
-concern = "same as callback support: order presumably meaningful; repeats not rejected here"
+class = "set"
+canonical = "admitted only strictly ascending (SupportDomain::is_well_formed)"
+concern = ""
 
 [[sites]]
 id = "contract.joint_event_quantity.JointEventQuantity.write_canonical"
@@ -609,19 +585,18 @@ file = "crates/antecedent-contract/src/joint_event_quantity.rs"
 item = "impl:JointEventQuantity#0/fn:write_canonical#0"
 feeds = "joint event quantity identity inside interface/provider/claim identities"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/joint_event_quantity.rs::site_joint_event_variables_and_conditioning"]
 [[sites.collections]]
 name = "variables"
 class = "ordered"
-canonical = "written in coordinate order (test order_changes_identity: order is meaningful)"
+canonical = "length-framed in declared order (the event point binds positionally); validation refuses a repeat"
 concern = ""
 [[sites.collections]]
 name = "conditioning"
-class = "ordered"
-canonical = "stored order, no sort in this encoder"
-concern = "unlike ScientificQuantity there is no visible sorted-and-distinct validation here; confirm conditioning is canonicalized at construction"
+class = "set"
+canonical = "admitted only strictly ascending by variable (validate lowers through ScientificQuantity::validate)"
+concern = ""
 
 [[sites]]
 id = "contract.joint_law_rule.composed_interval.ComposedCoordinate.of"
@@ -629,9 +604,8 @@ file = "crates/antecedent-contract/src/joint_law_rule/composed_interval.rs"
 item = "impl:ComposedCoordinate#0/fn:of#0"
 feeds = "ComposedCoordinate::id string matched against CoverageRecord.coordinate_id (calibration coverage records)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/joint_law_rule.rs::site_composed_coordinate_roles_and_horizons"]
 [[sites.collections]]
 name = "roles"
 class = "multiset"
@@ -644,9 +618,8 @@ file = "crates/antecedent-contract/src/joint_law_rule/composed_interval.rs"
 item = "impl:ComposedCoordinate#0/fn:over_horizons#0"
 feeds = "ComposedCoordinate::id suffix '|horizons=h,h,...' matched against CoverageRecord.coordinate_id"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/joint_law_rule.rs::site_composed_coordinate_roles_and_horizons"]
 [[sites.collections]]
 name = "horizons"
 class = "set"
@@ -659,29 +632,28 @@ file = "crates/antecedent-contract/src/mechanism_composition.rs"
 item = "fn:canonical_mechanism#0"
 feeds = "MechanismCompositionPlan::identity_hex (antecedent.mechanism_composition_plan), public plan identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/mechanism_composition.rs::site_canonical_mechanism_parent_and_conditioning_sets", "unit:crates/antecedent-contract/src/mechanism_composition.rs::site_canonical_mechanism_latent_sets"]
 [[sites.collections]]
 name = "parents"
-class = "multiset"
-canonical = "map to PlannedParent, sort() on the whole derived-Ord element, no dedup"
-concern = "set meaning (a mechanism's parents) but duplicates kept; check_graph/check_parent compare parents as sets so a repeated parent is accepted and changes the plan identity bytes (len and repeated entry)"
+class = "set"
+canonical = "sort + dedup (PlannedParent total order); the checks compare parents as sets"
+concern = ""
 [[sites.collections]]
 name = "conditioning_variable_ids"
-class = "multiset"
-canonical = "sort() of strings, no dedup; validation compares them as a BTreeSet so repeats pass"
-concern = "set meaning, duplicates kept: ['a','a'] and ['a'] pass the same checks yet give different plan identities"
+class = "set"
+canonical = "sort + dedup"
+concern = ""
 [[sites.collections]]
 name = "latent_causes[].shared_with_variable_ids"
-class = "multiset"
-canonical = "sort() of strings, no dedup"
-concern = "set meaning, duplicates kept; check_latents does not reject a repeated peer"
+class = "set"
+canonical = "sort + dedup"
+concern = ""
 [[sites.collections]]
 name = "latent_causes"
-class = "multiset"
-canonical = "sort_by(|a,b| a.latent_id.cmp(&b.latent_id)), stable"
-concern = "sort key is latent_id only, not the whole element; nothing refuses two latents with the same latent_id on one mechanism, so equal-key ties keep caller order and their (shared_with) bytes make plan identity listing-order dependent"
+class = "set"
+canonical = "sorted by the whole declaration (id, then peers) + dedup"
+concern = ""
 
 [[sites]]
 id = "contract.mechanism_composition.canonical_plan"
@@ -689,28 +661,27 @@ file = "crates/antecedent-contract/src/mechanism_composition.rs"
 item = "fn:canonical_plan#0"
 feeds = "MechanismCompositionPlan::identity_hex (antecedent.mechanism_composition_plan)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/mechanism_composition.rs::site_canonical_plan_mechanism_edge_and_admission_sets"]
 [[sites.collections]]
 name = "mechanisms"
 class = "set"
-canonical = "sort_by variable_id; a repeated output variable is refused by index_mechanisms (IDENTITY_DUPLICATE_MECHANISM), so no ties"
+canonical = "sort by variable; a repeated variable is refused (IDENTITY_DUPLICATE_MECHANISM)"
 concern = ""
 [[sites.collections]]
 name = "edges"
 class = "set"
-canonical = "sort + dedup (explicit)"
+canonical = "sort + dedup"
 concern = ""
 [[sites.collections]]
 name = "admissions"
-class = "multiset"
-canonical = "sort_by (variable_id, coordinate, source_id, target_id), stable, no dedup"
-concern = "sort key omits the basis, and nothing refuses two admissions with the same key (check_context iterates all candidates): ties keep caller order so plan identity depends on listing order of admissions that differ only in basis, and an exactly repeated admission changes identity while edges are deduplicated (set meaning)"
+class = "set"
+canonical = "sorted by every field, basis included (admission_key) + dedup"
+concern = ""
 [[sites.collections]]
 name = "admissions[].basis.SelectionDiagram targets"
 class = "set"
-canonical = "sort + dedup (explicit)"
+canonical = "sort + dedup"
 concern = ""
 
 [[sites]]
@@ -719,14 +690,13 @@ file = "crates/antecedent-contract/src/program_binding.rs"
 item = "impl:ProgramBinding#0/fn:identity#0"
 feeds = "durable program identity (BLAKE3 hex of CanonicalWriter IDENTITY_KEY)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.program_binding_dose_grid", "adversarial:identity_sites.contract.program_binding_framing"]
 [[sites.collections]]
 name = "dose_grid"
-class = "ordered"
-canonical = "reals() in declared order (grid order is meaning)"
-concern = "reals() writes bit patterns, so -0.0 and 0.0 grids differ"
+class = "set"
+canonical = "admitted only strictly increasing and finite; reals by bit pattern"
+concern = "-0.0 and 0.0 are distinct grid spellings (their regime labels differ too); never a collision"
 
 [[sites]]
 id = "contract.provider_transport.AdmittedProviderSource.canonical_identity"
@@ -734,9 +704,8 @@ file = "crates/antecedent-contract/src/provider_transport.rs"
 item = "impl:AdmittedProviderSource#0/fn:canonical_identity#0"
 feeds = "AdmittedProviderSource::canonical_identity -> SemanticDigest (TAG_SOURCE)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.admitted_provider_source_sets"]
 [[sites.collections]]
 name = "assumptions"
 class = "set"
@@ -754,18 +723,17 @@ file = "crates/antecedent-contract/src/provider_transport.rs"
 item = "impl:TransportedClaimOffer#0/fn:canonical_identity#0"
 feeds = "TransportedClaimOffer::canonical_identity -> SemanticDigest (TAG_OFFER); TransportedHandoff identity (TAG_HANDOFF)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.transported_claim_offer_sets"]
 [[sites.collections]]
-name = "transport (TransportIdentity::digest)"
-class = "multiset"
-canonical = "nested digest; populations and assumptions sorted without dedup (see TransportIdentity.encode)"
-concern = "offer identity treats repeated populations/assumptions as distinct while AdmittedProviderSource.assumptions dedup and the ledger path dedups the same lists; validate() does not reject repeats"
+name = "transport (TransportIdentity::set_digest)"
+class = "set"
+canonical = "populations and assumptions sorted + dedup (as_sets), as the ledger and the handoff wire read them"
+concern = ""
 [[sites.collections]]
 name = "evidence"
 class = "set"
-canonical = "BTreeSet<SourceId> iterated in order"
+canonical = "BTreeSet"
 concern = ""
 
 [[sites]]
@@ -774,9 +742,8 @@ file = "crates/antecedent-contract/src/provider_verification.rs"
 item = "impl:ProviderVerificationReceipt#0/fn:digest#0"
 feeds = "receipt digest retained by consumers (ExactRequestVerified trust, AdmittedProviderSource identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/provider_verification.rs::site_provider_verification_receipt_requests_are_ordered"]
 [[sites.collections]]
 name = "requests and probes"
 class = "ordered"
@@ -789,9 +756,8 @@ file = "crates/antecedent-contract/src/provider_verification.rs"
 item = "fn:write_capabilities#0"
 feeds = "ExternalScientificObject::contract_digest / ExecutionContract digests; ProviderVerificationReceipt contract digests"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/provider_verification.rs::site_provider_contract_capabilities_and_quantities"]
 [[sites.collections]]
 name = "capabilities"
 class = "multiset"
@@ -804,9 +770,8 @@ file = "crates/antecedent-contract/src/provider_verification.rs"
 item = "fn:write_quantities#0"
 feeds = "ExternalScientificObject::contract_digest (law/posterior/evidence quantities, utility inputs)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/provider_verification.rs::site_provider_contract_capabilities_and_quantities"]
 [[sites.collections]]
 name = "quantities"
 class = "ordered"
@@ -819,9 +784,8 @@ file = "crates/antecedent-contract/src/quantity.rs"
 item = "impl:ScientificQuantity#0/fn:write_canonical#0"
 feeds = "every quantity-bearing identity (bridge, interface contract, callback, provider, mechanism, evidence obligation)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/quantity.rs::site_scientific_quantity_conditioning_and_framing"]
 [[sites.collections]]
 name = "conditioning"
 class = "set"
@@ -834,14 +798,14 @@ file = "crates/antecedent-contract/src/rewrite_legality/frame.rs"
 item = "impl:FrameLedger#0/fn:fingerprint#0"
 feeds = "FrameFingerprint (selected_rows, folds, dependence, uncertainty digests) via FrameContents::fingerprint and FrameLedger::record; rewrite legality preservation checks"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/rewrite_legality.rs::site_frame_ledger_fingerprint_rows_are_a_multiset"]
+note = "Widened from four to eight 64-bit lanes (512-bit row digests) so a generalized-birthday search over crafted rows is out of reach; the fingerprint is compared in memory and never persisted, so no stored value changes."
 [[sites.collections]]
 name = "rows (Lanes: selected, folds, dependence, uncertainty)"
 class = "multiset"
-canonical = "per-row 256-bit digest (row_digest, length-framed text) added into four u64 lanes with wrapping_add, so order-independent; a repeated row is added twice; row count also written"
-concern = "additive lane sum is a weak multiset hash (not collision resistant against crafted row sets, and record_numeric uses a non-cryptographic mixer); FrameContents refuses repeated row ids but a streaming FrameLedger::record accepts repeats (multiset)"
+canonical = "additive 512-bit lane sum of per-row BLAKE3 digests (two domain-separated halves); order-free, a repeated row counts twice"
+concern = "in-memory run-time comparison only; an additive multiset hash makes no collision-resistance claim against crafted row sets beyond its width"
 
 [[sites]]
 id = "contract.transport_revalidation.TransportRevalidation.identity"
@@ -849,9 +813,8 @@ file = "crates/antecedent-contract/src/transport_revalidation.rs"
 item = "impl:TransportRevalidation#0/fn:identity#0"
 feeds = "TransportRevalidation::identity -> SemanticDigest (antecedent.transport_revalidation.result)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.contract.transport_revalidation_sets"]
 [[sites.collections]]
 name = "claims / reasons"
 class = "set"
@@ -864,9 +827,8 @@ file = "crates/antecedent-core/src/assumption.rs"
 item = "impl:CanonicalEncode for AssumptionScope#0/fn:encode#0"
 feeds = "AssumptionScope::Variables into assumption record digests (ModelAssumptions record_digest, assumption set identities)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_assumption_scope_variables"]
 [[sites.collections]]
 name = "variables"
 class = "set"
@@ -879,9 +841,9 @@ file = "crates/antecedent-core/src/callback.rs"
 item = "impl:CallbackOutput#0/fn:levels#0"
 feeds = "CallbackOutput::Levels written by CanonicalEncode for CallbackOutput (writer.reals) into callback declaration digests"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_callback_output_levels", "adversarial:identity_sites.core.callback_levels"]
+note = "Set of reals by bits: total_cmp sort then == dedup, so [0.0, -0.0] canonicalizes to [-0.0] in either order. -0.0 vs 0.0 is a false distinction (the kernel compares levels with ==), never a collision; reals are bitwise in every canonical encoding, and changing the constructor would change decoded wire identities, so no change."
 [[sites.collections]]
 name = "levels"
 class = "set"
@@ -894,9 +856,8 @@ file = "crates/antecedent-core/src/canonical_encode.rs"
 item = "fn:encode_list#0"
 feeds = "Intervention lists in CounterfactualQuery, InterventionalDistributionQuery, SimulationTarget, DoSamplerTarget, NestedCounterfactualTarget, ResponseFunctional::InterventionResponse"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_list_is_ordered"]
 [[sites.collections]]
 name = "items"
 class = "ordered"
@@ -909,9 +870,9 @@ file = "crates/antecedent-core/src/canonical_encode.rs"
 item = "fn:encode_set#0"
 feeds = "EvidenceCatalog (environments, regimes, bindings), Environment.variables, EvidenceRegime.intervention_values, ResponseQuery.observation_assumptions; query semantic digests"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing"]
+note = "Multiset by design; per-item digests sorted. repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "items"
 class = "multiset"
@@ -924,9 +885,9 @@ file = "crates/antecedent-core/src/canonical_encode.rs"
 item = "fn:encode_variable_set#0"
 feeds = "Every query/target CanonicalEncode that calls it (AverageEffectQuery, TemporalEffectQuery, MediationQuery, InterventionalDistributionQuery, PathSpecificEffectQuery, TransportQuery, TransportWeightedTarget, ObservationAssumption, transport catalog regimes/environments); hashed into the query semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variable_set_is_a_multiset", "unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_set_framing", "adversarial:identity_sites.core.average_effect_modifiers"]
+note = "Multiset by design (documented): callers whose meaning is a set rely on validation or the reading estimator to refuse repeats. repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "variables"
 class = "multiset"
@@ -939,9 +900,8 @@ file = "crates/antecedent-core/src/canonical_encode.rs"
 item = "fn:encode_variables#0"
 feeds = "Order-significant variable lists in ~25 query/target encoders (outcomes, predictors, columns, confounders, histories...)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_encode_variables_is_ordered"]
 [[sites.collections]]
 name = "variables"
 class = "ordered"
@@ -954,9 +914,9 @@ file = "crates/antecedent-core/src/intervention.rs"
 item = "impl:TemporalPolicy#0/fn:dynamic#0"
 feeds = "TemporalPolicy::Dynamic active_at written in stored order by CanonicalEncode for TemporalPolicy"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_temporal_policy_dynamic", "adversarial:identity_sites.core.dynamic_schedule"]
+note = "The public Dynamic variant can be built unsorted, bypassing the constructor; is_active_at binary-searches, so an unsorted schedule misbehaves and must not share the canonical schedule's identity. The fix is a validate() refusal of an unsorted/repeated active_at, which needs a new InterventionError variant (error enum: needs approval); not made."
 [[sites.collections]]
 name = "active_at"
 class = "set"
@@ -969,9 +929,8 @@ file = "crates/antecedent-core/src/query/association.rs"
 item = "impl:CanonicalEncode for AssociationQuery#0/fn:encode#0"
 feeds = "AssociationQuery digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_association_predictors_and_conditioning"]
 [[sites.collections]]
 name = "predictors / conditioning"
 class = "ordered"
@@ -984,9 +943,8 @@ file = "crates/antecedent-core/src/query/attribute.rs"
 item = "impl:CanonicalEncode for AttributeTarget#0/fn:encode#0"
 feeds = "Attribute target digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_attribute_target_sources_and_through"]
 [[sites.collections]]
 name = "sources / through / features"
 class = "ordered"
@@ -999,9 +957,8 @@ file = "crates/antecedent-core/src/query/attribution.rs"
 item = "impl:CanonicalEncode for AnomalyAttributionQuery#0/fn:encode#0"
 feeds = "Anomaly attribution query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_anomaly_attribution_targets"]
 [[sites.collections]]
 name = "targets"
 class = "ordered"
@@ -1014,9 +971,9 @@ file = "crates/antecedent-core/src/query/average.rs"
 item = "impl:CanonicalEncode for AverageEffectQuery#0/fn:encode#0"
 feeds = "AverageEffectQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_average_effect_modifiers", "adversarial:identity_sites.core.average_effect_modifiers"]
+note = "effect_modifiers: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "effect_modifiers"
 class = "multiset"
@@ -1029,9 +986,8 @@ file = "crates/antecedent-core/src/query/continuous_dose.rs"
 item = "fn:encode_group_doses#0"
 feeds = "FixedGroupDosePolicy CanonicalEncode (policy_doses, reference_doses) into the query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_continuous_dose_group_doses"]
 [[sites.collections]]
 name = "entries"
 class = "multiset"
@@ -1044,9 +1000,8 @@ file = "crates/antecedent-core/src/query/counterfactual.rs"
 item = "impl:CanonicalEncode for CounterfactualQuery#0/fn:encode#0"
 feeds = "CounterfactualQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_counterfactual_outcomes"]
 [[sites.collections]]
 name = "outcomes / interventions / joint control world"
 class = "ordered"
@@ -1059,9 +1014,8 @@ file = "crates/antecedent-core/src/query/counterfactual_event.rs"
 item = "impl:CounterfactualEventQuery#0/fn:new#0"
 feeds = "Event and given conjunctions of CounterfactualEventQuery; encoded by antecedent-io-core counterfactual_id_artifact into the persisted query identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_counterfactual_event_atoms"]
 [[sites.collections]]
 name = "event"
 class = "set"
@@ -1084,9 +1038,8 @@ file = "crates/antecedent-core/src/query/cross_world.rs"
 item = "impl:WorldSpec#0/fn:new#0"
 feeds = "WorldSpec interventions and routes inside CounterfactualEventQuery identity (io-core counterfactual_id_artifact)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_world_spec_interventions"]
 [[sites.collections]]
 name = "interventions"
 class = "set"
@@ -1104,9 +1057,8 @@ file = "crates/antecedent-core/src/query/did.rs"
 item = "impl:CanonicalEncode for HeterogeneityRobustDid#0/fn:encode#0"
 feeds = "DiD query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_heterogeneity_robust_did_covariates"]
 [[sites.collections]]
 name = "covariates"
 class = "ordered"
@@ -1119,9 +1071,8 @@ file = "crates/antecedent-core/src/query/discover.rs"
 item = "impl:CanonicalEncode for DiscoverQuery#0/fn:encode#0"
 feeds = "DiscoverQuery digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_discover_variables"]
 [[sites.collections]]
 name = "variables"
 class = "ordered"
@@ -1134,9 +1085,8 @@ file = "crates/antecedent-core/src/query/discover.rs"
 item = "impl:CanonicalEncode for DiscoveryMethod#0/fn:encode#0"
 feeds = "DiscoverQuery digest (ScreenedExactMarginals.focus)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_discovery_method_focus"]
 [[sites.collections]]
 name = "focus"
 class = "ordered"
@@ -1149,9 +1099,9 @@ file = "crates/antecedent-core/src/query/discover.rs"
 item = "impl:CanonicalEncode for StructurePriorSpec#0/fn:encode#0"
 feeds = "StructurePriorSpec inside DiscoveryMethod encoding, hashed into the discover query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_structure_prior_edges"]
+note = "Fixed: edges sort by (from, to, probability bits); validation refuses a repeated (from, to), so no valid map's bytes change."
 [[sites.collections]]
 name = "edges"
 class = "set"
@@ -1169,9 +1119,9 @@ file = "crates/antecedent-core/src/query/distribution.rs"
 item = "impl:CanonicalEncode for InterventionalDistributionQuery#0/fn:encode#0"
 feeds = "InterventionalDistributionQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_distribution_conditioning_and_outcomes"]
+note = "conditioning: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "conditioning"
 class = "multiset"
@@ -1189,9 +1139,9 @@ file = "crates/antecedent-core/src/query/distribution.rs"
 item = "impl:CanonicalEncode for PathSpecificEffectQuery#0/fn:encode#0"
 feeds = "PathSpecificEffectQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_path_specific_path_nodes", "adversarial:identity_sites.core.path_nodes"]
+note = "path_nodes: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "path_nodes"
 class = "multiset"
@@ -1204,9 +1154,8 @@ file = "crates/antecedent-core/src/query/history_match.rs"
 item = "impl:CanonicalEncode for HistoryMatchQuery#0/fn:encode#0"
 feeds = "HistoryMatchQuery digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_history_match_history"]
 [[sites.collections]]
 name = "history"
 class = "ordered"
@@ -1219,9 +1168,8 @@ file = "crates/antecedent-core/src/query/local_polynomial_ratio.rs"
 item = "impl:CanonicalEncode for LocalRatioOptions#0/fn:encode#0"
 feeds = "Local ratio options digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_local_ratio_balance_covariates"]
 [[sites.collections]]
 name = "balance_covariates"
 class = "ordered"
@@ -1234,9 +1182,9 @@ file = "crates/antecedent-core/src/query/mediation.rs"
 item = "impl:CanonicalEncode for MediationQuery#0/fn:encode#0"
 feeds = "MediationQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_mediation_mediators"]
+note = "mediators: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "mediators"
 class = "multiset"
@@ -1254,9 +1202,8 @@ file = "crates/antecedent-core/src/query/model_operations.rs"
 item = "impl:CanonicalEncode for DoSamplerTarget#0/fn:encode#0"
 feeds = "Do-sampler operation digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_do_sampler_interventions"]
 [[sites.collections]]
 name = "interventions"
 class = "ordered"
@@ -1269,9 +1216,8 @@ file = "crates/antecedent-core/src/query/model_operations.rs"
 item = "impl:CanonicalEncode for NestedCounterfactualTarget#0/fn:encode#0"
 feeds = "Nested counterfactual operation digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_nested_counterfactual_target_lists"]
 [[sites.collections]]
 name = "frozen"
 class = "ordered"
@@ -1289,9 +1235,8 @@ file = "crates/antecedent-core/src/query/randomized.rs"
 item = "impl:CanonicalEncode for RandomizedEffectQuery#0/fn:encode#0"
 feeds = "Randomized effect query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_randomized_ancova_covariates"]
 [[sites.collections]]
 name = "ancova_covariates"
 class = "ordered"
@@ -1304,9 +1249,9 @@ file = "crates/antecedent-core/src/query/response.rs"
 item = "impl:CanonicalEncode for ObservationAssumption#0/fn:encode#0"
 feeds = "ResponseQuery.observation_assumptions entries"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_observation_assumption_conditioning"]
+note = "conditioning: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "conditioning variables (IndependentGiven / OutcomeIndependentGiven)"
 class = "multiset"
@@ -1319,9 +1264,8 @@ file = "crates/antecedent-core/src/query/response.rs"
 item = "impl:CanonicalEncode for ResponseFunctional#0/fn:encode#0"
 feeds = "ResponseQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_response_functional_grid"]
 [[sites.collections]]
 name = "outcomes / treatments / at / direction / interventions"
 class = "ordered"
@@ -1334,9 +1278,9 @@ file = "crates/antecedent-core/src/query/response.rs"
 item = "impl:CanonicalEncode for ResponseQuery#0/fn:encode#0"
 feeds = "ResponseQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_response_observation_assumptions"]
+note = "observation_assumptions: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "observation_assumptions"
 class = "multiset"
@@ -1349,9 +1293,8 @@ file = "crates/antecedent-core/src/query/sequential_contrast.rs"
 item = "impl:CanonicalEncode for SequentialContrastQuery#0/fn:encode#0"
 feeds = "SequentialContrastQuery digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_sequential_contrast_baseline_and_intermediate"]
 [[sites.collections]]
 name = "baseline / intermediate"
 class = "ordered"
@@ -1364,9 +1307,8 @@ file = "crates/antecedent-core/src/query/simulate.rs"
 item = "impl:CanonicalEncode for SimulationTarget#0/fn:encode#0"
 feeds = "SimulationTarget digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_simulation_target_interventions"]
 [[sites.collections]]
 name = "interventions / outcomes"
 class = "ordered"
@@ -1379,9 +1321,8 @@ file = "crates/antecedent-core/src/query/survival.rs"
 item = "impl:CanonicalEncode for KnownCensoringSurvival#0/fn:encode#0"
 feeds = "Known-censoring survival input digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_known_censoring_columns"]
 [[sites.collections]]
 name = "columns"
 class = "ordered"
@@ -1394,9 +1335,8 @@ file = "crates/antecedent-core/src/query/target.rs"
 item = "impl:CanonicalEncode for TargetPopulation#0/fn:encode#0"
 feeds = "Target population section of query digests"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_target_population_row_weights_depends_on"]
 [[sites.collections]]
 name = "depends_on (RowWeights)"
 class = "ordered"
@@ -1409,9 +1349,9 @@ file = "crates/antecedent-core/src/query/temporal.rs"
 item = "impl:CanonicalEncode for TemporalEffectQuery#0/fn:encode#0"
 feeds = "TemporalEffectQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_temporal_effect_modifiers"]
+note = "effect_modifiers: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would."
 [[sites.collections]]
 name = "effect_modifiers"
 class = "multiset"
@@ -1424,9 +1364,8 @@ file = "crates/antecedent-core/src/query/temporal_design.rs"
 item = "impl:CanonicalEncode for TemporalAssignment#0/fn:encode#0"
 feeds = "Temporal design digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_temporal_assignment_confounders_and_history"]
 [[sites.collections]]
 name = "confounders / history"
 class = "ordered"
@@ -1439,9 +1378,8 @@ file = "crates/antecedent-core/src/query/transport.rs"
 item = "impl:CanonicalEncode for TransportQuery#0/fn:encode#0"
 feeds = "TransportQuery semantic digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_transport_source_experiments"]
 [[sites.collections]]
 name = "source_experiments"
 class = "multiset"
@@ -1454,9 +1392,9 @@ file = "crates/antecedent-core/src/query/transport.rs"
 item = "impl:CanonicalEncode for TransportWeightedTarget#0/fn:encode#0"
 feeds = "Weighted-target section of TransportQuery digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_transport_weighted_target_covariates"]
+note = "covariates: repeats kept: a repeated declaration stays apart from the deduplicated one. The estimators that read this list refuse a repeat (Bayesian g-computation 'distinct modifiers', ADMG conditional 'unique', front-door unique mediators) or read it as given, so a multiset identity never aliases a refused declaration to an accepted one; a set identity would. The kernel center/scale lists align with the declared covariate order while covariates are written sorted; the declaration identity (the `identity` field, antecedent.weighted_target.v1) binds covariates in declared order with centers and scales, so no two produced targets collide."
 [[sites.collections]]
 name = "covariates"
 class = "multiset"
@@ -1469,9 +1407,8 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:CanonicalEncode for DistributionAvailability#0/fn:encode#0"
 feeds = "EvidenceRegime::encode"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_distribution_availability_marginals"]
 [[sites.collections]]
 name = "variables"
 class = "multiset"
@@ -1484,9 +1421,8 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:CanonicalEncode for Environment#0/fn:encode#0"
 feeds = "Environment inside EvidenceCatalog::encode, hashed into transport query identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_environment_variables_and_selection_targets"]
 [[sites.collections]]
 name = "variables (VariableCoordinate)"
 class = "multiset"
@@ -1504,9 +1440,8 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:EvidenceCatalog#0/fn:canonicalized#0"
 feeds = "Canonical ordering used by planners and analyses (antecedent-design z_transport_planner, study_planner, study_plan_artifact, analysis statistical/exact/transport programs) before they hash or persist catalog-derived identities"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_evidence_catalog_canonicalized"]
 [[sites.collections]]
 name = "environments"
 class = "set"
@@ -1554,9 +1489,9 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:CanonicalEncode for EvidenceCatalog#0/fn:encode#0"
 feeds = "TransportQuery::encode (encode_option catalog) into the transport query digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_evidence_catalog_encode"]
+note = "Entries are unique only after validate(); encode does not validate, so an unvalidated catalog with a repeated entry has its own identity (multiset), never another catalog's."
 [[sites.collections]]
 name = "environments / regimes / bindings"
 class = "multiset"
@@ -1569,9 +1504,8 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:CanonicalEncode for EvidenceRegime#0/fn:encode#0"
 feeds = "EvidenceCatalog::encode, hashed into transport query identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_evidence_regime_variable_sets_and_values"]
 [[sites.collections]]
 name = "interventions / measured / conditioned_on"
 class = "multiset"
@@ -1589,9 +1523,8 @@ file = "crates/antecedent-core/src/query/transport_catalog.rs"
 item = "impl:CanonicalEncode for SamplingSelection#0/fn:encode#0"
 feeds = "EvidenceRegime::encode"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_sampling_selection_variables"]
 [[sites.collections]]
 name = "variables"
 class = "multiset"
@@ -1604,9 +1537,8 @@ file = "crates/antecedent-core/src/query/transport_distribution.rs"
 item = "impl:CatalogDistribution#0/fn:canonical_identity#0"
 feeds = "String identity of a catalog distribution; recorded by antecedent-identify recovery.rs (observed_identity) and sid/mixed_source, so persisted in recovery records and keys"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/query/identity_site_tests.rs::site_catalog_distribution_identity"]
 [[sites.collections]]
 name = "values (intervention_values)"
 class = "set"
@@ -1629,9 +1561,8 @@ file = "crates/antecedent-core/src/scientific_target/contrast.rs"
 item = "impl:CanonicalEncode for InterventionContrast#0/fn:encode#0"
 feeds = "InterventionContrast inside the scientific target digest (published target identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_intervention_contrast_linear_terms"]
 [[sites.collections]]
 name = "terms (Linear form)"
 class = "multiset"
@@ -1649,9 +1580,8 @@ file = "crates/antecedent-core/src/scientific_target/contrast.rs"
 item = "impl:InterventionContrast#0/fn:linear#0"
 feeds = "linear_terms order stored on the contrast; encode re-sorts by digest, so this order affects term iteration, not the Linear bytes"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_intervention_contrast_linear_terms"]
 [[sites.collections]]
 name = "terms"
 class = "set"
@@ -1664,9 +1594,8 @@ file = "crates/antecedent-core/src/scientific_target/mediation.rs"
 item = "impl:MediationArms#0/fn:new#0"
 feeds = "arms.mediators, written by MediationTarget::encode via encode_variables"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_mediation_arms_mediators"]
 [[sites.collections]]
 name = "mediators"
 class = "set"
@@ -1679,9 +1608,8 @@ file = "crates/antecedent-core/src/scientific_target/mediation.rs"
 item = "impl:CanonicalEncode for MediationTarget#0/fn:encode#0"
 feeds = "Scientific target digest for mediation targets"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_mediation_target_premises"]
 [[sites.collections]]
 name = "premises"
 class = "set"
@@ -1694,9 +1622,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:Conditioning#0/fn:on#0"
 feeds = "WorldBinding::encode (encode_variables of conditioning.variables())"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_conditioning_on_and_world_binding"]
 [[sites.collections]]
 name = "on"
 class = "set"
@@ -1709,9 +1636,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:CanonicalEncode for HistoryIndexedTargetLaw#0/fn:encode#0"
 feeds = "Scientific target digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_history_indexed_target_law"]
 [[sites.collections]]
 name = "coordinates"
 class = "ordered"
@@ -1729,9 +1655,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:HistoryIndexedTargetLaw#0/fn:new#0"
 feeds = "experiments order, written in stored order by HistoryIndexedTargetLaw::encode"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_history_indexed_target_law"]
 [[sites.collections]]
 name = "experiments"
 class = "set"
@@ -1744,9 +1669,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:CanonicalEncode for ModelAssumptions#0/fn:encode#0"
 feeds = "Scientific target digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_model_assumptions_records"]
 [[sites.collections]]
 name = "records"
 class = "set"
@@ -1759,9 +1683,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:CanonicalEncode for WorldBinding#0/fn:encode#0"
 feeds = "InterventionWorld content digest, scientific target digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_world_binding_conditioning"]
 [[sites.collections]]
 name = "conditioning variables"
 class = "ordered"
@@ -1774,9 +1697,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:CanonicalEncode for WorldCollection#0/fn:encode#0"
 feeds = "Scientific target digest (worlds as a set of content digests)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_world_collection"]
 [[sites.collections]]
 name = "worlds"
 class = "multiset"
@@ -1789,9 +1711,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "impl:WorldCollection#0/fn:new#0"
 feeds = "worlds order in the collection (iteration/lookup); identity uses WorldCollection::encode"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_world_collection"]
 [[sites.collections]]
 name = "worlds"
 class = "set"
@@ -1804,9 +1725,9 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "fn:canonical_interventions#0"
 feeds = "ActionKind::Interventions list written in stored order by WorldAction::encode into the world content digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_canonical_interventions"]
+note = "min_target ties need two interventions with no target variable; target variables are disjoint across interventions and validated interventions name a target."
 [[sites.collections]]
 name = "interventions"
 class = "set"
@@ -1819,9 +1740,8 @@ file = "crates/antecedent-core/src/scientific_target/model.rs"
 item = "fn:canonical_structural#0"
 feeds = "ActionKind::Structural actions, written in stored order by WorldAction::encode into InterventionWorld content digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/scientific_target/identity_site_tests.rs::site_canonical_structural"]
 [[sites.collections]]
 name = "actions"
 class = "set"
@@ -1835,7 +1755,7 @@ item = "impl:CanonicalEncode for Value#0/fn:encode#0"
 feeds = "every canonical identity that writes a Value (intervention levels, law axes, query contrasts)"
 released = true
 status = "checked"
-checks = ["adversarial:identity_sites.value_encoding_injective"]
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_value_encoding", "adversarial:identity_sites.value_encoding_injective"]
 [[sites.collections]]
 name = "value"
 class = "ordered"
@@ -1848,9 +1768,9 @@ file = "crates/antecedent-core/src/value_expr.rs"
 item = "impl:PolicyReads#0/fn:new#0"
 feeds = "PolicyReads::encode (current via encode_variables, history pairs in stored order)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-core/src/identity_site_tests.rs::site_policy_reads", "adversarial:identity_sites.core.policy_reads"]
+note = "Fields are public, but validate_program requires the declaration to equal ValueExpr::reads() (built by PolicyReads::new), so every validated declaration is canonical."
 [[sites.collections]]
 name = "current"
 class = "set"
@@ -1868,9 +1788,8 @@ file = "crates/antecedent-design/src/adaptive_policy.rs"
 item = "impl:AdaptivePolicyFamily#0/fn:identity#0"
 feeds = "family_identity in the adaptive policy search record and PreparedAdaptivePolicySearch::identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/adaptive_policy.rs::identity_site_family_features_are_ordered"]
 [[sites.collections]]
 name = "features"
 class = "ordered"
@@ -1893,9 +1812,8 @@ file = "crates/antecedent-design/src/adaptive_policy_search.rs"
 item = "impl:PreparedAdaptivePolicySearch#0/fn:identity#0"
 feeds = "problem_identity -> record_identity of the search result"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/adaptive_policy_search.rs::identity_site_prepared_search_families_are_ordered"]
 [[sites.collections]]
 name = "families"
 class = "ordered"
@@ -1908,9 +1826,8 @@ file = "crates/antecedent-design/src/adaptive_policy_search.rs"
 item = "fn:record_identity#0"
 feeds = "AdaptivePolicySearchResult.record_identity (replay check in verify)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/adaptive_policy_search.rs::a_fixed_seed_replays_exactly_and_a_new_seed_changes_the_record"]
 [[sites.collections]]
 name = "families, attempts"
 class = "ordered"
@@ -1923,14 +1840,14 @@ file = "crates/antecedent-design/src/adaptive_trial_transport.rs"
 item = "impl:TrialSelectionDiagram#0/fn:identity_hex#0"
 feeds = "diagram identity in the adaptive-trial transport result (premises of the transported contrast)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_b.adaptive_trial_selection_diagram"]
+note = "Decided multiset encoding: the kernel refuses repeats, so a deduplicating encoding would give a refused diagram the identity of a valid one."
 [[sites.collections]]
 name = "mechanisms"
 class = "multiset"
-canonical = "(mechanism, status) tuples sort(), count-prefixed; duplicates impossible once check_diagram runs (a mechanism may be declared once)"
-concern = "identity_hex is public and does not call check_diagram: a diagram with a repeated mechanism still gets an identity"
+canonical = "(mechanism, status) rows sorted, count-prefixed, repeats kept; check_diagram refuses a repeated mechanism before the diagram is used, so a valid diagram's rows are a set"
+concern = ""
 
 [[sites]]
 id = "design.composition_bundle.CompositionBundle.new"
@@ -1938,9 +1855,8 @@ file = "crates/antecedent-design/src/composition_bundle.rs"
 item = "impl:CompositionBundle#0/fn:new#0"
 feeds = "bundle_identity (nodes, per-node Merkle digests, edges) of the composition bundle"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/composition_bundle.rs::bundle_identity_is_invariant_to_node_and_edge_declaration_order"]
 [[sites.collections]]
 name = "nodes"
 class = "set"
@@ -1958,39 +1874,39 @@ file = "crates/antecedent-design/src/composition_bundle.rs"
 item = "fn:node_digest#0"
 feeds = "per-node digest inside bundle_identity and the Merkle chain links"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/composition_bundle.rs::requires_fields_are_framed_when_they_contain_the_separator", "unit:crates/antecedent-design/tests/composition_bundle.rs::bundle_identity_is_invariant_to_node_and_edge_declaration_order"]
+note = "Fixed: a reference's required provider or data source is framed (requires.v2) when a field contains '|'; separator-free references keep the v1 digest. CompositionBundle consume falls back to the v1 node digests when the stored identity is the v1 one."
 [[sites.collections]]
 name = "facts"
 class = "set"
-canonical = "BTreeMap<String,String> iterated in key order, count-prefixed (Reference nodes only)"
+canonical = "BTreeMap order, count-prefixed"
 concern = ""
 [[sites.collections]]
 name = "inspected"
-class = "set"
-canonical = "BTreeMap<String,f64> in key order, count-prefixed, values as to_bits"
-concern = "-0.0 and 0.0 values hash differently"
-[[sites.collections]]
-name = "requires (ProviderOrData::canonical)"
 class = "ordered"
-canonical = "a '|'-joined string of provider/snapshot/request ids, hashed as one text"
-concern = "separator join without length framing: ids containing '|' can shift content between fields"
+canonical = "count-prefixed, values by bit pattern (-0.0 and 0.0 differ by the canonical real rule)"
+concern = ""
+[[sites.collections]]
+name = "requires (ProviderOrData)"
+class = "ordered"
+canonical = "v1 '|' join when no field contains '|', else kind and framed fields"
+concern = ""
 
 [[sites]]
 id = "design.composition_verifiers.artifact_inspection.inspect_external_claim"
 file = "crates/antecedent-design/src/composition_verifiers/artifact_inspection.rs"
-item = "fn:inspect_external_claim#0"
+item = "fn:evidence_digest#0"
 feeds = "FACT_EVIDENCE_DIGEST node fact (digest_parts over sorted evidence/assumption/equivalence ids) -> node_digest -> bundle identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/composition_verifiers/artifact_inspection.rs::evidence_ids_are_framed_sets"]
+note = "Fixed: the evidence digest fact (evidence_digest, part tag evidence.v2) writes each id list as a set (sorted, each once), length-prefixed with every id framed. The fact is recomputed by every consumer and compared only with facts computed the same way; nothing stores it, so no v1 acceptance is needed."
 [[sites.collections]]
 name = "evidence_ids, assumption_ids, equivalence_ids"
-class = "multiset"
-canonical = "each list sort(), no dedup, joined with ',' and hashed as one text"
-concern = "ids are a set but repeats are kept; comma join without framing lets [\"a,b\"] collide with [\"a\",\"b\"] (ids are free text)"
+class = "set"
+canonical = "BTreeSet per list, count part then each id as its own framed part"
+concern = ""
 
 [[sites]]
 id = "design.composition_verifiers.coordinate_ids"
@@ -2000,7 +1916,7 @@ feeds = "FACT_COORDINATES / FACT_QUANTITY_DIGEST node facts -> node_digest -> bu
 released = true
 status = "listed"
 checks = []
-reason = "no generated case on production code yet; classified by review"
+reason = "no generated case yet; 64-bit truncation of a quantity digest is a design choice to review, not a set/order law"
 [[sites.collections]]
 name = "coordinate ids"
 class = "set"
@@ -2013,9 +1929,8 @@ file = "crates/antecedent-design/src/confounder_value.rs"
 item = "impl:ConfounderValueFrame#0/fn:source_digests#0"
 feeds = "source_digests bound into RankingRecord::from_evsi (which dedups) and the ranking identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/confounder_value.rs::identity_site_source_digests_are_sorted_and_bind_both_sources"]
 [[sites.collections]]
 name = "digests (artifact identity, prior identity)"
 class = "multiset"
@@ -2025,22 +1940,21 @@ concern = ""
 [[sites]]
 id = "design.decision_contract.DecisionContract.validated_identity"
 file = "crates/antecedent-design/src/decision_contract.rs"
-item = "impl:DecisionContract#0/fn:validated_identity#0"
+item = "impl:DecisionContract#0/fn:identity_with#0"
 feeds = "DecisionContract::identity / declaration_identity -> AdmissibleDecisionContract identity, robust-result and design-ranking artifacts (decision.contract_identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_contract.rs::identity_site_contract_sets_and_applies_to", "unit:crates/antecedent-design/src/decision_contract.rs::identity_ignores_declaration_order_but_not_semantics", "unit:crates/antecedent-design/tests/identity_properties_decision_contract.rs::reordering_actions_and_constraints_leaves_identity_unchanged", "unit:crates/antecedent-design/tests/identity_properties_decision_contract.rs::every_semantic_field_changes_identity"]
 [[sites.collections]]
 name = "actions"
 class = "multiset"
-canonical = "per-action CanonicalWriter digest (id, kind, inputs, utility), digests sort_unstable, count-prefixed by put_list"
-concern = "duplicate action ids are rejected only by validate(); declaration_identity() skips validation, so a repeated action changes the identity of an invalid declaration"
+canonical = "per-action digest, sorted; validate refuses a repeated action id, so for a valid contract this is a set; declaration_identity of an invalid declaration keeps the repeat (a different declaration)"
+concern = ""
 [[sites.collections]]
 name = "constraints"
 class = "multiset"
-canonical = "per-constraint digest (encode_constraint), digests sort_unstable, count-prefixed"
-concern = "duplicate constraint ids rejected only by validate(); declaration_identity() skips validation"
+canonical = "per-constraint digest, sorted; validate refuses a repeated constraint id"
+concern = ""
 
 [[sites]]
 id = "design.decision_contract.admissibility.AdmissibleDecisionContract.declaration_identity"
@@ -2048,9 +1962,8 @@ file = "crates/antecedent-design/src/decision_contract/admissibility.rs"
 item = "impl:AdmissibleDecisionContract#0/fn:declaration_identity#0"
 feeds = "AdmissibleDecisionContract::identity (validated wrapper) -> robust-result artifact contract identity and bound_decision_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_robustness.rs::admissibility_identity_ignores_order_but_not_semantics", "unit:crates/antecedent-design/tests/decision_robust_artifact.rs::admissible_identity_ignores_declaration_order_but_not_semantics"]
 [[sites.collections]]
 name = "support_rules"
 class = "multiset"
@@ -2068,14 +1981,14 @@ file = "crates/antecedent-design/src/decision_contract.rs"
 item = "fn:encode_constraint#0"
 feeds = "per-constraint digest inside DecisionContract::validated_identity and ProgramSearchContract::identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_contract.rs::identity_site_contract_sets_and_applies_to"]
+note = "Fixed: applies_to is read with contains (a set), so the identity sorts and deduplicates it. Identities agree with earlier releases for every contract without a repeated id; accepts_identity accepts the earlier multiset spelling at DecisionContractArtifact::from_bytes, DecisionArtifact replay, structural and robust replay, and the scenario carrier."
 [[sites.collections]]
 name = "applies_to"
-class = "multiset"
-canonical = "action-id strings sort(), written with texts (count + length-framed); no dedup"
-concern = "applies_to is a set of action ids (validate checks each is declared but never rejects a repeat), so [a,a] and [a] constrain the same actions yet hash differently"
+class = "set"
+canonical = "sort + dedup"
+concern = ""
 
 [[sites]]
 id = "design.decision_contract.search.ProgramSearchContract.identity"
@@ -2085,7 +1998,7 @@ feeds = "ProgramSearchContract identity ([u8;32]) -> program_search candidate/se
 released = true
 status = "listed"
 checks = []
-reason = "no generated case on production code yet; classified by review"
+reason = "no test permutes a program-search contract's constraints yet; constraints reuse encode_constraint (checked)"
 [[sites.collections]]
 name = "constraints"
 class = "multiset"
@@ -2098,9 +2011,8 @@ file = "crates/antecedent-design/src/decision_evidence/mod.rs"
 item = "impl:JointExperimentEvidence#0/fn:adjustment_identity#0"
 feeds = "JointExperimentEvidence::estimate_identity and the stage digests of the reuse receipt"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_evidence/mod.rs::identity_site_adjustments_are_a_set_keyed_by_component"]
 [[sites.collections]]
 name = "adjustments"
 class = "set"
@@ -2113,18 +2025,18 @@ file = "crates/antecedent-design/src/decision_evidence/compile.rs"
 item = "fn:compile_joint_experiment#0"
 feeds = "CompiledJointExperiment.adjustment_identity and scientific_identity (compiled joint-experiment premise ids)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_b.compile_joint_experiment", "unit:crates/antecedent-design/src/decision_evidence/mod.rs::identity_site_adjustments_are_a_set_keyed_by_component"]
+note = "Fixed: compile refused nothing for a repeated component, so tied adjustments kept caller order. Valid inputs keep their identity."
 [[sites.collections]]
 name = "spec.adjustments"
 class = "set"
-canonical = "sort_by(component) (stable), then written in that order without a count prefix; one adjustment per component is intended"
-concern = "unlike JointExperimentEvidence::new this does not reject two adjustments for the same component, and the sort key is only the component: tied entries keep caller order, so the identity depends on input order and a duplicate changes the bytes"
+canonical = "sort_by(component); a second adjustment of one component is refused (as JointExperimentEvidence::new does), so the component key is unique and no caller order reaches the bytes"
+concern = ""
 [[sites.collections]]
 name = "spec.outcomes"
 class = "ordered"
-canonical = "written in declared order (name, variable, units); order is meaning because arm means/covariance are positional"
+canonical = "declared order (name, variable, units); arm means and covariance are positional"
 concern = ""
 
 [[sites]]
@@ -2133,9 +2045,8 @@ file = "crates/antecedent-design/src/decision_evidence/derive.rs"
 item = "fn:derive_uncalibrated#0"
 feeds = "AssumedRange.assumption_ids -> Verdict::AssumptionDependent.assumption_ids in DecisionResult (public decision result)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_evidence/derive.rs::identity_site_assumption_ids_are_a_set"]
 [[sites.collections]]
 name = "assumption_ids"
 class = "set"
@@ -2148,14 +2059,14 @@ file = "crates/antecedent-design/src/decision_reliability/draws.rs"
 item = "impl:DecisionDraws#0/fn:canonical_order#0"
 feeds = "candidate_set_digest and DecisionDraws::digest_hex (decision-reliability report source digest)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_reliability.rs::identity_site_decision_draws_are_keyed_by_candidate_id"]
+note = "Fixed: the tie-break keeps a carrier that repeats an id from depending on listing order; ids are unique in a valid carrier, so no valid digest changes."
 [[sites.collections]]
 name = "candidates (index order)"
 class = "set"
-canonical = "indices sorted by candidate id (stable sort_by); ids unique by construction (validate() rejects blank or repeated ids)"
-concern = "digest_hex()/candidate_set_digest() do not call validate(); with a repeated id the stable sort keeps producer order for the tied candidates, so the digest depends on listing order"
+canonical = "sorted by id, ties (only in an unvalidated carrier) broken by segment digest and utility bits"
+concern = ""
 
 [[sites]]
 id = "design.decision_reliability.draws.DecisionDraws.digest_hex"
@@ -2163,9 +2074,8 @@ file = "crates/antecedent-design/src/decision_reliability/draws.rs"
 item = "impl:DecisionDraws#0/fn:digest_hex#0"
 feeds = "DecisionDraws digest retained by the reliability report"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_reliability.rs::identity_site_decision_draws_are_keyed_by_candidate_id"]
 [[sites.collections]]
 name = "weights"
 class = "ordered"
@@ -2183,19 +2093,19 @@ file = "crates/antecedent-design/src/decision_robust_artifact.rs"
 item = "impl:RobustResultArtifact#0/fn:new#0"
 feeds = "external_receipts and atoms of RobustBody, sealed by RobustResultArtifact::to_bytes; atoms also feed lineage links"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_robust_artifact.rs::identity_site_robust_receipts_are_a_set_and_structures_keep_their_order"]
+note = "Structures stay ordered by design: the consumer's retained digest list is positional."
 [[sites.collections]]
 name = "receipts"
 class = "set"
-canonical = "sort_by(atom_id); duplicates impossible by construction (check_receipts rejects a second receipt per structure)"
+canonical = "sort_by(atom_id); check_receipts refuses a second receipt per structure"
 concern = ""
 [[sites.collections]]
 name = "atoms (structures)"
 class = "ordered"
-canonical = "atom_wires(atoms) kept in caller order; from_bytes compares them in that order against the consumer's retained list"
-concern = "structures are unique by id (check_atom_wires) and read as a set, but the bytes and the lineage digests depend on caller order; reordering atoms changes the artifact"
+canonical = "caller order: from_bytes compares the structure digests in order against the list the consumer retained"
+concern = ""
 
 [[sites]]
 id = "design.decision_robust_artifact.profile_to_wire"
@@ -2203,19 +2113,19 @@ file = "crates/antecedent-design/src/decision_robust_artifact.rs"
 item = "fn:profile_to_wire#0"
 feeds = "ProfileWire inside RobustBody, CBOR-encoded and sealed in the checksummed container of RobustResultArtifact::to_bytes"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_robust_artifact.rs::identity_site_profile_wire_is_order_free"]
+note = "Fixed: whole-entry tie-breaks. Replay compares both sides through profile_to_wire, so stored artifacts still replay."
 [[sites.collections]]
 name = "support (atom entries)"
 class = "set"
-canonical = "sort_by(atom_id), stable"
-concern = "ClaimProfile.support is a Vec<(String, AtomSupport)> with no uniqueness check in this file; a repeated atom id would tie and keep input order in the wire bytes"
+canonical = "sorted by atom id, ties broken by the whole entry (overall, per-input rows)"
+concern = ""
 [[sites.collections]]
 name = "per_input"
 class = "set"
-canonical = "sort_by((action_id, input)), stable; status not in the key"
-concern = "a repeated (action,input) pair with different statuses would be ordered by input order"
+canonical = "sorted by (action, input, status)"
+concern = ""
 
 [[sites]]
 id = "design.decision_robust_artifact.result_wire"
@@ -2223,29 +2133,29 @@ file = "crates/antecedent-design/src/decision_robust_artifact.rs"
 item = "fn:result_wire#0"
 feeds = "ResultWire in the sealed robust-result body (RobustResultArtifact::to_bytes / to_json)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_robust_artifact.rs::identity_site_result_wire_writes_sets_once_in_order", "unit:crates/antecedent-design/tests/decision_robust_artifact.rs::robust_bytes_are_invariant_to_action_order"]
+note = "Fixed: atom-id lists written as sets and shortfalls ordered by the whole entry. Replay re-encodes the stored and the recomputed result through result_wire, so stored artifacts still replay; the container bytes of new artifacts differ only where a list was unsorted, repeated or tied."
 [[sites.collections]]
 name = "actions"
 class = "set"
-canonical = "sort_by(id); ids unique because the contract validates unique action ids"
+canonical = "sorted by id; ids unique by contract validation"
 concern = ""
 [[sites.collections]]
 name = "actions[].unsupported_in"
-class = "multiset"
-canonical = "sort(), no dedup"
-concern = "a set of atom ids sorted without dedup; a repeated id changes the bytes"
+class = "set"
+canonical = "sorted and deduplicated"
+concern = ""
 [[sites.collections]]
 name = "shortfalls"
 class = "set"
-canonical = "sort_by((atom, action, input)), stable; status/weakest_allowed not in the key"
-concern = "tie possible only if the same (atom,action,input) shortfall is listed twice with different statuses"
+canonical = "sorted by (atom, action, input, status, weakest_allowed)"
+concern = ""
 [[sites.collections]]
 name = "unsupported_atoms"
-class = "multiset"
-canonical = "sort(), no dedup"
-concern = "set of atom ids sorted without dedup"
+class = "set"
+canonical = "sorted and deduplicated"
+concern = ""
 
 [[sites]]
 id = "design.decision_robust_artifact.verdict_to_wire"
@@ -2253,19 +2163,19 @@ file = "crates/antecedent-design/src/decision_robust_artifact.rs"
 item = "fn:verdict_to_wire#0"
 feeds = "VerdictWire in the sealed robust-result body"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/decision_robust_artifact.rs::identity_site_result_wire_writes_sets_once_in_order"]
+note = "Fixed: Tied ids were written in producer order and structure pairs in verdict order. Stored artifacts replay (both sides re-encoded)."
 [[sites.collections]]
-name = "GraphDependentChoice leader ids"
+name = "GraphDependentChoice leaders"
 class = "set"
-canonical = "ids.sort() per atom, no dedup; the (atom, ids) pairs themselves are kept in the verdict's order"
-concern = "the per-atom list order is canonical but the order of the atom pairs and a repeated leader id are not normalized"
+canonical = "per-structure leader ids sorted and deduplicated; (structure, leaders) pairs sorted and deduplicated"
+concern = ""
 [[sites.collections]]
 name = "Tied ids"
-class = "ordered"
-canonical = "cloned in the order the aggregate produced them (not sorted)"
-concern = "a tie is a set of action ids but is written in producer order; order is deterministic only if the aggregator returns ascending indices of the original action order, so reordering contract actions can change the stored bytes"
+class = "set"
+canonical = "sorted and deduplicated, as the result wire documents"
+concern = ""
 
 [[sites]]
 id = "design.decision_transported_source.TransportReceipt.canonical_identity"
@@ -2273,9 +2183,8 @@ file = "crates/antecedent-design/src/decision_transported_source.rs"
 item = "impl:TransportReceipt#0/fn:canonical_identity#0"
 feeds = "TransportReceipt identity -> ForwardOrigin.source_identity, transported decision/inverse sources"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_transported_source.rs::identity_site_receipt_lists_are_sets"]
 [[sites.collections]]
 name = "source_populations"
 class = "set"
@@ -2298,14 +2207,14 @@ file = "crates/antecedent-design/src/decision_transported_source.rs"
 item = "impl:TransportedResponse#0/fn:merge_points#0"
 feeds = "merged source_identity / snapshot_id / causal_contract_id of the merged transported point (TAG_MERGE digest)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_transported_source.rs::identity_site_merged_points_bind_member_values"]
+note = "Fixed (identity v2): v1 bound only the member identities, so two merges of the same members with different values shared one source identity. The merged identity is not recomputed from members on read (from_stored_point validates the stored receipt), so no dual-accept is needed; merged points get a new identity once."
 [[sites.collections]]
-name = "member source identities"
+name = "members (identity, coordinates, means)"
 class = "multiset"
-canonical = "identities sort_unstable, no dedup, texts count-prefixed"
-concern = "the merged id binds only the multiset of member identities, not which coordinates and means each carried; member identities are caller-declared text for a Declared route, so two merges with the same members but a different coordinate assignment share the merged id"
+canonical = "per member (source identity, coordinate identities, mean bits), sorted, count-prefixed (tag antecedent.transported_response.merge.v2)"
+concern = ""
 
 [[sites]]
 id = "design.decision_transported_source.finalize"
@@ -2313,9 +2222,8 @@ file = "crates/antecedent-design/src/decision_transported_source.rs"
 item = "fn:finalize#0"
 feeds = "TransportReceipt fields stored on every TransportedResponse (re-normalised again by canonical_identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/decision_transported_source.rs::identity_site_receipt_lists_are_sets"]
 [[sites.collections]]
 name = "source_populations, transport_identities, assumptions"
 class = "set"
@@ -2328,9 +2236,9 @@ file = "crates/antecedent-design/src/design_ranking_artifact.rs"
 item = "impl:DesignRankingArtifactWire#0/fn:canonical#0"
 feeds = "DesignRankingArtifactWire::compute_digest -> artifact digest (sealed in DESIGN_RANKING artifact bytes; checked by consume_wire)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking_artifact.rs::reordered_candidates_preserve_identity_and_bytes", "unit:crates/antecedent-design/tests/design_ranking_artifact.rs::seal_refuses_a_later_declaration_with_the_same_id"]
+note = "The artifact canonical form is a faithful multiset of what the producer stored (it never drops a stored entry); set meaning is applied where the identity is computed (rebuild_ranking and RankingRecord deduplicate source digests). Sealing refuses a repeated candidate id, so the semantic-id sort has no ties."
 [[sites.collections]]
 name = "candidates"
 class = "set"
@@ -2373,9 +2281,8 @@ file = "crates/antecedent-design/src/design_ranking_artifact.rs"
 item = "impl:DesignRankingArtifactWire#0/fn:provenance_chain#0"
 feeds = "ProvenanceChain link ids and digests of the ranking (retained lineage; composition bundles)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/coordinate_parity.rs::design_ranking_chain_has_the_literal_order_stages_and_an_independent_root_digest"]
 [[sites.collections]]
 name = "source_digests"
 class = "set"
@@ -2393,9 +2300,8 @@ file = "crates/antecedent-design/src/design_ranking_artifact.rs"
 item = "impl:DesignRankingArtifactWire#0/fn:to_bytes#0"
 feeds = "CBOR body of the checksummed container written to disk (candidates in rank order); artifact digest is computed from canonical(), not from this order"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking_artifact.rs::reordered_candidates_preserve_identity_and_bytes"]
 [[sites.collections]]
 name = "candidates"
 class = "ordered"
@@ -2408,9 +2314,9 @@ file = "crates/antecedent-design/src/design_ranking_artifact/consuming.rs"
 item = "fn:check_signal#0"
 feeds = "SignalReceipt rebuilt from the wire; receipt.identity() must equal candidate.signal_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking_artifact.rs::altered_signal_or_update_is_refused_even_when_resealed"]
+note = "evidence_lineage is a multiset by the exact-request rule of SignalRequest::fingerprint (a repeated id is a different request); no kernel reads repeats."
 [[sites.collections]]
 name = "evidence_lineage"
 class = "multiset"
@@ -2423,9 +2329,8 @@ file = "crates/antecedent-design/src/design_ranking_artifact/consuming.rs"
 item = "fn:rebuild_ranking#0"
 feeds = "RankingRecord rebuilt from the wire; its identity() is compared with wire.ranking_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking_artifact.rs::stored_order_and_search_receipt_must_follow_from_the_values"]
 [[sites.collections]]
 name = "entries"
 class = "set"
@@ -2443,9 +2348,9 @@ file = "crates/antecedent-design/src/design_ranking_artifact/sealing.rs"
 item = "fn:request_wire#0"
 feeds = "SignalRequestWire.evidence_lineage inside the sealed ranking body (canonical() sorts again)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking_artifact.rs::altered_signal_or_update_is_refused_even_when_resealed"]
+note = "evidence_lineage: multiset by the exact-request rule."
 [[sites.collections]]
 name = "evidence_lineage"
 class = "multiset"
@@ -2455,32 +2360,32 @@ concern = "set meaning, repeats kept"
 [[sites]]
 id = "design.evidence_plan.EvidencePlan.identity"
 file = "crates/antecedent-design/src/evidence_plan.rs"
-item = "impl:EvidencePlan#0/fn:identity#0"
+item = "impl:EvidencePlan#0/fn:identity_with#0"
 feeds = "EvidencePlan identity (doc: order-independent) stored in the evidence-plan artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_a.evidence_plan_identity"]
+note = "Fixed: identity scheme v2 (tag antecedent.evidence_plan.v2) length-prefixes an option's resolves and unresolved lists and each unverified route's obligation ids. identity_v1 / accepts_identity give dual acceptance at EvidencePlanArtifact consume. The doc no longer claims order independence: routes and options are in the plan's deterministic order."
 [[sites.collections]]
 name = "routes"
 class = "ordered"
-canonical = "written in plan order, count-prefixed; per-route obligation ids count-prefixed"
-concern = "doc says order-independent but routes, options (rank order) and members (outcome.candidates order) are hashed in producer order"
+canonical = "plan order (deterministic), count-prefixed"
+concern = ""
 [[sites.collections]]
 name = "unverified[].obligations"
 class = "ordered"
-canonical = "ids written one after another with no count"
-concern = "no count before the ids: the last id of one unverified route and the route/reason text of the next are not delimited by a length, so a different split of ids across routes can yield the same bytes"
+canonical = "v2: count-prefixed in route order"
+concern = ""
 [[sites.collections]]
 name = "options[].resolves + unresolved"
 class = "ordered"
-canonical = "resolves.chain(unresolved) written as bare texts with no counts"
-concern = "moving an obligation id between resolves and unresolved leaves the bytes unchanged, so two options with different resolution status share an identity"
+canonical = "v2: two count-prefixed lists"
+concern = ""
 [[sites.collections]]
 name = "options[].members, reasons"
 class = "ordered"
-canonical = "count-prefixed, producer order"
-concern = "members is a set of study ids hashed in producer order"
+canonical = "count-prefixed in option order (members in outcome order, options by rank)"
+concern = ""
 
 [[sites]]
 id = "design.evsi.assemble"
@@ -2488,9 +2393,8 @@ file = "crates/antecedent-design/src/evsi.rs"
 item = "fn:assemble#0"
 feeds = "EvsiReport rows, rank, ties and action_ids -> RankingRecord / design-ranking artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/evsi.rs::ties_truncation_and_cancellation_are_reported", "unit:crates/antecedent-design/tests/evsi.rs::candidates_rank_by_net_value_and_larger_samples_are_worth_more"]
 [[sites.collections]]
 name = "rows"
 class = "ordered"
@@ -2508,9 +2412,8 @@ file = "crates/antecedent-design/src/evsi.rs"
 item = "fn:evaluate_in_context#0"
 feeds = "SearchReceipt.unevaluated_ids and the evaluated candidate prefix of EvsiReport -> ranking identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/evsi.rs::ties_truncation_and_cancellation_are_reported"]
 [[sites.collections]]
 name = "candidates / unevaluated_ids"
 class = "set"
@@ -2523,9 +2426,8 @@ file = "crates/antecedent-design/src/failure_routes.rs"
 item = "fn:failure_routes#0"
 feeds = "unmeasured list -> panel_obligations id_list text / witness 'backdoor.unmeasured:{list}' in the panel obligations (repair premises digest)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/failure_routes.rs::identity_site_unmeasured_variables_are_a_set"]
 [[sites.collections]]
 name = "unmeasured"
 class = "set"
@@ -2538,9 +2440,8 @@ file = "crates/antecedent-design/src/inverse_forward_source.rs"
 item = "impl:ForwardOrigin#0/fn:canonical_identity#0"
 feeds = "ForwardOrigin identity (forward-source provenance in inverse queries)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::identity_site_forward_origin_assumed_mechanisms_are_a_set"]
 [[sites.collections]]
 name = "assumed_mechanisms"
 class = "set"
@@ -2553,9 +2454,8 @@ file = "crates/antecedent-design/src/inverse_forward_source.rs"
 item = "fn:combined_identity#0"
 feeds = "TAG_COMPOSED identity of a composed forward response"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::composed_identity_is_order_invariant_and_follows_the_premises"]
 [[sites.collections]]
 name = "actions (action id, premises digest)"
 class = "multiset"
@@ -2568,9 +2468,8 @@ file = "crates/antecedent-design/src/inverse_forward_source.rs"
 item = "fn:composed_forward_source_accepting#0"
 feeds = "claim_digest (TAG_CLAIM per_action) of a tabular composed source -> ForwardOrigin.claim_digest"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::composed_identity_is_order_invariant_and_follows_the_premises"]
 [[sites.collections]]
 name = "per-action claims"
 class = "set"
@@ -2585,7 +2484,7 @@ feeds = "unmeasured list -> panel_obligations text and proof step (obligation id
 released = true
 status = "listed"
 checks = []
-reason = "no generated case on production code yet; classified by review"
+reason = "no generated case yet; the unmeasured set comes from a BTreeSet"
 [[sites.collections]]
 name = "unmeasured"
 class = "set"
@@ -2598,9 +2497,8 @@ file = "crates/antecedent-design/src/plan_common.rs"
 item = "fn:id_list#0"
 feeds = "semantic_id and ExpectedEvidence::canonical text, panel/front-door obligation statements and proof-step witnesses (repair premises digests), candidate labels"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/plan_common.rs::identity_site_id_list_is_an_injective_multiset_text"]
 [[sites.collections]]
 name = "variables"
 class = "multiset"
@@ -2613,9 +2511,8 @@ file = "crates/antecedent-design/src/prior_signal.rs"
 item = "fn:adapt_prior_to_signal#0"
 feeds = "order of sources in combine() -> source_digest of CandidatePriorSignal diagnostics (design-ranking source digest) and the draw vector"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/prior_signal.rs::source_order_does_not_change_the_prior_or_its_digest"]
 [[sites.collections]]
 name = "sources"
 class = "set"
@@ -2628,9 +2525,9 @@ file = "crates/antecedent-design/src/prior_signal.rs"
 item = "fn:combine#0"
 feeds = "PriorSignalDiagnostics.source_digest (CanonicalWriter over source ids, weights and draws) and DecisionPrior::Draws"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/prior_signal.rs::source_order_does_not_change_the_prior_or_its_digest"]
+note = "Draws are compared by bit pattern (total_cmp, to_bits), the canonical real rule. Open: source_digest does not cover lineage or observation ids (not changed here)."
 [[sites.collections]]
 name = "shrunk draws per source"
 class = "multiset"
@@ -2650,7 +2547,7 @@ feeds = "candidate_set_identity of the finite program-search result"
 released = true
 status = "listed"
 checks = []
-reason = "no generated case on production code yet; classified by review"
+reason = "no generated case yet; candidate construction goes through the program-search compiler"
 [[sites.collections]]
 name = "candidates"
 class = "set"
@@ -2668,9 +2565,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "impl:ProposalBundle#0/fn:compute_identity#0"
 feeds = "ProposalBundle.identity (stored and verified)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_bundle_identity_is_invariant_to_proposal_order", "unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_bundle_assembly_refuses_empty_duplicate_and_foreign_receipts"]
 [[sites.collections]]
 name = "proposals"
 class = "multiset"
@@ -2683,9 +2579,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "impl:ProposalBundle#0/fn:from_receipts#0"
 feeds = "ProposalBundle.proposals order -> ProposalBundle::compute_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_bundle_identity_is_invariant_to_proposal_order", "unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_bundle_assembly_refuses_empty_duplicate_and_foreign_receipts"]
 [[sites.collections]]
 name = "receipts"
 class = "set"
@@ -2698,9 +2593,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "impl:ProposalReceipt#0/fn:compute_identity#0"
 feeds = "ProposalReceipt.identity, ProposalBundle.compute_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_identity_and_bundle_digests_bind", "unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_every_bound_digest_refuses_when_mutated"]
 [[sites.collections]]
 name = "obligation_ids, addressed, unmet, snapshots"
 class = "ordered"
@@ -2713,9 +2607,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "fn:derive_receipt#0"
 feeds = "BaseFailureBinding.obligation_ids -> ProposalReceipt::compute_identity (frozen obligation set)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"]
 [[sites.collections]]
 name = "obligation_ids"
 class = "multiset"
@@ -2728,9 +2621,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "fn:list_digest#0"
 feeds = "LineageBinding.source_digest and DecisionReceipt.action_ids_digest -> ProposalReceipt::compute_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_every_bound_digest_refuses_when_mutated"]
 [[sites.collections]]
 name = "values (source digests / action ids)"
 class = "multiset"
@@ -2743,9 +2635,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "fn:snapshots_of#0"
 feeds = "LineageBinding.snapshots -> ProposalReceipt::compute_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"]
 [[sites.collections]]
 name = "snapshots (evidence_lineage + provider snapshot)"
 class = "multiset"
@@ -2758,9 +2649,8 @@ file = "crates/antecedent-design/src/proposal_receipt.rs"
 item = "fn:sorted#0"
 feeds = "HypotheticalBinding.addressed / unmet -> ProposalReceipt::compute_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/proposal_receipt.rs::receipt_identity_and_bundle_digests_bind"]
 [[sites.collections]]
 name = "addressed, unmet obligation ids"
 class = "multiset"
@@ -2773,9 +2663,8 @@ file = "crates/antecedent-design/src/ranking.rs"
 item = "impl:RankingRecord#0/fn:from_evsi#0"
 feeds = "RankingRecord.entries / source_digests -> RankingRecord::identity (design-ranking identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking.rs::net_values_are_three_twentieths_and_one_fortieth_in_any_input_order"]
 [[sites.collections]]
 name = "entries"
 class = "set"
@@ -2793,9 +2682,8 @@ file = "crates/antecedent-design/src/ranking.rs"
 item = "impl:RankingRecord#0/fn:identity#0"
 feeds = "ranking_identity stored in the design-ranking artifact and in ProposalReceipt.decision.ranking_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/design_ranking.rs::net_values_are_three_twentieths_and_one_fortieth_in_any_input_order", "unit:crates/antecedent-design/tests/design_ranking.rs::structural_order_is_sufficiency_then_cost_then_budget_then_id"]
 [[sites.collections]]
 name = "source_digests"
 class = "ordered"
@@ -2823,9 +2711,8 @@ file = "crates/antecedent-design/src/repair.rs"
 item = "fn:prepare#0"
 feeds = "searched candidate list and invalid outcomes of RepairReport (sealed in RepairReportArtifact digests)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/repair_facade.rs::candidate_order_does_not_change_the_report"]
 [[sites.collections]]
 name = "valid candidates"
 class = "set"
@@ -2843,9 +2730,8 @@ file = "crates/antecedent-design/src/repair_artifact.rs"
 item = "impl:RepairReportArtifact#0/fn:build#0"
 feeds = "premises.candidates wire -> premises_digest, report_digest of the repair artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/repair_facade.rs::candidate_order_does_not_change_the_report"]
 [[sites.collections]]
 name = "declared candidates"
 class = "multiset"
@@ -2858,23 +2744,23 @@ file = "crates/antecedent-design/src/sequential_evaluation/model.rs"
 item = "impl:FiniteSequentialModel#0/fn:identity_hex#0"
 feeds = "Compiled.identity -> model_identity of OffPolicyEstimate and the evaluation artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/sequential_evaluation.rs::identity_site_model_boundary_states_are_a_set"]
+note = "Fixed: monitored states were hashed in listing order. identity_hex_v1 keeps the old form; SequentialEvaluationArtifact::verify accepts stored identities under either (legacy_identities). Identical for every model whose boundaries list states ascending."
 [[sites.collections]]
 name = "states, actions, terminal/initial law"
 class = "ordered"
-canonical = "declared order, count-prefixed; states and actions are indexed by position (policies name action indices)"
+canonical = "declared order, count-prefixed; policies name actions and states by index"
 concern = ""
 [[sites.collections]]
 name = "stopping[].states"
 class = "set"
-canonical = "written in declared order, count-prefixed; check_boundaries sorts a copy only to prove the states distinct"
-concern = "a boundary's monitored states are a set but hashed in caller order, so permuting them changes the model identity without changing the meaning"
+canonical = "sorted (check_boundaries refuses a repeated state)"
+concern = ""
 [[sites.collections]]
 name = "support.overrides"
 class = "set"
-canonical = "BTreeMap<HistoryKey, Vec<bool>> in key order, count-prefixed"
+canonical = "BTreeMap in key order, count-prefixed"
 concern = ""
 
 [[sites]]
@@ -2883,9 +2769,8 @@ file = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs"
 item = "fn:bootstrap_off_policy#0"
 feeds = "OffPolicyBootstrap.log_identity (bootstrap_log digest) and the resampling index order"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/sequential_evaluation.rs::identity_site_bootstrap_reads_the_log_as_a_set"]
 [[sites.collections]]
 name = "log trajectories"
 class = "set"
@@ -2898,9 +2783,8 @@ file = "crates/antecedent-design/src/sequential_evaluation/policy.rs"
 item = "impl:ContingentPolicy#0/fn:decide_stochastic#0"
 feeds = "per-history action distribution hashed by ContingentPolicy::identity_hex (policy identity in off-policy evaluation and bootstrap)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/sequential_evaluation.rs::identity_site_policy_distribution_is_a_set"]
 [[sites.collections]]
 name = "distribution entries"
 class = "set"
@@ -2913,9 +2797,9 @@ file = "crates/antecedent-design/src/signal.rs"
 item = "impl:SignalProvider for ExternalSignal#0/fn:prepare#0"
 feeds = "SignalReceipt.evidence_lineage -> SignalReceipt::identity (signal_identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/signal_provider.rs::request_declares_lineage_independence_sample_size_and_limits"]
+note = "evidence_lineage: multiset by the exact-request rule."
 [[sites.collections]]
 name = "evidence_lineage"
 class = "multiset"
@@ -2928,14 +2812,14 @@ file = "crates/antecedent-design/src/signal.rs"
 item = "impl:SignalRequest#0/fn:fingerprint#0"
 feeds = "request_fingerprint in SignalReceipt and the design-ranking artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_a.signal_request_fingerprint", "unit:crates/antecedent-design/tests/signal_provider.rs::wrong_candidate_prior_sample_size_or_fingerprint_refuses"]
+note = "evidence_lineage is a multiset by the documented exact-request rule: reordering keeps the fingerprint, any other change, a repeated id included, changes it. Lineage is provenance, never read by the update kernel."
 [[sites.collections]]
 name = "evidence_lineage"
 class = "multiset"
-canonical = "sort(), no dedup, texts count-prefixed"
-concern = "lineage is a set of evidence/source ids (validate only rejects empty or blank); repeating an id changes the fingerprint although the lineage is the same"
+canonical = "sorted, repeats kept (exact request)"
+concern = ""
 
 [[sites]]
 id = "design.signal.native_prepared"
@@ -2943,9 +2827,9 @@ file = "crates/antecedent-design/src/signal.rs"
 item = "fn:native_prepared#0"
 feeds = "SignalReceipt.evidence_lineage -> SignalReceipt::identity (signal_identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/signal_provider.rs::native_receipts_are_native_and_differ_from_an_equivalent_external_receipt"]
+note = "evidence_lineage: multiset by the exact-request rule."
 [[sites.collections]]
 name = "evidence_lineage"
 class = "multiset"
@@ -2958,29 +2842,29 @@ file = "crates/antecedent-design/src/study_candidate.rs"
 item = "impl:DurableStudyCandidate#0/fn:semantic_id#0"
 feeds = "sc1:<blake3[..32]> candidate id used by repair reports, evidence plans, design rankings, proposal receipts and artifacts"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_a.study_candidate_semantic_id", "unit:crates/antecedent-design/src/study_candidate.rs::plain_candidates_keep_the_v1_identity_and_notes_are_a_set", "unit:crates/antecedent-design/src/study_candidate.rs::separator_in_free_text_no_longer_collides", "unit:crates/antecedent-design/tests/study_candidate_exact.rs::identity_ignores_order_and_label_but_tracks_every_declared_semantic", "unit:crates/antecedent-design/tests/study_candidate.rs::reordering_preserves_semantic_identity"]
+note = "Fixed: sets (variables, notes, expected laws, levels) deduplicated; a candidate whose free text or levels contain a v1 separator (; | [ ]), an empty note, or an empty cluster/provider uses the framed v2 form (sc2:, tag antecedent.design.study_candidate.semantic_id.v2); any other keeps the v1 form (sc1:). semantic_id_v1 / accepts_semantic_id give dual acceptance at repair_artifact candidate_from_wire, proposal_receipt check_receipt_matches and the facade's proposal_arrival."
 [[sites.collections]]
 name = "feasibility_notes"
-class = "multiset"
-canonical = "sort_unstable, joined with '|', no dedup, no length framing"
-concern = "free-text notes joined by '|': [\"a|b\"] and [\"a\",\"b\"] share a digest; a repeated note changes the id although notes read as a set"
+class = "set"
+canonical = "sorted + dedup (v1 '|' join only when every note is non-empty and separator-free, else framed texts)"
+concern = ""
 [[sites.collections]]
 name = "expected_evidence"
-class = "multiset"
-canonical = "ExpectedEvidence::canonical strings sort_unstable, joined with ' ; ', no dedup"
-concern = "separator join without framing (a ';' inside population text can merge two entries); an evidence entry listed twice changes the id"
+class = "set"
+canonical = "v1: per-law content strings sorted + dedup; v2: per-law framed digests sorted + dedup"
+concern = ""
 [[sites.collections]]
 name = "interventions, measured"
-class = "multiset"
-canonical = "id_list (sorted raw ids, repeats kept); duplicates rejected by validate()"
-concern = "semantic_id() is also computed for candidates before validate(); an invalid duplicate list gets its own id"
+class = "set"
+canonical = "sorted + dedup (validate also refuses repeats)"
+concern = ""
 [[sites.collections]]
 name = "scalar fields (population, recruitment, timing, unit, cluster, provider, cost label)"
 class = "ordered"
-canonical = "one format! string joined with ';' and '='; label deliberately omitted"
-concern = "no length framing: free-text fields containing ';' or key= fragments can shift content between fields and collide; a different label is the only intended difference"
+canonical = "fixed field order; v1 joined only for separator-free text, else each field framed"
+concern = ""
 
 [[sites]]
 id = "design.study_candidate.ExpectedEvidence.canonical"
@@ -2988,19 +2872,19 @@ file = "crates/antecedent-design/src/study_candidate.rs"
 item = "impl:ExpectedEvidence#0/fn:canonical#0"
 feeds = "per-evidence text inside DurableStudyCandidate::semantic_id (sc1: id) and so repair/ranking/proposal identities"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_a.expected_evidence_canonical"]
+note = "canonical() is the v1 content string, kept unchanged for v1 identities; the semantic identity reads the set form (v1_content(true)) or the framed v2 digest (v2_digest)."
 [[sites.collections]]
 name = "intervention_values (levels)"
-class = "set"
-canonical = "format!(\"{var}={value:?}\") strings sorted, joined with '|'; duplicates rejected by check_against"
-concern = "Debug formatting of the value and a '|' / ';' separator join with no length framing: a population, level or text containing the separators can collide with another content string; -0.0 and 0.0 print differently"
+class = "multiset"
+canonical = "v1 string: '{variable}={level:?}' sorted, repeats kept; set form and v2 dedup"
+concern = ""
 [[sites.collections]]
 name = "interventions / conditioned_on / measured / marginal variables"
 class = "multiset"
-canonical = "plan_common::id_list: raw ids sort_unstable, comma-joined, repeats kept"
-concern = "measured and conditioned_on are validated distinct but interventions are only compared as a set (set(&a)==set(&b)), so [1,1] and [1] describe the same study with different canonical text"
+canonical = "v1 string: id lists sorted, repeats kept; the semantic identity reads them as sets"
+concern = ""
 
 [[sites]]
 id = "design.temporal_policy_transport.TimeInvariance.identity_hex"
@@ -3008,14 +2892,14 @@ file = "crates/antecedent-design/src/temporal_policy_transport.rs"
 item = "impl:TimeInvariance#0/fn:identity_hex#0"
 feeds = "invariance identity of the temporal policy transport result"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_b.temporal_time_invariance"]
+note = "Decided multiset encoding, as for the selection diagrams."
 [[sites.collections]]
 name = "mechanisms"
 class = "multiset"
-canonical = "(mechanism, status) sort(), count-prefixed; duplicates impossible after declared_shifts (MECHANISM_DECLARED_TWICE refusal)"
-concern = "identity_hex does not itself validate"
+canonical = "(mechanism, status) rows sorted, count-prefixed, repeats kept; declared_shifts refuses a repeated mechanism before use"
+concern = ""
 
 [[sites]]
 id = "design.transported_bridge.BridgeSelectionDiagram.identity_hex"
@@ -3023,9 +2907,8 @@ file = "crates/antecedent-design/src/transported_bridge.rs"
 item = "impl:BridgeSelectionDiagram#0/fn:identity_hex#0"
 feeds = "selection-diagram identity of the transported surrogate bridge"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_b.bridge_selection_diagram"]
 [[sites.collections]]
 name = "selection_targets"
 class = "set"
@@ -3038,14 +2921,14 @@ file = "crates/antecedent-design/src/transported_policy.rs"
 item = "impl:SelectionDiagram#0/fn:identity_hex#0"
 feeds = "diagram_identity and evaluation identity of TransportedPolicyEvaluation"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.design_b.transported_policy_selection_diagram"]
+note = "Decided multiset encoding, as for the selection diagrams."
 [[sites.collections]]
 name = "mechanisms"
 class = "multiset"
-canonical = "(mechanism, status) sort(), count-prefixed; duplicates impossible after declared_shifts"
-concern = "identity_hex does not itself validate"
+canonical = "(mechanism, status) rows sorted, count-prefixed, repeats kept; declared_shifts refuses a repeated mechanism before use"
+concern = ""
 
 [[sites]]
 id = "design.transported_synthesis.classify"
@@ -3053,9 +2936,8 @@ file = "crates/antecedent-design/src/transported_synthesis.rs"
 item = "fn:classify#0"
 feeds = "contribution order given to the evidence-ledger combination and the synthesis estimate"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/transported_synthesis.rs::identity_site_contributions_are_a_set_of_sources", "unit:crates/antecedent-design/tests/transported_synthesis.rs::the_exact_same_source_listed_twice_is_one_source_counted_twice"]
 [[sites.collections]]
 name = "contributions"
 class = "set"
@@ -3068,9 +2950,8 @@ file = "crates/antecedent-design/src/transported_synthesis.rs"
 item = "fn:synthesize_checked#0"
 feeds = "TransportedSynthesis.transport_identities and source_populations -> TransportDeclaration -> TransportReceipt::canonical_identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/transported_synthesis.rs::identity_site_contributions_are_a_set_of_sources"]
 [[sites.collections]]
 name = "transport_identities, source_populations"
 class = "set"
@@ -3083,23 +2964,23 @@ file = "crates/antecedent-design/src/z_transport_planner.rs"
 item = "fn:failure_snapshot_digest#0"
 feeds = "failure snapshot digest (IdentityDomain::Claim) of ZTransportFailureSnapshotWire"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/z_transport_planner.rs::failure_snapshot_wire_freezes_query_graph_catalog_and_obligation"]
+note = "A self-digest of a stored wire: sorting without dedup is injective on lists up to order, so a repeated or unoriented edge is a different (tampered) wire, not a collision."
 [[sites.collections]]
 name = "graph.directed / graph.bidirected"
 class = "multiset"
-canonical = "sort_unstable on a wire graph, no dedup"
-concern = "a wire read from storage can carry a repeated edge or an unnormalised bidirected pair (b,a); both are hashed as written"
+canonical = "sort_unstable over the stored wire; the producer (admg_to_wire) emits unique, oriented edges and the digest binds the stored bytes"
+concern = ""
 [[sites.collections]]
 name = "selection_targets"
 class = "multiset"
-canonical = "sort_unstable, no dedup"
-concern = "set with repeats kept"
+canonical = "sort_unstable; unique by SelectionDiagram construction"
+concern = ""
 [[sites.collections]]
 name = "catalog, obligations"
 class = "ordered"
-canonical = "hashed in the stored (already canonical) order, no sort here"
+canonical = "stored canonical order"
 concern = ""
 
 [[sites]]
@@ -3108,19 +2989,19 @@ file = "crates/antecedent-design/src/z_transport_planner.rs"
 item = "fn:graph_digest#0"
 feeds = "graph_digest of ZTransportFailureSnapshot (IdentityDomain::Identification) and its wire"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/z_transport_planner.rs::identity_site_graph_digest_is_order_free_and_label_bound"]
+note = "Fixed: a diagram whose node i is not Static(i) is refused (its dense-index wire would name other variables). Aligned diagrams keep their digest."
 [[sites.collections]]
 name = "directed, bidirected edge lists"
 class = "set"
-canonical = "sort_unstable on (u32,u32) pairs; admg_to_wire already emits unique edges (bidirected from<to)"
+canonical = "sort_unstable on (u32,u32) pairs; admg_to_wire emits unique edges"
 concern = ""
 [[sites.collections]]
 name = "selection_targets"
-class = "multiset"
-canonical = "raw ids sort_unstable, no dedup"
-concern = "a set of selection variables with repeats kept"
+class = "set"
+canonical = "sorted; SelectionDiagram::try_new refuses a repeated target"
+concern = ""
 
 [[sites]]
 id = "expr.exact.ExactDiscreteLaw.content_identity"
@@ -3158,9 +3039,8 @@ file = "crates/antecedent-io-core/src/callback_result_artifact.rs"
 item = "fn:protocol_to_wire#0"
 feeds = "ProtocolWire in CallbackResultMeta, covered by compute_identity (meta.identity) of the persisted callback result artifact; the declaration identity itself is computed in antecedent-contract"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/callback_result_artifact.rs::site_protocol_to_wire_dependencies_and_operations_are_sets"]
 [[sites.collections]]
 name = "inputs"
 class = "set"
@@ -3183,9 +3063,8 @@ file = "crates/antecedent-io-core/src/canonical_json.rs"
 item = "fn:write#0"
 feeds = "canonical_json_digest / canonical_json_value_digest (shared with host languages; external_binding_wire contract premises digest)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/canonical_json.rs::site_canonical_json_objects_arrays_and_numbers", "adversarial:identity_sites.io_artifacts.canonical_json"]
 [[sites.collections]]
 name = "object entries"
 class = "set"
@@ -3203,14 +3082,14 @@ file = "crates/antecedent-io-core/src/cohort_decision.rs"
 item = "impl:CovariateShiftDeclaration#0/fn:new#0"
 feeds = "CohortDecisionSource identity: to_cbor(shift) is written into the canonical identity stream (digest in the persisted cohort decision artifact)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/cohort_decision.rs::site_covariate_shift_modifiers_are_a_set", "adversarial:identity_sites.io_artifacts.covariate_shift_modifiers"]
+note = "Fixed (canonical form v2): modifiers sorted and deduplicated. No issued source carried a repeat (resolve_shift refused it), so no stored identity changes."
 [[sites.collections]]
 name = "invariant_modifiers"
-class = "multiset"
-canonical = "sort() of Strings, no dedup"
-concern = "set meaning but duplicates kept; mitigated because resolve_shift compares it to the model's distinct sorted features and refuses a mismatch, and a hand-built (pub field) unsorted list is refused the same way"
+class = "set"
+canonical = "sort + dedup (v2)"
+concern = ""
 
 [[sites]]
 id = "io_core.compact_export.CompactExport.build"
@@ -3218,9 +3097,8 @@ file = "crates/antecedent-io-core/src/compact_export.rs"
 item = "impl:CompactExport#0/fn:build#0"
 feeds = "CompactExportBody.seal(): premises_blake3, data_blake3 and identity (CanonicalWriter) of the persisted compact export artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/compact_export.rs::site_compact_export_terms_inputs_and_levels_are_sets"]
 [[sites.collections]]
 name = "terms (with coefficients and covariance rows/cols permuted)"
 class = "set"
@@ -3253,14 +3131,14 @@ file = "crates/antecedent-io-core/src/composition_verification_artifact.rs"
 item = "fn:shared_to_wire#0"
 feeds = "shared_data relations in the composition verification meta, covered by compute_identity of the persisted artifact; decode requires shared_to_wire(out) == wire"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/composition_verification_artifact.rs::site_shared_to_wire_relations_are_a_set"]
+note = "Fixed (canonical form v2): sorted by the whole relation (shared_observations included) and deduplicated; shared_from_wire still accepts the v1 order (shared_to_wire_v1)."
 [[sites.collections]]
 name = "wire (shared-data relations)"
 class = "set"
-canonical = "sort_by (first, second, relation) (stable); no dedup; the library builds one relation per node pair so keys are unique"
-concern = "sort key omits shared_observations; for two relations with the same (first, second, relation) in a caller-supplied slice the stable sort keeps caller order, which reaches the bytes and passes the canonical check in either order"
+canonical = "sort by (first, second, relation, shared_observations) + dedup (v2); v1 order accepted on read"
+concern = ""
 
 [[sites]]
 id = "io_core.counterfactual_transport_wire.canonical_laws"
@@ -3268,9 +3146,8 @@ file = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs"
 item = "fn:canonical_laws#0"
 feeds = "ExactLawWire list stored in the counterfactual transport artifact; its data_digest is computed over sorted_cbor(laws)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/counterfactual_transport_wire.rs::site_canonical_laws_are_a_set"]
 [[sites.collections]]
 name = "laws"
 class = "set"
@@ -3283,14 +3160,13 @@ file = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs"
 item = "fn:sorted_cbor#0"
 feeds = "counterfactual_transport_data_digest (environments, regimes, bindings, laws) via digest_hex(TransportCertificate); persisted data_digest of the counterfactual transport artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/counterfactual_transport_wire.rs::site_sorted_cbor_is_a_multiset"]
 [[sites.collections]]
 name = "items (environments, regimes, bindings, laws)"
 class = "multiset"
-canonical = "each element CBOR-encoded whole, byte vectors sorted, no dedup; list count framed by the outer CBOR array"
-concern = "set meaning for environments/regimes/bindings but a repeated element changes the digest; duplicates are expected to be refused by catalog validation elsewhere (duplicate_law_binding for laws), not here"
+canonical = "each element CBOR-encoded whole, sorted, repeats kept; catalog and data validation refuse repeats before the digest is formed"
+concern = ""
 
 [[sites]]
 id = "io_core.cross_world_artifact.cross_world_identity"
@@ -3298,18 +3174,18 @@ file = "crates/antecedent-io-core/src/cross_world_artifact.rs"
 item = "fn:cross_world_identity#0"
 feeds = "digest_hex(IdentityDomain::Program) scientific identity of the persisted cross-world execution artifact (facade recomputes the premises identity)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/cross_world_artifact.rs::site_cross_world_identity_edges_are_a_set"]
+note = "Fixed: edges sorted and deduplicated (a repeat was a second identity of one graph; the replay refuses repeated edges, so no accepted artifact's identity changes)."
 [[sites.collections]]
 name = "edges (graph_edges)"
-class = "multiset"
-canonical = "clone, sort_unstable, no dedup, written as part of a CBOR tuple (count framed)"
-concern = "set meaning but duplicates kept: check_cross_world_edges sorts AND dedups before use, so a repeated edge executes as the same graph yet digests as a different identity"
+class = "set"
+canonical = "sort_unstable + dedup"
+concern = ""
 [[sites.collections]]
 name = "variable_names"
 class = "ordered"
-canonical = "written in variable-id order as stored (edges index into it)"
+canonical = "as stored (edges index into it)"
 concern = ""
 
 [[sites]]
@@ -3318,24 +3194,23 @@ file = "crates/antecedent-io-core/src/cross_world_execution_artifact.rs"
 item = "fn:request_wire#0"
 feeds = "CrossWorldRequestWire in the persisted CrossWorldExecutionMeta (replayed on consume; the identity digests are computed by the executor from the FiniteExecutionRequest, so this wire is checked, not hashed here)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/cross_world_execution_artifact.rs::site_cross_world_request_wire_units_are_a_set"]
 [[sites.collections]]
 name = "units"
 class = "set"
-canonical = "stable sort_by unit id; unit ids are expected unique (executor refuses duplicate units); no dedup"
-concern = "sort key is the unit id only; a duplicate unit with different observations would keep caller order"
+canonical = "sort_by unit id; validate_units refuses a duplicate id"
+concern = ""
 [[sites.collections]]
 name = "units[].observed"
 class = "set"
-canonical = "(variable, level) pairs sort_unstable; no dedup"
-concern = "repeated variable with a different level is not rejected here"
+canonical = "sort_unstable; validate_units refuses a repeated variable"
+concern = ""
 [[sites.collections]]
-name = "worlds[].interventions / routes, exogenous, variables"
+name = "worlds"
 class = "ordered"
-canonical = "written in the caller's order"
-concern = "interventions and routes of a world are set-like but are not canonicalized here, so two listings of one world give different wire bytes (the executor's world digest is separate)"
+canonical = "caller order; quantities name worlds by index"
+concern = ""
 
 [[sites]]
 id = "io_core.external_claim_artifact.ExternalClaimIdentity.compute_fingerprint"
@@ -3343,9 +3218,8 @@ file = "crates/antecedent-io-core/src/external_claim_artifact.rs"
 item = "impl:ExternalClaimIdentity#0/fn:compute_fingerprint#0"
 feeds = "provider_fingerprint (CanonicalWriter antecedent.external_claim.provider_fingerprint) of the persisted external claim artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/external_claim_artifact.rs::site_external_claim_fingerprint_capabilities_multiset"]
 [[sites.collections]]
 name = "capabilities"
 class = "multiset"
@@ -3363,9 +3237,8 @@ file = "crates/antecedent-io-core/src/external_claim_artifact.rs"
 item = "impl:ExternalClaimIdentity#0/fn:from_claim_with_digest#0"
 feeds = "ExternalClaimIdentity.capabilities and provider_fingerprint (compute_fingerprint) in the persisted external claim artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/external_claim_artifact.rs::site_external_claim_capabilities_are_a_set"]
 [[sites.collections]]
 name = "capabilities"
 class = "set"
@@ -3383,14 +3256,14 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "impl:GraphIdentityWire#0/fn:premises#0"
 feeds = "Scientific projection of a GraphPosterior graph identity hashed into identification premises (IdentificationIdentityWire graph, digest_wire/digest_canonical); atoms in the persisted identification payload"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.graph_posterior_premises"]
+note = "The to_cbor(..).unwrap_or_default() sort key cannot reach a digest: identification_digest encodes the same atoms with the same encoder and fails on any atom that does not encode."
 [[sites.collections]]
 name = "atoms (keyed)"
 class = "multiset"
-canonical = "per-atom CBOR (execution_key cleared) then sort_by on the CBOR bytes; no dedup (weighted atoms: a repeated atom is repeated mass)"
-concern = "to_cbor(&atom).unwrap_or_default() turns an encode failure into an empty key, so failing atoms sort first and keep input order (stable sort), letting order reach the digest; sound otherwise because identical encodings are identical atoms"
+canonical = "per-atom CBOR (execution_key cleared) then sort_by on the CBOR bytes; no dedup (a repeated atom is repeated posterior mass)"
+concern = ""
 
 [[sites]]
 id = "io_core.identity.graph.admg_identity"
@@ -3399,7 +3272,7 @@ item = "fn:admg_identity#0"
 feeds = "GraphIdentityWire in IdentificationIdentityWire.graph, hashed by identification_digest"
 released = true
 status = "checked"
-checks = ["kani:admg_identity_binds_labels_not_dense_order"]
+checks = ["kani:admg_identity_binds_labels_not_dense_order", "adversarial:identity_sites.io_graph.admg_identity"]
 [[sites.collections]]
 name = "nodes"
 class = "set"
@@ -3422,15 +3295,14 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:canonical_admg_wire#0"
 feeds = "GraphIdentityWire::Admg via admg_identity, transport_identity selection_graph, PosteriorAtomGraphWire::Admg; hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
-note = "Label-blind; no longer the identification graph identity (admg_identity carries labels). Still used for the transport selection graph (TransportIdentityWire.selection_graph), which is listed."
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.transport_identity", "unit:crates/antecedent-io-core/src/identity.rs::selection_graph_identity_is_in_variable_space"]
+note = "Now reached only through selection_graph_wire for schema-aligned selection graphs (dense index = variable); a non-aligned selection graph is written in variable space, and posterior ADMG atoms go through admg_identity."
 [[sites.collections]]
 name = "wire.directed"
 class = "set"
-canonical = "sort_unstable of (from, to); no dedup; ADMG children are an adjacency list refused on duplicate insert"
-concern = "dense indices only (labels dropped, as canonical_dag_wire)"
+canonical = "sort_unstable of (from, to); duplicates refused by the ADMG"
+concern = ""
 [[sites.collections]]
 name = "wire.bidirected"
 class = "set"
@@ -3443,15 +3315,14 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:canonical_dag_wire#0"
 feeds = "GraphIdentityWire::Dag via dag_identity, PosteriorAtomGraphWire::Static, TemporalGraphWire kin; hashed in identification identity (digest_wire) and persisted in identification identity payloads"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
-note = "Label-blind; no longer the identification graph identity (dag_identity carries labels). Still used for graph-posterior atoms, which are listed."
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.canonical_dag_wire"]
+note = "Public unlabelled DAG wire: names nodes by dense index, so it describes a schema-aligned DAG only. No identity in this crate uses it any more: identification uses dag_identity, posterior DAG atoms go through dag_identity and refuse a non-aligned graph."
 [[sites.collections]]
 name = "wire.edges"
 class = "set"
-canonical = "sort_unstable of (from, to) dense-index pairs; no dedup; duplicates impossible by construction (Dag::insert_directed refuses a duplicate edge)"
-concern = "dense indices only: NodeRef labels (variable/lag/environment) are dropped by dag_to_wire, so two DAGs over different variables with the same shape share these bytes; node identity must come from the schema carried elsewhere in the premises"
+canonical = "sort_unstable of (from, to) dense-index pairs; duplicates refused by Dag::insert_directed"
+concern = "dense indices only: callers must pass a schema-aligned DAG (identity callers now use dag_identity)"
 
 [[sites]]
 id = "io_core.identity.graph.canonical_temporal_admg_wire"
@@ -3459,9 +3330,8 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:canonical_temporal_admg_wire#0"
 feeds = "GraphIdentityWire::TemporalAdmg via temporal_admg_identity and PosteriorAtomGraphWire::TemporalAdmg; hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.canonical_temporal_admg_wire"]
 [[sites.collections]]
 name = "nodes (order permutation)"
 class = "set"
@@ -3484,9 +3354,8 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:canonical_temporal_dag_wire#0"
 feeds = "GraphIdentityWire::TemporalDag via temporal_dag_identity and PosteriorAtomGraphWire::Temporal; hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.canonical_temporal_dag_wire"]
 [[sites.collections]]
 name = "nodes (order permutation)"
 class = "set"
@@ -3504,18 +3373,23 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:cpdag_identity#0"
 feeds = "GraphIdentityWire::Cpdag (public cpdag_identity); hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.cpdag_identity", "unit:crates/antecedent-io-core/src/identity.rs::class_graph_identity_binds_node_labels"]
+note = "Labelled since this change: a schema-aligned CPDAG keeps the unlabelled Cpdag wire (unchanged bytes in the aligned order); any other is GraphIdentityWire::LabeledCpdag."
 [[sites.collections]]
-name = "wire.directed"
+name = "nodes"
 class = "set"
-canonical = "sort_unstable; no dedup; duplicates impossible (one edge per node pair in the CPDAG)"
-concern = "dense indices only (labels dropped)"
+canonical = "labels sorted; schema-aligned graphs written unlabelled in variable order"
+concern = ""
 [[sites.collections]]
-name = "wire.undirected"
+name = "directed / marked edges"
 class = "set"
-canonical = "cpdag_to_wire orients each pair to (min, max); sort_unstable; no dedup; one edge per pair by construction"
+canonical = "remapped into label order, sort_unstable (labelled form: tail-arrow marked edges oriented a < b, sorted by (a, b)); one edge per pair"
+concern = ""
+[[sites.collections]]
+name = "undirected"
+class = "set"
+canonical = "remapped, oriented (min, max), sort_unstable; one edge per pair"
 concern = ""
 
 [[sites]]
@@ -3525,7 +3399,7 @@ item = "fn:dag_identity#0"
 feeds = "GraphIdentityWire in IdentificationIdentityWire.graph, hashed by identification_digest (every analysis result's identification identity)"
 released = true
 status = "checked"
-checks = ["kani:dag_identity_ignores_dense_order", "kani:dag_identity_binds_labels_and_edges", "kani:dag_identity_keeps_the_aligned_form", "adversarial:identity_sites.graph_dense_order_keeps_identity", "adversarial:identity_sites.graph_identity_binds_labels"]
+checks = ["kani:dag_identity_ignores_dense_order", "kani:dag_identity_binds_labels_and_edges", "kani:dag_identity_keeps_the_aligned_form", "adversarial:identity_sites.graph_dense_order_keeps_identity", "adversarial:identity_sites.graph_identity_binds_labels", "adversarial:identity_sites.io_graph.dag_identity"]
 [[sites.collections]]
 name = "nodes"
 class = "set"
@@ -3543,14 +3417,19 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:pag_identity#0"
 feeds = "GraphIdentityWire::Pag (public pag_identity); hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.pag_identity", "unit:crates/antecedent-io-core/src/identity.rs::class_graph_identity_binds_node_labels"]
+note = "Labelled since this change: a schema-aligned PAG keeps the unlabelled Pag wire; any other is GraphIdentityWire::LabeledPag."
 [[sites.collections]]
-name = "wire.edges"
+name = "nodes"
 class = "set"
-canonical = "pag_to_wire emits each edge once with a < b; sort_by_key (a, b); the key is not the whole element (marks omitted) but a Pag holds one marked edge per node pair so ties cannot occur"
-concern = "dense indices only (labels dropped); sort key omits the endpoint marks, safe only because one edge per pair is guaranteed"
+canonical = "labels sorted; schema-aligned graphs written unlabelled in variable order"
+concern = ""
+[[sites.collections]]
+name = "edges"
+class = "set"
+canonical = "remapped into label order, oriented a < b with marks swapped, sorted by (a, b); the key omits marks, which is a total order because the PAG holds one edge per pair"
+concern = ""
 
 [[sites]]
 id = "io_core.identity.graph.temporal_class_identity"
@@ -3558,9 +3437,8 @@ file = "crates/antecedent-io-core/src/identity/graph.rs"
 item = "fn:temporal_class_identity#0"
 feeds = "GraphIdentityWire::TemporalClass via temporal_cpdag_identity / temporal_pag_identity (kinds temporal_cpdag.v2 / temporal_pag.v2); hashed in identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.temporal_class_identity"]
 [[sites.collections]]
 name = "distinct (nodes)"
 class = "set"
@@ -3578,9 +3456,8 @@ file = "crates/antecedent-io-core/src/identity/inference.rs"
 item = "impl:PriorMappingIdentityWire#0/fn:from_mapping#0"
 feeds = "InferenceBindingWire prior-mapping identity (digest_wire), persisted in the identification identity payload"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.prior_mapping_from_mapping"]
 [[sites.collections]]
 name = "pairs (NamedParameters)"
 class = "set"
@@ -3593,14 +3470,13 @@ file = "crates/antecedent-io-core/src/identity/snapshot.rs"
 item = "fn:observation_identity_wire#0"
 feeds = "ObservationIdentityWire (digest_wire, IdentityDomain::Observation); persisted observation contract identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.observation_identity_wire"]
 [[sites.collections]]
 name = "observation (tags)"
 class = "set"
 canonical = "String tags sort + dedup (explicit); is_canonical requires strictly ascending"
-concern = "each tag is a caller-built text with arguments joined by ':' and ',' (e.g. independent_given:0,2); no per-argument framing, so the tag text is the identity of the assumption (two different structured assumptions that render to one string collide)"
+concern = "A tag's text is the assumption's identity. The tags the facade builds start with a distinct kind prefix (independent_given:, outcome_independent_given:, structural:) followed by the arguments, the free text last, so two different assumptions never share a tag."
 
 [[sites]]
 id = "io_core.identity.transport_identity"
@@ -3608,14 +3484,19 @@ file = "crates/antecedent-io-core/src/identity.rs"
 item = "fn:transport_identity#0"
 feeds = "TransportIdentityWire in IdentificationIdentityWire.transport (digest_wire); persisted identification identity"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.transport_identity", "unit:crates/antecedent-io-core/src/identity.rs::selection_graph_identity_is_in_variable_space"]
+note = "The selection graph is written in variable space (selection_graph_wire): a schema-aligned graph keeps its wire; any other static graph has its variables at their own indexes, with unnamed smaller variables as isolated nodes; a non-static node is refused."
 [[sites.collections]]
 name = "selection_targets"
 class = "set"
-canonical = "sort_unstable of raw variable ids, no dedup; distinct by construction because the selection diagram holds each target once; is_canonical requires strictly ascending"
+canonical = "sort_unstable of raw variable ids; SelectionDiagram::try_new refuses a repeated target"
 concern = ""
+[[sites.collections]]
+name = "selection_graph"
+class = "set"
+canonical = "variable-space AdmgWire: directed sorted, bidirected oriented, sorted and deduplicated"
+concern = "In variable space a variable the selection graph does not name and an isolated variable it names coincide; the identification graph in the same premises tells them apart."
 
 [[sites]]
 id = "io_core.interface_contract_artifact.contract_to_wire"
@@ -3623,9 +3504,8 @@ file = "crates/antecedent-io-core/src/interface_contract_artifact.rs"
 item = "fn:contract_to_wire#0"
 feeds = "ContractWire embedded in callback result, transport handoff and bridge artifacts, covered by their meta identity (persisted)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/callback_result_artifact.rs::site_contract_to_wire_ports_are_a_set"]
 [[sites.collections]]
 name = "produces"
 class = "set"
@@ -3648,19 +3528,19 @@ file = "crates/antecedent-io-core/src/observation_query_artifact.rs"
 item = "fn:draw_quantities#0"
 feeds = "ScientificQuantity coordinates (regime_id, conditioning) of the redrawn-draws DistributionArtifact, hashed in its identity and persisted"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/observation_query_artifact.rs::site_draw_quantities_regime_id_is_a_framed_set"]
+note = "Fixed (regime naming v2, regime_id_of): a variable or level containing = , ( or ) is written as do[...] of JSON-quoted pairs; other names keep the v1 do(v=level,...) id. Replay accepts a stored alignment identity under the v1 naming (legacy_alignment)."
 [[sites.collections]]
 name = "conditions (conditioning)"
-class = "multiset"
-canonical = "(variable, rendered value) String pairs sort(); no dedup; Gaussian values rendered with format!(\"{}\", f64)"
-concern = "float rendered through Display (-0.0 renders as -0, NaN/inf as text) and sorted as strings (10 < 9); no dedup of repeated conditions"
+class = "set"
+canonical = "(variable, rendered value) pairs sorted; repeated variables refused by the evaluator; values by shortest round trip (-0 distinct)"
+concern = ""
 [[sites.collections]]
-name = "set (regime interventions)"
-class = "multiset"
-canonical = "strings \"v=level\" sort(), joined with ',' into \"do(...)\" as regime_id"
-concern = "separator-joined string without length framing and string-sorted: variable names containing '=' or ',' can collide, and a repeated intervention is kept; regime_id is later compared against error_law.regime_id"
+name = "regime interventions"
+class = "set"
+canonical = "regime_id_of: sorted, injective (framed when a separator occurs)"
+concern = ""
 
 [[sites]]
 id = "io_core.observation_query_artifact.wire.ObservationQueryWire.canonical"
@@ -3668,9 +3548,9 @@ file = "crates/antecedent-io-core/src/observation_query_artifact/wire.rs"
 item = "impl:ObservationQueryWire#0/fn:canonical#0"
 feeds = "observation_query_identity (digest_hex IdentityDomain::Program over the sealed query) in the persisted observation query artifact; seal() canonicalizes before hashing"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/observation_query_artifact.rs::site_observation_query_canonical_assignment_lists_are_sets", "adversarial:identity_sites.io_artifacts.observation_query_canonical"]
+note = "Fixed (canonical form v2): assignment lists sorted and exact repeats written once; the evaluator refuses one variable with two levels, so no sealed artifact carried a repeat."
 [[sites.collections]]
 name = "observed / interventions / assignment / background (all query variants and RedrawTargetWire)"
 class = "multiset"
@@ -3703,9 +3583,8 @@ file = "crates/antecedent-io-core/src/propagation_chain_record/identity.rs"
 item = "fn:propagation_chain_identity#0"
 feeds = "record identity (CanonicalWriter) of the persisted propagation chain record"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.propagation_chain_identity"]
 [[sites.collections]]
 name = "sources, stages, stage.inputs, changes, joint_outputs, source.values"
 class = "ordered"
@@ -3718,14 +3597,13 @@ file = "crates/antecedent-io-core/src/propagation_chain_record/identity.rs"
 item = "fn:write_factors#0"
 feeds = "propagation_chain_identity (CanonicalWriter PROPAGATION_CHAIN_*_TAG) of the persisted propagation chain record, for source and stage factors"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["adversarial:identity_sites.io_graph.write_factors"]
 [[sites.collections]]
 name = "factors"
 class = "set"
 canonical = "BTreeSet<(kind tag, id)> (implicit dedup), count word then (tag, text)"
-concern = "unknown factor kinds are refused by parse, but an unmapped SharedFactorKind falls to tag 0 (fn factor_kind_tag `_ => 0`), so two future kinds would share a tag"
+concern = ""
 
 [[sites]]
 id = "io_core.sensitivity_artifact.canonicalize"
@@ -3733,24 +3611,24 @@ file = "crates/antecedent-io-core/src/sensitivity_artifact.rs"
 item = "fn:canonicalize#0"
 feeds = "SensitivityParts then identity_of(): premises_digest, data_digest and decision identity of the persisted sensitivity artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/sensitivity_artifact.rs::site_sensitivity_canonicalize_sets"]
+note = "Fixed: grid points must be numerically distinct, so -0.0 and 0.0 are one point (a grid holding both is refused)."
 [[sites.collections]]
 name = "grid (with support and surface columns permuted)"
 class = "set"
-canonical = "order sorted by f64::total_cmp; validate_coordinate then requires strictly increasing by total_cmp (duplicates refused)"
-concern = "total_cmp separates -0.0 from 0.0, so both can appear as two 'distinct' grid points although numerically equal; the bits of -0.0 and 0.0 digest differently"
+canonical = "sorted by total_cmp; validate_coordinate refuses numerically equal points"
+concern = ""
 [[sites.collections]]
 name = "quantities"
 class = "set"
-canonical = "sort_by quantity.variable_id; validate_quantities refuses two quantities sharing a variable id"
-concern = "sort runs before validation; key is the id only, safe because ties are refused"
+canonical = "sort_by variable_id; duplicates refused"
+concern = ""
 [[sites.collections]]
 name = "actions"
 class = "set"
-canonical = "sort_by id; validate_actions refuses duplicate or blank ids"
-concern = "same as quantities"
+canonical = "sort_by id; duplicates refused"
+concern = ""
 
 [[sites]]
 id = "io_core.temporal_counterfactual_artifact.TemporalCounterfactualArtifact.seal"
@@ -3758,9 +3636,8 @@ file = "crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs"
 item = "impl:TemporalCounterfactualArtifact#0/fn:seal#0"
 feeds = "factual histories handed to evaluate_temporal_counterfactual (factual_digest/receipt digest) and stored as meta.units of the persisted artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs::site_temporal_seal_factual_units_are_a_set"]
 [[sites.collections]]
 name = "request.factual"
 class = "set"
@@ -3773,9 +3650,8 @@ file = "crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs"
 item = "fn:execute_selective#0"
 feeds = "factual histories handed to the selective temporal executor (receipt digests) and the returned TemporalCounterfactualReportWire"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs::site_temporal_execute_selective_factual_units_are_a_set"]
 [[sites.collections]]
 name = "request.factual"
 class = "set"
@@ -3788,34 +3664,34 @@ file = "crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs"
 item = "fn:spec_id#0"
 feeds = "TemporalCounterfactualIdentity.spec_id (CanonicalWriter temporal_counterfactual_v1.spec) in the persisted temporal counterfactual artifact and report"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs::site_temporal_spec_id_sets_and_framing"]
+note = "Fixed (identity scheme v2, tag temporal_counterfactual_v2.spec): every list is length-prefixed. spec_id_v1 kept; identity_diff accepts a stored v1 spec_id on replay and against a retained expected identity."
 [[sites.collections]]
 name = "graph.edges"
-class = "multiset"
-canonical = "clone, sort() of (parent, child) String pairs, no dedup, written as bare text pairs with NO count"
-concern = "set meaning but duplicates kept; and the list has no length prefix, so edge-list boundary against the following fit_id text is ambiguous (crafted collision between differently split streams)"
+class = "set"
+canonical = "sort; length-prefixed (v2); the evaluator refuses a repeated edge"
+concern = ""
 [[sites.collections]]
 name = "fit.mechanisms"
 class = "set"
-canonical = "sort_by node (stable), written without a count"
-concern = "no count prefix (boundary ambiguity with the factual count); key is node only and two mechanisms for one node are not rejected here"
+canonical = "sort_by node; length-prefixed; the evaluator refuses two mechanisms for one node"
+concern = ""
 [[sites.collections]]
 name = "mechanism.parent_coefficients"
 class = "set"
-canonical = "sort_by parent name (stable), no count"
-concern = "no count prefix before the noise flag/next mechanism; repeated parent not rejected here"
+canonical = "sort_by parent; length-prefixed; parents must equal the graph's"
+concern = ""
 [[sites.collections]]
 name = "factual"
 class = "set"
-canonical = "sort_by unit (stable) with count word; duplicate units refused by the core evaluator"
-concern = "key is the unit only; safe because duplicates are refused downstream"
+canonical = "sort_by unit with count; duplicates refused"
+concern = ""
 [[sites.collections]]
 name = "plus/minus world units"
-class = "multiset"
-canonical = "units.sort() of Strings, no dedup, no count"
-concern = "set meaning but duplicates kept; no count prefix, so the list boundary against the next world's name text is ambiguous"
+class = "set"
+canonical = "sort; length-prefixed (texts); the evaluator refuses a repeated unit"
+concern = ""
 
 [[sites]]
 id = "io_core.temporal_counterfactual_general_artifact.GeneralTemporalCounterfactualArtifact.seal"
@@ -3823,9 +3699,8 @@ file = "crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.r
 item = "impl:GeneralTemporalCounterfactualArtifact#0/fn:seal#0"
 feeds = "factual histories handed to evaluate_general_temporal_counterfactual (receipt digests) and stored in the persisted artifact meta"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.rs::site_general_seal_factual_units_are_a_set"]
 [[sites.collections]]
 name = "request.factual"
 class = "set"
@@ -3838,34 +3713,33 @@ file = "crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.r
 item = "fn:spec_id#0"
 feeds = "GeneralTemporalIdentity.spec_id (CanonicalWriter temporal_counterfactual_general_v1.spec) in the persisted general temporal counterfactual artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.rs::site_general_spec_id_sets_and_ordered_worlds"]
 [[sites.collections]]
 name = "fit.mechanisms"
 class = "set"
-canonical = "sort_by_key node (stable), count word written"
-concern = "key is the node only; two mechanisms for one node are not rejected in this module (evaluator validation not confirmed), ties would keep caller order"
+canonical = "sort_by_key node, count word; compile_fit refuses two mechanisms for one node"
+concern = ""
 [[sites.collections]]
 name = "mechanism.parent_coefficients"
 class = "set"
-canonical = "sort_by_key parent (stable), count word written"
-concern = "repeated parent not rejected here; key is the parent only"
+canonical = "sort_by_key parent, count word; compile_fit refuses a repeated parent"
+concern = ""
 [[sites.collections]]
 name = "factual"
 class = "set"
-canonical = "sort_by unit (stable), count word; duplicates refused by the evaluator"
+canonical = "sort_by unit, count word; duplicates refused"
 concern = ""
 [[sites.collections]]
 name = "worlds"
 class = "ordered"
-canonical = "written in the caller's order with a count; the world order is the action order"
+canonical = "caller order with a count (the action order)"
 concern = ""
 [[sites.collections]]
 name = "world units"
-class = "multiset"
-canonical = "sort() of Strings, no dedup, count word written"
-concern = "set meaning but duplicates kept"
+class = "set"
+canonical = "sort, count word; a repeated unit is refused"
+concern = ""
 
 [[sites]]
 id = "io_core.temporal_recalc_artifact.TemporalRecalcArtifactWire.expected_premises_digest"
@@ -3873,28 +3747,28 @@ file = "crates/antecedent-io-core/src/temporal_recalc_artifact.rs"
 item = "impl:TemporalRecalcArtifactWire#0/fn:expected_premises_digest#0"
 feeds = "premises_digest (digest_hex IdentityDomain::TransportCertificate) of the persisted temporal recalc artifact, rechecked in validate()"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/temporal_recalc_artifact.rs::site_temporal_recalc_premises_sets", "adversarial:identity_sites.io_artifacts.temporal_recalc_premises"]
+note = "Fixed (identity scheme v2, tuple tag temporal_recalc.premises.v2): bidirected pairs oriented to (min, max), selection targets sorted and deduplicated. premises_digest_v1 kept; validate() accepts either (premises_digest_verifies)."
 [[sites.collections]]
 name = "edges"
 class = "set"
-canonical = "sort_unstable + dedup (explicit) of directed (from, to)"
+canonical = "sort_unstable + dedup"
 concern = ""
 [[sites.collections]]
 name = "bidirected"
 class = "set"
-canonical = "sort_unstable + dedup (explicit) of the pairs as supplied"
-concern = "pairs are not oriented to (min, max) before sorting, so (a, b) and (b, a) are one latent confounder but digest as two different premises (graph.rs orients them; this encoder does not)"
+canonical = "oriented (min, max), sort + dedup (v2)"
+concern = ""
 [[sites.collections]]
 name = "selection_targets"
-class = "ordered"
-canonical = "&r.selection_targets written in caller order, neither sorted nor deduplicated"
-concern = "set meaning (mechanisms that may differ) but written in caller order, so a permutation or repeat yields a different premises digest for the same premise; transport_identity sorts the same field elsewhere"
+class = "set"
+canonical = "sort + dedup (v2)"
+concern = ""
 [[sites.collections]]
 name = "lag_alignment"
 class = "ordered"
-canonical = "variable-id order as documented"
+canonical = "variable-id order"
 concern = ""
 
 [[sites]]
@@ -3903,9 +3777,8 @@ file = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
 item = "fn:transport_to_wire#0"
 feeds = "TransportIdentityWire in TransportHandoffMeta; handoff_identity and identity of the persisted transport handoff artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transport_handoff_artifact.rs::site_transport_to_wire_lists_are_sets"]
 [[sites.collections]]
 name = "source_populations"
 class = "set"
@@ -3923,24 +3796,23 @@ file = "crates/antecedent-io-core/src/transport_revalidation_artifact.rs"
 item = "fn:scene_to_wire#0"
 feeds = "SceneWire (previous/current) in the revalidation meta; compute_identity of the persisted artifact; decode requires scene_to_wire(scene) == wire"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transport_revalidation_artifact.rs::site_scene_to_wire_sources_are_a_set"]
 [[sites.collections]]
 name = "sources"
 class = "set"
-canonical = "stable sort_by key; no dedup"
-concern = "key is the source key only; uniqueness of keys is not enforced in this module (stable sort keeps caller order for a tie)"
+canonical = "sort_by key; TransportScene::graph refuses a repeated key"
+concern = ""
 [[sites.collections]]
 name = "claims"
 class = "set"
-canonical = "stable sort_by key; no dedup"
-concern = "same: key only, uniqueness not enforced here"
+canonical = "sort_by key; TransportScene::graph refuses a repeated key"
+concern = ""
 [[sites.collections]]
 name = "unsupported coordinates"
-class = "ordered"
-canonical = "clone of SupportStanding::Unsupported coordinates in stored order"
-concern = "set-like coordinate list taken in stored order, not sorted or deduplicated here"
+class = "set"
+canonical = "SupportStanding::Unsupported coordinates are sorted and distinct by construction"
+concern = ""
 
 [[sites]]
 id = "io_core.transport_revalidation_artifact.sorted_distinct"
@@ -3948,9 +3820,8 @@ file = "crates/antecedent-io-core/src/transport_revalidation_artifact.rs"
 item = "fn:sorted_distinct#0"
 feeds = "claim sources and rests_on lists of SceneClaimWire in the scene wire, hashed by compute_identity of the persisted transport revalidation artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transport_revalidation_artifact.rs::site_sorted_distinct_is_a_set"]
 [[sites.collections]]
 name = "values"
 class = "set"
@@ -3963,39 +3834,39 @@ file = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs"
 item = "fn:canonical#0"
 feeds = "identity_of(): model_digest, selection_digest, assignment_digest, evidence_digest, spec_id of the persisted transported counterfactual artifact (seal and decode both canonicalize before hashing)"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transported_counterfactual_artifact.rs::site_transported_canonical_collections"]
+note = "Fixed (canonical form v2): selection nodes deduplicated (the evaluator reads the selected variables as a set). canonical_v1 kept; the reader accepts a stored v1 identity and keeps the v1 request with it."
 [[sites.collections]]
 name = "model.covariates"
 class = "multiset"
-canonical = "sort() of Strings, no dedup, count framed"
-concern = "set meaning, duplicates kept; the evaluator refuses a duplicate variable, but only after identity of the request is formed on the canonical copy"
+canonical = "sort, repeats kept by the canonicalizer; the evaluator refuses a duplicate variable before any identity is sealed"
+concern = ""
 [[sites.collections]]
 name = "model.mechanisms"
 class = "set"
-canonical = "sort_by node (stable); evaluator refuses duplicate variables"
-concern = "key is the node only"
+canonical = "sort_by node; the evaluator refuses a duplicate variable"
+concern = ""
 [[sites.collections]]
 name = "mechanism.parents"
 class = "set"
-canonical = "sort_by parent name (stable); evaluator refuses a repeated parent"
-concern = "key is the name only"
+canonical = "sort_by parent; the evaluator refuses a repeated parent"
+concern = ""
 [[sites.collections]]
 name = "selections"
-class = "multiset"
-canonical = "sort_by (label, target), the whole hashed element; no dedup, count framed"
-concern = "set meaning but duplicates kept and not refused in this module"
+class = "set"
+canonical = "sort + dedup (v2)"
+concern = ""
 [[sites.collections]]
 name = "assignment.plus / assignment.minus"
 class = "set"
-canonical = "sort() + dedup() (explicit), count framed"
+canonical = "sort + dedup"
 concern = ""
 [[sites.collections]]
 name = "evidence"
 class = "multiset"
-canonical = "sort_by (role, regime, label), the whole hashed element; no dedup, count framed"
-concern = "set meaning but duplicates kept"
+canonical = "sort by the whole element, repeats kept by the canonicalizer; the evaluator refuses a repeated (role, regime) factor"
+concern = ""
 
 [[sites]]
 id = "io_core.transported_counterfactual_artifact.canonical_affine"
@@ -4003,14 +3874,13 @@ file = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs"
 item = "fn:canonical_affine#0"
 feeds = "affine slopes inside model_digest and spec_id (CanonicalWriter) of the persisted transported counterfactual artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transported_counterfactual_artifact.rs::site_transported_canonical_affine_slopes"]
 [[sites.collections]]
 name = "covariate_slopes"
-class = "set"
-canonical = "sort_by pair_order (name, then total_cmp of slope); no dedup, count framed"
-concern = "repeated covariate name not rejected here; total_cmp separates -0.0 and 0.0"
+class = "multiset"
+canonical = "sort by (name, total_cmp slope), repeats kept by the canonicalizer; the evaluator refuses an unknown covariate; slopes by bit pattern (-0.0 and 0.0 differ, as every canonical real)"
+concern = ""
 
 [[sites]]
 id = "io_core.transported_counterfactual_artifact.canonical_law"
@@ -4018,19 +3888,18 @@ file = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs"
 item = "fn:canonical_law#0"
 feeds = "source_law_digest, target_law_digest and spec_id of the persisted transported counterfactual artifact"
 released = true
-status = "listed"
-checks = []
-reason = "no generated case on production code yet; classified by review"
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/transported_counterfactual_artifact.rs::site_transported_canonical_law_points"]
 [[sites.collections]]
 name = "point.values"
-class = "set"
-canonical = "sort_by pair_order (name, total_cmp value)"
-concern = "total_cmp separates -0.0 from 0.0, so equal values digest differently"
+class = "multiset"
+canonical = "sort by (name, total_cmp value); values by bit pattern"
+concern = ""
 [[sites.collections]]
 name = "law.points"
 class = "multiset"
-canonical = "sort_by point_order (values pairwise, then length, then weight total_cmp); no dedup, a repeated point is repeated mass"
-concern = "-0.0 vs 0.0 and differing NaN payloads in weights sort and digest apart"
+canonical = "sort by point_order; a repeated point is repeated mass"
+concern = ""
 
 [[non_sites]]
 file = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
