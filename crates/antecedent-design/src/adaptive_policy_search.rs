@@ -19,6 +19,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::adaptive_policy::AdaptivePolicyFamily;
+use antecedent_core::reason_details::adaptive_policy_search;
 use antecedent_core::{CanonicalWriter, CausalRng, ExecutionContext, VariableId, derive_stream};
 use std::sync::Arc;
 
@@ -78,17 +79,24 @@ pub enum AdaptivePolicySearchError {
     Source(String),
     /// A policy reads a variable that is not observed at decision time.
     #[error(
-        "adaptive_policy_search: policy reads variable {variable} that is not observed when it acts"
+        "{detail}: policy reads variable {variable} that is not observed when it acts",
+        detail = adaptive_policy_search::UNOBSERVED_FEATURE
     )]
     UnobservedFeature {
         /// Raw id of the variable.
         variable: u32,
     },
     /// An identified-policy-effect label was requested but the response does not support it.
-    #[error("adaptive_policy_search: identified policy effect refused: {0}")]
+    #[error(
+        "{detail}: identified policy effect refused: {0}",
+        detail = adaptive_policy_search::IDENTIFICATION_UNSUPPORTED
+    )]
     IdentificationUnsupported(String),
     /// Held-out evaluation was required but the study design cannot supply it.
-    #[error("adaptive_policy_search: held-out evaluation refused: {0}")]
+    #[error(
+        "{detail}: held-out evaluation refused: {0}",
+        detail = adaptive_policy_search::HELD_OUT_UNSUPPORTED
+    )]
     HeldOutUnsupported(String),
     /// No proposal could be evaluated.
     #[error("adaptive_policy_search: no proposal could be evaluated: {0}")]
@@ -103,12 +111,29 @@ impl AdaptivePolicySearchError {
     /// resources, source failure, no evaluable proposal, cancellation) carry none.
     #[must_use]
     pub const fn reason_code(&self) -> Option<&'static str> {
+        match self.refusal() {
+            Some((code, _)) => Some(code),
+            None => None,
+        }
+    }
+
+    /// Registered reason code and namespaced detail of a scientific refusal, the pair the
+    /// refusal's message starts with; operational failures carry neither.
+    #[must_use]
+    pub const fn refusal(&self) -> Option<(&'static str, &'static str)> {
         match self {
-            Self::UnobservedFeature { .. } => Some("adaptive_policy_unobserved_feature"),
-            Self::IdentificationUnsupported(_) => {
-                Some("adaptive_policy_identification_unsupported")
-            }
-            Self::HeldOutUnsupported(_) => Some("adaptive_policy_heldout_unsupported"),
+            Self::UnobservedFeature { .. } => Some((
+                antecedent_core::reason_code!("adaptive_policy_unobserved_feature"),
+                adaptive_policy_search::UNOBSERVED_FEATURE,
+            )),
+            Self::IdentificationUnsupported(_) => Some((
+                antecedent_core::reason_code!("adaptive_policy_identification_unsupported"),
+                adaptive_policy_search::IDENTIFICATION_UNSUPPORTED,
+            )),
+            Self::HeldOutUnsupported(_) => Some((
+                antecedent_core::reason_code!("adaptive_policy_heldout_unsupported"),
+                adaptive_policy_search::HELD_OUT_UNSUPPORTED,
+            )),
             Self::Invalid(_)
             | Self::Resource(_)
             | Self::Source(_)

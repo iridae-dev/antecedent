@@ -6,6 +6,7 @@
 //! derived by hand, never read back from the search. `conformance/adaptive_policy_search.py`
 //! recomputes the same references in a standalone script.
 
+use antecedent_core::reason_details::adaptive_policy_search as details;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_design::adaptive_policy::{AdaptivePolicyFamily, PolicyFeature, PolicyRule};
 use antecedent_design::adaptive_policy_search::{
@@ -405,6 +406,11 @@ fn standing_is_fitted_model_unless_requested_and_supported() {
     let refused = label(&sim, StandingRequest::IdentifiedPolicyEffect).unwrap_err();
     assert!(matches!(refused, AdaptivePolicySearchError::IdentificationUnsupported(_)));
     assert_eq!(refused.reason_code(), Some("adaptive_policy_identification_unsupported"));
+    assert_eq!(
+        refused.refusal(),
+        Some(("adaptive_policy_identification_unsupported", details::IDENTIFICATION_UNSUPPORTED))
+    );
+    assert!(refused.to_string().starts_with(details::IDENTIFICATION_UNSUPPORTED));
     sim.identified = true;
     let r = label(&sim, StandingRequest::IdentifiedPolicyEffect).unwrap();
     assert!(matches!(r.standing, PolicyStanding::IdentifiedPolicyEffect { .. }));
@@ -430,6 +436,11 @@ fn held_out_evaluation_is_required_or_flagged_and_reports_selection_optimism() {
     let refused =
         run(vec![threshold_family("t")], PolicyConstraints::default(), &sim, opts).unwrap_err();
     assert!(matches!(refused, AdaptivePolicySearchError::HeldOutUnsupported(_)));
+    assert_eq!(
+        refused.refusal(),
+        Some(("adaptive_policy_heldout_unsupported", details::HELD_OUT_UNSUPPORTED))
+    );
+    assert!(refused.to_string().starts_with(details::HELD_OUT_UNSUPPORTED));
 }
 
 #[test]
@@ -439,6 +450,11 @@ fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancel
     let err = run(vec![threshold_family("t")], PolicyConstraints::default(), &sim, options(1))
         .unwrap_err();
     assert!(matches!(err, AdaptivePolicySearchError::UnobservedFeature { variable: 0 }));
+    assert_eq!(
+        err.refusal(),
+        Some(("adaptive_policy_unobserved_feature", details::UNOBSERVED_FEATURE))
+    );
+    assert!(err.to_string().starts_with(details::UNOBSERVED_FEATURE));
     // An open-loop schedule reads nothing, so it needs no observed variable.
     assert!(
         run(

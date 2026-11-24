@@ -1075,12 +1075,22 @@ fn evaluate_decision_py(
     }
     let util = Arc::new(callbacks::PyUtility::new(utility.unbind()));
     let problem = DecisionProblem::new(actions, util, Vec::new());
+    let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+    let program = antecedent::analysis::input_decision_programs::compile_finite_action_decision(
+        problem, outcomes, &ctx,
+    )
+    .map_err(crate::py_err)?;
     let eval = detach_catch(py, move || {
-        facade_evaluate_decision(&problem, &outcomes).map_err(|err| match err {
-            antecedent::design::DesignError::Callback { name, message } => {
-                crate::py_err(antecedent::CausalError::Callback { name, message })
+        program.execute(&ctx).map_err(|err| match err {
+            antecedent::analysis::input_decision_programs::TerminalError::Kernel(
+                antecedent::design::DesignError::Callback { name, message },
+            ) => crate::py_err(antecedent::CausalError::Callback { name, message }),
+            antecedent::analysis::input_decision_programs::TerminalError::Kernel(other) => {
+                crate::py_err(antecedent::CausalError::from(other))
             }
-            other => crate::py_err(antecedent::CausalError::from(other)),
+            antecedent::analysis::input_decision_programs::TerminalError::Refused(error) => {
+                crate::py_err(error)
+            }
         })
     })?;
     Ok(gcm_api::DecisionEvaluation {

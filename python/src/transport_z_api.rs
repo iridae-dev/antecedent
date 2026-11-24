@@ -4,10 +4,13 @@ use crate::transport_common::{
     resolve, serialization_error, unframe_named_artifact,
 };
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
+use antecedent::analysis::design_planning_programs::{
+    TerminalError, compile_z_transport_evidence_plan, compile_z_transport_failure_snapshot,
+};
 use antecedent::design::{
     CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, TransportEvidenceCandidate,
     ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
-    ZTransportPlanSpec, plan_z_transport_evidence, snapshot_z_transport_failure,
+    ZTransportPlanSpec, ZTransportPlanningError,
 };
 use antecedent::estimate::ExactEvaluationLimits;
 use antecedent::graph::SelectionDiagram;
@@ -404,8 +407,10 @@ impl ZTransportStage {
         let bytes = crate::detach_catch(py, move || {
             let ctx = limits.context(cancel);
             let snapshot =
-                snapshot_z_transport_failure(&diagram, &query, &catalog, limits.sid(), &ctx)
-                    .map_err(error)?;
+                compile_z_transport_failure_snapshot(diagram, query, catalog, limits.sid(), &ctx)
+                    .map_err(crate::py_err)?
+                    .execute(&ctx)
+                    .map_err(z_plan_error)?;
             let wire = snapshot.to_wire().map_err(error)?;
             serde_json::to_vec(&wire).map_err(serialization_error)
         })?;
@@ -501,8 +506,16 @@ impl ZTransportStage {
         let base = parse_catalog(catalog, &self.graph)?;
         let ctx = self.limits.context(cancel);
         let expected_snapshot = crate::detach_catch(py, || {
-            snapshot_z_transport_failure(&self.diagram, &self.query, &base, self.limits.sid(), &ctx)
-                .map_err(error)
+            compile_z_transport_failure_snapshot(
+                self.diagram.clone(),
+                self.query.clone(),
+                base.clone(),
+                self.limits.sid(),
+                &ctx,
+            )
+            .map_err(crate::py_err)?
+            .execute(&ctx)
+            .map_err(z_plan_error)
         })?;
         let snapshot = if let Some(bytes) = failure_snapshot {
             let wire: ZTransportFailureSnapshotWire =
@@ -595,7 +608,10 @@ impl ZTransportStage {
         };
         let planned_snapshot = Arc::clone(&snapshot);
         let plan = crate::detach_catch(py, move || {
-            plan_z_transport_evidence(&planned_snapshot, &spec, &ctx).map_err(error)
+            compile_z_transport_evidence_plan(planned_snapshot, spec, &ctx)
+                .map_err(crate::py_err)?
+                .execute(&ctx)
+                .map_err(z_plan_error)
         })?;
         let truncated = plan.truncated();
         let ids = |ids: Vec<Arc<str>>| ids.iter().map(ToString::to_string).collect::<Vec<_>>();
@@ -1394,4 +1410,13 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(consume_z_transport_failure_snapshot, module)?)?;
     module.add_function(wrap_pyfunction!(replay_z_transport_proposal, module)?)?;
     Ok(())
+}
+
+/// The Python exception of a refused z-transport snapshot or plan: the planner's own mapping,
+/// or the compiler's refusal.
+fn z_plan_error(failure: TerminalError<ZTransportPlanningError>) -> PyErr {
+    match failure {
+        TerminalError::Kernel(failure) => error(failure),
+        TerminalError::Refused(failure) => crate::py_err(failure),
+    }
 }

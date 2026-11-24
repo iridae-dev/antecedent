@@ -8,11 +8,13 @@
 //! `decision_evaluation.mean_source_insufficient`).
 
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
+use antecedent::analysis::input_decision_programs::{
+    TerminalError, compile_finite_enumeration_baseline,
+};
 use antecedent::analysis::inverse_query::{
     AtomEvidence, Comparison, EnumeratedForwardValue, ForwardClaim, ForwardEvidence, IdentifiedSet,
     IntervalRegion, InverseQueryArtifact, InverseQueryError, InverseQueryIdentity,
     InverseQueryWire, MAX_INVERSE_QUERY_ARTIFACT_BYTES, MeanSource, StructuralAtom,
-    finite_enumeration_baseline,
 };
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_artifact::{contract_from_json_refusal, contract_to_json};
@@ -478,13 +480,18 @@ fn inverse_query_baseline(
             .into_iter()
             .map(|p| EnumeratedForwardValue { id: p.id, value: p.value, supported: p.supported })
             .collect();
-        match finite_enumeration_baseline(&points, target, comparison, tolerance) {
+        let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+        let program =
+            compile_finite_enumeration_baseline(points, target, comparison, tolerance, &ctx)
+                .map_err(crate::py_err)?;
+        match program.execute(&ctx) {
             Ok(classes) => {
                 let rows: Vec<_> =
                     classes.into_iter().map(|(id, status)| json!([id, status.as_str()])).collect();
                 Ok((Some(serde_json::Value::Array(rows).to_string()), None))
             }
-            Err(error) => Ok((None, Some(query_refusal(&error)))),
+            Err(TerminalError::Kernel(error)) => Ok((None, Some(query_refusal(&error)))),
+            Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
         }
     })
 }

@@ -27,6 +27,9 @@ use antecedent::analysis::decision_claims::{
     interval_identified_utilities, report_identified_utilities, weighted_identified_utilities,
 };
 use antecedent::analysis::design_ranking::DesignRankingArtifactWire;
+use antecedent::analysis::input_decision_programs::{
+    TerminalError, compile_input_functional, compile_supported_input_decision,
+};
 use antecedent::analysis::inverse_query::{
     AtomEvidence, DecisionFunctional, MeanSource, StructuralAtom, StructuralPolicy, Tail,
 };
@@ -42,8 +45,7 @@ use antecedent::design::composition_boundary::{
     InputProvenance, InputSource, NativeExecutionRecord, PairRelation, ProviderKind, ReceiptRef,
     RouteKind, ScalarClaim, SupportPolicy, SupportedDecision, SupportedVerdict,
     TrustEvidence as DesignTrust, TrustRequirement, UnsupportedActionPolicy,
-    check_atom_combination, check_composition, check_paired_draws, evaluate_functional_on_input,
-    evaluate_with_support,
+    check_atom_combination, check_composition, check_paired_draws,
 };
 use antecedent::design::decision_adapters::IdentifiedUtility;
 use antecedent::design::decision_artifact::{
@@ -819,9 +821,13 @@ fn composition_evaluate(
         Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let owned: Vec<DecisionInput> = inputs.iter().map(|input| input.inner.clone()).collect();
-    Ok(match evaluate_with_support(&contract, &owned, &policy) {
+    let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+    let program =
+        compile_supported_input_decision(contract, owned, policy, &ctx).map_err(crate::py_err)?;
+    Ok(match program.execute(&ctx) {
         Ok(decision) => (Some(supported_json(&decision).to_string()), None),
-        Err(error) => (None, Some(boundary_refusal(&error))),
+        Err(TerminalError::Kernel(error)) => (None, Some(boundary_refusal(&error))),
+        Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
     })
 }
 
@@ -892,23 +898,31 @@ fn composition_functional(
         Ok(contract) => contract,
         Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
-    Ok(
-        match evaluate_functional_on_input(&contract, action_id, functional, &input.inner, weakest)
-        {
-            Ok(value) => (
-                Some(
-                    json!({
-                        "value": value.value,
-                        "standard_error": value.standard_error,
-                        "source_mode": format!("{:?}", value.source_mode),
-                    })
-                    .to_string(),
-                ),
-                None,
-            ),
-            Err(error) => (None, Some(boundary_refusal(&error))),
-        },
+    let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+    let program = compile_input_functional(
+        contract,
+        action_id,
+        functional,
+        input.inner.clone(),
+        weakest,
+        &ctx,
     )
+    .map_err(crate::py_err)?;
+    Ok(match program.execute(&ctx) {
+        Ok(value) => (
+            Some(
+                json!({
+                    "value": value.value,
+                    "standard_error": value.standard_error,
+                    "source_mode": format!("{:?}", value.source_mode),
+                })
+                .to_string(),
+            ),
+            None,
+        ),
+        Err(TerminalError::Kernel(error)) => (None, Some(boundary_refusal(&error))),
+        Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

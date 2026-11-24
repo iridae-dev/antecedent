@@ -5,13 +5,16 @@
 //! for the Python layer to raise as its own exception type.
 
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
+use antecedent::analysis::claim_decision_programs::{
+    ContractSource, IdentifiedAction, IdentifiedSetCarrier, SuppliedClaimSet, TerminalError,
+    compile_contract_decision, compile_identified_set_decision, compile_supplied_claim_decision,
+};
 use antecedent::analysis::inverse_query::{AtomEvidence, MeanSource, StructuralPolicy};
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
     IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
-    adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets,
-    utility_interval,
+    adapt_point_claim, adapt_weighted_graph_atoms, evaluate_adapted,
 };
 use antecedent::design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
@@ -19,9 +22,7 @@ use antecedent::design::decision_artifact::{
     result_to_json, source_digest,
 };
 use antecedent::design::decision_contract::AdmissibleDecisionContract;
-use antecedent::design::decision_eval::{
-    DecisionEvalError, MeanEstimate, evaluate_contract, evaluate_contract_on_means,
-};
+use antecedent::design::decision_eval::{DecisionEvalError, DecisionResult, MeanEstimate};
 use antecedent::design::decision_robust_artifact::{
     AdmissibleContractArtifact, ExternalCallbackReceipt, ExternalTrustLimit, RobustResultArtifact,
     admissible_contract_from_json, admissible_contract_from_json_refusal,
@@ -33,6 +34,7 @@ use antecedent::design::decision_structural::{
 };
 use antecedent::io::IoError;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
+use antecedent::prelude::ExecutionContext;
 use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -70,6 +72,26 @@ fn eval_refusal(error: &DecisionEvalError) -> String {
     external_refusal_json(&error.to_refusal())
 }
 
+/// The context a compiled decision program runs under.
+fn decision_context() -> ExecutionContext {
+    ExecutionContext::production_default(0)
+}
+
+/// Evaluate `contract` on `source` through its compiled program. The outer error is the
+/// compiler's refusal, raised; the inner one is the evaluator's, returned as a refusal.
+fn evaluate_compiled_contract(
+    contract: antecedent::design::decision_contract::DecisionContract,
+    source: ContractSource,
+) -> PyResult<Result<DecisionResult, DecisionEvalError>> {
+    let ctx = decision_context();
+    let program = compile_contract_decision(contract, source, &ctx).map_err(crate::py_err)?;
+    match program.execute(&ctx) {
+        Ok(result) => Ok(Ok(result)),
+        Err(TerminalError::Kernel(error)) => Ok(Err(error)),
+        Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
+    }
+}
+
 /// Validate a contract declaration; returns its normalized JSON (with the
 /// recomputed identity) or a structured refusal.
 #[pyfunction]
@@ -95,7 +117,7 @@ fn evaluate_decision(
             Ok(contract) => contract,
             Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
         };
-        match evaluate_contract(&contract, source.inner()) {
+        match evaluate_compiled_contract(contract, ContractSource::Law(source.inner().clone()))? {
             Ok(result) => {
                 Ok((Some(result_to_json(&result, source.inner()).map_err(serialization)?), None))
             }
@@ -140,7 +162,7 @@ fn evaluate_decision_means(
             rng_id: "none:mean_grid".to_owned(),
             estimate: MeanEstimate::Frequentist,
         };
-        match evaluate_contract_on_means(&contract, &source) {
+        match evaluate_compiled_contract(contract, ContractSource::Means(source.clone()))? {
             Ok(result) => {
                 Ok((Some(mean_result_to_json(&result, &source).map_err(serialization)?), None))
             }
@@ -185,7 +207,9 @@ fn export_decision_result<'py>(
     crate::catch_ffi(|| {
         check_size(contract_json)?;
         let contract = contract_from_json(contract_json).map_err(serialization)?;
-        let result = evaluate_contract(&contract, source.inner()).map_err(serialization_eval)?;
+        let result =
+            evaluate_compiled_contract(contract, ContractSource::Law(source.inner().clone()))?
+                .map_err(serialization_eval)?;
         let artifact = DecisionResultArtifact::new(result, source.inner());
         Ok(PyBytes::new(py, &artifact.to_bytes(artifact_id).map_err(serialization)?))
     })
@@ -459,6 +483,52 @@ fn prepare(
     claims_json: &str,
     sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
 ) -> Result<Prepared, String> {
+    let (contract, claims) = parse_claims(declaration_json, kind, claims_json, sources)?;
+    let policy = contract.contract.structural_policy;
+    let adapted = match claims {
+        SuppliedClaimSet::Point { id, evidence, support } => {
+            adapt_point_claim(&id, evidence, support, policy)
+        }
+        SuppliedClaimSet::GraphDependent(claims) => adapt_graph_dependent_claims(claims, policy),
+        SuppliedClaimSet::WeightedGraphAtoms(claims) => adapt_weighted_graph_atoms(claims, policy),
+        SuppliedClaimSet::FiniteScenarios(claims) => adapt_finite_scenarios(claims, policy),
+    }
+    .map_err(|e| external_refusal_json(&e.to_refusal()))?;
+    Ok(Prepared { contract, adapted })
+}
+
+/// Parse the declaration and claims, then adapt and decide over them through the compiled
+/// supplied-claim program. The outer error is the compiler's refusal, raised; the inner one
+/// is a refusal JSON, the same one the direct adaptation and evaluation give.
+fn decide_compiled(
+    declaration_json: &str,
+    kind: &str,
+    claims_json: &str,
+    sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
+) -> PyResult<Result<(Prepared, AdaptedDecision), String>> {
+    let (contract, claims) = match parse_claims(declaration_json, kind, claims_json, sources) {
+        Ok(parsed) => parsed,
+        Err(refusal) => return Ok(Err(refusal)),
+    };
+    let ctx = decision_context();
+    let program = compile_supplied_claim_decision(contract, claims, &ctx).map_err(crate::py_err)?;
+    match program.execute(&ctx) {
+        Ok(readout) => Ok(Ok((
+            Prepared { contract: program.contract().clone(), adapted: readout.adapted },
+            readout.decision,
+        ))),
+        Err(TerminalError::Kernel(error)) => Ok(Err(external_refusal_json(&error.to_refusal()))),
+        Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
+    }
+}
+
+/// Parse the declaration and the claims of `kind`. The error is a refusal JSON.
+fn parse_claims(
+    declaration_json: &str,
+    kind: &str,
+    claims_json: &str,
+    sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
+) -> Result<(AdmissibleDecisionContract, SuppliedClaimSet), String> {
     let contract = admissible_contract_from_json_refusal(declaration_json)
         .map_err(|refusal| external_refusal_json(&refusal))?;
     let wires: Vec<ClaimWire> = serde_json::from_str(claims_json).map_err(|e| {
@@ -493,8 +563,7 @@ fn prepare(
         .zip(sources)
         .map(|(wire, source)| claim_from(wire, source.as_deref()))
         .collect::<Result<Vec<_>, String>>()?;
-    let policy = contract.contract.structural_policy;
-    let adapted = match kind {
+    let claims = match kind {
         "point" => {
             let Ok([claim]) = <[SuppliedClaim; 1]>::try_from(claims) else {
                 return Err(invalid_json(
@@ -502,20 +571,23 @@ fn prepare(
                     None,
                 ));
             };
-            adapt_point_claim(&claim.id, claim.evidence, claim.support, policy)
+            SuppliedClaimSet::Point {
+                id: claim.id,
+                evidence: claim.evidence,
+                support: claim.support,
+            }
         }
-        "graph_dependent" => adapt_graph_dependent_claims(claims, policy),
-        "weighted_graph_posterior" => adapt_weighted_graph_atoms(claims, policy),
-        "finite_scenarios" => adapt_finite_scenarios(claims, policy),
+        "graph_dependent" => SuppliedClaimSet::GraphDependent(claims),
+        "weighted_graph_posterior" => SuppliedClaimSet::WeightedGraphAtoms(claims),
+        "finite_scenarios" => SuppliedClaimSet::FiniteScenarios(claims),
         other => {
             return Err(invalid_json(
                 antecedent::reason::reason_details::decision_adapters::UNKNOWN_CLAIM_KIND,
                 Some(other.into()),
             ));
         }
-    }
-    .map_err(|e| external_refusal_json(&e.to_refusal()))?;
-    Ok(Prepared { contract, adapted })
+    };
+    Ok((contract, claims))
 }
 
 #[derive(serde::Deserialize)]
@@ -724,13 +796,13 @@ fn export_robust_decision<'py>(
         check_size(declaration_json)?;
         check_size(claims_json)?;
         check_size(receipts_json)?;
-        let run = || -> Result<Vec<u8>, String> {
-            let prepared = prepare(declaration_json, kind, claims_json, &sources)?;
-            let decision = evaluate_prepared(&prepared)?;
-            let artifact = seal(&prepared, &decision, receipts_json)?;
-            artifact.to_bytes(artifact_id).map_err(|e| io_refusal(&e, "export"))
-        };
-        Ok(match run() {
+        let exported = decide_compiled(declaration_json, kind, claims_json, &sources)?.and_then(
+            |(prepared, decision)| {
+                let artifact = seal(&prepared, &decision, receipts_json)?;
+                artifact.to_bytes(artifact_id).map_err(|e| io_refusal(&e, "export"))
+            },
+        );
+        Ok(match exported {
             Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
             Err(refusal) => (None, Some(refusal)),
         })
@@ -864,7 +936,7 @@ fn evaluate_identified_set_decision(
     crate::catch_ffi(|| {
         check_size(declaration_json)?;
         check_size(utilities_json)?;
-        let run = || -> Result<String, String> {
+        let parse = || -> Result<(AdmissibleDecisionContract, Vec<IdentifiedUtility>), String> {
             let contract = admissible_contract_from_json_refusal(declaration_json)
                 .map_err(|refusal| external_refusal_json(&refusal))?;
             let wires: Vec<UtilityWire> = serde_json::from_str(utilities_json).map_err(|e| {
@@ -887,13 +959,25 @@ fn evaluate_identified_set_decision(
                     })
                 })
                 .collect::<Result<Vec<_>, String>>()?;
-            let decision = evaluate_identified_sets(&contract, &utilities)
-                .map_err(|e| external_refusal_json(&e.to_refusal()))?;
-            Ok(identified_json(&decision).to_string())
+            Ok((contract, utilities))
         };
-        Ok(match run() {
-            Ok(json) => (Some(json), None),
-            Err(refusal) => (None, Some(refusal)),
+        let (contract, utilities) = match parse() {
+            Ok(parsed) => parsed,
+            Err(refusal) => return Ok((None, Some(refusal))),
+        };
+        let ctx = decision_context();
+        let program = compile_identified_set_decision(
+            contract,
+            IdentifiedSetCarrier::from_utilities(utilities),
+            &ctx,
+        )
+        .map_err(crate::py_err)?;
+        Ok(match program.execute(&ctx) {
+            Ok(decision) => (Some(identified_json(&decision).to_string()), None),
+            Err(TerminalError::Kernel(error)) => {
+                (None, Some(external_refusal_json(&error.to_refusal())))
+            }
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
         })
     })
 }
@@ -919,9 +1003,24 @@ fn identified_utility_interval(
             .into_iter()
             .map(|(lower, upper)| antecedent::query::IdentifiedSet { lower, upper })
             .collect();
-        Ok(match utility_interval(&contract.contract, action_id, &inputs) {
-            Ok(set) => (Some((set.lower, set.upper)), None),
-            Err(error) => (None, Some(external_refusal_json(&error.to_refusal()))),
+        let ctx = decision_context();
+        let carrier = IdentifiedSetCarrier::new(vec![IdentifiedAction::Inputs {
+            action_id: action_id.to_owned(),
+            inputs,
+            hard_exclusions: Vec::new(),
+            support: AtomSupport::supported(),
+        }]);
+        let program =
+            compile_identified_set_decision(contract, carrier, &ctx).map_err(crate::py_err)?;
+        Ok(match program.utilities(&ctx) {
+            Ok(utilities) => {
+                let set = &utilities[0].utility;
+                (Some((set.lower, set.upper)), None)
+            }
+            Err(TerminalError::Kernel(error)) => {
+                (None, Some(external_refusal_json(&error.to_refusal())))
+            }
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
         })
     })
 }
