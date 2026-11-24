@@ -39,6 +39,7 @@ pub mod learned_joint_transport;
 pub mod measured_exposure_effect;
 pub mod nested_markov;
 pub mod power_prior_selection;
+pub mod prior_composition;
 pub mod sampled_counterfactual_transport;
 pub mod sampled_recovery;
 pub mod scenario_covariance;

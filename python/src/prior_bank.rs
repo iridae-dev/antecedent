@@ -6,8 +6,7 @@ use std::collections::BTreeMap;
 
 use antecedent::inference::{
     ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, MappedTransferSpec,
-    PriorSet, PriorSpec, compose_external_priors, compose_external_priors_with_alphas,
-    mapped_posterior_transfer_with,
+    PriorSet, PriorSpec, compose_external_priors_with_alphas, mapped_posterior_transfer_with,
 };
 use antecedent::io::distribution_artifact::DistributionIdentity;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
@@ -592,9 +591,7 @@ fn compose_transport_path<'py>(
     transport_weights: Option<Vec<f64>>,
     coef_index: Option<usize>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    use antecedent::inference::{
-        TransportAdjustment, TransportContext, TransportPolicy, compose_with_transport,
-    };
+    use antecedent::inference::{TransportAdjustment, TransportContext, TransportPolicy};
 
     let pop_owned: Vec<Option<String>> = match source_populations {
         Some(v) => {
@@ -619,15 +616,25 @@ fn compose_transport_path<'py>(
             ));
         }
     };
-    let ctx = TransportContext {
+    let context = TransportContext {
         source_populations: &pop_refs,
         target_population,
         policy,
         adjustment: adjustment.as_ref(),
         coef_index,
     };
-    let (composed, _) = compose_with_transport(srcs, baseline, &ctx).map_err(pyvalue)?;
-    let (prepared, _) = antecedent::inference::apply_transport(srcs, &ctx).map_err(pyvalue)?;
+    // The compiled `ExternalPriorTransport` route: the same transport and composition behind
+    // its unit's support gate. Neither reads the context's seed.
+    let ctx = crate::py_execution_context(0, 1);
+    let compiled = antecedent::Study::compile_prior_tag_transport(
+        srcs.to_vec(),
+        baseline.clone(),
+        &context,
+        &ctx,
+    )
+    .map_err(py_err)?;
+    let (composed, _) = compiled.compose_with_transport(&ctx).map_err(pyvalue)?;
+    let (prepared, _) = compiled.apply_transport(&ctx).map_err(pyvalue)?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
         .zip(composed.alphas_applied.iter())
@@ -733,7 +740,13 @@ fn compose_external_priors_py<'py>(
         }
         return Ok(d);
     }
-    let composed = compose_external_priors(&srcs, &baseline).map_err(pyvalue)?;
+    // The compiled `ExternalPriorComposition` route: the same composition behind its unit's
+    // support gate. It does not read the context's seed.
+    let ctx = crate::py_execution_context(0, 1);
+    let composed = antecedent::Study::compile_external_prior_composition(srcs, baseline, &ctx)
+        .map_err(py_err)?
+        .compose(&ctx)
+        .map_err(pyvalue)?;
     let d = composed_to_dict(py, &composed)?;
     d.set_item("sources", sources)?;
     Ok(d)
@@ -790,10 +803,7 @@ fn compose_external_priors_for_target_py<'py>(
     conflict: Option<&Bound<'py, PyDict>>,
     conflict_signals: Option<&Bound<'py, PyList>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    use antecedent::inference::{
-        KernelFamily, TransportKernel, WeightedTarget, apply_weighted_target_transport,
-        compose_with_weighted_target_transport,
-    };
+    use antecedent::inference::{KernelFamily, TransportKernel, WeightedTarget};
 
     let srcs = sources_from_list(sources)?;
     let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
@@ -822,8 +832,19 @@ fn compose_external_priors_for_target_py<'py>(
     if let Some(f) = min_ess_fraction {
         target = target.with_min_ess_fraction(f).map_err(pyvalue)?;
     }
-    let (prepared, overlap) =
-        apply_weighted_target_transport(&srcs, policy, &target, coef_index).map_err(pyvalue)?;
+    // The compiled `ExternalPriorTransport` route: the same overlap check, transport and
+    // composition behind its unit's support gate. Neither reads the context's seed.
+    let ctx = crate::py_execution_context(0, 1);
+    let compiled = antecedent::Study::compile_prior_weighted_target_transport(
+        srcs,
+        baseline.clone(),
+        policy,
+        target,
+        coef_index,
+        &ctx,
+    )
+    .map_err(py_err)?;
+    let (prepared, overlap) = compiled.apply_weighted_target_transport(&ctx).map_err(pyvalue)?;
     let src_list = sources_to_py_list(py, &prepared)?;
     let out = if let Some(c) = conflict {
         let policy_c = conflict_policy_from_dict(Some(c))?
@@ -838,13 +859,12 @@ fn compose_external_priors_for_target_py<'py>(
         d
     } else {
         let (composed, _) =
-            compose_with_weighted_target_transport(&srcs, &baseline, policy, &target, coef_index)
-                .map_err(pyvalue)?;
+            compiled.compose_with_weighted_target_transport(&ctx).map_err(pyvalue)?;
         composed_to_dict(py, &composed)?
     };
     out.set_item("sources", src_list)?;
     out.set_item("target_overlap", overlap_to_py(py, &overlap)?)?;
-    if let Some(k) = target.kernel() {
+    if let Some(k) = compiled.target().kernel() {
         out.set_item("kernel_family", k.family().id())?;
         out.set_item("kernel_bandwidth", k.bandwidth())?;
     }
@@ -875,12 +895,23 @@ fn transport_bandwidth_sensitivity_py<'py>(
     unit_effects: Vec<f64>,
     min_ess_fraction: Option<f64>,
 ) -> PyResult<Bound<'py, PyList>> {
-    use antecedent::inference::{KernelFamily, kernel_bandwidth_sensitivity};
+    use antecedent::inference::KernelFamily;
     let family = KernelFamily::parse(kernel_family).map_err(pyvalue)?;
     let floor = min_ess_fraction.unwrap_or(antecedent::inference::TARGET_MIN_ESS_FRACTION);
-    let rows =
-        kernel_bandwidth_sensitivity(family, &bandwidths, &unit_distances, &unit_effects, floor)
-            .map_err(pyvalue)?;
+    // The compiled `ExternalPriorTransport` route: the same sensitivity rows behind its unit's
+    // support gate. It does not read the context's seed.
+    let ctx = crate::py_execution_context(0, 1);
+    let rows = antecedent::Study::compile_kernel_bandwidth_sensitivity(
+        family,
+        bandwidths,
+        unit_distances,
+        unit_effects,
+        floor,
+        &ctx,
+    )
+    .map_err(py_err)?
+    .sensitivity(&ctx)
+    .map_err(pyvalue)?;
     let out = PyList::empty(py);
     for row in &rows {
         let d = PyDict::new(py);
@@ -1593,16 +1624,22 @@ fn compose_count_power_priors_py(
     base: (f64, f64),
     sources: Vec<(f64, f64, f64)>,
 ) -> PyResult<(f64, f64)> {
+    // The compiled `ExternalPriorComposition` route: the same count composition behind its
+    // unit's support gate. It does not read the context's seed.
+    let ctx = crate::py_execution_context(0, 1);
     match family {
         "beta" => {
             let counts = sources
                 .iter()
                 .map(|&(k, n, a)| Ok((whole(k)?, whole(n)?, a)))
                 .collect::<PyResult<Vec<_>>>()?;
-            let h = antecedent::inference::compose_beta_power_priors(
+            let h = antecedent::Study::compile_beta_power_prior_composition(
                 antecedent::inference::BetaHyperparameters { alpha: base.0, beta: base.1 },
-                &counts,
+                counts,
+                &ctx,
             )
+            .map_err(py_err)?
+            .compose(&ctx)
             .map_err(pyvalue)?;
             Ok((h.alpha, h.beta))
         }
@@ -1611,10 +1648,13 @@ fn compose_count_power_priors_py(
                 .iter()
                 .map(|&(s, e, a)| Ok((whole(s)?, e, a)))
                 .collect::<PyResult<Vec<_>>>()?;
-            let h = antecedent::inference::compose_gamma_power_priors(
+            let h = antecedent::Study::compile_gamma_power_prior_composition(
                 antecedent::inference::GammaHyperparameters { shape: base.0, rate: base.1 },
-                &counts,
+                counts,
+                &ctx,
             )
+            .map_err(py_err)?
+            .compose(&ctx)
             .map_err(pyvalue)?;
             Ok((h.shape, h.rate))
         }
