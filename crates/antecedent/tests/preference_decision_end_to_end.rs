@@ -585,6 +585,49 @@ fn bracketing_records() -> (NativeResponseClaim, NativeDecisionInput, ChoiceReco
     (claim, input, records)
 }
 
+/// `analysis_result_identity`: a mean source is identified by whether its means are posterior
+/// means or point estimates, and by its coordinates and means in order (each mean belongs to
+/// the coordinate at its position).
+#[test]
+fn the_analysis_result_identity_names_the_estimate_kind_and_keeps_coordinate_order() {
+    use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
+    let (_, input, _) = bracketing_records();
+    let base = pd::analysis_result_identity(&input);
+    let with = |edit: fn(&mut MeanSource)| {
+        let mut changed = input.clone();
+        let NativeDecisionSource::Mean(means) = &mut changed.source else {
+            panic!("a frequentist claim gives a mean source");
+        };
+        edit(means);
+        pd::analysis_result_identity(&changed)
+    };
+    assert_eq!(with(|_| {}), base);
+    let kind = with(|m| {
+        m.estimate = match m.estimate {
+            MeanEstimate::Posterior => MeanEstimate::Frequentist,
+            MeanEstimate::Frequentist => MeanEstimate::Posterior,
+        };
+    });
+    assert_ne!(kind, base, "the estimate kind is part of the identity");
+    let NativeDecisionSource::Mean(means) = &input.source else { unreachable!() };
+    assert!(means.coordinates.len() >= 2, "the fixture reads several coordinates");
+    let swapped = with(|m| {
+        m.coordinates.swap(0, 1);
+        m.means.swap(0, 1);
+    });
+    assert_ne!(swapped, base, "coordinates and means are ordered");
+    let mut seen = std::collections::BTreeSet::from([base, kind, swapped]);
+    for edit in [
+        (|m: &mut MeanSource| m.means[0] += 1.0) as fn(&mut MeanSource),
+        |m| m.provider_id.push('x'),
+        |m| m.snapshot_id.push('x'),
+        |m| m.causal_contract_id.push('x'),
+        |m| m.rng_id.push('x'),
+    ] {
+        assert!(seen.insert(with(edit)));
+    }
+}
+
 const TOLERANCE: f64 = 0.01;
 
 fn reviewed(records: &ChoiceRecordSet) -> AcceptedPreferences {

@@ -1139,15 +1139,22 @@ fn attribute_values(
 
 /// Identity of an analysis input as a belief source reads it: the identified program and
 /// request, the representation and the content of the source (every coordinate and mean of a
-/// mean source; the draw digest of a joint law, as the decision artifacts compute it).
+/// mean source, and whether the means are posterior means or point estimates; the draw digest
+/// of a joint law, as the decision artifacts compute it). Coordinates and means are ordered:
+/// each mean belongs to the coordinate at its position.
 #[must_use]
 pub fn analysis_result_identity(input: &NativeDecisionInput) -> String {
     let mut writer = CanonicalWriter::new(BELIEF_DOMAIN);
     writer.text(&input.program_identity);
     match &input.source {
         NativeDecisionSource::Mean(means) => {
+            let estimate = match means.estimate {
+                MeanEstimate::Posterior => 1,
+                MeanEstimate::Frequentist => 2,
+            };
             writer
                 .word(1)
+                .word(estimate)
                 .text(&means.provider_id)
                 .text(&means.snapshot_id)
                 .text(&means.causal_contract_id)

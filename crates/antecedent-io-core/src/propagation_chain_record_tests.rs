@@ -1472,6 +1472,30 @@ fn a_deferred_draft_has_its_own_identity_and_binds_rows_seed_and_layout() {
     assert_ne!(propagation_chain_draft_identity(&regrouped).expect("identity"), identity);
 }
 
+/// `write_deferred`: the declared blocks are a set keyed by their pair of groups, written in
+/// pair order, so two drafts that list the same blocks in another order share an identity;
+/// a block's pair and terms are part of it. (The identity is computed on the declaration as
+/// written; a third group without a source would still be refused when the draft is planned.)
+#[test]
+fn the_declared_blocks_of_a_deferred_draft_enter_its_identity_as_a_set() {
+    let block = |second: u64, term: f64| ChainDeclaredBlockWire {
+        first: 0,
+        second,
+        terms: vec![term.to_bits()],
+    };
+    let with = |blocks: Vec<ChainDeclaredBlockWire>| {
+        let mut draft = deferred_draft(400, 7);
+        draft.deferred.slots.push("z".into());
+        draft.deferred.within_blocks.push(vec!["z".into()]);
+        draft.deferred.declared_cross = blocks;
+        propagation_chain_draft_identity(&draft).expect("identity")
+    };
+    let listed = with(vec![block(1, 0.01), block(2, 0.02)]);
+    assert_eq!(with(vec![block(2, 0.02), block(1, 0.01)]), listed);
+    assert_ne!(with(vec![block(1, 0.01)]), listed);
+    assert_ne!(with(vec![block(1, 0.02), block(2, 0.01)]), listed);
+}
+
 #[test]
 fn a_deferred_draft_is_never_sealed_exported_or_consumed() {
     let draft = deferred_draft(400, 7);
