@@ -415,6 +415,20 @@ impl SmoothedDosePosteriorArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(&self, limits: &PosteriorRowConsumeLimits) -> Result<(), Refusal> {
         if self.input.source.len() > limits.max_rows {
             return Err(Refusal::LimitsExceeded("rows"));
@@ -490,6 +504,25 @@ impl SmoothedDosePosteriorArtifactWire {
         })
     }
 
+    /// [`Self::consume_typed_with_context`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed_with_context`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn consume_typed_with_context_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Refusal> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| Refusal::Undecodable(error.to_string()))?;
+        Self::consume_typed_with_context(bytes, limits, ctx)
+    }
+
     /// Decode and recompute everything under the consumer's limits; accept only a result
     /// identical to the stored one.
     ///
@@ -497,6 +530,23 @@ impl SmoothedDosePosteriorArtifactWire {
     /// Any reconstruction failure, with the reason code and `bayesian_row.*` detail.
     pub fn consume_typed(bytes: &[u8], limits: PosteriorRowConsumeLimits) -> Result<Self, Refusal> {
         Self::consume(bytes, limits, None)
+    }
+
+    /// [`Self::consume_typed`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_typed_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Refusal> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| Refusal::Undecodable(error.to_string()))?;
+        Self::consume_typed(bytes, limits)
     }
 
     fn consume(
@@ -530,5 +580,59 @@ impl SmoothedDosePosteriorArtifactWire {
             return Err(Refusal::ResultMismatch);
         }
         Ok(wire)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn smoothed_dose_posterior_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            SmoothedDosePosteriorArtifactWire::consume_typed(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+            ),
+            SmoothedDosePosteriorArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::matching(),
+            ),
+            SmoothedDosePosteriorArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SmoothedDosePosteriorArtifactWire::consume_typed_with_context(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+            ),
+            SmoothedDosePosteriorArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            SmoothedDosePosteriorArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SmoothedDosePosteriorArtifactWire::decode(support::BYTES),
+            SmoothedDosePosteriorArtifactWire::decode_expecting(
+                support::BYTES,
+                &support::matching(),
+            ),
+            SmoothedDosePosteriorArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

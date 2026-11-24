@@ -7,7 +7,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -196,8 +196,22 @@ class CompiledRobustDecision(ScientificResult):
             ),
         )
 
-    def consume(self, artifact: Any, *, execution: Execution | None = None) -> CompiledRobustResult:
-        return consume_compiled_robust_decision(artifact, compiled=self, execution=execution)
+    def consume(
+        self,
+        artifact: Any,
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
+    ) -> CompiledRobustResult:
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._compiled_robust.CompiledRobustDecision.consume",
+            "antecedent._compiled_robust.CompiledRobustDecision.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
+        return consume_compiled_robust_decision(
+            artifact, compiled=self, execution=execution, retained_identity=_retained.ADMITTED
+        )
 
 
 @outcome_operation
@@ -244,9 +258,20 @@ def joint_scenario_carrier(
     resumable=False,
 )
 def consume_joint_scenarios(
-    artifact: Any, *, expected_identity: str, execution: Execution | None = None
+    artifact: Any,
+    *,
+    expected_identity: str,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> JointScenarioCarrier:
     """Load immutable source data under a separately retained identity; no live fit resumes."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent._compiled_robust.consume_joint_scenarios",
+        "antecedent._compiled_robust.consume_joint_scenarios(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     source = call_native(
         execution,
         _native.consume_joint_scenario_carrier,
@@ -298,8 +323,16 @@ def consume_compiled_robust_decision(
     compiled: CompiledRobustDecision,
     expected_program_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CompiledRobustResult:
     """Replay only under an independently retained compatible compiler owner."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent._compiled_robust.consume_compiled_robust_decision",
+        "antecedent._compiled_robust.consume_compiled_robust_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_program_identity is not None,
+    )
     if not isinstance(compiled, CompiledRobustDecision):
         raise CausalTypeError("compiled must be an independently compiled CompiledRobustDecision")
     if (

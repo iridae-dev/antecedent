@@ -31,6 +31,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
@@ -151,6 +152,7 @@ def consume_observation_recovery_artifact(
     max_depth: int = 256,
     max_requests: int = 64,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify an exported recovery and recompute it bit for bit.
 
@@ -158,6 +160,12 @@ def consume_observation_recovery_artifact(
     above its own maxima), re-checks the formula, recomputes the recovered law
     and every effect point, and refuses relabelled names or any edited premise.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._recovery.consume_observation_recovery_artifact",
+        "antecedent.transport._recovery.consume_observation_recovery_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

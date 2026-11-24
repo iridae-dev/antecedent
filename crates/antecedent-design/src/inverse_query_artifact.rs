@@ -921,6 +921,23 @@ impl InverseQueryArtifact {
         Self::from_bytes_with_limits(bytes, expected, InverseQueryReadLimits::default())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&InverseQueryIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// [`Self::from_bytes`] accepting the counts `limits` allows instead of the defaults.
     ///
     /// # Errors
@@ -986,6 +1003,25 @@ impl InverseQueryArtifact {
         }
         Ok(artifact)
     }
+
+    /// [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        expected: Option<&InverseQueryIdentity>,
+        limits: InverseQueryReadLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_limits(bytes, expected, limits)
+        })
+    }
 }
 
 /// The JSON form of a result table, for bridges that hand it to another language.
@@ -1001,5 +1037,40 @@ fn source_refusal(cause: crate::source_evidence::SourceEvidenceError) -> IoError
     IoError::Refused {
         code: cause.code,
         message: format!("{}: original source evidence failed validation", cause.detail),
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{InverseQueryArtifact, InverseQueryReadLimits};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn inverse_query_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let limits = InverseQueryReadLimits::default();
+        same_outcome(
+            &InverseQueryArtifact::from_bytes(&bytes, None),
+            &InverseQueryArtifact::from_bytes_expecting(&bytes, None, &retained),
+        );
+        refused_as_not_retained(&InverseQueryArtifact::from_bytes_expecting(
+            &bytes,
+            None,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &InverseQueryArtifact::from_bytes_with_limits(&bytes, None, limits),
+            &InverseQueryArtifact::from_bytes_with_limits_expecting(
+                &bytes, None, limits, &retained,
+            ),
+        );
+        refused_as_not_retained(&InverseQueryArtifact::from_bytes_with_limits_expecting(
+            &bytes,
+            None,
+            limits,
+            &other_artifact(),
+        ));
     }
 }

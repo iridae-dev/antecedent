@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _retained
 from .._columns import coerce_fields
 from .._scientific import ScientificResult
 from .._validate import real
@@ -58,7 +59,9 @@ class MeanSource(ScientificResult):
                 from ..cohort_decision import consume_cohort_decision_source
 
                 checked = consume_cohort_decision_source(
-                    self._original_cohort.export(), expected_identity=self._original_cohort.identity
+                    self._original_cohort.export(),
+                    expected_identity=self._original_cohort.identity,
+                    retained_identity=_retained.ADMITTED,
                 )
                 native_authority |= checked.is_native
             verified_authority = False

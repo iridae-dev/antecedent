@@ -56,6 +56,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -510,6 +511,7 @@ def consume_joint_effects(
     *,
     expected_identity: VectorTreatmentIdentity | Mapping[str, str] | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> JointEffects:
     """Recompute an exported joint-fit artifact and accept only an identical one.
 
@@ -524,6 +526,13 @@ def consume_joint_effects(
 
     ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.vector_treatment.consume_joint_effects",
+        "antecedent.vector_treatment.consume_joint_effects(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

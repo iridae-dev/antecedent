@@ -43,6 +43,7 @@ from typing import Any
 
 import numpy as np
 
+from . import _retained
 from ._columns import coerce_fields
 from ._digest import canonical_digest
 from ._native import msm_sensitivity_artifact_run as _artifact_run
@@ -500,7 +501,9 @@ class MsmResult:
         raise_refusal(refusal, MsmSensitivityRefusal)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native artifact returned neither a result nor a refusal")
-        return require_success(SensitivityArtifact.consume(data))
+        return require_success(
+            SensitivityArtifact.consume(data, retained_identity=_retained.ADMITTED)
+        )
 
 
 def _result(wire: Mapping[str, Any], request: _Request) -> MsmResult:

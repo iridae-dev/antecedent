@@ -698,6 +698,20 @@ impl JointBayesianArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &JointBayesianConsumeLimits,
@@ -767,6 +781,24 @@ impl JointBayesianArtifactWire {
         Self::consume_expecting(bytes, &JointBayesianExpectation::default(), limits, ctx)
     }
 
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: JointBayesianConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, JointTransportFit), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
+    }
+
     /// [`Self::consume_with_limits`] that additionally requires the stored premises and
     /// data digests to equal the consumer's expected identity.
     ///
@@ -815,6 +847,25 @@ impl JointBayesianArtifactWire {
             return Err(JointBayesianArtifactError::ResultMismatch.into());
         }
         Ok((wire, fit))
+    }
+
+    /// [`Self::consume_expecting`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_expecting`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting_retained(
+        bytes: &[u8],
+        expected: &JointBayesianExpectation,
+        limits: JointBayesianConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, JointTransportFit), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_expecting(bytes, expected, limits, ctx)
+        })
     }
 }
 
@@ -1004,6 +1055,26 @@ impl JointBayesianArtifactWire {
         crate::measured_inference::compare_replay(&envelope, &measured)?;
         Ok((wire, fit, measured))
     }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &crate::measured_inference::MeasuredExpectation,
+        limits: JointBayesianConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, JointTransportFit, crate::measured_inference::MeasuredInference), IoError>
+    {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1131,5 +1202,84 @@ mod shared_refusal_tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn joint_bayesian_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            JointBayesianArtifactWire::consume_expecting(
+                support::BYTES,
+                &JointBayesianExpectation::default(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+            ),
+            JointBayesianArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &JointBayesianExpectation::default(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            JointBayesianArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &JointBayesianExpectation::default(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            JointBayesianArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+            ),
+            JointBayesianArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            JointBayesianArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            JointBayesianArtifactWire::consume_with_limits(
+                support::BYTES,
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+            ),
+            JointBayesianArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            JointBayesianArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                JointBayesianConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            JointBayesianArtifactWire::decode(support::BYTES),
+            JointBayesianArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            JointBayesianArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

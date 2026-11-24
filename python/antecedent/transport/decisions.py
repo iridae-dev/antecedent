@@ -68,6 +68,7 @@ from typing import Any, Literal, get_args
 
 import numpy as np
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import CompiledTransportDecisionHandle, CompiledTransportNodeBundleHandle
@@ -737,6 +738,7 @@ def consume_transport_decision(
     route: DecisionRoute,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportDecisionResult:
     """Independently replay a sealed transported decision from its bytes.
 
@@ -749,6 +751,13 @@ def consume_transport_decision(
     target units and disturbances from the execution's streams, so it replays under the
     seed it was produced with.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport.decisions.consume_transport_decision",
+        "antecedent.transport.decisions.consume_transport_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     native = _call(
         execution,
@@ -953,6 +962,7 @@ def consume_node_bundle(
     expected_bundle: str,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> NodeBundleReceipt:
     """Independently replay a sealed transported-fit bundle from its bytes.
 
@@ -962,6 +972,13 @@ def consume_node_bundle(
     node, executes the terminal and requires the stored receipt; anything else refuses
     with ``external_binding_mismatch``.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport.decisions.consume_node_bundle",
+        "antecedent.transport.decisions.consume_node_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     checked = _route(route, get_args(FitRoute), "route")
     parts = _call(
@@ -987,6 +1004,7 @@ def consume_fit_bundle(
     expected_identity: str,
     supplied: SuppliedSources | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedBundle:
     """Consume an exported bundle whose transported fit nodes are refitted, not trusted.
 
@@ -996,6 +1014,13 @@ def consume_fit_bundle(
     as replayed only when it reproduces. ``expected_identity`` is the bundle identity
     retained independently of the bytes.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport.decisions.consume_fit_bundle",
+        "antecedent.transport.decisions.consume_fit_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     if supplied is not None and not isinstance(supplied, SuppliedSources):
         raise CausalTypeError("supplied must be SuppliedSources or None")

@@ -949,6 +949,22 @@ impl RepairReportArtifact {
         Self::from_bytes_with_limits(bytes, RepairReadLimits::default())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, RepairArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| RepairArtifactError::from_io(&error))?;
+        Self::from_bytes(bytes)
+    }
+
     /// [`Self::from_bytes`] under the caller's maxima instead of the defaults.
     ///
     /// # Errors
@@ -983,6 +999,24 @@ impl RepairReportArtifact {
         let artifact: Self = from_cbor(&body).map_err(|e| RepairArtifactError::from_io(&e))?;
         artifact.check_shape(limits)?;
         Ok(artifact)
+    }
+
+    /// [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        limits: RepairReadLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, RepairArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| RepairArtifactError::from_io(&error))?;
+        Self::from_bytes_with_limits(bytes, limits)
     }
 
     fn check_shape(&self, limits: RepairReadLimits) -> Result<(), RepairArtifactError> {
@@ -1518,5 +1552,39 @@ mod scientific_obligation_tests {
         assert_eq!(obligation_from_wire(&stored).unwrap(), obligation);
         stored.quantities[0].1.units = "lb".into();
         assert!(obligation_from_wire(&stored).is_err());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{RepairReadLimits, RepairReportArtifact};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn repair_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &RepairReportArtifact::from_bytes(&bytes),
+            &RepairReportArtifact::from_bytes_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&RepairReportArtifact::from_bytes_expecting(
+            &bytes,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &RepairReportArtifact::from_bytes_with_limits(&bytes, RepairReadLimits::default()),
+            &RepairReportArtifact::from_bytes_with_limits_expecting(
+                &bytes,
+                RepairReadLimits::default(),
+                &retained,
+            ),
+        );
+        refused_as_not_retained(&RepairReportArtifact::from_bytes_with_limits_expecting(
+            &bytes,
+            RepairReadLimits::default(),
+            &other_artifact(),
+        ));
     }
 }

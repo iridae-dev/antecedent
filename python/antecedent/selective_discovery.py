@@ -76,7 +76,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -874,7 +874,7 @@ class ConsumedSelectiveDiscovery(ScientificResult, Mapping[str, Any]):
     replayable=False,
 )
 def consume_selective_discovery_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedSelectiveDiscovery:
     """Validate an artifact (every identity recomputed) and return its identity and summary.
 
@@ -885,6 +885,13 @@ def consume_selective_discovery_artifact(
         SelectiveDiscoveryRefusal: ``discovery_statistics_invalid`` for an unusable receipt or an
             inconsistent identity, ``invalid_argument`` for corrupt bytes.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.selective_discovery.consume_selective_discovery_artifact",
+        "antecedent.selective_discovery.consume_selective_discovery_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

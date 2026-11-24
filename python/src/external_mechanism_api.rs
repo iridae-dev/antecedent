@@ -18,8 +18,7 @@ use antecedent::gcm::external_mechanism::{
 };
 use antecedent::gcm::nonlinear_equilibrium::{EquilibriumError, RegimeRow};
 use antecedent::io::external_cyclic_artifact::{
-    ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES, consume_external_cyclic_artifact,
-    inspect_external_cyclic_artifact,
+    ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES, inspect_external_cyclic_artifact,
 };
 use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
@@ -285,7 +284,7 @@ fn external_export(
 
 /// Independently replay an artifact against its retained identity; the report as JSON.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity, resolver=None, *, max_bytes=None, cancel=None))]
+#[pyo3(signature = (artifact, expected_identity, resolver=None, *, max_bytes=None, cancel=None, retained_identity=None))]
 fn external_consume(
     py: Python<'_>,
     artifact: &[u8],
@@ -293,7 +292,9 @@ fn external_consume(
     resolver: Option<Py<PyAny>>,
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
+    retained_identity: Option<&str>,
 ) -> PyResult<String> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     let ctx = execution_context(max_bytes, cancel);
     crate::bridge::check_declared_len(
         artifact.len(),
@@ -304,12 +305,26 @@ fn external_consume(
     let expected_identity = expected_identity.to_owned();
     let resolver = resolver_of(resolver);
     crate::detach_catch(py, move || {
-        let report = consume_external_cyclic_artifact(
-            &artifact,
-            &expected_identity,
-            resolver.as_ref().map(|r| r as &dyn TrustedMechanismResolver),
-            &ctx,
-        )
+        let resolver = resolver.as_ref().map(|r| r as &dyn TrustedMechanismResolver);
+        let report = match &retained {
+            Some(retained) => antecedent::io::external_cyclic_artifact::consume_external_cyclic_artifact_expecting(
+                &artifact,
+                &expected_identity,
+                resolver,
+                &ctx,
+                retained,
+            ),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::external_cyclic_artifact::consume_external_cyclic_artifact(
+                &artifact,
+                &expected_identity,
+                resolver,
+                &ctx,
+            ),
+        }
         .map_err(|e| operation_error(e, &ctx))?;
         serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })

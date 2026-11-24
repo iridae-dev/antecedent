@@ -51,7 +51,7 @@ from typing import Any, Literal
 
 from antecedent import _reason_details
 
-from . import _native, design, repair
+from . import _native, _retained, design, repair
 from ._artifact_protocol import container_bytes
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
@@ -393,10 +393,12 @@ def _bytes(name: str, value: object) -> bytes:
 def _replay(repair_artifact: bytes, ranking_artifact: bytes) -> None:
     repair_artifact = container_bytes(repair_artifact)
     ranking_artifact = container_bytes(ranking_artifact)
-    repair.consume(repair_artifact)
+    repair.consume(repair_artifact, retained_identity=_retained.ADMITTED)
     # The bundle binds the ranking by identity and digest, so the artifact is replayed on its
     # own seal here; there is no separately retained expectation to compare it with.
-    design.consume(ranking_artifact, skip_expectation_check=True)
+    design.consume(
+        ranking_artifact, skip_expectation_check=True, retained_identity=_retained.ADMITTED
+    )
 
 
 class ProposalBundle:

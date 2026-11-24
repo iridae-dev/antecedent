@@ -55,7 +55,7 @@ from typing import Any, Literal, Protocol, cast
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -1725,6 +1725,7 @@ def consume(
     max_operations: int = _CONSUME_MAX_OPERATIONS,
     max_depth: int = _CONSUME_MAX_DEPTH,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> RepairResult:
     """Independently replay an exported repair report and return it.
 
@@ -1740,6 +1741,12 @@ def consume(
     honestly, nor does it check that arriving studies will deliver their declared
     evidence.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.repair.consume",
+        "antecedent.repair.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):

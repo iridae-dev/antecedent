@@ -999,6 +999,22 @@ impl JointLawPropagationArtifactWire {
         Self::decode_within(bytes, &JointLawPropagationLimits::default())
     }
 
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// [`Self::decode`] under the caller's bounds instead of the defaults.
     ///
     /// # Errors
@@ -1019,6 +1035,25 @@ impl JointLawPropagationArtifactWire {
         }
         check_bounds(&wire, limits)?;
         Ok(wire)
+    }
+
+    /// As [`Self::decode_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_within_expecting(
+        bytes: &[u8],
+        limits: &JointLawPropagationLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::decode_within(bytes, limits)
+        })
     }
 
     /// Verify and replay.
@@ -1110,4 +1145,58 @@ const fn is_supported_version(version: u32) -> bool {
 #[must_use]
 pub fn float_bits(values: &[f64]) -> Vec<u64> {
     bits_of(values)
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn joint_law_propagation_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // JointLawPropagationArtifactWire::decode_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                JointLawPropagationArtifactWire::decode_expecting(bytes, &retained).err()
+            ),
+            format!("{:?}", JointLawPropagationArtifactWire::decode(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", JointLawPropagationArtifactWire::decode_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // JointLawPropagationArtifactWire::decode_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                JointLawPropagationArtifactWire::decode_within_expecting(
+                    bytes,
+                    &JointLawPropagationLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                JointLawPropagationArtifactWire::decode_within(
+                    bytes,
+                    &JointLawPropagationLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            JointLawPropagationArtifactWire::decode_within_expecting(
+                bytes,
+                &JointLawPropagationLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
 }

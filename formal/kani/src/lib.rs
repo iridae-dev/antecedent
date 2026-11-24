@@ -12,3 +12,6 @@ mod revalidation;
 
 #[cfg(kani)]
 mod support_labels;
+
+#[cfg(kani)]
+mod retained_artifact;

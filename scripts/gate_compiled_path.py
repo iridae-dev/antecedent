@@ -25,7 +25,10 @@ Dispositions:
 * `compiled`: names a `route` present in the lowering registry text;
 * `deprecated`: the snapshot shows `#[deprecated]` and `replacement` names a compiled row, or a
   compiled route directly as `route:<name>`, a PlanRoute or program family in the lowering
-  registry (a Python wrapper must call `_deprecation.direct_path_deprecated(` first, directly or
+  registry, or, for an artifact loader that admits without a retained identity, its bound form
+  as `bound:<canonical path>` (a function, found in that crate's sources, that takes a
+  `RetainedArtifactIdentity` and binds the bytes before it reads them; its Python wrappers warn
+  through `_retained.admit`, so its reach does not make them deprecated rows) (a Python wrapper must call `_deprecation.direct_path_deprecated(` first, directly or
   inside an `if` that scopes the deprecation to the cases the compiled route serves);
 * `kernel`: a kernel-crate run method reached through a facade-re-exported type that also
   configures a compiled estimator; kernel crates are kernel API and are not deprecated, so the
@@ -66,6 +69,10 @@ GENERATED_VERDICTS_RS = "crates/antecedent/src/support/units_generated.rs"
 GENERATED_VERDICTS_PY = "python/antecedent/_direct_status.py"
 DEPRECATION_MODULE = "python/antecedent/_deprecation.py"
 ROUTE_REPLACEMENT_PREFIX = "route:"
+# A deprecated unbound artifact loader names its bound form: `bound:<canonical path>` of a
+# `*_expecting` / `*_retained` function that takes a RetainedArtifactIdentity and binds the bytes
+# (load_expecting / bind_retained_artifact, through bound_identity::bind) before reading them.
+BOUND_REPLACEMENT_PREFIX = "bound:"
 
 DISPOSITIONS = ("compiled", "deprecated", "kernel", "internal", "consume", "not_scientific", "pending")
 DISPOSITION_FIELD = {
@@ -429,6 +436,13 @@ def _side_door_patterns(
 def python_reach(root: Path, rows: list[dict]) -> dict[str, set[str]]:
     """Native binding name -> the pending or deprecated facade rows it reaches (transitively)."""
     bodies, exposed, definitions = _rust_functions(root)
+    # An unbound loader deprecated in favour of its bound form is reached by natives that serve
+    # both forms; the Python loader warns through `_retained.admit` when it is called unbound.
+    rows = [
+        row
+        for row in rows
+        if not str(row.get("replacement", "")).startswith(BOUND_REPLACEMENT_PREFIX)
+    ]
     patterns = _side_door_patterns(rows, {"pending", "deprecated"})
     direct = {
         name: {k for k, (needle, p) in patterns.items() if needle in text and p.search(text)}
@@ -630,6 +644,42 @@ def verdict_literals(root: Path) -> set[str]:
 # -- the gate -------------------------------------------------------------------------------
 
 
+_CRATE_SOURCES = {
+    "antecedent": "crates/antecedent/src",
+    "antecedent_io": "crates/antecedent-io/src",
+    "antecedent_io_core": "crates/antecedent-io-core/src",
+    "antecedent_design": "crates/antecedent-design/src",
+}
+
+
+def bound_form_files(root: Path, path: str) -> list[Path]:
+    """Source files that define the bound form `path` names and bind before they read.
+
+    Resolved by the leaf name inside the path's crate, since a canonical path may be a crate-root
+    re-export of an item defined deeper.
+    """
+    import check_retained_artifact_loaders as loaders  # noqa: PLC0415 - sibling script
+
+    segments = path.split("::")
+    leaf = segments[-1]
+    source = _CRATE_SOURCES.get(segments[0])
+    if source is None or not (leaf.endswith("_expecting") or leaf.endswith("_retained")):
+        return []
+    loader = leaf[: -len("_expecting")] if leaf.endswith("_expecting") else leaf[: -len("_retained")]
+    base = root / source
+    if not base.is_dir():
+        return []
+    found: list[Path] = []
+    for file in sorted(base.rglob("*.rs")):
+        text = file.read_text(encoding="utf-8")
+        if f"fn {leaf}" not in text:
+            continue
+        forms = loaders.bound_forms(loaders._strip_tests(text))
+        if leaf in forms and loaders.form_problem(loader, forms[leaf], forms) is None:
+            found.append(file)
+    return found
+
+
 def _row_problems(
     where: str,
     row: dict,
@@ -638,6 +688,7 @@ def _row_problems(
     compiled_paths: set[str],
     require_snapshot: bool,
     kernel_item: bool | None = None,
+    root: Path | None = None,
 ) -> list[str]:
     problems: list[str] = []
     disposition = row.get("disposition")
@@ -659,6 +710,13 @@ def _row_problems(
             if name not in route_names(registry):
                 problems.append(
                     f"{where}: replacement {replacement!r} does not name a route in the lowering registry"
+                )
+        elif replacement.startswith(BOUND_REPLACEMENT_PREFIX):
+            bound = replacement[len(BOUND_REPLACEMENT_PREFIX) :].strip()
+            if not bound_form_files(ROOT if root is None else root, bound):
+                problems.append(
+                    f"{where}: replacement {replacement!r} does not name a bound form that binds "
+                    "the bytes to a RetainedArtifactIdentity before reading them"
                 )
         elif require_snapshot and replacement not in compiled_paths:
             problems.append(
@@ -704,7 +762,9 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
             continue
         # The snapshot line carries the attributes; rebuild just what the rows check.
         line = ("#[doc(hidden)] " if fn.hidden else "") + ("#[deprecated] " if fn.deprecated else "")
-        problems += _row_problems(path, row, line, registry, compiled_paths, True, fn.crate != FACADE)
+        problems += _row_problems(
+            path, row, line, registry, compiled_paths, True, fn.crate != FACADE, root
+        )
     for path in sorted(set(by_path) - set(candidates)):
         problems.append(f"{MANIFEST}: stale row {path!r}; no candidate matches it")
 

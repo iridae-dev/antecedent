@@ -57,6 +57,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal, get_args
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import CompiledTemporalPathHandle
@@ -644,6 +645,7 @@ def consume_temporal_path_transport(
     kind: PathKind,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TemporalPathResult:
     """Independently replay a sealed path contrast from its bytes.
 
@@ -654,6 +656,13 @@ def consume_temporal_path_transport(
     refuses with ``external_binding_mismatch``. A continuous chain replays only under the
     seed it was compiled with.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport.temporal_paths.consume_temporal_path_transport",
+        "antecedent.transport.temporal_paths.consume_temporal_path_transport(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     if kind not in get_args(PathKind):
         raise CausalValueError(

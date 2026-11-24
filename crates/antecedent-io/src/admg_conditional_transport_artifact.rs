@@ -531,6 +531,20 @@ impl AdmgConditionalArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &AdmgConditionalConsumeLimits,
@@ -671,6 +685,24 @@ impl AdmgConditionalArtifactWire {
             || AdmgConditionalArtifactError::EvidenceMismatch.into(),
         )?;
         Ok(ConsumedAdmgConditional { functional, diagram, data, requests, distributions, wire })
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: AdmgConditionalConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedAdmgConditional, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
     }
 }
 
@@ -855,6 +887,20 @@ impl AdmgConditionalObstructionWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Check a caller's variable names against the verified name mapping.
     ///
     /// # Errors
@@ -883,6 +929,21 @@ impl AdmgConditionalObstructionWire {
         ctx: &ExecutionContext,
     ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
         Self::consume_within(bytes, &AdmgConditionalConsumeLimits::default(), ctx)
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, ctx))
     }
 
     /// [`Self::consume`] under the caller's intake bounds (observed, treatment,
@@ -919,5 +980,95 @@ impl AdmgConditionalObstructionWire {
         )
         .map_err(AdmgConditionalArtifactError::ProofMismatch)?;
         Ok(ConsumedAdmgConditionalObstruction { proof, diagram, wire })
+    }
+
+    /// [`Self::consume_within`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_within_expecting(
+        bytes: &[u8],
+        limits: &AdmgConditionalConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_within(bytes, limits, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn admg_conditional_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            AdmgConditionalObstructionWire::consume(support::BYTES, &ctx),
+            AdmgConditionalObstructionWire::consume_expecting(
+                support::BYTES,
+                &ctx,
+                &support::matching(),
+            ),
+            AdmgConditionalObstructionWire::consume_expecting(
+                support::BYTES,
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            AdmgConditionalArtifactWire::consume_with_limits(
+                support::BYTES,
+                AdmgConditionalConsumeLimits::default(),
+                &ctx,
+            ),
+            AdmgConditionalArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                AdmgConditionalConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            AdmgConditionalArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                AdmgConditionalConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            AdmgConditionalObstructionWire::consume_within(
+                support::BYTES,
+                &AdmgConditionalConsumeLimits::default(),
+                &ctx,
+            ),
+            AdmgConditionalObstructionWire::consume_within_expecting(
+                support::BYTES,
+                &AdmgConditionalConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            AdmgConditionalObstructionWire::consume_within_expecting(
+                support::BYTES,
+                &AdmgConditionalConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            AdmgConditionalObstructionWire::decode(support::BYTES),
+            AdmgConditionalObstructionWire::decode_expecting(support::BYTES, &support::matching()),
+            AdmgConditionalObstructionWire::decode_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            AdmgConditionalArtifactWire::decode(support::BYTES),
+            AdmgConditionalArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            AdmgConditionalArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

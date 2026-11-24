@@ -11,8 +11,7 @@
 
 use antecedent::io::release_migration::{
     CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError, RouteRecordOutcome,
-    consume_previous_release_artifact, consume_previous_route_records, current_score_row_digest,
-    narrow_score_row_digest,
+    current_score_row_digest, narrow_score_row_digest,
 };
 use antecedent::prelude::{Intervention, Value, VariableId};
 use antecedent::query::TargetPopulation;
@@ -98,11 +97,30 @@ fn declared_target_digest(level: f64) -> PyResult<Vec<u8>> {
 
 /// Adopt a previous-release artifact against the target set to `level`.
 #[pyfunction]
-fn consume_previous_release(artifact: &[u8], level: f64) -> PyResult<Adopted> {
+#[pyo3(signature = (artifact, level, retained_identity=None))]
+fn consume_previous_release(
+    artifact: &[u8],
+    level: f64,
+    retained_identity: Option<&str>,
+) -> PyResult<Adopted> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
         let target = declared_target(level)?;
-        let adopted =
-            consume_previous_release_artifact(artifact, &target).map_err(|e| release_err(&e))?;
+        let adopted = match &retained {
+            Some(retained) => {
+                antecedent::io::release_migration::consume_previous_release_artifact_expecting(
+                    artifact, &target, retained,
+                )
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::release_migration::consume_previous_release_artifact(
+                artifact, &target,
+            ),
+        }
+        .map_err(|e| release_err(&e))?;
         Ok((
             adopted.score_row_digest.to_vec(),
             adopted.target_digest.to_vec(),
@@ -154,7 +172,13 @@ fn break_json(error: &RouteRecordError) -> Json {
 /// outcome (`one_to_one`, `split`, `retired`, `refusal_kept`) or a `break` that names its
 /// remedy. One break does not hide the other records.
 #[pyfunction]
-fn consume_previous_routes(artifact: &[u8], methods: Vec<MethodRow>) -> PyResult<String> {
+#[pyo3(signature = (artifact, methods, retained_identity=None))]
+fn consume_previous_routes(
+    artifact: &[u8],
+    methods: Vec<MethodRow>,
+    retained_identity: Option<&str>,
+) -> PyResult<String> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
         let current: Vec<CurrentMethod> = methods
             .into_iter()
@@ -167,8 +191,21 @@ fn consume_previous_routes(artifact: &[u8], methods: Vec<MethodRow>) -> PyResult
                 status,
             })
             .collect();
-        let migrated =
-            consume_previous_route_records(artifact, &current).map_err(|e| release_err(&e))?;
+        let migrated = match &retained {
+            Some(retained) => {
+                antecedent::io::release_migration::consume_previous_route_records_expecting(
+                    artifact, &current, retained,
+                )
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::release_migration::consume_previous_route_records(
+                artifact, &current,
+            ),
+        }
+        .map_err(|e| release_err(&e))?;
         let rows: Vec<Json> = migrated
             .iter()
             .map(|record| {

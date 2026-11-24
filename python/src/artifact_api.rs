@@ -5,7 +5,6 @@ use crate::bridge::serialization as serialization_error;
 use antecedent::io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, ExternalEstimateAttach,
     InterferenceEstimateWire, TransportEffectEstimateWire, TransportIdentificationWire,
-    decode_analysis_result_artifact, decode_causal_payload_artifact,
     encode_causal_payload_artifact, encode_external_estimate_claim, executed_functional_labels,
     parse_digest_hex,
 };
@@ -330,14 +329,41 @@ fn inspect_container_metadata(bytes: &[u8], depth: usize) -> PyResult<String> {
 }
 
 #[pyfunction]
-fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
+#[pyo3(signature = (bytes, retained_identity=None))]
+fn decode_causal_artifact(
+    bytes: &[u8],
+    retained_identity: Option<&str>,
+) -> PyResult<DecodedCausalArtifact> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
+        if let Some(retained) = &retained {
+            antecedent::io::bind_retained_artifact(bytes, retained).map_err(serialization_error)?;
+        }
         if let Some(external) = decode_external_frame(bytes)? {
             return Ok(external);
         }
-        let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
-            let (artifact, header, payload) =
-                decode_analysis_result_artifact(bytes).map_err(serialization_error)?;
+        let payload = match &retained {
+            Some(retained) => {
+                antecedent::io::decode_causal_payload_artifact_expecting(bytes, retained)
+            }
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::decode_causal_payload_artifact(bytes),
+        };
+        let Ok((artifact, header, payload)) = payload else {
+            let analysis = match &retained {
+                Some(retained) => {
+                    antecedent::io::decode_analysis_result_artifact_expecting(bytes, retained)
+                }
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::decode_analysis_result_artifact(bytes),
+            };
+            let (artifact, header, payload) = analysis.map_err(serialization_error)?;
             let contract_json = match antecedent::io::decode_analysis_result_contract(&artifact) {
                 Ok(Some(contract)) => Some(json(&contract)?),
                 Ok(None) => None,
@@ -380,13 +406,15 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
 /// Loading is cheap and replays nothing. `replay` is for a result that did not come from this
 /// process, and runs under the requested-replay bounds.
 #[pyfunction]
-#[pyo3(signature = (bytes, replay=false))]
+#[pyo3(signature = (bytes, replay=false, retained_identity=None))]
 fn accept_analysis_result_contract(
     bytes: &[u8],
     replay: bool,
+    retained_identity: Option<&str>,
 ) -> PyResult<std::collections::HashMap<String, String>> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
-        let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+        let load = load_analysis_result(bytes, retained.as_ref())?;
         let join = |reasons: &[std::sync::Arc<str>]| {
             reasons.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(",")
         };
@@ -448,7 +476,11 @@ const METHOD_PROVENANCE_SECTION: &str = "analysis_result.method_provenance";
 fn carried_method_provenance(
     bytes: &[u8],
 ) -> Option<antecedent::io::method_provenance::MethodProvenanceWire> {
-    let (artifact, _, _) = antecedent::io::decode_analysis_result_artifact(bytes).ok()?;
+    // A descriptive read of an artifact its caller already admitted (or produced); it admits
+    // nothing itself.
+    #[allow(deprecated, reason = "descriptive read of an artifact the caller already admitted")]
+    let decoded = antecedent::io::decode_analysis_result_artifact(bytes);
+    let (artifact, _, _) = decoded.ok()?;
     let contract = antecedent::io::decode_analysis_result_contract(&artifact).ok()??;
     let (identifier, estimator) = (contract.identifier.as_deref(), contract.estimator.as_deref());
     let mut sections =
@@ -568,9 +600,11 @@ struct FittedEffectModel {
 #[pymethods]
 impl FittedEffectModel {
     #[staticmethod]
-    fn load(bytes: &[u8]) -> PyResult<Self> {
+    #[pyo3(signature = (bytes, retained_identity=None))]
+    fn load(bytes: &[u8], retained_identity: Option<&str>) -> PyResult<Self> {
+        let retained = crate::retained_artifact_api::retained(retained_identity)?;
         crate::catch_ffi(|| {
-            let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+            let load = load_analysis_result(bytes, retained.as_ref())?;
             let report = antecedent::io::replay_loaded_result(
                 &load,
                 &antecedent::io::ReplayOptions::default(),
@@ -664,4 +698,21 @@ mod fitted_feature_name_tests {
         assert_eq!(checked_feature_names(&names, &[2]), None);
         assert_eq!(checked_feature_names(&names, &[u32::MAX]), None);
     }
+}
+
+/// Load an analysis result through its bound form when the Python caller passed a retained
+/// identity, and through the deprecated unbound form otherwise (the Python wrapper has warned).
+fn load_analysis_result(
+    bytes: &[u8],
+    retained: Option<&antecedent::io::RetainedArtifactIdentity>,
+) -> PyResult<antecedent::io::AnalysisResultLoad> {
+    match retained {
+        Some(retained) => antecedent::io::load_analysis_result_expecting(bytes, retained),
+        #[allow(
+            deprecated,
+            reason = "the unbound Python loader warns and stays reachable until 4.0"
+        )]
+        None => antecedent::io::load_analysis_result(bytes),
+    }
+    .map_err(serialization_error)
 }

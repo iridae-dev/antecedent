@@ -191,6 +191,25 @@ impl RetainedEffectModel {
         Self::from_portable_parts(effect, features, "target".to_owned(), contrast, parent)
     }
 
+    /// As [`Self::from_analysis_result`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_analysis_result`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_analysis_result_expecting(
+        bytes: &[u8],
+        expected_claim: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CohortRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::from_analysis_result(bytes, expected_claim)
+    }
+
     /// Retain a portable effect from already verified parts.
     ///
     /// Crate-private: the only public routes verify their parent.
@@ -361,4 +380,30 @@ fn model_identity(
     canon.bytes(&to_cbor(contrast).map_err(encode)?);
     canon.bytes(&to_cbor(parent).map_err(encode)?);
     Ok(canon.finish_hex())
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn cohort_decision_retained_model_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // RetainedEffectModel::from_analysis_result_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                RetainedEffectModel::from_analysis_result_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", RetainedEffectModel::from_analysis_result(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            RetainedEffectModel::from_analysis_result_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
 }

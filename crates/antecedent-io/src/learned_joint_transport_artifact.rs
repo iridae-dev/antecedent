@@ -547,6 +547,20 @@ impl LearnedJointArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &LearnedJointConsumeLimits,
@@ -614,6 +628,24 @@ impl LearnedJointArtifactWire {
         Self::consume_expecting(bytes, &LearnedJointExpectation::default(), limits, ctx)
     }
 
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: LearnedJointConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, LearnedJointFit), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
+    }
+
     /// [`Self::consume_with_limits`] that additionally requires the stored premises and
     /// data digests to equal the consumer's expected identity.
     ///
@@ -661,6 +693,25 @@ impl LearnedJointArtifactWire {
             return Err(LearnedJointArtifactError::ResultMismatch.into());
         }
         Ok((wire, fit))
+    }
+
+    /// [`Self::consume_expecting`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_expecting`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting_retained(
+        bytes: &[u8],
+        expected: &LearnedJointExpectation,
+        limits: LearnedJointConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, LearnedJointFit), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_expecting(bytes, expected, limits, ctx)
+        })
     }
 }
 
@@ -849,5 +900,104 @@ impl LearnedJointArtifactWire {
         let measured = wire.measured_from_execution(&fit, expected.level)?;
         crate::measured_inference::compare_replay(&envelope, &measured)?;
         Ok((wire, fit, measured))
+    }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &crate::measured_inference::MeasuredExpectation,
+        limits: LearnedJointConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, LearnedJointFit, crate::measured_inference::MeasuredInference), IoError>
+    {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn learned_joint_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            LearnedJointArtifactWire::consume_expecting(
+                support::BYTES,
+                &LearnedJointExpectation::default(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+            ),
+            LearnedJointArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &LearnedJointExpectation::default(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            LearnedJointArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &LearnedJointExpectation::default(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            LearnedJointArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+            ),
+            LearnedJointArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            LearnedJointArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            LearnedJointArtifactWire::consume_with_limits(
+                support::BYTES,
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+            ),
+            LearnedJointArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            LearnedJointArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                LearnedJointConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            LearnedJointArtifactWire::decode(support::BYTES),
+            LearnedJointArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            LearnedJointArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

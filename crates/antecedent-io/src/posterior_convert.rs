@@ -11,7 +11,9 @@ use crate::error::IoError;
 use crate::posterior::{
     CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire, encode_posterior_artifact,
 };
-pub use antecedent_io_core::posterior::decode_causal_posterior_bytes;
+pub use antecedent_io_core::posterior::{
+    decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
+};
 
 /// Which posterior payload to serialize across the FFI / artifact boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

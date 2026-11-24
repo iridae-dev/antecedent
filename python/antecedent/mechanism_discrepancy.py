@@ -48,6 +48,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Protocol
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -528,7 +529,11 @@ class MechanismDiscrepancyResult:
 
     @classmethod
     def consume(
-        cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None
+        cls,
+        data: bytes,
+        *,
+        expected_identity: Mapping[str, str] | None = None,
+        retained_identity: str | None = None,
     ) -> MechanismDiscrepancyResult:
         """Consume by recomputation; refuses a resealed mutation.
 
@@ -540,6 +545,13 @@ class MechanismDiscrepancyResult:
         measurement contract, summary statistic, level or null is refused even when the artifact
         was resealed consistently (``mechanism_discrepancy.wrong_contract``).
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.mechanism_discrepancy.MechanismDiscrepancyResult.consume",
+            "antecedent.mechanism_discrepancy.MechanismDiscrepancyResult.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")

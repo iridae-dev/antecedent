@@ -399,6 +399,23 @@ pub fn consume_panel_experiment(
     Ok(replay)
 }
 
+/// [`consume_panel_experiment`], admitting only the artifact the consumer retained: the bytes bind
+/// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_panel_experiment`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_panel_experiment_expecting(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<HistoricalPanelExperiment, PanelArtifactError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_panel_experiment(bytes, ctx)
+    })
+}
+
 /// Canonical dependency shared by native execution and independent experimental replay.
 /// Fields include selected evidence identities; unrelated ledger operations do not invalidate it.
 #[must_use]
@@ -524,4 +541,20 @@ fn bits(values: &[f64]) -> Vec<u64> {
 }
 fn floats(values: &[u64]) -> Vec<f64> {
     values.iter().copied().map(f64::from_bits).collect()
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn joint_panel_experiment_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_panel_experiment(support::BYTES, &ctx),
+            consume_panel_experiment_expecting(support::BYTES, &ctx, &support::matching()),
+            consume_panel_experiment_expecting(support::BYTES, &ctx, &support::other()),
+        );
+    }
 }

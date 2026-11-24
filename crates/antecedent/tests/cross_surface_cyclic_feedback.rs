@@ -7,20 +7,19 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::{
-    CyclicExecutionRequest, CyclicFamilyAnswer, CyclicFamilyRequest, consume_cyclic_artifact,
-    consume_cyclic_family,
-};
+use antecedent::analysis::{CyclicExecutionRequest, CyclicFamilyAnswer, CyclicFamilyRequest};
 use antecedent::{AverageEffectQuery, Dag, RefuteSuite, Study};
 use antecedent_core::{CausalSchemaBuilder, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_estimate::cyclic_gradient::CyclicGradientPolicy;
 use antecedent_graph::GraphError;
+use antecedent_io::cyclic_family_artifact::consume_cyclic_family;
 use antecedent_io::cyclic_family_artifact::{
     RecoveredCoefficientWire, RecoveredDrawAnswer, RecoveredDrawWire, RecoveredInterventionWire,
     RecoveredSolvedBy,
 };
 use antecedent_io::cyclic_system_artifact::CyclicArtifactError;
+use antecedent_io::cyclic_system_artifact::consume_cyclic_artifact;
 use antecedent_model::compile::{ExecutionBlock, SystemSemantics};
 use antecedent_model::nonlinear_equilibrium::{
     Activation, Clamp, Equation, EquilibriumModel, SolvePolicy,

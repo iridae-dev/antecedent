@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from ...estimation import _PreparedEngine
 
 
+from ... import _retained
 from .catalog import EvidenceCatalog
 from .exact import ClassicalTransportIdentification, ExactTransportData
 from .statistical import EmpiricalTable, LearnedCategorical, StatisticalTransportData
@@ -205,6 +206,7 @@ def consume_response_grid(
     *,
     evaluation: TransportEvaluation | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportResponseGrid:
     """Independently verify a response grid and read its ordered local outcomes.
 
@@ -212,6 +214,12 @@ def consume_response_grid(
     samples. The result is a read model, not a resumable study. ``evaluation``
     bounds replay; memory and cancellation belong to ``execution``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.grid.consume_response_grid",
+        "antecedent.transport._impl.grid.consume_response_grid(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     from ..._workflow import _consumed_transport_view
 
     limits = TransportEvaluation() if evaluation is None else evaluation

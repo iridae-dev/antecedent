@@ -29,6 +29,7 @@ from ._validate import count as _count
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
+from . import _retained
 from .errors import CausalTypeError, CausalValueError
 from .extensibility import ProviderTrust
 
@@ -624,7 +625,11 @@ class JointDistributionArtifact(ScientificResult):
         input="data",
     )
     def load(
-        cls, data: bytes, *, expected_identity: DistributionIdentity
+        cls,
+        data: bytes,
+        *,
+        expected_identity: DistributionIdentity,
+        retained_identity: str | None = None,
     ) -> JointDistributionArtifact:
         """Load exported bytes, checked against the consumer's independently retained identity.
 
@@ -640,6 +645,13 @@ class JointDistributionArtifact(ScientificResult):
                 unsupported layout, or the stored identity differs from ``expected_identity``
                 (reason code ``quantity_semantics_mismatch``).
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.joint_distribution.JointDistributionArtifact.load",
+            "antecedent.joint_distribution.JointDistributionArtifact.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         data = container_bytes(data)
         native = _NativeJointDistributionArtifact.load(data, json.dumps(expected_identity._wire()))
         obj = cls.__new__(cls)

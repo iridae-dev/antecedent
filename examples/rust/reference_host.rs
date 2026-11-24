@@ -26,7 +26,7 @@
 //! Source: `examples/rust/reference_host.rs`
 
 use antecedent::host::{HostStatus, claim_response, error_response, host_schema, operation_record};
-use antecedent::io::replay_analysis_result;
+use antecedent::io::{RetainedArtifactIdentity, replay_analysis_result_expecting};
 use antecedent::prelude::*;
 use antecedent::{CausalError, RefuteSuite};
 use serde_json::Value;
@@ -82,10 +82,10 @@ fn serve(request: &Request, ctx: &ExecutionContext) -> Result<(Value, Vec<u8>), 
     Ok((response, bytes))
 }
 
-/// Replay artifact bytes and accept them only as a replayed claim. Anything else is a
-/// refusal the host reports; it never uses the numbers inside.
-fn accept(bytes: &[u8]) -> Result<Value, CausalError> {
-    let consumed = replay_analysis_result(bytes)?;
+/// Replay artifact bytes and accept them only as a replayed claim of the artifact the host
+/// retained. Anything else is a refusal the host reports; it never uses the numbers inside.
+fn accept(bytes: &[u8], retained: &RetainedArtifactIdentity) -> Result<Value, CausalError> {
+    let consumed = replay_analysis_result_expecting(bytes, retained)?;
     if consumed.acceptance.accepts_as_claim() {
         Ok(serde_json::json!({
             "status": "supported",
@@ -123,8 +123,10 @@ pub fn run() -> Result<(), CausalError> {
     // t shifts y by about 2 in this table; the host does not interpret it further.
     assert!((value - 2.0).abs() < 0.2, "effect {value}");
 
-    // Load the artifact against what the host retained, not against its own claim.
-    let accepted = accept(&bytes)?;
+    // The host retains the identity of the bytes it served, apart from the bytes, and loads
+    // the artifact against what it retained, not against its own claim.
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let accepted = accept(&bytes, &retained)?;
     println!("loaded: {accepted}");
     assert_eq!(accepted["status"], "supported");
 
@@ -140,11 +142,11 @@ pub fn run() -> Result<(), CausalError> {
     assert_eq!(refused["refusal"]["reason_code"], "attested_not_reverifiable");
     assert_eq!(refused["refusal"]["family"], "unsupported");
 
-    // Altered bytes are refused or accepted only in part; they are never a claim.
+    // Altered bytes are not the artifact the host retained: they are refused before replay.
     let mut altered = bytes;
     let middle = altered.len() / 2;
     altered[middle] ^= 0xff;
-    match accept(&altered) {
+    match accept(&altered, &retained) {
         Err(error) => {
             let record = error_response(&error);
             println!("altered bytes: {record}");

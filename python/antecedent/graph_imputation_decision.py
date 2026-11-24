@@ -47,6 +47,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from . import _retained
 from ._refusal import raise_refusal
 from ._unit_support import read_unit_support
 from .decision import ActionOutcome, ConstraintExclusion, Contract, Verdict
@@ -480,6 +481,7 @@ def consume_graph_imputation_decision(
     *,
     program: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> GraphImputationDecisionResult:
     """Independently replay an exported decision under the retained program identity.
 
@@ -493,6 +495,13 @@ def consume_graph_imputation_decision(
         CausalValueError: ``program`` is not 64 hexadecimal characters.
         GraphImputationDecisionRefusal: the bytes, the identity or any replayed stage differs.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.graph_imputation_decision.consume_graph_imputation_decision",
+        "antecedent.graph_imputation_decision.consume_graph_imputation_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     from . import _native
     from .execution import resolve_execution
 
@@ -651,6 +660,7 @@ def consume_graph_imputation_transport_bundle(
     bundle: str,
     program: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> GraphImputationTransportBundleReceipt:
     """Recompile and replay an exported bundle recomputation under the retained identities.
 
@@ -664,6 +674,13 @@ def consume_graph_imputation_transport_bundle(
         GraphImputationDecisionRefusal: an identity, the fit, the chain or the receipt differs,
             or the route is not supported in this build.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.graph_imputation_decision.consume_graph_imputation_transport_bundle",
+        "antecedent.graph_imputation_decision.consume_graph_imputation_transport_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     from . import _native
     from .execution import resolve_execution
 
@@ -691,6 +708,7 @@ def consume_graph_imputation_fit_bundle(
     expected_identity: str,
     supplied: SuppliedSources | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedBundle:
     """Consume a composition bundle, refitting every embedded graph-imputation transport fit.
 
@@ -704,6 +722,13 @@ def consume_graph_imputation_fit_bundle(
         CausalTypeError: ``data`` is not bytes or an exported bundle.
         CompositionBundleRefusal: the container, its version or the identity does not verify.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.graph_imputation_decision.consume_graph_imputation_fit_bundle",
+        "antecedent.graph_imputation_decision.consume_graph_imputation_fit_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     from . import _native
     from ._artifact_protocol import container_bytes
     from .composition_bundle import ConsumedBundle, _refusal_type

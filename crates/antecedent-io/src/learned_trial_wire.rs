@@ -141,6 +141,20 @@ impl LearnedTrialWire {
         }
         Ok(result)
     }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::consume)
+    }
 }
 
 #[cfg(test)]
@@ -292,6 +306,21 @@ mod tests {
         assert_eq!(
             cbor_keys(cbor_field(overlap, "selection")),
             ["probability_min", "probability_max", "effective_sample_size", "extreme_weight_count"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn learned_trial_wire_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            LearnedTrialWire::consume(support::BYTES),
+            LearnedTrialWire::consume_expecting(support::BYTES, &support::matching()),
+            LearnedTrialWire::consume_expecting(support::BYTES, &support::other()),
         );
     }
 }

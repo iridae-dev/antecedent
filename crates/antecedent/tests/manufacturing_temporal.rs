@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
 use antecedent::discovery::{GraphPosterior, SamplingSummary};
-use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
+use antecedent::io::encode_causal_posterior_bytes;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, StructuralAggregationPolicy, Study};
 use antecedent_core::{
     CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
@@ -33,6 +33,7 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::{
     IdentificationError, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
 };
+use antecedent_io::decode_causal_posterior_bytes;
 use antecedent_prob::InferenceDiagnostics;
 
 /// Records every progress label so a test can prove identification was

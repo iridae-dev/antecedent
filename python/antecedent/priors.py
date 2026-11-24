@@ -1149,9 +1149,17 @@ class PriorSourceMeta:
         return bytes(_encode_meta(self.to_dict()))
 
     @classmethod
-    def from_cbor(cls, raw: bytes) -> PriorSourceMeta:
+    def from_cbor(cls, raw: bytes, *, retained_identity: str | None = None) -> PriorSourceMeta:
+        from . import _retained
+
+        _retained.admit(
+            raw,
+            retained_identity,
+            "antecedent.priors.PriorSourceMeta.from_cbor",
+            "antecedent.priors.PriorSourceMeta.from_cbor(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         raw = container_bytes(raw)
-        return cls.from_dict(_decode_meta(bytes(raw)))
+        return cls.from_dict(_decode_meta(bytes(raw), _retained.native(retained_identity)))
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -440,7 +441,7 @@ class AdjustmentHandoff:
             contrast=None if contrast is None else (float(contrast[0]), float(contrast[1])),
             modifiers=list(self.modifiers),
         )
-        decoded = artifacts.loads(encoded)
+        decoded = artifacts.loads(encoded, retained_identity=_retained.ADMITTED)
         if not isinstance(decoded.contract, Mapping):
             raise _refuse(
                 "handoff.receipt_contract_missing",
@@ -1140,7 +1141,7 @@ def _bind_parent_identities(
     export = getattr(parent, "export", None)
     if callable(export):
         try:
-            decoded = artifacts.loads(export())
+            decoded = artifacts.loads(export(), retained_identity=_retained.ADMITTED)
         except (TypeError, ValueError, CausalError):
             decoded = None
         if decoded is not None and isinstance(decoded.contract, Mapping):

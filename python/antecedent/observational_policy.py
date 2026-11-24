@@ -85,7 +85,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, container_bytes
 from ._native import evaluate_observational_policy as _evaluate
 from ._scientific import ScientificResult
@@ -518,6 +518,7 @@ def consume_compiled_observational_policy(
     *,
     expected_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ObservationalPolicyValue:
     """Independently recompile and re-estimate a sealed policy value.
 
@@ -532,6 +533,13 @@ def consume_compiled_observational_policy(
         CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
         CausalError: another split seed, program identity or report, or an estimator refusal.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.observational_policy.consume_compiled_observational_policy",
+        "antecedent.observational_policy.consume_compiled_observational_policy(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     text = execution._call(
         _native.observational_policy_consume,
@@ -631,6 +639,7 @@ def consume_policy_subsampling(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CrossFittedPolicyValueCandidate:
     """Independently recompile and rerun a sealed policy subsampling schedule.
 
@@ -644,6 +653,13 @@ def consume_policy_subsampling(
         CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
         CausalError: another seed, program identity, source or result, or a refit's refusal.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.observational_policy.consume_policy_subsampling",
+        "antecedent.observational_policy.consume_policy_subsampling(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     data = container_bytes(artifact)
     text = execution._call(

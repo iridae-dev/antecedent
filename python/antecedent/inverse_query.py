@@ -53,6 +53,7 @@ from dataclasses import asdict, dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -631,7 +632,11 @@ class InverseResult(ScientificResult):
         input="data",
     )
     def consume(
-        cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None
+        cls,
+        data: bytes,
+        *,
+        expected_identity: Mapping[str, str] | None = None,
+        retained_identity: str | None = None,
     ) -> InverseResult:
         """Consume by re-evaluation; refuses a resealed mutation.
 
@@ -642,6 +647,13 @@ class InverseResult(ScientificResult):
         feasibility claim refuses with
         ``functional_inverse_query.global_feasibility_claim``.
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.inverse_query.InverseResult.consume",
+            "antecedent.inverse_query.InverseResult.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")
@@ -786,10 +798,26 @@ def evaluate(
 
 
 @outcome_operation
-def consume(data: bytes, *, expected_identity: Mapping[str, str] | None = None) -> InverseResult:
+def consume(
+    data: bytes,
+    *,
+    expected_identity: Mapping[str, str] | None = None,
+    retained_identity: str | None = None,
+) -> InverseResult:
     """Consume an exported inverse query; see :meth:`InverseResult.consume`."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.inverse_query.consume",
+        "antecedent.inverse_query.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
-    return require_success(InverseResult.consume(data, expected_identity=expected_identity))
+    return require_success(
+        InverseResult.consume(
+            data, expected_identity=expected_identity, retained_identity=_retained.ADMITTED
+        )
+    )
 
 
 # --------------------------------------------------------------------- baseline

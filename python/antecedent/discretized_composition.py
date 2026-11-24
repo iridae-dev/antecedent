@@ -52,7 +52,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -359,7 +359,11 @@ def discretize(
     replayable=True,
 )
 def consume_discretized_composition(
-    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> PreparedDiscretizedComposition:
     """Consume an exported discretization.
 
@@ -374,6 +378,13 @@ def consume_discretized_composition(
             (``discretized_scm_artifact.identity_mismatch``) or a claimed number that differs from the
             re-derived one.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.discretized_composition.consume_discretized_composition",
+        "antecedent.discretized_composition.consume_discretized_composition(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):

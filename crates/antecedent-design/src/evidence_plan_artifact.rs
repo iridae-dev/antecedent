@@ -117,6 +117,13 @@ impl EvidencePlanArtifactError {
             message: format!("{section}: {}", message.into()),
         }
     }
+
+    /// Bytes that are not the artifact the consumer retained; the binding refusal's text is
+    /// kept in the message.
+    #[allow(clippy::needless_pass_by_value, reason = "used as a map_err function")]
+    fn not_retained(error: antecedent_io_core::IoError) -> Self {
+        Self::invalid(error.to_string())
+    }
 }
 
 impl From<RepairArtifactError> for EvidencePlanArtifactError {
@@ -384,6 +391,22 @@ impl EvidencePlanArtifact {
         Self::from_bytes_with_limits(bytes, EvidencePlanReadLimits::default())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, EvidencePlanArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(EvidencePlanArtifactError::not_retained)?;
+        Self::from_bytes(bytes)
+    }
+
     /// [`Self::from_bytes`] under the caller's maxima instead of the defaults.
     ///
     /// # Errors
@@ -437,6 +460,24 @@ impl EvidencePlanArtifact {
             ));
         }
         Ok(artifact)
+    }
+
+    /// [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        limits: EvidencePlanReadLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, EvidencePlanArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(EvidencePlanArtifactError::not_retained)?;
+        Self::from_bytes_with_limits(bytes, limits)
     }
 
     /// Replay the plan: consume every embedded repair report under `limits`,
@@ -549,5 +590,36 @@ impl EvidencePlanArtifact {
             ));
         }
         Ok(plan)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{EvidencePlanArtifact, EvidencePlanReadLimits};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn evidence_plan_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let limits = EvidencePlanReadLimits::default();
+        same_outcome(
+            &EvidencePlanArtifact::from_bytes(&bytes),
+            &EvidencePlanArtifact::from_bytes_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&EvidencePlanArtifact::from_bytes_expecting(
+            &bytes,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &EvidencePlanArtifact::from_bytes_with_limits(&bytes, limits),
+            &EvidencePlanArtifact::from_bytes_with_limits_expecting(&bytes, limits, &retained),
+        );
+        refused_as_not_retained(&EvidencePlanArtifact::from_bytes_with_limits_expecting(
+            &bytes,
+            limits,
+            &other_artifact(),
+        ));
     }
 }

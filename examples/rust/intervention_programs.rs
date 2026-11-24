@@ -43,9 +43,10 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_io::RetainedArtifactIdentity;
 use antecedent_io::policy_program_artifact::{
-    decode_policy_program, decode_policy_program_with, encode_policy_program,
-    policy_program_callback_records, policy_program_identity,
+    decode_policy_program, decode_policy_program_expecting, decode_policy_program_with,
+    encode_policy_program, policy_program_callback_records, policy_program_identity,
 };
 use antecedent_model::{RouteDecision, ValueBatch, policy_support};
 
@@ -208,8 +209,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // 5. A closed-form program saves as versioned bytes under a content identity, and the
     //    decoded program is the same program.
     let saved = [floor.clone()];
+    //    The consumer retains the identity of the saved bytes and loads them against it.
     let bytes = encode_policy_program(&saved)?;
-    let loaded = decode_policy_program(&bytes)?;
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let loaded = decode_policy_program_expecting(&bytes, &retained)?;
     assert_eq!(loaded, saved);
     assert_eq!(policy_program_identity(&loaded)?, policy_program_identity(&saved)?);
     let other = Intervention::transform(

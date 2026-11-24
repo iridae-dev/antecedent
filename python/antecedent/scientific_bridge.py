@@ -101,7 +101,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1442,13 +1442,20 @@ class ConsumedBridge(ScientificResult):
     replayable=True,
 )
 def consume_scientific_bridge_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedBridge | ConsumedBridgeDistribution:
     """Independently consume a scientific bridge artifact by replaying its derivation.
 
     A bridge of one mean returns a :class:`ConsumedBridge`; a bridge of draws maps its stored draws
     again and returns a :class:`ConsumedBridgeDistribution`. The artifact's container tells which.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.scientific_bridge.consume_scientific_bridge_artifact",
+        "antecedent.scientific_bridge.consume_scientific_bridge_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

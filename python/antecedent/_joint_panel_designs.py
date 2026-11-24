@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -180,9 +180,20 @@ class JointDesignResult:
         )
 
     def consume_reference_decomposition_current(
-        self, artifact: bytes, declaration: Mapping[str, Any], *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        declaration: Mapping[str, Any],
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> dict[str, Any]:
         """Recheck a reference artifact against current data, bindings and scope."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._joint_panel_designs.JointDesignResult.consume_reference_decomposition_current",
+            "antecedent._joint_panel_designs.JointDesignResult.consume_reference_decomposition_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         return json.loads(
             run_panel(
@@ -202,9 +213,20 @@ class JointDesignResult:
         )
 
     def consume_population_reference_current(
-        self, artifact: bytes, declaration: Mapping[str, Any], *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        declaration: Mapping[str, Any],
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> dict[str, Any]:
         """Compare caller-current data, components, distributions, diagram and scope."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._joint_panel_designs.JointDesignResult.consume_population_reference_current",
+            "antecedent._joint_panel_designs.JointDesignResult.consume_population_reference_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         return json.loads(
             run_panel(
@@ -283,9 +305,19 @@ class PreparedJointDesign:
         return JointDesignResult(run_panel(execution, self._handle.execute, _json(declaration)))
 
     def consume_current(
-        self, artifact: bytes, *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> JointDesignResult:
         """Match current source/design/target before consuming retained evidence."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._joint_panel_designs.PreparedJointDesign.consume_current",
+            "antecedent._joint_panel_designs.PreparedJointDesign.consume_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         return JointDesignResult(run_panel(execution, self._handle.consume_current, artifact))
 
@@ -430,8 +462,18 @@ class PreparedNativeJointDesign:
         )
 
     def consume_current(
-        self, artifact: bytes, *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> NativeJointDesignResult:
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._joint_panel_designs.PreparedNativeJointDesign.consume_current",
+            "antecedent._joint_panel_designs.PreparedNativeJointDesign.consume_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         return NativeJointDesignResult(run_panel(execution, self._handle.consume_current, artifact))
 

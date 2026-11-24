@@ -808,4 +808,40 @@ impl EffectConstancyArtifact {
         }
         Ok(Self { meta, request, result: computed.result })
     }
+
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&EffectConstancyIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, EffectConstancyArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn effect_constancy_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            EffectConstancyArtifact::from_bytes(support::BYTES, None),
+            EffectConstancyArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::matching(),
+            ),
+            EffectConstancyArtifact::from_bytes_expecting(support::BYTES, None, &support::other()),
+        );
+    }
 }

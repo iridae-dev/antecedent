@@ -59,7 +59,7 @@ use crate::signal::RefusalBuilder;
 
 pub use artifact::{
     DECISION_RELIABILITY_KIND, DecisionReliabilityArtifact, DecisionReliabilityExpectation,
-    MAX_DECISION_RELIABILITY_BYTES, consume,
+    MAX_DECISION_RELIABILITY_BYTES, consume, consume_expecting,
 };
 pub use calibration::{
     CANDIDATE_COUNT_BANDS, CalibrationCoordinate, DEFAULT_SUPPORT_LEVEL, KnownOptimumDesign,

@@ -604,6 +604,21 @@ pub fn consume(bytes: &[u8], expectation: &ConsumeExpectation) -> Result<Consume
     consume_with_limits(bytes, expectation, &DesignRankingReadLimits::default())
 }
 
+/// [`consume`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn consume_expecting(
+    bytes: &[u8],
+    expectation: &ConsumeExpectation,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedDesignRanking> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| consume(bytes, expectation))
+}
+
 /// [`consume`] accepting the container and table sizes `limits` allows instead of the defaults.
 ///
 /// # Errors
@@ -616,4 +631,74 @@ pub fn consume_with_limits(
 ) -> Result<ConsumedDesignRanking> {
     let wire = DesignRankingArtifactWire::from_bytes_with_limits(bytes, limits)?;
     consume_wire_with_limits(&wire, expectation, &BTreeSet::new(), limits)
+}
+
+/// [`consume_with_limits`], admitting only the artifact the consumer retained: the bytes bind
+/// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_with_limits_expecting(
+    bytes: &[u8],
+    expectation: &ConsumeExpectation,
+    limits: &DesignRankingReadLimits,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedDesignRanking> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_with_limits(bytes, expectation, limits)
+    })
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{
+        ConsumeExpectation, DesignRankingArtifactWire, DesignRankingReadLimits, consume,
+        consume_expecting, consume_with_limits, consume_with_limits_expecting,
+    };
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn design_ranking_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let expectation = ConsumeExpectation::default();
+        let limits = DesignRankingReadLimits::default();
+        same_outcome(
+            &DesignRankingArtifactWire::from_bytes(&bytes),
+            &DesignRankingArtifactWire::from_bytes_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&DesignRankingArtifactWire::from_bytes_expecting(
+            &bytes,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &DesignRankingArtifactWire::from_bytes_with_limits(&bytes, &limits),
+            &DesignRankingArtifactWire::from_bytes_with_limits_expecting(
+                &bytes, &limits, &retained,
+            ),
+        );
+        refused_as_not_retained(&DesignRankingArtifactWire::from_bytes_with_limits_expecting(
+            &bytes,
+            &limits,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &consume(&bytes, &expectation),
+            &consume_expecting(&bytes, &expectation, &retained),
+        );
+        refused_as_not_retained(&consume_expecting(&bytes, &expectation, &other_artifact()));
+        same_outcome(
+            &consume_with_limits(&bytes, &expectation, &limits),
+            &consume_with_limits_expecting(&bytes, &expectation, &limits, &retained),
+        );
+        refused_as_not_retained(&consume_with_limits_expecting(
+            &bytes,
+            &expectation,
+            &limits,
+            &other_artifact(),
+        ));
+    }
 }

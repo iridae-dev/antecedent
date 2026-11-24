@@ -686,12 +686,14 @@ pub use temporal_extensions::validate_temporal_dependent_interval;
 /// Retained nonlinear equilibrium programs and independent artifact replay.
 pub use antecedent_io::cyclic_system_artifact::{
     CyclicExecutionReport, CyclicExecutionRequest, CyclicFitRequest, consume_cyclic_artifact,
+    consume_cyclic_artifact_expecting,
 };
 
 /// Typed continuous-time and equation-system execution with independent replay.
 pub use antecedent_io::cyclic_family_artifact::{
     CyclicFamilyAnswer, CyclicFamilyReport, CyclicFamilyRequest, CyclicInterventionWorld,
     CyclicWorldAnswer, CyclicWorldWire, RecoveredDrawOriginWire, consume_cyclic_family,
+    consume_cyclic_family_expecting,
 };
 
 pub mod bridge_transport_decision;

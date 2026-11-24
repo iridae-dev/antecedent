@@ -4,13 +4,11 @@
 use antecedent::contract::ProviderVerificationReceipt;
 use antecedent::io::canonical_json::canonical_json_digest;
 use antecedent::io::provider_envelope::{
-    ProviderEnvelope, ProviderEnvelopeHeader, open_provider_envelope,
-    open_verified_provider_envelope, seal_provider_envelope,
+    ProviderEnvelope, ProviderEnvelopeHeader, seal_provider_envelope,
 };
 use antecedent::io::provider_verification_artifact::{
     ExecutionVerificationWire, MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
-    ProviderVerificationReceiptWire, receipt_from_bytes, receipt_to_bytes,
-    verify_execution_requests,
+    ProviderVerificationReceiptWire, receipt_to_bytes, verify_execution_requests,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -38,28 +36,55 @@ fn seal_provider_result<'py>(
 }
 
 #[pyfunction]
-#[pyo3(signature = (bytes, *, verified_spec_digest=None, verified_request_digest=None, verified_evidence_digest=None))]
+#[pyo3(signature = (bytes, *, verified_spec_digest=None, verified_request_digest=None, verified_evidence_digest=None, retained_identity=None))]
 fn open_provider_result<'py>(
     py: Python<'py>,
     bytes: &[u8],
     verified_spec_digest: Option<&str>,
     verified_request_digest: Option<&str>,
     verified_evidence_digest: Option<&str>,
+    retained_identity: Option<&str>,
 ) -> PyResult<(String, Option<Bound<'py, PyBytes>>)> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
-        let envelope =
-            match (verified_spec_digest, verified_request_digest, verified_evidence_digest) {
-                (None, None, None) => open_provider_envelope(bytes),
-                (Some(spec), Some(request), Some(evidence)) => {
-                    open_verified_provider_envelope(bytes, spec, request, evidence)
+        let envelope = match (
+            verified_spec_digest,
+            verified_request_digest,
+            verified_evidence_digest,
+        ) {
+            (None, None, None) => match &retained {
+                Some(retained) => {
+                    antecedent::io::provider_envelope::open_provider_envelope_expecting(
+                        bytes, retained,
+                    )
                 }
-                _ => {
-                    return Err(value_error(
-                        "verified provider opening requires all three host digests",
-                    ));
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::provider_envelope::open_provider_envelope(bytes),
+            },
+            (Some(spec), Some(request), Some(evidence)) => match &retained {
+                Some(retained) => {
+                    antecedent::io::provider_envelope::open_verified_provider_envelope_expecting(
+                        bytes, spec, request, evidence, retained,
+                    )
                 }
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::provider_envelope::open_verified_provider_envelope(
+                    bytes, spec, request, evidence,
+                ),
+            },
+            _ => {
+                return Err(value_error(
+                    "verified provider opening requires all three host digests",
+                ));
             }
-            .map_err(value_error)?;
+        }
+        .map_err(value_error)?;
         let header_json = serde_json::to_string(&envelope.header).map_err(value_error)?;
         Ok((
             header_json,
@@ -98,14 +123,35 @@ impl PyProviderVerificationReceipt {
 
     /// Load an exported receipt under the digest the consumer retained independently.
     #[staticmethod]
-    fn load(data: &[u8], expected_digest: &str) -> PyResult<Self> {
+    #[pyo3(signature = (data, expected_digest, retained_identity=None))]
+    fn load(data: &[u8], expected_digest: &str, retained_identity: Option<&str>) -> PyResult<Self> {
+        let retained = crate::retained_artifact_api::retained(retained_identity)?;
         crate::catch_ffi(|| {
             check_declared_len(
                 data.len(),
                 MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
                 "provider verification receipt",
             )?;
-            let inner = receipt_from_bytes(data, expected_digest).map_err(value_error)?;
+            // The receipt is already bound to `expected_digest`, a digest the consumer
+            // retained; the retained artifact identity binds the bytes as well.
+            let inner = match &retained {
+                Some(retained) => {
+                    antecedent::io::provider_verification_artifact::receipt_from_bytes_expecting(
+                        data,
+                        expected_digest,
+                        retained,
+                    )
+                }
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::provider_verification_artifact::receipt_from_bytes(
+                    data,
+                    expected_digest,
+                ),
+            }
+            .map_err(value_error)?;
             Ok(Self { inner })
         })
     }

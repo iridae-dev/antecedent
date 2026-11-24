@@ -405,6 +405,24 @@ impl JointScenarioCarrier {
         carrier.claims(StructuralPolicy::ReportOnly)?;
         Ok(carrier)
     }
+
+    /// [`Self::consume`], admitting only the carrier the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expected_identity: &str,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, expected_identity, ctx)
+        })
+    }
     fn claims(&self, policy: StructuralPolicy) -> Result<AdaptedClaims, IoError> {
         use crate::decision_adapters::{ClaimProbability, SuppliedClaim, adapt_finite_scenarios};
         let profile = profile_from_wire(self.wire.profile.clone())?;
@@ -625,6 +643,27 @@ impl JointScenarioCarrier {
             ));
         }
         Ok(result)
+    }
+
+    /// [`Self::replay_decision`], replaying only the source the consumer retained: `bytes`
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay_decision`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn replay_decision_expecting(
+        &self,
+        contract: &AdmissibleDecisionContract,
+        program_identity: &str,
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ScenarioDecision, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            self.replay_decision(contract, program_identity, bytes, ctx)
+        })
     }
 }
 #[derive(Debug, Serialize, Deserialize)]

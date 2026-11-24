@@ -103,6 +103,7 @@ pub mod reader;
 pub mod recalc_receipt_artifact;
 pub mod replay_tolerance;
 pub mod response_wire;
+pub mod retained_artifact;
 pub mod rollout_query_wire;
 pub mod scientific_target_wire;
 pub mod score_wire;
@@ -139,8 +140,8 @@ pub use analysis_result_artifact::{
     SurvivalWire, SyntheticControlWire, SyntheticDidWire, TemporalIdentificationWire,
     TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
     UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
-    decode_source_witness_section, encode_analysis_result_artifact,
-    encode_analysis_result_artifact_with_contract,
+    decode_analysis_result_artifact_expecting, decode_source_witness_section,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
     encode_analysis_result_artifact_with_contract_and_source,
     encode_analysis_result_artifact_with_provenance, identified_set_interval_from_wire,
     identified_set_interval_to_wire,
@@ -158,7 +159,8 @@ pub use artifact_codec::{
 };
 pub use causal_artifact::{
     CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
-    decode_causal_payload_artifact, encode_causal_payload_artifact,
+    decode_causal_payload_artifact, decode_causal_payload_artifact_expecting,
+    encode_causal_payload_artifact,
 };
 pub use claim_identity::{ClaimIdentityWire, claim_digest};
 pub use container::{
@@ -183,12 +185,13 @@ pub use contract_section::{
     claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
     claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, contract_seal,
     decode_analysis_result_contract, identification_not_claimed, load_analysis_result,
-    project_claim_host, project_lossy_scalar, replay_analysis_result,
-    replay_analysis_result_with_source, replay_analysis_result_within, result_digest,
-    support_empirical, validate_contract_section, validate_mixture_masses,
-    verify_checked_dr_replay, verify_contract_against_body,
-    verify_contract_against_body_with_source, verify_contract_against_body_within,
-    weight_basis_name,
+    load_analysis_result_expecting, project_claim_host, project_lossy_scalar,
+    replay_analysis_result, replay_analysis_result_expecting, replay_analysis_result_with_source,
+    replay_analysis_result_with_source_expecting, replay_analysis_result_within,
+    replay_analysis_result_within_expecting, result_digest, support_empirical,
+    validate_contract_section, validate_mixture_masses, verify_checked_dr_replay,
+    verify_contract_against_body, verify_contract_against_body_with_source,
+    verify_contract_against_body_within, weight_basis_name,
 };
 pub use contract_section::{DrReplayRefusal, SourceReplayBounds};
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
@@ -209,7 +212,7 @@ pub use expr_wire::{
 };
 pub use external_estimate::{
     ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,
-    encode_external_estimate_claim, parse_digest_hex,
+    decode_external_estimate_claim_expecting, encode_external_estimate_claim, parse_digest_hex,
 };
 pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
 pub use graph_gml::{dag_from_gml, dag_to_gml, dag_wire_from_gml, dag_wire_to_gml};
@@ -301,15 +304,17 @@ pub use plan_wire::{
 };
 pub use posterior::{
     CausalPosteriorWire, PosteriorPreparationWire, PosteriorQuantityWire,
-    decode_causal_posterior_bytes, decode_posterior_artifact, decode_posterior_meta_from_path,
-    decode_posterior_meta_from_seek, encode_posterior_artifact,
+    decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
+    decode_posterior_artifact, decode_posterior_meta_from_path,
+    decode_posterior_meta_from_path_expecting, decode_posterior_meta_from_seek,
+    decode_posterior_meta_from_seek_expecting, encode_posterior_artifact,
 };
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,
     EstimandFingerprint, PRIOR_SOURCE_META_SECTION, PriorArtifactBody, PriorCatalog, PriorMapping,
     PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, attach_prior_source_meta,
-    decode_prior_source_meta, encode_prior_source_meta, extract_prior_source_meta,
-    posterior_has_named_effect,
+    decode_prior_source_meta, decode_prior_source_meta_expecting, encode_prior_source_meta,
+    extract_prior_source_meta, posterior_has_named_effect,
 };
 pub use propagation_chain_record::{
     ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
@@ -351,6 +356,9 @@ pub use response_wire::{
     SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
     causal_response_to_wire, response_query_from_wire, response_query_to_wire,
     response_value_from_wire, response_value_to_wire,
+};
+pub use retained_artifact::{
+    RetainedArtifactIdentity, artifact_identity, bind_retained_artifact, load_expecting,
 };
 pub use source_witness::{
     SOURCE_WITNESS_FORMAT, SOURCE_WITNESS_SECTION, SourceColumnWire, SourceWitnessError,

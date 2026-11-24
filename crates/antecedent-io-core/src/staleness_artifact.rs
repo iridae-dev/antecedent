@@ -414,6 +414,22 @@ impl StalenessBaselineWire {
         wire.verify()?;
         Ok(wire)
     }
+
+    /// As [`Self::consume`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::consume)
+    }
 }
 
 /// One conditional independence the plan's graph implies, with its test on one snapshot.
@@ -783,5 +799,26 @@ mod tests {
             ));
             assert_eq!(pool.available().bytes(), 1_000_000);
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn staleness_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // StalenessBaselineWire::consume_expecting
+        assert_eq!(
+            format!("{:?}", StalenessBaselineWire::consume_expecting(bytes, &retained).err()),
+            format!("{:?}", StalenessBaselineWire::consume(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", StalenessBaselineWire::consume_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

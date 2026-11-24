@@ -18,9 +18,7 @@ use antecedent::analysis::transport_sensitivity::{
 use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
 use antecedent::design::composition_boundary::UnsupportedActionPolicy;
 use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
-use antecedent::design::transported_decision_artifact::{
-    consume_transported_decision, export_transported_decision,
-};
+use antecedent::design::transported_decision_artifact::export_transported_decision;
 use antecedent::io::IoError;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::query::SupportStatus;
@@ -364,13 +362,30 @@ fn transported_decision_export(
 /// re-evaluate the decision and require the stored identity and every action value to match bit
 /// for bit. Returns the re-derived decision JSON and the carried response.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity=None))]
+#[pyo3(signature = (artifact, expected_identity=None, retained_identity=None))]
 fn transported_decision_consume(
     artifact: &[u8],
     expected_identity: Option<&str>,
+    retained_identity: Option<&str>,
 ) -> PyResult<(Option<String>, Option<TransportedResponseHandle>, Option<String>)> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     crate::catch_ffi(|| {
-        Ok(match consume_transported_decision(artifact, expected_identity) {
+        let consumed = match &retained {
+            Some(retained) => antecedent::design::transported_decision_artifact::consume_transported_decision_expecting(
+                artifact,
+                expected_identity,
+                retained,
+            ),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::design::transported_decision_artifact::consume_transported_decision(
+                artifact,
+                expected_identity,
+            ),
+        };
+        Ok(match consumed {
             Ok(consumed) => {
                 let receipt = serde_json::to_value(&consumed.decision.receipt)
                     .map_err(|error| crate::serialization_err(error.to_string()))?;

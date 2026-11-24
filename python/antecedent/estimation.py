@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 import numpy as np
 
-from . import _estimate_helpers
+from . import _estimate_helpers, _retained
 from ._api import describe_refusal
 from ._batch import (
     BatchResult,
@@ -2641,6 +2641,7 @@ class _PreparedEngine(Generic[ResultT]):
         seed: int = 1,
         threads: int | None = None,
         cancel: Any = _UNSET,
+        retained_identity: str | None = None,
     ) -> AnalysisResult:
         """Re-execute the row-weight retarget an exported contract carries.
 
@@ -2655,11 +2656,18 @@ class _PreparedEngine(Generic[ResultT]):
                 "This operation is not supported on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.estimation._PreparedEngine.reexecute_retarget",
+            "antecedent.estimation._PreparedEngine.reexecute_retarget(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         raw = self._native.reexecute_retarget(
             bytes(artifact),
             seed=seed,
             threads=threads,
             cancel=self._controls.cancel if cancel is _UNSET else cancel,
+            retained_identity=_retained.native(retained_identity),
         )
         return _wrap_ate(raw, prepared=self)
 

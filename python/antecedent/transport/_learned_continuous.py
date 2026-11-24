@@ -27,7 +27,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -387,7 +387,11 @@ def prepare_learned_continuous(
     identity=(),
 )
 def consume_learned_continuous(
-    artifact: bytes, *, max_rows: int | None = None, max_features: int | None = None
+    artifact: bytes,
+    *,
+    max_rows: int | None = None,
+    max_features: int | None = None,
+    retained_identity: str | None = None,
 ) -> LearnedContinuousEstimate:
     """Independently verify an exported estimate and replay its point.
 
@@ -398,6 +402,12 @@ def consume_learned_continuous(
     graph, query, learner specs, folds, seed, thresholds, limits and variable names; any
     edit is refused with a typed error.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._learned_continuous.consume_learned_continuous",
+        "antecedent.transport._learned_continuous.consume_learned_continuous(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

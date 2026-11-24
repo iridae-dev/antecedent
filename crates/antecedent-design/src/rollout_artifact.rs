@@ -428,6 +428,18 @@ impl RolloutArtifact {
         artifact.check_bounds()?;
         Ok(artifact)
     }
+
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    /// # Errors
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::from_bytes)
+    }
 }
 
 /// Full prior/action/utility/admissibility fingerprint for a ranking edge.
@@ -444,4 +456,38 @@ pub fn consume(bytes: &[u8], expected: &RolloutExpectation) -> Result<RolloutArt
     let artifact = RolloutArtifact::from_bytes(bytes)?;
     artifact.verify(expected)?;
     Ok(artifact)
+}
+
+/// [`consume`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+/// # Errors
+/// As [`consume`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn consume_expecting(
+    bytes: &[u8],
+    expected: &RolloutExpectation,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<RolloutArtifact, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| consume(bytes, expected))
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::RolloutArtifact;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    // `consume_expecting` is `load_expecting` around `consume`, whose first step is
+    // `RolloutArtifact::from_bytes`; building a `RolloutExpectation` needs a full source law,
+    // so the binding is exercised through `from_bytes_expecting`.
+    #[test]
+    fn rollout_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &RolloutArtifact::from_bytes(&bytes),
+            &RolloutArtifact::from_bytes_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&RolloutArtifact::from_bytes_expecting(&bytes, &other_artifact()));
+    }
 }

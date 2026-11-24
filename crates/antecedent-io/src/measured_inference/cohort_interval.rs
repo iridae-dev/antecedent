@@ -223,4 +223,52 @@ impl CohortIntervalArtifactWire {
         }
         Ok(measured)
     }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<MeasuredInference, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn cohort_interval_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            CohortIntervalArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+            ),
+            CohortIntervalArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::matching(),
+            ),
+            CohortIntervalArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+    }
 }

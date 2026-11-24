@@ -33,6 +33,7 @@ from numpy.typing import NDArray
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -664,7 +665,11 @@ class ExternalSpec:
         return BoundExternalColumn(native, self.statement)
 
     def load(
-        self, data: bytes, *, expected_identity: str | Mapping[str, Any]
+        self,
+        data: bytes,
+        *,
+        expected_identity: str | Mapping[str, Any],
+        retained_identity: str | None = None,
     ) -> BoundExternalClaim:
         """Load a claim exported elsewhere under the consumer's retained identity.
 
@@ -678,6 +683,13 @@ class ExternalSpec:
             CausalValueError: ``expected_identity`` is a string that is not an identity.
             CausalUnsupportedError: the artifact is corrupt or its identity differs.
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.external.ExternalSpec.load",
+            "antecedent.external.ExternalSpec.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         data = container_bytes(data)
         if isinstance(expected_identity, str):
             try:

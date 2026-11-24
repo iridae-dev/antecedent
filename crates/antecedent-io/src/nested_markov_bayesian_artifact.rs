@@ -330,4 +330,51 @@ impl Artifact {
         }
         Ok(wire)
     }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expected: &Expectation,
+        limits: Limits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, expected, limits, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn nested_markov_bayesian_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            Artifact::consume(support::BYTES, &Expectation::default(), Limits::default(), &ctx),
+            Artifact::consume_expecting(
+                support::BYTES,
+                &Expectation::default(),
+                Limits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            Artifact::consume_expecting(
+                support::BYTES,
+                &Expectation::default(),
+                Limits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+    }
 }

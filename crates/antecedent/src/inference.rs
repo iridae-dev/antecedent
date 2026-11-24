@@ -28,7 +28,7 @@ use antecedent_prob::PosteriorQuantityKind;
 use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
-use crate::io::decode_causal_posterior_bytes;
+use antecedent_io::decode_causal_posterior_bytes;
 
 /// Frequentist vs Bayesian inference mode.
 #[allow(

@@ -219,6 +219,50 @@ fn compiler_binds_joint_source_without_scalar_fit_and_replays_under_independent_
     assert!(compiled.consume(&forged, &ctx).is_err());
 }
 #[test]
+fn replay_decision_expecting_binds_the_retained_result_bytes() {
+    use antecedent_io::RetainedArtifactIdentity;
+    use antecedent_io_core::retained_artifact::RETAINED_ARTIFACT_REFUSAL;
+    let ctx = ExecutionContext::for_tests(41);
+    let p = prepared(&ctx);
+    let s = source(
+        &p,
+        vec![
+            evaluated("positive", true, ClaimProbability::CompletionCount(17)),
+            evaluated("negative", false, ClaimProbability::CompletionCount(9)),
+        ],
+        true,
+        None,
+        &ctx,
+    );
+    let compiled = compile(&p, s, StructuralPolicy::Maximin, &ctx);
+    let sealed = compiled.export(&ctx).unwrap();
+    let contract = compiled.decision_contract().decision();
+    let retained = RetainedArtifactIdentity::of_bytes(&sealed);
+    let plain = compiled
+        .source()
+        .replay_decision(contract, compiled.program_identity(), &sealed, &ctx)
+        .unwrap();
+    let bound = compiled
+        .source()
+        .replay_decision_expecting(contract, compiled.program_identity(), &sealed, &ctx, &retained)
+        .unwrap();
+    assert_eq!(bound.decision(), plain.decision());
+    let other = RetainedArtifactIdentity::of_bytes(b"another result");
+    let refused = compiled
+        .source()
+        .replay_decision_expecting(contract, compiled.program_identity(), &sealed, &ctx, &other)
+        .unwrap_err();
+    assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    let mut corrupt = sealed.clone();
+    let last = corrupt.len() - 1;
+    corrupt[last] ^= 1;
+    let refused = compiled
+        .source()
+        .replay_decision_expecting(contract, compiled.program_identity(), &corrupt, &ctx, &retained)
+        .unwrap_err();
+    assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+}
+#[test]
 fn incomplete_search_and_unidentified_mass_never_become_a_complete_choice() {
     let ctx = ExecutionContext::for_tests(41);
     let p = prepared(&ctx);

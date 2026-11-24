@@ -61,7 +61,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from . import _native, _reason_details
+from . import _native, _reason_details, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -1183,10 +1183,21 @@ def plan_view(
 
 @outcome_operation
 def consume_propagation_chain(
-    data: bytes, *, expected_identity: str | None = None, execution: Execution | None = None
+    data: bytes,
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedPropagationChain:
     """Independently consume an exported record: the rule is checked again and every stage is
     replayed to identical bits. Any edit is refused, resealed or not."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.propagation_chain.consume_propagation_chain",
+        "antecedent.propagation_chain.consume_propagation_chain(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     data = container_bytes(data)
     replayed, refusal = _native.propagation_chain_consume(
@@ -1689,6 +1700,7 @@ def consume_chain_decision(
     *,
     expected_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ChainDecision:
     """Independently consume a chain decision artifact (plain, action-world or transported law).
 
@@ -1702,6 +1714,13 @@ def consume_chain_decision(
         ChainDecisionRefusal: a foreign version, a changed declaration or result, or a program
             other than the expected one (``external_binding_mismatch``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.propagation_chain.consume_chain_decision",
+        "antecedent.propagation_chain.consume_chain_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(artifact)
     policy = resolve_execution(execution)
     run = _decided(
@@ -1888,6 +1907,7 @@ def consume_chain_robust_decision(
     *,
     expected_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ChainRobustDecision:
     """Independently replay a robust chain decision under a retained program identity.
 
@@ -1898,6 +1918,13 @@ def consume_chain_robust_decision(
         CausalValueError: ``expected_identity`` is not a 64-hex identity.
         ChainDecisionRefusal: a changed declaration, enclosure, contract, program or result.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.propagation_chain.consume_chain_robust_decision",
+        "antecedent.propagation_chain.consume_chain_robust_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(artifact)
     policy = resolve_execution(execution)
     run = _decided(

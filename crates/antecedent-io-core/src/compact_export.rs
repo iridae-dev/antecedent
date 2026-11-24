@@ -1169,6 +1169,26 @@ impl CompactExport {
         verify_body(&body, limits, expected_identity)?;
         Ok(Self { body })
     }
+
+    /// As [`Self::consume`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: &ExportLimits,
+        expected_identity: &str,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ExportRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::consume(bytes, limits, expected_identity)
+    }
 }
 
 #[cfg(test)]
@@ -1273,5 +1293,32 @@ mod identity_site_tests {
             identity(spec(&with_group, items.to_vec()))
         });
         set_laws(&["a", "b", "c"], |items| identity(spec(&with_group, vec![dose(), group(items)])));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn compact_export_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // CompactExport::consume_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CompactExport::consume_expecting(bytes, &ExportLimits::default(), "", &retained)
+                    .err()
+            ),
+            format!("{:?}", CompactExport::consume(bytes, &ExportLimits::default(), "").err()),
+        );
+        let refused = format!(
+            "{:?}",
+            CompactExport::consume_expecting(bytes, &ExportLimits::default(), "", &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

@@ -39,7 +39,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import name as _name
@@ -499,7 +499,13 @@ class MixedDecisionWorkflow:
         artifact, identity = _unwrap(self._handle.export_historical_replay())
         return DecisionExport(bytes(artifact), str(identity))
 
-    def load(self, artifact: bytes, expected_identity: str | None = None) -> LoadedDecision:
+    def load(
+        self,
+        artifact: bytes,
+        expected_identity: str | None = None,
+        *,
+        retained_identity: str | None = None,
+    ) -> LoadedDecision:
         """Consume an exported decision against this workflow's current source authority.
 
         The combination is replayed numerically and the decision evaluated again on the replayed
@@ -510,6 +516,13 @@ class MixedDecisionWorkflow:
                 differs from ``expected_identity``, or an unsupported artifact version.
             CausalSerializationError: corrupt bytes.
         """
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.mixed_decision.MixedDecisionWorkflow.load",
+            "antecedent.mixed_decision.MixedDecisionWorkflow.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         if expected_identity is not None:
             _name(expected_identity, "expected_identity")
         wire = json.loads(_unwrap(self._handle.load(_bytes(artifact), expected_identity)))
@@ -571,7 +584,9 @@ class MixedDecisionWorkflow:
         decision is refused and an earlier export no longer loads.
         """
         artifact, identity = _unwrap(self._handle.withdraw_cluster())
-        return consume_composition_verification_artifact(bytes(artifact), str(identity))
+        return consume_composition_verification_artifact(
+            bytes(artifact), str(identity), retained_identity=_retained.ADMITTED
+        )
 
 
 def _bytes(artifact: object) -> bytes:

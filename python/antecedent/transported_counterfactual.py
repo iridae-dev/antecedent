@@ -48,6 +48,7 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from typing import Any
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -540,11 +541,19 @@ class TransportedPathSpecificEffect(ScientificResult):
         artifact: bytes,
         *,
         expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
+        retained_identity: str | None = None,
     ) -> TransportedPathSpecificEffect:
         """Replay an exported artifact; see :func:`consume_transported_counterfactual_artifact`."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transported_counterfactual.TransportedPathSpecificEffect.consume",
+            "antecedent.transported_counterfactual.TransportedPathSpecificEffect.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         artifact = container_bytes(artifact)
         return consume_transported_counterfactual_artifact(
-            artifact, expected_identity=expected_identity
+            artifact, expected_identity=expected_identity, retained_identity=_retained.ADMITTED
         )
 
 
@@ -662,6 +671,7 @@ def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,
     expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
+    retained_identity: str | None = None,
 ) -> TransportedPathSpecificEffect:
     """Replay an exported artifact and accept only an identical one.
 
@@ -677,6 +687,13 @@ def consume_transported_counterfactual_artifact(
     ``offending`` names the changed field). A stored result that does not replay, corruption
     and unknown major versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transported_counterfactual.consume_transported_counterfactual_artifact",
+        "antecedent.transported_counterfactual.consume_transported_counterfactual_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")

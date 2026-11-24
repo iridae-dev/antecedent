@@ -232,6 +232,7 @@ mod posterior_row_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
+mod retained_artifact_api;
 mod retained_refresh_api;
 mod rollout_api;
 mod sampling_assumption_union_api;
@@ -348,7 +349,7 @@ use antecedent::graph::{
 };
 use antecedent::inference::{FdrAdjustment, PartialCorrelation};
 use antecedent::io::{
-    CausalPosteriorWire, IoError, PosteriorQuantityWire, decode_causal_posterior_bytes,
+    CausalPosteriorWire, IoError, PosteriorQuantityWire,
     encode_causal_posterior_bytes, encode_posterior_artifact as encode_posterior_wire,
 };
 use antecedent::prelude::{

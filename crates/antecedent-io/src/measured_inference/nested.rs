@@ -191,6 +191,25 @@ impl NestedFisherArtifact {
         compare_replay(&wire, &measured)?;
         Ok((artifact, measured))
     }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, MeasuredInference), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
 }
 impl Artifact {
     /// Execute the unchanged eleven-dimensional posterior and authorize three scalars.
@@ -239,6 +258,25 @@ impl Artifact {
         let measured = bayesian_authority(&artifact)?;
         compare_replay(&wire, &measured)?;
         Ok((artifact, measured))
+    }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        limits: Limits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, MeasuredInference), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
     }
 }
 
@@ -343,5 +381,60 @@ mod tests {
             }
             other => panic!("expected the pilot's input refusal, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn nested_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            Artifact::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                Limits::default(),
+                &ctx,
+            ),
+            Artifact::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                Limits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            Artifact::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                Limits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            NestedFisherArtifact::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+            ),
+            NestedFisherArtifact::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            NestedFisherArtifact::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

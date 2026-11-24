@@ -470,6 +470,20 @@ impl PeriodRefreshArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and verify.
     ///
     /// # Errors
@@ -478,6 +492,20 @@ impl PeriodRefreshArtifactWire {
         let wire = Self::decode(bytes)?;
         let replay = wire.verify()?;
         Ok((wire, replay))
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, PeriodRefreshReplay), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::consume)
     }
 
     /// Refuse a ledger whose prior is not the one the caller holds now. A posterior answers
@@ -804,6 +832,20 @@ impl PeriodRefreshSummaryWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and verify.
     ///
     /// # Errors
@@ -812,6 +854,20 @@ impl PeriodRefreshSummaryWire {
         let wire = Self::decode(bytes)?;
         wire.verify()?;
         Ok(wire)
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::consume)
     }
 
     /// Check the seal, the stated retention, the shapes, the ledger, and that the stored
@@ -947,5 +1003,35 @@ mod prior_precision_tests {
             artifact.prior_digest = artifact.prior.digest();
             assert!(artifact.check_prior().is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn period_refresh_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            PeriodRefreshSummaryWire::consume(support::BYTES),
+            PeriodRefreshSummaryWire::consume_expecting(support::BYTES, &support::matching()),
+            PeriodRefreshSummaryWire::consume_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            PeriodRefreshArtifactWire::consume(support::BYTES),
+            PeriodRefreshArtifactWire::consume_expecting(support::BYTES, &support::matching()),
+            PeriodRefreshArtifactWire::consume_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            PeriodRefreshSummaryWire::decode(support::BYTES),
+            PeriodRefreshSummaryWire::decode_expecting(support::BYTES, &support::matching()),
+            PeriodRefreshSummaryWire::decode_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            PeriodRefreshArtifactWire::decode(support::BYTES),
+            PeriodRefreshArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            PeriodRefreshArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

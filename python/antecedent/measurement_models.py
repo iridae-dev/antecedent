@@ -96,7 +96,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1635,7 +1635,7 @@ class ConsumedMeasurement(ScientificResult):
     replayable=True,
 )
 def consume_measurement_model_artifact(
-    artifact: bytes, expected_identity: str
+    artifact: bytes, expected_identity: str, *, retained_identity: str | None = None
 ) -> ConsumedMeasurement:
     """Independently consume a measurement-model artifact.
 
@@ -1648,6 +1648,13 @@ def consume_measurement_model_artifact(
         MeasurementModelRefusal: ``measurement_binding_mismatch`` for an identity, binding or
             recomputation failure, ``invalid_argument`` for corrupt, truncated or foreign bytes.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.measurement_models.consume_measurement_model_artifact",
+        "antecedent.measurement_models.consume_measurement_model_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

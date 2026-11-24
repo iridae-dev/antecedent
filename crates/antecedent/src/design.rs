@@ -1340,7 +1340,7 @@ pub mod proposal_receipt {
 /// Finite source-law to terminal-decision and study-ranking binding.
 pub mod rollout_artifact {
     pub use antecedent_design::rollout_artifact::{
-        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume,
+        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume, consume_expecting,
     };
 }
 /// Checked scientific standing carried from a compiled response into a decision.
@@ -1390,6 +1390,29 @@ pub mod structure_identification {
 /// Portable transported decision artifact (`transported_decision_v1`).
 pub mod transported_decision_artifact {
     pub use antecedent_design::transported_decision_artifact::{
-        ConsumedTransportedDecision, consume_transported_decision, export_transported_decision,
+        ConsumedTransportedDecision, consume_transported_decision_expecting,
+        export_transported_decision,
     };
+
+    /// Deprecated: admits the artifact without an identity its consumer retained.
+    ///
+    /// [`consume_transported_decision_expecting`] admits only the retained artifact. This form calls
+    /// `antecedent_design::transported_decision_artifact::consume_transported_decision` unchanged and is removed in 4.0.
+    ///
+    /// # Errors
+    ///
+    /// As `antecedent_design::transported_decision_artifact::consume_transported_decision`.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use consume_transported_decision_expecting with a RetainedArtifactIdentity"
+    )]
+    pub fn consume_transported_decision(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+    ) -> Result<ConsumedTransportedDecision, antecedent_io_core::IoError> {
+        antecedent_design::transported_decision_artifact::consume_transported_decision(
+            bytes,
+            expected_identity,
+        )
+    }
 }

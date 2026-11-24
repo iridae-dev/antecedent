@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..prepared import PreparedAnalysis
     from .response import CausalResponseView
 
+from .. import _retained
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
 from ..outcomes import ANSWER_KINDS as ANSWER_KINDS
@@ -1090,7 +1091,7 @@ class ResultAPI:
         """Verified portable CATE predictor for this exact retained execution."""
         from ..prediction import FittedEffectModel
 
-        return FittedEffectModel.load(bytes(self.export()))
+        return FittedEffectModel.load(bytes(self.export()), retained_identity=_retained.ADMITTED)
 
     def fitted_model_from_source(self, data: Any) -> FittedEffectModel:
         """Replay the fit using an explicitly supplied copy of its source table.
@@ -1114,7 +1115,8 @@ class ResultAPI:
             )
         names, columns, _ = _prepared_columns(data)
         return FittedEffectModel.load(
-            execution.export_contracted_artifact_with_source(names, columns)
+            execution.export_contracted_artifact_with_source(names, columns),
+            retained_identity=_retained.ADMITTED,
         )
 
     @describe_refusal

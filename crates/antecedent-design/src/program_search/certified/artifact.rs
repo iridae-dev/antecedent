@@ -219,6 +219,24 @@ impl PreparedCertifiedSearch {
         }
         Ok((plan, result))
     }
+
+    /// [`Self::replay`], replaying only the certificate the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::replay`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn replay_expecting(
+        bytes: &[u8],
+        expected: Option<SemanticDigest>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, GlobalProgramCertificate), ProgramSearchError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| ProgramSearchError::Invalid(error.to_string()))?;
+        Self::replay(bytes, expected, ctx)
+    }
 }
 
 #[cfg(test)]
@@ -260,5 +278,39 @@ mod tests {
         let mut trailing = bytes;
         trailing.push(0);
         assert!(PreparedCertifiedSearch::replay(&trailing, None, &ctx).is_err());
+    }
+
+    #[test]
+    fn certified_search_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+        let x = ValueExpr::var(VariableId::from_raw(7));
+        let p = PreparedCertifiedSearch::compile(
+            x.clone().mul(ValueExpr::constant(1.0).sub(x)),
+            vec![CertifiedControl {
+                variable: VariableId::from_raw(7),
+                bounds: ObjectiveInterval { lower: 0.0, upper: 1.0 },
+            }],
+            vec![],
+        )
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let bytes = p
+            .export_replay(
+                vec![0.0],
+                CertificateOptions { absolute_gap: 1e-3, max_splits: 50 },
+                &ctx,
+            )
+            .unwrap();
+        let retained = antecedent_io_core::RetainedArtifactIdentity::of_bytes(&bytes);
+        let bound =
+            PreparedCertifiedSearch::replay_expecting(&bytes, Some(p.identity()), &ctx, &retained);
+        same_outcome(&PreparedCertifiedSearch::replay(&bytes, Some(p.identity()), &ctx), &bound);
+        assert!(bound.unwrap().1.global_upper >= 0.25);
+        refused_as_not_retained(&PreparedCertifiedSearch::replay_expecting(
+            &bytes,
+            Some(p.identity()),
+            &ctx,
+            &other_artifact(),
+        ));
     }
 }

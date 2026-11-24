@@ -449,6 +449,22 @@ impl TemporalRecalcArtifactWire {
         wire.validate()?;
         Ok(wire)
     }
+
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
     /// Full report equality through canonical wire encoding, including NaN semantics.
     /// # Errors
     /// Encoding failure.
@@ -539,5 +555,26 @@ mod identity_site_tests {
         assert!(wire.premises_digest_verifies().unwrap());
         wire.premises_digest = "0".repeat(64);
         assert!(!wire.premises_digest_verifies().unwrap());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn temporal_recalc_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // TemporalRecalcArtifactWire::decode_expecting
+        assert_eq!(
+            format!("{:?}", TemporalRecalcArtifactWire::decode_expecting(bytes, &retained).err()),
+            format!("{:?}", TemporalRecalcArtifactWire::decode(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", TemporalRecalcArtifactWire::decode_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

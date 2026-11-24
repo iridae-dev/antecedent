@@ -6,7 +6,7 @@ from typing import Any, Literal, TypedDict
 
 import numpy as np
 
-from ... import _deprecation
+from ... import _deprecation, _retained
 from ..._artifact_protocol import artifact_consumer, container_bytes
 from ..._columns import coerce_fields
 from ..._native import (
@@ -497,6 +497,7 @@ def consume_z_transport_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify and recompute an exported point-only zTR result.
 
@@ -505,6 +506,12 @@ def consume_z_transport_artifact(
     nothing the artifact recorded raises them, and an artifact whose stored
     laws or recorded limits exceed them is refused.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.identify.consume_z_transport_artifact",
+        "antecedent.transport._impl.identify.consume_z_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -574,12 +581,19 @@ def consume_z_transport_sensitivity_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify and recompute a portable zTR sensitivity range.
 
     The embedded baseline replays under the consumer's own limits, as in
     :func:`consume_z_transport_artifact`.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.identify.consume_z_transport_sensitivity_artifact",
+        "antecedent.transport._impl.identify.consume_z_transport_sensitivity_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

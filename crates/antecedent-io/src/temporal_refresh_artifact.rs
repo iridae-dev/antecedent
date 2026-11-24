@@ -444,6 +444,20 @@ impl TemporalRefreshArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Re-decide the refresh and replay every stored value.
     ///
     /// # Errors
@@ -576,6 +590,21 @@ impl TemporalRefreshArtifactWire {
         Ok((wire, replay))
     }
 
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: &TemporalInitialStateConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, RefreshReplay), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, limits))
+    }
+
     /// Digest of the new window's identity, as the receipt records it.
     ///
     /// # Errors
@@ -595,5 +624,36 @@ fn refreshed_wire(effect: &MarginalizedEffect) -> RefreshedResultWire {
             .map(|c| ContributionWire { state: c.s0, mass: c.mass, response: c.response })
             .collect(),
         interval_present: false,
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn temporal_refresh_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            TemporalRefreshArtifactWire::consume(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+            ),
+            TemporalRefreshArtifactWire::consume_expecting(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+                &support::matching(),
+            ),
+            TemporalRefreshArtifactWire::consume_expecting(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            TemporalRefreshArtifactWire::decode(support::BYTES),
+            TemporalRefreshArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            TemporalRefreshArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

@@ -29,6 +29,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from . import _retained
 from ._artifact_protocol import container_bytes
 from ._native import consume_previous_release as _consume_release
 from ._native import consume_previous_routes as _consume_routes
@@ -155,11 +156,19 @@ def previous_release_artifact(
 
 
 def consume_previous_release_artifact(
-    artifact: bytes, *, intervention_level: float
+    artifact: bytes, *, intervention_level: float, retained_identity: str | None = None
 ) -> AdoptedRelease:
     """Adopt a previous-release artifact, or refuse it with the remedy."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.release_migration.consume_previous_release_artifact",
+        "antecedent.release_migration.consume_previous_release_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
-    score, target, boundary, rows = _consume_release(bytes(artifact), float(intervention_level))
+    score, target, boundary, rows = _consume_release(
+        bytes(artifact), float(intervention_level), _retained.native(retained_identity)
+    )
     return AdoptedRelease(
         score_row_digest=bytes(score),
         target_digest=bytes(target),
@@ -179,11 +188,21 @@ def _assignment(row: Mapping[str, object]) -> MethodAssignment:
 
 
 def consume_previous_route_records(
-    artifact: bytes, methods: Iterable[CurrentMethod]
+    artifact: bytes, methods: Iterable[CurrentMethod], *, retained_identity: str | None = None
 ) -> tuple[RouteRecordMigration, ...]:
     """Carry every record of a previous-release route artifact onto the current methods."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.release_migration.consume_previous_route_records",
+        "antecedent.release_migration.consume_previous_route_records(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
-    rows = json.loads(_consume_routes(bytes(artifact), [m._row() for m in methods]))
+    rows = json.loads(
+        _consume_routes(
+            bytes(artifact), [m._row() for m in methods], _retained.native(retained_identity)
+        )
+    )
     return tuple(
         RouteRecordMigration(
             id=row["id"],

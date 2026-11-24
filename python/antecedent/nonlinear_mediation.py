@@ -53,6 +53,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -603,6 +604,7 @@ def consume_mediation_artifact(
     outcome: Any = None,
     covariates: Any = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> MediationEffects:
     """Re-estimate an exported mediation artifact and accept only an identical one.
 
@@ -621,6 +623,13 @@ def consume_mediation_artifact(
     (``IdentityMismatch``, ``data``) and omitting it refuses with
     ``nonlinear_mediation.data_required``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.nonlinear_mediation.consume_mediation_artifact",
+        "antecedent.nonlinear_mediation.consume_mediation_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

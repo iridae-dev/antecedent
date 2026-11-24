@@ -304,6 +304,20 @@ impl ZTransportArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Rebuild checked proof and provider objects under the consumer's limits
     /// without executing the point formula.
     ///
@@ -391,6 +405,34 @@ impl ZTransportArtifactWire {
         Ok((diagram, functional, data, request, limits.evaluation, wire))
     }
 
+    /// [`Self::reconstruct`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::reconstruct`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn reconstruct_expecting(
+        bytes: &[u8],
+        limits: ZTransportConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<
+        (
+            SelectionDiagram,
+            BoundZTransportFunctional,
+            ExactTransportData,
+            Assignment,
+            ExactEvaluationLimits,
+            Self,
+        ),
+        IoError,
+    > {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::reconstruct(bytes, limits, ctx)
+        })
+    }
+
     fn check_limits(
         &self,
         limits: &ZTransportConsumeLimits,
@@ -452,6 +494,24 @@ impl ZTransportArtifactWire {
         })
     }
 
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: ZTransportConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedZTransport, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
+    }
+
     /// [`Self::consume_with_limits`] under the default consumer limits.
     ///
     /// # Errors
@@ -462,6 +522,21 @@ impl ZTransportArtifactWire {
     ) -> Result<(SelectionDiagram, ExactDistribution), IoError> {
         let consumed = Self::consume_with_limits(bytes, ZTransportConsumeLimits::default(), ctx)?;
         Ok((consumed.diagram, consumed.distribution))
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(SelectionDiagram, ExactDistribution), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, ctx))
     }
 }
 
@@ -509,4 +584,63 @@ fn validate_functional_program(
         .into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn z_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            ZTransportArtifactWire::consume(support::BYTES, &ctx),
+            ZTransportArtifactWire::consume_expecting(support::BYTES, &ctx, &support::matching()),
+            ZTransportArtifactWire::consume_expecting(support::BYTES, &ctx, &support::other()),
+        );
+        support::assert_binds(
+            ZTransportArtifactWire::consume_with_limits(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            ZTransportArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            ZTransportArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ZTransportArtifactWire::decode(support::BYTES),
+            ZTransportArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            ZTransportArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            ZTransportArtifactWire::reconstruct(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            ZTransportArtifactWire::reconstruct_expecting(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            ZTransportArtifactWire::reconstruct_expecting(
+                support::BYTES,
+                ZTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+    }
 }

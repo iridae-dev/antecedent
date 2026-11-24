@@ -585,6 +585,25 @@ impl ExternalClaimArtifact {
         Self::from_bytes_within(bytes, expected, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: &ExternalClaimIdentity,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES`].
     ///
     /// # Errors
@@ -618,6 +637,129 @@ impl ExternalClaimArtifact {
         }
         let values = crate::artifact_codec::f64s_from_le_bytes(&raw);
         Self::new(metadata, values)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected: &ExternalClaimIdentity,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected, max_bytes)
+        })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    /// An identity no artifact in these tests matches; the binding refuses or the loader does.
+    pub(crate) fn placeholder_identity() -> ExternalClaimIdentity {
+        ExternalClaimIdentity {
+            causal_contract_id: "contract".into(),
+            graph_id: "graph".into(),
+            identification: "identified".into(),
+            quantities: vec![],
+            provider_id: "provider".into(),
+            object_id: "object".into(),
+            version_id: "version".into(),
+            snapshot_id: "snapshot".into(),
+            request_id: "request".into(),
+            values_blake3: String::new(),
+            trust: ExternalClaimTrust::ExternallyAttested,
+            point_status: vec![],
+            uncertainty_method: None,
+            evidence_ids: vec![],
+            assumption_ids: vec![],
+            equivalence_ids: vec![],
+            lineage: vec![],
+            provider_meaning: "interventional_predictive".into(),
+            capabilities: vec![],
+            provider_fingerprint: String::new(),
+            verification: None,
+        }
+    }
+
+    #[test]
+    fn external_claim_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // ExternalClaimArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalClaimArtifact::from_bytes_expecting(
+                    bytes,
+                    &crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalClaimArtifact::from_bytes(
+                    bytes,
+                    &crate::external_claim_artifact::retained_tests::placeholder_identity()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalClaimArtifact::from_bytes_expecting(
+                bytes,
+                &crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ExternalClaimArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalClaimArtifact::from_bytes_within_expecting(
+                    bytes,
+                    &crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalClaimArtifact::from_bytes_within(
+                    bytes,
+                    &crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    1 << 20
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalClaimArtifact::from_bytes_within_expecting(
+                bytes,
+                &crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                1 << 20,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }
 

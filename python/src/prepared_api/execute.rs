@@ -167,7 +167,7 @@ impl PyPreparedAnalysis {
     ///
     /// Refuses with `row_weights_bound_to_snapshot` unless this handle holds
     /// the data snapshot and score table the weights were bound to.
-    #[pyo3(signature = (artifact, *, seed=1, threads=None, cancel=None))]
+    #[pyo3(signature = (artifact, *, seed=1, threads=None, cancel=None, retained_identity=None))]
     fn reexecute_retarget(
         &mut self,
         py: Python<'_>,
@@ -175,8 +175,10 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
+        retained_identity: Option<&str>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
+        let retained = crate::retained_artifact_api::retained(retained_identity)?;
         let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
@@ -190,7 +192,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             crate::measured_inference_api::check_cancelled(&ctx)?;
-            let load = antecedent::io::load_analysis_result(artifact).map_err(py_err)?;
+            let load = match &retained {
+                Some(retained) => {
+                    antecedent::io::load_analysis_result_expecting(artifact, retained)
+                }
+                #[allow(
+                    deprecated,
+                    reason = "the unbound Python loader warns and stays reachable until 4.0"
+                )]
+                None => antecedent::io::load_analysis_result(artifact),
+            }
+            .map_err(py_err)?;
             crate::measured_inference_api::check_cancelled(&ctx)?;
             if !load.is_intact() {
                 return Err(crate::value_err("artifact is not an intact analysis result"));

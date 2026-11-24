@@ -907,6 +907,22 @@ impl CounterfactualTransportArtifactWire {
         Ok(wire)
     }
 
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CounterfactualTransportArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Recompute both digests and compare them with the stored ones, then with
     /// the identity the caller holds independently of the bytes.
     ///
@@ -1069,5 +1085,31 @@ mod identity_site_tests {
     #[test]
     fn site_sorted_cbor_is_a_multiset() {
         multiset_laws(&[3u32, 1, 2], |items| sorted_cbor(items).ok());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn counterfactual_transport_wire_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // CounterfactualTransportArtifactWire::decode_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CounterfactualTransportArtifactWire::decode_expecting(bytes, &retained).err()
+            ),
+            format!("{:?}", CounterfactualTransportArtifactWire::decode(bytes).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            CounterfactualTransportArtifactWire::decode_expecting(bytes, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

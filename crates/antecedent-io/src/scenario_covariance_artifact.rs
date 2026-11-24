@@ -764,6 +764,20 @@ impl ScenarioCovarianceArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &ScenarioCovarianceConsumeLimits,
@@ -821,5 +835,58 @@ impl ScenarioCovarianceArtifactWire {
             return Err(ScenarioCovarianceArtifactError::ReplayMismatch.into());
         }
         Ok((wire, covariance))
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: ScenarioCovarianceConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, ScenarioCovariance), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn scenario_covariance_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            ScenarioCovarianceArtifactWire::consume_with_limits(
+                support::BYTES,
+                ScenarioCovarianceConsumeLimits::default(),
+                &ctx,
+            ),
+            ScenarioCovarianceArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ScenarioCovarianceConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            ScenarioCovarianceArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ScenarioCovarianceConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ScenarioCovarianceArtifactWire::decode(support::BYTES),
+            ScenarioCovarianceArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            ScenarioCovarianceArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

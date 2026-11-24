@@ -608,8 +608,22 @@ pub(crate) fn encode_policy_program<'py>(
 
 /// Decode and verify a program artifact back to named-variable program text.
 #[pyfunction]
-pub(crate) fn decode_policy_program(names: Vec<String>, data: &[u8]) -> PyResult<String> {
-    let interventions = artifact::decode_policy_program(data).map_err(io_err)?;
+#[pyo3(signature = (names, data, retained_identity=None))]
+pub(crate) fn decode_policy_program(
+    names: Vec<String>,
+    data: &[u8],
+    retained_identity: Option<&str>,
+) -> PyResult<String> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
+    let interventions = match &retained {
+        Some(retained) => artifact::decode_policy_program_expecting(data, retained),
+        #[allow(
+            deprecated,
+            reason = "the unbound Python loader warns and stays reachable until 4.0"
+        )]
+        None => artifact::decode_policy_program(data),
+    }
+    .map_err(io_err)?;
     artifact::named_json_from_interventions(&interventions, &names).map_err(io_err)
 }
 

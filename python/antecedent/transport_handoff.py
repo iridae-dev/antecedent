@@ -46,7 +46,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -228,6 +228,7 @@ def consume_for_callback(
     callback: CallbackDeclaration,
     *,
     expected_identity: str | None = None,
+    retained_identity: str | None = None,
 ) -> TransportHandoff:
     """Consume a handoff's bytes and verify them against the callback declaration held.
 
@@ -240,6 +241,13 @@ def consume_for_callback(
             sealed for another callback (``provider_transport.identity_mismatch``) or a
             connection that no longer holds.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport_handoff.consume_for_callback",
+        "antecedent.transport_handoff.consume_for_callback(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")

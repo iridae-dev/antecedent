@@ -709,6 +709,22 @@ pub fn load_analysis_result(bytes: &[u8]) -> Result<AnalysisResultLoad, IoError>
     Ok(AnalysisResultLoad { header, body, contract, artifact_digest, integrity, artifact })
 }
 
+/// As [`load_analysis_result`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`load_analysis_result`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn load_analysis_result_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<AnalysisResultLoad, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, load_analysis_result)
+}
+
 /// Replay analysis-result bytes without caller context.
 ///
 /// Decode failures are errors. Missing or unreplayable contracts are
@@ -723,6 +739,22 @@ pub fn replay_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption,
     replay_analysis_result_within(bytes, &crate::distribution_replay::ReplayLimits::default())
 }
 
+/// As [`replay_analysis_result`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn replay_analysis_result_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<AnalysisResultConsumption, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, replay_analysis_result)
+}
+
 /// [`replay_analysis_result`] with the finite-discrete replay held to the caller's
 /// [`ReplayLimits`](crate::distribution_replay::ReplayLimits) instead of the defaults.
 ///
@@ -734,6 +766,25 @@ pub fn replay_analysis_result_within(
     limits: &crate::distribution_replay::ReplayLimits,
 ) -> Result<AnalysisResultConsumption, IoError> {
     consume_with_source_bounds(bytes, limits, &SourceReplayBounds::default())
+}
+
+/// As [`replay_analysis_result_within`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result_within`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn replay_analysis_result_within_expecting(
+    bytes: &[u8],
+    limits: &crate::distribution_replay::ReplayLimits,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<AnalysisResultConsumption, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        replay_analysis_result_within(bytes, limits)
+    })
 }
 
 /// [`replay_analysis_result`] with the replay of a carried full-source witness held to the
@@ -752,6 +803,25 @@ pub fn replay_analysis_result_with_source(
     bounds: &SourceReplayBounds,
 ) -> Result<AnalysisResultConsumption, IoError> {
     consume_with_source_bounds(bytes, &crate::distribution_replay::ReplayLimits::default(), bounds)
+}
+
+/// As [`replay_analysis_result_with_source`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result_with_source`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn replay_analysis_result_with_source_expecting(
+    bytes: &[u8],
+    bounds: &SourceReplayBounds,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<AnalysisResultConsumption, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        replay_analysis_result_with_source(bytes, bounds)
+    })
 }
 
 fn consume_with_source_bounds(
@@ -1198,5 +1268,88 @@ mod tests {
         assert!(requested.limits.max_cells > implicit.max_cells);
         assert!(requested.limits.max_operations > implicit.max_operations);
         assert!(requested.source.memory_bytes > SourceReplayBounds::default().memory_bytes);
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn contract_section_consume_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // load_analysis_result_expecting
+        assert_eq!(
+            format!("{:?}", load_analysis_result_expecting(bytes, &retained).err()),
+            format!("{:?}", load_analysis_result(bytes).err()),
+        );
+        let refused = format!("{:?}", load_analysis_result_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // replay_analysis_result_expecting
+        assert_eq!(
+            format!("{:?}", replay_analysis_result_expecting(bytes, &retained).err()),
+            format!("{:?}", replay_analysis_result(bytes).err()),
+        );
+        let refused = format!("{:?}", replay_analysis_result_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // replay_analysis_result_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                replay_analysis_result_within_expecting(
+                    bytes,
+                    &crate::distribution_replay::ReplayLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                replay_analysis_result_within(
+                    bytes,
+                    &crate::distribution_replay::ReplayLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            replay_analysis_result_within_expecting(
+                bytes,
+                &crate::distribution_replay::ReplayLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // replay_analysis_result_with_source_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                replay_analysis_result_with_source_expecting(
+                    bytes,
+                    &SourceReplayBounds::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                replay_analysis_result_with_source(bytes, &SourceReplayBounds::default()).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            replay_analysis_result_with_source_expecting(
+                bytes,
+                &SourceReplayBounds::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

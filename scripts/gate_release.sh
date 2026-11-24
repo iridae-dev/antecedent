@@ -132,6 +132,7 @@ step bash scripts/gate_provenance_schema.sh
 step python3 scripts/assurance.py check
 step python3 scripts/assurance.py --self-test
 step python3 scripts/adversarial.py check
+step python3 scripts/check_retained_artifact_loaders.py
 step bash scripts/gate_metadata_consistency.sh
 step bash scripts/gate_evidence_reachability.sh
 step bash scripts/gate_upstream_names.sh

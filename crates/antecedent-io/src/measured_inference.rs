@@ -215,6 +215,24 @@ impl MeasuredInference {
             _ => Err(refusal("measured_inference.unsupported_route", "no measured native consumer is registered for the requested route")),
         }
     }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        ctx: &antecedent_core::ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, expected, ctx)
+        })
+    }
 }
 
 /// Scalar declaration for stateless record lookup/report construction. A caller's
@@ -464,6 +482,20 @@ pub fn decode(
     }
     Ok(wire)
 }
+
+/// [`decode`], admitting only the artifact the consumer retained: the bytes bind to `retained`
+/// ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode`], and `external_binding_mismatch` when the bytes are not the retained artifact.
+pub fn decode_expecting(
+    bytes: &[u8],
+    expected: &MeasuredExpectation,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<MeasuredEnvelopeWire, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| decode(bytes, expected))
+}
 /// Compare to fresh native authorization after the original independent replay.
 pub(crate) fn compare_replay(
     wire: &MeasuredEnvelopeWire,
@@ -633,6 +665,49 @@ mod shared_split_validation_tests {
                 .unwrap_err()
                 .to_string()
                 .contains("distinct columns")
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn measured_inference_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            MeasuredInference::consume(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+            ),
+            MeasuredInference::consume_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::matching(),
+            ),
+            MeasuredInference::consume_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            decode(support::BYTES, &crate::retained_test_support::measured_expectation()),
+            decode_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &support::matching(),
+            ),
+            decode_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &support::other(),
+            ),
         );
     }
 }

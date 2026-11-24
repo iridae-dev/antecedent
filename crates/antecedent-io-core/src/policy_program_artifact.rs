@@ -231,6 +231,22 @@ pub fn decode_policy_program(bytes: &[u8]) -> Result<Vec<Intervention>, IoError>
     decode_policy_program_with(bytes, &|_| None)
 }
 
+/// As [`decode_policy_program`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_policy_program`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn decode_policy_program_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<Vec<Intervention>, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, decode_policy_program)
+}
+
 /// Decode and verify a program, binding each callback record to the implementation
 /// `supply` returns for it and re-verifying that implementation against the record.
 ///
@@ -262,6 +278,25 @@ pub fn decode_policy_program_with(
             IoError::Refused { code: refusal.code, message: refusal.message }
         })?;
         Ok(supplied)
+    })
+}
+
+/// As [`decode_policy_program_with`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_policy_program_with`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn decode_policy_program_with_expecting(
+    bytes: &[u8],
+    supply: &dyn Fn(&RecoveryRecord) -> Option<Arc<dyn BatchCallback>>,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<Vec<Intervention>, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        decode_policy_program_with(bytes, supply)
     })
 }
 
@@ -798,5 +833,36 @@ mod expression_identity_tests {
             value_expression_identity(&ValueExpr::var(a).mul(ValueExpr::var(a))).unwrap()
         );
         assert!(value_expression_identity(&ValueExpr::constant(f64::NAN)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn policy_program_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // decode_policy_program_expecting
+        assert_eq!(
+            format!("{:?}", decode_policy_program_expecting(bytes, &retained).err()),
+            format!("{:?}", decode_policy_program(bytes).err()),
+        );
+        let refused = format!("{:?}", decode_policy_program_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // decode_policy_program_with_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                decode_policy_program_with_expecting(bytes, &|_| None, &retained).err()
+            ),
+            format!("{:?}", decode_policy_program_with(bytes, &|_| None).err()),
+        );
+        let refused =
+            format!("{:?}", decode_policy_program_with_expecting(bytes, &|_| None, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

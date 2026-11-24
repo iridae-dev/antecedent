@@ -48,7 +48,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -689,6 +689,7 @@ def consume_cross_world_execution_artifact(
     *,
     expected_identity: Mapping[str, str] | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedCrossWorldExecution:
     """Replay an artifact with a fresh executor and refuse any difference.
 
@@ -697,6 +698,13 @@ def consume_cross_world_execution_artifact(
             identity that differs, or a declaration the matrix or the joint-law rule no longer
             supports.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.cross_world_execution.consume_cross_world_execution_artifact",
+        "antecedent.cross_world_execution.consume_cross_world_execution_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")

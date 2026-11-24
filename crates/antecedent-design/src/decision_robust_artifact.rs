@@ -354,6 +354,23 @@ impl AdmissibleContractArtifact {
         }
         Ok(Self { contract, identity })
     }
+
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: &str,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1181,6 +1198,24 @@ impl RobustResultArtifact {
         Ok(artifact)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_contract_identity: &str,
+        expected_atom_digests: &[(String, Option<String>)],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_contract_identity, expected_atom_digests)
+        })
+    }
+
     /// Recompute the assessment from `contract`, `atoms` and `profile` and
     /// require the stored result to match exactly.
     ///
@@ -1366,5 +1401,50 @@ mod identity_site_tests {
         let changed =
             profile(vec![("g1".into(), atom(changed_rows)), ("g2".into(), atom(Vec::new()))]);
         assert_ne!(bytes(&listed), bytes(&changed));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{AdmissibleContractArtifact, JointScenarioCarrier, RobustResultArtifact};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_core::ExecutionContext;
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn decision_robust_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let atoms: Vec<(String, Option<String>)> = Vec::new();
+        let ctx = ExecutionContext::for_tests(1);
+        same_outcome(
+            &AdmissibleContractArtifact::from_bytes(&bytes, "contract"),
+            &AdmissibleContractArtifact::from_bytes_expecting(&bytes, "contract", &retained),
+        );
+        refused_as_not_retained(&AdmissibleContractArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            &other_artifact(),
+        ));
+        same_outcome(
+            &RobustResultArtifact::from_bytes(&bytes, "contract", &atoms),
+            &RobustResultArtifact::from_bytes_expecting(&bytes, "contract", &atoms, &retained),
+        );
+        refused_as_not_retained(&RobustResultArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            &atoms,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &JointScenarioCarrier::consume(&bytes, "source", &ctx),
+            &JointScenarioCarrier::consume_expecting(&bytes, "source", &ctx, &retained),
+        );
+        refused_as_not_retained(&JointScenarioCarrier::consume_expecting(
+            &bytes,
+            "source",
+            &ctx,
+            &other_artifact(),
+        ));
     }
 }

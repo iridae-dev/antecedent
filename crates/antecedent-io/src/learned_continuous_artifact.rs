@@ -387,6 +387,20 @@ impl LearnedContinuousArtifactWire {
         })
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and independently verify without fitting or resampling.
     ///
     /// # Errors
@@ -398,6 +412,21 @@ impl LearnedContinuousArtifactWire {
         let wire = Self::decode(bytes)?;
         let identification = wire.verify(limits)?;
         Ok(ConsumedLearnedContinuous { wire, identification })
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: LearnedContinuousConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedLearnedContinuous, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, limits))
     }
 
     fn check_shape(&self, limits: &LearnedContinuousConsumeLimits) -> Result<(), Refusal> {
@@ -603,5 +632,36 @@ mod tests {
     #[test]
     fn the_bounds_are_the_recorded_ones() {
         assert_eq!(LEARNED_CONTINUOUS_BOUNDS, (20, 2, 2000));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn learned_continuous_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            LearnedContinuousArtifactWire::consume(
+                support::BYTES,
+                LearnedContinuousConsumeLimits::default(),
+            ),
+            LearnedContinuousArtifactWire::consume_expecting(
+                support::BYTES,
+                LearnedContinuousConsumeLimits::default(),
+                &support::matching(),
+            ),
+            LearnedContinuousArtifactWire::consume_expecting(
+                support::BYTES,
+                LearnedContinuousConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            LearnedContinuousArtifactWire::decode(support::BYTES),
+            LearnedContinuousArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            LearnedContinuousArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

@@ -47,7 +47,7 @@ from typing import Any, Literal
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -557,7 +557,11 @@ class SensitivityArtifact(ScientificResult):
         input="data",
     )
     def consume(
-        cls, data: bytes, *, expected_identity: Mapping[str, str] | None = None
+        cls,
+        data: bytes,
+        *,
+        expected_identity: Mapping[str, str] | None = None,
+        retained_identity: str | None = None,
     ) -> SensitivityArtifact:
         """Consume by recomputation; refuses a resealed mutation.
 
@@ -566,6 +570,13 @@ class SensitivityArtifact(ScientificResult):
         retained ``expected_identity`` (the dict of :attr:`identity`) independently of
         the bytes, that identity must match too.
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.sensitivity_decision.SensitivityArtifact.consume",
+            "antecedent.sensitivity_decision.SensitivityArtifact.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         if not isinstance(data, bytes):
             raise CausalTypeError("artifact must be bytes")
@@ -594,8 +605,16 @@ class SensitivityArtifact(ScientificResult):
         identity=(),
         input="data",
     )
-    def consume_with_source(cls, data: bytes) -> SensitivityArtifact:
+    def consume_with_source(
+        cls, data: bytes, *, retained_identity: str | None = None
+    ) -> SensitivityArtifact:
         """Replay the original numerical source and verify the complete derived surface."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.sensitivity_decision.SensitivityArtifact.consume_with_source",
+            "antecedent.sensitivity_decision.SensitivityArtifact.consume_with_source(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         data = container_bytes(data)
         return cls(_native.consume_sensitivity_source(data))
 

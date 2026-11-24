@@ -158,9 +158,11 @@ class PreparedAnalysis(Generic[T]):
         """Re-estimate for a reweighted population without refitting; see :func:`retarget`."""
         return retarget(self, weights, depends_on=depends_on)
 
-    def reexecute_retarget(self, artifact: bytes) -> Outcome[Any]:
+    def reexecute_retarget(
+        self, artifact: bytes, *, retained_identity: str | None = None
+    ) -> Outcome[Any]:
         """Re-run an exported row-weight retarget; see :func:`reexecute_retarget`."""
-        return reexecute_retarget(self, artifact)
+        return reexecute_retarget(self, artifact, retained_identity=retained_identity)
 
     def mechanism_sensitivity(self, **declarations: Any) -> Outcome[Any]:
         """Evaluate exact-transport mechanism sensitivity; see :func:`mechanism_sensitivity`."""
@@ -1473,7 +1475,9 @@ def retarget(
     return _finish_outcome(replace(study, _engine=engine), outcome)
 
 
-def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome[Any]:
+def reexecute_retarget(
+    study: PreparedAnalysis[Any], artifact: bytes, *, retained_identity: str | None = None
+) -> Outcome[Any]:
     """Re-run the row-weight retarget carried by an exported artifact, without refitting.
 
     ``artifact`` is the exported bytes of a retargeted result. Its weights are bound to one data
@@ -1485,6 +1489,14 @@ def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome
     Raises:
         CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
     """
+    from . import _retained
+
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.prepared.reexecute_retarget",
+        "antecedent.prepared.reexecute_retarget(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("reexecute_retarget requires a PreparedAnalysis")
     if study._refused is not None:
@@ -1496,6 +1508,7 @@ def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome
         artifact,
         seed=study.execution.seed,
         threads=study.execution.threads,
+        retained_identity=_retained.ADMITTED if retained_identity is None else retained_identity,
     )
     return _finish_outcome(replace(study, _engine=engine), outcome)
 

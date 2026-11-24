@@ -44,7 +44,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
-from . import _deprecation
+from . import _deprecation, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -272,8 +272,17 @@ class AdmissibleContract:
         )
 
     @classmethod
-    def load(cls, data: bytes, *, expected_identity: str) -> AdmissibleContract:
+    def load(
+        cls, data: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> AdmissibleContract:
         """Load only under the identity the consumer retained independently."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.decision_robust.AdmissibleContract.load",
+            "antecedent.decision_robust.AdmissibleContract.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         data = container_bytes(data)
         wire = json.loads(_load_contract(data, expected_identity))
         return cls(

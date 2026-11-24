@@ -279,6 +279,20 @@ impl DecisionReliabilityArtifact {
             }
         })
     }
+
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::from_bytes)
+    }
 }
 
 /// Independently consume decision-reliability bytes: decode, recompute the report from
@@ -295,4 +309,51 @@ pub fn consume(
     let artifact = DecisionReliabilityArtifact::from_bytes(bytes)?;
     artifact.verify(expected, ctx)?;
     Ok(artifact)
+}
+
+/// [`consume`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn consume_expecting(
+    bytes: &[u8],
+    expected: &DecisionReliabilityExpectation,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<DecisionReliabilityArtifact, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| consume(bytes, expected, ctx))
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{
+        DecisionReliabilityArtifact, DecisionReliabilityExpectation, consume, consume_expecting,
+    };
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_core::ExecutionContext;
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn decision_reliability_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let expected = DecisionReliabilityExpectation::default();
+        let ctx = ExecutionContext::for_tests(1);
+        same_outcome(
+            &DecisionReliabilityArtifact::from_bytes(&bytes),
+            &DecisionReliabilityArtifact::from_bytes_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&DecisionReliabilityArtifact::from_bytes_expecting(
+            &bytes,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &consume(&bytes, &expected, &ctx),
+            &consume_expecting(&bytes, &expected, &ctx, &retained),
+        );
+        refused_as_not_retained(&consume_expecting(&bytes, &expected, &ctx, &other_artifact()));
+    }
 }

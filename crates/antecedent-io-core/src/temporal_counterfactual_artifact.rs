@@ -986,6 +986,26 @@ impl TemporalCounterfactualArtifact {
         Self::from_bytes_within(bytes, expected, ctx, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&TemporalCounterfactualIdentity>,
+        ctx: &ExecutionContext,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, TemporalCounterfactualArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected, ctx)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of
     /// [`MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES`].
     ///
@@ -1048,6 +1068,27 @@ impl TemporalCounterfactualArtifact {
             return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result })
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected: Option<&TemporalCounterfactualIdentity>,
+        ctx: &ExecutionContext,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, TemporalCounterfactualArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected, ctx, max_bytes)
+        })
     }
 }
 
@@ -1304,5 +1345,63 @@ mod identity_site_tests {
                 .ok()
                 .map(|selective| selective.report.identity)
         });
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn temporal_counterfactual_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // TemporalCounterfactualArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                TemporalCounterfactualArtifact::from_bytes_expecting(bytes, None, &ctx, &retained)
+                    .err()
+            ),
+            format!("{:?}", TemporalCounterfactualArtifact::from_bytes(bytes, None, &ctx).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            TemporalCounterfactualArtifact::from_bytes_expecting(bytes, None, &ctx, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // TemporalCounterfactualArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                TemporalCounterfactualArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    &ctx,
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                TemporalCounterfactualArtifact::from_bytes_within(bytes, None, &ctx, 1 << 20).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            TemporalCounterfactualArtifact::from_bytes_within_expecting(
+                bytes,
+                None,
+                &ctx,
+                1 << 20,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

@@ -61,7 +61,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1094,6 +1094,7 @@ def consume_observation_query_artifact(
     expected_identity: str | None = None,
     *,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedObservationClaim:
     """Independently consume an ``observation_query_v1`` artifact.
 
@@ -1107,6 +1108,13 @@ def consume_observation_query_artifact(
             ``observation_query.artifact_invalid`` for corrupt bytes, or the structured defects of
             premises that no longer compose.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.observation_query.consume_observation_query_artifact",
+        "antecedent.observation_query.consume_observation_query_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

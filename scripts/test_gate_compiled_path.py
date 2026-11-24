@@ -15,7 +15,14 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from gate_compiled_path import MANIFEST, REGISTRY_FILES, ROOT, compiled_path_problems
+from gate_compiled_path import (
+    BOUND_REPLACEMENT_PREFIX,
+    MANIFEST,
+    REGISTRY_FILES,
+    ROOT,
+    bound_form_files,
+    compiled_path_problems,
+)
 from _repo import load_toml
 
 CTX = "&antecedent_core::execution::context::ExecutionContext"
@@ -39,6 +46,14 @@ def overlay(destination: Path) -> None:
             destination / source,
             ignore=shutil.ignore_patterns("__pycache__", "*.so", "*.pyc"),
         )
+    # The sources that define the bound forms deprecated loaders name.
+    for row in load_toml(ROOT / MANIFEST).get("row", []):
+        replacement = str(row.get("replacement", ""))
+        if replacement.startswith(BOUND_REPLACEMENT_PREFIX):
+            for source in bound_form_files(ROOT, replacement[len(BOUND_REPLACEMENT_PREFIX) :]):
+                target = destination / source.relative_to(ROOT)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
     # The Rust files a verdict row names, so that row is not stale in the copy.
     for row in load_toml(ROOT / MANIFEST).get("verdict", []):
         rel = row["path"].split("::")[0]
@@ -205,6 +220,68 @@ def case_kernel_on_facade_item(root: Path) -> str:
     return "classified kernel, but it is not an item of a kernel crate"
 
 
+PLANTED_LOADER = """
+pub fn planted_load(bytes: &[u8]) -> Result<u8, IoError> {
+    todo!()
+}
+
+pub fn planted_load_expecting(
+    bytes: &[u8],
+    retained: &RetainedArtifactIdentity,
+) -> Result<u8, IoError> {
+    BODY
+}
+"""
+
+
+def plant_unbound_loader(root: Path, body: str) -> None:
+    """A deprecated facade loader whose row names a bound form in a planted kernel file."""
+    append(
+        root,
+        "crates/antecedent-io/src/planted_loader.rs",
+        PLANTED_LOADER.replace("BODY", body),
+    )
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        '#[deprecated(since = "3.1.0")] pub fn antecedent::io::planted_load(bytes: &[u8]) -> '
+        "core::result::Result<u8, antecedent_io_core::error::IoError>\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row(
+            "antecedent::io::planted_load",
+            "deprecated",
+            replacement=f"{BOUND_REPLACEMENT_PREFIX}antecedent_io::planted::planted_load_expecting",
+        ),
+    )
+
+
+def case_bound_replacement_reads_unbound(root: Path) -> str:
+    plant_unbound_loader(root, "planted_load(bytes)")
+    return "does not name a bound form that binds the bytes"
+
+
+def case_bound_replacement_missing(root: Path) -> str:
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        '#[deprecated(since = "3.1.0")] pub fn antecedent::io::planted_missing(bytes: &[u8]) -> '
+        "core::result::Result<u8, antecedent_io_core::error::IoError>\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row(
+            "antecedent::io::planted_missing",
+            "deprecated",
+            replacement=f"{BOUND_REPLACEMENT_PREFIX}antecedent_io::planted::planted_missing_expecting",
+        ),
+    )
+    return "does not name a bound form that binds the bytes"
+
+
 def case_deprecated_unknown_route(root: Path) -> str:
     plant_deprecated_entry(root, replacement="route:PlantedNoSuchRoute", warn=True)
     return "does not name a route in the lowering registry"
@@ -322,6 +399,8 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("a kernel row without a reason", case_kernel_without_reason),
     ("a kernel row on a facade item", case_kernel_on_facade_item),
     ("a deprecated row naming an unknown route", case_deprecated_unknown_route),
+    ("a bound replacement that reads before binding", case_bound_replacement_reads_unbound),
+    ("a bound replacement that does not exist", case_bound_replacement_missing),
     ("a Python wrapper missing the deprecation warning", case_python_wrapper_missing_warning),
     ("an unclassified Python wrapper", case_unclassified_python_wrapper),
     ("a literal support_status", case_python_literal_support_status),
@@ -368,6 +447,13 @@ def main() -> None:
         accepted = compiled_path_problems(scoped)
         if accepted:
             failures.append(f"a deprecation scoped by an if was refused: {accepted[:3]}")
+        # A deprecated unbound loader naming a bound form that binds first is accepted.
+        bound = Path(scratch) / "bound"
+        shutil.copytree(base, bound)
+        plant_unbound_loader(bound, "load_expecting(bytes, retained, planted_load)")
+        accepted = compiled_path_problems(bound)
+        if accepted:
+            failures.append(f"a deprecated loader naming its bound form was refused: {accepted[:3]}")
         # A kernel row with a reason is accepted.
         kernel = Path(scratch) / "kernel"
         shutil.copytree(base, kernel)

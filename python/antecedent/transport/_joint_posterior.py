@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -225,8 +225,16 @@ def consume_joint_transport_posterior(
     *,
     kind: Literal["gaussian", "learned_gaussian"],
     expected_identity: Mapping[str, str],
+    retained_identity: str | None = None,
 ) -> JointTransportPosterior:
     """Fresh native re-fit under retained independent model/data identity expectations."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.transport._joint_posterior.consume_joint_transport_posterior",
+        "antecedent.transport._joint_posterior.consume_joint_transport_posterior(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     consumer = getattr(_native, "consume_joint_transport_candidate", None)
     if consumer is None:

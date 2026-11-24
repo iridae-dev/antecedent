@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -592,9 +592,21 @@ class ChoiceInferenceSession:
 
     @outcome_operation
     def consume_current(
-        self, artifact: bytes, expected_identity: str, *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        expected_identity: str,
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> ConsumedChoiceResult:
         """Replay a result only while this session's required sources remain active."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.choice_inference.ChoiceInferenceSession.consume_current",
+            "antecedent.choice_inference.ChoiceInferenceSession.consume_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         execution = resolve_execution(execution)
         artifact = container_bytes(artifact)
         handle = _unwrap(
@@ -722,7 +734,11 @@ def _consumed_result(handle: Any) -> ConsumedChoiceResult:
     replayable=True,
 )
 def consume_choice_inference_result_artifact(
-    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedChoiceResult:
     """Independently consume a choice inference result by replay and recomputation.
 
@@ -732,6 +748,13 @@ def consume_choice_inference_result_artifact(
         ChoiceInferenceRefusal: the contract's own refusal, ``choice_inference.wrong_result``
             for another identity, or a stored value that does not recompute.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.choice_inference.consume_choice_inference_result_artifact",
+        "antecedent.choice_inference.consume_choice_inference_result_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):

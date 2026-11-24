@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import ExportedArtifact, artifact_consumer, container_bytes
 from ..execution import Execution
 from ._consumption import TransportConsumption
@@ -41,6 +41,7 @@ class JointSensitivityIntervalArtifact(ExportedArtifact[Any]):
             max_search_depth=max_search_depth,
             max_memory_bytes=max_memory_bytes,
             execution=execution,
+            retained_identity=_retained.ADMITTED,
         )
 
 
@@ -90,12 +91,19 @@ def consume_joint_sensitivity_interval(
     max_search_depth: int = 64,
     max_memory_bytes: int = 67_108_864,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently replay the range and interval under hard consumer maxima.
 
     ``recorded_calibration`` is historical producer metadata. ``calibration`` is
     resolved now from the replayed procedure and the current coverage classifier.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._joint_interval_artifact.consume_joint_sensitivity_interval",
+        "antecedent.transport._joint_interval_artifact.consume_joint_sensitivity_interval(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     return TransportConsumption.from_checked_mapping(
         "joint_sensitivity_interval",
         call_native(

@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -89,8 +90,17 @@ class NestedFisherCandidate(ScientificResult):
         resumable=False,
         identity=("expected_identity",),
     )
-    def load(cls, artifact: bytes, *, expected_identity: str) -> NestedFisherCandidate:
+    def load(
+        cls, artifact: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> NestedFisherCandidate:
         """Fresh consumer rechecks supported ID and refits every original output."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transport._nested_fisher.NestedFisherCandidate.load",
+            "antecedent.transport._nested_fisher.NestedFisherCandidate.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         from .. import _native
 

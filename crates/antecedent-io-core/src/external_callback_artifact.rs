@@ -97,6 +97,26 @@ impl ExternalCallbackArtifact {
         Self::consume_within(bytes, request, provider, MAX_CALLBACK_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::consume`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        request: &[u8; 32],
+        provider: &[u8; 32],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, request, provider)
+        })
+    }
+
     /// [`Self::consume`] under the caller's byte bound instead of [`MAX_CALLBACK_ARTIFACT_BYTES`].
     /// # Errors
     /// As [`Self::consume`]; an envelope over `max_bytes` is refused.
@@ -111,6 +131,27 @@ impl ExternalCallbackArtifact {
             return Err(IoError::Convert("callback artifact execution identity mismatch".into()));
         }
         Ok(value)
+    }
+
+    /// As [`Self::consume_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_within_expecting(
+        bytes: &[u8],
+        request: &[u8; 32],
+        provider: &[u8; 32],
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::consume_within(bytes, request, provider, max_bytes)
+        })
     }
 
     /// Decode and validate without matching execution identities: the claim and
@@ -219,5 +260,62 @@ mod tests {
             ExternalCallbackArtifact::consume_within(b"ANTCALLBACK1\x00", &[0; 32], &[0; 32], 1)
                 .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn external_callback_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // ExternalCallbackArtifact::consume_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalCallbackArtifact::consume_expecting(bytes, &[0; 32], &[0; 32], &retained)
+                    .err()
+            ),
+            format!("{:?}", ExternalCallbackArtifact::consume(bytes, &[0; 32], &[0; 32]).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalCallbackArtifact::consume_expecting(bytes, &[0; 32], &[0; 32], &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ExternalCallbackArtifact::consume_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalCallbackArtifact::consume_within_expecting(
+                    bytes,
+                    &[0; 32],
+                    &[0; 32],
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalCallbackArtifact::consume_within(bytes, &[0; 32], &[0; 32], 1 << 20).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalCallbackArtifact::consume_within_expecting(
+                bytes,
+                &[0; 32],
+                &[0; 32],
+                1 << 20,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

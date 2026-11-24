@@ -14,7 +14,7 @@ from typing import Any
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -135,9 +135,20 @@ def _estimate(
 
 
 def consume_arrival(
-    data: bytes, *, expected_proposal: str, execution: Execution | None = None
+    data: bytes,
+    *,
+    expected_proposal: str,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ArrivalResult:
     """Replay original consumers and actual raw count providers in a fresh process."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.proposal_arrival.consume_arrival",
+        "antecedent.proposal_arrival.consume_arrival(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     if not isinstance(data, bytes):
         raise CausalTypeError("data must be bytes from ArrivalResult.export()")

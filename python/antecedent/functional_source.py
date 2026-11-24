@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -37,7 +37,20 @@ class LawFunctionalArtifact:
         return cls(bytes(data), report)
 
     @classmethod
-    def consume(cls, data: bytes, *, expected_identity: str | None = None) -> LawFunctionalArtifact:
+    def consume(
+        cls,
+        data: bytes,
+        *,
+        expected_identity: str | None = None,
+        retained_identity: str | None = None,
+    ) -> LawFunctionalArtifact:
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.functional_source.LawFunctionalArtifact.consume",
+            "antecedent.functional_source.LawFunctionalArtifact.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         return cls(data, _native.consume_law_functional_source(data, expected_identity))
 

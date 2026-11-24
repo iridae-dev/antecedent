@@ -9,13 +9,16 @@ use antecedent_design::composition_verifiers::{describe_artifact, standard_consu
 use antecedent_design::decision_artifact::source_digest;
 use antecedent_design::rollout_artifact::{
     RolloutArtifact, RolloutExpectation, RolloutSource, StateInterpretation, consume,
+    consume_expecting,
 };
+use antecedent_io::RetainedArtifactIdentity;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::retained_artifact::RETAINED_ARTIFACT_REFUSAL;
 use serde_json::json;
 
 fn pin(key: &str) -> serde_json::Value {
@@ -112,6 +115,25 @@ fn fixture(posterior: bool) -> RolloutArtifact {
     RolloutArtifact::new(source.to_bytes("law").unwrap(), ranked.export("rank").unwrap(), expected)
         .unwrap()
 }
+#[test]
+fn rollout_consume_expecting_binds_the_retained_bytes() {
+    let artifact = fixture(false);
+    let bytes = artifact.to_bytes("rollout").unwrap();
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let plain = consume(&bytes, &artifact.binding).unwrap();
+    let bound = consume_expecting(&bytes, &artifact.binding, &retained).unwrap();
+    assert_eq!(bound.digest, plain.digest);
+    let other = RetainedArtifactIdentity::of_bytes(b"another rollout");
+    let refused = consume_expecting(&bytes, &artifact.binding, &other).unwrap_err();
+    assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    // Altered bytes are not the retained artifact, whatever the rollout's own checks say.
+    let mut altered = bytes.clone();
+    let middle = altered.len() / 2;
+    altered[middle] ^= 0x01;
+    let refused = consume_expecting(&altered, &artifact.binding, &retained).unwrap_err();
+    assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+}
+
 #[test]
 fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth() {
     for posterior in [false, true] {

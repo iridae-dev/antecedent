@@ -21,7 +21,7 @@ use antecedent::estimate::counterfactual_transport_sampled::{
 use antecedent::execution::SearchLimits;
 use antecedent::io::sampled_counterfactual_transport_artifact::{
     SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
-    SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
+    SampledCounterfactualTransportExpectedIdentity,
 };
 use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
@@ -429,7 +429,7 @@ fn estimate_sampled_counterfactual_transport_native(
 /// Independently recheck a sampled artifact under the consumer's limits:
 /// re-decide, rebuild the counts and recompute every stored number bit for bit.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, expected_premises_digest=None, expected_data_digest=None, max_search_operations=None, max_search_depth=None, max_operations=None, max_depth=None, max_tables=None, max_table_cells=None, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(artifact, *, expected_premises_digest=None, expected_data_digest=None, max_search_operations=None, max_search_depth=None, max_operations=None, max_depth=None, max_tables=None, max_table_cells=None, memory_bytes=None, cancel=None, retained_identity=None))]
 #[allow(clippy::too_many_arguments)]
 #[doc(hidden)]
 fn consume_sampled_counterfactual_transport_artifact_native(
@@ -445,7 +445,9 @@ fn consume_sampled_counterfactual_transport_artifact_native(
     max_table_cells: Option<usize>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
+    retained_identity: Option<&str>,
 ) -> PyResult<SampledCounterfactualTransportResultNative> {
+    let retained = crate::retained_artifact_api::retained(retained_identity)?;
     let defaults = SampledCounterfactualTransportConsumeLimits::default();
     let limits = SampledCounterfactualTransportConsumeLimits {
         search: SearchLimits {
@@ -467,7 +469,19 @@ fn consume_sampled_counterfactual_transport_artifact_native(
     let bytes = artifact.to_vec();
     let consumed = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        consume_sampled_counterfactual_transport(&bytes, &expected, limits, &ctx).map_err(error)
+        match &retained {
+            Some(retained) => antecedent::io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_expecting(
+                &bytes, &expected, limits, &ctx, retained,
+            ),
+            #[allow(
+                deprecated,
+                reason = "the unbound Python loader warns and stays reachable until 4.0"
+            )]
+            None => antecedent::io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport(
+                &bytes, &expected, limits, &ctx,
+            ),
+        }
+        .map_err(error)
     })?;
     let catalog = consumed.derivation.catalog.clone();
     let names = consumed.wire.variable_names.clone();

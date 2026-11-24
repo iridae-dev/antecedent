@@ -53,8 +53,23 @@ use crate::{CausalError, CompileCause, Study};
 pub use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, ConsumedCandidate, ConsumedDesignRanking, DESIGN_RANKING_ARTIFACT_KIND,
     DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
-    DesignRankingArtifactWire, EvsiCandidateWire, ReplayKind, consume, consume_wire,
+    DesignRankingArtifactWire, EvsiCandidateWire, ReplayKind, consume_expecting, consume_wire,
 };
+/// Deprecated: admits the artifact without an identity its consumer retained.
+///
+/// [`consume_expecting`] admits only the retained artifact. This form calls
+/// `antecedent_design::design_ranking_artifact::consume` unchanged and is removed in 4.0.
+///
+/// # Errors
+///
+/// As `antecedent_design::design_ranking_artifact::consume`.
+#[deprecated(since = "3.1.0", note = "use consume_expecting with a RetainedArtifactIdentity")]
+pub fn consume(
+    bytes: &[u8],
+    expectation: &ConsumeExpectation,
+) -> Result<ConsumedDesignRanking, DesignRankingArtifactError> {
+    antecedent_design::design_ranking_artifact::consume(bytes, expectation)
+}
 pub use antecedent_design::ranking::{DesignRankingBasis, RankingRecord};
 pub use antecedent_design::signal::{SignalTrustLabel, SignalUpdateMode};
 

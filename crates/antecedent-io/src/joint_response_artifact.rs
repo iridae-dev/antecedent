@@ -351,6 +351,21 @@ pub fn consume_joint_response(
     })
 }
 
+/// [`consume_joint_response`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_joint_response`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_joint_response_expecting(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<HistoricalJointResponse, JointResponseArtifactError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| consume_joint_response(bytes, ctx))
+}
+
 fn request_wire(
     source: JointResponseArtifactSource<'_>,
 ) -> Result<RequestWire, JointResponseArtifactError> {
@@ -732,6 +747,22 @@ mod tests {
         assert_eq!(serde_json::to_vec(&prior_to_wire(&reconstructed)).unwrap(), encoded);
         assert!(
             matches!(&reconstructed.specs[0], PriorSpec::GaussianCoefficients(p) if p.mean[1].to_bits()==(-0.0_f64).to_bits())
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn joint_response_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_joint_response(support::BYTES, &ctx),
+            consume_joint_response_expecting(support::BYTES, &ctx, &support::matching()),
+            consume_joint_response_expecting(support::BYTES, &ctx, &support::other()),
         );
     }
 }

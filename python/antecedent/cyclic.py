@@ -28,7 +28,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -409,8 +409,16 @@ def consume_artifact(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CyclicResult:
     """Check identity/integrity and recompute in Rust, including any retained fit."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cyclic.consume_artifact",
+        "antecedent.cyclic.consume_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     assert execution is not None
     limits = _limits(execution)
     artifact = container_bytes(artifact)
@@ -1335,8 +1343,16 @@ def consume_family_artifact(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CyclicResult:
     """Recompute a dynamic/constraint answer with independent identity checking."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cyclic.consume_family_artifact",
+        "antecedent.cyclic.consume_family_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     assert execution is not None
     limits = _limits(execution)
     artifact = container_bytes(artifact)
@@ -2688,8 +2704,16 @@ def consume_evidence(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CyclicEvidence:
     """Independently replay a cyclic source and recheck its entire evidence projection."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cyclic.consume_evidence",
+        "antecedent.cyclic.consume_evidence(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     assert execution is not None
     limits = _limits(execution)
     artifact = container_bytes(artifact)

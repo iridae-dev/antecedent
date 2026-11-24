@@ -402,6 +402,25 @@ pub fn consume_external_cyclic_artifact(
     Ok(report)
 }
 
+/// [`consume_external_cyclic_artifact`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_external_cyclic_artifact`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn consume_external_cyclic_artifact_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    resolver: Option<&dyn TrustedMechanismResolver>,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ExternalCyclicReport, ExternalCyclicArtifactError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| ExternalCyclicArtifactError::Invalid(error.to_string()))?;
+    consume_external_cyclic_artifact(bytes, expected_identity, resolver, ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -608,5 +627,33 @@ mod tests {
             consume_external_cyclic_artifact(&bytes, &identity, Some(&registry(SOURCE)), &ctx),
             Err(ExternalCyclicArtifactError::Mismatch)
         ));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn external_cyclic_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_external_cyclic_artifact(support::BYTES, "0", None, &ctx),
+            consume_external_cyclic_artifact_expecting(
+                support::BYTES,
+                "0",
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            consume_external_cyclic_artifact_expecting(
+                support::BYTES,
+                "0",
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

@@ -839,6 +839,26 @@ pub fn retained_choice_source_from_artifact(
     })
 }
 
+/// [`retained_choice_source_from_artifact`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`retained_choice_source_from_artifact`], and `external_binding_mismatch` when the bytes are
+/// not the retained artifact.
+pub fn retained_choice_source_from_artifact_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    label: &str,
+    discount: f64,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<RetainedChoiceSource, Error> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        retained_choice_source_from_artifact(bytes, expected_identity, label, discount, ctx)
+    })
+}
+
 /// Replay every native posterior source and bind its frame, observations and initial prior to the target.
 /// Declared raw observations remain ordinary input data and are not promoted to native posterior authority.
 ///
@@ -1016,6 +1036,24 @@ impl ChoiceInferenceResultArtifact {
         check(&decode_meta(bytes)?, expected_identity, ctx)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity, ctx)
+        })
+    }
+
     /// Validate metadata as a consumer would, for tests that reseal edits.
     ///
     /// # Errors
@@ -1066,6 +1104,51 @@ mod source_admission_tests {
         assert_eq!(
             error.refusal(),
             Some(("execution_cancelled", "choice_inference.source_cancelled".into(), text))
+        );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn choice_inference_result_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            ChoiceInferenceResultArtifact::from_bytes(support::BYTES, None, &ctx),
+            ChoiceInferenceResultArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            ChoiceInferenceResultArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            retained_choice_source_from_artifact(support::BYTES, "0", "0", 0.5, &ctx),
+            retained_choice_source_from_artifact_expecting(
+                support::BYTES,
+                "0",
+                "0",
+                0.5,
+                &ctx,
+                &support::matching(),
+            ),
+            retained_choice_source_from_artifact_expecting(
+                support::BYTES,
+                "0",
+                "0",
+                0.5,
+                &ctx,
+                &support::other(),
+            ),
         );
     }
 }

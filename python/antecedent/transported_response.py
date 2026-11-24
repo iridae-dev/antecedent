@@ -58,7 +58,7 @@ from typing import Any, Literal, cast
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -594,7 +594,7 @@ class ConsumedTransportedDecision(ScientificResult):
     replayable=True,
 )
 def consume_transported_decision(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedTransportedDecision:
     """Consume a ``transported_decision_v1`` artifact by re-evaluating its decision.
 
@@ -611,13 +611,22 @@ def consume_transported_decision(
             (``transported_decision_artifact.replay_mismatch``) or an identity that differs from
             the expected one (``transported_decision_artifact.identity_expected``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transported_response.consume_transported_decision",
+        "antecedent.transported_response.consume_transported_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     from .composition import _supported_from_wire
     from .decision import DecisionRefusal
 
     data = container_bytes(artifact)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
-    payload, handle, refusal = _native.transported_decision_consume(bytes(data), expected_identity)
+    payload, handle, refusal = _native.transported_decision_consume(
+        bytes(data), expected_identity, _retained.native(retained_identity)
+    )
     raise_refusal(refusal, DecisionRefusal)
     if payload is None:
         raise CausalTypeError("transported decision artifact carried no payload")

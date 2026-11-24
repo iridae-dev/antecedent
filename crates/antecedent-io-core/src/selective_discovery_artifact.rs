@@ -621,6 +621,25 @@ impl SelectiveDiscoveryArtifact {
         Self::from_bytes_within(bytes, expected_identity, MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, SelectiveDiscoveryArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES`].
     ///
     /// # Errors
@@ -640,6 +659,26 @@ impl SelectiveDiscoveryArtifact {
         )
     }
 
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, SelectiveDiscoveryArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, max_bytes)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's intake bounds instead of
     /// [`MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES`], [`MAX_STRUCTURE_ITEMS`] and
     /// [`MAX_PORTABLE_RECEIPTS`].
@@ -652,6 +691,26 @@ impl SelectiveDiscoveryArtifact {
         limits: &SelectiveDiscoveryIntakeLimits,
     ) -> Result<Self, SelectiveDiscoveryArtifactError> {
         check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
+    }
+
+    /// As [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &SelectiveDiscoveryIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, SelectiveDiscoveryArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_limits(bytes, expected_identity, limits)
+        })
     }
 
     /// Read the stored metadata without validating it: the independent inspection of a
@@ -708,5 +767,87 @@ impl SelectiveDiscoveryArtifact {
         artifact_id: &str,
     ) -> Result<Vec<u8>, SelectiveDiscoveryArtifactError> {
         encode_meta(meta, artifact_id, MAX_SELECTIVE_DISCOVERY_ARTIFACT_BYTES)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn selective_discovery_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // SelectiveDiscoveryArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                SelectiveDiscoveryArtifact::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", SelectiveDiscoveryArtifact::from_bytes(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            SelectiveDiscoveryArtifact::from_bytes_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // SelectiveDiscoveryArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                SelectiveDiscoveryArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                SelectiveDiscoveryArtifact::from_bytes_within(bytes, None, 1 << 20).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            SelectiveDiscoveryArtifact::from_bytes_within_expecting(bytes, None, 1 << 20, &other)
+                .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // SelectiveDiscoveryArtifact::from_bytes_with_limits_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                SelectiveDiscoveryArtifact::from_bytes_with_limits_expecting(
+                    bytes,
+                    None,
+                    &SelectiveDiscoveryIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                SelectiveDiscoveryArtifact::from_bytes_with_limits(
+                    bytes,
+                    None,
+                    &SelectiveDiscoveryIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            SelectiveDiscoveryArtifact::from_bytes_with_limits_expecting(
+                bytes,
+                None,
+                &SelectiveDiscoveryIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

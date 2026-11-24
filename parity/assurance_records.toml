@@ -768,3 +768,560 @@ rust_items = [
 [records.result]
 inputs_digest = ""
 checked_commit = ""
+
+[[records]]
+id = "acceptance.retained_artifact"
+proposition = "Every artifact loader offers a form that admits bytes only as the artifact its consumer retained. The artifact slot binds exactly when the digest the consumer recomputes from the bytes it was handed equals the digest it retained, through bind; load_expecting runs the loader only after that binding, and every refusal it returns before the loader runs is external_binding_mismatch. Each loader's bound form is load_expecting around the loader, or calls bind_retained_artifact before it reads the bytes."
+scope = "antecedent_io_core::retained_artifact::{bind_artifact_identity, load_expecting} for every input, with the artifact digest and facet digest replaced by arbitrary functions, and the 255 bound loader forms (*_expecting, *_retained) of antecedent-io-core, antecedent-io, antecedent-design and the facade io surface that the static loader check lists. The unbound loaders stay available: not deprecated in the kernel crates, deprecated on the facade (removed in 4.0) and warned about in Python; a caller that does not pass a retained identity is not bound. Loaders under crates/antecedent/src/analysis (compiled-family surfaces) are outside this record."
+trusted = [
+    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of bind_artifact_identity and load_expecting",
+    "the Kani stubs of artifact_identity and facet_digest are arbitrary values, so no property of BLAKE3 is used",
+    "BLAKE3-256 equality of the recomputed artifact digest is artifact equality (collision resistance), as for every other identity",
+]
+limitations = [
+    "That every listed bound form is load_expecting around its loader, or binds before it reads, is checked structurally by scripts/check_retained_artifact_loaders.py, not machine-checked; six io-core loaders are also exercised against the real digest by the adversarial campaign (production_loaders_bind_the_retained_bytes) and every loader file carries a unit test of its bound forms.",
+    "Loaders whose error type has no From<IoError> carry the binding refusal in their own refusal type (CohortRefusal, ExportRefusal, the cyclic and release-migration errors, String for provider envelopes); the refusal text names the retained artifact identity, the registered code differs by type.",
+]
+
+[records.operation]
+inputs = ["the artifact bytes handed to the loader", "the artifact identity the consumer retained apart from the bytes"]
+output = "the loader's result on exactly the retained bytes, or external_binding_mismatch before the bytes are read"
+premises = ["the retained identity is obtained from the producer or the consumer's own store, not read from the bytes being admitted"]
+transformation = "recompute the artifact digest from the bytes, bind it in the claim slot against the retained digest, then run the unbound loader"
+justification = [
+    "artifact_binds_only_the_retained_digest",
+    "loader_runs_only_after_binding",
+    "bound_only_against_the_retained_expectation",
+]
+implementation = [
+    "antecedent_io_core::retained_artifact::bind_artifact_identity",
+    "antecedent_io_core::retained_artifact::bind_retained_artifact",
+    "antecedent_io_core::retained_artifact::load_expecting",
+]
+obligations = []
+limitations = []
+
+[[records.checks]]
+kind = "bounded_model_check"
+tool = "kani"
+harnesses = [
+    { file = "formal/kani/src/retained_artifact.rs", name = "artifact_binds_only_the_retained_digest" },
+    { file = "formal/kani/src/retained_artifact.rs", name = "loader_runs_only_after_binding" },
+    { file = "formal/kani/src/bound_identity.rs", name = "bound_only_against_the_retained_expectation" },
+]
+rust_items = [
+    { file = "crates/antecedent-io-core/src/bound_identity.rs", items = [
+        "fn:bind#0",
+        "impl:BoundIdentity#0/fn:claim#0",
+        "impl:BoundIdentity#0/fn:artifact#0",
+        "impl:ExpectedIdentity#0/fn:claim#0",
+        "impl:ExpectedIdentity#0/fn:artifact#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/retained_artifact.rs", items = [
+        "const:ARTIFACT_IDENTITY_DOMAIN#0",
+        "impl:RetainedArtifactIdentity#0/fn:new#0",
+        "impl:RetainedArtifactIdentity#0/fn:of_bytes#0",
+        "fn:artifact_identity#0",
+        "fn:bind_artifact_identity#0",
+        "fn:bind_retained_artifact#0",
+        "fn:load_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/composition_bundle.rs", items = [
+        "impl:BundleConsumer#0/fn:consume_expecting#0",
+        "impl:CompositionBundle#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/decision_artifact.rs", items = [
+        "impl:DecisionContractArtifact#0/fn:from_bytes_expecting#0",
+        "impl:DecisionResultArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/decision_reliability/artifact.rs", items = [
+        "fn:consume_expecting#0",
+        "impl:DecisionReliabilityArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/decision_robust_artifact.rs", items = [
+        "impl:AdmissibleContractArtifact#0/fn:from_bytes_expecting#0",
+        "impl:RobustResultArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", items = [
+        "impl:JointScenarioCarrier#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/decision_structural_artifact.rs", items = [
+        "impl:StructuralResultArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/design_ranking_artifact.rs", items = [
+        "impl:DesignRankingArtifactWire#0/fn:from_bytes_expecting#0",
+        "impl:DesignRankingArtifactWire#0/fn:from_bytes_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/design_ranking_artifact/consuming.rs", items = [
+        "fn:consume_expecting#0",
+        "fn:consume_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/evidence_plan_artifact.rs", items = [
+        "impl:EvidencePlanArtifact#0/fn:from_bytes_expecting#0",
+        "impl:EvidencePlanArtifact#0/fn:from_bytes_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/functional_source.rs", items = [
+        "impl:LawFunctionalArtifact#0/fn:consume_expected_retained#0",
+        "impl:LawFunctionalArtifact#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/inverse_query_artifact.rs", items = [
+        "impl:InverseQueryArtifact#0/fn:from_bytes_expecting#0",
+        "impl:InverseQueryArtifact#0/fn:from_bytes_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/program_search/certified/artifact.rs", items = [
+        "impl:PreparedCertifiedSearch#0/fn:replay_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/repair_artifact.rs", items = [
+        "impl:RepairReportArtifact#0/fn:from_bytes_expecting#0",
+        "impl:RepairReportArtifact#0/fn:from_bytes_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/rollout_artifact.rs", items = [
+        "fn:consume_expecting#0",
+        "impl:RolloutArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/sequential_evaluation_artifact.rs", items = [
+        "fn:consume_expecting#0",
+        "impl:SequentialEvaluationArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/source_evidence.rs", items = [
+        "impl:SourceEvidence#0/fn:consume_expecting#0",
+        "impl:SourceEvidence#0/fn:from_external_expecting#0",
+        "impl:SourceEvidence#0/fn:from_result_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/source_projection_artifact.rs", items = [
+        "impl:SourceProjectionArtifact#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-design/src/transported_decision_artifact.rs", items = [
+        "fn:consume_transported_decision_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/adaptive_monitoring_contract_artifact.rs", items = [
+        "impl:AdaptiveMonitoringContractArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs", items = [
+        "fn:decode_analysis_result_artifact_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/bayesian_prior_recalc_artifact.rs", items = [
+        "impl:BoundBayesianPriorWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/bridge_artifact.rs", items = [
+        "impl:ScientificBridgeAny#0/fn:from_bytes_expecting#0",
+        "impl:ScientificBridgeAny#0/fn:from_bytes_within_expecting#0",
+        "impl:ScientificBridgeArtifact#0/fn:from_bytes_expecting#0",
+        "impl:ScientificBridgeArtifact#0/fn:from_bytes_within_expecting#0",
+        "impl:ScientificBridgeDrawsArtifact#0/fn:from_bytes_expecting#0",
+        "impl:ScientificBridgeDrawsArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/callback_result_artifact.rs", items = [
+        "impl:CallbackResultArtifact#0/fn:from_bytes_expecting#0",
+        "impl:CallbackResultArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/causal_artifact.rs", items = [
+        "fn:decode_causal_payload_artifact_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/cohort_decision/artifact.rs", items = [
+        "impl:CohortDecisionSource#0/fn:consume_expecting#0",
+        "impl:CohortDecisionSource#0/fn:consume_with_expecting#0",
+        "impl:CohortDecisionSource#0/fn:consume_with_limits_expecting#0",
+        "impl:CohortDecisionSource#0/fn:consume_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/cohort_decision/retained_model.rs", items = [
+        "impl:RetainedEffectModel#0/fn:from_analysis_result_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/compact_export.rs", items = [
+        "impl:CompactExport#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/composition_verification_artifact.rs", items = [
+        "impl:CompositionVerificationArtifact#0/fn:from_bytes_expecting#0",
+        "impl:CompositionVerificationArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/contract_section/consume.rs", items = [
+        "fn:load_analysis_result_expecting#0",
+        "fn:replay_analysis_result_expecting#0",
+        "fn:replay_analysis_result_with_source_expecting#0",
+        "fn:replay_analysis_result_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/counterfactual_id_artifact.rs", items = [
+        "impl:CounterfactualIdArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", items = [
+        "impl:CounterfactualTransportArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/cross_world_artifact.rs", items = [
+        "impl:CrossWorldArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/cross_world_execution_artifact.rs", items = [
+        "impl:CrossWorldExecutionArtifact#0/fn:from_bytes_expecting#0",
+        "impl:CrossWorldExecutionArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/distribution_artifact.rs", items = [
+        "impl:DistributionArtifact#0/fn:from_bytes_expecting#0",
+        "impl:DistributionArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/evidence_ledger_artifact.rs", items = [
+        "impl:EvidenceLedgerArtifact#0/fn:from_bytes_expecting#0",
+        "impl:EvidenceLedgerArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/external_callback_artifact.rs", items = [
+        "impl:ExternalCallbackArtifact#0/fn:consume_expecting#0",
+        "impl:ExternalCallbackArtifact#0/fn:consume_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/external_claim_artifact.rs", items = [
+        "impl:ExternalClaimArtifact#0/fn:from_bytes_expecting#0",
+        "impl:ExternalClaimArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/external_column_claim_artifact.rs", items = [
+        "impl:ExternalColumnClaimArtifact#0/fn:from_bytes_expecting#0",
+        "impl:ExternalColumnClaimArtifact#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:ExternalColumnClaimArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/external_estimate.rs", items = [
+        "fn:decode_external_estimate_claim_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/frozen_scores_artifact.rs", items = [
+        "impl:FrozenScoreTable#0/fn:from_bytes_expecting#0",
+        "impl:FrozenScoreTable#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/interface_contract_artifact.rs", items = [
+        "impl:InterfaceContractArtifact#0/fn:from_bytes_expecting#0",
+        "impl:InterfaceContractArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", items = [
+        "impl:JointLawPropagationArtifactWire#0/fn:decode_expecting#0",
+        "impl:JointLawPropagationArtifactWire#0/fn:decode_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/measurement_model_wire.rs", items = [
+        "impl:MeasurementModelArtifact#0/fn:from_bytes_expecting#0",
+        "impl:MeasurementModelArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/mechanism_composition_artifact.rs", items = [
+        "impl:MechanismCompositionArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/observation_query_artifact.rs", items = [
+        "impl:ObservationQueryArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/policy_program_artifact.rs", items = [
+        "fn:decode_policy_program_expecting#0",
+        "fn:decode_policy_program_with_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/posterior.rs", items = [
+        "fn:decode_causal_posterior_bytes_expecting#0",
+        "fn:decode_posterior_meta_from_path_expecting#0",
+        "fn:decode_posterior_meta_from_seek_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/prior_bank.rs", items = [
+        "fn:decode_prior_source_meta_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/propagation_chain_record.rs", items = [
+        "impl:PropagationChainRecordWire#0/fn:decode_expecting#0",
+        "impl:PropagationChainRecordWire#0/fn:decode_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/provider_envelope.rs", items = [
+        "fn:open_provider_envelope_expecting#0",
+        "fn:open_provider_envelope_within_expecting#0",
+        "fn:open_verified_provider_envelope_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/provider_verification_artifact.rs", items = [
+        "fn:receipt_from_bytes_expecting#0",
+        "fn:receipt_from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/reader.rs", items = [
+        "impl:<R:Read+Seek>ArtifactReader<R>#0/fn:open_seek_expecting#0",
+        "impl:<R:Read+Seek>ArtifactReader<R>#0/fn:open_seek_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_bytes_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_mmap_expecting#0",
+        "impl:MappedArtifactReader#0/fn:from_mmap_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_mapped_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_mapped_with_limits_expecting#0",
+        "impl:MappedArtifactReader#0/fn:open_path_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", items = [
+        "impl:RecalcReceiptArtifact#0/fn:from_bytes_expecting#0",
+        "impl:RecalcReceiptArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", items = [
+        "impl:SelectiveDiscoveryArtifact#0/fn:from_bytes_expecting#0",
+        "impl:SelectiveDiscoveryArtifact#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:SelectiveDiscoveryArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/sensitivity_artifact.rs", items = [
+        "impl:SensitivityArtifact#0/fn:from_bytes_expecting#0",
+        "impl:SensitivityArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/staleness_artifact.rs", items = [
+        "impl:StalenessBaselineWire#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/staleness_artifact/admitted.rs", items = [
+        "impl:StalenessBaselineWire#0/fn:consume_admitted_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/temporal_counterfactual_artifact.rs", items = [
+        "impl:TemporalCounterfactualArtifact#0/fn:from_bytes_expecting#0",
+        "impl:TemporalCounterfactualArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/temporal_counterfactual_general_artifact.rs", items = [
+        "impl:GeneralTemporalCounterfactualArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/temporal_recalc_artifact.rs", items = [
+        "impl:TemporalRecalcArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/transport_certificate.rs", items = [
+        "fn:read_bounded_transport_artifact_expecting#0",
+        "impl:StructuralTransportCertificateWire#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/transport_handoff_artifact.rs", items = [
+        "impl:TransportHandoffArtifact#0/fn:from_bytes_expecting#0",
+        "impl:TransportHandoffArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/transport_revalidation_artifact.rs", items = [
+        "impl:TransportRevalidationArtifact#0/fn:from_bytes_expecting#0",
+        "impl:TransportRevalidationArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", items = [
+        "impl:TransportedCounterfactualArtifact#0/fn:from_bytes_expecting#0",
+        "impl:TransportedCounterfactualArtifact#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:TransportedCounterfactualArtifact#0/fn:from_bytes_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/adaptive_inference_result_artifact.rs", items = [
+        "impl:AdaptiveInferenceResultArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/admg_conditional_transport_artifact.rs", items = [
+        "impl:AdmgConditionalArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:AdmgConditionalArtifactWire#0/fn:decode_expecting#0",
+        "impl:AdmgConditionalObstructionWire#0/fn:consume_expecting#0",
+        "impl:AdmgConditionalObstructionWire#0/fn:consume_within_expecting#0",
+        "impl:AdmgConditionalObstructionWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/array_fit_artifact.rs", items = [
+        "impl:ArrayFitArtifactWire#0/fn:consume_typed_expected_retained#0",
+        "impl:ArrayFitArtifactWire#0/fn:consume_typed_expected_with_replay_operations_retained#0",
+        "impl:ArrayFitArtifactWire#0/fn:consume_typed_expecting#0",
+        "impl:ArrayFitArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:ArrayFitArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/bayesian_posterior_row_artifact.rs", items = [
+        "impl:PosteriorRowArtifactWire#0/fn:consume_prepared_with_context_expecting#0",
+        "impl:PosteriorRowArtifactWire#0/fn:consume_typed_expecting#0",
+        "impl:PosteriorRowArtifactWire#0/fn:consume_typed_with_context_expecting#0",
+        "impl:PosteriorRowArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:PosteriorRowArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/categorical_treatment_artifact.rs", items = [
+        "impl:CategoricalTreatmentArtifact#0/fn:from_bytes_expecting#0",
+        "impl:CategoricalTreatmentArtifact#0/fn:from_bytes_with_expecting#0",
+        "impl:CategoricalTreatmentArtifact#0/fn:from_bytes_with_replay_operations_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/choice_inference_result_artifact.rs", items = [
+        "fn:retained_choice_source_from_artifact_expecting#0",
+        "impl:ChoiceInferenceResultArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/counterfactual_transport_artifact.rs", items = [
+        "fn:consume_counterfactual_transport_with_limits_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/cpdag_completion_artifact.rs", items = [
+        "impl:CpdagCompletionArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:CpdagCompletionArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/cyclic_family_artifact.rs", items = [
+        "fn:consume_cyclic_family_contract_expecting#0",
+        "fn:consume_cyclic_family_expecting#0",
+        "fn:consume_cyclic_family_with_request_and_contract_expecting#0",
+        "fn:consume_cyclic_family_with_request_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/cyclic_system_artifact.rs", items = [
+        "fn:consume_cyclic_artifact_expecting#0",
+        "fn:consume_cyclic_artifact_with_request_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/dose_grid_functional_artifact.rs", items = [
+        "impl:DoseGridArtifactWire#0/fn:consume_typed_expecting#0",
+        "impl:DoseGridArtifactWire#0/fn:consume_typed_with_context_expecting#0",
+        "impl:DoseGridArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:DoseGridArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/effect_constancy_artifact.rs", items = [
+        "impl:EffectConstancyArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/external_cyclic_artifact.rs", items = [
+        "fn:consume_external_cyclic_artifact_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/joint_bayesian_transport_artifact.rs", items = [
+        "impl:JointBayesianArtifactWire#0/fn:consume_expecting_retained#0",
+        "impl:JointBayesianArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:JointBayesianArtifactWire#0/fn:decode_expecting#0",
+        "impl:JointBayesianArtifactWire#1/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/joint_panel_artifact.rs", items = [
+        "fn:consume_panel_execution_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs", items = [
+        "fn:consume_panel_experiment_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/joint_response_artifact.rs", items = [
+        "fn:consume_joint_response_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/latent_class_artifact.rs", items = [
+        "impl:LatentClassArtifact#0/fn:from_bytes_expecting#0",
+        "impl:LatentClassArtifact#0/fn:from_bytes_with_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/learned_continuous_artifact.rs", items = [
+        "impl:LearnedContinuousArtifactWire#0/fn:consume_expecting#0",
+        "impl:LearnedContinuousArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/learned_joint_transport_artifact.rs", items = [
+        "impl:LearnedJointArtifactWire#0/fn:consume_expecting_retained#0",
+        "impl:LearnedJointArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:LearnedJointArtifactWire#0/fn:decode_expecting#0",
+        "impl:LearnedJointArtifactWire#1/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/learned_trial_wire.rs", items = [
+        "impl:LearnedTrialWire#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference.rs", items = [
+        "fn:decode_expecting#0",
+        "impl:MeasuredInference#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/adaptive_interval.rs", items = [
+        "impl:AdaptiveInferenceResultArtifact#0/fn:consume_measured_interval_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/choice_interval.rs", items = [
+        "impl:ChoiceInferenceResultArtifact#0/fn:consume_measured_interval_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/cohort_interval.rs", items = [
+        "impl:CohortIntervalArtifactWire#0/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/count_fitted_interval.rs", items = [
+        "impl:CountFittedIntervalArtifactWire#0/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/nested.rs", items = [
+        "impl:Artifact#0/fn:consume_measured_expecting#0",
+        "impl:NestedFisherArtifact#0/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", items = [
+        "impl:SampledRecoveryArtifactWire#0/fn:consume_measured_expecting#0",
+        "impl:TemporalIntervalArtifactWire#0/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/split_effect.rs", items = [
+        "fn:consume_measured_expecting#0",
+        "impl:SplitEffectSource#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", items = [
+        "fn:consume_measured_expecting#0",
+        "impl:ParentSetEffectSource#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs", items = [
+        "impl:MechanismDiscrepancyArtifact#0/fn:from_bytes_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/mixed_source_artifact.rs", items = [
+        "impl:MixedSourceArtifactWire#1/fn:consume_with_limits_expecting#0",
+        "impl:MixedSourceArtifactWire#1/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/mnar_candidate_source.rs", items = [
+        "fn:decode_source_expecting#0",
+        "fn:reconstruct_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/mz_transport_artifact.rs", items = [
+        "impl:MzTransportArtifactWire#1/fn:consume_with_limits_expecting#0",
+        "impl:MzTransportArtifactWire#1/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/nested_markov_artifact.rs", items = [
+        "impl:NestedFisherArtifact#0/fn:consume_expecting#0",
+        "impl:NestedMarkovArtifactWire#0/fn:consume_expecting#0",
+        "impl:NestedMarkovArtifactWire#0/fn:consume_expecting_retained#0",
+        "impl:NestedMarkovArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:NestedMarkovArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/nested_markov_bayesian_artifact.rs", items = [
+        "impl:Artifact#0/fn:consume_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/nonlinear_mediation_artifact.rs", items = [
+        "impl:NonlinearMediationArtifact#0/fn:from_bytes_expecting#0",
+        "impl:NonlinearMediationArtifact#0/fn:from_bytes_with_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/period_refresh_artifact.rs", items = [
+        "impl:PeriodRefreshArtifactWire#0/fn:consume_expecting#0",
+        "impl:PeriodRefreshArtifactWire#0/fn:decode_expecting#0",
+        "impl:PeriodRefreshSummaryWire#0/fn:consume_expecting#0",
+        "impl:PeriodRefreshSummaryWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/predictive_assessment_artifact.rs", items = [
+        "impl:PredictiveAssessmentArtifact#0/fn:from_bytes_expecting#0",
+        "impl:PredictiveAssessmentArtifact#0/fn:from_bytes_with_limits_expecting#0",
+        "impl:PredictiveAssessmentArtifact#0/fn:from_bytes_with_replay_operations_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/randomized_ipow_artifact.rs", items = [
+        "fn:decode_analysis_result_artifact_expecting#0",
+        "fn:replay_analysis_result_expecting#0",
+        "fn:replay_analysis_result_within_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/recovery_artifact.rs", items = [
+        "impl:RecoveryArtifactWire#1/fn:consume_with_limits_expecting#0",
+        "impl:RecoveryArtifactWire#1/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/recovery_chain_artifact.rs", items = [
+        "impl:RecoveryChainArtifactWire#0/fn:consume_expecting#0",
+        "impl:RecoveryChainArtifactWire#0/fn:consume_typed_expecting#0",
+        "impl:RecoveryChainArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/release_migration.rs", items = [
+        "fn:consume_previous_release_artifact_expecting#0",
+        "fn:consume_previous_route_records_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs", items = [
+        "fn:consume_sampled_counterfactual_transport_expecting#0",
+        "fn:consume_sampled_counterfactual_transport_with_limits_expecting#0",
+        "impl:SampledCounterfactualTransportArtifactWire#0/fn:decode_expecting#0",
+        "impl:SampledCounterfactualTransportArtifactWire#1/fn:consume_measured_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/sampled_recovery_artifact.rs", items = [
+        "impl:SampledRecoveryArtifactWire#0/fn:consume_expecting_retained#0",
+        "impl:SampledRecoveryArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:SampledRecoveryArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/scenario_covariance_artifact.rs", items = [
+        "impl:ScenarioCovarianceArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:ScenarioCovarianceArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/smoothed_dose_artifact.rs", items = [
+        "impl:SmoothedDoseArtifactWire#0/fn:consume_expecting#0",
+        "impl:SmoothedDoseArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/smoothed_dose_posterior_artifact.rs", items = [
+        "impl:SmoothedDosePosteriorArtifactWire#0/fn:consume_typed_expecting#0",
+        "impl:SmoothedDosePosteriorArtifactWire#0/fn:consume_typed_with_context_expecting#0",
+        "impl:SmoothedDosePosteriorArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/temporal_initial_state_artifact.rs", items = [
+        "impl:TemporalInitialStateArtifactWire#0/fn:consume_expecting#0",
+        "impl:TemporalInitialStateArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/temporal_interval_artifact.rs", items = [
+        "impl:TemporalIntervalArtifactWire#0/fn:consume_expecting#0",
+        "impl:TemporalIntervalArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/temporal_refresh_artifact.rs", items = [
+        "impl:TemporalRefreshArtifactWire#0/fn:consume_expecting#0",
+        "impl:TemporalRefreshArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/temporal_transport_artifact.rs", items = [
+        "impl:TemporalSequenceArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:TemporalSequenceArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/transport_scenario_artifact.rs", items = [
+        "impl:TransportScenarioArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:TransportScenarioArtifactWire#0/fn:decode_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/vector_treatment_artifact.rs", items = [
+        "impl:VectorTreatmentArtifact#0/fn:from_bytes_expecting#0",
+        "impl:VectorTreatmentArtifact#0/fn:from_bytes_with_expecting#0",
+    ] },
+    { file = "crates/antecedent-io/src/z_transport_artifact.rs", items = [
+        "impl:ZTransportArtifactWire#0/fn:consume_expecting#0",
+        "impl:ZTransportArtifactWire#0/fn:consume_with_limits_expecting#0",
+        "impl:ZTransportArtifactWire#0/fn:decode_expecting#0",
+        "impl:ZTransportArtifactWire#0/fn:reconstruct_expecting#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
+checked_commit = "0000000000000000000000000000000000000000"

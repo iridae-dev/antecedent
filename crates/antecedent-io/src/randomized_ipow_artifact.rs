@@ -155,6 +155,27 @@ pub fn decode_analysis_result_artifact(
     Ok(decoded)
 }
 
+/// [`decode_analysis_result_artifact`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_analysis_result_artifact`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn decode_analysis_result_artifact_expecting(
+    bytes: &[u8],
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<
+    (
+        antecedent_io_core::EncodedArtifact,
+        antecedent_io_core::AnalysisResultHeader,
+        AnalysisResultWire,
+    ),
+    IoError,
+> {
+    antecedent_io_core::load_expecting(bytes, retained, decode_analysis_result_artifact)
+}
+
 /// Consume a contracted result, including numerical replay of its supported IPW construction.
 ///
 /// # Errors
@@ -163,6 +184,20 @@ pub fn replay_analysis_result(
     bytes: &[u8],
 ) -> Result<antecedent_io_core::AnalysisResultConsumption, IoError> {
     replay_analysis_result_within(bytes, &ReplayLimits::default())
+}
+
+/// [`replay_analysis_result`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn replay_analysis_result_expecting(
+    bytes: &[u8],
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<antecedent_io_core::AnalysisResultConsumption, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, replay_analysis_result)
 }
 
 /// Consume under caller-provided replay bounds.
@@ -177,6 +212,23 @@ pub fn replay_analysis_result_within(
     verify(&consumed.body, limits)?;
     promote_replayed_ipow(&mut consumed);
     Ok(consumed)
+}
+
+/// [`replay_analysis_result_within`], admitting only the artifact the consumer retained: the bytes
+/// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`replay_analysis_result_within`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn replay_analysis_result_within_expecting(
+    bytes: &[u8],
+    limits: &ReplayLimits,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<antecedent_io_core::AnalysisResultConsumption, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        replay_analysis_result_within(bytes, limits)
+    })
 }
 
 /// Replay a loaded result, including the whole-procedure replay of a randomized-arm IPW
@@ -315,4 +367,37 @@ fn accept(
             .collect();
     }
     Ok((consumed, receipt))
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn randomized_ipow_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            decode_analysis_result_artifact(support::BYTES),
+            decode_analysis_result_artifact_expecting(support::BYTES, &support::matching()),
+            decode_analysis_result_artifact_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            replay_analysis_result(support::BYTES),
+            replay_analysis_result_expecting(support::BYTES, &support::matching()),
+            replay_analysis_result_expecting(support::BYTES, &support::other()),
+        );
+        support::assert_binds(
+            replay_analysis_result_within(support::BYTES, &ReplayLimits::default()),
+            replay_analysis_result_within_expecting(
+                support::BYTES,
+                &ReplayLimits::default(),
+                &support::matching(),
+            ),
+            replay_analysis_result_within_expecting(
+                support::BYTES,
+                &ReplayLimits::default(),
+                &support::other(),
+            ),
+        );
+    }
 }

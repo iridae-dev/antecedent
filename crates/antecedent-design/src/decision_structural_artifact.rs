@@ -506,6 +506,24 @@ impl StructuralResultArtifact {
         Ok(Self { result, atom_digests })
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_contract_identity: &str,
+        expected_atom_digests: &[(String, Option<String>)],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_contract_identity, expected_atom_digests)
+        })
+    }
+
     /// Recompute the structural evaluation from `contract` and `atoms` and
     /// require the stored result to match exactly.
     ///
@@ -554,5 +572,29 @@ mod shared_decision_refusal_tests {
             }
             other => panic!("unexpected error: {other}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::StructuralResultArtifact;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn decision_structural_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let atoms: Vec<(String, Option<String>)> = Vec::new();
+        same_outcome(
+            &StructuralResultArtifact::from_bytes(&bytes, "contract", &atoms),
+            &StructuralResultArtifact::from_bytes_expecting(&bytes, "contract", &atoms, &retained),
+        );
+        refused_as_not_retained(&StructuralResultArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            &atoms,
+            &other_artifact(),
+        ));
     }
 }

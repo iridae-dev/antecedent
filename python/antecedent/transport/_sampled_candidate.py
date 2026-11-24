@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from types import BuiltinFunctionType
 from typing import Any, Literal, cast
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -133,8 +133,16 @@ class SampledRecoveryCandidate(ScientificResult):
         max_rows: int = 100_000,
         max_replicates: int = 2000,
         execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> SampledRecoveryCandidate:
         """Independently re-identify and rerun whole-row bootstrap under expectations."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transport._sampled_candidate.SampledRecoveryCandidate.load",
+            "antecedent.transport._sampled_candidate.SampledRecoveryCandidate.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
