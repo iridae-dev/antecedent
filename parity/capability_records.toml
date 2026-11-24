@@ -17779,6 +17779,7 @@ prerequisite_reason = "The solver, equilibrium likelihood and clamp semantics ar
 bounds = { cancellation = true }
 refusals = [
   { detail = "cyclic_decision.invalid_request", remedy = "Declare one distinct hard-clamp world, one matching outcome coordinate and one action per regime over paired disturbance rows, a valid training schedule and a target frame inside the training support; replay a retained artifact unchanged." },
+  { detail = "cyclic_decision.not_supported", remedy = "Run the decision in a development build, which records the evidence its support unit lacks, or use a supported route." },
 ]
 routes = [
   { name = "antecedent.cyclic_decision.execute_action_world", stage = "evaluate", status = "supported", claim = "none" },
@@ -17821,6 +17822,7 @@ prerequisite_reason = "The fitted worlds and the decision are those of the poste
 bounds = { cancellation = true }
 refusals = [
   { detail = "cyclic_component.invalid_request", remedy = "Declare each component output and produced port once, connect only declared outputs, require global contraction for feedback and bind the posterior to the declared components; replay a retained artifact unchanged." },
+  { detail = "cyclic_component.not_supported", remedy = "Run the decision in a development build, which records the evidence its support unit lacks, or use a supported route." },
 ]
 routes = [
   { name = "antecedent.cyclic_component.execute_joint_decision", stage = "evaluate", status = "supported", claim = "none" },

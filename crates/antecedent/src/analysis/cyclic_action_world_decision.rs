@@ -64,7 +64,11 @@ pub struct CyclicDecisionOutput {
 #[derive(Debug, thiserror::Error)]
 pub enum CyclicActionDecisionError {
     /// World, quantity or paired-row semantics are unsupported.
-    #[error("cyclic_decision.invalid_request: {0}")]
+    ///
+    /// A support-gate refusal of the route's unit (`gate_decision`) carries
+    /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
+    /// and reports the `cyclic_decision.not_supported` detail and the `not_supported` code.
+    #[error("{}: {0}", super::cyclic::decision_detail(.0))]
     Invalid(&'static str),
     /// A cyclic model or solve was refused.
     #[error("cyclic action decision source: {0}")]
@@ -86,9 +90,7 @@ impl CyclicActionDecisionError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => {
-                Some(antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST)
-            }
+            Self::Invalid(message) => Some(super::cyclic::decision_detail(message)),
             _ => None,
         }
     }
@@ -97,7 +99,7 @@ impl CyclicActionDecisionError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
             _ => None,
         }
     }
@@ -629,5 +631,55 @@ mod tests {
         assert!(
             compile_cyclic_action_world_decision(repeated, outputs(), contract(), &ctx,).is_err()
         );
+    }
+
+    /// Once the decision gate is live, a release build refuses an unsupported unit with
+    /// `NotSupported`; every cyclic decision route carries that refusal in its `Invalid`
+    /// payload, and it keeps the `not_supported` class and its own detail instead of reading
+    /// as an invalid request.
+    #[test]
+    fn a_gate_refusal_keeps_its_not_supported_class() {
+        use crate::analysis::cyclic_component_composition::JointComponentPosteriorError;
+        use crate::analysis::cyclic_posterior_action_decision::CyclicPosteriorDecisionError;
+        use crate::analysis::cyclic_target_feedback_decision::CyclicTargetFeedbackError;
+        use antecedent_core::reason_details::{cyclic_component, cyclic_decision};
+        // The refusal `gate_decision` returns in a release build for an unsupported unit.
+        let refusal = antecedent_core::NotSupported {
+            detail: "CyclicActionWorldDecision",
+            missing: vec!["unit_evidence".to_owned()],
+        };
+        let message = refusal.message();
+        let not_supported = antecedent_core::reason_code!("not_supported");
+        let shown = format!("{}: {message}", cyclic_decision::NOT_SUPPORTED);
+        let action = CyclicActionDecisionError::Invalid(message);
+        assert_eq!(action.reason_code(), Some(not_supported));
+        assert_eq!(action.detail(), Some(cyclic_decision::NOT_SUPPORTED));
+        assert_eq!(action.to_string(), shown);
+        let posterior = CyclicPosteriorDecisionError::Invalid(message);
+        assert_eq!(posterior.reason_code(), Some(not_supported));
+        assert_eq!(posterior.detail(), Some(cyclic_decision::NOT_SUPPORTED));
+        assert_eq!(posterior.to_string(), shown);
+        let target = CyclicTargetFeedbackError::Invalid(message);
+        assert_eq!(target.reason_code(), Some(not_supported));
+        assert_eq!(target.detail(), Some(cyclic_decision::NOT_SUPPORTED));
+        assert_eq!(target.to_string(), shown);
+        let component = JointComponentPosteriorError::Invalid(message);
+        assert_eq!(component.reason_code(), Some(not_supported));
+        assert_eq!(component.detail(), Some(cyclic_component::NOT_SUPPORTED));
+        assert_eq!(
+            component.to_string(),
+            format!("{}: {message}", cyclic_component::NOT_SUPPORTED)
+        );
+        // An invalid declaration keeps its own class.
+        let invalid = CyclicActionDecisionError::Invalid("output equation is outside the model");
+        assert_eq!(invalid.reason_code(), Some(antecedent_core::reason_code!("invalid_argument")));
+        assert_eq!(invalid.detail(), Some(cyclic_decision::INVALID_REQUEST));
+        assert_eq!(
+            invalid.to_string(),
+            "cyclic_decision.invalid_request: output equation is outside the model"
+        );
+        let invalid = JointComponentPosteriorError::Invalid("output port is absent");
+        assert_eq!(invalid.reason_code(), Some(antecedent_core::reason_code!("invalid_argument")));
+        assert_eq!(invalid.detail(), Some(cyclic_component::INVALID_REQUEST));
     }
 }

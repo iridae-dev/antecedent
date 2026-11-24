@@ -565,7 +565,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "cross_world_uncertainty.sampled_path_not_supported",
     "cross_world_uncertainty.unit_sampling_undeclared",
     "cyclic_component.invalid_request",
+    "cyclic_component.not_supported",
     "cyclic_decision.invalid_request",
+    "cyclic_decision.not_supported",
     "decision_adapters.bayes_over_identified_set",
     "decision_adapters.claim_draws_too_large",
     "decision_adapters.claims_sources_mismatch",
@@ -3412,7 +3414,9 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("cross_world_uncertainty.sampled_path_not_supported", &["estimator_inference_mismatch"]),
     ("cross_world_uncertainty.unit_sampling_undeclared", &["sampling_dependence_unknown"]),
     ("cyclic_component.invalid_request", &["invalid_argument"]),
+    ("cyclic_component.not_supported", &["not_supported"]),
     ("cyclic_decision.invalid_request", &["invalid_argument"]),
+    ("cyclic_decision.not_supported", &["not_supported"]),
     ("decision_adapters.bayes_over_identified_set", &["decision_contract_unsatisfied"]),
     ("decision_adapters.claim_draws_too_large", &["invalid_argument"]),
     ("decision_adapters.claims_sources_mismatch", &["invalid_argument"]),
@@ -6963,12 +6967,16 @@ pub mod cross_world_uncertainty {
 pub mod cyclic_component {
     /// Detail `cyclic_component.invalid_request`.
     pub const INVALID_REQUEST: &str = "cyclic_component.invalid_request";
+    /// Detail `cyclic_component.not_supported`.
+    pub const NOT_SUPPORTED: &str = "cyclic_component.not_supported";
 }
 
 /// Details in the `cyclic_decision` family.
 pub mod cyclic_decision {
     /// Detail `cyclic_decision.invalid_request`.
     pub const INVALID_REQUEST: &str = "cyclic_decision.invalid_request";
+    /// Detail `cyclic_decision.not_supported`.
+    pub const NOT_SUPPORTED: &str = "cyclic_decision.not_supported";
 }
 
 /// Details in the `decision_adapters` family.

@@ -94,7 +94,11 @@ pub struct CyclicPosteriorDecisionRequest {
 #[derive(Debug, thiserror::Error)]
 pub enum CyclicPosteriorDecisionError {
     /// The declared schedule is outside this method's finite support.
-    #[error("cyclic_decision.invalid_request: {0}")]
+    ///
+    /// A support-gate refusal of the route's unit (`gate_decision`) carries
+    /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
+    /// and reports the `cyclic_decision.not_supported` detail and the `not_supported` code.
+    #[error("{}: {0}", super::cyclic::decision_detail(.0))]
     Invalid(&'static str),
     /// Cyclic model, posterior likelihood or equilibrium refusal.
     #[error("cyclic posterior decision model: {0}")]
@@ -116,9 +120,7 @@ impl CyclicPosteriorDecisionError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => {
-                Some(antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST)
-            }
+            Self::Invalid(message) => Some(super::cyclic::decision_detail(message)),
             _ => None,
         }
     }
@@ -127,7 +129,7 @@ impl CyclicPosteriorDecisionError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
             _ => None,
         }
     }

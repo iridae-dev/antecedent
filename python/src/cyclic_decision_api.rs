@@ -137,6 +137,40 @@ fn scientific_refusal(code: &str, detail: &str, message: &str, next_attempt: &st
     })
 }
 
+/// What a caller does after a decision route's support gate refused its unit; the same
+/// attempt the cyclic program gate names.
+const GATE_NEXT_ATTEMPT: &str = "run the route in a development build, which records the \
+                                 missing evidence, or use a supported route";
+
+/// A cyclic decision route's support-gate refusal: its registered detail and the gate's
+/// `reason=not_supported: …` message, which the route's `Invalid` variant carries and reports
+/// under the `not_supported` code. `None` for any other error, including an invalid request.
+fn gate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<(&'static str, &'static str)> {
+    use antecedent::analysis::cyclic_action_world_decision::CyclicActionDecisionError as Action;
+    use antecedent::analysis::cyclic_component_composition::JointComponentPosteriorError as Joint;
+    use antecedent::analysis::cyclic_posterior_action_decision::CyclicPosteriorDecisionError as Posterior;
+    use antecedent::analysis::cyclic_target_feedback_decision::CyclicTargetFeedbackError as Target;
+    let (code, detail, message) = if let Some(found) = error.downcast_ref::<Action>() {
+        let Action::Invalid(message) = found else { return None };
+        (found.reason_code(), found.detail(), *message)
+    } else if let Some(found) = error.downcast_ref::<Posterior>() {
+        let Posterior::Invalid(message) = found else { return None };
+        (found.reason_code(), found.detail(), *message)
+    } else if let Some(found) = error.downcast_ref::<Target>() {
+        let Target::Invalid(message) = found else { return None };
+        (found.reason_code(), found.detail(), *message)
+    } else if let Some(found) = error.downcast_ref::<Joint>() {
+        let Joint::Invalid(message) = found else { return None };
+        (found.reason_code(), found.detail(), *message)
+    } else {
+        return None;
+    };
+    if code != Some(antecedent::reason::reason_code!("not_supported")) {
+        return None;
+    }
+    Some((detail?, message))
+}
+
 /// The Python error of a refused compile, run or replay: cancellation, resource and
 /// release-support refusals keep their own classes; any other refusal of a declaration or run
 /// is an invalid value, and any other refusal of a replay is a serialization failure.
@@ -157,6 +191,14 @@ fn classify(
             current.downcast_ref::<antecedent::execution::support_gate::NotSupported>()
         {
             return crate::not_supported_err(refusal);
+        }
+        if let Some((detail, gate)) = gate_refusal(current) {
+            return scientific_refusal(
+                antecedent::reason::reason_code!("not_supported"),
+                detail,
+                gate,
+                GATE_NEXT_ATTEMPT,
+            );
         }
         match current.downcast_ref::<CyclicArtifactError>() {
             Some(CyclicArtifactError::ScientificRefusal {

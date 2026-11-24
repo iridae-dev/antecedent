@@ -700,10 +700,12 @@ class cross_world_uncertainty:  # noqa: N801
 
 class cyclic_component:  # noqa: N801
     INVALID_REQUEST: Final = "cyclic_component.invalid_request"
+    NOT_SUPPORTED: Final = "cyclic_component.not_supported"
 
 
 class cyclic_decision:  # noqa: N801
     INVALID_REQUEST: Final = "cyclic_decision.invalid_request"
+    NOT_SUPPORTED: Final = "cyclic_decision.not_supported"
 
 
 class decision_adapters:  # noqa: N801
@@ -4166,7 +4168,9 @@ ALL: Final[tuple[str, ...]] = (
     "cross_world_uncertainty.sampled_path_not_supported",
     "cross_world_uncertainty.unit_sampling_undeclared",
     "cyclic_component.invalid_request",
+    "cyclic_component.not_supported",
     "cyclic_decision.invalid_request",
+    "cyclic_decision.not_supported",
     "decision_adapters.bayes_over_identified_set",
     "decision_adapters.claim_draws_too_large",
     "decision_adapters.claims_sources_mismatch",
@@ -7018,7 +7022,9 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "cross_world_uncertainty.sampled_path_not_supported": ("estimator_inference_mismatch",),
     "cross_world_uncertainty.unit_sampling_undeclared": ("sampling_dependence_unknown",),
     "cyclic_component.invalid_request": ("invalid_argument",),
+    "cyclic_component.not_supported": ("not_supported",),
     "cyclic_decision.invalid_request": ("invalid_argument",),
+    "cyclic_decision.not_supported": ("not_supported",),
     "decision_adapters.bayes_over_identified_set": ("decision_contract_unsatisfied",),
     "decision_adapters.claim_draws_too_large": ("invalid_argument",),
     "decision_adapters.claims_sources_mismatch": ("invalid_argument",),

@@ -17062,3 +17062,15 @@ id = "cyclic_component.invalid_request"
 family = "cyclic_component"
 codes = ["invalid_argument"]
 meaning = "The components, ports, connections, clamps, evidence inputs, calibration coverage or posterior handoff of a connected feedback decision are malformed or inconsistent, or a retained artifact differs from its recomputation."
+
+[[detail]]
+id = "cyclic_decision.not_supported"
+family = "cyclic_decision"
+codes = ["not_supported"]
+meaning = "A release build refuses the cyclic decision because its support unit is not supported."
+
+[[detail]]
+id = "cyclic_component.not_supported"
+family = "cyclic_component"
+codes = ["not_supported"]
+meaning = "A release build refuses the connected feedback decision because its support unit is not supported."

@@ -794,7 +794,11 @@ pub enum JointComponentPosteriorError {
     #[error("connected component posterior artifact: {0}")]
     Io(#[from] antecedent_io::IoError),
     /// An unsupported or inconsistent binding was supplied.
-    #[error("cyclic_component.invalid_request: {0}")]
+    ///
+    /// A support-gate refusal of the route's unit (`gate_decision`) carries
+    /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
+    /// and reports the `cyclic_component.not_supported` detail and the `not_supported` code.
+    #[error("{}: {0}", super::cyclic::component_detail(.0))]
     Invalid(&'static str),
 }
 
@@ -804,9 +808,7 @@ impl JointComponentPosteriorError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => {
-                Some(antecedent_core::reason_details::cyclic_component::INVALID_REQUEST)
-            }
+            Self::Invalid(message) => Some(super::cyclic::component_detail(message)),
             _ => None,
         }
     }
@@ -815,7 +817,7 @@ impl JointComponentPosteriorError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
             _ => None,
         }
     }

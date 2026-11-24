@@ -75,6 +75,44 @@ where
     if COMPILED_DECISION_GATE_LIVE { gate_program(ctx, handle) } else { Ok(()) }
 }
 
+/// Whether the `Invalid` payload of a cyclic decision error is the wire message of a
+/// [`gate_decision`] refusal (`reason=not_supported: …`, [`NotSupported::message`]) rather than
+/// an invalid declaration. The payload keeps the refusal's `not_supported` class: the error's
+/// `detail`, `reason_code` and display read it from here.
+fn is_gate_refusal(message: &str) -> bool {
+    antecedent_core::reason_code::split_prefix(message)
+        .is_some_and(|(code, _)| code == antecedent_core::reason_code!("not_supported"))
+}
+
+/// The registered detail of the `Invalid` payload of an action-world, posterior or target
+/// feedback decision error.
+pub(crate) fn decision_detail(message: &str) -> &'static str {
+    if is_gate_refusal(message) {
+        antecedent_core::reason_details::cyclic_decision::NOT_SUPPORTED
+    } else {
+        antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST
+    }
+}
+
+/// The registered detail of the `Invalid` payload of a connected-component decision error.
+pub(crate) fn component_detail(message: &str) -> &'static str {
+    if is_gate_refusal(message) {
+        antecedent_core::reason_details::cyclic_component::NOT_SUPPORTED
+    } else {
+        antecedent_core::reason_details::cyclic_component::INVALID_REQUEST
+    }
+}
+
+/// The registered reason code of the `Invalid` payload of a cyclic decision error:
+/// `not_supported` for a support-gate refusal, `invalid_argument` otherwise.
+pub(crate) fn invalid_code(message: &str) -> &'static str {
+    if is_gate_refusal(message) {
+        antecedent_core::reason_code!("not_supported")
+    } else {
+        antecedent_core::reason_code!("invalid_argument")
+    }
+}
+
 /// Frozen native state of a cyclic specialization of `PreparedStudy`.
 #[derive(Clone, Debug)]
 pub struct CyclicPreparedState {
