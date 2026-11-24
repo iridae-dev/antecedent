@@ -827,6 +827,25 @@ fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
 }
 
 #[test]
+fn a_removed_input_withdraws_its_dependents_beside_an_earlier_numerical_change() {
+    // The law reads the scores before the calibration record: a change to the scores
+    // and a calibration record that is gone must still withdraw the law and the decision,
+    // never read the withdrawal as the scores' recomputation.
+    let prev = standing_versions();
+    let mut req = bump(&prev, Stage::ScoreArtifact);
+    req.remove(&Stage::Calibration);
+    let plan = run(&prev, &req, &supported());
+    assert_eq!(
+        plan.status(Stage::Law).map(ToString::to_string).as_deref(),
+        Some("recomputed(upstream:calibration<-calibration:removed)")
+    );
+    assert_eq!(with_class(&plan, Revalidation::Withdrawn), vec!["decision", "law"]);
+    // Without the removal the first change still names the recomputation.
+    let numerical = run(&prev, &bump(&prev, Stage::ScoreArtifact), &supported());
+    assert!(with_class(&numerical, Revalidation::Withdrawn).is_empty());
+}
+
+#[test]
 fn a_representation_version_change_flows_through_scores_law_and_decision() {
     let prev = standing_versions();
     let req = bump(&prev, Stage::Representation);

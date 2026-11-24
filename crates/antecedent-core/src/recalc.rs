@@ -1008,27 +1008,35 @@ impl Planner<'_> {
         }
     }
 
+    /// The change that decides a stage: its own change, else the first changed dependency,
+    /// except that a removed input anywhere among them is named instead. A stage resting on
+    /// an input that is gone is withdrawn, whatever else also changed: reporting the first
+    /// change alone would read a withdrawal as a recomputation.
     fn by_change(&self, stage: Stage, deps: &[Stage]) -> StageStatus {
-        if let Some(change) = self.own_change(stage) {
-            return StageStatus::Recomputed { because: ChangedDependency::Own { stage, change } };
-        }
-        for &dep in deps {
+        let own = self.own_change(stage).map(|change| ChangedDependency::Own { stage, change });
+        let upstream = deps.iter().filter_map(|&dep| {
             if let Some(&(origin, change)) = self.changed.get(&dep) {
-                return StageStatus::Recomputed {
-                    because: ChangedDependency::Upstream { via: dep, origin, change },
-                };
+                return Some(ChangedDependency::Upstream { via: dep, origin, change });
             }
-            if self.previous.contains(dep) && !self.requested.contains(dep) {
-                return StageStatus::Recomputed {
-                    because: ChangedDependency::Upstream {
-                        via: dep,
-                        origin: dep,
-                        change: ChangeKind::Removed,
-                    },
-                };
+            (self.previous.contains(dep) && !self.requested.contains(dep)).then_some(
+                ChangedDependency::Upstream { via: dep, origin: dep, change: ChangeKind::Removed },
+            )
+        });
+        let mut first = None;
+        for because in own.into_iter().chain(upstream) {
+            if matches!(
+                because,
+                ChangedDependency::Own { change: ChangeKind::Removed, .. }
+                    | ChangedDependency::Upstream { change: ChangeKind::Removed, .. }
+            ) {
+                return StageStatus::Recomputed { because };
             }
+            first.get_or_insert(because);
         }
-        StageStatus::Reused { dependency: deps.first().copied().unwrap_or(stage) }
+        match first {
+            Some(because) => StageStatus::Recomputed { because },
+            None => StageStatus::Reused { dependency: deps.first().copied().unwrap_or(stage) },
+        }
     }
 
     fn refused_dependency(&self, deps: &[Stage], skip: Option<Stage>) -> Option<Stage> {

@@ -872,8 +872,8 @@ impl BridgedDistributionClaim {
     }
 
     /// Freshness of the bridged claim given the freshness of its source: a
-    /// withdrawn or superseded source makes it inapplicable, and the snapshot is
-    /// the source's.
+    /// withdrawn or superseded source makes it inapplicable, a withdrawn source
+    /// withdraws it, and the snapshot is the source's.
     #[must_use]
     pub fn freshness(&self, source: &ClaimFreshness) -> ClaimFreshness {
         let retired = source.withdrawn || source.superseded_by.is_some();
@@ -882,7 +882,7 @@ impl BridgedDistributionClaim {
             currently_applicable: if retired { Some(false) } else { source.currently_applicable },
             locally_ready: source.locally_ready,
             superseded_by: None,
-            withdrawn: false,
+            withdrawn: source.withdrawn,
             as_of_snapshot: source.as_of_snapshot,
         }
     }

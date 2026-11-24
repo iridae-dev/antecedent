@@ -73,12 +73,18 @@ pub enum ObservedEffect {
 
 impl ObservedEffect {
     /// The effect of one stage's status in a recalculation plan: reuse is no
-    /// effect, recomputation is a numerical effect, a refused stage cannot be
-    /// executed.
+    /// effect, recomputation is a numerical effect unless the input it rests on is
+    /// gone, which is a withdrawal (the stage status's own class), and a refused
+    /// stage cannot be executed.
     #[must_use]
     pub fn from_stage_status(status: &StageStatus) -> Option<Self> {
         match status {
             StageStatus::Reused { .. } => None,
+            StageStatus::Recomputed { because }
+                if status.revalidation() == Revalidation::Withdrawn =>
+            {
+                Some(Self::Withdrawn { cause: format!("stage_status:{because}") })
+            }
             StageStatus::Recomputed { because } => {
                 Some(Self::Recomputed { cause: format!("stage_status:{because}") })
             }

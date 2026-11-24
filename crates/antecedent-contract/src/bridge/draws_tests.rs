@@ -551,3 +551,46 @@ fn the_derived_claim_is_one_realization_of_the_bridge() {
         antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPORTED
     );
 }
+
+#[test]
+fn a_withdrawn_source_withdraws_the_bridged_draws() {
+    use crate::claim::ClaimFreshness;
+    use crate::composition_verification::ObservedEffect;
+    let bridge =
+        affine(ValueKind::PredictiveLaw, Some(uncertainty(0.01, 0.04, 0.0)), Some(independent()));
+    let ids = identities();
+    let source = draws_source(
+        &bridge.source.quantity,
+        &ids,
+        Some(ValueKind::PredictiveLaw),
+        ClaimKind::Mixture,
+        true,
+    );
+    let summary =
+        MappedDrawsSummary { n_draws: 1000, mean: 3.0, variance: 1.5, draws_digest: digest(1) };
+    let derived = bridge.plan_distribution(&source, 11).unwrap().finish(&summary).unwrap();
+    let freshness = |withdrawn: bool, superseded_by: Option<SemanticDigest>| ClaimFreshness {
+        historically_valid: true,
+        currently_applicable: Some(true),
+        locally_ready: true,
+        superseded_by,
+        withdrawn,
+        as_of_snapshot: Some(ids.data_snapshot),
+    };
+    let current = derived.freshness(&freshness(false, None));
+    assert_eq!(ObservedEffect::from_freshness(&current), None);
+    let withdrawn = derived.freshness(&freshness(true, None));
+    assert!(withdrawn.withdrawn);
+    assert!(matches!(
+        ObservedEffect::from_freshness(&withdrawn),
+        Some(ObservedEffect::Withdrawn { .. })
+    ));
+    // A superseded source asks for the bridge to be derived again; it names no successor.
+    let superseded = derived.freshness(&freshness(false, Some(digest(9))));
+    assert_eq!(superseded.superseded_by, None);
+    assert_eq!(superseded.currently_applicable, Some(false));
+    assert!(matches!(
+        ObservedEffect::from_freshness(&superseded),
+        Some(ObservedEffect::Recomputed { .. })
+    ));
+}

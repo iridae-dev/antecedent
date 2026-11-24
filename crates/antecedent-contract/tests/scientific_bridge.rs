@@ -1449,6 +1449,13 @@ fn a_withdrawn_source_makes_the_bridged_claim_inapplicable() {
     let derived = bridged.freshness(&withdrawn);
     assert_eq!(derived.currently_applicable, Some(false));
     assert!(derived.historically_valid, "history is preserved, only applicability changes");
+    // The source's withdrawal is the bridged claim's: a receiver reads a withdrawal, not a
+    // recomputation of the bridge.
+    assert!(derived.withdrawn);
+    assert!(matches!(
+        antecedent_contract::composition_verification::ObservedEffect::from_freshness(&derived),
+        Some(antecedent_contract::composition_verification::ObservedEffect::Withdrawn { .. })
+    ));
 
     let superseded =
         source_claim.freshness(Some(snapshot), Some(snapshot), Some(digest(99)), false, true);

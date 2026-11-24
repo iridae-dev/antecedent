@@ -537,6 +537,9 @@ impl BridgedClaim {
     /// makes it inapplicable, and the receiver's snapshot is the source's.
     /// The bridged claim was valid for its snapshot exactly when its source was
     /// (`historically_valid` is the source's); retirement only changes applicability.
+    /// A withdrawn source withdraws the bridged claim, so a receiver reads a
+    /// withdrawal, never a recomputation; a superseded source names no successor
+    /// for the bridged claim, which must be derived again.
     #[must_use]
     pub fn freshness(&self, source: &ClaimFreshness) -> ClaimFreshness {
         let retired = source.withdrawn || source.superseded_by.is_some();
@@ -545,7 +548,7 @@ impl BridgedClaim {
             currently_applicable: if retired { Some(false) } else { source.currently_applicable },
             locally_ready: source.locally_ready,
             superseded_by: None,
-            withdrawn: false,
+            withdrawn: source.withdrawn,
             as_of_snapshot: source.as_of_snapshot,
         }
     }
