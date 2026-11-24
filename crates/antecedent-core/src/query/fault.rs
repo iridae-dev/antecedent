@@ -810,6 +810,12 @@ pub enum SimulateFault {
     /// Refused: the panel and its history must be finite
     #[error("the panel and its history must be finite")]
     PanelNotFinite,
+    /// Refused: two simultaneous intervention sets target the same variable
+    #[error(
+        "simultaneous intervention sets target the same variable; the pair is contradictory as \
+         one world (declare a nested counterfactual with an explicit frozen set instead)"
+    )]
+    SimultaneousTargetsOverlap,
 }
 
 /// Why a sequentially randomized unit-period design declaration is refused,

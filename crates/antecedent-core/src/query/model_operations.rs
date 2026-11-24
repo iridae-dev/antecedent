@@ -68,6 +68,10 @@ impl CanonicalEncode for ArrowStrengthsTarget {
 /// Population do-contrast of `parent` on `child`:
 /// `E[child | do(parent = mean + delta/2)] - E[child | do(parent = mean - delta/2)]`, with common
 /// random numbers across the two arms.
+///
+/// The two arms draw from the attribution stream of `seed`'s own generator, so the draws are a
+/// function of the declaration and not of the execution context the study runs under; a direct
+/// call under a context seeded with `seed` draws the same numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PopulationDoContrastTarget {
     /// The intervened variable.
@@ -78,6 +82,8 @@ pub struct PopulationDoContrastTarget {
     pub delta: f64,
     /// Most observed rows accepted (`None` accepts every row); a larger table is refused.
     pub max_units: Option<usize>,
+    /// Seed of the generator whose attribution stream both arms draw from.
+    pub seed: u64,
 }
 
 impl PopulationDoContrastTarget {
@@ -105,6 +111,7 @@ impl CanonicalEncode for PopulationDoContrastTarget {
         self.child.encode(writer);
         writer.real(self.delta);
         encode_optional_count(writer, self.max_units);
+        writer.word(self.seed);
     }
 }
 
@@ -282,6 +289,7 @@ mod tests {
             child: variable(1),
             delta: 1.0,
             max_units: None,
+            seed: 0,
         };
         assert!(ok.validate().is_ok());
         let null = PopulationDoContrastTarget { delta: 0.0, ..ok };

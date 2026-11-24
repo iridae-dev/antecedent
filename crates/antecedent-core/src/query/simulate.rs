@@ -377,6 +377,46 @@ impl SimulateQuery {
                 }
                 Ok(())
             }
+            SimulationTarget::DoSample(target) => {
+                validate_interventions(&target.interventions)?;
+                target.validate().map_err(QueryError::from)
+            }
+            SimulationTarget::ModelEvaluation(target) => {
+                target.validate().map_err(QueryError::from)
+            }
         }
+    }
+
+    /// The counterfactual of `outcomes` when the `outer` and `inner` hard interventions hold
+    /// simultaneously on the abduced factual noise (`Y_{outer, inner}`): one world holding both
+    /// sets, `outer` first.
+    ///
+    /// The sets are checked for disjointness here, at declaration: two interventions on one
+    /// variable are contradictory as a single world, and a world that let the later one win
+    /// would answer a different question. A nested query (`Y_{x, M_{x'}}`) is declared with its
+    /// frozen set instead.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidSimulate`] with [`SimulateFault::SimultaneousTargetsOverlap`] when
+    /// a variable is targeted by both sets, and the errors of [`Self::validate`].
+    pub fn simultaneous_counterfactual(
+        outer: &[Intervention],
+        inner: &[Intervention],
+        outcomes: impl Into<Arc<[VariableId]>>,
+    ) -> Result<Self, QueryError> {
+        let overlap = outer.iter().filter_map(Intervention::primary_variable).any(|variable| {
+            inner.iter().any(|intervention| intervention.primary_variable() == Some(variable))
+        });
+        if overlap {
+            return Err(QueryError::InvalidSimulate(SimulateFault::SimultaneousTargetsOverlap));
+        }
+        let interventions: Arc<[Intervention]> = outer.iter().chain(inner).cloned().collect();
+        let query = Self::new(SimulationTarget::Counterfactual {
+            interventions,
+            outcomes: outcomes.into(),
+        });
+        query.validate()?;
+        Ok(query)
     }
 }
