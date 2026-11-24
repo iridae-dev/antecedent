@@ -327,6 +327,33 @@ macro_rules! program_families {
             /// An agreed Hawkes direct mass carried by the parameter-intervention bridge, with
             /// its intervened continuations, excluded-shock handoff and release study.
             HawkesParameterBridge => Structural, unit "forecast.hawkes_parameter_bridge";
+            /// A decision across a preference set on a declared law or grid of means, answered by linear programs over the admissible set.
+            TradeoffLawDecision => PropagationChain, unit "preference_decision.exact";
+            /// A decision across a preference set on a declared law, answered by certified subdivision of the admissible set.
+            TradeoffCertifiedLawDecision => PropagationChain, unit "preference_decision.certified";
+            /// A decision across supplied structure claims and a preference set, answered by linear programs.
+            TradeoffStructuralDecision => PropagationChain, unit "preference_decision.exact";
+            /// A decision across supplied structure claims and a preference set, answered by certified subdivision.
+            TradeoffCertifiedStructuralDecision => PropagationChain, unit "preference_decision.certified";
+            /// The preference parameters compatible with recorded choices.
+            PreferenceCompatibleSet => Associational, unit "preference_learning.compatible_set";
+            /// Preference parameters estimated from recorded choices read as noisy, with their intervals.
+            PreferenceChoiceModel => Associational, unit "preference_learning.choice_model";
+            /// A decision across a preference set by the exact route, composed over the compiled
+            /// study, design or chain programs that estimate its quantities.
+            PreferenceAttachedDecision => PropagationChain, unit "preference_decision.exact";
+            /// A decision across a preference set by the certified route, composed over the
+            /// compiled study, design or chain programs that estimate its quantities.
+            CertifiedPreferenceAttachedDecision => PropagationChain, unit "preference_decision.certified";
+            /// An ordinary decision contract evaluated on what the compiled study, design or
+            /// chain programs it is composed over estimate.
+            ContractAttachedDecision => PropagationChain, unit "decision.contract";
+            /// A robust decision over explicitly joint scenarios, composed over the anchor
+            /// study's compiled program.
+            JointScenarioAttachedDecision => PropagationChain, unit "decision.compiled_joint_scenarios";
+            /// Expected value of sample information over candidate studies, composed over the
+            /// compiled program of the study that carries the state belief.
+            EvsiAttachedDecision => PropagationChain, unit "design.evsi";
         }
     };
 }

@@ -4292,6 +4292,20 @@ canonical = "sort by the whole element, repeats kept by the canonicalizer; the e
 concern = ""
 
 [[sites]]
+id = "antecedent.attached_decision.parent_identity"
+file = "crates/antecedent/src/analysis/attached_decision.rs"
+item = "fn:parent_identity#0"
+feeds = "the question digest of a parent decision program (PreferenceAttachedDecision, CertifiedPreferenceAttachedDecision, ContractAttachedDecision, JointScenarioAttachedDecision), hence its lowered program identity and PreferenceDecisionReceipt::decision_program"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/attached_decision_tests.rs::the_parent_identity_is_its_children_in_declared_order_and_the_decision", "unit:crates/antecedent/src/analysis/attached_decision_tests.rs::a_certified_decision_across_studies_follows_the_declared_order_of_its_studies"]
+[[sites.collections]]
+name = "children"
+class = "ordered"
+canonical = "count word, then each child's presence word and program identity in declared order (studies in declaration order, each study's structures in posterior order, then the joining chain); a declared child that compiled no program keeps its place"
+concern = ""
+
+[[sites]]
 id = "io_core.transported_counterfactual_artifact.canonical_affine"
 file = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs"
 item = "fn:canonical_affine#0"

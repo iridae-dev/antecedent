@@ -11064,6 +11064,12 @@ codes = ["decision_contract_unsatisfied"]
 meaning = "The stored result names a different preference contract than the one stored with it; re-export the result from the producer."
 
 [[detail]]
+id = "preference_artifact.retained_artifact_mismatch"
+family = "preference_artifact"
+codes = ["external_binding_mismatch"]
+meaning = "The bytes are not the preference artifact whose identity the consumer retained (antecedent.artifacts.artifact_identity / RetainedArtifactIdentity); nothing was read. Supply the bytes whose identity was retained."
+
+[[detail]]
 id = "preference_artifact.source_expected"
 family = "preference_artifact"
 codes = ["decision_contract_unsatisfied"]

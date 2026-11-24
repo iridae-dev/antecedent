@@ -11942,7 +11942,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.exact"
-route = "antecedent.preference_decision.decide"
+route = "antecedent.analysis.tradeoff_decision_programs.CompiledTradeoffDecision.execute"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.mean_source.positive"
@@ -11957,7 +11957,52 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.exact"
-route = "antecedent.preference_decision.decide_claim"
+route = "antecedent.analysis.tradeoff_decision_programs.compile_tradeoff_decision"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.mean_source.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two actions with values 10 - 4w and 5.5 - w over w in [0, 3] and narrower ranges, from three weighted joint draws and their means; 36 generated and hand-written linear programs against exact rational basis enumeration."
+expected_values = "Switch value w = 1.5; value ranges [2, 10] and [3.5, 5.5] on [0, 2]; worst-case regrets 1.5 and 4.5; maximin chooses B and minimax regret chooses A; linear-program optima and vertex sets equal the exact rational reference."
+tolerance = "absolute 1e-9 for hand values; reference optima relative 1e-9; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.analysis.tradeoff_decision_programs.compile_tradeoff_decision_with_accepted"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.mean_source.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two actions with values 10 - 4w and 5.5 - w over w in [0, 3] and narrower ranges, from three weighted joint draws and their means; 36 generated and hand-written linear programs against exact rational basis enumeration."
+expected_values = "Switch value w = 1.5; value ranges [2, 10] and [3.5, 5.5] on [0, 2]; worst-case regrets 1.5 and 4.5; maximin chooses B and minimax regret chooses A; linear-program optima and vertex sets equal the exact rational reference."
+tolerance = "absolute 1e-9 for hand values; reference optima relative 1e-9; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.analysis.tradeoff_decision_programs.compile_tradeoff_structural_decision"
+algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_decision.exact.mean_source.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two actions with values 10 - 4w and 5.5 - w over w in [0, 3] and narrower ranges, from three weighted joint draws and their means; 36 generated and hand-written linear programs against exact rational basis enumeration."
+expected_values = "Switch value w = 1.5; value ranges [2, 10] and [3.5, 5.5] on [0, 2]; worst-case regrets 1.5 and 4.5; maximin chooses B and minimax regret chooses A; linear-program optima and vertex sets equal the exact rational reference."
+tolerance = "absolute 1e-9 for hand values; reference optima relative 1e-9; exact verdict labels"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_decision.exact"
+route = "antecedent.analysis.tradeoff_decision_programs.CompiledTradeoffStructures.execute"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.mean_source.positive"
@@ -11973,21 +12018,6 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "preference_decision.exact"
 route = "antecedent.preference_decision.structure_claims"
-algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
-parity_registry = "parity/capability_records.toml"
-positive_fixture = "preference_decision.exact.mean_source.positive"
-oracle_kind = "closed_form"
-oracle_inputs = "Two actions with values 10 - 4w and 5.5 - w over w in [0, 3] and narrower ranges, from three weighted joint draws and their means; 36 generated and hand-written linear programs against exact rational basis enumeration."
-expected_values = "Switch value w = 1.5; value ranges [2, 10] and [3.5, 5.5] on [0, 2]; worst-case regrets 1.5 and 4.5; maximin chooses B and minimax regret chooses A; linear-program optima and vertex sets equal the exact rational reference."
-tolerance = "absolute 1e-9 for hand values; reference optima relative 1e-9; exact verdict labels"
-calibration = "assumption_range_no_interval_no_calibration"
-artifact_consumer_fixture = "preference_decision.exact.replay.artifact"
-provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
-exact_request_verification = "not_applicable_no_external_provider"
-
-[[cell]]
-id = "preference_decision.exact"
-route = "antecedent.preference_decision.decide_across_structures"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.mean_source.positive"
@@ -12272,7 +12302,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.artifact"
-route = "antecedent.preference_decision.record_decision"
+route = "antecedent.analysis.tradeoff_decision_programs.CompiledTradeoffDecision.record"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.certified.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.artifact.both_routes_round_trip.positive"
@@ -12437,6 +12467,36 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.compatible_set"
+route = "antecedent.analysis.preference_learning_programs.compile_compatible_set"
+algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_records.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.compatible_set.per_decider.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Hand-built records bracketing one parameter and a contradictory pair; choices simulated from a known parameter vector; dyadic cases against exact rational vertex enumeration."
+expected_values = "Hand-derived learned ranges and binding choices; the smallest conflict with needed tolerance 1/4; sets containing the truth and nested as records are added; ranges, conflicts and tolerances equal the exact rational reference."
+tolerance = "absolute 1e-9; exact conflict record sets"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_learning.compatible_set.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.compatible_set"
+route = "antecedent.analysis.preference_learning_programs.CompiledPreferenceCompatibleSet.execute"
+algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_records.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.compatible_set.per_decider.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Hand-built records bracketing one parameter and a contradictory pair; choices simulated from a known parameter vector; dyadic cases against exact rational vertex enumeration."
+expected_values = "Hand-derived learned ranges and binding choices; the smallest conflict with needed tolerance 1/4; sets containing the truth and nested as records are added; ranges, conflicts and tolerances equal the exact rational reference."
+tolerance = "absolute 1e-9; exact conflict record sets"
+calibration = "assumption_range_no_interval_no_calibration"
+artifact_consumer_fixture = "preference_learning.compatible_set.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.compatible_set"
 route = "antecedent.decision_learning.Option.from_result"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_records.toml"]
 parity_registry = "parity/capability_records.toml"
@@ -12468,6 +12528,36 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "preference_learning.choice_model"
 route = "antecedent.decision_learning.ChoiceModel.learn"
+algorithm_provenance = ["provenance/preference_learning.choice_model.toml", "provenance/preference_learning.choice_records.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.choice_model.clustered_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated logit choices from known rates and consistency; a one-column fit with the cheaper option chosen three times in four; conditional logit fits against an independent 50-digit Newton reference."
+expected_values = "Rates (4, -2) and consistency 1 within four standard errors; consistency ln 3 with standard error sqrt(4/3); coefficients, log-likelihoods and covariances equal the reference."
+tolerance = "1e-9 for hand values; reference coefficients 1e-8 relative, covariances 1e-7 relative"
+calibration = "interval_reported_not_measured_no_coverage_record"
+artifact_consumer_fixture = "preference_learning.choice_model.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.choice_model"
+route = "antecedent.analysis.preference_learning_programs.compile_choice_model"
+algorithm_provenance = ["provenance/preference_learning.choice_model.toml", "provenance/preference_learning.choice_records.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.choice_model.clustered_covariance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Simulated logit choices from known rates and consistency; a one-column fit with the cheaper option chosen three times in four; conditional logit fits against an independent 50-digit Newton reference."
+expected_values = "Rates (4, -2) and consistency 1 within four standard errors; consistency ln 3 with standard error sqrt(4/3); coefficients, log-likelihoods and covariances equal the reference."
+tolerance = "1e-9 for hand values; reference coefficients 1e-8 relative, covariances 1e-7 relative"
+calibration = "interval_reported_not_measured_no_coverage_record"
+artifact_consumer_fixture = "preference_learning.choice_model.replay.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.choice_model"
+route = "antecedent.analysis.preference_learning_programs.CompiledPreferenceChoiceModel.execute"
 algorithm_provenance = ["provenance/preference_learning.choice_model.toml", "provenance/preference_learning.choice_records.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.choice_model.clustered_covariance.positive"
@@ -12542,7 +12632,52 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_learning.accepted_preferences"
-route = "antecedent.preference_decision.decide_accepted"
+route = "antecedent.analysis.preference_learning_programs.compile_compatible_set_relearn"
+algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Accepted preferences of every basis, acknowledged, relearned, sealed as accepted_preferences_v1 and replayed with the same and with other records."
+expected_values = "Each change gives a new version and identity; the same records reproduce a learned basis; other records and a changed basis are refused with registered details."
+tolerance = "labels, identities and counts exact; reals within relative 1e-9"
+calibration = "estimate_basis_interval_reported_not_measured"
+artifact_consumer_fixture = "preference_learning.accepted_preferences.round_trip.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.accepted_preferences"
+route = "antecedent.analysis.preference_learning_programs.CompiledPreferenceCompatibleSet.accept"
+algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Accepted preferences of every basis, acknowledged, relearned, sealed as accepted_preferences_v1 and replayed with the same and with other records."
+expected_values = "Each change gives a new version and identity; the same records reproduce a learned basis; other records and a changed basis are refused with registered details."
+tolerance = "labels, identities and counts exact; reals within relative 1e-9"
+calibration = "estimate_basis_interval_reported_not_measured"
+artifact_consumer_fixture = "preference_learning.accepted_preferences.round_trip.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.accepted_preferences"
+route = "antecedent.analysis.preference_learning_programs.compile_choice_model_relearn"
+algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "preference_learning.accepted_preferences.versioning.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Accepted preferences of every basis, acknowledged, relearned, sealed as accepted_preferences_v1 and replayed with the same and with other records."
+expected_values = "Each change gives a new version and identity; the same records reproduce a learned basis; other records and a changed basis are refused with registered details."
+tolerance = "labels, identities and counts exact; reals within relative 1e-9"
+calibration = "estimate_basis_interval_reported_not_measured"
+artifact_consumer_fixture = "preference_learning.accepted_preferences.round_trip.artifact"
+provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "preference_learning.accepted_preferences"
+route = "antecedent.analysis.preference_learning_programs.CompiledPreferenceChoiceModel.accept"
 algorithm_provenance = ["provenance/preference_learning.compatible_set.toml", "provenance/preference_learning.choice_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_learning.accepted_preferences.versioning.positive"

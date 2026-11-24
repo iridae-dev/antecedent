@@ -2424,6 +2424,7 @@ class preference_artifact:  # noqa: N801
     REPLAY_RECORDS_DIFFER: Final = "preference_artifact.replay_records_differ"
     REPLAY_SOURCE_DIFFERS: Final = "preference_artifact.replay_source_differs"
     RESULT_CONTRACT_MISMATCH: Final = "preference_artifact.result_contract_mismatch"
+    RETAINED_ARTIFACT_MISMATCH: Final = "preference_artifact.retained_artifact_mismatch"
     SOURCE_EXPECTED: Final = "preference_artifact.source_expected"
     WIRE_MALFORMED: Final = "preference_artifact.wire_malformed"
 
@@ -5856,6 +5857,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_artifact.replay_records_differ",
     "preference_artifact.replay_source_differs",
     "preference_artifact.result_contract_mismatch",
+    "preference_artifact.retained_artifact_mismatch",
     "preference_artifact.source_expected",
     "preference_artifact.wire_malformed",
     "preference_certified.atom_probabilities_invalid",
@@ -9040,6 +9042,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_artifact.replay_records_differ": ("decision_contract_unsatisfied",),
     "preference_artifact.replay_source_differs": ("decision_contract_unsatisfied",),
     "preference_artifact.result_contract_mismatch": ("decision_contract_unsatisfied",),
+    "preference_artifact.retained_artifact_mismatch": ("external_binding_mismatch",),
     "preference_artifact.source_expected": ("decision_contract_unsatisfied",),
     "preference_artifact.wire_malformed": ("invalid_argument",),
     "preference_certified.atom_probabilities_invalid": ("decision_contract_unsatisfied",),

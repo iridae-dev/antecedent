@@ -1889,6 +1889,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_artifact.replay_records_differ",
     "preference_artifact.replay_source_differs",
     "preference_artifact.result_contract_mismatch",
+    "preference_artifact.retained_artifact_mismatch",
     "preference_artifact.source_expected",
     "preference_artifact.wire_malformed",
     "preference_certified.atom_probabilities_invalid",
@@ -5017,6 +5018,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_artifact.replay_records_differ", &["decision_contract_unsatisfied"]),
     ("preference_artifact.replay_source_differs", &["decision_contract_unsatisfied"]),
     ("preference_artifact.result_contract_mismatch", &["decision_contract_unsatisfied"]),
+    ("preference_artifact.retained_artifact_mismatch", &["external_binding_mismatch"]),
     ("preference_artifact.source_expected", &["decision_contract_unsatisfied"]),
     ("preference_artifact.wire_malformed", &["invalid_argument"]),
     ("preference_certified.atom_probabilities_invalid", &["decision_contract_unsatisfied"]),
@@ -10589,6 +10591,8 @@ pub mod preference_artifact {
     pub const REPLAY_SOURCE_DIFFERS: &str = "preference_artifact.replay_source_differs";
     /// Detail `preference_artifact.result_contract_mismatch`.
     pub const RESULT_CONTRACT_MISMATCH: &str = "preference_artifact.result_contract_mismatch";
+    /// Detail `preference_artifact.retained_artifact_mismatch`.
+    pub const RETAINED_ARTIFACT_MISMATCH: &str = "preference_artifact.retained_artifact_mismatch";
     /// Detail `preference_artifact.source_expected`.
     pub const SOURCE_EXPECTED: &str = "preference_artifact.source_expected";
     /// Detail `preference_artifact.wire_malformed`.

@@ -1755,7 +1755,23 @@ impl LoweredProgram {
         let mut evidence = self.evidence.clone();
         evidence.decision = None;
         let mut writer = CanonicalWriter::new(DECISION_FREE_TAG);
-        writer.text(self.cell.as_str()).text(self.depth.as_str());
+        writer.text(self.cell.as_str());
+        // A named cell's name leaves out the family, design or reading it was lowered for,
+        // which its own identity writes; each is written here with a presence word, so two
+        // programs of one kind of named cell never compare as one program.
+        for named in
+            [self.cell.cyclic_family(), self.cell.planned_design(), self.cell.chain_reading()]
+        {
+            match named {
+                Some(name) => {
+                    writer.word(1).text(name);
+                }
+                None => {
+                    writer.word(0);
+                }
+            }
+        }
+        writer.text(self.depth.as_str());
         if let Some(operations) = self.depth.deferred_operations() {
             writer.text(operations);
         }

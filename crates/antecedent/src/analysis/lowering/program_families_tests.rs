@@ -648,6 +648,57 @@ const PINNED: &[(C, R, &str, F)] = &[
     (C::MarkedEventProcess, R::MarkedEventProcess, "MarkedEventProcess", F::Structural),
     (C::HawkesExcitation, R::HawkesExcitation, "HawkesExcitation", F::Structural),
     (C::HawkesParameterBridge, R::HawkesParameterBridge, "HawkesParameterBridge", F::Structural),
+    (C::TradeoffLawDecision, R::TradeoffLawDecision, "TradeoffLawDecision", F::PropagationChain),
+    (
+        C::TradeoffCertifiedLawDecision,
+        R::TradeoffCertifiedLawDecision,
+        "TradeoffCertifiedLawDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::TradeoffStructuralDecision,
+        R::TradeoffStructuralDecision,
+        "TradeoffStructuralDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::TradeoffCertifiedStructuralDecision,
+        R::TradeoffCertifiedStructuralDecision,
+        "TradeoffCertifiedStructuralDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::PreferenceCompatibleSet,
+        R::PreferenceCompatibleSet,
+        "PreferenceCompatibleSet",
+        F::Associational,
+    ),
+    (C::PreferenceChoiceModel, R::PreferenceChoiceModel, "PreferenceChoiceModel", F::Associational),
+    (
+        C::PreferenceAttachedDecision,
+        R::PreferenceAttachedDecision,
+        "PreferenceAttachedDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::CertifiedPreferenceAttachedDecision,
+        R::CertifiedPreferenceAttachedDecision,
+        "CertifiedPreferenceAttachedDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::ContractAttachedDecision,
+        R::ContractAttachedDecision,
+        "ContractAttachedDecision",
+        F::PropagationChain,
+    ),
+    (
+        C::JointScenarioAttachedDecision,
+        R::JointScenarioAttachedDecision,
+        "JointScenarioAttachedDecision",
+        F::PropagationChain,
+    ),
+    (C::EvsiAttachedDecision, R::EvsiAttachedDecision, "EvsiAttachedDecision", F::PropagationChain),
 ];
 
 #[test]

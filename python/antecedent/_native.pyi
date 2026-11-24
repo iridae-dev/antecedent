@@ -8067,6 +8067,7 @@ def replay_preference_decision(
     contract_json: str,
     source: JointDistributionArtifact,
     cancel: CancellationToken | None = None,
+    retained_identity: str | None = None,
 ) -> tuple[str | None, str | None]: ...
 
 class _CompiledPreferenceDecision:
@@ -8133,6 +8134,7 @@ def consume_accepted_preferences(
     expected_identity: str,
     records_json: str | None,
     cancel: CancellationToken | None = None,
+    retained_identity: str | None = None,
 ) -> tuple[_AcceptedPreferences | None, str | None]: ...
 def preference_chain_joint_law(
     record_json: str, cancel: CancellationToken | None

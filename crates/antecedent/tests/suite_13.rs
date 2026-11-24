@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "compiled_twins_tradeoff_decisions.rs"]
+mod compiled_twins_tradeoff_decisions;
 #[path = "target_native_validation.rs"]
 mod target_native_validation;
 #[path = "target_refuter_extensions.rs"]
