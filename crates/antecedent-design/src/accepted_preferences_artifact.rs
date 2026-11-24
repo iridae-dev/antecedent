@@ -16,6 +16,7 @@
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::DistributionCalibration;
+use antecedent_io_core::error::IoError;
 use antecedent_stats::{ConditionalLogitOptions, ShapeSearchOptions};
 use serde::{Deserialize, Serialize};
 
@@ -564,6 +565,9 @@ fn pending_from(wire: PendingWire) -> PendingReview {
 /// Canonical identity of accepted preferences: the declared model identity, then the CBOR wire
 /// of the basis and of the learning options, the number of stated comparisons, the version and
 /// the CBOR wire of the acknowledged items.
+///
+/// # Errors
+/// A part that cannot be encoded is refused, never digested as empty bytes.
 pub(crate) fn accepted_identity(
     declared_identity: &str,
     basis: &PreferenceBasis,
@@ -571,16 +575,16 @@ pub(crate) fn accepted_identity(
     stated_comparisons: usize,
     version: u32,
     acknowledged: &[PendingReview],
-) -> String {
+) -> Result<String, IoError> {
     let acknowledged: Vec<PendingWire> = acknowledged.iter().map(pending_wire).collect();
     let mut out = CanonicalWriter::new("antecedent.accepted_preferences.v1");
     out.text(declared_identity)
-        .bytes(&to_cbor(&basis_wire(basis)).unwrap_or_default())
-        .bytes(&to_cbor(&learning.map(learning_wire)).unwrap_or_default())
+        .bytes(&to_cbor(&basis_wire(basis))?)
+        .bytes(&to_cbor(&learning.map(learning_wire))?)
         .word(u64::try_from(stated_comparisons).unwrap_or(u64::MAX))
         .word(u64::from(version))
-        .bytes(&to_cbor(&acknowledged).unwrap_or_default());
-    out.finish_hex()
+        .bytes(&to_cbor(&acknowledged)?);
+    Ok(out.finish_hex())
 }
 
 // ---------------------------------------------------------------------------------------------
