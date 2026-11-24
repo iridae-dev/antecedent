@@ -4310,18 +4310,6 @@ status = "bound"
 python = "antecedent._preference_results.PreferenceDecision.export"
 
 [[entry]]
-rust = "antecedent::analysis::preference_decision::clopper_pearson"
-kind = "fn"
-status = "internal"
-reason = "The exact interval on a sampled class mass; Python reads it in PreferenceDecision.sampled_masses after Contract.compile(...).execute()."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::clopper_pearson_upper"
-kind = "fn"
-status = "internal"
-reason = "The one-sided bound on the mass where another action is best among sampled members; Python reads it in the verdicts of PreferenceDecision after Contract.compile(...).execute()."
-
-[[entry]]
 rust = "antecedent::analysis::preference_decision::decide_on_sampled_structures"
 kind = "fn"
 status = "internal"

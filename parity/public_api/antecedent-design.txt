@@ -551,6 +551,10 @@ impl core::clone::Clone for antecedent_design::decision_transported_source::Tran
 impl core::clone::Clone for antecedent_design::decision_transported_source::TransportedResponse
 impl core::clone::Clone for antecedent_design::decision_transported_source::TransportedRoute
 impl core::clone::Clone for antecedent_design::decision_transported_source::TransportedValue
+impl core::clone::Clone for antecedent_design::decision_wire::ConstraintWire
+impl core::clone::Clone for antecedent_design::decision_wire::CriterionWire
+impl core::clone::Clone for antecedent_design::decision_wire::ExclusionWire
+impl core::clone::Clone for antecedent_design::decision_wire::ExprWire
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumeExpectation
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::clone::Clone for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
@@ -729,6 +733,9 @@ impl core::clone::Clone for antecedent_design::preference_decision::PreferenceDe
 impl core::clone::Clone for antecedent_design::preference_decision::PreferenceMeasure
 impl core::clone::Clone for antecedent_design::preference_decision::PreferenceSwitch
 impl core::clone::Clone for antecedent_design::preference_decision::PreferenceVerdict
+impl core::clone::Clone for antecedent_design::preference_decision::SampledClass
+impl core::clone::Clone for antecedent_design::preference_decision::SampledMargin
+impl core::clone::Clone for antecedent_design::preference_decision::SampledStructure
 impl core::clone::Clone for antecedent_design::preference_decision::StructuralPreferenceResult
 impl core::clone::Clone for antecedent_design::preference_decision::StructuralPreferenceVerdict
 impl core::clone::Clone for antecedent_design::preference_decision::SwitchThreshold
@@ -1881,6 +1888,9 @@ impl core::cmp::PartialEq for antecedent_design::preference_decision::Preference
 impl core::cmp::PartialEq for antecedent_design::preference_decision::PreferenceMeasure
 impl core::cmp::PartialEq for antecedent_design::preference_decision::PreferenceSwitch
 impl core::cmp::PartialEq for antecedent_design::preference_decision::PreferenceVerdict
+impl core::cmp::PartialEq for antecedent_design::preference_decision::SampledClass
+impl core::cmp::PartialEq for antecedent_design::preference_decision::SampledMargin
+impl core::cmp::PartialEq for antecedent_design::preference_decision::SampledStructure
 impl core::cmp::PartialEq for antecedent_design::preference_decision::StructuralPreferenceResult
 impl core::cmp::PartialEq for antecedent_design::preference_decision::StructuralPreferenceVerdict
 impl core::cmp::PartialEq for antecedent_design::preference_decision::SwitchThreshold
@@ -2111,6 +2121,9 @@ impl core::cmp::PartialOrd for antecedent_design::transport_sensitivity::Transpo
 impl core::cmp::PartialOrd for antecedent_design::transport_sensitivity::TransportRoute
 impl core::cmp::PartialOrd for antecedent_design::transported_policy::MechanismStatus
 impl core::cmp::PartialOrd for antecedent_design::transported_policy::ModelMechanism
+impl core::convert::From<&antecedent_design::HardConstraint> for antecedent_design::decision_wire::ConstraintWire
+impl core::convert::From<&antecedent_design::UtilityExpr> for antecedent_design::decision_wire::ExprWire
+impl core::convert::From<&antecedent_design::decision_eval::ConstraintExclusion> for antecedent_design::decision_wire::ExclusionWire
 impl core::convert::From<&antecedent_design::decision_eval::SourceReceipt> for antecedent_design::inverse_query_artifact::SourceReceiptWire
 impl core::convert::From<&antecedent_design::evsi::EvsiCandidateRow> for antecedent_design::ranking::EvsiRankRow
 impl core::convert::From<&antecedent_design::inverse_query::ActionReport> for antecedent_design::inverse_query_artifact::ActionReportWire
@@ -2122,6 +2135,7 @@ impl core::convert::From<&antecedent_design::inverse_query::PosteriorFeasibility
 impl core::convert::From<antecedent_contract::external_refusal::ExternalRefusal> for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<antecedent_design::evsi::EvsiError>> for antecedent_design::evsi::EvsiError
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_design::ZTransportPlanningError
+impl core::convert::From<antecedent_design::DecisionCriterion> for antecedent_design::decision_wire::CriterionWire
 impl core::convert::From<antecedent_design::DesignError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::convert::From<antecedent_design::DesignError> for antecedent_design::evsi::EvsiError
 impl core::convert::From<antecedent_design::EvidencePlanError> for antecedent_design::EvidencePlanArtifactError
@@ -2129,6 +2143,10 @@ impl core::convert::From<antecedent_design::RepairArtifactError> for antecedent_
 impl core::convert::From<antecedent_design::SensitivityMethod> for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::convert::From<antecedent_design::Tail> for antecedent_design::inverse_query_artifact::TailWire
 impl core::convert::From<antecedent_design::decision_transported_source::TransportedRefusal> for antecedent_design::inverse_forward_source::ForwardSourceRefusal
+impl core::convert::From<antecedent_design::decision_wire::ConstraintWire> for antecedent_design::HardConstraint
+impl core::convert::From<antecedent_design::decision_wire::CriterionWire> for antecedent_design::DecisionCriterion
+impl core::convert::From<antecedent_design::decision_wire::ExclusionWire> for antecedent_design::decision_eval::ConstraintExclusion
+impl core::convert::From<antecedent_design::decision_wire::ExprWire> for antecedent_design::UtilityExpr
 impl core::convert::From<antecedent_design::design_ranking_artifact::DesignRankingArtifactError> for antecedent_design::EvidencePlanArtifactError
 impl core::convert::From<antecedent_design::inverse_query::Comparison> for antecedent_design::inverse_query_artifact::ComparisonWire
 impl core::convert::From<antecedent_design::inverse_query::ExistenceClaim> for antecedent_design::inverse_query_artifact::ExistenceWire
@@ -2696,6 +2714,10 @@ impl core::fmt::Debug for antecedent_design::decision_transported_source::Transp
 impl core::fmt::Debug for antecedent_design::decision_transported_source::TransportedResponse
 impl core::fmt::Debug for antecedent_design::decision_transported_source::TransportedRoute
 impl core::fmt::Debug for antecedent_design::decision_transported_source::TransportedValue
+impl core::fmt::Debug for antecedent_design::decision_wire::ConstraintWire
+impl core::fmt::Debug for antecedent_design::decision_wire::CriterionWire
+impl core::fmt::Debug for antecedent_design::decision_wire::ExclusionWire
+impl core::fmt::Debug for antecedent_design::decision_wire::ExprWire
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumeExpectation
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumedCandidate
 impl core::fmt::Debug for antecedent_design::design_ranking_artifact::ConsumedDesignRanking
@@ -2874,6 +2896,9 @@ impl core::fmt::Debug for antecedent_design::preference_decision::PreferenceDeci
 impl core::fmt::Debug for antecedent_design::preference_decision::PreferenceMeasure
 impl core::fmt::Debug for antecedent_design::preference_decision::PreferenceSwitch
 impl core::fmt::Debug for antecedent_design::preference_decision::PreferenceVerdict
+impl core::fmt::Debug for antecedent_design::preference_decision::SampledClass
+impl core::fmt::Debug for antecedent_design::preference_decision::SampledMargin
+impl core::fmt::Debug for antecedent_design::preference_decision::SampledStructure
 impl core::fmt::Debug for antecedent_design::preference_decision::StructuralPreferenceResult
 impl core::fmt::Debug for antecedent_design::preference_decision::StructuralPreferenceVerdict
 impl core::fmt::Debug for antecedent_design::preference_decision::SwitchThreshold
@@ -3338,6 +3363,7 @@ impl core::marker::Copy for antecedent_design::decision_transported_source::Adap
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedDemand
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedRepresentation
 impl core::marker::Copy for antecedent_design::decision_transported_source::TransportedRoute
+impl core::marker::Copy for antecedent_design::decision_wire::CriterionWire
 impl core::marker::Copy for antecedent_design::design_ranking_artifact::DesignRankingReadLimits
 impl core::marker::Copy for antecedent_design::design_ranking_artifact::RankConfigWire
 impl core::marker::Copy for antecedent_design::design_ranking_artifact::ReplayKind
@@ -3895,6 +3921,10 @@ impl core::marker::Freeze for antecedent_design::decision_transported_source::Tr
 impl core::marker::Freeze for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::marker::Freeze for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::marker::Freeze for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::marker::Freeze for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::marker::Freeze for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::marker::Freeze for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::marker::Freeze for antecedent_design::decision_wire::ExprWire [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Freeze for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -4075,6 +4105,9 @@ impl core::marker::Freeze for antecedent_design::preference_decision::Preference
 impl core::marker::Freeze for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::marker::Freeze for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::marker::Freeze for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::marker::Freeze for antecedent_design::preference_decision::SampledClass [auto]
+impl core::marker::Freeze for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::marker::Freeze for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::marker::Freeze for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::marker::Freeze for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::marker::Freeze for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -4774,6 +4807,10 @@ impl core::marker::Send for antecedent_design::decision_transported_source::Tran
 impl core::marker::Send for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::marker::Send for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::marker::Send for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::marker::Send for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::marker::Send for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::marker::Send for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::marker::Send for antecedent_design::decision_wire::ExprWire [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Send for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -4954,6 +4991,9 @@ impl core::marker::Send for antecedent_design::preference_decision::PreferenceDe
 impl core::marker::Send for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::marker::Send for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::marker::Send for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::marker::Send for antecedent_design::preference_decision::SampledClass [auto]
+impl core::marker::Send for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::marker::Send for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::marker::Send for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::marker::Send for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::marker::Send for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -5763,6 +5803,9 @@ impl core::marker::StructuralPartialEq for antecedent_design::preference_decisio
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::PreferenceMeasure
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::PreferenceSwitch
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::PreferenceVerdict
+impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::SampledClass
+impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::SampledMargin
+impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::SampledStructure
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::StructuralPreferenceResult
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::StructuralPreferenceVerdict
 impl core::marker::StructuralPartialEq for antecedent_design::preference_decision::SwitchThreshold
@@ -6427,6 +6470,10 @@ impl core::marker::Sync for antecedent_design::decision_transported_source::Tran
 impl core::marker::Sync for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::marker::Sync for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::marker::Sync for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::marker::Sync for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::marker::Sync for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::marker::Sync for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::marker::Sync for antecedent_design::decision_wire::ExprWire [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Sync for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -6607,6 +6654,9 @@ impl core::marker::Sync for antecedent_design::preference_decision::PreferenceDe
 impl core::marker::Sync for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::marker::Sync for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::marker::Sync for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::marker::Sync for antecedent_design::preference_decision::SampledClass [auto]
+impl core::marker::Sync for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::marker::Sync for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::marker::Sync for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::marker::Sync for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::marker::Sync for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -7307,6 +7357,10 @@ impl core::marker::Unpin for antecedent_design::decision_transported_source::Tra
 impl core::marker::Unpin for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::marker::Unpin for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::marker::Unpin for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::marker::Unpin for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::marker::Unpin for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::marker::Unpin for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::marker::Unpin for antecedent_design::decision_wire::ExprWire [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::marker::Unpin for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -7487,6 +7541,9 @@ impl core::marker::Unpin for antecedent_design::preference_decision::PreferenceD
 impl core::marker::Unpin for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::marker::Unpin for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::marker::Unpin for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::marker::Unpin for antecedent_design::preference_decision::SampledClass [auto]
+impl core::marker::Unpin for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::marker::Unpin for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::marker::Unpin for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::marker::Unpin for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::marker::Unpin for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -8186,6 +8243,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_tra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_wire::ExprWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -8363,6 +8424,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_d
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::SampledClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -9055,6 +9119,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_transp
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_transported_source::TransportedResponse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_transported_source::TransportedRoute [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_transported_source::TransportedValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_wire::ConstraintWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_wire::CriterionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_wire::ExclusionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_wire::ExprWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumeExpectation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumedCandidate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::design_ranking_artifact::ConsumedDesignRanking [auto]
@@ -9232,6 +9300,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_deci
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::PreferenceMeasure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::PreferenceSwitch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::PreferenceVerdict [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::SampledClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::SampledMargin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::SampledStructure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::StructuralPreferenceResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::StructuralPreferenceVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::preference_decision::SwitchThreshold [auto]
@@ -9577,6 +9648,10 @@ impl serde_core::ser::Serialize for antecedent_design::decision_reliability::Wit
 impl serde_core::ser::Serialize for antecedent_design::decision_transported_source::TransportReceipt
 impl serde_core::ser::Serialize for antecedent_design::decision_transported_source::TransportedRepresentation
 impl serde_core::ser::Serialize for antecedent_design::decision_transported_source::TransportedRoute
+impl serde_core::ser::Serialize for antecedent_design::decision_wire::ConstraintWire
+impl serde_core::ser::Serialize for antecedent_design::decision_wire::CriterionWire
+impl serde_core::ser::Serialize for antecedent_design::decision_wire::ExclusionWire
+impl serde_core::ser::Serialize for antecedent_design::decision_wire::ExprWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::CostMapWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::DecisionWire
 impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
@@ -9902,6 +9977,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_relia
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_transported_source::TransportReceipt
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_transported_source::TransportedRepresentation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_transported_source::TransportedRoute
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_wire::ConstraintWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_wire::CriterionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_wire::ExclusionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::decision_wire::ExprWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::CostMapWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::DecisionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking_artifact::DesignRankingArtifactWire
@@ -10274,6 +10353,8 @@ pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_IDENTITY_IN
 pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_ON_NATIVE: &str
 pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_UNDECLARED: &str
 pub const antecedent_design::transported_synthesis::DETAIL_UNKNOWN_SOURCE: &str
+pub const fn antecedent_design::decision_wire::kind_name(kind: antecedent_design::ActionKind) -> &'static str
+pub const fn antecedent_design::decision_wire::structural_name(policy: antecedent_design::StructuralPolicy) -> &'static str
 pub const fn antecedent_design::joint_coupling::acting_utility(x: i64, y: i64) -> i64
 pub const fn antecedent_design::joint_coupling::joint_sensitive_decision(source: antecedent_design::joint_coupling::CouplingSource) -> core::result::Result<antecedent_design::joint_coupling::ChosenAction, antecedent_design::joint_coupling::CouplingAbsent>
 pub enum antecedent_design::ActionKind
@@ -10422,6 +10503,8 @@ pub enum antecedent_design::decision_transported_source::TransportedDemand
 pub enum antecedent_design::decision_transported_source::TransportedRepresentation
 pub enum antecedent_design::decision_transported_source::TransportedRoute
 pub enum antecedent_design::decision_transported_source::TransportedValue
+pub enum antecedent_design::decision_wire::CriterionWire
+pub enum antecedent_design::decision_wire::ExprWire
 pub enum antecedent_design::design_ranking_artifact::LawWire
 pub enum antecedent_design::design_ranking_artifact::PriorWire
 pub enum antecedent_design::design_ranking_artifact::ReplayKind
@@ -12419,6 +12502,16 @@ pub field antecedent_design::preference_decision::PreferenceSwitch::margin_coeff
 pub field antecedent_design::preference_decision::PreferenceSwitch::margin_range: (f64, f64)
 pub field antecedent_design::preference_decision::PreferenceSwitch::second: alloc::string::String
 pub field antecedent_design::preference_decision::PreferenceSwitch::threshold: core::option::Option<antecedent_design::preference_decision::SwitchThreshold>
+pub field antecedent_design::preference_decision::SampledClass::drawn: usize
+pub field antecedent_design::preference_decision::SampledClass::mass: f64
+pub field antecedent_design::preference_decision::SampledClass::members: alloc::vec::Vec<(usize, usize)>
+pub field antecedent_design::preference_decision::SampledMargin::first: alloc::string::String
+pub field antecedent_design::preference_decision::SampledMargin::margin: f64
+pub field antecedent_design::preference_decision::SampledMargin::second: alloc::string::String
+pub field antecedent_design::preference_decision::SampledMargin::standard_error: core::option::Option<f64>
+pub field antecedent_design::preference_decision::SampledMargin::vertex: alloc::vec::Vec<f64>
+pub field antecedent_design::preference_decision::SampledStructure::expectations: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub field antecedent_design::preference_decision::SampledStructure::weight: f64
 pub field antecedent_design::preference_decision::StructuralPreferenceResult::atoms: alloc::vec::Vec<antecedent_design::preference_decision::PreferenceAtomSummary>
 pub field antecedent_design::preference_decision::StructuralPreferenceResult::combined: core::option::Option<antecedent_design::preference_decision::PreferenceDecisionResult>
 pub field antecedent_design::preference_decision::StructuralPreferenceResult::contract_identity: alloc::string::String
@@ -14329,6 +14422,8 @@ pub fn antecedent_design::decision_structural::evaluate_structural(contract: &an
 pub fn antecedent_design::decision_transported_source::contract_needs_law(contract: &antecedent_design::DecisionContract) -> core::option::Option<&'static str>
 pub fn antecedent_design::decision_transported_source::evaluate_transported_decision(contract: &antecedent_design::DecisionContract, response: &antecedent_design::decision_transported_source::TransportedResponse, demand: antecedent_design::decision_transported_source::TransportedDemand, policy: &antecedent_design::composition_boundary::SupportPolicy) -> core::result::Result<antecedent_design::decision_transported_source::TransportedDecision, antecedent_design::decision_transported_source::TransportedRefusal>
 pub fn antecedent_design::decision_transported_source::period_population_label(population: &str, period: &str) -> alloc::string::String
+pub fn antecedent_design::decision_wire::kind_named(name: &str) -> core::option::Option<antecedent_design::ActionKind>
+pub fn antecedent_design::decision_wire::structural_named(name: &str) -> core::option::Option<antecedent_design::StructuralPolicy>
 pub fn antecedent_design::design_ranking_artifact::consume(bytes: &[u8], expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_wire(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 pub fn antecedent_design::design_ranking_artifact::consume_wire_with_limits(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire, expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation, verified_candidates: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, limits: &antecedent_design::design_ranking_artifact::DesignRankingReadLimits) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
@@ -14385,6 +14480,9 @@ pub fn antecedent_design::preference_decision::evaluate_preference_contract_on_m
 pub fn antecedent_design::preference_decision::evaluate_preference_contract_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_decision::PreferenceDecisionResult, antecedent_design::preference_decision::PreferenceDecisionError>
 pub fn antecedent_design::preference_decision::evaluate_preference_structural(contract: &antecedent_design::preference_contract::PreferenceContract, atoms: &[antecedent_design::decision_structural::StructuralAtom], measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions) -> core::result::Result<antecedent_design::preference_decision::StructuralPreferenceResult, antecedent_design::preference_decision::PreferenceDecisionError>
 pub fn antecedent_design::preference_decision::evaluate_preference_structural_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, atoms: &[antecedent_design::decision_structural::StructuralAtom], measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_decision::PreferenceDecisionOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_decision::StructuralPreferenceResult, antecedent_design::preference_decision::PreferenceDecisionError>
+pub fn antecedent_design::preference_decision::part_expectations(contract: &antecedent_design::preference_contract::PreferenceContract, law: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub fn antecedent_design::preference_decision::preference_set_vertices(set: &antecedent_design::preference_model::PreferenceSet, options: antecedent_design::preference_decision::PreferenceDecisionOptions) -> core::option::Option<alloc::vec::Vec<alloc::vec::Vec<f64>>>
+pub fn antecedent_design::preference_decision::sampled_margins(contract: &antecedent_design::preference_contract::PreferenceContract, structures: &[antecedent_design::preference_decision::SampledStructure], classes: &[antecedent_design::preference_decision::SampledClass], options: antecedent_design::preference_decision::PreferenceDecisionOptions) -> alloc::vec::Vec<antecedent_design::preference_decision::SampledMargin>
 pub fn antecedent_design::preference_evaluation::decide_preferences(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_io_core::distribution_artifact::DistributionArtifact, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions) -> core::result::Result<antecedent_design::preference_evaluation::PreferenceEvaluation, antecedent_design::preference_evaluation::PreferenceEvaluationError>
 pub fn antecedent_design::preference_evaluation::decide_preferences_on_means(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_design::decision_eval::MeanSource, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions) -> core::result::Result<antecedent_design::preference_evaluation::PreferenceEvaluation, antecedent_design::preference_evaluation::PreferenceEvaluationError>
 pub fn antecedent_design::preference_evaluation::decide_preferences_on_means_with_context(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent_design::decision_eval::MeanSource, measure: core::option::Option<&antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_evaluation::PreferenceEvaluationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::preference_evaluation::PreferenceEvaluation, antecedent_design::preference_evaluation::PreferenceEvaluationError>
@@ -14475,6 +14573,7 @@ pub mod antecedent_design::decision_robustness
 pub mod antecedent_design::decision_structural
 pub mod antecedent_design::decision_structural_artifact
 pub mod antecedent_design::decision_transported_source
+pub mod antecedent_design::decision_wire
 pub mod antecedent_design::design_ranking_artifact
 pub mod antecedent_design::error
 pub mod antecedent_design::evidence_plan
@@ -14881,6 +14980,10 @@ pub struct antecedent_design::decision_transported_source::TransportReceipt
 pub struct antecedent_design::decision_transported_source::TransportedDecision
 pub struct antecedent_design::decision_transported_source::TransportedResponse
 pub struct antecedent_design::decision_transported_source::TransportedResponse has private fields
+pub struct antecedent_design::decision_wire::ConstraintWire
+pub struct antecedent_design::decision_wire::ConstraintWire has private fields
+pub struct antecedent_design::decision_wire::ExclusionWire
+pub struct antecedent_design::decision_wire::ExclusionWire has private fields
 pub struct antecedent_design::design_ranking_artifact::ConsumeExpectation
 pub struct antecedent_design::design_ranking_artifact::ConsumedCandidate
 pub struct antecedent_design::design_ranking_artifact::ConsumedDesignRanking
@@ -15012,6 +15115,9 @@ pub struct antecedent_design::preference_decision::PreferenceDecisionOptions
 pub struct antecedent_design::preference_decision::PreferenceDecisionResult
 pub struct antecedent_design::preference_decision::PreferenceMeasure
 pub struct antecedent_design::preference_decision::PreferenceSwitch
+pub struct antecedent_design::preference_decision::SampledClass
+pub struct antecedent_design::preference_decision::SampledMargin
+pub struct antecedent_design::preference_decision::SampledStructure
 pub struct antecedent_design::preference_decision::StructuralPreferenceResult
 pub struct antecedent_design::preference_decision::SwitchThreshold
 pub struct antecedent_design::preference_evaluation::PreferenceEvaluationOptions
@@ -16322,6 +16428,22 @@ pub variant antecedent_design::decision_transported_source::TransportedRoute::Sy
 pub variant antecedent_design::decision_transported_source::TransportedRoute::TemporalPolicy
 pub variant antecedent_design::decision_transported_source::TransportedValue::Law(antecedent_io_core::distribution_artifact::DistributionArtifact)
 pub variant antecedent_design::decision_transported_source::TransportedValue::Means(antecedent_design::decision_eval::MeanSource)
+pub variant antecedent_design::decision_wire::CriterionWire::ExpectedRegret
+pub variant antecedent_design::decision_wire::CriterionWire::MaximinOverStructures
+pub variant antecedent_design::decision_wire::CriterionWire::MinimaxOverIdentifiedSet
+pub variant antecedent_design::decision_wire::CriterionWire::PosteriorExpectedLoss
+pub variant antecedent_design::decision_wire::CriterionWire::PosteriorExpectedUtility
+pub variant antecedent_design::decision_wire::CriterionWire::Quantile { p: f64 }
+pub variant antecedent_design::decision_wire::CriterionWire::Regret
+pub variant antecedent_design::decision_wire::CriterionWire::ThresholdProbability { threshold: f64 }
+pub variant antecedent_design::decision_wire::ExprWire::Add(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>, alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
+pub variant antecedent_design::decision_wire::ExprWire::Const(f64)
+pub variant antecedent_design::decision_wire::ExprWire::Input(usize)
+pub variant antecedent_design::decision_wire::ExprWire::Max(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>, alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
+pub variant antecedent_design::decision_wire::ExprWire::Min(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>, alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
+pub variant antecedent_design::decision_wire::ExprWire::Mul(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>, alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
+pub variant antecedent_design::decision_wire::ExprWire::Neg(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
+pub variant antecedent_design::decision_wire::ExprWire::Sub(alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>, alloc::boxed::Box<antecedent_design::decision_wire::ExprWire>)
 pub variant antecedent_design::design_ranking_artifact::DesignRankingArtifactError::Bounds(&'static str)
 pub variant antecedent_design::design_ranking_artifact::DesignRankingArtifactError::CostUnitsMismatch(alloc::string::String)
 pub variant antecedent_design::design_ranking_artifact::DesignRankingArtifactError::Design(antecedent_design::DesignError)

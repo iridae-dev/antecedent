@@ -5276,6 +5276,8 @@ pub fn antecedent_stats::anderson_rubin_statistic(blocks: &antecedent_stats::IvB
 pub fn antecedent_stats::bartlett_weight(lag: usize, l_eff: usize) -> f64
 pub fn antecedent_stats::benjamini_hochberg(p_values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::benjamini_yekutieli(p_values: &[f64]) -> alloc::vec::Vec<f64>
+pub fn antecedent_stats::binomial_interval::clopper_pearson(successes: u64, trials: u64, level: f64) -> core::option::Option<(f64, f64)>
+pub fn antecedent_stats::binomial_interval::clopper_pearson_upper(successes: u64, trials: u64, level: f64) -> core::option::Option<f64>
 pub fn antecedent_stats::bonferroni(p_values: &[f64]) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::calibrate_parcorr_like(ci: &dyn antecedent_stats::ConditionalIndependence, n: usize, trials: u32, alpha: f64, seed: u64) -> core::result::Result<antecedent_stats::CalibrationReport, antecedent_stats::StatsError>
 pub fn antecedent_stats::censoring_tail_restriction(time: &[f64], event: &[f64], survival_floor: f64) -> core::result::Result<core::option::Option<f64>, antecedent_stats::StatsError>
@@ -5488,6 +5490,7 @@ pub fn antecedent_stats::regularized::soft_threshold(z: f64, gamma: f64) -> f64
 pub fn antecedent_stats::regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64
 pub fn antecedent_stats::response::silverman_bandwidth(x: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, dim: usize) -> core::result::Result<f64, antecedent_stats::StatsError>
+pub fn antecedent_stats::special::beta_quantile(p: f64, a: f64, b: f64) -> f64
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
 pub fn antecedent_stats::special::student_t_sf(t: f64, df: f64) -> f64
 pub fn antecedent_stats::synthesis::equal_study_gaussian(estimates: &[f64]) -> core::result::Result<antecedent_stats::synthesis::GaussianStudyEstimate, antecedent_stats::SynthesisError>
@@ -5513,6 +5516,7 @@ pub mod antecedent_stats::adaptive_inference::procedure_simulation
 pub mod antecedent_stats::adaptive_inference::procedure_uncertainty
 pub mod antecedent_stats::adaptive_inference::repeated_measures_posterior
 pub mod antecedent_stats::adaptive_inference::weighting
+pub mod antecedent_stats::binomial_interval
 pub mod antecedent_stats::ci
 pub mod antecedent_stats::cluster
 pub mod antecedent_stats::continuous_error

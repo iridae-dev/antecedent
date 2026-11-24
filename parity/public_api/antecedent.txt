@@ -1103,7 +1103,6 @@ impl core::clone::Clone for antecedent::analysis::preference_decision::Preferenc
 impl core::clone::Clone for antecedent::analysis::preference_decision::PreferenceJointLaw
 impl core::clone::Clone for antecedent::analysis::preference_decision::RowProvenance
 impl core::clone::Clone for antecedent::analysis::preference_decision::SampledClassMass
-impl core::clone::Clone for antecedent::analysis::preference_decision::SampledMargin
 impl core::clone::Clone for antecedent::analysis::preference_decision::SampledStructuralEvaluation
 impl core::clone::Clone for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::clone::Clone for antecedent::analysis::preference_decision::SharedEvidence
@@ -2134,7 +2133,6 @@ impl core::cmp::PartialEq for antecedent::analysis::preference_decision::Prefere
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::PreferenceJointLaw
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::RowProvenance
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledClassMass
-impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledMargin
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledStructuralEvaluation
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::cmp::PartialEq for antecedent::analysis::preference_decision::SharedEvidence
@@ -3566,7 +3564,6 @@ impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceJ
 impl core::fmt::Debug for antecedent::analysis::preference_decision::PreferenceRouteError
 impl core::fmt::Debug for antecedent::analysis::preference_decision::RowProvenance
 impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledClassMass
-impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledMargin
 impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledStructuralEvaluation
 impl core::fmt::Debug for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::fmt::Debug for antecedent::analysis::preference_decision::SharedEvidence
@@ -5123,7 +5120,6 @@ impl core::marker::Freeze for antecedent::analysis::preference_decision::Prefere
 impl core::marker::Freeze for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Freeze for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -6390,7 +6386,6 @@ impl core::marker::Send for antecedent::analysis::preference_decision::Preferenc
 impl core::marker::Send for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::marker::Send for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Send for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -7206,7 +7201,6 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::preference_deci
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::PreferenceDemand
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::RowProvenance
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledClassMass
-impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledMargin
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledStructuralEvaluation
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SampledStructuralVerdict
 impl core::marker::StructuralPartialEq for antecedent::analysis::preference_decision::SharedEvidence
@@ -8313,7 +8307,6 @@ impl core::marker::Sync for antecedent::analysis::preference_decision::Preferenc
 impl core::marker::Sync for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::marker::Sync for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Sync for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -9582,7 +9575,6 @@ impl core::marker::Unpin for antecedent::analysis::preference_decision::Preferen
 impl core::marker::Unpin for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::marker::Unpin for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -10811,7 +10803,6 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preferenc
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -12015,7 +12006,6 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_d
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::PreferenceRouteError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::RowProvenance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledClassMass [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledMargin [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledStructuralEvaluation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SampledStructuralVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::preference_decision::SharedEvidence [auto]
@@ -16116,14 +16106,9 @@ pub field antecedent::analysis::preference_decision::SampledClassMass::drawn: us
 pub field antecedent::analysis::preference_decision::SampledClassMass::identified: antecedent::analysis::preference_decision::MassEstimate
 pub field antecedent::analysis::preference_decision::SampledClassMass::unevaluated: antecedent::analysis::preference_decision::MassEstimate
 pub field antecedent::analysis::preference_decision::SampledClassMass::unidentified: antecedent::analysis::preference_decision::MassEstimate
-pub field antecedent::analysis::preference_decision::SampledMargin::first: alloc::string::String
-pub field antecedent::analysis::preference_decision::SampledMargin::margin: f64
-pub field antecedent::analysis::preference_decision::SampledMargin::second: alloc::string::String
-pub field antecedent::analysis::preference_decision::SampledMargin::standard_error: core::option::Option<f64>
-pub field antecedent::analysis::preference_decision::SampledMargin::vertex: alloc::vec::Vec<f64>
 pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::evaluation: antecedent_design::preference_route_choice::StructuralPreferenceEvaluation
 pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::level: f64
-pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::margins: alloc::vec::Vec<antecedent::analysis::preference_decision::SampledMargin>
+pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::margins: alloc::vec::Vec<antecedent_design::preference_sampled::SampledMargin>
 pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::masses: alloc::vec::Vec<antecedent::analysis::preference_decision::SampledClassMass>
 pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::sampling: alloc::vec::Vec<antecedent::analysis::preference_decision::ClassSampling>
 pub field antecedent::analysis::preference_decision::SampledStructuralEvaluation::verdict: antecedent::analysis::preference_decision::SampledStructuralVerdict
@@ -20738,8 +20723,6 @@ pub fn antecedent::analysis::preference_decision::analysis_belief_source(input: 
 pub fn antecedent::analysis::preference_decision::analysis_options(contract: &antecedent_design::preference_contract::PreferenceContract, source: &antecedent::analysis::native_claims::NativeDecisionSource) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_record::ChoiceOption>, antecedent::DecisionFacadeRefusal>
 pub fn antecedent::analysis::preference_decision::analysis_result_identity(input: &antecedent::analysis::native_claims::NativeDecisionInput) -> alloc::string::String
 pub fn antecedent::analysis::preference_decision::chain_joint_law(chain: &antecedent::analysis::PropagationChain) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent::DecisionFacadeRefusal>
-pub fn antecedent::analysis::preference_decision::clopper_pearson(successes: u64, trials: u64, level: f64) -> core::option::Option<(f64, f64)>
-pub fn antecedent::analysis::preference_decision::clopper_pearson_upper(successes: u64, trials: u64, level: f64) -> core::option::Option<f64>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_prepared_studies(studies: &[&antecedent::PreparedStudy], contract: &antecedent_design::preference_contract::PreferenceContract, (dependence, cross): (antecedent::analysis::preference_decision::OutcomeDependence, &[antecedent::analysis::preference_decision::CrossStudyCovariance]), ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_across_studies(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, dependence: antecedent::analysis::preference_decision::OutcomeDependence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence(studies: &[&antecedent::Study], contract: &antecedent_design::preference_contract::PreferenceContract, shared: &antecedent::analysis::preference_decision::SharedEvidence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
@@ -21218,6 +21201,7 @@ pub mod antecedent::design::decision_reliability
 pub mod antecedent::design::decision_robust_artifact
 pub mod antecedent::design::decision_robustness
 pub mod antecedent::design::decision_structural
+pub mod antecedent::design::decision_wire
 pub mod antecedent::design::design_ranking_artifact
 pub mod antecedent::design::evsi
 pub mod antecedent::design::functional_source
@@ -22400,7 +22384,6 @@ pub struct antecedent::analysis::preference_decision::PreferenceJointLaw has pri
 pub struct antecedent::analysis::preference_decision::RowProvenance
 pub struct antecedent::analysis::preference_decision::RowProvenance has private fields
 pub struct antecedent::analysis::preference_decision::SampledClassMass
-pub struct antecedent::analysis::preference_decision::SampledMargin
 pub struct antecedent::analysis::preference_decision::SampledStructuralEvaluation
 pub struct antecedent::analysis::preference_decision::SharedEvidence
 pub struct antecedent::analysis::preference_decision::UnitKey
@@ -24775,6 +24758,7 @@ pub use antecedent::analysis::preference_decision::RegionStatus = antecedent_des
 pub use antecedent::analysis::preference_decision::RelationOrigin = antecedent_design::preference_model::RelationOrigin
 pub use antecedent::analysis::preference_decision::RelationSense = antecedent_design::preference_model::RelationSense
 pub use antecedent::analysis::preference_decision::RouteChoice = antecedent_design::preference_evaluation::RouteChoice
+pub use antecedent::analysis::preference_decision::SampledMargin = antecedent_design::preference_decision::SampledMargin
 pub use antecedent::analysis::preference_decision::SetLearningError = antecedent_design::preference_set_learning::SetLearningError
 pub use antecedent::analysis::preference_decision::SetLearningOptions = antecedent_design::preference_set_learning::SetLearningOptions
 pub use antecedent::analysis::preference_decision::SetLearningResult = antecedent_design::preference_set_learning::SetLearningResult
@@ -24794,6 +24778,8 @@ pub use antecedent::analysis::preference_decision::ValueRelation = antecedent_de
 pub use antecedent::analysis::preference_decision::calibration_basis = antecedent_design::preference_choice_model::calibration_basis
 pub use antecedent::analysis::preference_decision::choice_features = antecedent_design::choice_record::choice_features
 pub use antecedent::analysis::preference_decision::choice_features_at = antecedent_design::choice_record::choice_features_at
+pub use antecedent::analysis::preference_decision::clopper_pearson = antecedent_stats::binomial_interval::clopper_pearson
+pub use antecedent::analysis::preference_decision::clopper_pearson_upper = antecedent_stats::binomial_interval::clopper_pearson_upper
 pub use antecedent::analysis::preference_decision::decide_preferences = antecedent_design::preference_evaluation::decide_preferences
 pub use antecedent::analysis::preference_decision::decide_preferences_on_means = antecedent_design::preference_evaluation::decide_preferences_on_means
 pub use antecedent::analysis::preference_decision::decide_preferences_on_means_with_context = antecedent_design::preference_evaluation::decide_preferences_on_means_with_context
@@ -25912,6 +25898,14 @@ pub use antecedent::design::decision_structural::AtomStatus = antecedent_design:
 pub use antecedent::design::decision_structural::AtomSummary = antecedent_design::decision_structural::AtomSummary
 pub use antecedent::design::decision_structural::StructuralDecisionResult = antecedent_design::decision_structural::StructuralDecisionResult
 pub use antecedent::design::decision_structural::StructuralVerdict = antecedent_design::decision_structural::StructuralVerdict
+pub use antecedent::design::decision_wire::ConstraintWire = antecedent_design::decision_wire::ConstraintWire
+pub use antecedent::design::decision_wire::CriterionWire = antecedent_design::decision_wire::CriterionWire
+pub use antecedent::design::decision_wire::ExclusionWire = antecedent_design::decision_wire::ExclusionWire
+pub use antecedent::design::decision_wire::ExprWire = antecedent_design::decision_wire::ExprWire
+pub use antecedent::design::decision_wire::kind_name = antecedent_design::decision_wire::kind_name
+pub use antecedent::design::decision_wire::kind_named = antecedent_design::decision_wire::kind_named
+pub use antecedent::design::decision_wire::structural_name = antecedent_design::decision_wire::structural_name
+pub use antecedent::design::decision_wire::structural_named = antecedent_design::decision_wire::structural_named
 pub use antecedent::design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES = antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES
 pub use antecedent::design::evaluate_decision = antecedent_design::evaluate_decision
 pub use antecedent::design::evsi::CostToUtilityMap = antecedent_design::evsi::CostToUtilityMap
