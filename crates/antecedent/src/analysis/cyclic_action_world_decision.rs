@@ -64,7 +64,7 @@ pub struct CyclicDecisionOutput {
 #[derive(Debug, thiserror::Error)]
 pub enum CyclicActionDecisionError {
     /// World, quantity or paired-row semantics are unsupported.
-    #[error("cyclic action decision: {0}")]
+    #[error("cyclic_decision.invalid_request: {0}")]
     Invalid(&'static str),
     /// A cyclic model or solve was refused.
     #[error("cyclic action decision source: {0}")]
@@ -78,6 +78,29 @@ pub enum CyclicActionDecisionError {
     /// Artifact encoding or decoding was refused.
     #[error("cyclic action decision artifact: {0}")]
     Io(#[from] IoError),
+}
+
+impl CyclicActionDecisionError {
+    /// Stable refusal detail, when the refusal originated in this route rather than in a
+    /// wrapped model, contract, chain or artifact refusal.
+    #[must_use]
+    pub fn detail(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => {
+                Some(antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST)
+            }
+            _ => None,
+        }
+    }
+
+    /// Stable top-level refusal code of [`Self::detail`].
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            _ => None,
+        }
+    }
 }
 
 /// The model and decision are one six-layer program; numerical results are

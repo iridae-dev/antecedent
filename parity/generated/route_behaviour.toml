@@ -6191,6 +6191,7 @@ routes = [
 id = "cyclic.action_world_decisions"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "cyclic_decision.invalid_request" },
 ]
 routes = [
   { route = "antecedent.cyclic_decision.execute_action_world", stage = "evaluate", status = "supported", claim = "none" },
@@ -6203,6 +6204,7 @@ routes = [
 id = "cyclic.component_posterior_decisions"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "cyclic_component.invalid_request" },
 ]
 routes = [
   { route = "antecedent.cyclic_component.execute_joint_decision", stage = "evaluate", status = "supported", claim = "none" },

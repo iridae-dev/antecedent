@@ -80,7 +80,7 @@ pub struct CyclicTargetFeedbackRequest {
 #[derive(Debug, thiserror::Error)]
 pub enum CyclicTargetFeedbackError {
     /// The request, target frame or execution state is invalid.
-    #[error("cyclic target feedback: {0}")]
+    #[error("cyclic_decision.invalid_request: {0}")]
     Invalid(&'static str),
     /// The source cyclic posterior decision refused.
     #[error("cyclic target feedback source: {0}")]
@@ -91,6 +91,29 @@ pub enum CyclicTargetFeedbackError {
     /// Reading or writing the artifact failed.
     #[error("cyclic target feedback artifact: {0}")]
     Io(#[from] IoError),
+}
+
+impl CyclicTargetFeedbackError {
+    /// Stable refusal detail, when the refusal originated in this route rather than in a
+    /// wrapped model, contract, chain or artifact refusal.
+    #[must_use]
+    pub fn detail(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => {
+                Some(antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST)
+            }
+            _ => None,
+        }
+    }
+
+    /// Stable top-level refusal code of [`Self::detail`].
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            _ => None,
+        }
+    }
 }
 
 /// Compiled cyclic target feedback decision bound to its request and seed.

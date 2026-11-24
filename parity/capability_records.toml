@@ -17777,7 +17777,9 @@ search = false
 prerequisite_records = ["cyclic.general_systems"]
 prerequisite_reason = "The solver, equilibrium likelihood and clamp semantics are those of the general cyclic systems."
 bounds = { cancellation = true }
-refusals = []
+refusals = [
+  { detail = "cyclic_decision.invalid_request", remedy = "Declare one distinct hard-clamp world, one matching outcome coordinate and one action per regime over paired disturbance rows, a valid training schedule and a target frame inside the training support; replay a retained artifact unchanged." },
+]
 routes = [
   { name = "antecedent.cyclic_decision.execute_action_world", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.cyclic_decision.execute_posterior_action", stage = "evaluate", status = "supported", claim = "none" },
@@ -17817,7 +17819,9 @@ search = false
 prerequisite_records = ["cyclic.general_systems", "cyclic.action_world_decisions"]
 prerequisite_reason = "The fitted worlds and the decision are those of the posterior action-world decisions over the general cyclic systems."
 bounds = { cancellation = true }
-refusals = []
+refusals = [
+  { detail = "cyclic_component.invalid_request", remedy = "Declare each component output and produced port once, connect only declared outputs, require global contraction for feedback and bind the posterior to the declared components; replay a retained artifact unchanged." },
+]
 routes = [
   { name = "antecedent.cyclic_component.execute_joint_decision", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.cyclic_component.execute_bounded_decision", stage = "evaluate", status = "supported", claim = "none" },

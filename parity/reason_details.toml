@@ -17039,3 +17039,15 @@ id = "events.interval_unmeasured"
 family = "events"
 codes = ["uncertainty_representation_insufficient"]
 meaning = "The count interval has no current matching coverage record."
+
+[[detail]]
+id = "cyclic_decision.invalid_request"
+family = "cyclic_decision"
+codes = ["invalid_argument"]
+meaning = "The action worlds, output coordinates, decision actions, training schedule or target frame of a cyclic action-world decision are inconsistent, or a retained decision artifact differs from its recomputation."
+
+[[detail]]
+id = "cyclic_component.invalid_request"
+family = "cyclic_component"
+codes = ["invalid_argument"]
+meaning = "The component outputs, port connections, couplings, clamps or posterior binding of a connected feedback decision are malformed or inconsistent, or a retained artifact differs from its recomputation."

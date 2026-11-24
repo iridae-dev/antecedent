@@ -370,7 +370,7 @@ fn check_aggregate_evidence(
 #[derive(Debug, thiserror::Error)]
 pub enum ComponentFeedbackError {
     /// A malformed component declaration or coupling.
-    #[error("cyclic component composition: {0}")]
+    #[error("cyclic_component.invalid_request: {0}")]
     Invalid(&'static str),
     /// Scientific port compatibility failed.
     #[error("cyclic component interface: {0:?}")]
@@ -378,6 +378,29 @@ pub enum ComponentFeedbackError {
     /// The central cyclic compiler or solver refused the connected system.
     #[error("cyclic component compiler: {0}")]
     Cyclic(#[from] CyclicArtifactError),
+}
+
+impl ComponentFeedbackError {
+    /// Stable refusal detail, when the refusal originated in this route rather than in a
+    /// wrapped model, contract, chain or artifact refusal.
+    #[must_use]
+    pub fn detail(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => {
+                Some(antecedent_core::reason_details::cyclic_component::INVALID_REQUEST)
+            }
+            _ => None,
+        }
+    }
+
+    /// Stable top-level refusal code of [`Self::detail`].
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            _ => None,
+        }
+    }
 }
 
 /// A connected system prepared through the central cyclic compiler.
@@ -771,8 +794,31 @@ pub enum JointComponentPosteriorError {
     #[error("connected component posterior artifact: {0}")]
     Io(#[from] antecedent_io::IoError),
     /// An unsupported or inconsistent binding was supplied.
-    #[error("connected component posterior: {0}")]
+    #[error("cyclic_component.invalid_request: {0}")]
     Invalid(&'static str),
+}
+
+impl JointComponentPosteriorError {
+    /// Stable refusal detail, when the refusal originated in this route rather than in a
+    /// wrapped model, contract, chain or artifact refusal.
+    #[must_use]
+    pub fn detail(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => {
+                Some(antecedent_core::reason_details::cyclic_component::INVALID_REQUEST)
+            }
+            _ => None,
+        }
+    }
+
+    /// Stable top-level refusal code of [`Self::detail`].
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Invalid(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            _ => None,
+        }
+    }
 }
 
 /// Checked component graph and its shared-data, jointly fitted action program.
