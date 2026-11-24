@@ -221,7 +221,7 @@ mod trial {
         .unwrap_err();
         assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
         assert!(
-            error.to_string().contains("trial_aipw_caller_learners.bootstrap_not_supported"),
+            error.to_string().contains(antecedent_core::reason_details::trial_aipw_caller_learners::BOOTSTRAP_NOT_SUPPORTED),
             "{error}"
         );
         // The direct kernel refuses the same request under the same code.
@@ -504,7 +504,7 @@ mod joint_cells {
         .unwrap_err();
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         assert!(
-            error.to_string().contains("joint_cells_caller_learners.built_in_learner_declared"),
+            error.to_string().contains(antecedent_core::reason_details::joint_cells_caller_learners::BUILT_IN_LEARNER_DECLARED),
             "{error}"
         );
     }

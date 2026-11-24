@@ -12927,6 +12927,13 @@ path = "crates/antecedent/src/analysis/transport_common.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "engineering-crates-antecedent-src-analysis-transport-response-grid-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/transport_response_grid.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-src-analysis-transport-grid-rs"
 crate = "antecedent"
 cargo_target = "lib"
@@ -13628,6 +13635,20 @@ id = "audit-crates-antecedent-core-src-query-tests-rs"
 crate = "antecedent-core"
 cargo_target = "lib"
 path = "crates/antecedent-core/src/query/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-query-attribute-tests-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/attribute_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-core-src-query-simulate-tests-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/simulate_tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16841,6 +16862,13 @@ id = "audit-crates-antecedent-io-core-src-structure-query-wire-rs"
 crate = "antecedent-io-core"
 cargo_target = "lib"
 path = "crates/antecedent-io-core/src/structure_query_wire.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-io-core-src-structure-query-wire-fitted-model-tests-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/structure_query_wire_fitted_model_tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -25782,6 +25810,83 @@ id = "engineering-crates-antecedent-src-analysis-randomized-adjustment-rs"
 crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/analysis/randomized_adjustment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-adaptive-interval-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_adaptive_interval.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-choice-interval-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_choice_interval.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-external-feedback-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_external_feedback.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-measurement-transport-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_measurement_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-smoothed-dose-learners-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_smoothed_dose_learners.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-temporal-interval-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_temporal_interval.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-transport-scenarios-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_transport_scenarios.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-compiled-transported-cohort-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_transported_cohort.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-kernel-programs-power-prior-selection-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/power_prior_selection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-kernel-programs-z-transport-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/z_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-lowering-graph-falsification-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/graph_falsification.rs"
 gates = ["inventory", "named"]
 
 [[test]]

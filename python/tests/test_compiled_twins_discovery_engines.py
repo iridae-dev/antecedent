@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 from antecedent._deprecation import AntecedentDeprecationWarning
 from antecedent.transport import discovered
@@ -240,5 +241,5 @@ def test_a_pooled_request_is_the_same_refusal_through_the_compiled_program() -> 
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as compiled:
         driver.compiled_run(POPULATION_CONTRACT, {"north": rows, "south": rows})
     assert compiled.value.detail == direct.value.detail
-    assert compiled.value.detail == "selective_discovery.pooled_population_data"
+    assert compiled.value.detail == reason_details.selective_discovery.POOLED_POPULATION_DATA
     assert driver.report is None
