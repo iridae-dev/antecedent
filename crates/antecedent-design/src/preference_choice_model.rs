@@ -1324,7 +1324,11 @@ impl Context<'_> {
 
     /// Whether an evaluation reading the measure accepts `point` with `unresolved` left open:
     /// the same check, so the two agree by construction. A refusal of the slice's linear
-    /// program drops the point.
+    /// program drops the point. The default linear-program options are the ones this check can
+    /// use: the measure is estimated before, and independently of, any evaluation that reads it,
+    /// and the estimate carries no evaluation options. An evaluation under other options repeats
+    /// the check with its own and refuses a point it does not accept
+    /// (`measure_point_outside_set`), so a difference in options is never absorbed silently.
     fn accepted(&self, point: &[f64], unresolved: &[usize]) -> bool {
         measure_point_accepted(&self.model.preferences, point, unresolved, LpOptions::default())
             .unwrap_or(false)

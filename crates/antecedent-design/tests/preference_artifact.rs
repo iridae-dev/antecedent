@@ -709,3 +709,56 @@ fn refusals_become_artifact_errors() {
     assert_eq!(code, "decision_contract_unsatisfied");
     assert!(message.starts_with("preference_artifact.replay_mismatch: "), "{message}");
 }
+
+#[test]
+fn the_effective_tie_tolerance_is_stored_only_when_a_numerical_bound_widens_it() {
+    let source = standard_law(&cost_model(), 0.0);
+    let options = PreferenceEvaluationOptions::default();
+    // Certified route: box enclosures are outward-rounded, so the declared tolerance stands (and
+    // the record does not store it).
+    let certified = PreferenceDecisionArtifact::evaluate(
+        contract(squared_model(), PreferencePolicy::RequireInvariantBestAction),
+        &source,
+        None,
+        options,
+    )
+    .unwrap();
+    let effective = certified.evaluation().certified().unwrap().effective_tie_tolerance;
+    assert_eq!(effective.to_bits(), options.certified.tie_tolerance.to_bits());
+    decision_round_trip(&certified, &source);
+    // Exact route: the margins' numerical bound (rounding plus the linear-program tolerances
+    // times the margin slope over the declared ranges) exceeds the declared 1e-9 here; the
+    // widened value is stored and read back exactly.
+    for declared in [1e-9, 0.0] {
+        let mut chosen = options;
+        chosen.exact.tie_tolerance = declared;
+        let artifact = PreferenceDecisionArtifact::evaluate(
+            contract(cost_model(), PreferencePolicy::RequireInvariantBestAction),
+            &source,
+            None,
+            chosen,
+        )
+        .unwrap();
+        let effective = artifact.evaluation().exact().unwrap().effective_tie_tolerance;
+        assert!(effective > declared, "{effective}");
+        let loaded = decision_round_trip(&artifact, &source);
+        assert_eq!(
+            loaded.evaluation().exact().unwrap().effective_tie_tolerance.to_bits(),
+            effective.to_bits()
+        );
+        loaded.replay(&source).unwrap();
+    }
+    // A declared tolerance above the numerical bound stands.
+    let mut wide = options;
+    wide.exact.tie_tolerance = 1e-3;
+    let artifact = PreferenceDecisionArtifact::evaluate(
+        contract(cost_model(), PreferencePolicy::RequireInvariantBestAction),
+        &source,
+        None,
+        wide,
+    )
+    .unwrap();
+    let effective = artifact.evaluation().exact().unwrap().effective_tie_tolerance;
+    assert_eq!(effective.to_bits(), 1e-3_f64.to_bits());
+    decision_round_trip(&artifact, &source);
+}

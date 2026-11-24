@@ -290,6 +290,10 @@ pub struct PreferenceDecisionResult {
     /// Number of draws; 0 for a mean source; the sum over evaluated structures for a
     /// combination.
     pub n_draws: usize,
+    /// The tie tolerance the verdict applied: the declared one, or the numerical error bound of
+    /// the margins when that is larger (see [`PreferenceDecisionOptions::tie_tolerance`]). Margins
+    /// within this distance of zero counted as ties.
+    pub effective_tie_tolerance: f64,
 }
 
 /// Tolerances and limits of the exact verdict.
@@ -2728,6 +2732,7 @@ impl<'a> Prepared<'a> {
             assumptions: self.assumptions.clone(),
             source,
             n_draws,
+            effective_tie_tolerance: tolerance,
         }
     }
 

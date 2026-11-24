@@ -911,9 +911,18 @@ struct ExactWire {
     assumptions: Vec<String>,
     source: ReceiptWire,
     n_draws: usize,
+    /// The tie tolerance the verdict applied, stored only when it differs from the declared
+    /// one (a numerical bound widened it), so artifacts without a widening keep their bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    effective_tie_tolerance: Option<f64>,
 }
 
-fn exact_wire(result: &PreferenceDecisionResult) -> ExactWire {
+/// `Some(effective)` when it differs from the declared tie tolerance.
+fn widened(effective: f64, declared: f64) -> Option<f64> {
+    (effective.to_bits() != declared.to_bits()).then_some(effective)
+}
+
+fn exact_wire(result: &PreferenceDecisionResult, declared_tie: f64) -> ExactWire {
     ExactWire {
         contract_identity: result.contract_identity.clone(),
         policy: preference_policy_name(result.policy).to_owned(),
@@ -979,10 +988,14 @@ fn exact_wire(result: &PreferenceDecisionResult) -> ExactWire {
         assumptions: result.assumptions.clone(),
         source: receipt_wire(&result.source),
         n_draws: result.n_draws,
+        effective_tie_tolerance: widened(result.effective_tie_tolerance, declared_tie),
     }
 }
 
-fn exact_from(wire: ExactWire) -> Result<PreferenceDecisionResult, PreferenceArtifactError> {
+fn exact_from(
+    wire: ExactWire,
+    declared_tie: f64,
+) -> Result<PreferenceDecisionResult, PreferenceArtifactError> {
     Ok(PreferenceDecisionResult {
         contract_identity: wire.contract_identity,
         policy: preference_policy_from(&wire.policy)?,
@@ -1045,6 +1058,7 @@ fn exact_from(wire: ExactWire) -> Result<PreferenceDecisionResult, PreferenceArt
         assumptions: wire.assumptions,
         source: receipt_from(wire.source),
         n_draws: wire.n_draws,
+        effective_tie_tolerance: wire.effective_tie_tolerance.unwrap_or(declared_tie),
     })
 }
 
@@ -1105,9 +1119,12 @@ struct CertifiedWire {
     assumptions: Vec<String>,
     source: ReceiptWire,
     n_draws: usize,
+    /// As [`ExactWire::effective_tie_tolerance`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    effective_tie_tolerance: Option<f64>,
 }
 
-fn certified_wire(result: &CertifiedPreferenceResult) -> CertifiedWire {
+fn certified_wire(result: &CertifiedPreferenceResult, declared_tie: f64) -> CertifiedWire {
     CertifiedWire {
         contract_identity: result.contract_identity.clone(),
         policy: preference_policy_name(result.policy).to_owned(),
@@ -1174,11 +1191,13 @@ fn certified_wire(result: &CertifiedPreferenceResult) -> CertifiedWire {
         assumptions: result.assumptions.clone(),
         source: receipt_wire(&result.source),
         n_draws: result.n_draws,
+        effective_tie_tolerance: widened(result.effective_tie_tolerance, declared_tie),
     }
 }
 
 fn certified_from(
     wire: CertifiedWire,
+    declared_tie: f64,
 ) -> Result<CertifiedPreferenceResult, PreferenceArtifactError> {
     Ok(CertifiedPreferenceResult {
         contract_identity: wire.contract_identity,
@@ -1237,6 +1256,7 @@ fn certified_from(
         assumptions: wire.assumptions,
         source: receipt_from(wire.source),
         n_draws: wire.n_draws,
+        effective_tie_tolerance: wire.effective_tie_tolerance.unwrap_or(declared_tie),
     })
 }
 
@@ -1247,23 +1267,32 @@ enum EvaluationWire {
     Certified(Box<CertifiedWire>),
 }
 
-fn evaluation_wire(evaluation: &PreferenceEvaluation) -> EvaluationWire {
+fn evaluation_wire(
+    evaluation: &PreferenceEvaluation,
+    options: &PreferenceEvaluationOptions,
+) -> EvaluationWire {
     match evaluation {
-        PreferenceEvaluation::Exact(result) => EvaluationWire::Exact(Box::new(exact_wire(result))),
-        PreferenceEvaluation::Certified(result) => {
-            EvaluationWire::Certified(Box::new(certified_wire(result)))
+        PreferenceEvaluation::Exact(result) => {
+            EvaluationWire::Exact(Box::new(exact_wire(result, options.exact.tie_tolerance)))
         }
+        PreferenceEvaluation::Certified(result) => EvaluationWire::Certified(Box::new(
+            certified_wire(result, options.certified.tie_tolerance),
+        )),
     }
 }
 
-fn evaluation_from(wire: EvaluationWire) -> Result<PreferenceEvaluation, PreferenceArtifactError> {
+/// The stored evaluation; an effective tie tolerance not stored is the declared one.
+fn evaluation_from(
+    wire: EvaluationWire,
+    options: &PreferenceEvaluationOptions,
+) -> Result<PreferenceEvaluation, PreferenceArtifactError> {
     Ok(match wire {
         EvaluationWire::Exact(result) => {
-            PreferenceEvaluation::Exact(Box::new(exact_from(*result)?))
+            PreferenceEvaluation::Exact(Box::new(exact_from(*result, options.exact.tie_tolerance)?))
         }
-        EvaluationWire::Certified(result) => {
-            PreferenceEvaluation::Certified(Box::new(certified_from(*result)?))
-        }
+        EvaluationWire::Certified(result) => PreferenceEvaluation::Certified(Box::new(
+            certified_from(*result, options.certified.tie_tolerance)?,
+        )),
     })
 }
 
@@ -1404,7 +1433,7 @@ impl PreferenceDecisionArtifact {
             contract: contract_wire(&self.contract),
             measure: self.measure.as_ref().map(measure_wire),
             options: options_wire(&self.options),
-            evaluation: evaluation_wire(&self.evaluation),
+            evaluation: evaluation_wire(&self.evaluation, &self.options),
         }
     }
 
@@ -1441,7 +1470,8 @@ impl PreferenceDecisionArtifact {
         if contract_identity != body.contract_identity {
             return Err(E::StoredIdentityMismatch);
         }
-        let evaluation = evaluation_from(body.evaluation)?;
+        let options = options_from(body.options);
+        let evaluation = evaluation_from(body.evaluation, &options)?;
         if evaluation.contract_identity() != contract_identity {
             return Err(E::ResultContractMismatch);
         }
@@ -1449,7 +1479,7 @@ impl PreferenceDecisionArtifact {
             contract,
             contract_identity,
             measure: body.measure.map(measure_from),
-            options: options_from(body.options),
+            options,
             evaluation,
             source_digest: body.source_digest,
         })
@@ -1698,5 +1728,45 @@ mod tests {
         let bytes = to_cbor(&ExprWire::from(&expr)).unwrap();
         let back: ExprWire = antecedent_io_core::convert::from_cbor(&bytes).unwrap();
         assert_eq!(PreferenceExpr::from(back), expr);
+    }
+
+    #[test]
+    fn an_unwidened_tie_tolerance_leaves_the_result_wire_unchanged() {
+        let key: &[u8] = b"effective_tie_tolerance";
+        let holds = |bytes: &[u8]| bytes.windows(key.len()).any(|window| window == key);
+        let receipt = || ReceiptWire {
+            provider_id: "p".into(),
+            snapshot_id: "s".into(),
+            rng_id: "r".into(),
+            causal_contract_id: "c".into(),
+        };
+        let wire = |effective: Option<f64>| CertifiedWire {
+            contract_identity: "contract".into(),
+            policy: "report_only".into(),
+            parameter_ids: vec!["w".into()],
+            actions: Vec::new(),
+            regions: Vec::new(),
+            undecided_fraction: 0.0,
+            boxes_examined: 1,
+            verdict: CertifiedVerdictWire::ReportOnly,
+            assumptions: Vec::new(),
+            source: receipt(),
+            n_draws: 2,
+            effective_tie_tolerance: effective,
+        };
+        // Equal to the declared tolerance: not stored, so the encoding is the one a record
+        // written without the field has, and that encoding reads back as the declared value.
+        assert_eq!(widened(1e-9, 1e-9), None);
+        let plain = to_cbor(&wire(widened(1e-9, 1e-9))).unwrap();
+        assert!(!holds(&plain));
+        let back: CertifiedWire = antecedent_io_core::convert::from_cbor(&plain).unwrap();
+        let result = certified_from(back, 1e-9).unwrap();
+        assert_eq!(result.effective_tie_tolerance.to_bits(), 1e-9_f64.to_bits());
+        // Widened: stored and read back exactly.
+        let stored = to_cbor(&wire(widened(6.4e-8, 1e-9))).unwrap();
+        assert!(holds(&stored));
+        let back: CertifiedWire = antecedent_io_core::convert::from_cbor(&stored).unwrap();
+        let result = certified_from(back, 1e-9).unwrap();
+        assert_eq!(result.effective_tie_tolerance.to_bits(), 6.4e-8_f64.to_bits());
     }
 }
