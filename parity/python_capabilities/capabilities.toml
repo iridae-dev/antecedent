@@ -18183,8 +18183,8 @@ assertion_contract = "A table holding a two-value-per-row column no analysis rea
 
 [[capability]]
 id = "preferences.class_member_measure"
-rust = ["antecedent::analysis::preference_decision::decide_on_sampled_structures", "antecedent::analysis::preference_decision::clopper_pearson", "antecedent::analysis::preference_decision::clopper_pearson_upper"]
-legacy_internal = ["antecedent::analysis::preference_decision::decide_on_sampled_structures", "antecedent::analysis::preference_decision::clopper_pearson", "antecedent::analysis::preference_decision::clopper_pearson_upper"]
+rust = ["antecedent::analysis::preference_decision::decide_on_sampled_structures"]
+legacy_internal = ["antecedent::analysis::preference_decision::decide_on_sampled_structures"]
 status = "covered"
 owner = "Python API integration: antecedent.preferences and antecedent.preference_learning"
 behavior = "Weigh the members of CPDAG or PAG atoms of a graph posterior by a declared class prior, uniform under a named assumption or keyed by member fingerprint, enumerated up to an exact limit and sampled uniformly above it, without ever calling a sampled class best for every member."
