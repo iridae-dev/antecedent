@@ -12005,6 +12005,7 @@ pub fn <antecedent_design::ConfounderValueFrame>::fn from_table(coordinates: all
 pub fn <antecedent_design::ConfounderValueFrame>::fn prior_draws(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_design::ConfounderValueFrame>::fn problem(&self) -> core::result::Result<antecedent_design::DecisionProblem<usize, f64>, antecedent_design::DesignError>
 pub fn <antecedent_design::ConfounderValueFrame>::fn source_digests(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_design::DecisionContract>::fn declaration_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::DecisionContract>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::DecisionContractError>
 pub fn <antecedent_design::DecisionContract>::fn source_requirement(&self) -> core::result::Result<core::option::Option<antecedent_design::SourceRequirement>, antecedent_design::DecisionContractError>
 pub fn <antecedent_design::DecisionContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::DecisionContractError>
@@ -12175,6 +12176,7 @@ pub fn <antecedent_design::adaptive_policy::PolicyFeature>::const fn lag(self) -
 pub fn <antecedent_design::adaptive_policy::PolicyFeature>::const fn variable(self) -> antecedent_core::ids::VariableId
 pub fn <antecedent_design::adaptive_policy::PolicyFeature>::fn expr(self) -> antecedent_core::value_expr::ValueExpr
 pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>::const fn reason_code(&self) -> core::option::Option<&'static str>
+pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>::const fn refusal(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult>::fn admitted_bytes(&self) -> u64
 pub fn <antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult>::fn selected_family(&self) -> core::option::Option<&antecedent_design::adaptive_policy_search::FamilySearchResult>
 pub fn <antecedent_design::adaptive_policy_search::PolicyStanding>::const fn label(&self) -> &'static str
@@ -12255,6 +12257,7 @@ pub fn <antecedent_design::decision_contract::AdmissibilityError>::fn to_refusal
 pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn exclusion_reason(&self, action_id: &str) -> core::option::Option<&str>
 pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn support_met(&self, action_id: &str, input: usize, status: antecedent_core::response::SupportStatus) -> bool
 pub fn <antecedent_design::decision_contract::AdmissibilityRules>::fn weakest_allowed(&self, action_id: &str, input: usize) -> core::option::Option<antecedent_core::response::SupportStatus>
+pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn declaration_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn identity(&self) -> core::result::Result<alloc::string::String, antecedent_design::decision_contract::AdmissibilityError>
 pub fn <antecedent_design::decision_contract::AdmissibleDecisionContract>::fn validate(&self) -> core::result::Result<(), antecedent_design::decision_contract::AdmissibilityError>
 pub fn <antecedent_design::decision_contract::ProgramSearchContract>::fn identity(&self) -> core::result::Result<[u8; 32], antecedent_design::DecisionContractError>

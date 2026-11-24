@@ -30,6 +30,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::InvertibleSt
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::MechanismSlot [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::MechanismRegistry [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
@@ -40,11 +41,13 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::InvertibleStruc
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismAssignment [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::MechanismSlot [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::ProbabilisticCausalModel [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::MechanismRegistry [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ResolvedFeedbackSystem [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::external_mechanism::ResolvedOdeSystem [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_model::local_cyclic::LocalCyclicModel [auto]
 impl antecedent_model::external_mechanism::TrustedMechanismResolver for antecedent_model::external_mechanism::MechanismRegistry
+impl antecedent_model::local_cyclic::LocalCyclicMechanism for antecedent_model::callback_cyclic::CallbackCyclicMechanism
 impl core::clone::Clone for antecedent_model::BasisTerm
 impl core::clone::Clone for antecedent_model::CompiledCausalModel
 impl core::clone::Clone for antecedent_model::CompiledMechanismStore
@@ -120,6 +123,7 @@ impl core::clone::Clone for antecedent_model::Uniqueness
 impl core::clone::Clone for antecedent_model::ValidationSplits
 impl core::clone::Clone for antecedent_model::ValueBatch
 impl core::clone::Clone for antecedent_model::WeightingDoSampler
+impl core::clone::Clone for antecedent_model::callback_cyclic::CallbackCyclicMechanism
 impl core::clone::Clone for antecedent_model::compile::CompiledSystemPlan
 impl core::clone::Clone for antecedent_model::compile::ExecutionBlock
 impl core::clone::Clone for antecedent_model::compile::SystemSemantics
@@ -915,6 +919,7 @@ impl core::fmt::Debug for antecedent_model::Uniqueness
 impl core::fmt::Debug for antecedent_model::ValidationSplits
 impl core::fmt::Debug for antecedent_model::ValueBatch
 impl core::fmt::Debug for antecedent_model::WeightingDoSampler
+impl core::fmt::Debug for antecedent_model::callback_cyclic::CallbackCyclicMechanism
 impl core::fmt::Debug for antecedent_model::compile::CompiledSystemPlan
 impl core::fmt::Debug for antecedent_model::compile::ExecutionBlock
 impl core::fmt::Debug for antecedent_model::compile::SystemSemantics
@@ -1394,6 +1399,7 @@ impl core::marker::Freeze for antecedent_model::Uniqueness [auto]
 impl core::marker::Freeze for antecedent_model::ValidationSplits [auto]
 impl core::marker::Freeze for antecedent_model::ValueBatch [auto]
 impl core::marker::Freeze for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Freeze for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl core::marker::Freeze for antecedent_model::compile::CompiledSystemPlan [auto]
 impl core::marker::Freeze for antecedent_model::compile::ExecutionBlock [auto]
 impl core::marker::Freeze for antecedent_model::compile::SystemSemantics [auto]
@@ -1725,6 +1731,7 @@ impl core::marker::Send for antecedent_model::Uniqueness [auto]
 impl core::marker::Send for antecedent_model::ValidationSplits [auto]
 impl core::marker::Send for antecedent_model::ValueBatch [auto]
 impl core::marker::Send for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Send for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl core::marker::Send for antecedent_model::compile::CompiledSystemPlan [auto]
 impl core::marker::Send for antecedent_model::compile::ExecutionBlock [auto]
 impl core::marker::Send for antecedent_model::compile::SystemSemantics [auto]
@@ -2336,6 +2343,7 @@ impl core::marker::Sync for antecedent_model::Uniqueness [auto]
 impl core::marker::Sync for antecedent_model::ValidationSplits [auto]
 impl core::marker::Sync for antecedent_model::ValueBatch [auto]
 impl core::marker::Sync for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Sync for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl core::marker::Sync for antecedent_model::compile::CompiledSystemPlan [auto]
 impl core::marker::Sync for antecedent_model::compile::ExecutionBlock [auto]
 impl core::marker::Sync for antecedent_model::compile::SystemSemantics [auto]
@@ -2667,6 +2675,7 @@ impl core::marker::Unpin for antecedent_model::Uniqueness [auto]
 impl core::marker::Unpin for antecedent_model::ValidationSplits [auto]
 impl core::marker::Unpin for antecedent_model::ValueBatch [auto]
 impl core::marker::Unpin for antecedent_model::WeightingDoSampler [auto]
+impl core::marker::Unpin for antecedent_model::callback_cyclic::CallbackCyclicMechanism [auto]
 impl core::marker::Unpin for antecedent_model::compile::CompiledSystemPlan [auto]
 impl core::marker::Unpin for antecedent_model::compile::ExecutionBlock [auto]
 impl core::marker::Unpin for antecedent_model::compile::SystemSemantics [auto]
@@ -4878,6 +4887,8 @@ pub fn <antecedent_model::WeightingDoSampler>::fn estimate(&self, model: &antece
 pub fn <antecedent_model::WeightingDoSampler>::fn new(treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_model::WeightingDoSampler>::fn weighted_mean(result: &antecedent_model::DoSampleResult) -> f64
 pub fn <antecedent_model::WeightingDoSampler>::fn with_root_match_tolerance(self, tolerance: f64) -> Self
+pub fn <antecedent_model::callback_cyclic::CallbackCyclicMechanism>::fn callback(&self) -> &alloc::sync::Arc<dyn antecedent_core::callback::BatchCallback>
+pub fn <antecedent_model::callback_cyclic::CallbackCyclicMechanism>::fn new(id: impl core::convert::Into<alloc::string::String>, reads: alloc::vec::Vec<usize>, callback: alloc::sync::Arc<dyn antecedent_core::callback::BatchCallback>) -> core::result::Result<Self, antecedent_model::nonlinear_equilibrium::EquilibriumError>
 pub fn <antecedent_model::compile::ExecutionBlock>::fn variables(&self) -> &[usize]
 pub fn <antecedent_model::compose::CoherenceKind>::const fn tag(self) -> &'static str
 pub fn <antecedent_model::compose::CoherenceKind>::fn reason_code(self) -> &'static str
@@ -5441,6 +5452,7 @@ pub fn antecedent_model::typed_mechanism_transport::typed_refusal_code(detail: &
 pub mod antecedent_model::affine_certificate
 pub mod antecedent_model::basis
 pub mod antecedent_model::batch
+pub mod antecedent_model::callback_cyclic
 pub mod antecedent_model::compile
 pub mod antecedent_model::compose
 pub mod antecedent_model::compose::coherence
@@ -5555,6 +5567,8 @@ pub struct antecedent_model::TreeEnsemble has private fields
 pub struct antecedent_model::ValueBatch
 pub struct antecedent_model::ValueBatchMut<'a>
 pub struct antecedent_model::WeightingDoSampler
+pub struct antecedent_model::callback_cyclic::CallbackCyclicMechanism
+pub struct antecedent_model::callback_cyclic::CallbackCyclicMechanism has private fields
 pub struct antecedent_model::compile::CompiledSystemPlan
 pub struct antecedent_model::compose::CoherenceFinding
 pub struct antecedent_model::compose::ComposedFinite

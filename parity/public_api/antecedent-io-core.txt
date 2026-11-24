@@ -48,6 +48,7 @@
 #[non_exhaustive] pub enum antecedent_io_core::IoError
 #[non_exhaustive] pub enum antecedent_io_core::JointLawPropagationArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::MechanismCompositionArtifactError
+#[non_exhaustive] pub enum antecedent_io_core::ModelOperationWire
 #[non_exhaustive] pub enum antecedent_io_core::ObservationQueryArtifactError
 #[non_exhaustive] pub enum antecedent_io_core::PropagationChainError
 #[non_exhaustive] pub enum antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError
@@ -309,6 +310,7 @@ impl core::clone::Clone for antecedent_io_core::MediationPosteriorSummaryWire
 impl core::clone::Clone for antecedent_io_core::MethodProvenanceWire
 impl core::clone::Clone for antecedent_io_core::MissingPolicyWire
 impl core::clone::Clone for antecedent_io_core::ModelKindWire
+impl core::clone::Clone for antecedent_io_core::ModelOperationWire
 impl core::clone::Clone for antecedent_io_core::NestedCounterfactualFitWire
 impl core::clone::Clone for antecedent_io_core::NetworkXAdjacency
 impl core::clone::Clone for antecedent_io_core::NetworkXNodeLink
@@ -1629,6 +1631,7 @@ impl core::cmp::PartialEq for antecedent_io_core::MediationPosteriorSummaryWire
 impl core::cmp::PartialEq for antecedent_io_core::MethodProvenanceWire
 impl core::cmp::PartialEq for antecedent_io_core::MissingPolicyWire
 impl core::cmp::PartialEq for antecedent_io_core::ModelKindWire
+impl core::cmp::PartialEq for antecedent_io_core::ModelOperationWire
 impl core::cmp::PartialEq for antecedent_io_core::NestedCounterfactualFitWire
 impl core::cmp::PartialEq for antecedent_io_core::NetworkXAdjacency
 impl core::cmp::PartialEq for antecedent_io_core::NetworkXNodeLink
@@ -2613,6 +2616,7 @@ impl core::fmt::Debug for antecedent_io_core::MediationPosteriorSummaryWire
 impl core::fmt::Debug for antecedent_io_core::MethodProvenanceWire
 impl core::fmt::Debug for antecedent_io_core::MissingPolicyWire
 impl core::fmt::Debug for antecedent_io_core::ModelKindWire
+impl core::fmt::Debug for antecedent_io_core::ModelOperationWire
 impl core::fmt::Debug for antecedent_io_core::NestedCounterfactualFitWire
 impl core::fmt::Debug for antecedent_io_core::NetworkXAdjacency
 impl core::fmt::Debug for antecedent_io_core::NetworkXNodeLink
@@ -3669,6 +3673,7 @@ impl core::marker::Freeze for antecedent_io_core::MediationPosteriorSummaryWire 
 impl core::marker::Freeze for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::MissingPolicyWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ModelKindWire [auto]
+impl core::marker::Freeze for antecedent_io_core::ModelOperationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::marker::Freeze for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::marker::Freeze for antecedent_io_core::NetworkXNodeLink [auto]
@@ -4530,6 +4535,7 @@ impl core::marker::Send for antecedent_io_core::MediationPosteriorSummaryWire [a
 impl core::marker::Send for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::marker::Send for antecedent_io_core::MissingPolicyWire [auto]
 impl core::marker::Send for antecedent_io_core::ModelKindWire [auto]
+impl core::marker::Send for antecedent_io_core::ModelOperationWire [auto]
 impl core::marker::Send for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::marker::Send for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::marker::Send for antecedent_io_core::NetworkXNodeLink [auto]
@@ -5391,6 +5397,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::MediationPosterio
 impl core::marker::StructuralPartialEq for antecedent_io_core::MethodProvenanceWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::MissingPolicyWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ModelKindWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::ModelOperationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::NestedCounterfactualFitWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::NetworkXAdjacency
 impl core::marker::StructuralPartialEq for antecedent_io_core::NetworkXNodeLink
@@ -6203,6 +6210,7 @@ impl core::marker::Sync for antecedent_io_core::MediationPosteriorSummaryWire [a
 impl core::marker::Sync for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::marker::Sync for antecedent_io_core::MissingPolicyWire [auto]
 impl core::marker::Sync for antecedent_io_core::ModelKindWire [auto]
+impl core::marker::Sync for antecedent_io_core::ModelOperationWire [auto]
 impl core::marker::Sync for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::marker::Sync for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::marker::Sync for antecedent_io_core::NetworkXNodeLink [auto]
@@ -7070,6 +7078,7 @@ impl core::marker::Unpin for antecedent_io_core::MediationPosteriorSummaryWire [
 impl core::marker::Unpin for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::MissingPolicyWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ModelKindWire [auto]
+impl core::marker::Unpin for antecedent_io_core::ModelOperationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::marker::Unpin for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::marker::Unpin for antecedent_io_core::NetworkXNodeLink [auto]
@@ -7938,6 +7947,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::MediationPo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::MissingPolicyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ModelKindWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ModelOperationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::NetworkXNodeLink [auto]
@@ -8804,6 +8814,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::MediationPoste
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::MethodProvenanceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::MissingPolicyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ModelKindWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ModelOperationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::NestedCounterfactualFitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::NetworkXAdjacency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::NetworkXNodeLink [auto]
@@ -9644,6 +9655,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::MediationPosteriorSummar
 impl serde_core::ser::Serialize for antecedent_io_core::MethodProvenanceWire
 impl serde_core::ser::Serialize for antecedent_io_core::MissingPolicyWire
 impl serde_core::ser::Serialize for antecedent_io_core::ModelKindWire
+impl serde_core::ser::Serialize for antecedent_io_core::ModelOperationWire
 impl serde_core::ser::Serialize for antecedent_io_core::NestedCounterfactualFitWire
 impl serde_core::ser::Serialize for antecedent_io_core::NetworkXAdjacency
 impl serde_core::ser::Serialize for antecedent_io_core::NetworkXNodeLink
@@ -10417,6 +10429,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::MediationPost
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::MethodProvenanceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::MissingPolicyWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ModelKindWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::ModelOperationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::NestedCounterfactualFitWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::NetworkXAdjacency
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::NetworkXNodeLink
@@ -15374,6 +15387,8 @@ pub fn <antecedent_io_core::MechanismCompositionPremisesWire>::fn to_spec(&self)
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn citations(&self) -> alloc::vec::Vec<antecedent_io_core::CitationWire>
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn is_empty(&self) -> bool
 pub fn <antecedent_io_core::MethodProvenanceWire>::fn record(&self, id: &str) -> core::option::Option<&antecedent_io_core::ProvenanceRecordWire>
+pub fn <antecedent_io_core::ModelOperationWire>::fn from_domain(operation: &antecedent_core::query::model_operations::ModelOperation) -> core::result::Result<Self, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::ModelOperationWire>::fn to_domain(&self) -> core::result::Result<antecedent_core::query::model_operations::ModelOperation, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::ObservationIdentityWire>::fn is_canonical(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn consume(&self, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::ConsumedObservationQuery, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn decode(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::ObservationQueryArtifactError>
@@ -15440,6 +15455,8 @@ pub fn <antecedent_io_core::PropagationResultWire>::fn named_entries(&self) -> a
 pub fn <antecedent_io_core::PropagationResultWire>::fn value(&self, name: &str) -> core::option::Option<f64>
 pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::projection::DecisionVerdict>
 pub fn <antecedent_io_core::ProvenanceRole>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::RandomizedEffectQueryWire>::fn estimated_cuped(&self) -> core::option::Option<u32>
+pub fn <antecedent_io_core::RandomizedEffectQueryWire>::fn fixed_cuped_coefficient(&self) -> core::option::Option<(u32, f64)>
 pub fn <antecedent_io_core::ReplayReport>::fn failed(&self) -> bool
 pub fn <antecedent_io_core::ReplayReport>::fn replayed(&self) -> bool
 pub fn <antecedent_io_core::RetainedClaimIdentity>::const fn new(claim_id: antecedent_core::identity::SemanticDigest) -> Self
@@ -16504,6 +16521,7 @@ pub mod antecedent_io_core::mechanism_wire
 pub mod antecedent_io_core::method_provenance
 pub mod antecedent_io_core::migrate
 pub mod antecedent_io_core::mmap_file
+pub mod antecedent_io_core::model_operation_wire
 pub mod antecedent_io_core::native_execution_wire
 pub mod antecedent_io_core::observation_query_artifact
 pub mod antecedent_io_core::plan_wire
@@ -17708,6 +17726,7 @@ pub use antecedent_io_core::migrate::STABLE_FORMAT = antecedent_io_core::STABLE_
 pub use antecedent_io_core::migrate::SUPPORTED_SOURCE_FORMATS = antecedent_io_core::SUPPORTED_SOURCE_FORMATS
 pub use antecedent_io_core::migrate::is_supported_source = antecedent_io_core::is_supported_source
 pub use antecedent_io_core::migrate_artifact = antecedent_io_core::migrate::migrate_artifact
+pub use antecedent_io_core::model_operation_wire::ModelOperationWire = antecedent_io_core::ModelOperationWire
 pub use antecedent_io_core::observation_identity_wire = antecedent_io_core::identity::observation_identity_wire
 pub use antecedent_io_core::observation_query_artifact::ConsumedObservationQuery = antecedent_io_core::ConsumedObservationQuery
 pub use antecedent_io_core::observation_query_artifact::MeasuredSlotWire = antecedent_io_core::MeasuredSlotWire
@@ -18516,6 +18535,11 @@ pub variant antecedent_io_core::MechanismSlotWire::Vacant
 pub variant antecedent_io_core::ModelKindWire::InvertibleScm
 pub variant antecedent_io_core::ModelKindWire::Pcm
 pub variant antecedent_io_core::ModelKindWire::Scm
+pub variant antecedent_io_core::ModelOperationWire::ArrowStrengths {  }
+pub variant antecedent_io_core::ModelOperationWire::DoSample { method: alloc::string::String, root_match_tolerance: core::option::Option<f64>, bandwidth: core::option::Option<f64>, proposal_sd: core::option::Option<f64>, burn_in: core::option::Option<u64>, thin: core::option::Option<u64>, outcome: u32, interventions: alloc::vec::Vec<antecedent_io_core::InterventionWire>, draws: u64, seed: u64 }
+pub variant antecedent_io_core::ModelOperationWire::ModelEvaluation { alpha: f64, n_permutations: u64, seed: u64 }
+pub variant antecedent_io_core::ModelOperationWire::NestedCounterfactual { outer: alloc::vec::Vec<antecedent_io_core::InterventionWire>, inner: alloc::vec::Vec<antecedent_io_core::InterventionWire>, frozen: alloc::vec::Vec<u32>, outcome: u32 }
+pub variant antecedent_io_core::ModelOperationWire::PopulationDoContrast { parent: u32, child: u32, delta: f64, max_units: core::option::Option<u64>, seed: u64 }
 pub variant antecedent_io_core::ObservationAssumptionWire::IndependentGiven(alloc::vec::Vec<u32>)
 pub variant antecedent_io_core::ObservationAssumptionWire::OutcomeIndependentGiven(alloc::vec::Vec<u32>)
 pub variant antecedent_io_core::ObservationAssumptionWire::Structural(alloc::string::String)

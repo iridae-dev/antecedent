@@ -61,6 +61,8 @@
 #[non_exhaustive] pub enum antecedent_core::LogicOp
 #[non_exhaustive] pub enum antecedent_core::LongitudinalRegimeFault
 #[non_exhaustive] pub enum antecedent_core::MediationComponent
+#[non_exhaustive] pub enum antecedent_core::ModelOperation
+#[non_exhaustive] pub enum antecedent_core::ModelOperationFault
 #[non_exhaustive] pub enum antecedent_core::OperatorError
 #[non_exhaustive] pub enum antecedent_core::OutcomeFunctional
 #[non_exhaustive] pub enum antecedent_core::PanelDesignFault
@@ -146,6 +148,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent_core::ExecutionContext
 impl antecedent_core::CanonicalEncode for antecedent_core::AllocationMethod
 impl antecedent_core::CanonicalEncode for antecedent_core::AnomalyAttributionQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::AnomalyReference
+impl antecedent_core::CanonicalEncode for antecedent_core::ArrowStrengthsTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::AssignmentDesign
 impl antecedent_core::CanonicalEncode for antecedent_core::AssociationFunctional
 impl antecedent_core::CanonicalEncode for antecedent_core::AssociationQuery
@@ -174,6 +177,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::DidSamplingDesign
 impl antecedent_core::CanonicalEncode for antecedent_core::DiscoverQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::DiscoveryMethod
 impl antecedent_core::CanonicalEncode for antecedent_core::DistributionAvailability
+impl antecedent_core::CanonicalEncode for antecedent_core::DoSamplerTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::DoseTimeSurface
 impl antecedent_core::CanonicalEncode for antecedent_core::Environment
 impl antecedent_core::CanonicalEncode for antecedent_core::EvidenceCatalog
@@ -212,8 +216,11 @@ impl antecedent_core::CanonicalEncode for antecedent_core::MediationContrast
 impl antecedent_core::CanonicalEncode for antecedent_core::MediationQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::MediationTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::ModelAssumptions
+impl antecedent_core::CanonicalEncode for antecedent_core::ModelEvaluationTarget
+impl antecedent_core::CanonicalEncode for antecedent_core::ModelOperation
 impl antecedent_core::CanonicalEncode for antecedent_core::MultiActionPolicyInputs
 impl antecedent_core::CanonicalEncode for antecedent_core::NestedCounterfactualQuery
+impl antecedent_core::CanonicalEncode for antecedent_core::NestedCounterfactualTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::NoiseDeclaration
 impl antecedent_core::CanonicalEncode for antecedent_core::ObservationAssumption
 impl antecedent_core::CanonicalEncode for antecedent_core::ObservationSpec
@@ -223,6 +230,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::PanelDidQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::PathSpecificEffectQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::PolicyReads
 impl antecedent_core::CanonicalEncode for antecedent_core::PolicyValueQuery
+impl antecedent_core::CanonicalEncode for antecedent_core::PopulationDoContrastTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::PopulationSelector
 impl antecedent_core::CanonicalEncode for antecedent_core::PredicateExpr
 impl antecedent_core::CanonicalEncode for antecedent_core::RandomizationDesign
@@ -320,6 +328,7 @@ impl core::clone::Clone for antecedent_core::AllowedRule
 impl core::clone::Clone for antecedent_core::AnomalyAttributionQuery
 impl core::clone::Clone for antecedent_core::AnomalyReference
 impl core::clone::Clone for antecedent_core::ArithOp
+impl core::clone::Clone for antecedent_core::ArrowStrengthsTarget
 impl core::clone::Clone for antecedent_core::AssignmentDesign
 impl core::clone::Clone for antecedent_core::AssociationFault
 impl core::clone::Clone for antecedent_core::AssociationFunctional
@@ -422,6 +431,8 @@ impl core::clone::Clone for antecedent_core::DiscoveryInference
 impl core::clone::Clone for antecedent_core::DiscoveryMethod
 impl core::clone::Clone for antecedent_core::DistributionAvailability
 impl core::clone::Clone for antecedent_core::DistributionRef
+impl core::clone::Clone for antecedent_core::DoSamplerMethod
+impl core::clone::Clone for antecedent_core::DoSamplerTarget
 impl core::clone::Clone for antecedent_core::DoseGridFault
 impl core::clone::Clone for antecedent_core::DoseTimeSurface
 impl core::clone::Clone for antecedent_core::DynamicRuleId
@@ -511,11 +522,15 @@ impl core::clone::Clone for antecedent_core::MediationQuery
 impl core::clone::Clone for antecedent_core::MediationTarget
 impl core::clone::Clone for antecedent_core::MissingLearningRate
 impl core::clone::Clone for antecedent_core::ModelAssumptions
+impl core::clone::Clone for antecedent_core::ModelEvaluationTarget
 impl core::clone::Clone for antecedent_core::ModelId
+impl core::clone::Clone for antecedent_core::ModelOperation
+impl core::clone::Clone for antecedent_core::ModelOperationFault
 impl core::clone::Clone for antecedent_core::MonteCarloBudget
 impl core::clone::Clone for antecedent_core::MonteCarloError
 impl core::clone::Clone for antecedent_core::MultiActionPolicyInputs
 impl core::clone::Clone for antecedent_core::NestedCounterfactualQuery
+impl core::clone::Clone for antecedent_core::NestedCounterfactualTarget
 impl core::clone::Clone for antecedent_core::NextAttempt
 impl core::clone::Clone for antecedent_core::NodeRef
 impl core::clone::Clone for antecedent_core::NoiseDeclaration
@@ -553,6 +568,7 @@ impl core::clone::Clone for antecedent_core::PinnedDependency
 impl core::clone::Clone for antecedent_core::PolicyReads
 impl core::clone::Clone for antecedent_core::PolicyValueFault
 impl core::clone::Clone for antecedent_core::PolicyValueQuery
+impl core::clone::Clone for antecedent_core::PopulationDoContrastTarget
 impl core::clone::Clone for antecedent_core::PopulationRegistry
 impl core::clone::Clone for antecedent_core::PopulationSelection
 impl core::clone::Clone for antecedent_core::PopulationSelector
@@ -885,6 +901,7 @@ impl core::cmp::Eq for antecedent_core::AllowedRule
 impl core::cmp::Eq for antecedent_core::AnomalyAttributionQuery
 impl core::cmp::Eq for antecedent_core::AnomalyReference
 impl core::cmp::Eq for antecedent_core::ArithOp
+impl core::cmp::Eq for antecedent_core::ArrowStrengthsTarget
 impl core::cmp::Eq for antecedent_core::AssociationFault
 impl core::cmp::Eq for antecedent_core::AssociationFunctional
 impl core::cmp::Eq for antecedent_core::AssociationMeasure
@@ -1034,6 +1051,7 @@ impl core::cmp::Eq for antecedent_core::MediationTarget
 impl core::cmp::Eq for antecedent_core::MissingLearningRate
 impl core::cmp::Eq for antecedent_core::ModelAssumptions
 impl core::cmp::Eq for antecedent_core::ModelId
+impl core::cmp::Eq for antecedent_core::ModelOperationFault
 impl core::cmp::Eq for antecedent_core::NestedCounterfactualQuery
 impl core::cmp::Eq for antecedent_core::NextAttempt
 impl core::cmp::Eq for antecedent_core::NodeRef
@@ -1386,6 +1404,7 @@ impl core::cmp::PartialEq for antecedent_core::AllowedRule
 impl core::cmp::PartialEq for antecedent_core::AnomalyAttributionQuery
 impl core::cmp::PartialEq for antecedent_core::AnomalyReference
 impl core::cmp::PartialEq for antecedent_core::ArithOp
+impl core::cmp::PartialEq for antecedent_core::ArrowStrengthsTarget
 impl core::cmp::PartialEq for antecedent_core::AssignmentDesign
 impl core::cmp::PartialEq for antecedent_core::AssociationFault
 impl core::cmp::PartialEq for antecedent_core::AssociationFunctional
@@ -1485,6 +1504,8 @@ impl core::cmp::PartialEq for antecedent_core::DiscoveryInference
 impl core::cmp::PartialEq for antecedent_core::DiscoveryMethod
 impl core::cmp::PartialEq for antecedent_core::DistributionAvailability
 impl core::cmp::PartialEq for antecedent_core::DistributionRef
+impl core::cmp::PartialEq for antecedent_core::DoSamplerMethod
+impl core::cmp::PartialEq for antecedent_core::DoSamplerTarget
 impl core::cmp::PartialEq for antecedent_core::DoseGridFault
 impl core::cmp::PartialEq for antecedent_core::DoseTimeSurface
 impl core::cmp::PartialEq for antecedent_core::DynamicRuleId
@@ -1572,11 +1593,15 @@ impl core::cmp::PartialEq for antecedent_core::MediationQuery
 impl core::cmp::PartialEq for antecedent_core::MediationTarget
 impl core::cmp::PartialEq for antecedent_core::MissingLearningRate
 impl core::cmp::PartialEq for antecedent_core::ModelAssumptions
+impl core::cmp::PartialEq for antecedent_core::ModelEvaluationTarget
 impl core::cmp::PartialEq for antecedent_core::ModelId
+impl core::cmp::PartialEq for antecedent_core::ModelOperation
+impl core::cmp::PartialEq for antecedent_core::ModelOperationFault
 impl core::cmp::PartialEq for antecedent_core::MonteCarloBudget
 impl core::cmp::PartialEq for antecedent_core::MonteCarloError
 impl core::cmp::PartialEq for antecedent_core::MultiActionPolicyInputs
 impl core::cmp::PartialEq for antecedent_core::NestedCounterfactualQuery
+impl core::cmp::PartialEq for antecedent_core::NestedCounterfactualTarget
 impl core::cmp::PartialEq for antecedent_core::NextAttempt
 impl core::cmp::PartialEq for antecedent_core::NodeRef
 impl core::cmp::PartialEq for antecedent_core::NoiseDeclaration
@@ -1613,6 +1638,7 @@ impl core::cmp::PartialEq for antecedent_core::PinnedDependency
 impl core::cmp::PartialEq for antecedent_core::PolicyReads
 impl core::cmp::PartialEq for antecedent_core::PolicyValueFault
 impl core::cmp::PartialEq for antecedent_core::PolicyValueQuery
+impl core::cmp::PartialEq for antecedent_core::PopulationDoContrastTarget
 impl core::cmp::PartialEq for antecedent_core::PopulationRegistry
 impl core::cmp::PartialEq for antecedent_core::PopulationSelector
 impl core::cmp::PartialEq for antecedent_core::Portability
@@ -1980,6 +2006,7 @@ impl core::convert::From<antecedent_core::LocalPolynomialRatioQuery> for anteced
 impl core::convert::From<antecedent_core::LongitudinalRegimeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::MechanismChangeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::MediationQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::ModelOperationFault> for antecedent_core::QueryError
 impl core::convert::From<antecedent_core::NestedCounterfactualQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::PanelDidQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::PathSpecificEffectQuery> for antecedent_core::CausalQuery
@@ -2000,6 +2027,7 @@ impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for a
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
 impl core::default::Default for antecedent_core::AnomalyReference
+impl core::default::Default for antecedent_core::ArrowStrengthsTarget
 impl core::default::Default for antecedent_core::AssociationFunctional
 impl core::default::Default for antecedent_core::AssociationOutcome
 impl core::default::Default for antecedent_core::AssumptionSet
@@ -2074,6 +2102,7 @@ impl core::error::Error for antecedent_core::IvBoundsFault
 impl core::error::Error for antecedent_core::LocalPolynomialRatioFault
 impl core::error::Error for antecedent_core::LongitudinalRegimeFault
 impl core::error::Error for antecedent_core::MissingLearningRate
+impl core::error::Error for antecedent_core::ModelOperationFault
 impl core::error::Error for antecedent_core::NotSupported
 impl core::error::Error for antecedent_core::OperatorError
 impl core::error::Error for antecedent_core::PanelDesignFault
@@ -2129,6 +2158,7 @@ impl core::fmt::Debug for antecedent_core::AllowedRule
 impl core::fmt::Debug for antecedent_core::AnomalyAttributionQuery
 impl core::fmt::Debug for antecedent_core::AnomalyReference
 impl core::fmt::Debug for antecedent_core::ArithOp
+impl core::fmt::Debug for antecedent_core::ArrowStrengthsTarget
 impl core::fmt::Debug for antecedent_core::AssignmentDesign
 impl core::fmt::Debug for antecedent_core::AssociationFault
 impl core::fmt::Debug for antecedent_core::AssociationFunctional
@@ -2232,6 +2262,8 @@ impl core::fmt::Debug for antecedent_core::DiscoveryInference
 impl core::fmt::Debug for antecedent_core::DiscoveryMethod
 impl core::fmt::Debug for antecedent_core::DistributionAvailability
 impl core::fmt::Debug for antecedent_core::DistributionRef
+impl core::fmt::Debug for antecedent_core::DoSamplerMethod
+impl core::fmt::Debug for antecedent_core::DoSamplerTarget
 impl core::fmt::Debug for antecedent_core::DoseGridFault
 impl core::fmt::Debug for antecedent_core::DoseTimeSurface
 impl core::fmt::Debug for antecedent_core::DynamicRuleId
@@ -2321,11 +2353,15 @@ impl core::fmt::Debug for antecedent_core::MediationQuery
 impl core::fmt::Debug for antecedent_core::MediationTarget
 impl core::fmt::Debug for antecedent_core::MissingLearningRate
 impl core::fmt::Debug for antecedent_core::ModelAssumptions
+impl core::fmt::Debug for antecedent_core::ModelEvaluationTarget
 impl core::fmt::Debug for antecedent_core::ModelId
+impl core::fmt::Debug for antecedent_core::ModelOperation
+impl core::fmt::Debug for antecedent_core::ModelOperationFault
 impl core::fmt::Debug for antecedent_core::MonteCarloBudget
 impl core::fmt::Debug for antecedent_core::MonteCarloError
 impl core::fmt::Debug for antecedent_core::MultiActionPolicyInputs
 impl core::fmt::Debug for antecedent_core::NestedCounterfactualQuery
+impl core::fmt::Debug for antecedent_core::NestedCounterfactualTarget
 impl core::fmt::Debug for antecedent_core::NextAttempt
 impl core::fmt::Debug for antecedent_core::NodeRef
 impl core::fmt::Debug for antecedent_core::NoiseDeclaration
@@ -2363,6 +2399,7 @@ impl core::fmt::Debug for antecedent_core::PinnedDependency
 impl core::fmt::Debug for antecedent_core::PolicyReads
 impl core::fmt::Debug for antecedent_core::PolicyValueFault
 impl core::fmt::Debug for antecedent_core::PolicyValueQuery
+impl core::fmt::Debug for antecedent_core::PopulationDoContrastTarget
 impl core::fmt::Debug for antecedent_core::PopulationRegistry
 impl core::fmt::Debug for antecedent_core::PopulationSelection
 impl core::fmt::Debug for antecedent_core::PopulationSelector
@@ -2737,6 +2774,7 @@ impl core::fmt::Display for antecedent_core::LongitudinalRegimeFault
 impl core::fmt::Display for antecedent_core::LossModel
 impl core::fmt::Display for antecedent_core::MissingLearningRate
 impl core::fmt::Display for antecedent_core::ModelId
+impl core::fmt::Display for antecedent_core::ModelOperationFault
 impl core::fmt::Display for antecedent_core::NextAttempt
 impl core::fmt::Display for antecedent_core::NotSupported
 impl core::fmt::Display for antecedent_core::NumericalPolicy
@@ -2836,6 +2874,7 @@ impl core::hash::Hash for antecedent_core::AllowedRule
 impl core::hash::Hash for antecedent_core::AnomalyAttributionQuery
 impl core::hash::Hash for antecedent_core::AnomalyReference
 impl core::hash::Hash for antecedent_core::ArithOp
+impl core::hash::Hash for antecedent_core::ArrowStrengthsTarget
 impl core::hash::Hash for antecedent_core::AssociationFunctional
 impl core::hash::Hash for antecedent_core::AssociationMeasure
 impl core::hash::Hash for antecedent_core::AssociationOutcome
@@ -3162,6 +3201,7 @@ impl core::marker::Copy for antecedent_core::AdmittedRouteMemory
 impl core::marker::Copy for antecedent_core::AllowedRule
 impl core::marker::Copy for antecedent_core::AnomalyReference
 impl core::marker::Copy for antecedent_core::ArithOp
+impl core::marker::Copy for antecedent_core::ArrowStrengthsTarget
 impl core::marker::Copy for antecedent_core::AssociationFunctional
 impl core::marker::Copy for antecedent_core::AssociationMeasure
 impl core::marker::Copy for antecedent_core::AssociationOutcome
@@ -3216,6 +3256,7 @@ impl core::marker::Copy for antecedent_core::DidSamplingDesign
 impl core::marker::Copy for antecedent_core::DiscoveredClass
 impl core::marker::Copy for antecedent_core::DiscoveryInference
 impl core::marker::Copy for antecedent_core::DistributionRef
+impl core::marker::Copy for antecedent_core::DoSamplerMethod
 impl core::marker::Copy for antecedent_core::DoseGridFault
 impl core::marker::Copy for antecedent_core::DynamicRuleId
 impl core::marker::Copy for antecedent_core::EdgeRoute
@@ -3254,6 +3295,7 @@ impl core::marker::Copy for antecedent_core::MechanismChangeTest
 impl core::marker::Copy for antecedent_core::MediationComponent
 impl core::marker::Copy for antecedent_core::MediationContrast
 impl core::marker::Copy for antecedent_core::MissingLearningRate
+impl core::marker::Copy for antecedent_core::ModelEvaluationTarget
 impl core::marker::Copy for antecedent_core::ModelId
 impl core::marker::Copy for antecedent_core::MonteCarloError
 impl core::marker::Copy for antecedent_core::NestedCounterfactualQuery
@@ -3269,6 +3311,7 @@ impl core::marker::Copy for antecedent_core::PanelObservationProcess
 impl core::marker::Copy for antecedent_core::Parallelism
 impl core::marker::Copy for antecedent_core::PhysicalEffect
 impl core::marker::Copy for antecedent_core::PhysicalTolerance
+impl core::marker::Copy for antecedent_core::PopulationDoContrastTarget
 impl core::marker::Copy for antecedent_core::PosteriorSample
 impl core::marker::Copy for antecedent_core::PosteriorSampleKind
 impl core::marker::Copy for antecedent_core::ProviderCapability
@@ -3454,6 +3497,7 @@ impl core::marker::Freeze for antecedent_core::AllowedRule [auto]
 impl core::marker::Freeze for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Freeze for antecedent_core::AnomalyReference [auto]
 impl core::marker::Freeze for antecedent_core::ArithOp [auto]
+impl core::marker::Freeze for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::marker::Freeze for antecedent_core::AssignmentDesign [auto]
 impl core::marker::Freeze for antecedent_core::AssociationFault [auto]
 impl core::marker::Freeze for antecedent_core::AssociationFunctional [auto]
@@ -3557,6 +3601,8 @@ impl core::marker::Freeze for antecedent_core::DiscoveryInference [auto]
 impl core::marker::Freeze for antecedent_core::DiscoveryMethod [auto]
 impl core::marker::Freeze for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Freeze for antecedent_core::DistributionRef [auto]
+impl core::marker::Freeze for antecedent_core::DoSamplerMethod [auto]
+impl core::marker::Freeze for antecedent_core::DoSamplerTarget [auto]
 impl core::marker::Freeze for antecedent_core::DoseGridFault [auto]
 impl core::marker::Freeze for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Freeze for antecedent_core::DynamicRuleId [auto]
@@ -3646,11 +3692,15 @@ impl core::marker::Freeze for antecedent_core::MediationQuery [auto]
 impl core::marker::Freeze for antecedent_core::MediationTarget [auto]
 impl core::marker::Freeze for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Freeze for antecedent_core::ModelAssumptions [auto]
+impl core::marker::Freeze for antecedent_core::ModelEvaluationTarget [auto]
 impl core::marker::Freeze for antecedent_core::ModelId [auto]
+impl core::marker::Freeze for antecedent_core::ModelOperation [auto]
+impl core::marker::Freeze for antecedent_core::ModelOperationFault [auto]
 impl core::marker::Freeze for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Freeze for antecedent_core::MonteCarloError [auto]
 impl core::marker::Freeze for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Freeze for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::marker::Freeze for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::marker::Freeze for antecedent_core::NextAttempt [auto]
 impl core::marker::Freeze for antecedent_core::NodeRef [auto]
 impl core::marker::Freeze for antecedent_core::NoiseDeclaration [auto]
@@ -3688,6 +3738,7 @@ impl core::marker::Freeze for antecedent_core::PinnedDependency [auto]
 impl core::marker::Freeze for antecedent_core::PolicyReads [auto]
 impl core::marker::Freeze for antecedent_core::PolicyValueFault [auto]
 impl core::marker::Freeze for antecedent_core::PolicyValueQuery [auto]
+impl core::marker::Freeze for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::marker::Freeze for antecedent_core::PopulationRegistry [auto]
 impl core::marker::Freeze for antecedent_core::PopulationSelection [auto]
 impl core::marker::Freeze for antecedent_core::PopulationSelector [auto]
@@ -4022,6 +4073,7 @@ impl core::marker::Send for antecedent_core::AllowedRule [auto]
 impl core::marker::Send for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Send for antecedent_core::AnomalyReference [auto]
 impl core::marker::Send for antecedent_core::ArithOp [auto]
+impl core::marker::Send for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::marker::Send for antecedent_core::AssignmentDesign [auto]
 impl core::marker::Send for antecedent_core::AssociationFault [auto]
 impl core::marker::Send for antecedent_core::AssociationFunctional [auto]
@@ -4125,6 +4177,8 @@ impl core::marker::Send for antecedent_core::DiscoveryInference [auto]
 impl core::marker::Send for antecedent_core::DiscoveryMethod [auto]
 impl core::marker::Send for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Send for antecedent_core::DistributionRef [auto]
+impl core::marker::Send for antecedent_core::DoSamplerMethod [auto]
+impl core::marker::Send for antecedent_core::DoSamplerTarget [auto]
 impl core::marker::Send for antecedent_core::DoseGridFault [auto]
 impl core::marker::Send for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Send for antecedent_core::DynamicRuleId [auto]
@@ -4214,11 +4268,15 @@ impl core::marker::Send for antecedent_core::MediationQuery [auto]
 impl core::marker::Send for antecedent_core::MediationTarget [auto]
 impl core::marker::Send for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Send for antecedent_core::ModelAssumptions [auto]
+impl core::marker::Send for antecedent_core::ModelEvaluationTarget [auto]
 impl core::marker::Send for antecedent_core::ModelId [auto]
+impl core::marker::Send for antecedent_core::ModelOperation [auto]
+impl core::marker::Send for antecedent_core::ModelOperationFault [auto]
 impl core::marker::Send for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Send for antecedent_core::MonteCarloError [auto]
 impl core::marker::Send for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Send for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::marker::Send for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::marker::Send for antecedent_core::NextAttempt [auto]
 impl core::marker::Send for antecedent_core::NodeRef [auto]
 impl core::marker::Send for antecedent_core::NoiseDeclaration [auto]
@@ -4256,6 +4314,7 @@ impl core::marker::Send for antecedent_core::PinnedDependency [auto]
 impl core::marker::Send for antecedent_core::PolicyReads [auto]
 impl core::marker::Send for antecedent_core::PolicyValueFault [auto]
 impl core::marker::Send for antecedent_core::PolicyValueQuery [auto]
+impl core::marker::Send for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::marker::Send for antecedent_core::PopulationRegistry [auto]
 impl core::marker::Send for antecedent_core::PopulationSelection [auto]
 impl core::marker::Send for antecedent_core::PopulationSelector [auto]
@@ -4594,6 +4653,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::AllowedRule
 impl core::marker::StructuralPartialEq for antecedent_core::AnomalyAttributionQuery
 impl core::marker::StructuralPartialEq for antecedent_core::AnomalyReference
 impl core::marker::StructuralPartialEq for antecedent_core::ArithOp
+impl core::marker::StructuralPartialEq for antecedent_core::ArrowStrengthsTarget
 impl core::marker::StructuralPartialEq for antecedent_core::AssignmentDesign
 impl core::marker::StructuralPartialEq for antecedent_core::AssociationFault
 impl core::marker::StructuralPartialEq for antecedent_core::AssociationFunctional
@@ -4691,6 +4751,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::DiscoveryInference
 impl core::marker::StructuralPartialEq for antecedent_core::DiscoveryMethod
 impl core::marker::StructuralPartialEq for antecedent_core::DistributionAvailability
 impl core::marker::StructuralPartialEq for antecedent_core::DistributionRef
+impl core::marker::StructuralPartialEq for antecedent_core::DoSamplerMethod
+impl core::marker::StructuralPartialEq for antecedent_core::DoSamplerTarget
 impl core::marker::StructuralPartialEq for antecedent_core::DoseGridFault
 impl core::marker::StructuralPartialEq for antecedent_core::DoseTimeSurface
 impl core::marker::StructuralPartialEq for antecedent_core::DynamicRuleId
@@ -4777,11 +4839,15 @@ impl core::marker::StructuralPartialEq for antecedent_core::MediationQuery
 impl core::marker::StructuralPartialEq for antecedent_core::MediationTarget
 impl core::marker::StructuralPartialEq for antecedent_core::MissingLearningRate
 impl core::marker::StructuralPartialEq for antecedent_core::ModelAssumptions
+impl core::marker::StructuralPartialEq for antecedent_core::ModelEvaluationTarget
 impl core::marker::StructuralPartialEq for antecedent_core::ModelId
+impl core::marker::StructuralPartialEq for antecedent_core::ModelOperation
+impl core::marker::StructuralPartialEq for antecedent_core::ModelOperationFault
 impl core::marker::StructuralPartialEq for antecedent_core::MonteCarloBudget
 impl core::marker::StructuralPartialEq for antecedent_core::MonteCarloError
 impl core::marker::StructuralPartialEq for antecedent_core::MultiActionPolicyInputs
 impl core::marker::StructuralPartialEq for antecedent_core::NestedCounterfactualQuery
+impl core::marker::StructuralPartialEq for antecedent_core::NestedCounterfactualTarget
 impl core::marker::StructuralPartialEq for antecedent_core::NextAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::NodeRef
 impl core::marker::StructuralPartialEq for antecedent_core::NoiseDeclaration
@@ -4818,6 +4884,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::PinnedDependency
 impl core::marker::StructuralPartialEq for antecedent_core::PolicyReads
 impl core::marker::StructuralPartialEq for antecedent_core::PolicyValueFault
 impl core::marker::StructuralPartialEq for antecedent_core::PolicyValueQuery
+impl core::marker::StructuralPartialEq for antecedent_core::PopulationDoContrastTarget
 impl core::marker::StructuralPartialEq for antecedent_core::PopulationRegistry
 impl core::marker::StructuralPartialEq for antecedent_core::PopulationSelector
 impl core::marker::StructuralPartialEq for antecedent_core::Portability
@@ -5135,6 +5202,7 @@ impl core::marker::Sync for antecedent_core::AllowedRule [auto]
 impl core::marker::Sync for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Sync for antecedent_core::AnomalyReference [auto]
 impl core::marker::Sync for antecedent_core::ArithOp [auto]
+impl core::marker::Sync for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::marker::Sync for antecedent_core::AssignmentDesign [auto]
 impl core::marker::Sync for antecedent_core::AssociationFault [auto]
 impl core::marker::Sync for antecedent_core::AssociationFunctional [auto]
@@ -5238,6 +5306,8 @@ impl core::marker::Sync for antecedent_core::DiscoveryInference [auto]
 impl core::marker::Sync for antecedent_core::DiscoveryMethod [auto]
 impl core::marker::Sync for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Sync for antecedent_core::DistributionRef [auto]
+impl core::marker::Sync for antecedent_core::DoSamplerMethod [auto]
+impl core::marker::Sync for antecedent_core::DoSamplerTarget [auto]
 impl core::marker::Sync for antecedent_core::DoseGridFault [auto]
 impl core::marker::Sync for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Sync for antecedent_core::DynamicRuleId [auto]
@@ -5327,11 +5397,15 @@ impl core::marker::Sync for antecedent_core::MediationQuery [auto]
 impl core::marker::Sync for antecedent_core::MediationTarget [auto]
 impl core::marker::Sync for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Sync for antecedent_core::ModelAssumptions [auto]
+impl core::marker::Sync for antecedent_core::ModelEvaluationTarget [auto]
 impl core::marker::Sync for antecedent_core::ModelId [auto]
+impl core::marker::Sync for antecedent_core::ModelOperation [auto]
+impl core::marker::Sync for antecedent_core::ModelOperationFault [auto]
 impl core::marker::Sync for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Sync for antecedent_core::MonteCarloError [auto]
 impl core::marker::Sync for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Sync for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::marker::Sync for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::marker::Sync for antecedent_core::NextAttempt [auto]
 impl core::marker::Sync for antecedent_core::NodeRef [auto]
 impl core::marker::Sync for antecedent_core::NoiseDeclaration [auto]
@@ -5369,6 +5443,7 @@ impl core::marker::Sync for antecedent_core::PinnedDependency [auto]
 impl core::marker::Sync for antecedent_core::PolicyReads [auto]
 impl core::marker::Sync for antecedent_core::PolicyValueFault [auto]
 impl core::marker::Sync for antecedent_core::PolicyValueQuery [auto]
+impl core::marker::Sync for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::marker::Sync for antecedent_core::PopulationRegistry [auto]
 impl core::marker::Sync for antecedent_core::PopulationSelection [auto]
 impl core::marker::Sync for antecedent_core::PopulationSelector [auto]
@@ -5708,6 +5783,7 @@ impl core::marker::Unpin for antecedent_core::AllowedRule [auto]
 impl core::marker::Unpin for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::marker::Unpin for antecedent_core::AnomalyReference [auto]
 impl core::marker::Unpin for antecedent_core::ArithOp [auto]
+impl core::marker::Unpin for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::marker::Unpin for antecedent_core::AssignmentDesign [auto]
 impl core::marker::Unpin for antecedent_core::AssociationFault [auto]
 impl core::marker::Unpin for antecedent_core::AssociationFunctional [auto]
@@ -5811,6 +5887,8 @@ impl core::marker::Unpin for antecedent_core::DiscoveryInference [auto]
 impl core::marker::Unpin for antecedent_core::DiscoveryMethod [auto]
 impl core::marker::Unpin for antecedent_core::DistributionAvailability [auto]
 impl core::marker::Unpin for antecedent_core::DistributionRef [auto]
+impl core::marker::Unpin for antecedent_core::DoSamplerMethod [auto]
+impl core::marker::Unpin for antecedent_core::DoSamplerTarget [auto]
 impl core::marker::Unpin for antecedent_core::DoseGridFault [auto]
 impl core::marker::Unpin for antecedent_core::DoseTimeSurface [auto]
 impl core::marker::Unpin for antecedent_core::DynamicRuleId [auto]
@@ -5900,11 +5978,15 @@ impl core::marker::Unpin for antecedent_core::MediationQuery [auto]
 impl core::marker::Unpin for antecedent_core::MediationTarget [auto]
 impl core::marker::Unpin for antecedent_core::MissingLearningRate [auto]
 impl core::marker::Unpin for antecedent_core::ModelAssumptions [auto]
+impl core::marker::Unpin for antecedent_core::ModelEvaluationTarget [auto]
 impl core::marker::Unpin for antecedent_core::ModelId [auto]
+impl core::marker::Unpin for antecedent_core::ModelOperation [auto]
+impl core::marker::Unpin for antecedent_core::ModelOperationFault [auto]
 impl core::marker::Unpin for antecedent_core::MonteCarloBudget [auto]
 impl core::marker::Unpin for antecedent_core::MonteCarloError [auto]
 impl core::marker::Unpin for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::marker::Unpin for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::marker::Unpin for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::marker::Unpin for antecedent_core::NextAttempt [auto]
 impl core::marker::Unpin for antecedent_core::NodeRef [auto]
 impl core::marker::Unpin for antecedent_core::NoiseDeclaration [auto]
@@ -5942,6 +6024,7 @@ impl core::marker::Unpin for antecedent_core::PinnedDependency [auto]
 impl core::marker::Unpin for antecedent_core::PolicyReads [auto]
 impl core::marker::Unpin for antecedent_core::PolicyValueFault [auto]
 impl core::marker::Unpin for antecedent_core::PolicyValueQuery [auto]
+impl core::marker::Unpin for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::marker::Unpin for antecedent_core::PopulationRegistry [auto]
 impl core::marker::Unpin for antecedent_core::PopulationSelection [auto]
 impl core::marker::Unpin for antecedent_core::PopulationSelector [auto]
@@ -6287,6 +6370,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AllowedRule [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyReference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ArithOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssignmentDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AssociationFunctional [auto]
@@ -6390,6 +6474,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DiscoveryInfer
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DiscoveryMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DistributionAvailability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DistributionRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoSamplerMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoSamplerTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoseGridFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DoseTimeSurface [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::DynamicRuleId [auto]
@@ -6478,11 +6564,15 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationQuery
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MediationTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MissingLearningRate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelAssumptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelEvaluationTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelOperation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ModelOperationFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MonteCarloBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MonteCarloError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NextAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NodeRef [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::NoiseDeclaration [auto]
@@ -6520,6 +6610,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PinnedDependen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PolicyReads [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PolicyValueFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PolicyValueQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationRegistry [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::PopulationSelector [auto]
@@ -6859,6 +6950,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AllowedRule [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyReference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ArithOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ArrowStrengthsTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssignmentDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AssociationFunctional [auto]
@@ -6962,6 +7054,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DiscoveryInferenc
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DiscoveryMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DistributionAvailability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DistributionRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoSamplerMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoSamplerTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoseGridFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DoseTimeSurface [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::DynamicRuleId [auto]
@@ -7050,11 +7144,15 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationQuery [a
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MediationTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MissingLearningRate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelAssumptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelEvaluationTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelOperation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ModelOperationFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MonteCarloBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MonteCarloError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MultiActionPolicyInputs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NestedCounterfactualQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NestedCounterfactualTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NextAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NodeRef [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::NoiseDeclaration [auto]
@@ -7092,6 +7190,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PinnedDependency 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PolicyReads [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PolicyValueFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PolicyValueQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationDoContrastTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationRegistry [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::PopulationSelector [auto]
@@ -7500,6 +7599,7 @@ pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMeth
 pub const <antecedent_core::KernelPolicy>::SCALAR_BASELINE_ENV: &'static str
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
 pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
+pub const <antecedent_core::RandomizedEffectQuery>::ESTIMATED_SLOPE: f64
 pub const <antecedent_core::RealizationKind>::ALL: [Self; 4]
 pub const <antecedent_core::StateVersion>::ZERO: Self
 pub const <antecedent_core::StreamDomain>::Attribution: Self
@@ -7702,6 +7802,9 @@ pub const antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID:
 pub const antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_CORRELATION_MISSING: &str
 pub const antecedent_core::reason_details::adaptive_inference::WITHIN_UNIT_VARIANCE_MISSING: &str
 pub const antecedent_core::reason_details::adaptive_inference::WRONG_CONTRACT: &str
+pub const antecedent_core::reason_details::adaptive_policy_search::HELD_OUT_UNSUPPORTED: &str
+pub const antecedent_core::reason_details::adaptive_policy_search::IDENTIFICATION_UNSUPPORTED: &str
+pub const antecedent_core::reason_details::adaptive_policy_search::UNOBSERVED_FEATURE: &str
 pub const antecedent_core::reason_details::adaptive_transport::ARMS: &str
 pub const antecedent_core::reason_details::adaptive_transport::ASSIGNMENT_BELOW_FLOOR: &str
 pub const antecedent_core::reason_details::adaptive_transport::ASSIGNMENT_MONITORING_CONTRACT_MISSING: &str
@@ -8174,6 +8277,10 @@ pub const antecedent_core::reason_details::cross_world_uncertainty::NO_TRANSPORT
 pub const antecedent_core::reason_details::cross_world_uncertainty::RESULT_MISMATCH: &str
 pub const antecedent_core::reason_details::cross_world_uncertainty::SAMPLED_PATH_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED: &str
+pub const antecedent_core::reason_details::cyclic_component::INVALID_REQUEST: &str
+pub const antecedent_core::reason_details::cyclic_component::NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::cyclic_decision::INVALID_REQUEST: &str
+pub const antecedent_core::reason_details::cyclic_decision::NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::decision_adapters::BAYES_OVER_IDENTIFIED_SET: &str
 pub const antecedent_core::reason_details::decision_adapters::CLAIMS_SOURCES_MISMATCH: &str
 pub const antecedent_core::reason_details::decision_adapters::CLAIM_DRAWS_TOO_LARGE: &str
@@ -8286,6 +8393,7 @@ pub const antecedent_core::reason_details::descriptive_comparison::LEARNER_EXCEE
 pub const antecedent_core::reason_details::descriptive_comparison::POPULATION_NOT_ALL_OBSERVED: &str
 pub const antecedent_core::reason_details::descriptive_comparison::SCALE_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::descriptive_comparison::TRANSFORM_DOMAIN: &str
+pub const antecedent_core::reason_details::descriptive_programs::REENTRY: &str
 pub const antecedent_core::reason_details::design_ranking::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::design_ranking::CONTRACT_MISMATCH: &str
 pub const antecedent_core::reason_details::design_ranking::COST_UNITS_MISMATCH: &str
@@ -8320,6 +8428,11 @@ pub const antecedent_core::reason_details::discovered_transport::TEMPORAL_QUERY_
 pub const antecedent_core::reason_details::discovered_transport::TEMPORAL_STRUCTURE_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::discovered_transport::TRIAL_COMPATIBILITY_INVALID: &str
 pub const antecedent_core::reason_details::discovered_transport::TRIAL_REJECTS_EVERY_MEMBER: &str
+pub const antecedent_core::reason_details::discovery_validation::LOWERING: &str
+pub const antecedent_core::reason_details::discovery_validation::NOT_A_SEARCH: &str
+pub const antecedent_core::reason_details::discovery_validation::REGIMES_MISSING: &str
+pub const antecedent_core::reason_details::discovery_validation::WRONG_MODALITY: &str
+pub const antecedent_core::reason_details::discovery_validation::WRONG_SEARCH: &str
 pub const antecedent_core::reason_details::discretized_scm::CANCELLED: &str
 pub const antecedent_core::reason_details::discretized_scm::COMPOSITION_INCOHERENT: &str
 pub const antecedent_core::reason_details::discretized_scm::DEGENERATE_MARGINAL: &str
@@ -8578,6 +8691,7 @@ pub const antecedent_core::reason_details::graph_falsification::DUPLICATE_VARIAB
 pub const antecedent_core::reason_details::graph_falsification::EMPTY_DATA: &str
 pub const antecedent_core::reason_details::graph_falsification::INVALID_LEVEL: &str
 pub const antecedent_core::reason_details::graph_falsification::INVALID_PERMUTATIONS: &str
+pub const antecedent_core::reason_details::graph_falsification::LOWERING: &str
 pub const antecedent_core::reason_details::graph_falsification::NODE_NOT_STATIC: &str
 pub const antecedent_core::reason_details::graph_falsification::TOO_FEW_NODES: &str
 pub const antecedent_core::reason_details::graph_falsification::WORK_LIMIT: &str
@@ -9317,6 +9431,33 @@ pub const antecedent_core::reason_details::penalized_propensity::GRID_ALLOCATION
 pub const antecedent_core::reason_details::penalized_propensity::INVALID_PENALTY: &str
 pub const antecedent_core::reason_details::penalized_propensity::SCOPE: &str
 pub const antecedent_core::reason_details::penalized_propensity::SELECTION_NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::planning::ADAPTIVE: &str
+pub const antecedent_core::reason_details::planning::ALLOCATION: &str
+pub const antecedent_core::reason_details::planning::ALLOCATION_RATIO: &str
+pub const antecedent_core::reason_details::planning::ALPHA: &str
+pub const antecedent_core::reason_details::planning::ASSURANCE: &str
+pub const antecedent_core::reason_details::planning::ATTRITION: &str
+pub const antecedent_core::reason_details::planning::CLUSTER: &str
+pub const antecedent_core::reason_details::planning::COVARIATES: &str
+pub const antecedent_core::reason_details::planning::DECISION: &str
+pub const antecedent_core::reason_details::planning::EFFECT: &str
+pub const antecedent_core::reason_details::planning::EFFECT_UNREACHABLE: &str
+pub const antecedent_core::reason_details::planning::FACTORIAL: &str
+pub const antecedent_core::reason_details::planning::GOAL: &str
+pub const antecedent_core::reason_details::planning::GROUP_SEQUENTIAL: &str
+pub const antecedent_core::reason_details::planning::INTERFERENCE: &str
+pub const antecedent_core::reason_details::planning::MULTI_ARM: &str
+pub const antecedent_core::reason_details::planning::OUTCOME: &str
+pub const antecedent_core::reason_details::planning::POWER: &str
+pub const antecedent_core::reason_details::planning::PRECISION: &str
+pub const antecedent_core::reason_details::planning::PRIOR: &str
+pub const antecedent_core::reason_details::planning::SIMULATION: &str
+pub const antecedent_core::reason_details::planning::SIZE: &str
+pub const antecedent_core::reason_details::planning::SIZE_UNREACHABLE: &str
+pub const antecedent_core::reason_details::planning::STRATIFIED: &str
+pub const antecedent_core::reason_details::planning::STUDY: &str
+pub const antecedent_core::reason_details::planning::SUCCESS: &str
+pub const antecedent_core::reason_details::planning::SWITCHBACK: &str
 pub const antecedent_core::reason_details::policy_value::ACTION_NOT_POPULATED: &str
 pub const antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT: &str
 pub const antecedent_core::reason_details::policy_value::ACTION_PROPENSITY_BELOW_FLOOR: &str
@@ -9410,6 +9551,68 @@ pub const antecedent_core::reason_details::program_binding::NO_IDENTIFIED_REQUES
 pub const antecedent_core::reason_details::program_binding::POPULATION_MISMATCH: &str
 pub const antecedent_core::reason_details::program_binding::QUANTITIES_OVERRIDE_MISMATCH: &str
 pub const antecedent_core::reason_details::program_binding::TREATMENT_OUTCOME_SUBSTITUTION: &str
+pub const antecedent_core::reason_details::propagation_chain::ANCESTRY_BYTES: &str
+pub const antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_NEEDS_BOTH_AXES: &str
+pub const antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_NEEDS_DRAWS: &str
+pub const antecedent_core::reason_details::propagation_chain::ASSUMPTION_ENVELOPE_OPERATOR: &str
+pub const antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED: &str
+pub const antecedent_core::reason_details::propagation_chain::CANCELLED: &str
+pub const antecedent_core::reason_details::propagation_chain::DENOMINATOR_NOT_BOUNDED: &str
+pub const antecedent_core::reason_details::propagation_chain::DRAWS_ARE_NOT_AN_ENCLOSURE: &str
+pub const antecedent_core::reason_details::propagation_chain::ENCLOSURE_IS_NOT_A_LAW: &str
+pub const antecedent_core::reason_details::propagation_chain::ENCLOSURE_UNBOUNDED: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_AUTHORITY: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_COVARIANCE: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_DEPENDENCE: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_ESTIMATE: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_MEANING: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_OVERLAP_UNKNOWN: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_SHAPE: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_SHARED_EVIDENCE: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_CANCELLED: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_REFUSED: &str
+pub const antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_WORK_LIMIT: &str
+pub const antecedent_core::reason_details::propagation_chain::INTERVAL_CANNOT_BE_POOLED: &str
+pub const antecedent_core::reason_details::propagation_chain::INTERVAL_IS_NOT_A_POSTERIOR: &str
+pub const antecedent_core::reason_details::propagation_chain::INTERVAL_NOT_MEASURED: &str
+pub const antecedent_core::reason_details::propagation_chain::INVALID_REQUEST: &str
+pub const antecedent_core::reason_details::propagation_chain::LAW_MEANING_MISMATCH: &str
+pub const antecedent_core::reason_details::propagation_chain::LOWERING: &str
+pub const antecedent_core::reason_details::propagation_chain::MALFORMED: &str
+pub const antecedent_core::reason_details::propagation_chain::MIXED_DRAWS_AND_INTERVAL: &str
+pub const antecedent_core::reason_details::propagation_chain::NOT_LOWERED: &str
+pub const antecedent_core::reason_details::propagation_chain::NOT_READ_AS_POSTERIOR: &str
+pub const antecedent_core::reason_details::propagation_chain::NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::propagation_chain::OPERATOR_NOT_SUPPORTED_FOR_STAGE: &str
+pub const antecedent_core::reason_details::propagation_chain::OUTCOME_LAW_IS_NOT_AN_ESTIMATE_POOL: &str
+pub const antecedent_core::reason_details::propagation_chain::OVERLAP_UNKNOWN_IN_INDEPENDENT_PRODUCT: &str
+pub const antecedent_core::reason_details::propagation_chain::PARAMETER_LAW_IS_NOT_PREDICTIVE: &str
+pub const antecedent_core::reason_details::propagation_chain::POINT_CANNOT_BE_POOLED: &str
+pub const antecedent_core::reason_details::propagation_chain::POINT_HAS_NO_POSTERIOR: &str
+pub const antecedent_core::reason_details::propagation_chain::POINT_HAS_NO_SPREAD: &str
+pub const antecedent_core::reason_details::propagation_chain::POOL_INPUTS_DUPLICATED: &str
+pub const antecedent_core::reason_details::propagation_chain::POOL_OVERLAP_UNKNOWN: &str
+pub const antecedent_core::reason_details::propagation_chain::POOL_REFUSED: &str
+pub const antecedent_core::reason_details::propagation_chain::POOL_SHARES_EVIDENCE: &str
+pub const antecedent_core::reason_details::propagation_chain::PREDICTIVE_DISTURBANCE_REQUIRED: &str
+pub const antecedent_core::reason_details::propagation_chain::PREDICTIVE_READING_REQUIRED: &str
+pub const antecedent_core::reason_details::propagation_chain::PRODUCT_TABLE_REFUSED: &str
+pub const antecedent_core::reason_details::propagation_chain::PROGRAM_MISMATCH: &str
+pub const antecedent_core::reason_details::propagation_chain::RECORD_INVALID: &str
+pub const antecedent_core::reason_details::propagation_chain::RECORD_REFUSED: &str
+pub const antecedent_core::reason_details::propagation_chain::REENTRY: &str
+pub const antecedent_core::reason_details::propagation_chain::REWEIGHT_NEEDS_DRAWS: &str
+pub const antecedent_core::reason_details::propagation_chain::SAMPLING_IS_NOT_PREDICTIVE: &str
+pub const antecedent_core::reason_details::propagation_chain::SAMPLING_LAW_IS_NOT_A_POSTERIOR: &str
+pub const antecedent_core::reason_details::propagation_chain::SHARED_FACTOR_IN_INDEPENDENT_PRODUCT: &str
+pub const antecedent_core::reason_details::propagation_chain::STAGE_INVALIDATED: &str
+pub const antecedent_core::reason_details::propagation_chain::STAGE_LEFT_DOMAIN: &str
+pub const antecedent_core::reason_details::propagation_chain::TOO_MANY_INPUTS: &str
+pub const antecedent_core::reason_details::propagation_chain::TOO_MANY_NODES: &str
+pub const antecedent_core::reason_details::propagation_chain::UNALIGNED_DRAWS: &str
+pub const antecedent_core::reason_details::propagation_chain::UNKNOWN_STAGE: &str
+pub const antecedent_core::reason_details::propagation_chain::UNKNOWN_VALUE: &str
+pub const antecedent_core::reason_details::propagation_chain::UPDATE_EFFECTIVE_SIZE: &str
 pub const antecedent_core::reason_details::proposal_arrival::ASSIGNMENT_MISMATCH: &str
 pub const antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_CHANGED: &str
 pub const antecedent_core::reason_details::proposal_arrival::BASE_CATALOG_MISSING: &str
@@ -9717,6 +9920,9 @@ pub const antecedent_core::reason_details::sampled_recovery::PRODUCER_MISSING: &
 pub const antecedent_core::reason_details::sampled_recovery::RECEIPT_MISMATCH: &str
 pub const antecedent_core::reason_details::sampled_recovery::TOO_MANY_FAILED_REPLICATES: &str
 pub const antecedent_core::reason_details::sampled_recovery::UNRECOVERABLE_PATTERN: &str
+pub const antecedent_core::reason_details::sampling_assumption_union::INVALID_DECLARATION: &str
+pub const antecedent_core::reason_details::sampling_assumption_union::NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::sampling_assumption_union::REPLAY_MISMATCH: &str
 pub const antecedent_core::reason_details::sampling_weights::INVALID: &str
 pub const antecedent_core::reason_details::sampling_weights::ROUTE_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::scenario_covariance::CANCELLED: &str
@@ -10129,6 +10335,7 @@ pub const antecedent_core::reason_details::temporal_interval::TOO_FEW_UNITS: &st
 pub const antecedent_core::reason_details::temporal_interval::TOO_MANY_REPLICATES: &str
 pub const antecedent_core::reason_details::temporal_interval::UNKNOWN_UNITS: &str
 pub const antecedent_core::reason_details::temporal_interval::UNSUPPORTED_HISTORY: &str
+pub const antecedent_core::reason_details::temporal_linear_prediction::REENTRY: &str
 pub const antecedent_core::reason_details::temporal_policy_transport::HISTORY_ALPHABET_INCOMPATIBLE: &str
 pub const antecedent_core::reason_details::temporal_policy_transport::HORIZON_MISMATCH: &str
 pub const antecedent_core::reason_details::temporal_policy_transport::INITIAL_LAW_DECLARED_INVARIANT: &str
@@ -10177,6 +10384,7 @@ pub const antecedent_core::reason_details::tier_diagnostics::NO_EVALUE_INTERVAL_
 pub const antecedent_core::reason_details::tier_diagnostics::OVERLAP_NOT_CARRIED: &str
 pub const antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_EVALUE: &str
 pub const antecedent_core::reason_details::tier_diagnostics::UNKNOWN_SCENARIOS_NO_OVERLAP: &str
+pub const antecedent_core::reason_details::transport_identification::REENTRY: &str
 pub const antecedent_core::reason_details::transport_revalidation::CLAIM_TARGET_MISMATCH: &str
 pub const antecedent_core::reason_details::transport_revalidation::DUPLICATE_CLAIM: &str
 pub const antecedent_core::reason_details::transport_revalidation::IDENTITY_MISMATCH: &str
@@ -10417,6 +10625,7 @@ pub enum antecedent_core::DiscoveredClass
 pub enum antecedent_core::DiscoveryInference
 pub enum antecedent_core::DiscoveryMethod
 pub enum antecedent_core::DistributionAvailability
+pub enum antecedent_core::DoSamplerMethod
 pub enum antecedent_core::EffectiveSampleSizeRule
 pub enum antecedent_core::EvidenceKind
 pub enum antecedent_core::EvidenceProjection
@@ -10655,6 +10864,11 @@ pub field antecedent_core::DidResampling::scheme: antecedent_core::DidResampling
 pub field antecedent_core::DiscoverQuery::bounds: antecedent_core::SearchBounds
 pub field antecedent_core::DiscoverQuery::method: antecedent_core::DiscoveryMethod
 pub field antecedent_core::DiscoverQuery::variables: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::DoSamplerTarget::draws: usize
+pub field antecedent_core::DoSamplerTarget::interventions: alloc::sync::Arc<[antecedent_core::Intervention]>
+pub field antecedent_core::DoSamplerTarget::method: antecedent_core::DoSamplerMethod
+pub field antecedent_core::DoSamplerTarget::outcome: antecedent_core::VariableId
+pub field antecedent_core::DoSamplerTarget::seed: u64
 pub field antecedent_core::EdgeRoute::child: antecedent_core::VariableId
 pub field antecedent_core::EdgeRoute::parent: antecedent_core::VariableId
 pub field antecedent_core::EdgeRoute::source: antecedent_core::WorldId
@@ -10813,6 +11027,9 @@ pub field antecedent_core::MediationQuery::mediators: alloc::sync::Arc<[antecede
 pub field antecedent_core::MediationQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::MediationQuery::target_population: antecedent_core::TargetPopulation
 pub field antecedent_core::MediationQuery::treatment: antecedent_core::VariableId
+pub field antecedent_core::ModelEvaluationTarget::alpha: f64
+pub field antecedent_core::ModelEvaluationTarget::n_permutations: usize
+pub field antecedent_core::ModelEvaluationTarget::seed: u64
 pub field antecedent_core::MonteCarloBudget::evaluations: u64
 pub field antecedent_core::MonteCarloBudget::exact_enumerations: u64
 pub field antecedent_core::MonteCarloBudget::samples: u64
@@ -10834,6 +11051,10 @@ pub field antecedent_core::MultiActionPolicyInputs::reference_costs: alloc::sync
 pub field antecedent_core::NestedCounterfactualQuery::mediator: antecedent_core::VariableId
 pub field antecedent_core::NestedCounterfactualQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::NestedCounterfactualQuery::treatment: antecedent_core::VariableId
+pub field antecedent_core::NestedCounterfactualTarget::frozen: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::NestedCounterfactualTarget::inner: alloc::sync::Arc<[antecedent_core::Intervention]>
+pub field antecedent_core::NestedCounterfactualTarget::outcome: antecedent_core::VariableId
+pub field antecedent_core::NestedCounterfactualTarget::outer: alloc::sync::Arc<[antecedent_core::Intervention]>
 pub field antecedent_core::NotSupported::detail: &'static str
 pub field antecedent_core::NotSupported::missing: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_core::OutcomeMisclassification::false_negative: u64
@@ -10885,6 +11106,11 @@ pub field antecedent_core::PolicyValueQuery::regret: core::option::Option<antece
 pub field antecedent_core::PolicyValueQuery::uplift_bin_count: usize
 pub field antecedent_core::PolicyValueQuery::uplift_bins: alloc::sync::Arc<[usize]>
 pub field antecedent_core::PolicyValueQuery::uplift_training_subject_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_core::PopulationDoContrastTarget::child: antecedent_core::VariableId
+pub field antecedent_core::PopulationDoContrastTarget::delta: f64
+pub field antecedent_core::PopulationDoContrastTarget::max_units: core::option::Option<usize>
+pub field antecedent_core::PopulationDoContrastTarget::parent: antecedent_core::VariableId
+pub field antecedent_core::PopulationDoContrastTarget::seed: u64
 pub field antecedent_core::PopulationSelection::keep: antecedent_core::RowMask
 pub field antecedent_core::PopulationSelection::weights: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_core::PriorAssumption::description: alloc::sync::Arc<str>
@@ -11287,6 +11513,7 @@ pub fn <antecedent_core::AnomalyAttributionQuery>::fn with_reference(self, refer
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn with_unit_rows(self, rows: impl core::convert::Into<alloc::sync::Arc<[usize]>>) -> Self
 pub fn <antecedent_core::AnomalyReference>::fn fixed(center: f64, scale: f64) -> Self
 pub fn <antecedent_core::ArithOp>::fn apply(self, a: f64, b: f64) -> f64
+pub fn <antecedent_core::ArrowStrengthsTarget>::const fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
 pub fn <antecedent_core::AssociationFunctional>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::AssociationFunctional>::fn exceedance(threshold: f64) -> Self
 pub fn <antecedent_core::AssociationFunctional>::fn exceedance_threshold(self) -> core::option::Option<f64>
@@ -11587,6 +11814,7 @@ pub fn <antecedent_core::DiscoveryMethod>::fn structure_prior(&self) -> core::op
 pub fn <antecedent_core::DistributionRef>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DistributionRef>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DistributionRef>::const fn raw(self) -> u32
+pub fn <antecedent_core::DoSamplerTarget>::fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
 pub fn <antecedent_core::DoseTimeSurface>::const fn dose(&self) -> antecedent_core::VariableId
 pub fn <antecedent_core::DoseTimeSurface>::const fn worlds(&self) -> &antecedent_core::WorldCollection
 pub fn <antecedent_core::DoseTimeSurface>::fn cells(&self) -> &[antecedent_core::ScientificWorldId]
@@ -11820,9 +12048,14 @@ pub fn <antecedent_core::MediationTarget>::fn new(binding: antecedent_core::Worl
 pub fn <antecedent_core::ModelAssumptions>::const fn graph(&self) -> antecedent_core::GraphFamily
 pub fn <antecedent_core::ModelAssumptions>::const fn new(graph: antecedent_core::GraphFamily, records: antecedent_core::AssumptionSet) -> Self
 pub fn <antecedent_core::ModelAssumptions>::const fn records(&self) -> &antecedent_core::AssumptionSet
+pub fn <antecedent_core::ModelEvaluationTarget>::fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
 pub fn <antecedent_core::ModelId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::ModelId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::ModelId>::const fn raw(self) -> u32
+pub fn <antecedent_core::ModelOperation>::const fn as_str(&self) -> &'static str
+pub fn <antecedent_core::ModelOperation>::const fn is_attribution(&self) -> bool
+pub fn <antecedent_core::ModelOperation>::fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
+pub fn <antecedent_core::ModelOperation>::fn variables(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
 pub fn <antecedent_core::MultiActionPolicyInputs>::fn global_constraints_couple_rows(&self) -> bool
 pub fn <antecedent_core::MultiActionPolicyInputs>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::NestedCounterfactualQuery>::fn active_value(&self) -> f64
@@ -11831,6 +12064,7 @@ pub fn <antecedent_core::NestedCounterfactualQuery>::fn control_value(&self) -> 
 pub fn <antecedent_core::NestedCounterfactualQuery>::fn new(treatment: antecedent_core::VariableId, mediator: antecedent_core::VariableId, outcome: antecedent_core::VariableId) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::NestedCounterfactualQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::NestedCounterfactualQuery>::fn with_levels(treatment: antecedent_core::VariableId, mediator: antecedent_core::VariableId, outcome: antecedent_core::VariableId, control: f64, active: f64) -> core::result::Result<Self, antecedent_core::QueryError>
+pub fn <antecedent_core::NestedCounterfactualTarget>::fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
 pub fn <antecedent_core::NextAttempt>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::NextAttempt>::const fn name(self) -> &'static str
 pub fn <antecedent_core::NextAttempt>::const fn new(name: &'static str, sentence: &'static str) -> Self
@@ -11941,6 +12175,7 @@ pub fn <antecedent_core::PhysicalTolerance>::const fn relative(self) -> f64
 pub fn <antecedent_core::PolicyReads>::fn is_empty(&self) -> bool
 pub fn <antecedent_core::PolicyReads>::fn new(current: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::VariableId>, history: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, u32)>) -> Self
 pub fn <antecedent_core::PolicyValueQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::PopulationDoContrastTarget>::fn validate(&self) -> core::result::Result<(), antecedent_core::ModelOperationFault>
 pub fn <antecedent_core::PopulationRegistry>::fn distribution(&self, id: antecedent_core::DistributionRef) -> core::option::Option<&[f64]>
 pub fn <antecedent_core::PopulationRegistry>::fn distribution_dependencies(&self, id: antecedent_core::DistributionRef) -> core::option::Option<&[antecedent_core::VariableId]>
 pub fn <antecedent_core::PopulationRegistry>::fn distributions(&self) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_core::DistributionRef, &[f64], &[antecedent_core::VariableId])>
@@ -12004,9 +12239,13 @@ pub fn <antecedent_core::QueryId>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::QueryId>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::QueryId>::const fn raw(self) -> u32
 pub fn <antecedent_core::RandomizedEffectQuery>::fn bernoulli_itt(outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
+pub fn <antecedent_core::RandomizedEffectQuery>::fn estimated_cuped(&self) -> core::option::Option<antecedent_core::VariableId>
+pub fn <antecedent_core::RandomizedEffectQuery>::fn fixed_cuped_coefficient(&self) -> core::option::Option<(antecedent_core::VariableId, f64)>
+pub fn <antecedent_core::RandomizedEffectQuery>::fn graphless_coordinate(&self) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
 pub fn <antecedent_core::RandomizedEffectQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_ancova(self, covariates: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_design(design: antecedent_core::RandomizationDesign, outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
+pub fn <antecedent_core::RandomizedEffectQuery>::fn with_estimated_cuped(self, covariate: antecedent_core::VariableId) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_exact_randomization_test(self) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_fixed_cuped(self, covariate: antecedent_core::VariableId, coefficient: f64) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_received_treatment(self, received: impl core::convert::Into<alloc::sync::Arc<[bool]>>) -> Self
@@ -12165,6 +12404,7 @@ pub fn <antecedent_core::ShapleyConfig>::fn validate(&self) -> core::result::Res
 pub fn <antecedent_core::SharedData>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::SimulateQuery>::const fn new(target: antecedent_core::SimulationTarget) -> Self
 pub fn <antecedent_core::SimulateQuery>::fn endpoints(&self) -> (core::option::Option<antecedent_core::VariableId>, core::option::Option<antecedent_core::VariableId>)
+pub fn <antecedent_core::SimulateQuery>::fn simultaneous_world(outer: &[antecedent_core::Intervention], inner: &[antecedent_core::Intervention], outcomes: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::SimulateQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::SimulationTarget>::const fn as_str(&self) -> &'static str
 pub fn <antecedent_core::SmallRoleSet>::const fn bits(self) -> u16
@@ -12929,6 +13169,7 @@ pub mod antecedent_core::query
 pub mod antecedent_core::reason_code
 pub mod antecedent_core::reason_details
 pub mod antecedent_core::reason_details::adaptive_inference
+pub mod antecedent_core::reason_details::adaptive_policy_search
 pub mod antecedent_core::reason_details::adaptive_transport
 pub mod antecedent_core::reason_details::admg_conditional_posterior
 pub mod antecedent_core::reason_details::admg_transport
@@ -12962,6 +13203,8 @@ pub mod antecedent_core::reason_details::cpdag_scenarios
 pub mod antecedent_core::reason_details::cross_world
 pub mod antecedent_core::reason_details::cross_world_execution
 pub mod antecedent_core::reason_details::cross_world_uncertainty
+pub mod antecedent_core::reason_details::cyclic_component
+pub mod antecedent_core::reason_details::cyclic_decision
 pub mod antecedent_core::reason_details::decision_adapters
 pub mod antecedent_core::reason_details::decision_admissibility
 pub mod antecedent_core::reason_details::decision_claims
@@ -12974,8 +13217,10 @@ pub mod antecedent_core::reason_details::decision_reliability
 pub mod antecedent_core::reason_details::decision_robustness
 pub mod antecedent_core::reason_details::decision_structural
 pub mod antecedent_core::reason_details::descriptive_comparison
+pub mod antecedent_core::reason_details::descriptive_programs
 pub mod antecedent_core::reason_details::design_ranking
 pub mod antecedent_core::reason_details::discovered_transport
+pub mod antecedent_core::reason_details::discovery_validation
 pub mod antecedent_core::reason_details::discretized_scm
 pub mod antecedent_core::reason_details::discretized_scm_artifact
 pub mod antecedent_core::reason_details::distribution_meaning
@@ -13054,10 +13299,12 @@ pub mod antecedent_core::reason_details::paradigm_parity
 pub mod antecedent_core::reason_details::parent_set_effect
 pub mod antecedent_core::reason_details::penalized_posterior
 pub mod antecedent_core::reason_details::penalized_propensity
+pub mod antecedent_core::reason_details::planning
 pub mod antecedent_core::reason_details::policy_value
 pub mod antecedent_core::reason_details::predictive_assessment
 pub mod antecedent_core::reason_details::prior_signal
 pub mod antecedent_core::reason_details::program_binding
+pub mod antecedent_core::reason_details::propagation_chain
 pub mod antecedent_core::reason_details::proposal_arrival
 pub mod antecedent_core::reason_details::proposal_receipt
 pub mod antecedent_core::reason_details::provider_capability_negotiation
@@ -13074,6 +13321,7 @@ pub mod antecedent_core::reason_details::repair_artifact
 pub mod antecedent_core::reason_details::response_gam_derivative
 pub mod antecedent_core::reason_details::rollout
 pub mod antecedent_core::reason_details::sampled_recovery
+pub mod antecedent_core::reason_details::sampling_assumption_union
 pub mod antecedent_core::reason_details::sampling_weights
 pub mod antecedent_core::reason_details::scenario_covariance
 pub mod antecedent_core::reason_details::scenario_covariance_posterior
@@ -13099,10 +13347,12 @@ pub mod antecedent_core::reason_details::survival_effect
 pub mod antecedent_core::reason_details::synthetic_control_panel
 pub mod antecedent_core::reason_details::temporal_counterfactual
 pub mod antecedent_core::reason_details::temporal_interval
+pub mod antecedent_core::reason_details::temporal_linear_prediction
 pub mod antecedent_core::reason_details::temporal_policy_transport
 pub mod antecedent_core::reason_details::temporal_refresh
 pub mod antecedent_core::reason_details::temporal_transport
 pub mod antecedent_core::reason_details::tier_diagnostics
+pub mod antecedent_core::reason_details::transport_identification
 pub mod antecedent_core::reason_details::transport_revalidation
 pub mod antecedent_core::reason_details::transport_sensitivity
 pub mod antecedent_core::reason_details::transported_counterfactual
@@ -13146,6 +13396,7 @@ pub struct antecedent_core::AdmittedRouteMemory has private fields
 pub struct antecedent_core::AdmittedTemporalOffsets
 pub struct antecedent_core::AdmittedTemporalOffsets has private fields
 pub struct antecedent_core::AnomalyAttributionQuery
+pub struct antecedent_core::ArrowStrengthsTarget
 pub struct antecedent_core::AssociationQuery
 pub struct antecedent_core::AssumptionBranch
 pub struct antecedent_core::AssumptionBranch has private fields
@@ -13231,6 +13482,7 @@ pub struct antecedent_core::DidResampling
 pub struct antecedent_core::DiscoverQuery
 pub struct antecedent_core::DistributionRef
 pub struct antecedent_core::DistributionRef has private fields
+pub struct antecedent_core::DoSamplerTarget
 pub struct antecedent_core::DoseTimeSurface
 pub struct antecedent_core::DoseTimeSurface has private fields
 pub struct antecedent_core::DynamicRuleId
@@ -13311,6 +13563,7 @@ pub struct antecedent_core::MediationTarget has private fields
 pub struct antecedent_core::MissingLearningRate
 pub struct antecedent_core::ModelAssumptions
 pub struct antecedent_core::ModelAssumptions has private fields
+pub struct antecedent_core::ModelEvaluationTarget
 pub struct antecedent_core::ModelId
 pub struct antecedent_core::ModelId has private fields
 pub struct antecedent_core::MonteCarloBudget
@@ -13318,6 +13571,7 @@ pub struct antecedent_core::MonteCarloError
 pub struct antecedent_core::MultiActionPolicyInputs
 pub struct antecedent_core::NestedCounterfactualQuery
 pub struct antecedent_core::NestedCounterfactualQuery has private fields
+pub struct antecedent_core::NestedCounterfactualTarget
 pub struct antecedent_core::NextAttempt
 pub struct antecedent_core::NextAttempt has private fields
 pub struct antecedent_core::NotSupported
@@ -13353,6 +13607,7 @@ pub struct antecedent_core::PhysicalTolerance has private fields
 pub struct antecedent_core::PinnedDependency
 pub struct antecedent_core::PolicyReads
 pub struct antecedent_core::PolicyValueQuery
+pub struct antecedent_core::PopulationDoContrastTarget
 pub struct antecedent_core::PopulationRegistry
 pub struct antecedent_core::PopulationRegistry has private fields
 pub struct antecedent_core::PopulationSelection
@@ -13660,6 +13915,7 @@ pub trait const antecedent_core::QueryVariant::KIND: antecedent_core::CausalQuer
 pub trait const antecedent_core::QueryVariant::TAG: u64
 pub trait fn fn antecedent_core::BatchCallback::call(&self, inputs: &[&[f64]], out: &mut [f64]) -> core::result::Result<(), antecedent_core::CallbackError>
 pub trait fn fn antecedent_core::BatchCallback::spec(&self) -> &antecedent_core::CallbackSpec
+pub trait fn fn antecedent_core::BatchCallback::value_and_derivatives(&self, inputs: &[f64]) -> core::result::Result<(f64, alloc::vec::Vec<f64>), antecedent_core::CallbackError> {default}
 pub trait fn fn antecedent_core::CanonicalEncode::encode(&self, writer: &mut antecedent_core::CanonicalWriter)
 pub trait fn fn antecedent_core::ProbabilityTable::first_row(&self) -> core::option::Option<&[f64]> {default}
 pub trait fn fn antecedent_core::ProbabilityTable::row_at(&self, i: usize) -> &[f64]
@@ -13843,6 +14099,7 @@ pub use antecedent_core::provider_capability::UnansweredCapability = antecedent_
 pub use antecedent_core::query::AllocationMethod = antecedent_core::AllocationMethod
 pub use antecedent_core::query::AnomalyAttributionQuery = antecedent_core::AnomalyAttributionQuery
 pub use antecedent_core::query::AnomalyReference = antecedent_core::AnomalyReference
+pub use antecedent_core::query::ArrowStrengthsTarget = antecedent_core::ArrowStrengthsTarget
 pub use antecedent_core::query::AssignmentDesign = antecedent_core::AssignmentDesign
 pub use antecedent_core::query::AssociationFault = antecedent_core::AssociationFault
 pub use antecedent_core::query::AssociationFunctional = antecedent_core::AssociationFunctional
@@ -13884,6 +14141,8 @@ pub use antecedent_core::query::DiscoveredClass = antecedent_core::DiscoveredCla
 pub use antecedent_core::query::DiscoveryInference = antecedent_core::DiscoveryInference
 pub use antecedent_core::query::DiscoveryMethod = antecedent_core::DiscoveryMethod
 pub use antecedent_core::query::DistributionAvailability = antecedent_core::DistributionAvailability
+pub use antecedent_core::query::DoSamplerMethod = antecedent_core::DoSamplerMethod
+pub use antecedent_core::query::DoSamplerTarget = antecedent_core::DoSamplerTarget
 pub use antecedent_core::query::EXPOSURE_LEVEL_TOLERANCE = antecedent_core::EXPOSURE_LEVEL_TOLERANCE
 pub use antecedent_core::query::EdgeRoute = antecedent_core::EdgeRoute
 pub use antecedent_core::query::Environment = antecedent_core::Environment
@@ -13931,8 +14190,12 @@ pub use antecedent_core::query::MechanismChangeQuery = antecedent_core::Mechanis
 pub use antecedent_core::query::MechanismChangeTest = antecedent_core::MechanismChangeTest
 pub use antecedent_core::query::MediationContrast = antecedent_core::MediationContrast
 pub use antecedent_core::query::MediationQuery = antecedent_core::MediationQuery
+pub use antecedent_core::query::ModelEvaluationTarget = antecedent_core::ModelEvaluationTarget
+pub use antecedent_core::query::ModelOperation = antecedent_core::ModelOperation
+pub use antecedent_core::query::ModelOperationFault = antecedent_core::ModelOperationFault
 pub use antecedent_core::query::MultiActionPolicyInputs = antecedent_core::MultiActionPolicyInputs
 pub use antecedent_core::query::NestedCounterfactualQuery = antecedent_core::NestedCounterfactualQuery
+pub use antecedent_core::query::NestedCounterfactualTarget = antecedent_core::NestedCounterfactualTarget
 pub use antecedent_core::query::NoiseDeclaration = antecedent_core::NoiseDeclaration
 pub use antecedent_core::query::ObservationAssumption = antecedent_core::ObservationAssumption
 pub use antecedent_core::query::ObservationSpec = antecedent_core::ObservationSpec
@@ -13945,6 +14208,7 @@ pub use antecedent_core::query::PanelObservationProcess = antecedent_core::Panel
 pub use antecedent_core::query::PathSpecificEffectQuery = antecedent_core::PathSpecificEffectQuery
 pub use antecedent_core::query::PolicyValueFault = antecedent_core::PolicyValueFault
 pub use antecedent_core::query::PolicyValueQuery = antecedent_core::PolicyValueQuery
+pub use antecedent_core::query::PopulationDoContrastTarget = antecedent_core::PopulationDoContrastTarget
 pub use antecedent_core::query::PopulationRegistry = antecedent_core::PopulationRegistry
 pub use antecedent_core::query::PopulationSelection = antecedent_core::PopulationSelection
 pub use antecedent_core::query::PopulationSelector = antecedent_core::PopulationSelector
@@ -14253,6 +14517,7 @@ pub variant antecedent_core::AttributionComponents::Structure
 pub variant antecedent_core::ByteEstimateKind::Output
 pub variant antecedent_core::ByteEstimateKind::Retained
 pub variant antecedent_core::ByteEstimateKind::Scratch
+pub variant antecedent_core::CallbackError::DerivativesNotProvided { name: alloc::string::String }
 pub variant antecedent_core::CallbackError::Failed(antecedent_core::CallbackFailure)
 pub variant antecedent_core::CallbackError::NonFinite { row: usize, value: f64 }
 pub variant antecedent_core::CallbackError::NotRealValued { found: alloc::string::String }
@@ -14456,6 +14721,9 @@ pub variant antecedent_core::DiscoveryMethod::ScreenedExactMarginals { focus: al
 pub variant antecedent_core::DiscoveryMethod::StructureMcmc { prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DistributionAvailability::Joint
 pub variant antecedent_core::DistributionAvailability::SeparateMarginals { variables: alloc::sync::Arc<[antecedent_core::VariableId]> }
+pub variant antecedent_core::DoSamplerMethod::Kde { bandwidth: core::option::Option<f64> }
+pub variant antecedent_core::DoSamplerMethod::Mcmc { proposal_sd: core::option::Option<f64>, burn_in: core::option::Option<usize>, thin: core::option::Option<usize> }
+pub variant antecedent_core::DoSamplerMethod::Weighting { root_match_tolerance: core::option::Option<f64> }
 pub variant antecedent_core::DoseGridFault::CellCoverage
 pub variant antecedent_core::DoseGridFault::CellMismatch
 pub variant antecedent_core::DoseGridFault::CellsNotComparable
@@ -14648,6 +14916,20 @@ pub variant antecedent_core::MediationContrast::Mediated
 pub variant antecedent_core::MediationContrast::NaturalDirect
 pub variant antecedent_core::MediationContrast::NaturalIndirect
 pub variant antecedent_core::MediationContrast::Total
+pub variant antecedent_core::ModelOperation::ArrowStrengths(antecedent_core::ArrowStrengthsTarget)
+pub variant antecedent_core::ModelOperation::DoSample(antecedent_core::DoSamplerTarget)
+pub variant antecedent_core::ModelOperation::ModelEvaluation(antecedent_core::ModelEvaluationTarget)
+pub variant antecedent_core::ModelOperation::NestedCounterfactual(antecedent_core::NestedCounterfactualTarget)
+pub variant antecedent_core::ModelOperation::PopulationDoContrast(antecedent_core::PopulationDoContrastTarget)
+pub variant antecedent_core::ModelOperationFault::ContrastSameVariable
+pub variant antecedent_core::ModelOperationFault::ContrastWidth
+pub variant antecedent_core::ModelOperationFault::EvaluationLevel
+pub variant antecedent_core::ModelOperationFault::EvaluationPermutations
+pub variant antecedent_core::ModelOperationFault::InvalidIntervention
+pub variant antecedent_core::ModelOperationFault::NestedFrozenConflict
+pub variant antecedent_core::ModelOperationFault::SamplerControl
+pub variant antecedent_core::ModelOperationFault::SamplerDraws
+pub variant antecedent_core::ModelOperationFault::WeightingInterventions
 pub variant antecedent_core::NodeRef::Context { variable: antecedent_core::VariableId, environment: core::option::Option<antecedent_core::EnvironmentId> }
 pub variant antecedent_core::NodeRef::Lagged { variable: antecedent_core::VariableId, lag: antecedent_core::Lag }
 pub variant antecedent_core::NodeRef::Static(antecedent_core::VariableId)
@@ -14800,6 +15082,7 @@ pub variant antecedent_core::QueryError::InvalidIntervention(antecedent_core::In
 pub variant antecedent_core::QueryError::InvalidIvBounds(antecedent_core::IvBoundsFault)
 pub variant antecedent_core::QueryError::InvalidLocalPolynomialRatio(antecedent_core::LocalPolynomialRatioFault)
 pub variant antecedent_core::QueryError::InvalidLongitudinalRegime(antecedent_core::LongitudinalRegimeFault)
+pub variant antecedent_core::QueryError::InvalidModelOperation(antecedent_core::ModelOperationFault)
 pub variant antecedent_core::QueryError::InvalidOutcomeFunctional
 pub variant antecedent_core::QueryError::InvalidPolicyValue(antecedent_core::PolicyValueFault)
 pub variant antecedent_core::QueryError::InvalidPopulationTimeRange { start: usize, end: usize }
@@ -14855,6 +15138,7 @@ pub variant antecedent_core::RandomizedEffectFault::CompleteTreatedCount
 pub variant antecedent_core::RandomizedEffectFault::DuplicateAssignmentUnit
 pub variant antecedent_core::RandomizedEffectFault::DuplicateOutcomeUnit
 pub variant antecedent_core::RandomizedEffectFault::EmptyUnitLabel
+pub variant antecedent_core::RandomizedEffectFault::EstimatedCupedDesign
 pub variant antecedent_core::RandomizedEffectFault::ExactTestDesign
 pub variant antecedent_core::RandomizedEffectFault::FactorialAllocation
 pub variant antecedent_core::RandomizedEffectFault::FactorialCells
@@ -15053,6 +15337,7 @@ pub variant antecedent_core::SimulateFault::ReplayedNoiseShape
 pub variant antecedent_core::SimulateFault::RolloutHistoryShape
 pub variant antecedent_core::SimulateFault::RolloutShape
 pub variant antecedent_core::SimulateFault::SampleDraws
+pub variant antecedent_core::SimulateFault::SimultaneousTargetsOverlap
 pub variant antecedent_core::SimulateFault::UnitEffectLevels
 pub variant antecedent_core::SimulationTarget::Counterfactual { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, outcomes: alloc::sync::Arc<[antecedent_core::VariableId]> }
 pub variant antecedent_core::SimulationTarget::InterventionalSample { interventions: alloc::sync::Arc<[antecedent_core::Intervention]>, draws: usize, seed: u64 }

@@ -1030,6 +1030,7 @@ impl core::clone::Clone for antecedent_estimate::randomized_quantile::Randomized
 impl core::clone::Clone for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::clone::Clone for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::clone::Clone for antecedent_estimate::randomized_scores::CupedHtEffect
+impl core::clone::Clone for antecedent_estimate::randomized_scores::EstimatedCupedContrast
 impl core::clone::Clone for antecedent_estimate::randomized_scores::IndependentActionContrast
 impl core::clone::Clone for antecedent_estimate::recovery::CertificationFault
 impl core::clone::Clone for antecedent_estimate::recovery::CertifiedInterventionEvaluation
@@ -2286,6 +2287,7 @@ impl core::cmp::PartialEq for antecedent_estimate::randomized_quantile::Randomiz
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::CupedHtEffect
+impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::EstimatedCupedContrast
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::IndependentActionContrast
 impl core::cmp::PartialEq for antecedent_estimate::recovery::CertificationFault
 impl core::cmp::PartialEq for antecedent_estimate::recovery::CertifiedInterventionEvaluation
@@ -3588,6 +3590,7 @@ impl core::fmt::Debug for antecedent_estimate::randomized_quantile::RandomizedQu
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::CupedHtEffect
+impl core::fmt::Debug for antecedent_estimate::randomized_scores::EstimatedCupedContrast
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::IndependentActionContrast
 impl core::fmt::Debug for antecedent_estimate::recovery::CertificationFault
 impl core::fmt::Debug for antecedent_estimate::recovery::CertifiedInterventionEvaluation
@@ -4138,6 +4141,7 @@ impl core::marker::Copy for antecedent_estimate::randomized_posterior::Randomize
 impl core::marker::Copy for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::marker::Copy for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::marker::Copy for antecedent_estimate::randomized_scores::CupedHtEffect
+impl core::marker::Copy for antecedent_estimate::randomized_scores::EstimatedCupedContrast
 impl core::marker::Copy for antecedent_estimate::randomized_scores::IndependentActionContrast
 impl core::marker::Copy for antecedent_estimate::recovery::EvidenceRefusal
 impl core::marker::Copy for antecedent_estimate::recovery::MassAccount
@@ -5137,6 +5141,7 @@ impl core::marker::Freeze for antecedent_estimate::randomized_quantile::Randomiz
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::marker::Freeze for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::marker::Freeze for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -6264,6 +6269,7 @@ impl core::marker::Send for antecedent_estimate::randomized_quantile::Randomized
 impl core::marker::Send for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::marker::Send for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::marker::Send for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::marker::Send for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -7238,6 +7244,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_quant
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::CupedHtEffect
+impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::EstimatedCupedContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::IndependentActionContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::CertificationFault
 impl core::marker::StructuralPartialEq for antecedent_estimate::recovery::CertifiedInterventionEvaluation
@@ -8329,6 +8336,7 @@ impl core::marker::Sync for antecedent_estimate::randomized_quantile::Randomized
 impl core::marker::Sync for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::marker::Sync for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::marker::Sync for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::marker::Sync for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -9457,6 +9465,7 @@ impl core::marker::Unpin for antecedent_estimate::randomized_quantile::Randomize
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::marker::Unpin for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::marker::Unpin for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -10588,6 +10597,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -11715,6 +11725,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_qu
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::EstimatedCupedContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::IndependentActionContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::CertificationFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::recovery::CertifiedInterventionEvaluation [auto]
@@ -17682,6 +17693,12 @@ pub field antecedent_estimate::randomized_scores::ComplierWaldEffect::variance: 
 pub field antecedent_estimate::randomized_scores::CupedHtEffect::beta: f64
 pub field antecedent_estimate::randomized_scores::CupedHtEffect::effect: f64
 pub field antecedent_estimate::randomized_scores::CupedHtEffect::standard_error: f64
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::beta: f64
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::control_support: usize
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::effect: f64
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::interval_95: core::option::Option<[f64; 2]>
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::standard_error: f64
+pub field antecedent_estimate::randomized_scores::EstimatedCupedContrast::treated_support: usize
 pub field antecedent_estimate::randomized_scores::IndependentActionContrast::action_support: usize
 pub field antecedent_estimate::randomized_scores::IndependentActionContrast::effect: f64
 pub field antecedent_estimate::randomized_scores::IndependentActionContrast::interval_95: core::option::Option<[f64; 2]>
@@ -20231,6 +20248,7 @@ pub fn antecedent_estimate::randomized_quantile::randomized_quantile_effect_on_g
 pub fn antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(outcome: &[f64], assignment: &[bool], propensity: &[f64]) -> core::result::Result<antecedent_estimate::randomized_scores::BernoulliExactTest, &'static str>
 pub fn antecedent_estimate::randomized_scores::complier_wald_effect(outcomes: &[f64], assignment: &[bool], received: &[bool], probabilities: &[f64]) -> core::option::Option<antecedent_estimate::randomized_scores::ComplierWaldEffect>
 pub fn antecedent_estimate::randomized_scores::cuped_ht_effect(outcome: &[f64], covariate: &[f64], assignment: &[bool], propensity: &[f64]) -> core::result::Result<antecedent_estimate::randomized_scores::CupedHtEffect, &'static str>
+pub fn antecedent_estimate::randomized_scores::estimated_cuped_contrast(outcome: &[f64], covariate: &[f64], assignment: &[bool], propensity: &[f64]) -> core::result::Result<antecedent_estimate::randomized_scores::EstimatedCupedContrast, &'static str>
 pub fn antecedent_estimate::randomized_scores::independent_action_contrast(outcomes: &[f64], assignments: &[usize], probabilities: &impl antecedent_core::query::probability_rows::ProbabilityTable + ?core::marker::Sized, reference: usize, action: usize) -> core::option::Option<antecedent_estimate::randomized_scores::IndependentActionContrast>
 pub fn antecedent_estimate::raw_contrast(outcome: &[f64], treatment: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::RawContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::recovery::asymptotic_normal_draws(spec: &antecedent_estimate::recovery::DrawGeneration<'_>) -> core::result::Result<alloc::vec::Vec<antecedent_identify::experimental_recovery::draw::RecoveryDrawInput>, antecedent_estimate::recovery::RecoveryInterventionFault>
@@ -21458,6 +21476,7 @@ pub struct antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 pub struct antecedent_estimate::randomized_scores::BernoulliExactTest
 pub struct antecedent_estimate::randomized_scores::ComplierWaldEffect
 pub struct antecedent_estimate::randomized_scores::CupedHtEffect
+pub struct antecedent_estimate::randomized_scores::EstimatedCupedContrast
 pub struct antecedent_estimate::randomized_scores::IndependentActionContrast
 pub struct antecedent_estimate::recovery::CertifiedInterventionEvaluation
 pub struct antecedent_estimate::recovery::CertifiedInterventionEvaluation has private fields
