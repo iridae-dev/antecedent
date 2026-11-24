@@ -46,7 +46,7 @@ sha256 = "99eb0f446dddb86dd2b1215151d800b6b88524ac53c69b5d1c590077d79f3fc7"
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
 items = ["enum CalibrationState", "enum NumericalCause", "enum ObservedEffect", "enum PriorAuthority", "enum WithdrawalKind", "fn as_str", "fn claim", "fn claims", "fn dependency_set", "fn evaluate_calibration", "fn from_result_status", "fn from_revalidation", "fn held_record", "fn identity", "fn keys_of", "fn ledger_effects", "fn own_causes", "fn own_withdrawals", "fn plain", "fn propagate_cause", "fn refusal", "fn removed", "fn require_valid", "fn revalidate", "fn withdrawn_for", "struct CalibrationLineage", "struct ClaimRevalidation", "struct GraphRevalidation", "struct NumericalReason", "struct Withdrawal", "struct Working", "type Held"]
-sha256 = "caf9bf5a12d47b74680ebdb1b902309d4aa9ef82b92466ae7f5137ab1af44ec9"
+sha256 = "5e56009e3484bdf25d81c22003eb1c343f6f3650ffd074c0b848a634dc195ac0"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

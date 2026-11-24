@@ -14,7 +14,7 @@ papers = []
 
 implementation_deviations = [
   "A candidate never claims evidence it cannot collect: observing separate regimes or separate marginals cannot claim a joint law, and missing unit, timing, recruitment, sample-size, cost or cost-unit semantics refuse as study_candidate.wrong_contract.",
-  "The semantic id sc1:<digest> is a content fingerprint independent of ordering and of the human label; it is not a security token.",
+  "The semantic id is a content fingerprint independent of ordering, repetition within set-valued fields and the human label; it is not a security token. A candidate whose fields cannot reach a v1 separator keeps its sc1:<digest> id; any other gets the framed sc2:<digest> id, and stored sc1 ids are still accepted by accepts_semantic_id.",
   "Proposed regimes are marked Proposed and tied to the semantic id; they are hypotheses and never become available evidence.",
   "Cost units are labels; they are never assumed to equal outcome utility, and ranking compares only equal labels.",
   "The older planner-specific StudyCandidate of study_planner is unchanged. No causal, interval or calibration claim is made.",
@@ -33,13 +33,13 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Durable description of a study that could be run: kind, population, regime, sample size, cost, feasibility and rules, validated and given a semantic id."
 no_independent_algorithm = "Validation of declared fields and identity; no estimator."
-record_sha256 = "aeba05016c9bd54890c23139c24abbbda5610493e7e23098b0c86dd05dde531c"
+record_sha256 = "0487d098e2ddaaf03046103bf4ef89da3cdce4f2fef2d5a6117499d42b445f59"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/study_candidate.rs"
 items = ["const ALL", "enum StudyKind", "fn as_str", "fn canonical", "fn check_against", "fn design_action", "fn distinct", "fn from_name", "fn is_observational", "fn offers", "fn proposed_regimes", "fn semantic_id", "fn set", "fn validate", "fn wrong_contract", "struct DurableStudyCandidate", "struct ExpectedEvidence", "struct StudyCandidateError", "struct StudyCostDeclaration", "struct UnitRules"]
-sha256 = "478ee7c3c345b160526a0a04dacffb90b40f853fd8e6f75fcded28923f9ddb43"
+sha256 = "011aeb7ece560a9ef79d511bece2d9fdb2cc4718e4dd7a99a3d9de4a769d4d73"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

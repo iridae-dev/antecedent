@@ -49,7 +49,7 @@ record_sha256 = "69d750df8408177ae9dd9cc20cf7278bb65c5e771c23e9c64dfcbf9c3c20ec2
 role = "implementation"
 path = "crates/antecedent-design/src/evidence_plan.rs"
 items = ["const PLAN_CALIBRATION", "const PLAN_RANKING_GUARANTEE", "const SUBSET_VALUE_NOTE", "enum PlanOutcome", "enum PlanValueBasis", "fn as_str", "fn build", "fn calibration", "fn closing", "fn compare", "fn from_ranking", "fn gate_rank", "fn identity", "fn invalid", "fn mark_close_calls", "fn obligation", "fn of", "fn rank_options", "fn ranking_guarantee", "fn score", "fn status", "fn units", "fn value_of", "struct EvidencePlan", "struct EvidencePlanError", "struct OptionValue", "struct PlanCost", "struct PlanInputs", "struct PlanOption", "struct PlanRoute", "struct PlanValuation", "struct PlanValue", "struct PlanValueRow", "struct RouteBudget", "struct UnverifiedRoute"]
-sha256 = "0414203aad15cee0c781c23d5ee7f380506e487863d2b54564e19c8ee86d17e2"
+sha256 = "5e8f028faa14885f9b8eb11082fbbcd91bc31356857fdd5dd209829fad06640b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

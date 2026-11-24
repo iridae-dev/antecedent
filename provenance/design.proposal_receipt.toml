@@ -42,7 +42,7 @@ record_sha256 = "e67a8dfd4fed99753481896d0696a1cbe6cdb4589dee3a9d567c7ed536e81c3
 role = "implementation"
 path = "crates/antecedent-design/src/proposal_receipt.rs"
 items = ["const RECEIPT_DOMAIN", "enum ArrivalVerdict", "enum ArrivedEvidence", "enum ChangedPremise", "enum EvidenceState", "fn amount_of", "fn arrived_regimes", "fn build", "fn cancelled", "fn changed_premise", "fn check_coverage", "fn check_declared", "fn check_receipt", "fn check_receipt_matches", "fn check_seals", "fn compute_identity", "fn derivation_digest", "fn derive_receipt", "fn evidence_state", "fn find_scored", "fn from_receipts", "fn hypothetical_of", "fn ids_of", "fn invalid", "fn is_available_evidence", "fn list_digest", "fn mismatch", "fn not_evidence", "fn observed_regime", "fn on_arrival", "fn owner", "fn proposal", "fn proposal_rank", "fn regimes_digest", "fn regimes_wire_digest", "fn run_family", "fn sealed", "fn signatures", "fn singleton_outcome", "fn snapshots_of", "fn sorted", "fn verdict_of", "fn verify", "struct Arrival", "struct BaseFailureBinding", "struct CostBinding", "struct DecisionReceipt", "struct HypotheticalBinding", "struct LineageBinding", "struct ObservedLaw", "struct ProposalBundle", "struct ProposalReceipt", "struct ProposalReceiptError", "struct ValuationBinding", "type Result"]
-sha256 = "d41d42d3850f982d425f6ca2e2bbc341af0657cd82d2d9b290b17df81fd09438"
+sha256 = "631739b5c1aa42153737f37a6c8905c1cbc11be46b129bc5bf332fce11a90526"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

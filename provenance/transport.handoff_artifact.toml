@@ -29,7 +29,7 @@ record_sha256 = "6997e288c9dca8424c4a0aa9258c61f520bedebeae00e0e67e2f05bddd3b31e
 role = "implementation"
 path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
 items = ["const ARTIFACT_KIND", "const MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES", "const META_SECTION", "const TRANSPORT_HANDOFF_ARTIFACT_FEATURE", "const TRANSPORT_HANDOFF_ARTIFACT_TAG", "const TRANSPORT_HANDOFF_ARTIFACT_VERSION", "fn build_meta", "fn check", "fn compute_identity", "fn consumed_port", "fn consumer", "fn decode_meta", "fn derive", "fn encode_meta", "fn first_refusal", "fn from_bytes", "fn from_bytes_within", "fn from_contract_error", "fn from_meta", "fn handoff", "fn handoff_identity", "fn identity", "fn is_hex_digest", "fn is_native_target_data", "fn malformed", "fn meta_to_bytes", "fn offer", "fn parse_provider_trust", "fn provider_trust", "fn refusal", "fn refused", "fn reseal_identity", "fn seal_for_callback", "fn selection_diagram", "fn strictly_increasing", "fn transport", "fn transport_from_wire", "fn transport_to_wire", "fn verify_against_callback", "struct Derived", "struct TransportHandoffArtifact", "struct TransportHandoffMeta", "struct TransportIdentityWire", "type Failure"]
-sha256 = "91667954a3174b4388a3b3d94838f1ec4cd6f804a9198d0c800788f832c2b4a0"
+sha256 = "08d27c39b008a190670f7c2d60ccb28c18c881ec10688b024dce9f79fb46667a"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

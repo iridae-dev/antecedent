@@ -21,7 +21,7 @@ record_sha256 = "387e1a17428a4d15ecaec25548af3ec5e1911b6059c3faf35d5e5d8ef37850c
 role = "implementation"
 path = "crates/antecedent/src/analysis/proposal_arrival.rs"
 items = ["const MAX_ARRIVAL_BYTES", "const MAX_EVALUATION_DEPTH", "enum Family", "fn base", "fn bind_arrival_program", "fn bounds", "fn budget", "fn consume", "fn consume_with_limits", "fn default", "fn digest", "fn execute_with_limits", "fn family", "fn from", "fn ids", "fn native_error", "fn produce", "fn produce_with_limits", "fn reference", "fn refused", "fn to_bytes", "fn to_bytes_with_limits", "fn unsupported", "fn validate_base_providers", "fn validate_delivery", "struct ArrivalArtifact", "struct ArrivalLimits", "struct ArrivalPoint", "struct ArrivalRequest", "struct ArrivalWork", "struct BoundArrivalProgram"]
-sha256 = "922695f17b791098764b2fc4e3164e04c9d4171ec287f51114a00b8182e591ab"
+sha256 = "49de4d8232578647a75672d66b10356dd42fd6ed944e862256a515d39da2272c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
