@@ -18,7 +18,7 @@
 //! | wire value ([`Wire`]) | its CBOR wire encoding (fields in declaration order, floats in the shortest exact width, so injective on bits), length-prefixed; a value the wire cannot encode writes its conversion error under its own tag |
 //! | decision contract | its canonical declaration identity (actions and constraints as a set, as the contract identity encodes them), then the action and constraint ids in declaration order, since results are reported in that order |
 //! | aligned law | its decision-source digest (quantities, draws and weights) |
-//! | graph | the graph's canonical identity wire (sorted edge lists) |
+//! | graph | the graph's canonical identity wire (sorted edge lists), then every dense node's label in dense order |
 //!
 //! A runtime callback (a utility, a response source, a signal provider) cannot be encoded: the
 //! writer records that one is bound ([`CanonicalWriter::note_runtime_callback`]) and writes the
@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::response::IdentifiedSet;
-use antecedent_core::{CanonicalWriter, SupportStatus, VariableId};
+use antecedent_core::{CanonicalWriter, NodeRef, SupportStatus, VariableId};
 use antecedent_design::decision_adapters::{ClaimProbability, IdentifiedUtility, SuppliedClaim};
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, DecisionContract};
 use antecedent_design::decision_robustness::{AtomSupport, InputSupport};
@@ -121,6 +121,18 @@ impl<T: serde::Serialize> Canonical for Wire<'_, T> {
             Err(error) => out.text("unencodable").text(&error.to_string()),
         };
     }
+}
+
+/// The refusal of a declaration whose identity cannot be encoded because a non-exhaustive enum
+/// from another crate gained a variant the encoding has no arm for. Writing such a variant
+/// under a shared fallback tag would let two different declarations share an identity, so the
+/// compile refuses until the encoding gains the arm.
+pub(crate) fn unencoded_variant(plan: &str, what: &str) -> crate::CausalError {
+    crate::compile_reason!(
+        "route_not_supported",
+        "{plan}.identity: the identity encoding has no arm for this {what} variant, so the \
+         compiled route cannot bind it"
+    )
 }
 
 /// An enum variant: its tag, then its fields.
@@ -274,6 +286,30 @@ impl Canonical for DistributionArtifact {
     }
 }
 
+impl Canonical for NodeRef {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match *self {
+            Self::Static(variable) => {
+                variant(out, "static").word(u64::from(variable.raw()));
+            }
+            Self::Lagged { variable, lag } => {
+                variant(out, "lagged").word(u64::from(variable.raw())).word(u64::from(lag.raw()));
+            }
+            Self::Unfolded { variable, offset } => {
+                variant(out, "unfolded")
+                    .word(u64::from(variable.raw()))
+                    .word(u64::from(offset < 0))
+                    .word(u64::from(offset.unsigned_abs()));
+            }
+            Self::Context { variable, environment } => {
+                variant(out, "context")
+                    .word(u64::from(variable.raw()))
+                    .opt_word(environment.map(|id| u64::from(id.raw())));
+            }
+        }
+    }
+}
+
 impl Canonical for Admg {
     fn encode(&self, out: &mut CanonicalWriter) {
         match antecedent_io_core::identity::admg_identity(self) {
@@ -282,6 +318,9 @@ impl Canonical for Admg {
                 out.text("unencodable").text(&error.to_string());
             }
         }
+        // The identity wire indexes dense nodes and records only their count; the label of
+        // each dense node, in dense order, says which variable the edges are about.
+        self.nodes().encode(out);
     }
 }
 
@@ -395,6 +434,40 @@ mod tests {
         };
         assert_ne!(real(0.0), real(-0.0));
         assert_eq!(real(0.1), real(0.1));
+    }
+
+    #[test]
+    fn a_graph_is_its_sorted_edges_and_its_node_labels() {
+        use antecedent_graph::DenseNodeId;
+        let graph = |labels: &[u32], edges: &[(u32, u32)]| {
+            let mut admg = Admg::empty();
+            for &label in labels {
+                admg.add_node(NodeRef::Static(VariableId::from_raw(label))).unwrap();
+            }
+            for &(from, to) in edges {
+                admg.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+                    .unwrap();
+            }
+            digest(|d| {
+                d.field("graph", &admg);
+            })
+        };
+        let base = graph(&[0, 1, 2], &[(0, 1), (1, 2)]);
+        assert_eq!(base, graph(&[0, 1, 2], &[(1, 2), (0, 1)]), "edge insertion order");
+        assert_ne!(base, graph(&[0, 1, 2], &[(0, 1), (0, 2)]), "a changed edge");
+        assert_ne!(base, graph(&[0, 1, 5], &[(0, 1), (1, 2)]), "a changed node label");
+    }
+
+    #[test]
+    fn a_variant_with_no_encoding_arm_refuses_the_compile() {
+        match unencoded_variant("some.plan.v1", "request") {
+            crate::CausalError::Compile { message } => {
+                assert!(message.contains("route_not_supported"), "{message}");
+                assert!(message.contains("some.plan.v1.identity"), "{message}");
+                assert!(message.contains("no arm for this request variant"), "{message}");
+            }
+            other => panic!("expected a compile refusal, got {other:?}"),
+        }
     }
 
     #[test]

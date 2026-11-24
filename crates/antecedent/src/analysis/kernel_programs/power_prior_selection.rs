@@ -29,6 +29,7 @@ use antecedent_prob::{
 
 use super::{KernelProgram, KernelProgramShape, KernelRealization};
 use crate::analysis::Study;
+use crate::analysis::supplied_identity::{Canonical, Wire};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -175,21 +176,15 @@ fn gamma_canonical(input: &GammaSelectionInput) -> [u8; 32] {
     writer.finish()
 }
 
-/// The sources and baseline enter through their `Debug` rendering: ordered vectors and options
-/// whose reals print in their shortest round-trip form, so equal declarations give equal bytes.
+/// The sources (in declared order: the kernel composes and reports them in that order) and the
+/// baseline enter by their prior-bank identity wires: every prior spec, contrast, categorical
+/// predictor and restriction id, with reals by their IEEE bits.
 fn linear_canonical(input: &LinearSelectionInput) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.power_prior_selection.linear.v1");
-    writer.word(input.sources.len() as u64);
-    for source in &input.sources {
-        writer
-            .text(&source.id)
-            .text(&format!("{:?}", source.prior))
-            .real(source.weight.alpha)
-            .opt_real(source.weight.mixture_weight)
-            .opt_real(source.ess);
-    }
+    let mut writer = CanonicalWriter::new("antecedent.power_prior_selection.linear.v2");
+    let sources = antecedent_io::external_compose_identity(&input.sources, None).sources;
+    Wire(&sources).encode(&mut writer);
+    Wire(&antecedent_io::prior_set_identity(&input.baseline)).encode(&mut writer);
     writer
-        .text(&format!("{:?}", input.baseline))
         .word(input.n_rows as u64)
         .word(input.n_cols as u64)
         .reals(&input.x)
@@ -406,5 +401,68 @@ impl CompiledPowerPriorLinearSelection {
         self.program.gate(ctx).map_err(|refusal| prob_refusal(&refusal))?;
         let input = self.program.input();
         select_linear_prior(&input.sources, &input.baseline, input.target(), &input.options)
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        AlphaCriterion, AlphaSelectionOptions, ExternalPriorSource, ExternalPriorWeight,
+        GaussianCoefficientPrior, PriorSet, PriorSpec,
+    };
+
+    use super::{LinearSelectionInput, linear_canonical};
+
+    fn prior(mean: f64) -> PriorSet {
+        PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+                mean: Arc::from([mean]),
+                variance: Arc::from([1.0]),
+            })],
+            ..PriorSet::default()
+        }
+    }
+
+    fn source(id: &str, mean: f64) -> ExternalPriorSource {
+        ExternalPriorSource {
+            id: Arc::from(id),
+            prior: prior(mean),
+            weight: ExternalPriorWeight { alpha: 0.5, mixture_weight: None },
+            ess: None,
+        }
+    }
+
+    fn input(sources: Vec<ExternalPriorSource>, baseline_mean: f64) -> LinearSelectionInput {
+        LinearSelectionInput {
+            sources,
+            baseline: prior(baseline_mean),
+            x: vec![1.0, 2.0],
+            y: vec![0.5, 1.5],
+            n_rows: 2,
+            n_cols: 1,
+            functional: vec![1.0],
+            options: AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes),
+        }
+    }
+
+    #[test]
+    fn the_linear_identity_is_canonical() {
+        let two = || vec![source("a", 0.5), source("b", 1.0)];
+        let base = linear_canonical(&input(two(), 0.0));
+        assert_eq!(base, linear_canonical(&input(two(), 0.0)), "repeatable");
+        assert_ne!(base, linear_canonical(&input(two(), 0.25)), "a changed baseline");
+        assert_ne!(
+            base,
+            linear_canonical(&input(vec![source("a", 0.5), source("b", 2.0)], 0.0)),
+            "a changed source prior"
+        );
+        assert_ne!(
+            base,
+            linear_canonical(&input(vec![source("b", 1.0), source("a", 0.5)], 0.0)),
+            "the sources are ordered"
+        );
+        assert_ne!(base, linear_canonical(&input(two(), -0.0)), "reals by their bits");
     }
 }

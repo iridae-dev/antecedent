@@ -11,9 +11,11 @@
 //! source rows, and the sensitivity of a kernel-weighted target to its bandwidth — compiles to
 //! the `ExternalPriorTransport` route.
 //!
-//! Compiling binds the digest of the declared input into a six-layer program. These inputs are
-//! not wire types, so the identity bytes are their `Debug` rendering: every field in order,
-//! with every real in Rust's shortest round-trip form, so equal declarations give equal bytes.
+//! Compiling binds the digest of the declared input into a six-layer program. The digest is
+//! the input's canonical encoding: every prior set and external source by its prior-bank
+//! identity wire, every other field framed in turn with reals by their IEEE bits. The sources,
+//! population tags, rows and bandwidths are ordered inputs (the kernels sum, list and report
+//! them in the declared order), so reordering them changes the identity.
 //! Every run passes the support gate of the route's unit and then calls the very kernel
 //! function the direct path calls (`antecedent_prob::compose_external_priors`,
 //! `compose_beta_power_priors`, `compose_gamma_power_priors`, `apply_transport`,
@@ -34,14 +36,15 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, NotSupported};
 use antecedent_prob::{
     BandwidthSensitivityRow, BetaHyperparameters, ComposedPrior, ExternalPriorSource,
     GammaHyperparameters, KernelFamily, PriorSet, ProbError, TargetOverlap, TransportAdjustment,
-    TransportContext, TransportError, TransportOutcome, TransportPolicy, WeightedTarget,
-    apply_transport, apply_weighted_target_transport, compose_beta_power_priors,
+    TransportContext, TransportError, TransportKernel, TransportOutcome, TransportPolicy,
+    WeightedTarget, apply_transport, apply_weighted_target_transport, compose_beta_power_priors,
     compose_external_priors, compose_gamma_power_priors, compose_with_transport,
     compose_with_weighted_target_transport, kernel_bandwidth_sensitivity,
 };
 
 use super::{KernelProgram, KernelProgramShape, KernelRealization};
 use crate::analysis::Study;
+use crate::analysis::supplied_identity::{Canonical, Declaration, Wire};
 use crate::error::CausalError;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -272,11 +275,117 @@ pub struct CompiledKernelBandwidthSensitivity {
     program: KernelProgram<BandwidthSensitivityInput>,
 }
 
-/// The identity digest of a declared input: its `Debug` rendering under the family's tag.
-fn debug_canonical<T: std::fmt::Debug>(tag: &str, input: &T) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new(tag);
-    writer.text(&format!("{input:?}"));
-    writer.finish()
+/// The identity digest of a declared input: its canonical encoding under the family's tag.
+fn canonical_identity(tag: &str, input: &impl Canonical) -> [u8; 32] {
+    let mut declaration = Declaration::new(tag);
+    declaration.field("input", input);
+    declaration.finish()
+}
+
+/// External sources in declared order (the kernels sum, mix and report them in that order),
+/// each by its prior-bank identity wire: id, mapped prior, discount, mixture weight and ESS.
+struct Sources<'a>(&'a [ExternalPriorSource]);
+
+impl Canonical for Sources<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Wire(&antecedent_io::external_compose_identity(self.0, None).sources).encode(out);
+    }
+}
+
+/// A prior set by its prior-bank identity wire (specs in declaration order, contrast,
+/// categorical predictors and restriction ids).
+struct Prior<'a>(&'a PriorSet);
+
+impl Canonical for Prior<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Wire(&antecedent_io::prior_set_identity(self.0)).encode(out);
+    }
+}
+
+/// A unit reweighting: the effects and weights, row aligned, in row order.
+struct Adjustment<'a>(&'a TransportAdjustment);
+
+impl Canonical for Adjustment<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.reals(&self.0.unit_effects).reals(&self.0.target_weights);
+    }
+}
+
+/// A transport kernel: its family's stable id and its bandwidth.
+struct Kernel(TransportKernel);
+
+impl Canonical for Kernel {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.text(self.0.family().id()).real(self.0.bandwidth());
+    }
+}
+
+impl Canonical for GaussianCompositionInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Sources(&self.sources).encode(out);
+        Prior(&self.baseline).encode(out);
+    }
+}
+
+impl Canonical for BetaCompositionInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.real(self.base.alpha).real(self.base.beta).word(self.sources.len() as u64);
+        for &(successes, trials, alpha) in &self.sources {
+            out.word(successes).word(trials).real(alpha);
+        }
+    }
+}
+
+impl Canonical for GammaCompositionInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.real(self.base.shape).real(self.base.rate).word(self.sources.len() as u64);
+        for &(total, exposure, alpha) in &self.sources {
+            out.word(total).real(exposure).real(alpha);
+        }
+    }
+}
+
+impl Canonical for OwnedTransportContext {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Ordered: the population tags are aligned with the sources.
+        self.source_populations.encode(out);
+        self.target_population.encode(out);
+        self.policy.map(TransportPolicy::id).encode(out);
+        self.adjustment.as_ref().map(Adjustment).encode(out);
+        self.coef_index.encode(out);
+    }
+}
+
+impl Canonical for TagTransportInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Sources(&self.sources).encode(out);
+        Prior(&self.baseline).encode(out);
+        self.context.encode(out);
+    }
+}
+
+impl Canonical for WeightedTargetTransportInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Sources(&self.sources).encode(out);
+        Prior(&self.baseline).encode(out);
+        out.text(self.policy.id());
+        // The target: its row-aligned effects and weights, the kernel the weights came from,
+        // and its ESS-fraction floor.
+        out.reals(self.target.unit_effects()).reals(self.target.weights());
+        self.target.kernel().map(Kernel).encode(out);
+        out.real(self.target.min_ess_fraction());
+        self.coef_index.encode(out);
+    }
+}
+
+impl Canonical for BandwidthSensitivityInput {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.text(self.family.id())
+            .reals(&self.bandwidths)
+            .reals(&self.distances)
+            .reals(&self.unit_effects)
+            .real(self.min_ess_fraction);
+    }
 }
 
 /// The support refusal's message, led by its namespaced detail.
@@ -327,7 +436,7 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledExternalPriorComposition, CausalError> {
         let input = GaussianCompositionInput { sources, baseline };
-        let canonical = debug_canonical("antecedent.prior_composition.gaussian.v1", &input);
+        let canonical = canonical_identity("antecedent.prior_composition.gaussian.v2", &input);
         let program = KernelProgram::compile(&GAUSSIAN_COMPOSITION, input, &canonical, ctx)?;
         Ok(CompiledExternalPriorComposition { program })
     }
@@ -345,7 +454,7 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledBetaPowerPriorComposition, CausalError> {
         let input = BetaCompositionInput { base, sources };
-        let canonical = debug_canonical("antecedent.prior_composition.beta_counts.v1", &input);
+        let canonical = canonical_identity("antecedent.prior_composition.beta_counts.v2", &input);
         let program = KernelProgram::compile(&BETA_COMPOSITION, input, &canonical, ctx)?;
         Ok(CompiledBetaPowerPriorComposition { program })
     }
@@ -363,7 +472,7 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledGammaPowerPriorComposition, CausalError> {
         let input = GammaCompositionInput { base, sources };
-        let canonical = debug_canonical("antecedent.prior_composition.gamma_counts.v1", &input);
+        let canonical = canonical_identity("antecedent.prior_composition.gamma_counts.v2", &input);
         let program = KernelProgram::compile(&GAMMA_COMPOSITION, input, &canonical, ctx)?;
         Ok(CompiledGammaPowerPriorComposition { program })
     }
@@ -384,7 +493,7 @@ impl Study {
     ) -> Result<CompiledPriorTagTransport, CausalError> {
         let input =
             TagTransportInput { sources, baseline, context: OwnedTransportContext::of(context) };
-        let canonical = debug_canonical("antecedent.prior_transport.population_tag.v1", &input);
+        let canonical = canonical_identity("antecedent.prior_transport.population_tag.v2", &input);
         let program = KernelProgram::compile(&TAG_TRANSPORT, input, &canonical, ctx)?;
         Ok(CompiledPriorTagTransport { program })
     }
@@ -406,7 +515,7 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledPriorWeightedTargetTransport, CausalError> {
         let input = WeightedTargetTransportInput { sources, baseline, policy, target, coef_index };
-        let canonical = debug_canonical("antecedent.prior_transport.weighted_target.v1", &input);
+        let canonical = canonical_identity("antecedent.prior_transport.weighted_target.v2", &input);
         let program = KernelProgram::compile(&WEIGHTED_TARGET_TRANSPORT, input, &canonical, ctx)?;
         Ok(CompiledPriorWeightedTargetTransport { program })
     }
@@ -434,7 +543,7 @@ impl Study {
             min_ess_fraction,
         };
         let canonical =
-            debug_canonical("antecedent.prior_transport.bandwidth_sensitivity.v1", &input);
+            canonical_identity("antecedent.prior_transport.bandwidth_sensitivity.v2", &input);
         let program = KernelProgram::compile(&BANDWIDTH_SENSITIVITY, input, &canonical, ctx)?;
         Ok(CompiledKernelBandwidthSensitivity { program })
     }
@@ -703,5 +812,118 @@ mod tests {
             }
             other => panic!("expected a refusal, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        BetaHyperparameters, ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior,
+        KernelFamily, PriorSet, PriorSpec, TransportPolicy, WeightedTarget,
+    };
+
+    use super::{
+        BandwidthSensitivityInput, BetaCompositionInput, GaussianCompositionInput,
+        WeightedTargetTransportInput, canonical_identity,
+    };
+
+    const TAG: &str = "antecedent.prior_composition.identity_test";
+
+    fn prior(mean: f64) -> PriorSet {
+        PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+                mean: Arc::from([mean]),
+                variance: Arc::from([1.0]),
+            })],
+            ..PriorSet::default()
+        }
+    }
+
+    fn source(id: &str, mean: f64, alpha: f64) -> ExternalPriorSource {
+        ExternalPriorSource {
+            id: Arc::from(id),
+            prior: prior(mean),
+            weight: ExternalPriorWeight { alpha, mixture_weight: None },
+            ess: None,
+        }
+    }
+
+    fn gaussian(sources: Vec<ExternalPriorSource>) -> [u8; 32] {
+        canonical_identity(TAG, &GaussianCompositionInput { sources, baseline: prior(0.0) })
+    }
+
+    fn beta(sources: Vec<(u64, u64, f64)>) -> [u8; 32] {
+        let base = BetaHyperparameters { alpha: 1.0, beta: 1.0 };
+        canonical_identity(TAG, &BetaCompositionInput { base, sources })
+    }
+
+    #[test]
+    fn the_same_declaration_has_the_same_identity() {
+        let sources = || vec![source("a", 0.5, 0.5), source("b", 1.0, 0.25)];
+        assert_eq!(gaussian(sources()), gaussian(sources()));
+        assert_eq!(beta(vec![(3, 10, 0.5)]), beta(vec![(3, 10, 0.5)]));
+    }
+
+    #[test]
+    fn a_changed_declaration_changes_the_identity() {
+        let base = gaussian(vec![source("a", 0.5, 0.5)]);
+        assert_ne!(base, gaussian(vec![source("b", 0.5, 0.5)]));
+        assert_ne!(base, gaussian(vec![source("a", 0.75, 0.5)]));
+        assert_ne!(base, gaussian(vec![source("a", 0.5, 0.25)]));
+        assert_ne!(beta(vec![(3, 10, 0.5)]), beta(vec![(4, 10, 0.5)]));
+    }
+
+    #[test]
+    fn reordering_the_sources_changes_the_identity() {
+        assert_ne!(
+            gaussian(vec![source("a", 0.5, 0.5), source("b", 1.0, 0.25)]),
+            gaussian(vec![source("b", 1.0, 0.25), source("a", 0.5, 0.5)])
+        );
+        assert_ne!(beta(vec![(3, 10, 0.5), (1, 4, 1.0)]), beta(vec![(1, 4, 1.0), (3, 10, 0.5)]));
+    }
+
+    #[test]
+    fn negative_zero_is_not_zero() {
+        assert_ne!(gaussian(vec![source("a", 0.0, 0.5)]), gaussian(vec![source("a", -0.0, 0.5)]));
+        assert_ne!(beta(vec![(3, 10, 0.0)]), beta(vec![(3, 10, -0.0)]));
+        let bandwidths = |first: f64| {
+            canonical_identity(
+                TAG,
+                &BandwidthSensitivityInput {
+                    family: KernelFamily::Gaussian,
+                    bandwidths: vec![first, 1.0],
+                    distances: vec![0.0, 1.0],
+                    unit_effects: vec![1.0, 2.0],
+                    min_ess_fraction: 0.05,
+                },
+            )
+        };
+        assert_ne!(bandwidths(0.0), bandwidths(-0.0));
+    }
+
+    #[test]
+    fn the_weighted_target_enters_by_its_effects_weights_and_floor() {
+        let identity = |effects: [f64; 2], floor: Option<f64>| {
+            let mut target = WeightedTarget::from_row_weights(effects, [1.0, 2.0]).unwrap();
+            if let Some(floor) = floor {
+                target = target.with_min_ess_fraction(floor).unwrap();
+            }
+            canonical_identity(
+                TAG,
+                &WeightedTargetTransportInput {
+                    sources: vec![source("a", 0.5, 0.5)],
+                    baseline: prior(0.0),
+                    policy: TransportPolicy::InvariantConditionalOutcome,
+                    target,
+                    coef_index: None,
+                },
+            )
+        };
+        let base = identity([1.0, 2.0], None);
+        assert_eq!(base, identity([1.0, 2.0], None));
+        assert_ne!(base, identity([2.0, 1.0], None));
+        assert_ne!(base, identity([1.0, 2.0], Some(0.5)));
     }
 }

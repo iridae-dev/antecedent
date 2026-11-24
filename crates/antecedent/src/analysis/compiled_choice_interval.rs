@@ -25,6 +25,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 use super::choice_inference::{ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceRequest};
 use super::compiled_measured_interval::{MeasuredIntervalProgram, MeasuredIntervalRun, bayesian};
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{unencoded_variant, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -49,12 +50,53 @@ pub struct CompiledChoiceInterval<'s> {
     lowered: Arc<LoweredProgram>,
 }
 
-fn question_digest(request: &ChoiceRequest, artifact_id: &str) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.choice_result_interval.question.v1");
-    // The request's debug form spells every variant field, floats in their exact round-trip
-    // form; the sealed result the consumer replays binds the same request canonically.
-    writer.text(&format!("{request:?}")).text(artifact_id);
-    writer.finish()
+/// The request's canonical encoding: its variant tag, then every field in declaration order,
+/// reals by their bits. The Dirichlet shapes are ordered by category, so reordering them
+/// changes the identity.
+fn write_request(writer: &mut CanonicalWriter, request: &ChoiceRequest) -> Result<(), CausalError> {
+    match request {
+        ChoiceRequest::Posterior { look } => {
+            variant(writer, "posterior").word(u64::from(*look));
+        }
+        ChoiceRequest::Stopping { look } => {
+            variant(writer, "stopping").word(u64::from(*look));
+        }
+        ChoiceRequest::Hierarchical {
+            look,
+            shapes,
+            log_concentration_mean,
+            log_concentration_sd,
+        } => {
+            variant(writer, "hierarchical")
+                .word(u64::from(*look))
+                .reals(shapes)
+                .real(*log_concentration_mean)
+                .real(*log_concentration_sd);
+        }
+        ChoiceRequest::HierarchicalStopping {
+            look,
+            shapes,
+            log_concentration_mean,
+            log_concentration_sd,
+        } => {
+            variant(writer, "hierarchical_stopping")
+                .word(u64::from(*look))
+                .reals(shapes)
+                .real(*log_concentration_mean)
+                .real(*log_concentration_sd);
+        }
+        // The request enum is non-exhaustive: a variant added later refuses to compile until
+        // it gains its own arm here, rather than sharing a fallback identity with another.
+        _ => return Err(unencoded_variant(PLAN_ID, "choice result request")),
+    }
+    Ok(())
+}
+
+fn question_digest(request: &ChoiceRequest, artifact_id: &str) -> Result<[u8; 32], CausalError> {
+    let mut writer = CanonicalWriter::new("antecedent.choice_result_interval.question.v2");
+    write_request(&mut writer, request)?;
+    writer.text(artifact_id);
+    Ok(writer.finish())
 }
 
 fn source_digest(session: &ChoiceInferenceSession) -> [u8; 32] {
@@ -74,7 +116,7 @@ fn lower(
         plan_id: PLAN_ID,
         kind: FunctionalKind::Association,
         graph_class: "not_applicable_descriptive_choice_shares",
-        question: question_digest(request, artifact_id),
+        question: question_digest(request, artifact_id)?,
         source: source_digest(session),
         source_role: EvidenceRole::Observations,
         realization: bayesian(
@@ -168,5 +210,62 @@ impl CompiledChoiceInterval<'_> {
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::{ChoiceRequest, question_digest};
+
+    fn hierarchical(shapes: Vec<f64>, log_concentration_mean: f64) -> ChoiceRequest {
+        ChoiceRequest::Hierarchical {
+            look: 3,
+            shapes,
+            log_concentration_mean,
+            log_concentration_sd: 1.0,
+        }
+    }
+
+    #[test]
+    fn the_same_request_has_the_same_identity() {
+        assert_eq!(
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap(),
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap()
+        );
+    }
+
+    #[test]
+    fn a_changed_field_or_variant_changes_the_identity() {
+        let base = question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap();
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0, 3.0], 0.5), "a").unwrap());
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.25), "a").unwrap());
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "b").unwrap());
+        let stopping = ChoiceRequest::HierarchicalStopping {
+            look: 3,
+            shapes: vec![1.0, 2.0],
+            log_concentration_mean: 0.5,
+            log_concentration_sd: 1.0,
+        };
+        assert_ne!(base, question_digest(&stopping, "a").unwrap());
+        assert_ne!(
+            question_digest(&ChoiceRequest::Posterior { look: 1 }, "a").unwrap(),
+            question_digest(&ChoiceRequest::Stopping { look: 1 }, "a").unwrap()
+        );
+    }
+
+    #[test]
+    fn reordering_the_shapes_changes_the_identity() {
+        assert_ne!(
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap(),
+            question_digest(&hierarchical(vec![2.0, 1.0], 0.5), "a").unwrap()
+        );
+    }
+
+    #[test]
+    fn negative_zero_is_not_zero() {
+        assert_ne!(
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.0), "a").unwrap(),
+            question_digest(&hierarchical(vec![1.0, 2.0], -0.0), "a").unwrap()
+        );
     }
 }

@@ -104,15 +104,19 @@ pub struct ExternalFeedbackFitRun {
     pub claim: &'static str,
 }
 
+/// The system and the fitted scalars enter as their CBOR wire encodings (serde types of
+/// ordered lists and scalars with no hash-ordered collections; reals in the shortest exact
+/// width, so injective on their bits, unlike JSON, which writes every NaN as `null`). The
+/// fitted scalars stay in declaration order: the kernel's parameter vector follows it.
 fn question_digest(request: &ExternalFeedbackFitRequest) -> Result<[u8; 32], CausalError> {
-    let encode = |what: &str, value: Result<Vec<u8>, serde_json::Error>| {
+    let encode = |what: &str, value: Result<Vec<u8>, antecedent_io::IoError>| {
         value.map_err(|error| CausalError::Compile {
             message: format!("{PLAN_ID}: the {what} cannot be encoded: {error}"),
         })
     };
-    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.question.v1");
-    writer.bytes(&encode("system", serde_json::to_vec(&request.system))?);
-    writer.bytes(&encode("fitted parameters", serde_json::to_vec(&request.parameters))?);
+    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.question.v2");
+    writer.bytes(&encode("system", antecedent_io::to_cbor(&request.system))?);
+    writer.bytes(&encode("fitted parameters", antecedent_io::to_cbor(&request.parameters))?);
     let policy = request.policy;
     writer
         .real(policy.learning_rate)
@@ -229,5 +233,66 @@ impl CompiledExternalFeedbackFit {
             lowered_program_identity: self.lowered.identity(),
             claim: "model_conditional_point",
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_estimate::external_cyclic_fit::ExternalFitPolicy;
+    use antecedent_model::external_mechanism::{ExternalFeedbackSystem, ExternalFitParameter};
+
+    use super::{ExternalFeedbackFitRequest, question_digest};
+
+    fn request(
+        noise_covariance: Vec<f64>,
+        parameters: Vec<ExternalFitParameter>,
+        learning_rate: f64,
+    ) -> ExternalFeedbackFitRequest {
+        ExternalFeedbackFitRequest::new(
+            ExternalFeedbackSystem { equations: Vec::new(), noise_covariance },
+            parameters,
+            Vec::new(),
+            ExternalFitPolicy { learning_rate, ..ExternalFitPolicy::default() },
+        )
+    }
+
+    fn intercepts(equations: &[usize]) -> Vec<ExternalFitParameter> {
+        equations.iter().map(|&equation| ExternalFitParameter::Intercept { equation }).collect()
+    }
+
+    #[test]
+    fn the_same_request_has_the_same_identity() {
+        assert_eq!(
+            question_digest(&request(vec![1.0], intercepts(&[0, 1]), 0.1)).unwrap(),
+            question_digest(&request(vec![1.0], intercepts(&[0, 1]), 0.1)).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_changed_field_changes_the_identity() {
+        let base = question_digest(&request(vec![1.0], intercepts(&[0, 1]), 0.1)).unwrap();
+        assert_ne!(base, question_digest(&request(vec![2.0], intercepts(&[0, 1]), 0.1)).unwrap());
+        assert_ne!(base, question_digest(&request(vec![1.0], intercepts(&[0]), 0.1)).unwrap());
+        assert_ne!(base, question_digest(&request(vec![1.0], intercepts(&[0, 1]), 0.2)).unwrap());
+    }
+
+    #[test]
+    fn reordering_the_fitted_scalars_changes_the_identity() {
+        assert_ne!(
+            question_digest(&request(vec![1.0], intercepts(&[0, 1]), 0.1)).unwrap(),
+            question_digest(&request(vec![1.0], intercepts(&[1, 0]), 0.1)).unwrap()
+        );
+    }
+
+    #[test]
+    fn negative_zero_and_nan_payloads_are_distinguished() {
+        assert_ne!(
+            question_digest(&request(vec![0.0], intercepts(&[0]), 0.1)).unwrap(),
+            question_digest(&request(vec![-0.0], intercepts(&[0]), 0.1)).unwrap()
+        );
+        assert_ne!(
+            question_digest(&request(vec![f64::NAN], intercepts(&[0]), 0.1)).unwrap(),
+            question_digest(&request(vec![f64::INFINITY], intercepts(&[0]), 0.1)).unwrap()
+        );
     }
 }

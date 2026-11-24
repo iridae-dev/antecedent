@@ -69,7 +69,7 @@ pub fn compile_z_transport_mechanism_sensitivity(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportMechanismSensitivity, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.z_transport_mechanism_sensitivity.v1")
+    let question = Declaration::new("antecedent.z_transport_mechanism_sensitivity.v2")
         .field("diagram", &DiagramField(&diagram))
         .field("functional", &FunctionalField(&functional))
         .field("data", &DataField(&data))
@@ -150,6 +150,8 @@ impl Canonical for DiagramField<'_> {
                 out.text("unencodable").text(&error.to_string());
             }
         }
+        // The wire indexes dense nodes; each dense node's label names its variable.
+        self.0.causal_graph().nodes().encode(out);
     }
 }
 

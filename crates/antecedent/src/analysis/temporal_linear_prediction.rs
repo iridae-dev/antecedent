@@ -27,7 +27,7 @@ use antecedent_core::{
     CanonicalWriter, ExecutionContext, KernelPolicy, NotSupported, PhysicalEffect,
     PhysicalOperator, VariableId,
 };
-use antecedent_data::{LaggedColumn, TimeSeriesData};
+use antecedent_data::{LaggedColumn, SamplingRegularity, TimeSeriesData};
 use antecedent_estimate::{EstimationError, TemporalLinearPredictor};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
@@ -310,9 +310,16 @@ fn run(
 
 /// The canonical bytes of a series: its storage content digest and its time index.
 fn series_digest(data: &TimeSeriesData) -> [u8; 32] {
-    let mut w = CanonicalWriter::new("antecedent.temporal_linear_prediction.series.v1");
+    let mut w = CanonicalWriter::new("antecedent.temporal_linear_prediction.series.v2");
     w.bytes(&data.storage().content_digest());
-    w.text(&format!("{:?}", data.time_index().regularity));
+    match &data.time_index().regularity {
+        SamplingRegularity::Regular { interval_ns } => {
+            w.text("regular").word(*interval_ns);
+        }
+        SamplingRegularity::Irregular => {
+            w.text("irregular");
+        }
+    }
     w.word(data.time_index().length as u64);
     w.finish()
 }
@@ -331,14 +338,16 @@ fn encode_design(
         w.word(u64::from(parent.variable.raw())).word(u64::from(parent.lag.raw()));
     }
     // The policy selects the kernel arithmetic (scalar or vectorized), so it is part of the
-    // question; it is plain data whose `Debug` is deterministic.
-    w.text(&format!("{policy:?}"));
+    // question; each of its flags is written as a word.
+    w.word(u64::from(policy.allow_portable_optimized))
+        .word(u64::from(policy.allow_arch_simd))
+        .word(u64::from(policy.force_scalar));
 }
 
 /// The digest of the question: the request kind and every input the kernel reads.
 fn question(request: &TemporalPredictionRequest) -> [u8; 32] {
     use TemporalPredictionRequest as R;
-    let mut w = CanonicalWriter::new("antecedent.temporal_linear_prediction.question.v1");
+    let mut w = CanonicalWriter::new("antecedent.temporal_linear_prediction.question.v2");
     match request {
         R::Fit { data, target, parents, policy } => {
             w.text("fit");
@@ -461,6 +470,38 @@ mod tests {
         let rows = compile_temporal_prediction(request(1.0, 1.0), &ctx).unwrap();
         assert_ne!(a.lowered().identity(), level.lowered().identity());
         assert_ne!(a.lowered().identity(), rows.lowered().identity());
+    }
+
+    fn with_parents(parents: &[(u32, u32)], level: f64, policy: KernelPolicy) -> [u8; 32] {
+        question(&TemporalPredictionRequest::predict_conditional(
+            series(0.0),
+            VariableId::from_raw(1),
+            parents
+                .iter()
+                .map(|&(variable, lag)| LaggedColumn {
+                    variable: VariableId::from_raw(variable),
+                    lag: Lag::from_raw(lag),
+                })
+                .collect::<Vec<_>>(),
+            VariableId::from_raw(0),
+            level,
+            policy,
+        ))
+    }
+
+    #[test]
+    fn the_question_identity_is_canonical() {
+        let policy = KernelPolicy::default_policy();
+        let base = with_parents(&[(0, 1), (1, 1)], 1.0, policy);
+        assert_eq!(base, with_parents(&[(0, 1), (1, 1)], 1.0, policy), "repeatable");
+        assert_ne!(base, with_parents(&[(1, 1), (0, 1)], 1.0, policy), "parents are ordered");
+        let scalar = KernelPolicy { force_scalar: true, ..policy };
+        assert_ne!(base, with_parents(&[(0, 1), (1, 1)], 1.0, scalar), "a changed policy");
+        assert_ne!(
+            with_parents(&[(0, 1)], 0.0, policy),
+            with_parents(&[(0, 1)], -0.0, policy),
+            "reals by bits"
+        );
     }
 
     #[test]

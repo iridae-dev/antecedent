@@ -27,8 +27,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    CanonicalWriter, ExecutionContext, ResponseFunctional, SemanticDigest, TransportQuery,
-    VariableId,
+    CanonicalEncode, CanonicalWriter, ExecutionContext, ResponseFunctional, SemanticDigest,
+    TransportQuery, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{
@@ -40,6 +40,7 @@ use antecedent_identify::TransportIdentification;
 
 use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{Canonical, SetOf};
 use super::transport_supplied_nuisance::TransportResponseGridColumns;
 use crate::analysis::TransportTrialSpec;
 use crate::analysis::execute::{Study, live_transport_identification};
@@ -213,6 +214,30 @@ impl Study {
     }
 }
 
+/// The declared question: the selection diagram (the graph's canonical identity, with sorted
+/// edge lists, and the selection targets as a set), the query by its canonical encoding, the
+/// trial columns, and the observed regression, grid regressions and response weights (the last
+/// two aligned with the grid, so in declared order).
+fn question_digest(
+    diagram: &SelectionDiagram,
+    query: &TransportQuery,
+    trial: &TransportTrialSpec,
+    columns: &TransportResponseGridColumns,
+) -> [u8; 32] {
+    let ids = |values: &[VariableId]| values.iter().map(|v| u64::from(v.raw())).collect::<Vec<_>>();
+    let mut question = CanonicalWriter::new("antecedent.transport_response_grid.question.v2");
+    Canonical::encode(diagram.causal_graph(), &mut question);
+    // A set: identification reads the selection targets as a node set.
+    Canonical::encode(&SetOf(diagram.selection_targets()), &mut question);
+    CanonicalEncode::encode(query, &mut question);
+    question
+        .words(&[u64::from(trial.trial.raw()), u64::from(trial.selection_probability.raw())])
+        .word(u64::from(columns.observed_regression.raw()))
+        .words(&ids(&columns.grid_regressions[..]))
+        .words(&ids(&columns.response_weights[..]));
+    question.finish()
+}
+
 fn lower(
     diagram: &SelectionDiagram,
     query: &TransportQuery,
@@ -221,26 +246,7 @@ fn lower(
     inputs: &GridInputs,
     outcome: VariableId,
 ) -> Result<Arc<LoweredProgram>, CausalError> {
-    let wire = |error: antecedent_io::IoError| CausalError::Compile {
-        message: format!("transport response grid: {error}"),
-    };
-    let graph =
-        antecedent_io::to_cbor(&antecedent_io::admg_to_wire(diagram.causal_graph()).map_err(wire)?)
-            .map_err(wire)?;
-    let query_bytes =
-        antecedent_io::to_cbor(&antecedent_io::transport_query_to_wire(query).map_err(wire)?)
-            .map_err(wire)?;
-    let ids = |values: &[VariableId]| values.iter().map(|v| u64::from(v.raw())).collect::<Vec<_>>();
-    let mut question = CanonicalWriter::new("antecedent.transport_response_grid.question.v1");
-    question
-        .bytes(&graph)
-        .words(&ids(diagram.selection_targets()))
-        .bytes(&query_bytes)
-        .words(&[u64::from(trial.trial.raw()), u64::from(trial.selection_probability.raw())])
-        .word(u64::from(columns.observed_regression.raw()))
-        .words(&ids(&columns.grid_regressions[..]))
-        .words(&ids(&columns.response_weights[..]));
-    let question = question.finish();
+    let question = question_digest(diagram, query, trial, columns);
     let mut source = CanonicalWriter::new("antecedent.transport_response_grid.inputs.v1");
     source
         .reals(&inputs.outcome)
@@ -341,5 +347,62 @@ impl CompiledTransportResponseGrid {
             claim: "point_only",
             calibration: "not_measured",
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_core::{ContinuousDomain, GridSpec, ResponseQuery};
+    use antecedent_graph::{Admg, DenseNodeId};
+
+    use super::*;
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    /// A graph over three variables with `edges` inserted in the given order.
+    fn diagram(edges: &[(u32, u32)], selections: &[u32]) -> SelectionDiagram {
+        let mut graph = Admg::with_variables(3);
+        for &(a, b) in edges {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
+        SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections)).unwrap()
+    }
+
+    fn digest(diagram: &SelectionDiagram, grid: &[f64], weights: &[u32]) -> [u8; 32] {
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: v(2),
+                treatment: ContinuousDomain::new(v(0), GridSpec::Values(Arc::from(grid))),
+            }),
+            "trial",
+            "target",
+            [v(0)],
+        );
+        let trial = TransportTrialSpec {
+            trial: v(3),
+            selection_probability: v(4),
+            treatment_probability: v(5),
+        };
+        let columns = TransportResponseGridColumns::new(
+            v(6),
+            [v(7), v(8)],
+            weights.iter().copied().map(v).collect::<Vec<_>>(),
+        );
+        question_digest(diagram, &query, &trial, &columns)
+    }
+
+    #[test]
+    fn the_response_grid_question_identity_is_canonical() {
+        let graph = diagram(&[(0, 2), (1, 2)], &[1, 2]);
+        let base = digest(&graph, &[0.0, 1.0], &[9, 10]);
+        assert_eq!(base, digest(&graph, &[0.0, 1.0], &[9, 10]), "repeatable");
+        let reinserted = diagram(&[(1, 2), (0, 2)], &[2, 1]);
+        assert_eq!(base, digest(&reinserted, &[0.0, 1.0], &[9, 10]), "edges and selections");
+        assert_ne!(base, digest(&graph, &[0.0, 1.0], &[10, 9]), "weights are ordered");
+        assert_ne!(base, digest(&graph, &[-0.0, 1.0], &[9, 10]), "reals by bits");
+        assert_ne!(base, digest(&diagram(&[(0, 2)], &[1, 2]), &[0.0, 1.0], &[9, 10]));
     }
 }

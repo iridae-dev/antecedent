@@ -24,13 +24,17 @@ use std::sync::Arc;
 
 use antecedent_contract::ClaimKind;
 use antecedent_core::{CanonicalWriter, ExecutionContext};
-use antecedent_estimate::temporal_dependent_interval::{DependentIntervalConfig, UnitHistories};
+use antecedent_estimate::temporal_dependent_interval::{
+    DependentIntervalConfig, IntervalMethod, UnitHistories,
+};
+use antecedent_estimate::temporal_initial_state::{InitialStatePopulation, InitialStateSpec};
 use antecedent_io::IoError;
 
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::variant;
 use super::temporal_extensions::{IntervalEstimand, measure_dependent_interval};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -105,18 +109,49 @@ pub struct CompiledTemporalDependentInterval {
     lowered: Arc<LoweredProgram>,
 }
 
+/// The estimand: its variant, then the fixed state or the law's population, snapshot and
+/// `(state, mass)` support points in declared order (the marginalization sums them in that
+/// order), masses by their bits.
+fn write_estimand(writer: &mut CanonicalWriter, estimand: &IntervalEstimand) {
+    match estimand {
+        IntervalEstimand::Observed => {
+            variant(writer, "observed");
+        }
+        IntervalEstimand::FixedState(state) => {
+            variant(writer, "fixed_state").word(u64::from(*state));
+        }
+        IntervalEstimand::Marginalized(InitialStateSpec::Point(state)) => {
+            variant(writer, "marginalized_point").word(u64::from(*state));
+        }
+        IntervalEstimand::Marginalized(InitialStateSpec::Law(law)) => {
+            variant(writer, "marginalized_law")
+                .text(match law.population() {
+                    InitialStatePopulation::Source => "source",
+                    InitialStatePopulation::Target => "target",
+                })
+                .text(law.snapshot_id())
+                .word(law.states().len() as u64);
+            for &(state, mass) in law.states() {
+                writer.word(u64::from(state)).real(mass);
+            }
+        }
+    }
+}
+
 fn question_digest(request: &TemporalDependentIntervalRequest) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.temporal_dependent_interval.question.v1");
+    let mut writer = CanonicalWriter::new("antecedent.temporal_dependent_interval.question.v2");
     let config = &request.config;
     writer.text(&request.snapshot_id).u32s(&request.sequence);
-    // The estimand's debug form spells the state or the law's population, snapshot and
-    // masses, floats in their exact round-trip form.
-    writer.text(&format!("{:?}", request.estimand));
+    write_estimand(&mut writer, &request.estimand);
     writer
         .word(config.replicates as u64)
         .word(config.seed)
         .real(config.level)
-        .text(&format!("{:?}", config.method))
+        .text(match config.method {
+            IntervalMethod::Percentile => "percentile",
+            IntervalMethod::Basic => "basic",
+            IntervalMethod::Studentized => "studentized",
+        })
         .word(config.min_units as u64)
         .real(config.max_failed_fraction);
     writer.finish()
@@ -233,5 +268,74 @@ impl CompiledTemporalDependentInterval {
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
+    use antecedent_estimate::temporal_initial_state::{
+        InitialStateLaw, InitialStatePopulation, InitialStateSpec,
+    };
+
+    use super::{IntervalEstimand, TemporalDependentIntervalRequest, question_digest};
+
+    fn request(
+        sequence: [u32; 2],
+        estimand: IntervalEstimand,
+        max_failed_fraction: f64,
+    ) -> TemporalDependentIntervalRequest {
+        let config = DependentIntervalConfig { max_failed_fraction, ..Default::default() };
+        TemporalDependentIntervalRequest::new("panel", None, sequence, estimand, config)
+    }
+
+    fn marginal(states: Vec<(u32, f64)>) -> IntervalEstimand {
+        let law = InitialStateLaw::new(InitialStatePopulation::Target, "law", states).unwrap();
+        IntervalEstimand::Marginalized(InitialStateSpec::Law(law))
+    }
+
+    #[test]
+    fn the_same_request_has_the_same_identity() {
+        let states = vec![(0, 0.25), (1, 0.75)];
+        assert_eq!(
+            question_digest(&request([0, 1], marginal(states.clone()), 0.1)),
+            question_digest(&request([0, 1], marginal(states), 0.1))
+        );
+    }
+
+    #[test]
+    fn a_changed_field_changes_the_identity() {
+        let base = question_digest(&request([0, 1], IntervalEstimand::FixedState(0), 0.1));
+        assert_ne!(base, question_digest(&request([0, 1], IntervalEstimand::FixedState(1), 0.1)));
+        assert_ne!(base, question_digest(&request([0, 1], IntervalEstimand::Observed, 0.1)));
+        assert_ne!(
+            base,
+            question_digest(&request(
+                [0, 1],
+                IntervalEstimand::Marginalized(InitialStateSpec::Point(0)),
+                0.1
+            ))
+        );
+        assert_ne!(base, question_digest(&request([0, 1], IntervalEstimand::FixedState(0), 0.2)));
+    }
+
+    #[test]
+    fn reordering_an_ordered_input_changes_the_identity() {
+        assert_ne!(
+            question_digest(&request([0, 1], IntervalEstimand::Observed, 0.1)),
+            question_digest(&request([1, 0], IntervalEstimand::Observed, 0.1))
+        );
+        assert_ne!(
+            question_digest(&request([0, 1], marginal(vec![(0, 0.5), (1, 0.5)]), 0.1)),
+            question_digest(&request([0, 1], marginal(vec![(1, 0.5), (0, 0.5)]), 0.1))
+        );
+    }
+
+    #[test]
+    fn negative_zero_is_not_zero() {
+        assert_ne!(
+            question_digest(&request([0, 1], IntervalEstimand::Observed, 0.0)),
+            question_digest(&request([0, 1], IntervalEstimand::Observed, -0.0))
+        );
     }
 }

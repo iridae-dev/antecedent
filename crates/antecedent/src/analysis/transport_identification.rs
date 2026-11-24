@@ -38,8 +38,18 @@ use antecedent_identify::{
     RecoveryLimits, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
     ZTransportDerivation, ZTransportOutcome, ZTransportQuery, ZTransportResult,
 };
+use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalQueryWire;
+use antecedent_io::recovery_artifact::RecoveryQueryWire;
+use antecedent_io::recovery_chain_artifact::ChainQueryWire;
+use antecedent_io::transport_query_wire::{
+    MixedSourceQueryWire, MzTransportQueryWire, ZTransportQueryWire,
+};
+use antecedent_io_core::counterfactual_transport_wire::{
+    CounterfactualTransportProblemWire, CounterfactualTransportQueryWire,
+};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use super::supplied_identity::{Canonical, SetOf, Wire};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram, PhysicalLayer,
@@ -526,47 +536,73 @@ fn run(
 
 // --- lowering ------------------------------------------------------------------------------
 
-/// The canonical bytes of an ADMG: its nodes, then its sorted directed and bidirected edges.
-/// The graph's own `Debug` reads a hash set, so it is never encoded.
+/// An ADMG by its canonical identity: sorted directed and bidirected edge lists, then every
+/// dense node's label (the queries name variables). The graph's own `Debug` is never encoded.
 fn encode_graph(writer: &mut CanonicalWriter, graph: &Admg) {
-    writer.text(&format!("{:?}", graph.nodes()));
-    let directed = graph.directed_edge_pairs_sorted();
-    writer.word(directed.len() as u64);
-    for (from, to) in directed {
-        writer.word(u64::from(from)).word(u64::from(to));
-    }
-    let bidirected = graph.bidirected_edge_pairs_sorted();
-    writer.word(bidirected.len() as u64);
-    for (a, b) in bidirected {
-        writer.word(u64::from(a)).word(u64::from(b));
-    }
+    Canonical::encode(graph, writer);
 }
 
+/// A selection diagram: its graph, then its selection targets as a set (identification reads
+/// them as a node set, so their order and repetitions do not enter the identity).
 fn encode_diagram(writer: &mut CanonicalWriter, diagram: &SelectionDiagram) {
     encode_graph(writer, diagram.causal_graph());
-    writer.word(diagram.selection_targets().len() as u64);
-    for target in diagram.selection_targets() {
-        writer.word(u64::from(target.raw()));
-    }
+    Canonical::encode(&SetOf(diagram.selection_targets()), writer);
 }
 
 fn encode_catalog(writer: &mut CanonicalWriter, catalog: &EvidenceCatalog) {
-    catalog.encode(writer);
+    CanonicalEncode::encode(catalog, writer);
 }
 
-/// A query, a limit or a finite problem is plain data whose `Debug` is deterministic; graphs
-/// and catalogs are encoded canonically above.
-fn encode_debug(writer: &mut CanonicalWriter, value: &impl fmt::Debug) {
-    writer.text(&format!("{value:?}"));
+/// A wire form (a query, a finite problem or a derivation record) by its CBOR encoding. Every
+/// wire written here is a serde type of scalars and ordered lists with no hash-ordered map;
+/// a derivation is encoded by its record, never by the arena it interns into.
+fn encode_wire(writer: &mut CanonicalWriter, wire: &impl serde::Serialize) {
+    Canonical::encode(&Wire(wire), writer);
 }
 
-/// A derivation is encoded by its wire record, never by the arena it interns into.
-fn encode_record(writer: &mut CanonicalWriter, record: &impl serde::Serialize) {
-    writer.text(&serde_json::to_string(record).unwrap_or_default());
+/// Variable ids in declared order.
+fn encode_ids(writer: &mut CanonicalWriter, ids: &[VariableId]) {
+    writer.u32s(&ids.iter().map(|id| id.raw()).collect::<Vec<_>>());
+}
+
+/// A classical query: outcomes and treatments in declared order, source and target.
+fn encode_classical(writer: &mut CanonicalWriter, query: &ClassicalTransportQuery) {
+    encode_ids(writer, &query.outcomes);
+    encode_ids(writer, &query.treatments);
+    writer.text(&query.source).text(&query.target);
+}
+
+/// A meta-transport query: outcomes, treatments, target and every declared source in order.
+fn encode_meta(writer: &mut CanonicalWriter, query: &MetaTransportQuery) {
+    encode_ids(writer, &query.outcomes);
+    encode_ids(writer, &query.treatments);
+    writer.text(&query.target);
+    encode_wire(writer, &query.sources);
+}
+
+/// A two-source query: outcomes, treatments, target, then each source in declared order: its
+/// population, controllable coordinates, experiment assignment and selection targets (a set).
+fn encode_two_source(writer: &mut CanonicalWriter, query: &TwoSourceZTransportQuery) {
+    encode_ids(writer, &query.outcomes);
+    encode_ids(writer, &query.treatments);
+    writer.text(&query.target);
+    for source in &query.sources {
+        writer.text(&source.population);
+        encode_ids(writer, &source.controllable);
+        writer.word(source.experiment_assignment.len() as u64);
+        for assignment in source.experiment_assignment.iter() {
+            CanonicalEncode::encode(assignment, writer);
+        }
+        Canonical::encode(&SetOf(&source.selection_targets[..]), writer);
+    }
 }
 
 fn sid_limits(writer: &mut CanonicalWriter, limits: SidLimits) {
     writer.word(limits.steps as u64).word(limits.depth as u64);
+}
+
+fn search_limits(writer: &mut CanonicalWriter, limits: SearchLimits) {
+    writer.word(limits.operations as u64).word(limits.depth as u64);
 }
 
 /// The digest of the question: the request kind and every input the identifier reads.
@@ -576,64 +612,64 @@ fn sid_limits(writer: &mut CanonicalWriter, limits: SidLimits) {
 )]
 fn question(request: &TransportIdentificationRequest) -> [u8; 32] {
     use TransportIdentificationRequest as R;
-    let mut w = CanonicalWriter::new("antecedent.transport_identification.question.v1");
+    let mut w = CanonicalWriter::new("antecedent.transport_identification.question.v2");
     match request {
         R::Classical { diagram, query, limits } => {
             w.text("classical");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
+            encode_classical(&mut w, query);
             sid_limits(&mut w, *limits);
         }
         R::Catalog { diagram, query, catalog, limits } => {
             w.text("catalog");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
+            encode_classical(&mut w, query);
             encode_catalog(&mut w, catalog);
             sid_limits(&mut w, *limits);
         }
         R::CatalogSearch { derivation, diagram, catalog, limits } => {
             w.text("catalog_search");
-            encode_record(&mut w, &derivation.to_record());
+            encode_wire(&mut w, &derivation.to_record());
             encode_diagram(&mut w, diagram);
             encode_catalog(&mut w, catalog);
             sid_limits(&mut w, *limits);
         }
         R::CatalogBinding { derivation, catalog, limits } => {
             w.text("catalog_binding");
-            encode_record(&mut w, &derivation.to_record());
+            encode_wire(&mut w, &derivation.to_record());
             encode_catalog(&mut w, catalog);
             sid_limits(&mut w, *limits);
         }
         R::Meta { graph, query, limits } => {
             w.text("meta");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_meta(&mut w, query);
             sid_limits(&mut w, *limits);
         }
         R::ZTransport { diagram, query, limits } => {
             w.text("z_transport");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &ZTransportQueryWire::from_query(query));
             sid_limits(&mut w, *limits);
         }
         R::ZTransportBinding { diagram, query, derivation, catalog } => {
             w.text("z_transport_binding");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
-            encode_record(&mut w, &derivation.to_record());
+            encode_wire(&mut w, &ZTransportQueryWire::from_query(query));
+            encode_wire(&mut w, &derivation.to_record());
             encode_catalog(&mut w, catalog);
         }
         R::ZTransportInspecting { diagram, query, catalog, limits } => {
             w.text("z_transport_inspecting");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &ZTransportQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
             sid_limits(&mut w, *limits);
         }
         R::TwoSourceZTransport { graph, query, catalogs, limits } => {
             w.text("two_source_z_transport");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_two_source(&mut w, query);
             encode_catalog(&mut w, &catalogs[0]);
             encode_catalog(&mut w, &catalogs[1]);
             sid_limits(&mut w, *limits);
@@ -641,60 +677,61 @@ fn question(request: &TransportIdentificationRequest) -> [u8; 32] {
         R::MzTransport { graph, query, catalog, limits } => {
             w.text("mz_transport");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &MzTransportQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
-            encode_debug(&mut w, limits);
+            search_limits(&mut w, *limits);
         }
         R::MzTransportBinding { graph, derivation, catalog } => {
             w.text("mz_transport_binding");
             encode_graph(&mut w, graph);
-            encode_record(&mut w, &derivation.to_record());
+            encode_wire(&mut w, &derivation.to_record());
             encode_catalog(&mut w, catalog);
         }
         R::MixedSource { graph, query, catalog, limits } => {
             w.text("mixed_source");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &MixedSourceQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
-            encode_debug(&mut w, limits);
+            search_limits(&mut w, *limits);
         }
         R::MixedSourceBinding { graph, derivation, catalog } => {
             w.text("mixed_source_binding");
             encode_graph(&mut w, graph);
-            encode_record(&mut w, &derivation.to_record());
+            encode_wire(&mut w, &derivation.to_record());
             encode_catalog(&mut w, catalog);
         }
         R::AdmgConditional { diagram, query, catalog, limits } => {
             w.text("admg_conditional");
             encode_diagram(&mut w, diagram);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &AdmgConditionalQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
-            encode_debug(&mut w, limits);
+            search_limits(&mut w, *limits);
         }
         R::Counterfactual { problem, query, catalog, limits } => {
             w.text("counterfactual");
-            encode_debug(&mut w, problem);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &CounterfactualTransportProblemWire::from_problem(problem));
+            encode_wire(&mut w, &CounterfactualTransportQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
-            encode_debug(&mut w, limits);
+            search_limits(&mut w, *limits);
         }
         R::ObservationRecovery { graph, query, catalog, effect, limits } => {
             w.text("observation_recovery");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &RecoveryQueryWire::from_query(query));
             encode_catalog(&mut w, catalog);
             w.word(u64::from(effect.is_some()));
             if let Some(effect) = effect {
                 encode_graph(&mut w, &effect.graph);
-                encode_debug(&mut w, &effect.outcomes);
-                encode_debug(&mut w, &effect.treatments);
+                encode_ids(&mut w, &effect.outcomes);
+                encode_ids(&mut w, &effect.treatments);
             }
-            encode_debug(&mut w, limits);
+            search_limits(&mut w, limits.search);
+            w.word(limits.memory_bytes);
         }
         R::ChainRecovery { graph, query } => {
             w.text("chain_recovery");
             encode_graph(&mut w, graph);
-            encode_debug(&mut w, query);
+            encode_wire(&mut w, &ChainQueryWire::from_query(query));
         }
     }
     w.finish()
@@ -877,6 +914,60 @@ mod tests {
         let b = compile_transport_identification(classical(), &ctx).unwrap();
         assert_eq!(a.lowered().identity(), b.lowered().identity());
         assert_eq!(a.lowered().cell(), ProgramCell::ClassicalTransportIdentification);
+    }
+
+    fn classical_with(selections: &[u32], outcomes: &[u32]) -> TransportIdentificationRequest {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
+        TransportIdentificationRequest::Classical {
+            diagram: SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections))
+                .unwrap(),
+            query: ClassicalTransportQuery {
+                outcomes: outcomes.iter().copied().map(v).collect(),
+                treatments: Arc::from([v(0)]),
+                source: Arc::from("source"),
+                target: Arc::from("target"),
+            },
+            limits: SidLimits::default(),
+        }
+    }
+
+    fn two_source(level: f64) -> TransportIdentificationRequest {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let source = |population: &str| antecedent_identify::ZTransportSourceSpec {
+            population: Arc::from(population),
+            controllable: Arc::from([v(1)]),
+            experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                variable: v(1),
+                value: antecedent_core::Value::f64(level),
+            }]),
+            selection_targets: Arc::from([]),
+        };
+        TransportIdentificationRequest::TwoSourceZTransport {
+            graph,
+            query: TwoSourceZTransportQuery {
+                outcomes: Arc::from([v(2)]),
+                treatments: Arc::from([v(0)]),
+                target: Arc::from("target"),
+                sources: [source("a"), source("b")],
+            },
+            catalogs: [EvidenceCatalog::empty(), EvidenceCatalog::empty()],
+            limits: SidLimits::default(),
+        }
+    }
+
+    #[test]
+    fn the_question_identity_is_canonical() {
+        let base = question(&classical_with(&[1, 2], &[2, 1]));
+        assert_eq!(base, question(&classical_with(&[1, 2], &[2, 1])), "repeatable");
+        assert_eq!(base, question(&classical_with(&[2, 1], &[2, 1])), "selections are a set");
+        assert_ne!(base, question(&classical_with(&[1, 2], &[1, 2])), "outcomes are ordered");
+        assert_ne!(base, question(&classical_with(&[1], &[2, 1])), "a changed selection");
+        assert_eq!(question(&two_source(1.0)), question(&two_source(1.0)));
+        assert_ne!(question(&two_source(0.0)), question(&two_source(-0.0)), "reals by bits");
     }
 
     #[test]
