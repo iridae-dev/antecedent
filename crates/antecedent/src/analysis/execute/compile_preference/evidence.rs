@@ -25,9 +25,14 @@
 //!
 //! Studies of different tables without unit keys are not compared by the ledger: their rows
 //! are other observations only on the caller's declaration that the studies rest on distinct
-//! evidence (or, under shared evidence, by the absence of a declared block for the pair). The
-//! plan states the basis of every pair's judgement: `shared_rows`, `shared_units`,
-//! `disjoint_rows`, `disjoint_units` or `declared_distinct`.
+//! evidence (or, under shared evidence, by the absence of a declared block for the pair), and
+//! only when both studies declare their row provenance. A study without declared provenance
+//! names its own table, which a projection or row selection of another study's source table
+//! also does, so the pair's overlap is unknown and it is refused
+//! (`preference_compile.row_provenance_undeclared`, basis `undeclared`); a decision over one
+//! study, or over studies of one table, needs no declaration. The plan states the basis of
+//! every pair's judgement: `shared_rows`, `shared_units`, `disjoint_rows`, `disjoint_units` or
+//! `declared_distinct`.
 //!
 //! Studies that share observations are not independent evidence. Under distinct evidence they
 //! are refused (`evidence_double_counted`). Under shared evidence the caller declares, for
@@ -75,6 +80,9 @@ pub(super) const PAIR_DISJOINT_ROWS: &str = "disjoint_rows";
 pub(super) const PAIR_DISJOINT_UNITS: &str = "disjoint_units";
 /// Basis of a pair of different tables without unit keys: distinct on the caller's declaration.
 pub(super) const PAIR_DECLARED_DISTINCT: &str = "declared_distinct";
+/// Basis of a pair of different tables without unit keys, at least one of which declares no
+/// row provenance: whether they share rows is unknown, and the pair is refused.
+pub(super) const PAIR_UNDECLARED: &str = "undeclared";
 
 /// The declared covariance between the estimates of two studies that share observations.
 #[derive(Clone, Debug, PartialEq)]
@@ -691,7 +699,8 @@ pub(super) struct StudyOverlaps {
     pub(super) pairs: Vec<SharedPair>,
     /// `(first, second, basis)` of every pair of studies, in pair order: one of
     /// [`PAIR_SHARED_ROWS`], [`PAIR_SHARED_UNITS`], [`PAIR_DISJOINT_ROWS`],
-    /// [`PAIR_DISJOINT_UNITS`] or [`PAIR_DECLARED_DISTINCT`].
+    /// [`PAIR_DISJOINT_UNITS`] or [`PAIR_DECLARED_DISTINCT`]; a pair whose basis would be
+    /// [`PAIR_UNDECLARED`] is refused.
     pub(super) bases: Vec<(usize, usize, &'static str)>,
 }
 
@@ -701,6 +710,9 @@ enum Judged {
     Overlap(Overlap, SharedBasis, &'static str),
     NotComparable(String),
     LabelTypesDiffer(String),
+    /// Studies of different tables, without unit keys, at least one without declared row
+    /// provenance: the named studies may be projections of one source table.
+    Undeclared(String),
 }
 
 /// A ledger of every study's rows and each study's source in it.
@@ -747,6 +759,14 @@ fn judge_pair(
         return by_rows(PAIR_DISJOINT_ROWS);
     }
     match (&a.units, &b.units) {
+        (None, None) if !(a.provenance_declared && b.provenance_declared) => {
+            let undeclared: Vec<String> = [(i, a), (j, b)]
+                .into_iter()
+                .filter(|(_, study)| !study.provenance_declared)
+                .map(|(index, _)| name(studies, index))
+                .collect();
+            Ok(Judged::Undeclared(undeclared.join(" and ")))
+        }
         (None, None) => by_rows(PAIR_DECLARED_DISTINCT),
         (Some(left), Some(right)) => Ok(Judged::NotComparable(format!(
             "unit keys of different identifier spaces ({} and {}) are not compared",
@@ -771,7 +791,8 @@ fn judge_pair(
 /// one identifier space are judged by their units and, when their rows come from one source
 /// table, by its rows as well (they share evidence when either overlaps); other studies of one
 /// source table by its analysed rows; unkeyed studies of different tables are distinct on the
-/// caller's declaration. Returns the pairs that share observations and the basis of every
+/// caller's declaration only when both declare their row provenance, and refused otherwise.
+/// Returns the pairs that share observations and the basis of every
 /// pair's judgement.
 ///
 /// # Errors
@@ -780,7 +801,9 @@ fn judge_pair(
 /// (`decision_evidence.dependence_unknown`) for an overlap the ledger cannot compute or one
 /// between a keyed study and a study of another table without a comparable key, and
 /// (`preference_compile.unit_label_types_differ`) for studies keyed in one space whose labels
-/// carry different type tags; `invalid_argument`
+/// carry different type tags, and (`preference_compile.row_provenance_undeclared`, basis
+/// `undeclared`) for unkeyed studies of different tables when either declares no row
+/// provenance; `invalid_argument`
 /// (`preference_compile.cross_study_covariance_invalid`) for a malformed block or one naming
 /// studies that share nothing or whose every term is zero; a ledger refusal; cancellation.
 pub(super) fn judge(
@@ -812,6 +835,27 @@ pub(super) fn judge(
                         "store the unit identifiers under one type on both studies (an integer \
                          identifier read as a real after missing values, for example), or \
                          declare labels of one type",
+                    )
+                    .into());
+                }
+                Judged::Undeclared(undeclared) => {
+                    return Err(ExternalRefusal::new(
+                        antecedent_core::reason_code!("evidence_overlap_unknown"),
+                        STAGE_COMPILE,
+                        preference_compile::ROW_PROVENANCE_UNDECLARED,
+                    )
+                    .with_offending(pair(studies, i, j))
+                    .with_expected(
+                        "a declared row provenance on both studies of different tables, or unit \
+                         keys of one identifier space",
+                    )
+                    .with_supplied(format!(
+                        "basis {PAIR_UNDECLARED}: {undeclared} declares no row provenance"
+                    ))
+                    .with_remedy(
+                        "declare each study's row provenance (RowProvenance::of_table on the \
+                         table it was taken from, or RowProvenance::select_rows for selected \
+                         rows), or declare unit keys of one identifier space",
                     )
                     .into());
                 }

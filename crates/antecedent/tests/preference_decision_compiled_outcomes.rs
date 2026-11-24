@@ -26,8 +26,8 @@ use antecedent::analysis::preference_decision::{
     AcceptedPreferences, ActionInput, ActionKind, Attribute, CompiledPreferenceDecision,
     DecisionCriterion, DesignBootstrap, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
-    PreferencePolicy, PreferenceSet, PreferenceVerdict, StructuralPolicy, ValueModel,
-    compile_preference_decision_across_studies, shape,
+    PreferencePolicy, PreferenceSet, PreferenceVerdict, RowProvenance, StructuralPolicy,
+    ValueModel, compile_preference_decision_across_studies, shape,
 };
 use antecedent::design::decision_contract::SourceRepresentation;
 use antecedent::planner::lowered::CarrierDemand;
@@ -203,6 +203,8 @@ fn dose_study(data: &TabularData, variables: u32, outcome: u32) -> Study {
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
+        // A study of a whole table declares that table as its rows' source.
+        .row_provenance(RowProvenance::of_table(data).unwrap())
         .build()
         .unwrap()
 }

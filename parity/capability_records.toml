@@ -23790,6 +23790,7 @@ refusals = [
   { detail = "preference_compile.class_sampling_budget", remedy = "Draw fewer members, orient edges or declare the structure." },
   { detail = "preference_compile.unit_key_invalid", remedy = "Name a unit-key column that identifies the units the rows observe, not the study's treatment or outcome." },
   { detail = "preference_compile.unit_label_types_differ", remedy = "Key both studies of one identifier space by unit labels of one type." },
+  { detail = "preference_compile.row_provenance_undeclared", remedy = "Declare each study's row provenance (the source table it was taken from), or unit keys of one identifier space." },
   { detail = "preference_compile.executed_program_mismatch", remedy = "Execute the compiled decision's own prepared studies." },
   { detail = "preference_compile.sampled_mixture_not_exact", remedy = "Read a mixture of sampled class members under the report-only policy, or enumerate the class." },
   { detail = "preference_compile.cancelled", remedy = "Run again without cancellation; the stop is not a verdict." },

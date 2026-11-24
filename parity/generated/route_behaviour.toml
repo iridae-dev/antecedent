@@ -8222,6 +8222,7 @@ refusals = [
   { code = "route_not_supported", detail = "preference_compile.class_sampling_budget" },
   { code = "invalid_argument", detail = "preference_compile.unit_key_invalid" },
   { code = "evidence_overlap_unknown", detail = "preference_compile.unit_label_types_differ" },
+  { code = "evidence_overlap_unknown", detail = "preference_compile.row_provenance_undeclared" },
   { code = "route_not_lowered", detail = "preference_compile.executed_program_mismatch" },
   { code = "route_not_supported", detail = "preference_compile.sampled_mixture_not_exact" },
   { code = "cancelled_no_claim", detail = "preference_compile.cancelled" },

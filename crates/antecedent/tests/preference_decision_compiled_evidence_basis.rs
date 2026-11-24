@@ -201,7 +201,7 @@ fn dose_builder(data: &TabularData, variables: u32, outcome: u32) -> StudyBuilde
 }
 
 fn study(data: &TabularData) -> Study {
-    dose_builder(data, 2, 1).build().unwrap()
+    dose_builder(data, 2, 1).row_provenance(RowProvenance::of_table(data).unwrap()).build().unwrap()
 }
 
 fn keyed(data: &TabularData, labels: Vec<String>) -> Study {

@@ -1886,6 +1886,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_compile.ordinary_measure_not_read",
     "preference_compile.ordinary_structures_not_compiled",
     "preference_compile.program_carries_decision",
+    "preference_compile.row_provenance_undeclared",
     "preference_compile.sampled_mixture_not_exact",
     "preference_compile.studies_share_evidence",
     "preference_compile.unit_key_invalid",
@@ -4874,6 +4875,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_compile.ordinary_measure_not_read", &["option_not_applicable"]),
     ("preference_compile.ordinary_structures_not_compiled", &["route_not_supported"]),
     ("preference_compile.program_carries_decision", &["invalid_argument"]),
+    ("preference_compile.row_provenance_undeclared", &["evidence_overlap_unknown"]),
     ("preference_compile.sampled_mixture_not_exact", &["route_not_supported"]),
     ("preference_compile.studies_share_evidence", &["evidence_double_counted"]),
     ("preference_compile.unit_key_invalid", &["invalid_argument"]),
@@ -10283,6 +10285,8 @@ pub mod preference_compile {
     pub const ORDINARY_STRUCTURES_NOT_COMPILED: &str = "preference_compile.ordinary_structures_not_compiled";
     /// Detail `preference_compile.program_carries_decision`.
     pub const PROGRAM_CARRIES_DECISION: &str = "preference_compile.program_carries_decision";
+    /// Detail `preference_compile.row_provenance_undeclared`.
+    pub const ROW_PROVENANCE_UNDECLARED: &str = "preference_compile.row_provenance_undeclared";
     /// Detail `preference_compile.sampled_mixture_not_exact`.
     pub const SAMPLED_MIXTURE_NOT_EXACT: &str = "preference_compile.sampled_mixture_not_exact";
     /// Detail `preference_compile.studies_share_evidence`.

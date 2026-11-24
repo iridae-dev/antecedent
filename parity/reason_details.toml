@@ -11754,6 +11754,12 @@ codes = ["invalid_argument"]
 meaning = "The compiled program already carries a decision in layer four; compile the design again before attaching another."
 
 [[detail]]
+id = "preference_compile.row_provenance_undeclared"
+family = "preference_compile"
+codes = ["evidence_overlap_unknown"]
+meaning = "Two studies of different tables without unit keys are joined, and at least one declares no row provenance, so whether one is a projection or row selection of the other's source table is unknown; declare each study's row provenance (the source table it was taken from) or a unit key."
+
+[[detail]]
 id = "preference_compile.sampled_mixture_not_exact"
 family = "preference_compile"
 codes = ["route_not_supported"]

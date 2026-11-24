@@ -205,7 +205,7 @@ fn dose_builder(data: &TabularData, variables: u32, outcome: u32) -> StudyBuilde
 }
 
 fn study(data: &TabularData) -> Study {
-    dose_builder(data, 2, 1).build().unwrap()
+    dose_builder(data, 2, 1).row_provenance(RowProvenance::of_table(data).unwrap()).build().unwrap()
 }
 
 /// A study of a two-column table whose rows observe the units `labels`.
@@ -307,6 +307,68 @@ fn studies_without_declarations_keep_the_table_content_judgement_and_encoding() 
     )
     .unwrap_err();
     assert_eq!(refusal_of(&refused).2, Some("200 shared observations"));
+}
+
+#[test]
+fn studies_of_different_tables_without_declared_provenance_are_refused() {
+    let ctx = ExecutionContext::for_tests(5);
+    let source = shared_table();
+    let (t, b, h) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+    let (benefit, _) = source.project(&[t, b]).unwrap();
+    let (harm, _) = source.project(&[t, h]).unwrap();
+    let undeclared = |table: &TabularData| dose_builder(table, 2, 1).build().unwrap();
+    let whole = RowProvenance::of_table(&source).unwrap();
+    let declared = |table: &TabularData| {
+        dose_builder(table, 2, 1).row_provenance(whole.clone()).build().unwrap()
+    };
+    let refused_as_undeclared = |first: &Study, second: &Study| {
+        let refused = compile_preference_decision_across_studies(
+            &[first, second],
+            &contract(),
+            distinct(),
+            &ctx,
+        )
+        .unwrap_err();
+        let (code, detail, supplied) = refusal_of(&refused);
+        assert_eq!(
+            (code, detail),
+            ("evidence_overlap_unknown", preference_compile::ROW_PROVENANCE_UNDECLARED)
+        );
+        assert!(supplied.is_some_and(|text| text.starts_with("basis undeclared")), "{supplied:?}");
+    };
+
+    // Projections of one table declared by neither study: never judged distinct.
+    refused_as_undeclared(&undeclared(&benefit), &undeclared(&harm));
+    // One declaration is not enough: the other study may still be a projection of its source.
+    refused_as_undeclared(&declared(&benefit), &undeclared(&harm));
+
+    // Both declared and sharing the source: refused as sharing rows, as before.
+    let refused = compile_preference_decision_across_studies(
+        &[&declared(&benefit), &declared(&harm)],
+        &contract(),
+        distinct(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal_of(&refused),
+        (
+            "evidence_double_counted",
+            preference_compile::STUDIES_SHARE_EVIDENCE,
+            Some("200 shared observations")
+        )
+    );
+
+    // Both declared, of different source tables: distinct on the declaration.
+    let compiled = compile_preference_decision_across_studies(
+        &[&study(&benefit_table()), &study(&harm_table())],
+        &contract(),
+        distinct(),
+        &ctx,
+    )
+    .unwrap();
+    let fact = compiled.joint_law().expect("a declared joint law").fact();
+    assert_eq!(&*fact.pairs()[0].2, "declared_distinct");
 }
 
 #[test]

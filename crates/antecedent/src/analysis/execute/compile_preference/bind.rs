@@ -48,6 +48,7 @@ struct StudyQuery {
     rows: usize,
     origin: String,
     origin_rows: Option<Arc<[u64]>>,
+    provenance_declared: bool,
     analysed: Option<Arc<[usize]>>,
     units: Option<StudyUnits>,
 }
@@ -70,6 +71,10 @@ pub(super) struct BoundStudy {
     pub(super) origin: String,
     /// Index in the source table of each row, when the projection selected rows.
     pub(super) origin_rows: Option<Arc<[u64]>>,
+    /// Whether the caller declared the table the study's rows came from. Without the
+    /// declaration a study of a projection or row selection names its own table, so its
+    /// overlap with a study of another table is unknown.
+    pub(super) provenance_declared: bool,
     /// The rows of the study's table its analysis reads, when an analysis mask leaves some
     /// out; masked rows are not observations the study rests on.
     pub(super) analysed: Option<Arc<[usize]>>,
@@ -157,6 +162,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
         snapshot: causal.identities.data_snapshot.to_hex(),
         origin: provenance.map_or(observations, |p| p.table().to_owned()),
         origin_rows: provenance.and_then(|p| p.rows().map(Arc::from)),
+        provenance_declared: provenance.is_some(),
         analysed: analysed_rows(data),
         units: resolved.map(|units| study_units(units, data)),
         rows: data.row_count(),
@@ -330,6 +336,7 @@ fn bind_studies(
                 rows: study.rows,
                 origin: study.origin,
                 origin_rows: study.origin_rows,
+                provenance_declared: study.provenance_declared,
                 analysed: study.analysed,
                 units: study.units,
             }

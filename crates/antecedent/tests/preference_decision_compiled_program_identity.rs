@@ -22,8 +22,8 @@ use antecedent::analysis::preference_decision::{
     AcceptedPreferences, ActionInput, ActionKind, Attribute, CompiledPreferenceDecision,
     DecisionCriterion, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
-    PreferencePolicy, PreferenceRouteError, PreferenceSet, StructuralPolicy, ValueModel,
-    compile_preference_decision_across_prepared_studies,
+    PreferencePolicy, PreferenceRouteError, PreferenceSet, RowProvenance, StructuralPolicy,
+    ValueModel, compile_preference_decision_across_prepared_studies,
     compile_preference_decision_across_studies, shape,
 };
 use antecedent::estimate::joint_panel::PanelError;
@@ -194,6 +194,8 @@ fn dose_study(data: &TabularData, inference: InferenceMode) -> Study {
         .inference(inference)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
+        // A study of a whole table declares that table as its rows' source.
+        .row_provenance(RowProvenance::of_table(data).unwrap())
         .build()
         .unwrap()
 }

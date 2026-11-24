@@ -26,7 +26,7 @@ use antecedent::analysis::preference_decision::{
     AcceptedPreferences, ActionInput, ActionKind, Attribute, CrossStudyCovariance,
     DecisionCriterion, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
-    PreferencePolicy, PreferenceSet, SharedEvidence, StructuralPolicy, ValueModel,
+    PreferencePolicy, PreferenceSet, RowProvenance, SharedEvidence, StructuralPolicy, ValueModel,
     compile_preference_decision_across_prepared_studies,
     compile_preference_decision_across_studies, compile_preference_decision_with_shared_evidence,
     shape,
@@ -169,6 +169,8 @@ fn dose_study(data: &TabularData, variables: u32, outcome: u32, inference: Infer
         .inference(inference)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
+        // A study of a whole table declares that table as its rows' source.
+        .row_provenance(RowProvenance::of_table(data).unwrap())
         .build()
         .unwrap()
 }

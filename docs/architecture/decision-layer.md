@@ -148,9 +148,14 @@ family table is bound to each study's fitted moments at execution. Before joinin
 ledger judges which studies observe the same units:
 
 - studies of one table share its rows, identified by row content and position, independent of
-  any analysis mask or weights; projections and row selections carry their origin;
+  any analysis mask or weights; projections and row selections declare their origin
+  (`RowProvenance`, carried beside the table; Python declares it on every prepared study);
 - studies of different tables are compared through a `UnitKey` in a named identifier space;
   keys that cannot be compared leave the overlap unknown and refuse;
+- unkeyed studies of different tables are distinct only on a declaration, and only when both
+  declare their row provenance; otherwise either may be a projection of the other's source,
+  and the pair refuses (`preference_compile.row_provenance_undeclared`, basis `undeclared`),
+  never `declared_distinct`;
 - studies that share observations need a declared cross-study covariance block; it becomes the
   cross block of the chain's covariance.
 

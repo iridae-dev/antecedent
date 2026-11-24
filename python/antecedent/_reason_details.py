@@ -2412,6 +2412,7 @@ class preference_compile:  # noqa: N801
     ORDINARY_MEASURE_NOT_READ: Final = "preference_compile.ordinary_measure_not_read"
     ORDINARY_STRUCTURES_NOT_COMPILED: Final = "preference_compile.ordinary_structures_not_compiled"
     PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
+    ROW_PROVENANCE_UNDECLARED: Final = "preference_compile.row_provenance_undeclared"
     SAMPLED_MIXTURE_NOT_EXACT: Final = "preference_compile.sampled_mixture_not_exact"
     STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
     UNIT_KEY_INVALID: Final = "preference_compile.unit_key_invalid"
@@ -5653,6 +5654,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_compile.ordinary_measure_not_read",
     "preference_compile.ordinary_structures_not_compiled",
     "preference_compile.program_carries_decision",
+    "preference_compile.row_provenance_undeclared",
     "preference_compile.sampled_mixture_not_exact",
     "preference_compile.studies_share_evidence",
     "preference_compile.unit_key_invalid",
@@ -8705,6 +8707,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_compile.ordinary_measure_not_read": ("option_not_applicable",),
     "preference_compile.ordinary_structures_not_compiled": ("route_not_supported",),
     "preference_compile.program_carries_decision": ("invalid_argument",),
+    "preference_compile.row_provenance_undeclared": ("evidence_overlap_unknown",),
     "preference_compile.sampled_mixture_not_exact": ("route_not_supported",),
     "preference_compile.studies_share_evidence": ("evidence_double_counted",),
     "preference_compile.unit_key_invalid": ("invalid_argument",),
