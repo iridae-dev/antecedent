@@ -1,0 +1,30 @@
+feature_id = "estimate.joint_cells_caller_learners"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled factorized joint-cell fit with caller-supplied learners
+# (crates/antecedent/src/analysis/compiled_joint_cells_learners.rs). The route binds the table,
+# components, outcome, declared adjustment set, orderings, configuration and declared learners
+# into a lowered program and evaluates the chain-rule factorized cross-fitted AIPW cell means of
+# estimate.factorized_joint_cells (docs/guides/joint-cells.md) through
+# fit_factorized_joint_cells_with_factories, with the caller's factories in place of the library
+# learners; it adds no estimator of its own.
+papers = [
+ { title = "Double/debiased machine learning for treatment and structural parameters (Chernozhukov, Chetverikov, Demirer, Duflo, Hansen, Newey, Robins, 2018)", sections = ["Section 3.1, Definition 3.1: cross-fitting with a K-fold partition", "Section 5.1: the doubly robust (AIPW) score"] },
+]
+
+implementation_deviations = [
+  "The per-cell outcome regressions and the binary conditionals of the factorized cell propensity are fitted by caller factories the library does not verify; the fit records them as unverified (external_nuisances_unverified, trust=unverified on the score-table provenance).",
+  "Point-only, as every factorized joint-cell fit: no interval or covariance is published, calibration is reported as not_measured, and the run carries the calibration label of the declared learners.",
+  "The adjustment set is the caller's declaration, as on the direct entry; the route takes no graph and does not certify it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs (with the library learners handed over as caller factories, the compiled cells recover the planted cell means 0.4 c + 1{c = 3} + 0.25 and equal the built-in declared-learner route; the twin of the direct factory entry)",
+  "crates/antecedent-estimate/src/joint_cell_factorized.rs (caller_factories_match_builtin_joint_scores_and_record_trust)",
+]
