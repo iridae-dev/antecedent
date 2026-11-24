@@ -950,6 +950,7 @@ fn table_content_identity(names: Vec<String>, columns: Vec<Bound<'_, PyAny>>) ->
     crate::catch_ffi(|| {
         let data = crate::tabular_from_py_columns(names, columns)?;
         Ok(antecedent::analysis::preference_decision::RowProvenance::of_table(&data)
+            .map_err(crate::py_err)?
             .table()
             .to_owned())
     })

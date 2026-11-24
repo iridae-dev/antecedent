@@ -506,15 +506,16 @@ declared block. In Rust, a unit key is `StudyBuilder::unit_key(UnitKey::column(i
 `UnitKey::text_labels(namespace, ids)` for one text identifier per row (any text, a `:`
 included: `2023:017` is the text `2023:017`), or `UnitKey::canonical_labels(namespace, labels)`
 for labels already in the canonical type-tagged form (`text:<id>`, `int64:<decimal>`,
-`float64:<16 hex digits>`, `bool:<0|1>`), each checked when the study is built. A table made by `TabularData::project` or `TabularData::select_rows`
-remembers the table its rows came from and their positions in it (`TabularData::row_origin`),
-and a study built on it is judged by that origin without any declaration: two projections of
-one table share every row, and row selections share exactly the rows both took. For a table
-derived some other way, declare the origin with
-`StudyBuilder::row_provenance(RowProvenance::of_table(&source))`, or
-`RowProvenance::new(table, Some(rows))` to name the selected rows; a declaration replaces the
-remembered origin. A key column that is the study's treatment or outcome is refused
-(`preference_compile.unit_key_invalid`).
+`float64:<16 hex digits>`, `bool:<0|1>`), each checked when the study is built. Where a
+study's rows came from is carried beside its table, never in it: a study of a column
+projection declares its source with
+`StudyBuilder::row_provenance(RowProvenance::of_table(&source)?)`, and
+`RowProvenance::select_rows(&table, &rows)` returns the selected rows together with their
+provenance (their positions in the first source table), to declare the same way. Two
+projections of one table then share every row, and row selections share exactly the rows both
+took; `RowProvenance::new(table, Some(rows))` names rows of a table derived some other way. A
+study without a declaration is a study of its own table's rows. A key column that is the
+study's treatment or outcome is refused (`preference_compile.unit_key_invalid`).
 
 ## Decide across uncertain causal structures
 
@@ -861,7 +862,7 @@ in [preference sets and recorded choices](reference/refusal-codes.md#preference-
 | Language | Entry |
 | --- | --- |
 | Python | `antecedent.decision`: `attribute`, `tradeoff`, `relation`, `Curve`, the shapes, `Value`, `Action`, `Constraint`, `TradeoffPolicy`, `Measure`, `Structures`, `Contract(value=...).compile(...)` with `CompiledDecision` (`quantities`, `representation`, `carrier`, `trade_offs`, `parameter_ranges`, `joint_law`, `design_law`, `contract_identity`, `.class_sampling`, `.inspect()` and `.execute()`; `CompiledQuantity`, `TradeOffRange`, `JointLawPlan`, `JointLawInput`, `DesignLawPlan`), `Contract(value=...).evaluate(...)`, `TradeoffDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
-| Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `TabularData::row_origin` (set by `TabularData::project` and `TabularData::select_rows`); `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
+| Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `RowProvenance::of_table` and `RowProvenance::select_rows`; `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
 
