@@ -99,10 +99,6 @@ impl PreparedRefit<'_> {
     /// `(β_s, σ_s)` of its reference posterior the program is run on the noiseless outcome
     /// `μ_s = Xβ_s` (the target of the draw) and on a replicated outcome `μ_s + σ_s ε`; the
     /// observed target is compared with the replicated ones.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "the fit, its Cholesky factor and the draws share one reference design in sequence"
-    )]
     pub(super) fn posterior_predictive(
         &self,
         ctx: &ExecutionContext,
@@ -110,6 +106,28 @@ impl PreparedRefit<'_> {
         let PreparedTargetData::Tabular(data) = self.data else {
             return self.posterior_predictive_lagged(ctx);
         };
+        let (thetas, replicated) = self.tabular_predictive_replicates(data, ctx)?;
+        posterior_predictive_target_check(&PosteriorPredictiveTarget {
+            target: &self.target,
+            observed: &self.original,
+            draws: &thetas,
+            replicated: &replicated,
+            alpha: self.alpha,
+        })
+        .map_err(refuter_outcome)
+    }
+
+    /// The target of every reference-model draw and of its replicated outcome, on a table:
+    /// the draws [`Self::posterior_predictive`] compares the observed target with.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the fit, its Cholesky factor and the draws share one reference design in sequence"
+    )]
+    pub(super) fn tabular_predictive_replicates(
+        &self,
+        data: &antecedent_data::TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<f64>, Vec<f64>), TargetRefitError> {
         let storage = data.storage();
         if storage.analysis_mask().is_some() || storage.weights().is_some() {
             return Err(unsupported(
@@ -200,14 +218,7 @@ impl PreparedRefit<'_> {
             thetas.extend(run(mean.into())?);
             replicated.extend(run(noisy)?);
         }
-        posterior_predictive_target_check(&PosteriorPredictiveTarget {
-            target: &self.target,
-            observed: &self.original,
-            draws: &thetas,
-            replicated: &replicated,
-            alpha: self.alpha,
-        })
-        .map_err(refuter_outcome)
+        Ok((thetas, replicated))
     }
 
     /// Posterior-predictive check on a series or the units of a panel, under a reference outcome

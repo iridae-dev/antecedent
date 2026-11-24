@@ -111,6 +111,23 @@ pub(crate) fn run_discovery(
             },
         };
     }
+    if spec.observed_draws.is_some()
+        && !matches!(
+            (&spec.method, &spec.search),
+            (DiscoveryMethod::ExactDagMarginals { .. }, SearchParams::Bayesian(params))
+                if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform
+        )
+    {
+        return Err(crate::compile_reason!(
+            "invalid_argument",
+            "a draw limit for a partially observed column applies to the exact edge marginals \
+             under the Gaussian signed-uniform score only; the {} search takes none",
+            spec.method.id()
+        ));
+    }
+    if let SearchParams::Selective(selective) = &spec.search {
+        return super::selective_route::run_selective(selective, query, data, ctx);
+    }
     let search = Search { spec, vars: &query.variables, data, ctx };
     for algorithm in DISCOVERY_ALGORITHMS {
         if let Some(found) = algorithm(&search)? {
@@ -401,6 +418,19 @@ fn run_exact_dag_marginals(
     else {
         return Ok(None);
     };
+    if let Some(draws) = search.spec.observed_draws {
+        // The last searched column's missing cells are integrated out; the completions are
+        // seeded by the run's master seed.
+        let found = antecedent_discovery::observed_marginals::signed_uniform_observed_marginals(
+            d,
+            search.vars,
+            &b.prior,
+            search.ctx.rng.master_seed(),
+            draws,
+            search.ctx,
+        )?;
+        return Ok(Some(DiscoveredStructure::ObservedMarginals(found)));
+    }
     let found =
         crate::discovery::engines::discover_exact_dag_marginals(d, search.vars, b, search.ctx)?;
     Ok(Some(DiscoveredStructure::EdgeMarginals(found)))

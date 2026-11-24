@@ -48,7 +48,7 @@ impl PreparedRefit<'_> {
         clippy::cast_precision_loss,
         reason = "one check that classifies the derivative, picks its nodes and step and fits its curve once"
     )]
-    fn response_curve(
+    pub(super) fn response_curve(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<f64>, Vec<f64>, f64), TargetRefitError> {
@@ -220,7 +220,7 @@ impl PreparedRefit<'_> {
     /// The mean over the nodes of the curve shifted by `offset`: its derivative at zero is the
     /// mean of the nodes' derivatives, which for an average derivative is the finite
     /// difference of the weighted average.
-    fn node_mean(
+    pub(super) fn node_mean(
         &self,
         nodes: &[f64],
         offset: f64,
@@ -288,7 +288,7 @@ impl PreparedRefit<'_> {
     }
 
     /// One report on the whole target vector from the per-coordinate checks.
-    fn merge_coordinates(
+    pub(super) fn merge_coordinates(
         &self,
         kind: TargetRefuterKind,
         coordinates: Vec<DerivativeCoordinate>,

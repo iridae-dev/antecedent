@@ -55,6 +55,10 @@ pub use antecedent_discovery::selective::{
     temporal_data_identity,
 };
 
+/// What a compiled selective search returns ([`crate::DiscoverySpec::selective_static`],
+/// [`crate::DiscoverySpec::selective_temporal`]).
+pub use crate::analysis::structure_route::SelectiveSearchResult;
+
 const ACCEPTED_GRAPH_LABEL: &str = "discovery_accepted_graph";
 const COORDINATE_TAG: &str = "antecedent.selective_discovery.claim_coordinate";
 const OBSERVATION_DOMAIN: &str = "selective-discovery-row";
