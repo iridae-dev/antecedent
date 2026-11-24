@@ -176,6 +176,20 @@ pub(crate) fn admit_compile(ctx: &ExecutionContext) -> Result<(), CausalError> {
 /// # Errors
 /// A physical operator that cannot be declared.
 pub(crate) fn lower(spec: TerminalSpec) -> Result<Arc<LoweredProgram>, CausalError> {
+    let sources: Arc<[EvidenceSourceRef]> =
+        Arc::from([EvidenceSourceRef { role: spec.role, digest: Some(spec.question) }]);
+    lower_over(spec, sources)
+}
+
+/// Seal `spec` into a lowered program whose layer four reads `sources`: [`lower`] passes the one
+/// declared source; a parent program over compiled child programs passes one source per child.
+///
+/// # Errors
+/// A physical operator that cannot be declared.
+pub(crate) fn lower_over(
+    spec: TerminalSpec,
+    sources: Arc<[EvidenceSourceRef]>,
+) -> Result<Arc<LoweredProgram>, CausalError> {
     let operator = |effect: PhysicalEffect| {
         PhysicalOperator::declare(effect).build().map_err(|_| CausalError::Compile {
             message: format!("{}: the program's operator cannot be declared", spec.plan_id),
@@ -214,7 +228,7 @@ pub(crate) fn lower(spec: TerminalSpec) -> Result<Arc<LoweredProgram>, CausalErr
         operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
-        sources: Arc::from([EvidenceSourceRef { role: spec.role, digest: Some(spec.question) }]),
+        sources,
         composition: spec.composition,
         decision: spec.decision,
         planning: None,

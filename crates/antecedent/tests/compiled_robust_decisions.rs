@@ -497,3 +497,39 @@ fn bounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incompl
     bytes.extend(antecedent_io::to_cbor(&wire).unwrap());
     assert!(JointScenarioCarrier::consume(&bytes, s.identity(), &ctx).is_err());
 }
+#[test]
+fn the_robust_decision_is_a_parent_program_gated_on_its_own_unit() {
+    let ctx = ExecutionContext::for_tests(43);
+    let p = prepared(&ctx);
+    let s = source(
+        &p,
+        vec![
+            evaluated("positive", true, ClaimProbability::CompletionCount(17)),
+            evaluated("negative", false, ClaimProbability::CompletionCount(9)),
+        ],
+        true,
+        None,
+        &ctx,
+    );
+    let compiled = compile(&p, s.clone(), StructuralPolicy::Maximin, &ctx);
+    let parent = compiled.decision_plan_view();
+    assert_eq!(parent.program().route(), "JointScenarioAttachedDecision");
+    let unit = parent.unit_support().expect("the decision's route is bound to its unit");
+    assert_eq!(unit.unit(), "decision.compiled_joint_scenarios");
+    // The one child is the anchor study's program, which keeps its own support cell.
+    let anchor = compiled.plan().lowered_program_identity().expect("a lowered anchor");
+    let children: Vec<Option<[u8; 32]>> =
+        parent.evidence().sources().iter().map(|source| source.digest()).collect();
+    assert_eq!(children, [Some(*anchor.as_bytes())]);
+    assert_eq!(compiled.program_identity(), anchor.to_hex(), "the anchor identity is unchanged");
+    assert_ne!(compiled.decision_program_identity(), anchor);
+    // Stable across compiles; another declaration is another parent.
+    let again = compile(&p, s.clone(), StructuralPolicy::Maximin, &ctx);
+    assert_eq!(again.decision_program_identity(), compiled.decision_program_identity());
+    let other = compile(&p, s, StructuralPolicy::ReportOnly, &ctx);
+    assert_ne!(other.decision_program_identity(), compiled.decision_program_identity());
+    // A supported unit runs as before.
+    if unit.supported() {
+        assert!(compiled.execute(&ctx).unwrap().complete());
+    }
+}

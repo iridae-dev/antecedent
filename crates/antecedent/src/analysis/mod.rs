@@ -103,6 +103,7 @@ mod admg_conditional_transport;
 mod alpha_selection;
 pub mod array_fits;
 pub mod association;
+mod attached_decision;
 mod batch;
 mod batch_export;
 mod batch_retarget;
@@ -240,7 +241,6 @@ pub use joint_interval_artifact::{
     JointIntervalNumerics, JointSensitivityIntervalArtifact,
 };
 pub mod events;
-pub mod structure_members;
 pub mod fitted_dependent_measurement;
 pub mod latent_class_effects;
 pub mod latent_soft_intervention;
@@ -310,6 +310,7 @@ pub mod sequential_evaluation;
 mod smoothed_dose;
 pub mod staleness;
 mod statistical;
+pub mod structure_members;
 pub mod structure_route;
 mod structure_stability;
 pub mod target_validation;
