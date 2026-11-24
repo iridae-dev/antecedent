@@ -27060,3 +27060,17 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_preference_structures.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-crates-antecedent-graph-src-directed-rs"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/directed.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-io-core-src-identity-graph-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/identity/graph.rs"
+gates = ["inventory", "named"]
