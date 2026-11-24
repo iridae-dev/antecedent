@@ -236,7 +236,7 @@ def problems(root: Path = ROOT) -> tuple[list[str], list[tuple[str, str, str]]]:
         rel = path.relative_to(root).as_posix()
         if "/tests/" in rel or rel.endswith("tests.rs") or "test_support" in rel:
             continue
-        src = _strip_tests(path.read_text())
+        src = _strip_tests(path.read_text(encoding="utf-8"))
         forms = bound_forms(src)
         for loader in loaders(rel, src):
             want = bound_name(loader)
@@ -283,9 +283,7 @@ def self_test() -> int:
         errs = []
         for loader in loaders("x.rs", src):
             want = bound_name(loader)
-            if want not in forms:
-                errs.append(want)
-            elif form_problem(loader, forms[want], forms):
+            if want not in forms or form_problem(loader, forms[want], forms):
                 errs.append(want)
         if (not errs) != ok:
             failed += 1

@@ -24,9 +24,8 @@ import re
 import sys
 from pathlib import Path
 
-from _repo import REPO_ROOT, load_toml
-
 import rust_items
+from _repo import REPO_ROOT, load_toml
 
 INVENTORY = Path("formal/identity_sites.toml")
 CAMPAIGN = Path("parity/adversarial_campaign.toml")
@@ -42,7 +41,7 @@ COLLECTION_KEYS = {"name", "class", "canonical", "concern"}
 def _kani_harnesses(root: Path) -> set[str]:
     names: set[str] = set()
     for path in (root / KANI).glob("*.rs"):
-        names |= set(re.findall(r"#\[kani::proof\][^{]*?fn\s+(\w+)", path.read_text(), re.S))
+        names |= set(re.findall(r"#\[kani::proof\][^{]*?fn\s+(\w+)", path.read_text(encoding="utf-8"), re.S))
     return names
 
 
@@ -72,7 +71,7 @@ def validate(root: Path, inventory: dict, campaign: dict, records: dict) -> list
         else:
             if site["file"] not in parsed:
                 try:
-                    parsed[site["file"]] = rust_items.File(path.read_text())
+                    parsed[site["file"]] = rust_items.File(path.read_text(encoding="utf-8"))
                 except rust_items.ParseError:
                     parsed[site["file"]] = None
             source = parsed[site["file"]]
@@ -92,7 +91,7 @@ def validate(root: Path, inventory: dict, campaign: dict, records: dict) -> list
                 rel, _, test = name.rpartition("::")
                 unit = root / rel
                 if not unit.is_file() or not re.search(
-                    rf"#\[test\][^{{]*?fn\s+{re.escape(test)}\b", unit.read_text(), re.S
+                    rf"#\[test\][^{{]*?fn\s+{re.escape(test)}\b", unit.read_text(encoding="utf-8"), re.S
                 ):
                     errors.append(f"{sid}: check {check!r} names no #[test] fn")
                 continue

@@ -94,7 +94,7 @@ def _read(root: Path, rel: str) -> str:
     path = root / rel
     if not path.is_file():
         raise Problem(f"missing input {rel}")
-    return path.read_text().replace("\r\n", "\n")
+    return path.read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
 def _lean_code(text: str) -> str:
@@ -218,7 +218,7 @@ def validate(root: Path, data: dict, toolchain: dict) -> list[str]:
     for path in sorted((root / "formal").rglob("*.lean")):
         if ".lake" in path.parts:
             continue
-        if UNPROVED.search(_lean_code(path.read_text())):
+        if UNPROVED.search(_lean_code(path.read_text(encoding="utf-8"))):
             errors.append(f"{path.relative_to(root)}: sorry, admit, native_decide or axiom in a proof source")
     for key in ("lean", "aeneas", "charon", "kani"):
         if not toolchain.get(key):
@@ -283,7 +283,7 @@ def run(ids: list[str], root: Path = REPO_ROOT) -> int:
                     _run(["cargo", "kani", "--harness", harness["name"]], root / "formal/kani")
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True,
                           check=True).stdout.strip()
-    text = (root / RECORDS).read_text()
+    text = (root / RECORDS).read_text(encoding="utf-8")
     for record in chosen:
         digest = inputs_digest(root, record)
         block = re.compile(
@@ -295,7 +295,7 @@ def run(ids: list[str], root: Path = REPO_ROOT) -> int:
         if count != 1:
             print(f"assurance: could not rebind {record['id']}", file=sys.stderr)
             return 1
-    (root / RECORDS).write_text(text)
+    (root / RECORDS).write_text(text, encoding="utf-8")
     print(f"assurance: {len(chosen)} record(s) checked at {head[:12]} and rebound")
     return 0
 
@@ -317,7 +317,7 @@ def self_test(root: Path = REPO_ROOT) -> int:
     rust_check = next(c for r in data["records"] for c in r["checks"] if c.get("rust_items"))
     rust_file = rust_check["rust_items"][0]["file"]
     rust_item = rust_check["rust_items"][0]["items"][0]
-    original = (root / rust_file).read_text()
+    original = (root / rust_file).read_text(encoding="utf-8")
     cases: list[tuple[str, object]] = [
         ("unknown check kind", broken(lambda r: r["checks"][0].update(kind="verified"))),
         ("theorem not declared", broken(lambda r: r["checks"][0]["theorems"].append("Antecedent.Missing.no_such"))),
@@ -334,22 +334,22 @@ def self_test(root: Path = REPO_ROOT) -> int:
     item_kind, name = rust_item.rsplit("/", 1)[-1].split("#", 1)[0].split(":", 1)
     mutated = re.sub(rf"\b{item_kind} {re.escape(name)}\b", f"{item_kind} {name}Changed", original, count=1)
     try:
-        (root / rust_file).write_text(mutated)
+        (root / rust_file).write_text(mutated, encoding="utf-8")
         if mutated == original or not validate(root, data, toolchain):
             print("assurance self-test: a changed covered Rust item kept its record current", file=sys.stderr)
             failures += 1
     finally:
-        (root / rust_file).write_text(original)
+        (root / rust_file).write_text(original, encoding="utf-8")
     # A sorry in a proof source is rejected.
     lean = root / first["checks"][0]["files"][0]
-    lean_text = lean.read_text()
+    lean_text = lean.read_text(encoding="utf-8")
     try:
-        lean.write_text(lean_text + "\ntheorem selftest_unproved : False := by sorry\n")
+        lean.write_text(lean_text + "\ntheorem selftest_unproved : False := by sorry\n", encoding="utf-8")
         if not validate(root, data, toolchain):
             print("assurance self-test: sorry was accepted", file=sys.stderr)
             failures += 1
     finally:
-        lean.write_text(lean_text)
+        lean.write_text(lean_text, encoding="utf-8")
     print(f"assurance self-test: {len(cases) + 2 - failures}/{len(cases) + 2} broken inputs rejected")
     return 1 if failures else 0
 

@@ -48,7 +48,7 @@ def _declared(root: Path, runner: str, name: str) -> bool:
         return (root / LEAN_MODULES[runner] / (name.replace(".", "/") + ".lean")).is_file()
     directory, pattern, regex = SOURCES[runner]
     rx = re.compile(regex.format(name=re.escape(name)), re.S)
-    return any(rx.search(p.read_text()) for p in (root / directory).glob(pattern))
+    return any(rx.search(p.read_text(encoding="utf-8")) for p in (root / directory).glob(pattern))
 
 
 def validate(root: Path, campaign: dict) -> list[str]:
@@ -76,7 +76,7 @@ def validate(root: Path, campaign: dict) -> list[str]:
         path = root / mutation["file"]
         if not path.is_file():
             errors.append(f"{mid}: no file {mutation['file']}")
-        elif path.read_text().count(mutation["old"]) != 1:
+        elif path.read_text(encoding="utf-8").count(mutation["old"]) != 1:
             errors.append(f"{mid}: the text to mutate does not occur exactly once in {mutation['file']}")
         unknown = set(mutation.get("caught_by", [])) - set(ids)
         if unknown or not mutation.get("caught_by"):
@@ -167,15 +167,15 @@ def run(root: Path = REPO_ROOT, mutations: bool = False, runners: set[str] | Non
     report: dict[str, str] = {}
     for mutation in campaign["mutations"]:
         path = root / mutation["file"]
-        original = path.read_text()
+        original = path.read_text(encoding="utf-8")
         if original.count(mutation["old"]) != 1:
             report[mutation["id"]] = "unexecuted"
             continue
         try:
-            path.write_text(original.replace(mutation["old"], mutation["new"], 1))
+            path.write_text(original.replace(mutation["old"], mutation["new"], 1), encoding="utf-8")
             results = run_cases(root, campaign, set(mutation["caught_by"]))
         finally:
-            path.write_text(original)
+            path.write_text(original, encoding="utf-8")
         if any(v == "failed" for v in results.values()):
             report[mutation["id"]] = "detected"
         elif any(v == "not run" for v in results.values()):
