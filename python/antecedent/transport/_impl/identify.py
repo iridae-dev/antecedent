@@ -6,6 +6,7 @@ from typing import Any, Literal, TypedDict
 
 import numpy as np
 
+from ... import _deprecation
 from ..._artifact_protocol import artifact_consumer, container_bytes
 from ..._columns import coerce_fields
 from ..._native import (
@@ -32,7 +33,6 @@ from ..._native import (
 from ..._native import (
     roundtrip_expr_arena as _roundtrip_expr_arena,
 )
-from ... import _deprecation
 from ...errors import CausalTypeError, CausalValueError
 from ...execution import Execution
 from ...graph import Admg
