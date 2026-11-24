@@ -1457,7 +1457,7 @@ crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/evidence_plan.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 
 [[test]]
 id = "evidence-plan-facade"
@@ -1653,6 +1653,13 @@ path = "crates/antecedent-estimate/src/joint_design/switchback.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-design-independent-unit-bootstrap"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "joint-design-public-native-targets"
 crate = "antecedent"
 cargo_target = "lib"
@@ -1761,7 +1768,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/mediation_mixed_graph.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 
 [[test]]
 id = "class-attribution-route"
@@ -1769,7 +1776,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/class_attribution_route.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 
 [[test]]
 id = "latent-block-witness-and-block-games"
@@ -2294,6 +2301,13 @@ path = "crates/antecedent-design/tests/decision_reliability_interval_calibration
 gates = ["inventory"]
 
 [[test]]
+id = "preference-choice-model-calibration"
+crate = "antecedent-design"
+cargo_target = "decision_reliability_interval_calibration"
+path = "crates/antecedent-design/tests/preference_choice_model_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "decision-reliability-intervals"
 crate = "antecedent-design"
 cargo_target = "suite_01"
@@ -2425,7 +2439,7 @@ id = "inverse-query-artifact"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/inverse_query_artifact.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2433,7 +2447,7 @@ id = "paired-draws-alignment"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/paired_draws_alignment.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2441,7 +2455,7 @@ id = "prior-signal"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/prior_signal.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2449,7 +2463,7 @@ id = "proposal-receipt"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/proposal_receipt.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2457,7 +2471,7 @@ id = "repair-artifact"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/repair_artifact.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2465,7 +2479,7 @@ id = "repair-facade"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/repair_facade.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2473,7 +2487,7 @@ id = "route-evidence-sequential-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/route_evidence_sequential_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2481,7 +2495,7 @@ id = "sensitivity-decision"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/sensitivity_decision.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2489,7 +2503,7 @@ id = "sequential-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/sequential_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2497,7 +2511,7 @@ id = "signal-provider"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/signal_provider.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2505,7 +2519,7 @@ id = "structured-refusals"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/structured_refusals.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2513,7 +2527,7 @@ id = "study-candidate"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/study_candidate.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2521,7 +2535,7 @@ id = "transport-sensitivity"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transport_sensitivity.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2529,7 +2543,7 @@ id = "transported-bridge"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_bridge.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2537,7 +2551,7 @@ id = "transported-evaluation"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_evaluation.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2545,7 +2559,7 @@ id = "transported-route-variants"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_route_variants.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2553,7 +2567,7 @@ id = "transported-synthesis"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_synthesis.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2561,7 +2575,7 @@ id = "transported-verify-replay"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/transported_verify_replay.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2569,7 +2583,7 @@ id = "value-of-information"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/value_of_information.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3362,7 +3376,7 @@ id = "oracle-closure"
 crate = "antecedent-graph"
 cargo_target = "suite_01"
 path = "crates/antecedent-graph/tests/oracle_closure.rs"
-suite_map_line = "suite_01: dsep_exhaustive, oracle_closure"
+suite_map_line = "suite_01: dsep_exhaustive, oracle_closure, mec_uniform_sampling"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5625,7 +5639,7 @@ id = "counterfactual-class-route"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/counterfactual_class_route.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6676,7 +6690,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/predictive_score_interval_facade.rs"
 calibration_acceptance_assertions = ["an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", "the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6962,7 +6976,7 @@ id = "released-surface"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/released_surface.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6978,7 +6992,7 @@ id = "resampling-accuracy"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/resampling_accuracy.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7015,7 +7029,7 @@ id = "route-diagnostics"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/route_diagnostics.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7092,7 +7106,7 @@ id = "sampling-design-declaration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/sampling_design_declaration.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7846,7 +7860,7 @@ id = "z-transport-repair"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_repair.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7854,7 +7868,7 @@ id = "z-transport-surrogate-calibration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_surrogate_calibration.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory"]
 
 [[test]]
@@ -10438,7 +10452,7 @@ id = "compiled-twins-longitudinal-regime"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_longitudinal_regime.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10446,7 +10460,7 @@ id = "compiled-twins-policy-value"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_policy_value.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10454,7 +10468,7 @@ id = "compiled-twins-joint-panel"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_joint_panel.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10462,7 +10476,7 @@ id = "compiled-twins-staggered-did"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_staggered_did.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10470,7 +10484,7 @@ id = "compiled-twins-survival-ipcw"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_survival_ipcw.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10492,7 +10506,7 @@ id = "compiled-twins-randomized-policy"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_randomized_policy.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10934,7 +10948,7 @@ id = "typed-transported-mechanism-facade"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/typed_transported_mechanism_facade.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -11715,6 +11729,20 @@ path = "crates/antecedent/src/analysis/execute/compile_planning.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-compile-preference"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile_preference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-compile-preference-structures"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile_preference/structures.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "engineering-crates-antecedent-src-analysis-execute-checked-bayesian-static-mediation"
 crate = "antecedent"
 cargo_target = "lib"
@@ -11883,7 +11911,7 @@ crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/decision_reliability_resources.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 
 [[test]]
 id = "audit-python-tests-test-batch-treatment-labels-py"
@@ -18284,7 +18312,7 @@ id = "dsep-exhaustive"
 crate = "antecedent-graph"
 cargo_target = "suite_01"
 path = "crates/antecedent-graph/tests/dsep_exhaustive.rs"
-suite_map_line = "suite_01: dsep_exhaustive, oracle_closure"
+suite_map_line = "suite_01: dsep_exhaustive, oracle_closure, mec_uniform_sampling"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -19072,7 +19100,7 @@ id = "adaptive-policy-search"
 crate = "antecedent-design"
 cargo_target = "suite_02"
 path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
-suite_map_line = "suite_02: adaptive_policy_search, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -26529,3 +26557,477 @@ crate = "antecedent-io-core"
 cargo_target = "lib"
 path = "crates/antecedent-io-core/src/transport_revalidation_artifact.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-linear-program"
+crate = "antecedent-stats"
+cargo_target = "linear_program"
+path = "crates/antecedent-stats/tests/linear_program.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-linear-program-reference"
+crate = "antecedent-stats"
+cargo_target = "linear_program_reference"
+path = "crates/antecedent-stats/tests/linear_program_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit"
+crate = "antecedent-stats"
+cargo_target = "conditional_logit"
+path = "crates/antecedent-stats/tests/conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit-reference"
+crate = "antecedent-stats"
+cargo_target = "conditional_logit_reference"
+path = "crates/antecedent-stats/tests/conditional_logit_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_model.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model-reference"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_model_reference.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-contract"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_contract.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/choice_record.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record-reference"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/choice_record_reference.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_decision.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision-structural"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_decision_structural.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-certified"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_certified.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_set_learning.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning-reference"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_set_learning_reference.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-choice-model"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_choice_model.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-accepted-preferences"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/accepted_preferences.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-evaluation"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_evaluation.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-artifact"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_artifact.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-cancellation"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_cancellation.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-accepted-preferences-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/accepted_preferences.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-choice-record-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/choice_record.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-artifact-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_decision_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-accepted-preferences-artifact-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/accepted_preferences_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-certified-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_certified.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-choice-model-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_choice_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-decision-standing-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_standing.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-contract-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_contract.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-decision-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-model-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-refusal-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_refusal.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning-unit"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_set_learning.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-linear-program-unit"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/linear_program.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-conditional-logit-unit"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/glm/conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-preferences"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_preferences.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-decision-value-contract"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_decision_value_contract.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-decision-result-family"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_decision_result_family.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-decision-compile"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_decision_compile.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-preference-learning"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_preference_learning.py"
+gates = ["inventory"]
+
+[[test]]
+id = "facade-preference-decision-end-to-end"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_end_to_end.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-several-outcomes"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_several_outcomes.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-ordinary-contract-compiled"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/ordinary_contract_compiled.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-structures"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_structures.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-outcomes"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_outcomes.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-plan-facts"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_plan_facts.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-design"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_design.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-joint-law"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_joint_law.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-atoms"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_atoms.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-nonlinear-conditional-logit"
+crate = "antecedent-stats"
+cargo_target = "nonlinear_conditional_logit"
+path = "crates/antecedent-stats/tests/nonlinear_conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "stats-nonlinear-conditional-logit-unit"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/glm/nonlinear_conditional_logit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-mec-uniform-sampling"
+crate = "antecedent-graph"
+cargo_target = "suite_01"
+path = "crates/antecedent-graph/tests/mec_uniform_sampling.rs"
+suite_map_line = "suite_01: dsep_exhaustive, oracle_closure, mec_uniform_sampling"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-mec-uniform"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/mec_uniform.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-pag-uniform"
+crate = "antecedent-graph"
+cargo_target = "lib"
+path = "crates/antecedent-graph/src/pag_uniform.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-shape-learning"
+crate = "antecedent-design"
+cargo_target = "suite_02"
+path = "crates/antecedent-design/tests/preference_shape_learning.rs"
+suite_map_line = "suite_02: accepted_preferences, adaptive_policy_search, choice_record, choice_record_reference, decision_reliability_resources, evidence_plan, inverse_query_artifact, paired_draws_alignment, preference_artifact, preference_cancellation, preference_certified, preference_choice_model, preference_contract, preference_decision, preference_decision_structural, preference_evaluation, preference_model, preference_model_reference, preference_set_learning, preference_set_learning_reference, preference_shape_learning, prior_signal, proposal_receipt, repair_artifact, repair_facade, route_evidence_sequential_evaluation, sensitivity_decision, sequential_evaluation, signal_provider, structured_refusals, study_candidate, transport_sensitivity, transported_bridge, transported_evaluation, transported_route_variants, transported_synthesis, transported_verify_replay, value_of_information"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "design-preference-set-learning-region"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/preference_set_learning/region.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-class-weighting"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_class_weighting.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-chain-binding"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_chain_binding.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-unit-keys"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_unit_keys.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-program-identity"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_program_identity.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-evidence-basis"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_evidence_basis.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-preference-decision-compiled-class-marks"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/preference_decision_compiled_class_marks.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw, preference_decision_end_to_end, preference_decision_several_outcomes, preference_decision_compiled, preference_decision_compiled_structures, preference_decision_compiled_outcomes, preference_decision_compiled_plan_facts, preference_decision_compiled_design, preference_decision_compiled_joint_law, preference_decision_compiled_atoms, preference_decision_compiled_chain_binding, preference_decision_compiled_unit_keys, preference_decision_class_weighting, preference_decision_compiled_program_identity, preference_decision_compiled_evidence_basis, preference_decision_compiled_class_marks, ordinary_contract_compiled"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "facade-query-digest-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/query_digest.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-preference-structures"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_preference_structures.py"
+gates = ["inventory"]

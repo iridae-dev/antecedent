@@ -54,11 +54,12 @@ mod identity;
 mod wire;
 
 use bounds::check_bounds;
-pub use identity::propagation_chain_identity;
+pub use identity::{propagation_chain_draft_identity, propagation_chain_identity};
 pub use wire::{
-    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire,
-    ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageResultWire, ChainStageWire,
-    ChainUnaryWire, ConsumedPropagationChain, PropagationChainRecordWire,
+    ChainChangeWire, ChainCoefficientWire, ChainDeclaredBlockWire, ChainDeferredTableWire,
+    ChainExprTermWire, ChainFactorWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
+    ChainStageResultWire, ChainStageWire, ChainUnaryWire, ConsumedPropagationChain,
+    PropagationChainDraftWire, PropagationChainRecordWire,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -111,6 +112,18 @@ pub const PROPAGATION_CHAIN_LAW_TAG: &str = "antecedent.propagation_chain_law.v2
 pub const PROPAGATION_CHAIN_ASSUMPTION_TAG: &str = "antecedent.propagation_chain_assumption.v3";
 /// Domain tag of a joint output law.
 pub const PROPAGATION_CHAIN_JOINT_LAW_TAG: &str = "antecedent.propagation_chain_joint_law.v4";
+/// Required feature marker a compiled draft carries beside its format's marker while its
+/// family table is deferred: a reader that does not bind deferred tables refuses it.
+pub const PROPAGATION_CHAIN_DEFERRED_FEATURE: &str = "propagation_chain.deferred_sources";
+/// Domain tag of the identity of a draft whose family table is deferred.
+pub const PROPAGATION_CHAIN_DEFERRED_TAG: &str = "antecedent.propagation_chain.deferred_sources.v1";
+/// The construction of a deferred family table: normal columns matched exactly to the bound
+/// means and the assembled covariance.
+pub const DEFERRED_MOMENT_MATCHED_NORMAL: &str = "moment_matched_normal";
+/// Reason detail of a deferred draft asked to seal, export or be consumed before its table is
+/// bound.
+pub const DEFERRED_SOURCE_UNBOUND: &str =
+    antecedent_core::reason_details::propagation_chain::DEFERRED_SOURCE_UNBOUND;
 /// Most bytes an encoded record may occupy; larger input is refused before any
 /// CBOR is parsed.
 pub const MAX_PROPAGATION_CHAIN_BYTES: usize = 64 * 1024 * 1024;
@@ -552,6 +565,29 @@ impl PropagationChainRecordWire {
     pub fn with_joint_outputs(mut self, outputs: Vec<ChainJointOutputWire>) -> Self {
         self.joint_outputs = outputs;
         self
+    }
+
+    /// Refuse the record of a draft whose family table is still deferred (it carries the
+    /// deferred feature marker): its slot sources carry no draws, so it has no results to seal,
+    /// encode or replay.
+    fn refuse_deferred(&self, what: &str) -> Result<(), Error> {
+        if self
+            .required_features
+            .iter()
+            .any(|feature| feature == PROPAGATION_CHAIN_DEFERRED_FEATURE)
+        {
+            return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                DEFERRED_SOURCE_UNBOUND,
+                format!(
+                    "a chain whose family table is deferred cannot be {what}; bind the table's \
+                     moments first"
+                ),
+                None,
+                FIX_CHAIN_DECLARATION,
+            ));
+        }
+        Ok(())
     }
 
     fn check_joint_outputs(&self, plan: &ChainPlan) -> Result<(), Error> {
@@ -1227,6 +1263,7 @@ impl PropagationChainRecordWire {
         ctx: &ExecutionContext,
         limits: &PropagationChainLimits,
     ) -> Result<Self, Error> {
+        draft.refuse_deferred("sealed")?;
         let (version, feature) = format_for(&draft.reading, !draft.joint_outputs.is_empty());
         draft.version = version;
         draft.required_features = vec![feature.to_owned()];
@@ -1297,6 +1334,7 @@ impl PropagationChainRecordWire {
     /// # Errors
     /// As [`Self::export`].
     pub fn export_within(&self, limits: &PropagationChainLimits) -> Result<Vec<u8>, Error> {
+        self.refuse_deferred("exported")?;
         check_bounds(self, limits)?;
         crate::to_cbor(self).map_err(|error| Error::Encode(error.to_string()))
     }
@@ -1388,6 +1426,7 @@ impl PropagationChainRecordWire {
         ctx: &ExecutionContext,
         limits: &PropagationChainLimits,
     ) -> Result<ConsumedPropagationChain, Error> {
+        self.refuse_deferred("consumed")?;
         if self.required_features != [expected_feature(self.version)?] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
@@ -1559,6 +1598,104 @@ fn stage_weights(state: &ChangeState, sources: &[String]) -> Result<Option<Vec<f
     match total {
         None => Ok(None),
         Some(log) => Ok(Some(weights_from_log(&log).map_err(map_chain_error)?)),
+    }
+}
+
+impl PropagationChainDraftWire {
+    /// Run the chain rule on the draft's declaration, after checking its deferred table.
+    ///
+    /// # Errors
+    /// A malformed table or declaration, or a refusal of the rule, with its next attempt.
+    pub fn plan(&self) -> Result<ChainPlan, Error> {
+        self.plan_within(&PropagationChainLimits::default())
+    }
+
+    /// [`Self::plan`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::plan`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn plan_within(&self, limits: &PropagationChainLimits) -> Result<ChainPlan, Error> {
+        bounds::check_deferred_bounds(&self.deferred, limits)?;
+        self.check_table()?;
+        self.record.plan_within(limits)
+    }
+
+    /// A deferred table names distinct draw sources that carry no values yet, every one of them
+    /// in exactly one group, and declares well-shaped blocks between distinct groups.
+    fn check_table(&self) -> Result<(), Error> {
+        let deferred = &self.deferred;
+        if deferred.construction != DEFERRED_MOMENT_MATCHED_NORMAL {
+            return Err(malformed(format!(
+                "unknown deferred table construction `{}`",
+                deferred.construction
+            )));
+        }
+        if deferred.rows < 2 || deferred.slots.is_empty() {
+            return Err(malformed("a deferred table has at least two rows and one slot"));
+        }
+        let mut slots = BTreeSet::new();
+        for slot in &deferred.slots {
+            if !slots.insert(slot.as_str()) {
+                return Err(malformed(format!("deferred slot `{slot}` is named twice")));
+            }
+            let source =
+                self.record.sources.iter().find(|source| source.id == *slot).ok_or_else(|| {
+                    malformed(format!("deferred slot `{slot}` is not a source of the chain"))
+                })?;
+            if source.representation != Representation::Draws.as_str() || !source.values.is_empty()
+            {
+                return Err(malformed(format!(
+                    "deferred slot `{slot}` is a draw source with no values until it is bound"
+                )));
+            }
+        }
+        if self.record.sources.iter().any(|source| {
+            source.representation == Representation::Draws.as_str()
+                && !slots.contains(source.id.as_str())
+        }) {
+            return Err(malformed(
+                "every draw source of a chain with a deferred table is one of its slots",
+            ));
+        }
+        let mut grouped = BTreeSet::new();
+        for group in &deferred.within_blocks {
+            if group.is_empty() {
+                return Err(malformed("a deferred group names at least one slot"));
+            }
+            for slot in group {
+                if !slots.contains(slot.as_str()) || !grouped.insert(slot.as_str()) {
+                    return Err(malformed(format!(
+                        "deferred group member `{slot}` is not a slot in exactly one group"
+                    )));
+                }
+            }
+        }
+        if grouped.len() != slots.len() {
+            return Err(malformed("every deferred slot belongs to a group"));
+        }
+        let groups = deferred.within_blocks.len();
+        let mut seen = BTreeSet::new();
+        for block in &deferred.declared_cross {
+            let (Ok(first), Ok(second)) =
+                (usize::try_from(block.first), usize::try_from(block.second))
+            else {
+                return Err(malformed("a declared block names a group out of range"));
+            };
+            if first >= second || second >= groups || !seen.insert((first, second)) {
+                return Err(malformed(
+                    "a declared block names two distinct groups, first before second, once",
+                ));
+            }
+            let cells = deferred.within_blocks[first].len() * deferred.within_blocks[second].len();
+            if block.terms.len() != cells
+                || block.terms.iter().any(|bits| !f64::from_bits(*bits).is_finite())
+            {
+                return Err(malformed(
+                    "a declared block holds one finite term per pair of the two groups' slots",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

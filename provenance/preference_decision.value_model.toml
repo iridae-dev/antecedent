@@ -1,0 +1,31 @@
+# Algorithm provenance for preference_decision.value_model.
+
+feature_id = "preference_decision.value_model"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Assessing a set of additive utility functions for multicriteria decision-making, the UTA method", doi = "10.1016/0377-2217(82)90155-2", sections = ["piecewise-linear marginal value functions over breakpoints of each criterion, with monotonicity of the marginal value as linear constraints on the unknowns (section numbers not independently verified)"] },
+]
+implementation_deviations = [
+ "A value model is a closed expression over outcome attributes and named preference parameters (sums, differences, products, minimum, maximum, exp, ln); it need not be additive across attributes, and interaction terms and parameter-free shapes are allowed. UTA's additive form is the special case of separate curves per attribute.",
+ "A piecewise-linear curve is parameterised by its segment slopes, not by the marginal values at the breakpoints, and no normalisation (values summing to one, zero at the worst level) is imposed. Increasing and decreasing rules are sign relations on each slope; diminishing and accelerating rules (ordered consecutive slopes, so a concave or convex curve) are additions not in the cited method.",
+ "Parameters carry declared admissible ranges with a named assumption, and linear relations restrict them jointly; the set is declared, not inferred from a reference ranking here (inference from recorded choices is the preference_learning.compatible_set record).",
+ "The exact affine decomposition value = fixed + sum_j theta_j * terms[j] is a symbolic rewrite of the expression tree with parameter-free parts kept whole; a parameter inside a kink location, a product with another parameter, exp or ln is reported as a shape parameter and has no linear form. This decomposition and the binding of a model to an ordinary decision contract at one parameter value (preference_contract.rs) are repository constructions, not part of the cited method.",
+ "The exact-rational reference (preference_model_reference.py) evaluates closed-form models at unit parameter vectors rather than walking an expression; it was written by the same author in the same development effort as the implementation, not by an independent reviewer, and no method review has been recorded.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/preference_model.rs",
+ "crates/antecedent-design/src/preference_contract.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_model.rs",
+ "crates/antecedent-design/tests/preference_model_reference.rs (linear forms of four models against exact rational evaluation)",
+ "crates/antecedent-design/tests/oracle_data/preference_model_reference.py",
+ "crates/antecedent-design/tests/oracle_data/preference_model_reference.json",
+ "crates/antecedent-design/tests/preference_contract.rs",
+]

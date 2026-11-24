@@ -1,0 +1,46 @@
+# Algorithm provenance for preference_learning.choice_model.
+
+feature_id = "preference_learning.choice_model"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Conditional logit analysis of qualitative choice behavior (McFadden, in Frontiers in Econometrics, ed. Zarembka, Academic Press, 1974)", sections = ["the conditional logit model, P(i | set) proportional to exp(x_i . beta) over the options of each choice set, and its maximum-likelihood estimation with a concave log-likelihood (section numbers not independently verified)"] },
+ { title = "Longitudinal data analysis using generalized linear models", doi = "10.1093/biomet/73.1.13", sections = ["the robust (sandwich) variance estimator with independent clusters"] },
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 3, the delta method: a smooth function of an asymptotically normal estimator is asymptotically normal with variance equal to the quadratic form of its gradient (section numbers not independently verified)"] },
+ { title = "On Approximating the Statistical Properties of Elasticities", doi = "10.2307/1924536", sections = ["simulating a nonlinear function of estimated coefficients by drawing the coefficients from their estimated asymptotic normal distribution"] },
+ { title = "A Method for Computing Profile-Likelihood-Based Confidence Intervals", doi = "10.2307/2347496", sections = ["the profile likelihood-ratio confidence interval of one parameter, the set where twice the drop of the profile log-likelihood stays below the chi-square(1) quantile, and its end points found by root search"] },
+ { title = "On the distribution of points in a cube and the approximate evaluation of integrals", doi = "10.1016/0041-5553(67)90144-9", sections = ["the low-discrepancy sequence used to seed the search over shape values (section numbers not independently verified)"] },
+ { title = "Constructing Sobol Sequences with Better Two-Dimensional Projections", doi = "10.1137/070709359", sections = ["direction numbers for the Sobol sequence; those of dimensions 2 to 8 are used"] },
+]
+implementation_deviations = [
+ "The choice model is a conditional logit in beta = (lambda, lambda * theta) on the features (F, T_1, ..., T_K) of each option, with lambda > 0 the choice consistency and V = F + sum_k theta_k T_k the declared value under the recorded expectations; theta_k = beta_k / beta_0. The fixed part F carries the unit of account: an estimate is refused unless F differs between the options of at least one record, and refused when the estimated consistency is not positive. A free parameter whose term differs in no record is left out of the fit and reported as not learnable.",
+ "The estimate describes the trade-offs the recorded decision-makers acted on under the stated choice model and recorded expectations, not what the trade-offs should be.",
+ "The fit is Newton's method from beta = 0 on the within-set differences z_j = x_j - x_chosen, with Cholesky solves and step halving (at most 60 halvings) against a rounding allowance of 64 eps (|l| + n_sets); convergence is a gradient bound relative to sum_s max_j |z_j|. Full column rank of the within-set centred design is checked by Gram-Schmidt at relative tolerance 1e-9 before iterating, and separation (no finite maximum) is refused when a Newton step or the coefficient direction certifies a separating direction at tolerances 1e-8 and 1e-6. These are repository policies, not part of the cited method.",
+ "Covariance is the cluster sandwich I^-1 (sum_c s_c s_c') I^-1 with per-decider score sums when the fit holds at least two decision-makers, the inverse observed information otherwise; no small-sample multiplier such as C / (C - 1) is applied. The cited sandwich is for generalised estimating equations; here it is applied to the conditional logit score.",
+ "Standard errors of theta_k are the delta-method value sqrt(V_kk - 2 theta_k V_k0 + theta_k^2 V_00) / beta_0 and intervals are theta_hat +- z se; their coverage is not measured and is reported as not measured.",
+ "The measure over the preference set is a normal approximation to the sampling distribution of the estimate, not a posterior: draws beta = beta_hat + L z from a seeded generator, mapped to theta = beta_k / beta_0, kept only when beta_0 > 0 and the point lies in the declared set (learnable coordinates in their declared ranges, relations checked only when they touch no unresolved parameter, both within 1e-9), with equal weights. Restricting to the declared set truncates the approximation; unresolved parameters sit at the midpoint of their declared range as a placeholder the measure says nothing about.",
+ "The 50-digit conditional logit reference (conditional_logit_reference.py: Newton on the raw option features in decimal arithmetic) and the simulated-recovery checks were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+ "Under a value with shape parameters the conditional logit index is nonlinear in them. The log-likelihood is profiled over the shape parameters: at each shape value the ordinary conditional logit is fitted in the consistency and the linear trade-offs, and the shape values are searched from the centre of the declared box and a Sobol sequence (64 points by default) followed by a compass search from the best point (at most 200 refinements by default) and Fisher scoring in the direct parameters with the shape parameters kept inside their bounds; at most three shape parameters are searched by default and more are refused. A shape parameter whose term the within-record value differences never read is left out and reported as not learnable.",
+ "Each shape parameter carries a profile likelihood-ratio interval at the requested level, its end points located on an even profile grid (33 points by default, maximising over the other shape parameters) and refined by bisection between grid points; the remaining trade-offs keep Wald intervals from the expected information of the multinomial choice with a nonlinear index (first derivatives of the value only), or its cluster sandwich. The estimate is refused when the profile varies by less than half the chi-square(1) quantile over the declared range (not identified), when it lies on a declared bound (where the normal approximation and the two-sided interval do not hold), when two separated profile maxima lie near the overall maximum (the likelihood-ratio set is not an interval), and when the choices are separated at some shape value. These thresholds are repository policies.",
+ "The shape-path intervals resolve calibration under their own key (estimator preference.nonlinear_conditional_logit.profile, method wald_and_profile_likelihood_ratio) and are not measured until a coverage record exists.",
+ "The simulated-recovery and refusal checks of the shape path (nonlinear_conditional_logit.rs, preference_shape_learning.rs) were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/preference_choice_model.rs",
+ "crates/antecedent-stats/src/glm/conditional_logit.rs",
+ "crates/antecedent-stats/src/glm/nonlinear_conditional_logit.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_choice_model.rs (recovery of a known consistency and rates from simulated logit choices, a hand-derived one-column fit, learnability, the measure, clustered and model covariance, refusals)",
+ "crates/antecedent-stats/tests/conditional_logit.rs (closed-form maxima, invariances, derivative checks, the cluster sandwich, varying set sizes, refusals)",
+ "crates/antecedent-stats/tests/conditional_logit_reference.rs (coefficients, log-likelihood, covariance and cluster covariance against a 50-digit Newton reference)",
+ "crates/antecedent-stats/tests/oracle_data/conditional_logit_reference.py",
+ "crates/antecedent-stats/tests/oracle_data/conditional_logit_reference.json",
+ "crates/antecedent-stats/tests/nonlinear_conditional_logit.rs (reduction to the ordinary conditional logit without shape parameters, a simulated risk attitude and its profile, refusals of a flat, bounded, bimodal or separated profile and of the search limit)",
+ "crates/antecedent-design/tests/preference_shape_learning.rs (a risk attitude and a harm weight recovered from noisy choices, a shape parameter never read, refusals of the shape path)",
+]

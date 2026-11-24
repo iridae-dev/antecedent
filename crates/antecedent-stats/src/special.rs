@@ -247,6 +247,22 @@ pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
 }
 
+/// The `p` quantile of a Beta(`a`, `b`) law, by bisection on [`regularized_incomplete_beta`],
+/// which increases in its argument: 200 halvings of `[0, 1]`, then the midpoint.
+#[must_use]
+pub fn beta_quantile(p: f64, a: f64, b: f64) -> f64 {
+    let (mut low, mut high) = (0.0_f64, 1.0_f64);
+    for _ in 0..200 {
+        let mid = 0.5 * (low + high);
+        if regularized_incomplete_beta(mid, a, b) < p {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    0.5 * (low + high)
+}
+
 /// `I_x(a, b)` given both `x` and its complement `y = 1 − x`.
 ///
 /// Callers that can form `y` directly (the Student-t survival function has

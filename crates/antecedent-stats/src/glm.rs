@@ -16,16 +16,27 @@ use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 use antecedent_kernels::{norm_cdf, sigmoid};
 
 mod binomial;
+mod conditional_logit;
 mod count;
 mod gaussian;
 mod multinomial;
+mod nonlinear_conditional_logit;
 
 pub use binomial::{
     GlmLaplaceFit, fit_glm_ridge, fit_glm_ridge_weighted, fit_logistic_weighted, fit_logit_laplace,
     logit_working_row,
 };
+pub use conditional_logit::{
+    ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
+    conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
+};
 pub use multinomial::{
     MultinomialDesignRef, MultinomialFit, fit_multinomial_logit, fit_multinomial_logit_weighted,
+};
+pub use nonlinear_conditional_logit::{
+    ChoiceUtility, NonlinearChoiceError, NonlinearConditionalLogitFit,
+    NonlinearConditionalLogitOptions, SOBOL_DIMENSIONS, ShapeProfile, ShapeSearchOptions,
+    UtilityNotEvaluable, fit_nonlinear_conditional_logit,
 };
 
 #[cfg(test)]

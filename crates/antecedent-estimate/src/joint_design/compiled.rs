@@ -134,6 +134,22 @@ pub enum JointDesignInference {
         /// Deterministic resampling seed.
         seed: u64,
     },
+    /// Independent-unit bootstrap of a cluster-randomized, matched-pair or switchback
+    /// design's arm means: clusters resampled within each arm, whole pairs or whole
+    /// sequences, every refit rerunning the complete estimator.
+    ///
+    /// Randomization alone does not identify the dependence of the arm-mean estimators
+    /// across arms; the law is read only under the declared premise that the independent
+    /// units were sampled independently from a larger population.
+    IndependentUnitBootstrap {
+        /// Number of complete refits, at least 99.
+        replicates: usize,
+        /// Deterministic resampling seed.
+        seed: u64,
+        /// Assumption identity of the premise that the independent units were sampled
+        /// independently from a larger population.
+        sampling: String,
+    },
     /// Native design point functional and complete-unit uncertainty.
     ///
     /// For Gaussian longitudinal designs the version-one compatibility recipe
@@ -376,6 +392,10 @@ impl JointDesignRecipe {
     /// Execute every design-native route without relabelling contrast targets as world means.
     /// # Errors
     /// Invalid scientific premises/support, incompatible inference, cancellation or admission failure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per design and inference pair keeps the dispatch in one table"
+    )]
     pub fn execute_native(
         &self,
         inference: &JointDesignInference,
@@ -406,6 +426,13 @@ impl JointDesignRecipe {
                 super::experiment::joint_experiment(recipe, ctx)
                     .map(JointNativeDesignLaw::DecisionExperiment)
             }
+            // The refits are not one of the native laws: they are read through
+            // `unit_bootstrap::joint_unit_bootstrap`, which returns them as their own type.
+            (_, JointDesignInference::IndependentUnitBootstrap { .. }) => Err(
+                "an independent-unit bootstrap is executed by unit_bootstrap::joint_unit_bootstrap, \
+                 not as a native design law"
+                    .into(),
+            ),
             (Self::StaticRegime { recipe }, JointDesignInference::Frequentist) => {
                 super::static_regime::joint_static_regime(recipe, ctx)
                     .map(JointNativeDesignLaw::StaticRegime)

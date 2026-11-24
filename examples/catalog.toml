@@ -101,6 +101,17 @@ runtime = "up to 1 min"
 claim = "Randomized-experiment effect, a decision under a stated utility and belief, and expected value of information, all against a simulated truth of 1,000 incremental orders per region. The decision depends on the declared utility and belief, not only on the data."
 
 [[example]]
+id = "decide_across_trade_offs"
+title = "Choose a discount when the cost of a return is a range"
+summary = "Estimate orders and returns under three discounts, decide with the cost of a return declared as a range, read where the choice switches, and optionally narrow the range from past decisions."
+python = "examples/python/decide_across_trade_offs.py"
+topic = "Tutorials"
+level = "intermediate"
+dependencies = []
+runtime = "under 1 min"
+claim = "A decision across a declared range of one trade-off on randomized arm means, exact for those means, against a simulated truth in which the choice switches at 30 and 50 dollars per return. The narrowed range is what the recorded choices imply under the declared value model and the recorded forecasts; it is not a statement of what a return should cost."
+
+[[example]]
 id = "replay_and_current_decisions"
 title = "Withdraw a source and separate replay from current use"
 summary = "Build one decision from three evidence routes, change its utility without refitting, export it, then withdraw a source."

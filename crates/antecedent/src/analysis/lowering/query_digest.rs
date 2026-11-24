@@ -20,6 +20,7 @@ use crate::analysis::execute::{StudyDeclarations, StudyInference};
 
 const QUERY_DIGEST_TAG: &str = "antecedent.lowered_query";
 const RETENTION_KEY_TAG: &str = "antecedent.retained_identification_key";
+const POSTERIOR_MARKS_TAG: &str = "antecedent.posterior_circle_marks.v1";
 
 /// Canonical digest of `query`.
 pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {
@@ -40,7 +41,8 @@ pub(crate) fn has_runtime_callback(query: &CausalQuery) -> bool {
 /// class or the atoms and weights of a graph posterior, the tier background, the
 /// completion cap and class prior, the selection diagram and transport trial, the
 /// lag-0 average effect a series build compiled, the identifier, estimator and
-/// regression-discontinuity design, and the inference mode.
+/// regression-discontinuity design, and the inference mode. A posterior whose atoms carry
+/// circle marks also writes them; one without marks is keyed by its adjacency sets alone.
 ///
 /// `None` when an input has no canonical encoding (a graph whose identity wire
 /// cannot be built). Such a study never reuses a retained product.
@@ -64,24 +66,7 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
         }
         Err(_) => return None,
     }
-    match study.graph_posterior.as_ref() {
-        Some(posterior) => {
-            writer
-                .word(1)
-                .word(posterior.n_vars() as u64)
-                .word(posterior.n_graphs() as u64)
-                .text(posterior.atom_kind().as_str())
-                .opt_word(posterior.max_lag().map(u64::from))
-                .reals(posterior.weights());
-            writer.word(posterior.graph_keys().len() as u64);
-            for key in posterior.graph_keys().iter() {
-                writer.word(*key);
-            }
-        }
-        None => {
-            writer.word(0);
-        }
-    }
+    graph_posterior(&mut writer, study.graph_posterior.as_ref());
     match study.declared.tiered.as_ref() {
         Some(background) => {
             writer.word(1);
@@ -150,6 +135,39 @@ pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
     Some(writer.finish())
 }
 
+/// The atoms and weights of a graph posterior, `0` without one. Circle marks distinguish PAG
+/// atoms of one adjacency set. They are written only when some atom carries one, after a tag no
+/// word before them can be mistaken for, so a posterior without marks is keyed by its adjacency
+/// sets alone.
+fn graph_posterior(
+    writer: &mut CanonicalWriter,
+    posterior: Option<&antecedent_discovery::GraphPosterior>,
+) {
+    let Some(posterior) = posterior else {
+        writer.word(0);
+        return;
+    };
+    writer
+        .word(1)
+        .word(posterior.n_vars() as u64)
+        .word(posterior.n_graphs() as u64)
+        .text(posterior.atom_kind().as_str())
+        .opt_word(posterior.max_lag().map(u64::from))
+        .reals(posterior.weights());
+    writer.word(posterior.graph_keys().len() as u64);
+    for key in posterior.graph_keys().iter() {
+        writer.word(*key);
+    }
+    if let Some(marks) = posterior.mark_atoms()
+        && marks.iter().any(|mark| !mark.is_empty())
+    {
+        writer.text(POSTERIOR_MARKS_TAG).word(marks.len() as u64);
+        for mark in marks.iter() {
+            writer.word(mark.key());
+        }
+    }
+}
+
 /// The data modality and the schema's variable ids. Identification reads the
 /// variables a schema declares, never the values.
 fn data(writer: &mut CanonicalWriter, data: &DataInput) {
@@ -207,6 +225,8 @@ fn audit_identification_inputs(study: &Study) {
         lag_zero_average_effect: _,
         // Development-build disclosure; never part of a study's identity.
         would_refuse: _,
+        // Read only when the evidence of separately estimated outcomes is judged for overlap.
+        evidence_rows: _,
         // A built study never carries this: the build refuses it.
         continuous_cell: _,
         // A structure search and a mechanism fit are executed after identification and neither
@@ -278,4 +298,91 @@ fn audit_identification_inputs(study: &Study) {
         bootstrap_replicates: _,
         retain_joint_horizons: _,
     } = settings;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        CausalQuery, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_discovery::adjacency_mask::AdjacencyMask;
+    use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
+
+    use super::retention_key;
+    use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
+
+    const T: usize = 0;
+    const Y: usize = 1;
+    const Z: usize = 2;
+
+    /// A one-atom PAG posterior over `t, y, z` whose adjacency is `z * t -> y` with both bits
+    /// of `z, t` set, and whose circle marks are `marks`.
+    fn study(marks: Option<AdjacencyMask>) -> Study {
+        let mut adjacency = AdjacencyMask::EMPTY;
+        adjacency.set_edge(3, Z, T, true);
+        adjacency.set_edge(3, T, Z, true);
+        adjacency.set_edge(3, T, Y, true);
+        let summary = SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("retention_key_marks"),
+            rejected_invalid: 0,
+        };
+        let mut posterior = GraphPosterior::from_atoms(
+            3,
+            vec![1.0],
+            vec![adjacency],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            summary,
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Pag);
+        if let Some(marks) = marks {
+            posterior = posterior.with_mark_atoms([marks]).unwrap();
+        }
+        let t: Vec<f64> = (0..40).map(|i| f64::from(i % 7)).collect();
+        let y: Vec<f64> = (0..40).map(|i| f64::from((3 * i) % 11)).collect();
+        let z: Vec<f64> = (0..40).map(|i| f64::from(i % 2)).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        Study::tabular(data)
+            .graph_posterior(posterior)
+            .query(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from([0.5, 1.5])),
+                ),
+            })))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn circle_marks_key_a_posterior_and_absent_marks_change_nothing() {
+        let mut circles = AdjacencyMask::EMPTY;
+        circles.set_edge(3, Z, T, true);
+        circles.set_edge(3, T, Z, true);
+        let mut one_circle = AdjacencyMask::EMPTY;
+        one_circle.set_edge(3, Z, T, true);
+        // `z <-> t -> y`, written with no marks or with empty marks, and `z o-o t -> y`,
+        // `z o-> t -> y`: one adjacency set, three classes.
+        let bare = retention_key(&study(None)).unwrap();
+        assert_eq!(retention_key(&study(Some(AdjacencyMask::EMPTY))).unwrap(), bare);
+        let both = retention_key(&study(Some(circles))).unwrap();
+        let one = retention_key(&study(Some(one_circle))).unwrap();
+        assert_ne!(both, bare);
+        assert_ne!(one, bare);
+        assert_ne!(one, both);
+    }
 }

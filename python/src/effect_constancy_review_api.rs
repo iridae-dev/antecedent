@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
+use antecedent::analysis::preference_decision::DecisionOutcome;
 use antecedent::design::decision_artifact::{contract_from_json, mean_result_to_json};
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::io::{
@@ -126,7 +127,11 @@ fn review_effect_constancy(
                     .map_err(|e| with_reason_code(value_err(e.to_string()), e.code))?;
                 let partitions = out.partitions.into_iter().map(|p| {
                     let result = mean_result_to_json(&p.result, &p.source).map_err(invalid)?;
-                    Ok(serde_json::json!({"label": p.label, "coordinate": p.coordinate, "mean": p.source.means[0], "result": serde_json::from_str::<serde_json::Value>(&result).map_err(invalid)?}))
+                    let mut result =
+                        serde_json::from_str::<serde_json::Value>(&result).map_err(invalid)?;
+                    result["standing"] = p.result.standing().as_str().into();
+                    result["statement"] = p.result.statement().into();
+                    Ok(serde_json::json!({"label": p.label, "coordinate": p.coordinate, "mean": p.source.means[0], "result": result}))
                 }).collect::<PyResult<Vec<_>>>()?;
                 serde_json::json!({"evidence": out.evidence, "partitions": partitions, "common_leaders": out.common_leaders, "generalization_guarantee": out.generalization_guarantee})
             }

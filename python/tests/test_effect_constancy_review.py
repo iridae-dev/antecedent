@@ -161,3 +161,13 @@ print(json.dumps({"difference": o.contrast.difference, "se": o.contrast.se, "cal
     assert out["se"] == pytest.approx(2**-0.5)
     assert out["calibration"] == "not_measured"
     assert out["separate"]
+
+
+def test_policy_review_decisions_carry_their_standing_and_statement():
+    standing = {"uniquely_optimal": "best", "indistinguishable": "tied"}
+    for effects in ((-1, 2), (0, 0)):
+        out = policy_review(source(effects), contract=contract(), effect=quantity())
+        for partition in out.partitions:
+            decided = partition.decision
+            assert decided.standing == standing[decided.verdict.kind]
+            assert decided.statement

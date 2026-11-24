@@ -18101,3 +18101,276 @@ test = "python/tests/test_sampling_weights.py::test_an_estimator_that_reads_no_w
 assertion_scopes = ["test_an_estimator_that_reads_no_weights_refuses_them"]
 dimensions = ["refusal"]
 assertion_contract = "Weights given to an estimator that does not read them are refused as unsupported, and ridge fits refuse weights as non-ordinary least squares."
+
+[[capability]]
+id = "preferences.decide_exact"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Decide across a declared preference set by linear programs when the value is affine in the parameters and the criterion is an expectation."
+python = "antecedent.decision.Contract.evaluate"
+required_dimensions = ["success", "inspection", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_range_that_crosses_the_switch_reports_where_the_choice_changes"
+assertion_scopes = ["test_a_range_that_crosses_the_switch_reports_where_the_choice_changes"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A range of the harm weight that crosses the switch is preference dependent with the switch pair, margin range (-1, 0.75), witnesses on each side of 2 and a threshold."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_maximin_and_minimax_regret_choose_across_the_range"
+assertion_scopes = ["test_maximin_and_minimax_regret_choose_across_the_range"]
+dimensions = ["success", "branch"]
+assertion_contract = "Maximin and minimax regret both choose wait, with worst-case regrets 1 for treat and 0.75 for wait."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_mean_source_answers_the_exact_route"
+assertion_scopes = ["test_a_mean_source_answers_the_exact_route"]
+dimensions = ["success"]
+assertion_contract = "A mean source answers the exact route and treat is necessarily best."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_invalid_declarations_refuse_with_their_detail"
+assertion_scopes = ["test_invalid_declarations_refuse_with_their_detail"]
+dimensions = ["refusal"]
+assertion_contract = "An empty parameter range and too few actions refuse with their registered preference_model and preference_contract details."
+
+[[capability]]
+id = "preferences.compiled_decision"
+rust = ["antecedent::analysis::preference_decision::compile_contract_decision_across_studies", "antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
+legacy_internal = ["antecedent::analysis::preference_decision::compile_contract_decision_across_studies", "antecedent::analysis::preference_decision::compile_preference_decision_across_studies", "antecedent::analysis::propagation_chain::deferred_family_table"]
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Compile a decision across a preference set with the prepared studies or design that estimate its quantities: the plan shows the decision's quantities, source and ranges before fitting, what cannot be answered refuses at compile, and execution returns the decision."
+python = "antecedent.decision.Contract.compile"
+required_dimensions = ["success", "inspection", "refusal"]
+supports = ["capability:preference_decision.exact", "capability:preference_decision.certified"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_shows_the_plan_before_anything_is_fitted"
+assertion_scopes = ["test_compile_shows_the_plan_before_anything_is_fitted"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The compiled plan states the mean representation and carrier, both dose quantities, the price range [0.2, 1.0] and the bound identity before execution; execution chooses the high dose."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_refuses_a_quantity_no_structure_identifies"
+assertion_scopes = ["test_compile_refuses_a_quantity_no_structure_identifies"]
+dimensions = ["refusal"]
+assertion_contract = "A mixed-graph posterior whose only structure is a directed cycle refuses at compile with effect_not_identified and native_claims.response_not_point_identified."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_the_compiled_decision_agrees_with_evaluate_on_the_same_draws"
+assertion_scopes = ["test_the_compiled_decision_agrees_with_evaluate_on_the_same_draws"]
+dimensions = ["success"]
+assertion_contract = "A kinked value compiled on a Bayesian study reads joint draws, and evaluate on the same draws gives the same verdict, choice and value ranges."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_over_a_graph_posterior_keeps_the_unidentified_mass"
+assertion_scopes = ["test_compile_over_a_graph_posterior_keeps_the_unidentified_mass"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Two mixed-graph posterior structures on a coded table, with weights 0.7 and 0.3, compile with the cyclic one not identified; the unidentified mass 0.3 is stated before fitting and kept by the decision, which is insufficient science under invariance."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_across_several_studies"
+assertion_scopes = ["test_compile_across_several_studies"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Two studies meet by their means for an affine value; a kinked value refuses without a declared dependence, joins through a declared four-input chain under distinct evidence, and refuses with preference_compile.studies_share_evidence for two outcomes of one table."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_compile_refuses_an_argument_its_source_does_not_read"
+assertion_scopes = ["test_compile_refuses_an_argument_its_source_does_not_read"]
+dimensions = ["refusal"]
+assertion_contract = "draws, shared, refits, sampling and seed on one study, refits, sampling and seed on several studies, and draws, shared and seed on a design are refused with option_not_applicable."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_shared_evidence_reads_a_block_of_rows_by_columns"
+assertion_scopes = ["test_shared_evidence_reads_a_block_of_rows_by_columns"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A 2-by-2 shared block is stored row-major as rows of the first study's coordinates by columns of the second's, a NumPy block keyed (1, 0) is read as its transpose, and a wrong shape, a flat sequence or a key naming a missing study is refused."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_the_execution_seed_seeds_the_chain_draws_and_the_refits"
+assertion_scopes = ["test_the_execution_seed_seeds_the_chain_draws_and_the_refits"]
+dimensions = ["success"]
+assertion_contract = "Without seed=, the chain draws take the execution's seed (5, 6, or the default Execution seed) and the design refits take it (4); an explicit seed= wins over the execution's."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_cancelled_compile_or_execution_is_a_preference_refusal"
+assertion_scopes = ["test_a_cancelled_compile_or_execution_is_a_preference_refusal"]
+dimensions = ["refusal"]
+assertion_contract = "A cancelled compile, a cancelled execution and a cancelled design compile are each a PreferenceRefusal with preference_compile.cancelled (cancelled_no_claim for the study route)."
+
+[[capability]]
+id = "preferences.compiled_evidence_overlap"
+rust = ["antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence"]
+legacy_internal = ["antecedent::analysis::preference_decision::compile_preference_decision_with_shared_evidence"]
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Judge which separately prepared studies share evidence before joining their outcomes: studies of one table share its rows whether or not columns were dropped, and studies of different tables are compared by a declared unit key in one namespace."
+python = "antecedent.UnitKey"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share"
+assertion_scopes = ["test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Studies of different tables keyed in one namespace refuse with preference_compile.studies_share_evidence when 100 patients are in both, join as distinct evidence when none is, and refuse with evidence_overlap_unknown under another namespace or with no key on one study."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_projections_of_one_table_keep_their_source_rows"
+assertion_scopes = ["test_projections_of_one_table_keep_their_source_rows"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Studies of different columns of one table share its rows and refuse as distinct evidence; a copy of the table with other values joins as distinct evidence."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_projection_and_a_study_of_the_whole_table_share_its_rows"
+assertion_scopes = ["test_a_projection_and_a_study_of_the_whole_table_share_its_rows"]
+dimensions = ["refusal"]
+assertion_contract = "A study of every column and a study of a projection name the same table and refuse as distinct evidence in either order."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_unit_key_is_checked_where_it_is_declared"
+assertion_scopes = ["test_a_unit_key_is_checked_where_it_is_declared"]
+dimensions = ["refusal"]
+assertion_contract = "A blank namespace, an unknown key column and a missing identifier are refused at declaration or prepare, and a unit key on a query that does not read it refuses with option_not_applicable."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_column_no_analysis_reads_never_fails_preparation"
+assertion_scopes = ["test_a_column_no_analysis_reads_never_fails_preparation"]
+dimensions = ["success"]
+assertion_contract = "A table holding a two-value-per-row column no analysis reads still prepares, and two outcomes of it are refused as sharing evidence (evidence_double_counted): the table's identity is the engine's identity of the columns it can read."
+
+[[capability]]
+id = "preferences.class_member_measure"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Weigh the members of CPDAG or PAG atoms of a graph posterior by a declared class prior, uniform under a named assumption or keyed by member fingerprint, enumerated up to an exact limit and sampled uniformly above it, without ever calling a sampled class best for every member."
+python = "antecedent.inference.ClassPrior.uniform"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_decision.exact"]
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_a_uniform_measure_makes_members_probabilities"
+assertion_scopes = ["test_a_uniform_measure_makes_members_probabilities"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Under a uniform class prior the three path members weigh 0.2 each with distinct fingerprints and multiplicity one, nothing is sampled, and the decision reads probabilities 0.2, 0.2, 0.2 and 0.4."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_keyed_masses_are_read_by_member_fingerprint"
+assertion_scopes = ["test_keyed_masses_are_read_by_member_fingerprint"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Masses 1 : 2 : 1 keyed by member fingerprint give the members 0.15, 0.3 and 0.15; a missing key refuses with preference_compile.class_prior_keys_mismatch."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_a_sampled_class_is_never_called_best_for_every_member"
+assertion_scopes = ["test_a_sampled_class_is_never_called_best_for_every_member"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A class above an exact limit of two drawn 40 times by clique-picking from an exact size of 3 reports a sampled-measure verdict, never necessarily best, with masses summing to the class weight 0.6 and Monte Carlo margins; under invariance the verdict is per sampled member."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_above_the_limit_without_a_sample_the_class_is_refused"
+assertion_scopes = ["test_above_the_limit_without_a_sample_the_class_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "Above the exact limit without a sample the compile refuses with route_not_supported and preference_compile.class_completions_truncated."
+[[capability.evidence]]
+test = "python/tests/test_preference_structures.py::test_the_graph_posterior_estimate_refuses_a_class_prior_it_does_not_read"
+assertion_scopes = ["test_the_graph_posterior_estimate_refuses_a_class_prior_it_does_not_read"]
+dimensions = ["refusal"]
+assertion_contract = "An ordinary estimate of the prepared graph posterior refuses the class prior with structure_posterior.class_prior_not_read, and estimates without it."
+
+[[capability]]
+id = "preferences.decide_certified"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Decide across a preference set by certified subdivision when the value has a shape parameter."
+python = "antecedent.decision.Contract.evaluate"
+required_dimensions = ["success", "branch"]
+supports = ["capability:preference_decision.certified"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_shape_parameter_is_answered_by_certified_subdivision"
+assertion_scopes = ["test_a_shape_parameter_is_answered_by_certified_subdivision"]
+dimensions = ["success", "branch"]
+assertion_contract = "A model with a shape parameter routes to the certified route, which proves treat necessarily best with no undecided volume."
+
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_declared_box"
+assertion_scopes = ["test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_declared_box"]
+dimensions = ["success", "branch"]
+assertion_contract = "Accepted preferences learned from a sure-over-lottery choice under a risk attitude decide on their value relations: the sure option is necessarily best on the learned set, though not on the declared box."
+[[capability]]
+id = "preferences.decision_artifact"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Export a decision across a preference set and replay it by recomputation on the same joint draws."
+python = "antecedent.decision.replay"
+required_dimensions = ["artifact", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_export_and_replay_recompute_the_decision"
+assertion_scopes = ["test_export_and_replay_recompute_the_decision"]
+dimensions = ["artifact", "refusal"]
+assertion_contract = "The replayed decision has the stored kind, contract identity and switch margins, and a replay that does not match is refused."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_replay_keeps_the_stored_evaluation_options"
+assertion_scopes = ["test_replay_keeps_the_stored_evaluation_options"]
+dimensions = ["artifact"]
+assertion_contract = "A certified decision evaluated with tie_tolerance 1e-3 and max_boxes 64 replays to the stored kind and undecided fraction, re-exports to the same bytes, and differs from the export under default options."
+[[capability.evidence]]
+test = "python/tests/test_preferences.py::test_a_compiled_decision_on_draws_exports_and_replays"
+assertion_scopes = ["test_a_compiled_decision_on_draws_exports_and_replays"]
+dimensions = ["artifact"]
+assertion_contract = "A compiled kinked decision executed on a Bayesian study exports and replays on its joint draws to the same kind, choice and value ranges; a decision answered from means refuses export with decision_evaluation.mean_source_not_replayable."
+
+[[capability]]
+id = "preference_learning.compatible_set"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Learn the preference parameters compatible with recorded or stated choices."
+python = "antecedent.decision_learning.CompatibleSet.learn"
+required_dimensions = ["success", "inspection"]
+supports = ["capability:preference_learning.compatible_set"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_records_narrow_the_set_then_the_accepted_preferences_decide"
+assertion_scopes = ["test_records_narrow_the_set_then_the_accepted_preferences_decide"]
+dimensions = ["success", "inspection", "artifact"]
+assertion_contract = "Records narrow the harm weight from (0, 4) to (0, 1) with no conflicts, and the accepted preferences export, load under the retained identity and decide."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_contradictory_records_are_reported_with_the_tolerance_needed"
+assertion_scopes = ["test_contradictory_records_are_reported_with_the_tolerance_needed"]
+dimensions = ["success", "inspection"]
+assertion_contract = "Contradictory records are the smallest conflict {r1, r3} with tolerance needed 1, per decider and pooled."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_stated_comparison_narrows_a_range_under_its_named_assumption"
+assertion_scopes = ["test_a_stated_comparison_narrows_a_range_under_its_named_assumption"]
+dimensions = ["success"]
+assertion_contract = "A stated comparison narrows the harm weight to (3, 4) and adds its named assumption."
+
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes"
+assertion_scopes = ["test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes"]
+dimensions = ["success", "inspection"]
+assertion_contract = "One sure-over-lottery choice under v = -exp(-risk x) learns risk as an outer range (basis enclosure) from within 1e-2 below its closed-form threshold to 3, narrowed, with inside boxes above the threshold in the region."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts"
+assertion_scopes = ["test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts"]
+dimensions = ["success", "refusal"]
+assertion_contract = "A box budget of one gives an Undetermined outcome with boundary boxes and an exhausted budget, accepting it refuses with accepted_preferences.set_undetermined, and two lottery choices on disjoint risk ranges are the smallest conflict with a finite tolerance needed."
+[[capability]]
+id = "preference_learning.choice_model"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Estimate preference parameters from recorded choices read as noisy, with an interval reported as not measured."
+python = "antecedent.decision_learning.ChoiceModel.learn"
+required_dimensions = ["success", "refusal"]
+supports = ["capability:preference_learning.choice_model"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_estimates_the_trade_off_and_carries_its_measure"
+assertion_scopes = ["test_the_choice_model_estimates_the_trade_off_and_carries_its_measure"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The harm weight is estimated near 1.5 with the estimate inside its interval, the interval calibration is not_measured, and nothing is unlearnable."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices"
+assertion_scopes = ["test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices"]
+dimensions = ["refusal"]
+assertion_contract = "A fit mixing stated and recorded choices refuses with preference_choice_model.stated_and_recorded_mixed."
+
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval"
+assertion_scopes = ["test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval"]
+dimensions = ["success", "inspection", "refusal"]
+assertion_contract = "From 500 simulated choices the risk attitude (0.8) and harm weight (0.6) are recovered, risk with a profile likelihood-ratio interval and the harm weight with a Wald interval, calibration not_measured; a shape search limit of zero refuses with preference_choice_model.shape_search_budget."
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_a_risk_attitude_estimated_on_its_declared_bound_is_refused"
+assertion_scopes = ["test_a_risk_attitude_estimated_on_its_declared_bound_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "Choices made as if risk-neutral put the risk estimate on its declared lower bound, which refuses with preference_choice_model.shape_estimate_at_bound."
+[[capability]]
+id = "preference_learning.accepted_preferences"
+status = "covered"
+owner = "Python API integration: antecedent.decision and antecedent.decision_learning"
+behavior = "Accept learned preferences, export them and load them under a retained identity, relearning from the records."
+python = "antecedent.decision_learning.load"
+required_dimensions = ["artifact"]
+[[capability.evidence]]
+test = "python/tests/test_preference_learning.py::test_records_narrow_the_set_then_the_accepted_preferences_decide"
+assertion_scopes = ["test_records_narrow_the_set_then_the_accepted_preferences_decide"]
+dimensions = ["artifact", "lifecycle"]
+assertion_contract = "Reviewed accepted preferences export and load under the retained identity with the records they were learned from, and then decide."

@@ -27,14 +27,40 @@ identity, validation, evaluation, artifacts and refusal rules; this module
 builds declarations and returns scientific refusals as Outcome readings backed by
 :class:`DecisionRefusal`, a :class:`~antecedent.errors.CausalUnsupportedError`
 with its registered ``reason_code``.
+
+A decision that weighs several outcomes (benefit, harm, cost) can state its value over named
+attributes instead, with the trade-offs between them either as plain numbers or as declared
+ranges::
+
+    benefit = decision.attribute("benefit", units="qaly")
+    harm = decision.attribute("harm", units="events")
+    w = decision.tradeoff("harm_weight", units="qaly/event", lower=0.5, upper=4.0,
+                          assumption="clinical_panel")
+    contract = decision.Contract(
+        value=decision.Value(benefit - w * harm, units="qaly"),
+        actions=[
+            decision.Action("treat", inputs={"benefit": treat_benefit, "harm": treat_harm}),
+            decision.Action("wait", inputs={"benefit": wait_benefit, "harm": wait_harm}),
+        ],
+        target_population="target",
+    )
+    result = require_success(contract.evaluate(joint_distribution))
+    print(result.choice, result.standing, result.statement)
+
+A value whose trade-offs are plain numbers is an ordinary contract: the same identity,
+result type, ties and replay as the contract written with :func:`x`. A value with a named
+trade-off is decided across every admissible value of its trade-offs and returns a
+:class:`TradeoffDecision`; a range is a declared assumption, never a probability. Every result
+reads the same way: ``choice``, ``kind``, ``standing`` and ``statement``.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from antecedent import _reason_details
@@ -48,6 +74,36 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._columns import coerce_fields
+from ._decision_result import CompiledReceipt, DecisionResult, Standing, _standing
+from ._decision_value import (
+    ActionKind,
+    Attribute,
+    Curve,
+    Measure,
+    Relation,
+    Structures,
+    Tradeoff,
+    TradeoffPolicy,
+    Value,
+    ValueExpr,
+    _Algebra,
+    _constraint_node,
+    _constraint_node_of,
+    attribute,
+    both,
+    excess,
+    exp,
+    interaction,
+    ln,
+    relation,
+    segment,
+    shortfall,
+    tradeoff,
+)
+from ._decision_value import StructuralPolicy as _StructuralPolicyClass
+from ._decision_value import StructuralPolicyKind as StructuralPolicy
+from ._decision_value import maximum as _value_maximum
+from ._decision_value import minimum as _value_minimum
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
 from ._native import decision_source_digest as _source_digest
@@ -59,24 +115,46 @@ from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
 from ._native import score_published_decision as _score_published
 from ._refusal import raise_refusal
-from ._scientific import ScientificResult
 from ._validate import real, text
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
+from .errors import (
+    CausalCancelledError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+    StructuredRefusal,
+)
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .outcomes import Answer, outcome_operation, require_success
 from .results.sources import MeanSource
 
 if TYPE_CHECKING:
+    from ._decision_compile import (
+        CompiledDecision,
+        CompiledQuantity,
+        DesignLawPlan,
+        JointLawInput,
+        JointLawPlan,
+        TradeOffRange,
+    )
+    from ._decision_sources import chain_law, experiment_means, experiment_quantity, joint_law
+    from ._decision_tradeoff_results import (
+        ActionRecord,
+        ClassSampling,
+        Region,
+        SampledMargin,
+        SampledMass,
+        StructureOutcome,
+        Switch,
+        SwitchThreshold,
+        TradeoffDecision,
+    )
     from ._native import AteAnalysisResult
+    from .decision_robust import AdmissibilityRules, RobustDecision
     from .program_claims import ProgramBinding
     from .source_evidence import SourceEvidence
 
 RESULT_LINK_ID = "decision_result"
-ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
-StructuralPolicy = Literal[
-    "require_invariant_best_action", "maximin", "bayes_over_structures", "report_only"
-]
 
 
 class DecisionRefusal(StructuredRefusal):
@@ -95,6 +173,28 @@ class DecisionRefusal(StructuredRefusal):
         super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
+
+
+class PreferenceRefusal(DecisionRefusal):
+    """A refusal of a value, a contract across trade-offs or a decision across them.
+
+    A :class:`DecisionRefusal`, so ``except DecisionRefusal`` catches it too: ``code`` (alias
+    ``reason_code``) is the registered refusal code and ``detail`` the namespaced
+    ``family.slot`` (for example ``preference_decision.measure_required``); ``offending`` names
+    the trade-off, action or record when there is one, and ``expected`` / ``supplied`` carry the
+    compared values.
+    """
+
+    def __init__(self, refusal: Mapping[str, Any]) -> None:
+        offending = refusal.get("offending")
+        message = refusal.get("message")
+        detail = str(refusal["detail"])
+        text_ = (
+            detail + (f": {message}" if message else "") + (f" at {offending}" if offending else "")
+        )
+        StructuredRefusal.__init__(self, refusal, text=text_)
+        self.expected = refusal.get("expected")
+        self.supplied = refusal.get("supplied")
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,11 +229,13 @@ class Expr:
 
 
 def _leaf_kinds(expr: Expr) -> frozenset[str]:
-    """The leaf kinds an expression reads: ``input``, ``quantity`` and/or ``const``.
+    """The leaf kinds an expression reads: ``input``, ``quantity``, ``attribute``,
+    ``parameter`` and/or ``const``.
 
     A decision utility reads ``input`` leaves (:func:`x`); a sensitivity utility reads
-    ``quantity`` leaves (:func:`antecedent.sensitivity_decision.quantity`). The same
-    :class:`Expr` type carries both, and each declaration refuses the other's leaves.
+    ``quantity`` leaves (:func:`antecedent.sensitivity_decision.quantity`); a hard constraint of
+    a value contract reads ``attribute`` leaves (:func:`attribute`). The same :class:`Expr` type
+    carries them, and each declaration refuses the others' leaves.
     """
     found: set[str] = set()
     stack: list[Any] = [expr._wire_value]
@@ -141,7 +243,7 @@ def _leaf_kinds(expr: Expr) -> frozenset[str]:
         node = stack.pop()
         if isinstance(node, dict):
             for key, value in node.items():
-                if key in ("input", "quantity", "const"):
+                if key in ("input", "quantity", "const", "attribute", "parameter"):
                     found.add(key)
                 else:
                     stack.append(value)
@@ -175,13 +277,25 @@ def const(value: float) -> Expr:
     return Expr({"const": float(value)})
 
 
-def maximum(left: Expr | float, right: Expr | float) -> Expr:
-    """Pointwise maximum."""
+def maximum(left: Any, right: Any) -> Any:
+    """Pointwise maximum.
+
+    Of two utility expressions (:func:`x`, numbers) it is an :class:`Expr`; when either side
+    reads an attribute or a trade-off it is a :class:`ValueExpr`.
+    """
+    if isinstance(left, _Algebra) or isinstance(right, _Algebra):
+        return _value_maximum(left, right)
     return Expr({"max": [_coerce(left)._wire_value, _coerce(right)._wire_value]})
 
 
-def minimum(left: Expr | float, right: Expr | float) -> Expr:
-    """Pointwise minimum."""
+def minimum(left: Any, right: Any) -> Any:
+    """Pointwise minimum.
+
+    Of two utility expressions (:func:`x`, numbers) it is an :class:`Expr`; when either side
+    reads an attribute or a trade-off it is a :class:`ValueExpr`.
+    """
+    if isinstance(left, _Algebra) or isinstance(right, _Algebra):
+        return _value_minimum(left, right)
     return Expr({"min": [_coerce(left)._wire_value, _coerce(right)._wire_value]})
 
 
@@ -243,39 +357,112 @@ class Criterion:
         return cls(kind, threshold=args.get("threshold"), p=args.get("p"))
 
 
+_VALUE_UTILITY = (
+    "Action.utility reads inputs by position (decision.x(i)); a value over attributes goes in "
+    "Contract(value=decision.Value(...))"
+)
+
+
 @dataclass(frozen=True, slots=True)
 class Action:
-    """One action: a stable ID, the quantities its utility reads, and the utility."""
+    """One action: a stable ID, the quantities it reads, and how they are read.
+
+    Two forms, told apart by ``inputs``:
+
+    * a sequence of :class:`~antecedent.joint_distribution.ScientificQuantity` read by position
+      (:func:`x`), with this action's own ``utility``;
+    * a mapping from attribute ids (or :class:`Attribute` objects) to quantities, or to finite
+      numbers in the attribute's units for an input known without uncertainty. The action then
+      takes no ``utility``: the contract's ``value=`` reads every action's inputs by name.
+
+    ``utility`` defaults to ``None`` only for the mapping form: with positional inputs it is
+    required, and ``None`` raises :class:`~antecedent.errors.CausalTypeError`; with a mapping
+    it must stay ``None``. With a mapping, a kind given third by position is read as ``kind``.
+    """
 
     id: str
-    inputs: tuple[ScientificQuantity, ...]
-    utility: Expr
+    inputs: tuple[ScientificQuantity, ...] | Mapping[str, ScientificQuantity | float]
+    utility: Expr | None = None
     kind: ActionKind = "intervention"
 
     def __post_init__(self) -> None:
         _text(self.id, "Action.id")
+        if isinstance(self.inputs, Mapping):
+            self._named_inputs()
+        else:
+            self._positional_inputs()
+        if self.kind not in get_args(ActionKind):
+            raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
+
+    def _positional_inputs(self) -> None:
         if isinstance(self.inputs, (str, bytes)) or not isinstance(self.inputs, Iterable):
             raise CausalTypeError("Action.inputs must be a sequence of ScientificQuantity")
         inputs = tuple(self.inputs)
         if any(not isinstance(item, ScientificQuantity) for item in inputs):
             raise CausalTypeError("Action.inputs must hold only ScientificQuantity values")
+        if isinstance(self.utility, _Algebra):
+            raise CausalTypeError(_VALUE_UTILITY)
         if not isinstance(self.utility, Expr):
             raise CausalTypeError(
                 "Action.utility must be an Expr built from decision.x(i), decision.const(v) "
                 f"and operators, not {type(self.utility).__name__}; wrap a number with "
                 "decision.const(value)"
             )
-        if "quantity" in _leaf_kinds(self.utility):
+        leaves = _leaf_kinds(self.utility)
+        if "quantity" in leaves:
             raise CausalTypeError(
                 "Action.utility reads inputs by position (decision.x(i)); a "
                 "sensitivity_decision.quantity(...) leaf belongs to "
                 "sensitivity_decision.SensitivityAction"
             )
-        if self.kind not in get_args(ActionKind):
-            raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
+        if "attribute" in leaves or "parameter" in leaves:
+            raise CausalTypeError(_VALUE_UTILITY)
         coerce_fields(self, inputs=inputs)
 
+    def _named_inputs(self) -> None:
+        if (
+            isinstance(self.utility, str)
+            and self.utility in get_args(ActionKind)
+            and self.kind == "intervention"
+        ):
+            # Named inputs take no utility, so a kind given third by position is the kind:
+            # Action(id, inputs, kind).
+            object.__setattr__(self, "kind", self.utility)
+            object.__setattr__(self, "utility", None)
+        if self.utility is not None:
+            raise CausalTypeError(
+                f"Action {self.id!r} names its inputs by attribute; its value is the contract's "
+                "value=, so it takes no utility=; to give this action its own utility pass "
+                "inputs as a sequence read by decision.x(i)"
+            )
+        assert isinstance(self.inputs, Mapping)
+        inputs: dict[str, ScientificQuantity | float] = {}
+        for key, value in self.inputs.items():
+            name = key.id if isinstance(key, Attribute) else key
+            if not isinstance(name, str):
+                raise CausalTypeError("Action.inputs keys are attribute ids or Attributes")
+            if not isinstance(value, ScientificQuantity):
+                value = real(value, f"Action {self.id!r} input {name!r}", finite=True)
+            inputs[name] = value
+        coerce_fields(self, inputs=MappingProxyType(inputs))
+
+    @property
+    def _named(self) -> bool:
+        return isinstance(self.inputs, Mapping)
+
+    @property
+    def quantities(self) -> tuple[ScientificQuantity, ...]:
+        """The scientific quantities the action reads, in input order."""
+        values = self.inputs.values() if isinstance(self.inputs, Mapping) else self.inputs
+        return tuple(v for v in values if isinstance(v, ScientificQuantity))
+
     def _wire(self) -> dict[str, Any]:
+        if isinstance(self.inputs, Mapping):
+            raise CausalTypeError(
+                f"Action {self.id!r} names its inputs by attribute; it is read through the "
+                "value of a Contract(value=...)"
+            )
+        assert self.utility is not None
         return {
             "id": self.id,
             "kind": self.kind,
@@ -283,13 +470,42 @@ class Action:
             "utility": self.utility._wire_value,
         }
 
+    def _value_wire(self, attributes: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+        """The action of a value contract: one input per attribute of the value, in order."""
+        attributes = list(attributes)
+        if not isinstance(self.inputs, Mapping):
+            raise CausalTypeError(
+                f"Contract(value=...) reads every action's inputs by attribute name; action "
+                f"{self.id!r} gives positional inputs"
+            )
+        names = [a["id"] for a in attributes]
+        missing = [n for n in names if n not in self.inputs]
+        extra = [n for n in self.inputs if n not in names]
+        if missing or extra:
+            raise CausalValueError(
+                f"Action {self.id!r} supplies every attribute of the value exactly once"
+                + (f"; missing {missing}" if missing else "")
+                + (f"; unknown {extra}" if extra else "")
+            )
+        wire = []
+        for attr in attributes:
+            value = self.inputs[attr["id"]]
+            if isinstance(value, ScientificQuantity):
+                wire.append({"quantity": value._wire()})
+            else:
+                wire.append({"fixed": {"value": float(value), "units": attr["units"]}})
+        return {"id": self.id, "kind": self.kind, "inputs": wire}
+
 
 @dataclass(frozen=True, slots=True)
 class Constraint:
     """A hard constraint ``P(expr <= bound) >= min_probability``.
 
     A violated constraint excludes the action; it never enters the utility.
-    ``applies_to`` empty applies to every action.
+    ``applies_to`` empty applies to every action. In an ordinary contract ``expr`` reads an
+    action's inputs by position (:func:`x`); in a contract with ``value=`` it reads attributes
+    by name (an :class:`Attribute`, or an expression or :class:`Curve` over attributes) and
+    never a trade-off, so whether it excludes an action does not depend on the trade-offs.
     """
 
     id: str
@@ -301,14 +517,30 @@ class Constraint:
 
     def __post_init__(self) -> None:
         _text(self.id, "Constraint.id")
-        if not isinstance(self.expr, Expr):
-            raise CausalTypeError("Constraint.expr must be an Expr built from decision.x(i)")
+        if isinstance(self.expr, _Algebra):
+            coerce_fields(self, expr=Expr(_constraint_node_of(self.expr)))
+        elif isinstance(self.expr, Expr):
+            if "parameter" in _leaf_kinds(self.expr):
+                raise CausalValueError("a hard constraint reads attributes only, never a trade-off")
+        else:
+            raise CausalTypeError(
+                "Constraint.expr must be an Expr built from decision.x(i), or an expression "
+                "over attributes"
+            )
         _real(self.bound, "Constraint.bound")
         _real(self.min_probability, "Constraint.min_probability")
         _text(self.units, "Constraint.units")
         if isinstance(self.applies_to, (str, bytes)):
             raise CausalTypeError("Constraint.applies_to must be a sequence of action ids")
         coerce_fields(self, applies_to=tuple(self.applies_to))
+
+    @property
+    def _reads_attributes(self) -> bool:
+        return "attribute" in _leaf_kinds(self.expr)
+
+    @property
+    def _reads_positions(self) -> bool:
+        return "input" in _leaf_kinds(self.expr)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -358,121 +590,78 @@ class Verdict:
     actions: tuple[str, ...]
 
 
+def _not_replayable(supplied: str, remedy: str) -> dict[str, Any]:
+    """The refusal to export a decision that was not evaluated on aligned joint draws."""
+    return {
+        "code": "route_not_supported",
+        "stage": "export",
+        "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
+        "offending": None,
+        "expected": "joint_draws",
+        "supplied": supplied,
+        "remedy": remedy,
+    }
+
+
 def _expr_from_wire(wire: Any) -> Expr:
     return Expr(wire)
 
 
-def _result_mean_source(
-    contract: Contract,
-    source: object,
-    *,
-    program: ProgramBinding | None,
-    outcome_units: str | None,
-    dose_units: str | None,
-    population: str,
-) -> MeanSource | JointDistributionArtifact | None:
-    """The mean source an analysis result makes for ``contract``, or ``None`` for other sources.
+_TUNING = ("measure", "tie_tolerance", "vertex_cap", "max_boxes", "min_width_fraction")
 
-    Reuses the native-claim path (``program_claims.native_claim`` then
-    ``NativeClaim.as_decision_source``) so support labels, trust, snapshot identity and every
-    refusal stay Rust-owned.
-    """
-    from .results._execution import ResultAPI
 
-    if not isinstance(source, ResultAPI):
-        if program is not None or outcome_units is not None or dose_units is not None:
-            raise CausalTypeError(
-                "program=, outcome_units= and dose_units= apply only when evaluating an "
-                f"analysis result, not {type(source).__name__}"
-            )
-        return None
-    from .results import AnalysisResult
-
-    if isinstance(source, AnalysisResult):
-        if program is not None or dose_units is not None:
-            raise CausalValueError(
-                "a scalar effect uses a contrast coordinate, not a response-grid program"
-            )
-        quantities = tuple(q for action in contract.actions for q in action.inputs)
-        declarations = {(q.units, q.population_id) for q in quantities}
-        if outcome_units is None:
-            if len(declarations) != 1:
-                raise CausalValueError("effect evaluation needs one declared unit/population")
-            outcome_units, population = next(iter(declarations))
-        native = getattr(source._raw, "effect_source_json", None)
-        if native is None:
-            raise CausalUnsupportedError(
-                "this result retains no original native static effect source",
-                reason_code="route_not_supported",
-            )
-        value = source.as_point()
-        wire, refusal = native(outcome_units, population, value)
-        if refusal is not None:
-            from .external import ExternalRefusal
-
-            raise ExternalRefusal(json.loads(refusal))
-        fields = json.loads(wire)
-        return MeanSource(
-            coordinates=tuple(ScientificQuantity._from_wire(q) for q in fields["coordinates"]),
-            means=tuple(fields["means"]),
-            provider_id=fields["provider_id"],
-            snapshot_id=fields["snapshot_id"],
-            causal_contract_id=fields["causal_contract_id"],
-            rng_id=fields["rng_id"],
-            _original_effect=(source, value, outcome_units, population),
-            trust="native_supported",
-        )
-    from .results.response import CausalResponseView
-
-    if not isinstance(source, CausalResponseView):
-        raise CausalUnsupportedError(
-            f"a {type(source).__name__} carries no per-dose mean response coordinates, so a "
-            "decision contract cannot read it; analyze a ResponseCurve query for a mean "
-            "source, or supply a JointDistributionArtifact of aligned draws",
-            reason_code="route_not_supported",
-            remedy="run antecedent.analyze with a ResponseCurve query, or pass joint draws",
-        )
-    from . import program_claims
-
-    retained = source.program_binding
-    if program is None and outcome_units is None and dose_units is None and retained is not None:
-        program = retained
-    if program is None:
-        # A contract declares units; it does not discover them from numbers. Require
-        # one outcome/population across its inputs, then let the original native
-        # claim compare the full descriptors, regimes and source projection.
-        quantities = tuple(q for action in contract.actions for q in action.inputs)
-        response_declarations = {(q.variable_id, q.units, q.population_id) for q in quantities}
-        if outcome_units is None:
-            if len(response_declarations) != 1:
-                raise CausalValueError(
-                    "analysis-result evaluation needs one declared outcome/unit/population "
-                    "in the contract, or an explicit program= binding"
-                )
-            _, outcome_units, population = next(iter(response_declarations))
-        if dose_units is None:
-            dose_units = "native_numeric_scale"
-        assert outcome_units is not None
-        program = program_claims.ProgramBinding.from_response(
-            source, outcome_units=outcome_units, dose_units=dose_units, population=population
-        )
-    elif outcome_units is not None or dose_units is not None:
-        raise CausalValueError("pass program= or the units, not both")
-    claim = program_claims.native_claim(source, program)
-    return claim.as_decision_source(contract).source
+def _not_applicable(message: str) -> CausalValueError:
+    return CausalValueError(message, reason_code="option_not_applicable")
 
 
 @dataclass(frozen=True, slots=True)
 class Contract:
-    """A durable decision problem."""
+    """A durable decision problem: its actions, how each is valued and how they are ranked.
+
+    Two forms, told apart by ``value``:
+
+    * **ordinary** (``value=None``): each :class:`Action` reads its quantities by position and
+      carries its own ``utility``; ``utility_units`` and ``criterion`` are required;
+    * **value** (``value=``): a :class:`Value` (or accepted preferences, anything exposing
+      ``_preference_wire()``) reads every action's inputs by attribute name. ``utility_units``
+      may be omitted (it is the value's units, and must equal them when given), ``criterion``
+      defaults to expected utility, and ``policy`` (a :class:`TradeoffPolicy`, default
+      :meth:`TradeoffPolicy.invariant_best`) says how a result across trade-off ranges is
+      consumed. Hard constraints read attributes by name.
+
+    A value whose trade-offs are plain numbers is decided as an ordinary contract: the same
+    identity, result type, exact ties and exact replay as the contract written by position.
+    A value with a named trade-off (:func:`tradeoff`) is decided across every admissible value
+    of its trade-offs. Which engine decides is settled natively; :attr:`form` reports it.
+
+    Three fields default to ``None`` only so the value form can leave them out; construction
+    checks them:
+
+    * ``target_population`` is required in both forms: ``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`.
+    * ``utility_units`` is required for an ordinary contract (``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`). With ``value=`` it may stay ``None``: the
+      contract is in the value's units, and a string given here must equal them.
+    * ``criterion`` is required for an ordinary contract (``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`). With ``value=`` it may stay ``None``, which
+      decides by expected utility.
+
+    ``value`` and ``policy`` are keyword-only and default to ``None``: no value is the ordinary
+    form, and an ordinary contract refuses ``policy=`` (``option_not_applicable``). An ordinary
+    contract is therefore written exactly as before ``value=`` existed, with ``actions``,
+    ``utility_units``, ``criterion`` and ``target_population`` all given.
+    """
 
     actions: tuple[Action, ...]
-    utility_units: str
-    criterion: Criterion
-    target_population: str
+    utility_units: str | None = None
+    criterion: Criterion | None = None
+    target_population: str | None = None
     horizon: int = 0
     constraints: tuple[Constraint, ...] = ()
     structural_policy: StructuralPolicy = "report_only"
+    value: Value | Any | None = field(default=None, kw_only=True)
+    policy: TradeoffPolicy | None = field(default=None, kw_only=True)
+    _described: dict[str, Any] | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if isinstance(self.actions, (str, bytes)) or not isinstance(self.actions, Iterable):
@@ -485,33 +674,198 @@ class Contract:
         constraints = tuple(self.constraints)
         if any(not isinstance(constraint, Constraint) for constraint in constraints):
             raise CausalTypeError("Contract.constraints must hold only Constraint values")
-        _text(self.utility_units, "Contract.utility_units")
+        if self.target_population is None:
+            raise CausalTypeError("Contract needs target_population=")
         _text(self.target_population, "Contract.target_population")
-        if not isinstance(self.criterion, Criterion):
+        if self.criterion is not None and not isinstance(self.criterion, Criterion):
             raise CausalTypeError(
                 "Contract.criterion must be a Criterion such as Criterion.expected_utility(), "
                 f"not {type(self.criterion).__name__}"
             )
         if isinstance(self.horizon, bool) or not isinstance(self.horizon, int):
             raise CausalTypeError("Contract.horizon must be an integer")
-        if self.structural_policy not in get_args(StructuralPolicy):
+        structural = self.structural_policy
+        if isinstance(structural, _StructuralPolicyClass):
+            structural = structural.kind
+        if structural not in get_args(StructuralPolicy):
             raise CausalValueError(
                 f"Contract.structural_policy must be one of {get_args(StructuralPolicy)}"
             )
+        if self.value is None:
+            self._check_ordinary(actions, constraints)
+        else:
+            self._check_value(actions, constraints)
         coerce_fields(self, actions=actions)
         coerce_fields(self, constraints=constraints)
+        coerce_fields(self, structural_policy=structural)
 
-    def _wire(self) -> dict[str, Any]:
+    def _check_ordinary(
+        self, actions: tuple[Action, ...], constraints: tuple[Constraint, ...]
+    ) -> None:
+        if self.utility_units is None:
+            raise CausalTypeError(
+                "Contract needs utility_units= (or a value=decision.Value(...) that states them)"
+            )
+        _text(self.utility_units, "Contract.utility_units")
+        if self.criterion is None:
+            raise CausalTypeError(
+                "Contract needs criterion=, such as Criterion.expected_utility() (a "
+                "Contract(value=...) defaults to expected utility)"
+            )
+        for action in actions:
+            if action._named:
+                raise CausalTypeError(
+                    f"action {action.id!r} names its inputs by attribute; pass the value that "
+                    "reads them as Contract(value=decision.Value(...))"
+                )
+        for constraint in constraints:
+            if constraint._reads_attributes:
+                raise CausalTypeError(
+                    f"constraint {constraint.id!r} reads attributes by name; pass the value "
+                    "that reads them as Contract(value=decision.Value(...))"
+                )
+        if self.policy is not None:
+            raise _not_applicable(
+                "policy= says how a decision across trade-off ranges is consumed; an ordinary "
+                "contract has no trade-offs (declare them in Contract(value=decision.Value(...)))"
+            )
+
+    def _check_value(
+        self, actions: tuple[Action, ...], constraints: tuple[Constraint, ...]
+    ) -> None:
+        if isinstance(self.value, (_Algebra, Expr)):
+            raise CausalTypeError(
+                "Contract.value is a decision.Value: wrap the expression in "
+                "decision.Value(expr, units=...)"
+            )
+        if not isinstance(self.value, Value) and not callable(
+            getattr(self.value, "_preference_wire", None)
+        ):
+            raise CausalTypeError(
+                "Contract.value is a decision.Value or accepted preferences (an object with "
+                f"_preference_wire()), not {type(self.value).__name__}"
+            )
+        for action in actions:
+            if not action._named:
+                raise CausalTypeError(
+                    "Contract(value=...) reads every action's inputs by attribute name; action "
+                    f"{action.id!r} gives positional inputs"
+                )
+        for constraint in constraints:
+            if constraint._reads_positions:
+                raise CausalValueError(
+                    "in a value contract a constraint reads attributes by name; decision.x(k) "
+                    "reads an action's k-th positional input, which a value contract does not "
+                    f"have (constraint {constraint.id!r})"
+                )
+        model = self._preferences()["model"]
+        if self.utility_units is not None:
+            _text(self.utility_units, "Contract.utility_units")
+            if self.utility_units != model["utility_units"]:
+                raise CausalValueError(
+                    f"Contract.utility_units {self.utility_units!r} differs from the value's "
+                    f"units {model['utility_units']!r}"
+                )
+        if self.policy is not None:
+            if not isinstance(self.policy, TradeoffPolicy):
+                raise CausalTypeError(
+                    "Contract.policy is a TradeoffPolicy such as TradeoffPolicy.maximin()"
+                )
+            if not model["parameters"]:
+                raise _not_applicable(
+                    "policy= says how a decision across trade-off ranges is consumed; this "
+                    "value declares no trade-off, so it is decided as an ordinary contract"
+                )
+
+    # -- the two wires --------------------------------------------------------------
+
+    def _preferences(self) -> dict[str, Any]:
+        """The value as the native wire: ``{"model": ..., "measure": ...}``."""
+        if self.value is None:
+            raise CausalTypeError("an ordinary contract has no value=; it declares no trade-offs")
+        return dict(self.value._preference_wire())
+
+    def _tradeoff_wire(self) -> dict[str, Any]:
+        """The contract as the native contract across trade-offs (a value contract only)."""
+        model = self._preferences()["model"]
+        attributes = {a["id"]: k for k, a in enumerate(model["attributes"])}
         return {
-            "version": 1,
-            "actions": [a._wire() for a in self.actions],
-            "utility_units": self.utility_units,
-            "criterion": self.criterion._wire(),
-            "constraints": [c._wire() for c in self.constraints],
+            "model": model,
+            "actions": [a._value_wire(model["attributes"]) for a in self.actions],
+            "criterion": (self.criterion or Criterion.expected_utility())._wire(),
+            "constraints": [
+                {**c._wire(), "expr": _constraint_node(c.expr._wire_value, attributes)}
+                for c in self.constraints
+            ],
             "target_population": self.target_population,
             "horizon": self.horizon,
             "structural_policy": self.structural_policy,
+            "preference_policy": (self.policy or TradeoffPolicy.invariant_best()).kind,
         }
+
+    def _describe(self) -> dict[str, Any]:
+        """The native description of a value contract, read once."""
+        cached = self._described
+        if cached is None:
+            from ._decision_tradeoff import describe
+
+            cached = describe(self)
+            object.__setattr__(self, "_described", cached)
+        return cached
+
+    def _engine(self) -> Literal["ordinary", "tradeoff"]:
+        if self.value is None:
+            return "ordinary"
+        described = self._describe()
+        if described.get("ordinary") is not None:
+            return "ordinary"
+        # Natively decided: a value that names a trade-off, or one the ordinary utility language
+        # cannot state (exp or ln of an attribute), is decided across trade-offs. Any other
+        # refusal of the ordinary form is a fault of the declaration and is raised.
+        if described.get("decided_across_preferences"):
+            return "tradeoff"
+        refusal = described.get("ordinary_refusal")
+        if isinstance(refusal, str):
+            refusal = json.loads(refusal)
+        if isinstance(refusal, Mapping):
+            raise PreferenceRefusal(refusal)
+        raise CausalUnsupportedError(
+            "this value contract has no ordinary form", reason_code="route_not_supported"
+        )
+
+    _compile_form = _engine
+
+    def _wire(self) -> dict[str, Any]:
+        """The ordinary contract wire: the contract itself, or the ordinary contract its value
+        binds to. A value with no ordinary form refuses natively."""
+        if self.value is None:
+            return {
+                "version": 1,
+                "actions": [a._wire() for a in self.actions],
+                "utility_units": self.utility_units,
+                "criterion": self._criterion()._wire(),
+                "constraints": [c._wire() for c in self.constraints],
+                "target_population": self.target_population,
+                "horizon": self.horizon,
+                "structural_policy": self.structural_policy,
+            }
+        described = self._describe()
+        ordinary = described.get("ordinary")
+        if ordinary is not None:
+            return dict(ordinary)
+        refusal = described.get("ordinary_refusal")
+        if refusal is None:
+            raise CausalUnsupportedError(
+                "this value contract has no ordinary form", reason_code="route_not_supported"
+            )
+        raise PreferenceRefusal(json.loads(refusal) if isinstance(refusal, str) else refusal)
+
+    def _criterion(self) -> Criterion:
+        return self.criterion or Criterion.expected_utility()
+
+    def _ordinary(self) -> Contract:
+        """The ordinary contract this contract decides as."""
+        return self if self.value is None else Contract._from_wire(self._wire())
 
     def _normalized(self) -> dict[str, Any]:
         normalized, refusal = _normalize(json.dumps(self._wire()))
@@ -519,30 +873,75 @@ class Contract:
         assert normalized is not None
         return dict(json.loads(normalized))
 
+    # -- what the contract states ---------------------------------------------------
+
+    @property
+    def form(self) -> Literal["ordinary", "tradeoff"]:
+        """``ordinary`` when the contract is decided as an ordinary contract (no value, or a
+        value whose trade-offs are plain numbers), ``tradeoff`` when it is decided across the
+        admissible values of its trade-offs."""
+        return self._engine()
+
+    @property
+    def route(self) -> Literal["exact", "certified"] | None:
+        """How a decision across trade-offs is answered: ``exact`` (linear programs) or
+        ``certified`` (interval subdivision); ``None`` for an ordinary contract."""
+        if self._engine() == "ordinary":
+            return None
+        return self._describe()["route"]
+
+    @property
+    def trade_offs(self) -> tuple[TradeOffRange, ...]:
+        """Each named trade-off with its declared range and assumption (empty without one)."""
+        if self.value is None:
+            return ()
+        from ._decision_compile import trade_off_ranges
+
+        return trade_off_ranges(self._preferences()["model"]["parameters"])
+
     @property
     def identity(self) -> str:
-        """Canonical digest: unchanged by reordering actions, changed by any semantic edit."""
+        """Canonical digest: unchanged by reordering actions, changed by any semantic edit.
+
+        A value contract decided as an ordinary contract has the identity of that ordinary
+        contract; one decided across trade-offs has the identity of the trade-off contract.
+        """
+        if self._engine() == "tradeoff":
+            return str(self._describe()["identity"])
         return str(self._normalized()["identity"])
+
+    # -- deciding -------------------------------------------------------------------
 
     @outcome_operation
     def evaluate(
         self,
         source: JointDistributionArtifact | BoundExternalClaim | MeanSource | Any,
         *,
+        measure: Measure | None = None,
+        admissibility: AdmissibilityRules | None = None,
+        tie_tolerance: float | None = None,
+        vertex_cap: int | None = None,
+        max_boxes: int | None = None,
+        min_width_fraction: float | None = None,
         program: ProgramBinding | None = None,
         outcome_units: str | None = None,
         dose_units: str | None = None,
         population: str = "target",
-    ) -> Decision:
-        """Evaluate on aligned joint draws, a bound external response grid, a mean source
-        or an analysis result.
+        execution: Any = None,
+    ) -> Decision | RobustDecision | TradeoffDecision:
+        """Evaluate on aligned joint draws, a bound external response grid, a mean source,
+        an analysis result or several causal structures.
 
         ``source`` is one of:
 
         * a :class:`~antecedent.joint_distribution.JointDistributionArtifact` (aligned draws:
-          every criterion, replayable);
+          every criterion, replayable), a sequence of them whose rows pair (:func:`joint_law`),
+          or a :class:`~antecedent.propagation_chain.PropagationChain` with joint outputs
+          (:func:`chain_law`);
         * a :class:`~antecedent.external.BoundExternalClaim` or a :class:`MeanSource` (one
-          mean per coordinate: the expectation of an affine utility only);
+          mean per coordinate: the expectation of an affine utility only), or the
+          :class:`~antecedent.decision_evidence.JointEvidence` of one experiment (its arm
+          means, :func:`experiment_means`);
         * a checked static AverageEffect result: its single ``mean_difference`` contrast
           coordinate is an affine mean input, never two reconstructed outcome means;
         * a response-curve analysis result (the :class:`~antecedent.results.CausalResponseView`
@@ -560,10 +959,16 @@ class Contract:
           :class:`~antecedent.errors.CausalUnsupportedError` naming what is missing, and a
           contract that needs a joint law (a probability, a quantile, a nonlinear utility, a
           hard constraint) refuses ``decision_contract_unsatisfied`` because a mean
-          response retains no outcome draws.
+          response retains no outcome draws;
+        * :class:`Structures`, to decide across several causal structures as well.
 
-        A :class:`MeanSource` (for example from a native response claim) answers the
-        same affine expectation and refuses everything else, exactly as below.
+        An ordinary contract returns a :class:`Decision`, or across :class:`Structures` a
+        :class:`~antecedent.decision_robust.RobustDecision` under ``admissibility=`` (a
+        :class:`~antecedent.decision_robust.AdmissibilityRules`, none by default). A contract
+        across trade-offs returns a :class:`TradeoffDecision`; ``measure`` weighs trade-off
+        values for :meth:`TradeoffPolicy.weighted` and reports shares, and
+        ``tie_tolerance``, ``vertex_cap``, ``max_boxes`` and ``min_width_fraction`` tune its
+        routes. An option the engine does not read refuses with ``option_not_applicable``.
 
         Raises:
             CausalTypeError: ``source`` is none of the accepted types.
@@ -575,29 +980,77 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
-        from .outcomes import require_success
-        from .results.sources import adapt_mean_source, is_mean_producer
-
-        source = require_success(source)
-        if is_mean_producer(source):
-            source = adapt_mean_source(source)
-        cohort_source = getattr(source, "_cohort_mean_source", None)
-        if cohort_source is not None:
-            source = cohort_source()
-        result_source = _result_mean_source(
-            self,
-            source,
-            program=program,
-            outcome_units=outcome_units,
-            dose_units=dose_units,
-            population=population,
+        tuning = dict(
+            zip(
+                _TUNING,
+                (measure, tie_tolerance, vertex_cap, max_boxes, min_width_fraction),
+                strict=True,
+            )
         )
-        if result_source is not None:
-            source = result_source
+        binding = {
+            "program": program,
+            "outcome_units": outcome_units,
+            "dose_units": dose_units,
+            "population": population,
+        }
+        if self._engine() == "tradeoff":
+            if admissibility is not None:
+                raise _not_applicable(
+                    "admissibility= applies to an ordinary contract across Structures; a "
+                    "decision across trade-offs reads its structural_policy"
+                )
+            from ._decision_tradeoff import evaluate_tradeoff
+
+            return evaluate_tradeoff(self, source, **tuning, **binding, execution=execution)
+        given = [f"{name}=" for name, value in tuning.items() if value is not None]
+        if given:
+            raise _not_applicable(
+                f"{', '.join(given)} apply to a decision across trade-off ranges; this "
+                "contract is decided as an ordinary contract"
+            )
+        return self._evaluate_ordinary(source, admissibility, binding, execution)
+
+    def _evaluate_ordinary(
+        self,
+        source: Any,
+        admissibility: AdmissibilityRules | None,
+        binding: Mapping[str, Any],
+        execution: Any,
+    ) -> Decision | RobustDecision:
+        from ._decision_sources import resolve_source
+
+        contract = self._ordinary()
+        declared = None if contract is self else self
+        source = resolve_source(
+            source,
+            quantities=tuple(q for action in self.actions for q in action.quantities),
+            decision_source=lambda claim: claim.as_decision_source(contract),
+            execution=execution,
+            **binding,
+        )
+        _refuse_if_cancelled(execution, "before the decision was evaluated")
+        if isinstance(source, Structures):
+            from .decision_robust import AdmissibilityRules, AdmissibleContract, robust
+
+            result = require_success(
+                robust(
+                    AdmissibleContract(contract, admissibility or AdmissibilityRules()),
+                    source.claims,
+                    kind=source.kind,
+                )
+            )
+            result._declared = self
+            return result
+        if admissibility is not None:
+            raise _not_applicable(
+                "admissibility= applies to a decision across Structures; pass "
+                "decision.Structures(...) as the source"
+            )
+        wire = json.dumps(contract._wire())
         if isinstance(source, BoundExternalClaim):
             identity = source.identity_fields
             result, refusal = _evaluate_means(
-                json.dumps(self._wire()),
+                wire,
                 json.dumps([q._wire() for q in source.quantities]),
                 [float(v) for v in source.values],
                 str(identity["provider_id"]),
@@ -606,11 +1059,11 @@ class Contract:
             )
             raise_refusal(refusal, DecisionRefusal)
             assert result is not None
-            return Decision(self, source, json.loads(result))
+            return Decision(contract, source, json.loads(result), declared=declared)
         if isinstance(source, MeanSource):
             source._validated_original()
             result, refusal = _evaluate_means(
-                json.dumps(self._wire()),
+                wire,
                 json.dumps([q._wire() for q in source.coordinates]),
                 list(source.means),
                 source.provider_id,
@@ -619,7 +1072,7 @@ class Contract:
             )
             raise_refusal(refusal, DecisionRefusal)
             assert result is not None
-            return Decision(self, source, json.loads(result))
+            return Decision(contract, source, json.loads(result), declared=declared)
         if not isinstance(source, JointDistributionArtifact):
             hint = (
                 "; a NativeClaim is not a source itself: pass "
@@ -632,10 +1085,73 @@ class Contract:
                 "BoundExternalClaim or MeanSource (means), or a supported response/effect analysis "
                 f"result (antecedent.analyze(...)), not {type(source).__name__}{hint}"
             )
-        result, refusal = _evaluate(json.dumps(self._wire()), source._native)
+        result, refusal = _evaluate(wire, source._native)
         raise_refusal(refusal, DecisionRefusal)
         assert result is not None
-        return Decision(self, source, json.loads(result))
+        return Decision(contract, source, json.loads(result), declared=declared)
+
+    @outcome_operation
+    def compile(
+        self,
+        source: Any,
+        *,
+        draws: int | None = None,
+        seed: int | None = None,
+        shared: Mapping[tuple[int, int], Any] | None = None,
+        refits: int | None = None,
+        sampling: str | None = None,
+        execution: Any = None,
+    ) -> CompiledDecision:
+        """Bind this contract to the analysis that estimates its quantities and compile it.
+
+        ``source`` is the analysis, prepared with :func:`antecedent.prepare`: one prepared
+        study (its mean response curve, under its structure or each structure of its graph
+        posterior), a sequence of prepared studies (one outcome each), or a compiled design of
+        several outcomes (``joint_panel.prepare_native_joint_design``). Every quantity an
+        action reads must be a coordinate the analysis targets. The decision is lowered into
+        the analysis's own plan, so the :class:`CompiledDecision` states the quantities, the
+        source the contract needs, the trade-off ranges (when there are any) and the
+        identification before anything is fitted; what cannot be answered (a quantity not
+        identified, a source the analysis cannot supply, studies that share observations
+        without a declared covariance) is refused here. :meth:`CompiledDecision.execute` then
+        runs each plan once. An ordinary contract (or a value whose trade-offs are plain
+        numbers) compiles as an ordinary contract; a value with named trade-offs compiles as
+        a decision across them.
+
+        Several studies meet by their means when means suffice. A contract that needs one law
+        of their outcomes needs ``draws=`` (the aligned rows the propagation chain draws)
+        and, for studies that share observations, ``shared=``: the declared covariance
+        between the estimates of each such pair, keyed ``(i, j)`` by the studies' positions
+        in ``source``. Each block is a 2-D array-like with one row per coordinate of study
+        ``i`` and one column per coordinate of study ``j``, both in grid order; a block keyed
+        ``(j, i)`` is read as its transpose. A static-regime design reads its arm means, or
+        with ``refits=`` (at least 99) its aligned whole-subject refits. A cluster-randomized
+        design or a matched-pair or switchback experiment reads its arm means; randomization
+        alone does not identify the dependence of its arm-mean estimators across arms, so a
+        contract that needs one law of its outcomes also needs ``sampling=``, the assumption
+        id of the premise that its independent units (clusters, pairs or sequences) were
+        sampled independently from a larger population, with ``refits=`` for the
+        independent-unit bootstrap. The premise enters the plan and the result's assumptions.
+
+        ``seed`` seeds the chain's draws and the refits; by default it is the seed of
+        ``execution`` (``Execution().seed`` when none is given), so ``execution=`` alone
+        reproduces a compile. An argument the source does not read refuses with
+        ``option_not_applicable`` rather than being dropped: ``draws=`` and ``shared=`` are
+        read only for several studies, ``refits=`` and ``sampling=`` only for a design, and
+        ``seed=`` only when something is drawn (``draws=``, ``shared=`` or ``refits=``).
+        """
+        from ._decision_compile import compile_contract
+
+        return compile_contract(
+            self,
+            source,
+            draws=draws,
+            seed=seed,
+            shared=shared,
+            refits=refits,
+            sampling=sampling,
+            execution=execution,
+        )
 
     @outcome_operation
     def evaluate_transported(
@@ -650,12 +1166,14 @@ class Contract:
 
         The result is a :class:`~antecedent.transported_response.TransportedDecision` that names
         the transport beside every number and is never presented as a decision on native
-        target data. See :func:`antecedent.transported_response.evaluate_transported`.
+        target data. See :func:`antecedent.transported_response.evaluate_transported`. A
+        contract across trade-off ranges has no ordinary form and refuses.
         """
         from .transported_response import evaluate_transported
 
+        contract = self._ordinary()
         return evaluate_transported(
-            self,
+            contract,
             require_success(response),
             analysis=require_success(analysis),
             demand=demand,
@@ -664,6 +1182,9 @@ class Contract:
 
     @artifact_export
     def export(self, *, artifact_id: str = "decision-contract") -> ExportedArtifact:
+        """The ordinary contract as a portable artifact. A value contract decided as an ordinary
+        contract exports that ordinary contract, byte for byte; a contract across trade-off
+        ranges has no ordinary form and refuses."""
         return artifact_from_receipt(
             self, bytes(_export_contract(json.dumps(self._wire()), artifact_id))
         )
@@ -714,18 +1235,57 @@ class Contract:
         )
 
 
-class Decision(ScientificResult):
-    """A decision result with the evidence behind it; exportable and replayable."""
+class Decision(DecisionResult):
+    """A decision result with the evidence behind it; exportable and replayable.
+
+    ``verdict``, ``selected`` and the per-action table are the ordinary engine's own; ``choice``,
+    ``kind``, ``standing`` and ``statement`` read it the way every decision result is read.
+    """
 
     def __init__(
         self,
         contract: Contract,
-        source: JointDistributionArtifact | BoundExternalClaim | MeanSource,
+        source: JointDistributionArtifact | BoundExternalClaim | MeanSource | Any,
         body: Mapping[str, Any],
+        *,
+        declared: Contract | None = None,
     ) -> None:
         self._contract = contract
         self._source = source
         self._body = body
+        self._declared = declared
+
+    @property
+    def kind(self) -> str:
+        """The verdict word: ``uniquely_optimal``, ``indistinguishable`` or
+        ``no_admissible_action``."""
+        return self.verdict.kind
+
+    @property
+    def choice(self) -> str | None:
+        """The leader when it is uniquely optimal; ``None`` for a tie or no admissible action."""
+        verdict = self.verdict
+        return verdict.actions[0] if verdict.kind == "uniquely_optimal" else None
+
+    @property
+    def standing(self) -> Standing:
+        """The verdict in the vocabulary every decision result shares."""
+        return _standing(self._body)
+
+    @property
+    def statement(self) -> str:
+        """The verdict in plain words."""
+        return str(self._body["statement"])
+
+    @property
+    def effective_tie_tolerance(self) -> float:
+        """Ordinary criterion values tie only when exactly equal."""
+        return 0.0
+
+    @property
+    def contract(self) -> Contract:
+        """The contract as declared (a value contract when it was declared with ``value=``)."""
+        return self._contract if self._declared is None else self._declared
 
     @property
     def source(self) -> Any:
@@ -754,12 +1314,28 @@ class Decision(ScientificResult):
         def number(value: float | None) -> float:
             return float("nan") if value is None else float(value)
 
+        declared = (
+            frozenset(c.id for c in self._declared.constraints)
+            if self._declared is not None
+            else frozenset()
+        )
+
+        def constraint_id(action: str, bound: str) -> str:
+            # A value contract's constraint that reads an input one action knows exactly is
+            # bound per action as "{id}@{action}"; it is reported under the id it was declared
+            # with, as the trade-off routes report it.
+            base, _, suffix = bound.rpartition("@")
+            split = suffix == action and base in declared and bound not in declared
+            return base if split else bound
+
         return tuple(
             ActionOutcome(
                 id=a["id"],
                 admissible=a["admissible"],
                 exclusions=tuple(
-                    ConstraintExclusion(e["constraint_id"], e["probability"], e["required"])
+                    ConstraintExclusion(
+                        constraint_id(a["id"], e["constraint_id"]), e["probability"], e["required"]
+                    )
                     for e in a["exclusions"]
                 ),
                 expected_utility=float(a["expected_utility"]),
@@ -933,17 +1509,14 @@ class Decision(ScientificResult):
         Only a joint-draw source can be exported and replayed; a decision computed
         from an external or native mean grid refuses with ``route_not_supported``.
         """
-        if isinstance(self._source, (BoundExternalClaim, MeanSource)):
+        if not isinstance(self._source, JointDistributionArtifact):
             raise DecisionRefusal(
-                {
-                    "code": "route_not_supported",
-                    "stage": "export",
-                    "detail": _reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE,
-                    "offending": None,
-                    "expected": "joint_draws",
-                    "supplied": "mean",
-                    "remedy": "export a decision evaluated on aligned joint draws",
-                }
+                _not_replayable(
+                    "mean"
+                    if isinstance(self._source, (BoundExternalClaim, MeanSource))
+                    else type(self._source).__name__,
+                    "export a decision evaluated on aligned joint draws",
+                )
             )
         return artifact_from_receipt(
             self,
@@ -965,12 +1538,22 @@ class Decision(ScientificResult):
     identity=("contract", "source"),
     input="data",
 )
-def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact) -> Decision:
-    """Recompute a stored decision from its inputs and require an exact match.
+def replay(
+    data: bytes,
+    *,
+    contract: Any,
+    source: JointDistributionArtifact,
+    execution: Any = None,
+) -> Decision | TradeoffDecision:
+    """Recompute a stored decision from the consumer's own contract and draws.
 
-    The contract and source are the consumer's own: a result computed under a
-    different contract or from different draws, or one whose numbers were edited,
-    refuses.
+    A result computed under a different contract or from different draws, or one whose
+    numbers were edited, refuses. An ordinary decision (including a value contract decided as
+    an ordinary contract) is recomputed and must match exactly. A decision across trade-off
+    ranges reuses its stored measure and options and must match within the relative tolerance
+    its linear-program and interval numerics need; its recomputation reads the execution's
+    cancellation token at its work boundaries, and a cancelled replay is refused with
+    ``cancelled_no_claim``.
     """
     data = container_bytes(data)
     source = require_success(source)
@@ -981,10 +1564,26 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
             "replay needs the JointDistributionArtifact of aligned draws the result was computed "
             f"from, not {type(source).__name__}; only a joint-draw decision replays"
         )
-    result, refusal = _replay(data, json.dumps(contract._wire()), source._native)
+    if contract._engine() == "tradeoff":
+        from ._decision_tradeoff import replay_tradeoff
+
+        return replay_tradeoff(data, contract, source, execution)
+    ordinary = contract._ordinary()
+    _refuse_if_cancelled(execution, "before the decision was replayed")
+    result, refusal = _replay(data, json.dumps(ordinary._wire()), source._native)
     raise_refusal(refusal, DecisionRefusal)
     assert result is not None
-    return Decision(contract, source, json.loads(result))
+    return Decision(
+        ordinary, source, json.loads(result), declared=None if ordinary is contract else contract
+    )
+
+
+def _refuse_if_cancelled(execution: Any, where: str) -> None:
+    """The ordinary evaluators run in one native call that reads no cancellation token, so a
+    cancelled execution is refused once before they run."""
+    cancel = getattr(execution, "cancel", None)
+    if cancel is not None and cancel.is_cancelled():
+        raise CausalCancelledError(f"cancelled {where}")
 
 
 def source_digest(source: JointDistributionArtifact) -> str:
@@ -1054,24 +1653,107 @@ def score_published_answer(
     return PublishedScore(value=value, carrier=carrier)
 
 
+_LAZY: dict[str, tuple[str, str]] = {
+    "TradeoffDecision": ("_decision_tradeoff_results", "TradeoffDecision"),
+    "ActionRecord": ("_decision_tradeoff_results", "ActionRecord"),
+    "Switch": ("_decision_tradeoff_results", "Switch"),
+    "SwitchThreshold": ("_decision_tradeoff_results", "SwitchThreshold"),
+    "Region": ("_decision_tradeoff_results", "Region"),
+    "StructureOutcome": ("_decision_tradeoff_results", "StructureOutcome"),
+    "ClassSampling": ("_decision_tradeoff_results", "ClassSampling"),
+    "SampledMass": ("_decision_tradeoff_results", "SampledMass"),
+    "SampledMargin": ("_decision_tradeoff_results", "SampledMargin"),
+    "CompiledDecision": ("_decision_compile", "CompiledDecision"),
+    "CompiledQuantity": ("_decision_compile", "CompiledQuantity"),
+    "TradeOffRange": ("_decision_compile", "TradeOffRange"),
+    "JointLawInput": ("_decision_compile", "JointLawInput"),
+    "JointLawPlan": ("_decision_compile", "JointLawPlan"),
+    "DesignLawPlan": ("_decision_compile", "DesignLawPlan"),
+    "joint_law": ("_decision_sources", "joint_law"),
+    "chain_law": ("_decision_sources", "chain_law"),
+    "experiment_means": ("_decision_sources", "experiment_means"),
+    "experiment_quantity": ("_decision_sources", "experiment_quantity"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load the result, compile and source names on first use, so importing this module does
+    not load the trade-off engine."""
+    target = _LAZY.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    module_name, attribute_name = target
+    value = getattr(importlib.import_module(f"{__package__}.{module_name}"), attribute_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_LAZY})
+
+
 __all__ = [
     "Action",
     "ActionOutcome",
+    "ActionRecord",
+    "Attribute",
+    "ClassSampling",
+    "CompiledDecision",
+    "CompiledQuantity",
+    "CompiledReceipt",
     "Constraint",
     "ConstraintExclusion",
     "Contract",
     "Criterion",
+    "Curve",
     "Decision",
     "DecisionRefusal",
+    "DecisionResult",
+    "DesignLawPlan",
     "Expr",
+    "JointLawInput",
+    "JointLawPlan",
     "MeanSource",
+    "Measure",
+    "PreferenceRefusal",
     "PublishedScore",
+    "Region",
+    "Relation",
+    "SampledMargin",
+    "SampledMass",
+    "Standing",
+    "StructureOutcome",
+    "Structures",
+    "Switch",
+    "SwitchThreshold",
+    "TradeOffRange",
+    "Tradeoff",
+    "TradeoffDecision",
+    "TradeoffPolicy",
+    "Value",
+    "ValueExpr",
     "Verdict",
+    "attribute",
+    "both",
+    "chain_law",
     "const",
+    "excess",
+    "exp",
+    "experiment_means",
+    "experiment_quantity",
+    "interaction",
+    "joint_law",
+    "ln",
     "maximum",
     "minimum",
+    "relation",
     "replay",
     "score_published_answer",
+    "segment",
+    "shortfall",
     "source_digest",
+    "tradeoff",
     "x",
 ]

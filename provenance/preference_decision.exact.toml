@@ -1,0 +1,65 @@
+# Algorithm provenance for preference_decision.exact.
+
+feature_id = "preference_decision.exact"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions", doi = "10.1016/j.ejor.2007.08.013", sections = ["the necessary and possible preference relations over the set of compatible value functions, each decided by a linear program (section numbers not independently verified)"] },
+ { title = "Constraint-based optimization and utility elicitation using the minimax decision criterion", doi = "10.1016/j.artint.2006.02.003", sections = ["max regret of an alternative over a polytope of feasible utility parameters and the minimax-regret choice, computed by optimisation over the polytope (section numbers not independently verified)"] },
+ { title = "SMAA - Stochastic multiobjective acceptability analysis", doi = "10.1016/S0377-2217(97)00163-X", sections = ["the acceptability index: the share of a weight distribution over the feasible weight space under which an alternative is best (section numbers not independently verified)"] },
+ { title = "New Finite Pivoting Rules for the Simplex Method", doi = "10.1287/moor.2.2.103", sections = ["the smallest-subscript rule for the entering and leaving choice, which prevents cycling"] },
+ { title = "Solving Least Squares Problems", doi = "10.1137/1.9781611971217", sections = ["Chapter 23: the NNLS active-set algorithm for non-negative least squares (section number not independently verified)"] },
+ { title = "Polynomial-Time Algorithms for Counting and Sampling Markov Equivalent DAGs", doi = "10.1609/aaai.v35i13.17448", sections = ["the clique-picking count of the members of a Markov equivalence class over the clique trees of its chordal chain components, and uniform sampling of a member from that count (section numbers not independently verified)"] },
+ { title = "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL", doi = "10.1093/biomet/26.4.404", sections = ["the exact binomial confidence interval from beta quantiles"] },
+ { title = "Bootstrap Methods: Another Look at the Jackknife", doi = "10.1214/aos/1176344552", sections = ["the nonparametric bootstrap: the sampling law of a statistic estimated by recomputing it on samples drawn with replacement from the independent observations"] },
+ { title = "Bootstrap Methods and their Application", doi = "10.1017/CBO9780511802843", sections = ["Section 3.8: resampling whole clusters, and stratified resampling within strata (section number not independently verified)"] },
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["the randomization variance of a difference in arm means, whose cross-arm term rests on the joint distribution of the potential outcomes and is not identified"] },
+ { title = "Causal Inference for Statistics, Social, and Biomedical Sciences", doi = "10.1017/CBO9781139025751", sections = ["Chapter 6: the finite-population randomization variance of the difference in means against its sampling variance when the units are a random sample from a larger population (chapter number not independently verified)"] },
+]
+implementation_deviations = [
+ "The necessary and possible relations are applied to the expected utilities (or expected losses) of actions whose attributes are causal quantities under a supplied law, with value v_a(theta) = c_a0 + sum_j theta_j c_aj affine in the preference parameters, not to rankings of alternatives on fixed criterion evaluations. The parameter set is a declared box cut by linear relations, not necessarily the UTA-GMS set of additive value functions compatible with a reference ranking.",
+ "Necessarily best means best by more than a tie tolerance at every admissible point, checked by one linear program per rival; possibly best means best (ties allowed) against every rival at one common admissible point, a single feasibility program. Both are statements about the best action, which is stronger than the pairwise necessary and possible relations of the cited paper.",
+ "Worst-case regret of an action is the largest shortfall from the best rival over the set, max over rivals of max over theta of (v_b - v_a), floored at zero, and the verdict names the action with the smallest; this is Boutilier et al.'s max regret over a utility polytope with expected utilities of causal quantities in place of known outcome utilities. Expected regret is answered through expected-utility margins, which rank actions identically at every point; its worst case refuses and is referred to the certified record.",
+ "A share is reported only for a supplied measure: the normalised weight of a finite set of weighted parameter points (declared, or drawn from the noisy-choice estimate), with ties within the tolerance shared equally. It is a first-rank acceptability index of that discrete measure, not SMAA's Monte Carlo integral over a density on the weight space; no central weight vectors, lower-rank indices or confidence factors are computed. The draw share of the necessarily best action is checked at every vertex of the set, enumerated up to a cap, and is a point diagnostic of the supplied law.",
+ "Composition across causal structures (structural policies, unidentified and unevaluated structure mass reported and never renormalised) is a repository construction outside the cited works.",
+ "The linear programs are solved by a working-set primal simplex over rows g . x <= h (each scaled to unit maximum coefficient), not a tableau method; free variables enter as placeholder rows released first, Bland's smallest-index rule is applied to the rows to release and to the blocking rows, and phase one relaxes every violated row by one auxiliary variable t in [0, 1]. Every outcome is rechecked from first principles before it is returned: feasibility and a non-negative least-squares fit of the objective by the tight rows (Lawson and Hanson's NNLS on Householder least squares) for an optimum, Farkas multipliers for infeasibility, a feasible improving ray for unboundedness. Tolerances are repository choices (pivot 1e-12, singularity ratio 1e-12, dependent-column ratio 1e-10).",
+ "Vertex enumeration solves every choice of n hyperplanes among the constraints and finite bounds and keeps the distinct feasible points, refused beyond a cap; it is brute force, not a pivoting enumeration.",
+ "The exact-rational linear-program reference (linear_program_reference.py, brute-force basis enumeration in fractions) and the dense-grid cross-check in preference_decision_structural.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+ "Across the members of a CPDAG or PAG atom of a graph posterior, a member's weight is the atom's posterior weight times a declared conditional mass within the class: uniform under a named assumption, or keyed by member fingerprint and normalised within each class. The measure is a declaration; the data cannot separate Markov equivalent members. For a PAG uniform is over the maximal ancestral graphs it represents. Without a declared measure, bayes_over_structures over class atoms is refused.",
+ "A class with more members than the declared exact limit (32 by default) is sampled only under a uniform measure that declares the draw: CPDAG members by clique-picking from an exact count (forbidden prefixes are the separators on the clique-tree edges from the root, written from the published method), PAG members by drawing every circle endpoint as a tail or an arrowhead with probability one half and keeping draws that are members, within a search budget, so its class size is a lower bound unless enumerated. A sampled decision gives no verdict over every member: under bayes_over_structures the verdict is the one on the sampled measure with Monte Carlo standard errors of the pairwise margins at each vertex; under maximin and invariance each sampled member's verdict with a one-sided 95% Clopper-Pearson bound on the mass where another action is best; identified, unidentified and unevaluated masses of a sampled class are exact Clopper-Pearson intervals of the draw shares scaled by the class mass, never renormalised. These reporting rules are repository constructions outside the cited works.",
+ "The clique-picking count is compared with brute-force enumeration on random chordal graphs and closed-form class sizes, and the draws are checked by chi-square against uniform (mec_uniform_sampling.rs); these checks were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
+ "A joint law of the arm means of a cluster-randomized design, a matched-pair experiment or a switchback experiment is read from an independent-unit bootstrap only under a declared premise that the units (clusters, pairs or sequences) were sampled independently from a larger population: randomization alone identifies the arm means and a conservative covariance bound for their linear combinations, not the cross-arm dependence of the arm-mean estimators. Clusters are resampled within each arm, keeping the arm sizes; pairs and sequences are resampled whole; every refit reruns the complete estimator, including a fixed pretreatment adjustment recentred at the resampled pretreatment mean. At least 99 refits and 30 units (clusters in each arm, pairs or sequences) are required; a refit the estimator refuses keeps its slot and the decision is refused, never computed on the remaining refits. These floors and the failure rule are repository choices. The law is labelled a bootstrap law, unverified, with no calibration measured.",
+ "The bootstrap's covariance checks (cluster refits independent across arms with the (n - 1)/n within-arm covariance, pair and sequence refits converging to their closed-form covariances) were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs",
+ "crates/antecedent/src/analysis/execute/compile_preference/design.rs",
+ "crates/antecedent-design/src/preference_decision.rs",
+ "crates/antecedent-design/src/preference_decision/measure.rs",
+ "crates/antecedent-design/src/preference_decision/region.rs",
+ "crates/antecedent-design/src/preference_decision/statements.rs",
+ "crates/antecedent-design/src/preference_decision/structural.rs",
+ "crates/antecedent-design/src/preference_sampled.rs",
+ "crates/antecedent-stats/src/binomial_interval.rs",
+ "crates/antecedent-stats/src/linear_program.rs",
+ "crates/antecedent-graph/src/mec_uniform.rs",
+ "crates/antecedent-graph/src/pag_uniform.rs",
+ "crates/antecedent/src/analysis/execute/compile_preference/atoms.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_decision.rs (hand-derived switch points, policies, measures, refusals)",
+ "crates/antecedent-design/tests/preference_decision_structural.rs (structural policies and a dense-grid cross-check of every linear-program quantity)",
+ "crates/antecedent-stats/tests/linear_program.rs (hand-derivable, degenerate and cycling-prone programs; certificates rechecked by the verifier)",
+ "crates/antecedent-stats/tests/linear_program_reference.rs (optima and vertex sets against exact rational basis enumeration)",
+ "crates/antecedent-stats/tests/oracle_data/linear_program_reference.py",
+ "crates/antecedent-stats/tests/oracle_data/linear_program_reference.json",
+ "crates/antecedent-graph/tests/mec_uniform_sampling.rs (clique-picking counts against enumeration on random chordal graphs, closed-form class sizes, chi-square uniformity of CPDAG and PAG draws, a PAG class beyond the budget)",
+ "crates/antecedent/tests/preference_decision_class_weighting.rs (uniform and keyed class measures, a sampled class never called best for every member, unidentified member mass of a PAG class, Clopper-Pearson bounds against closed forms)",
+ "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs (inline tests: cluster, pair and sequence refit covariances against closed forms, seed reproduction, refusals of too few refits, units or no premise, a refused refit keeping its slot, cancellation)",
+ "crates/antecedent/tests/preference_decision_compiled_design.rs (a joint law of a randomized design refused without a sampling premise; a cluster design's bootstrap law in the plan, the program identity and the execution; a matched-pair bootstrap answering a kinked value and a probability limit)",
+]

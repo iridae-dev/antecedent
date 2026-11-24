@@ -1978,7 +1978,7 @@ concern = "duplicate exclusion per action rejected by validate() only"
 [[sites]]
 id = "design.decision_contract.encode_constraint"
 file = "crates/antecedent-design/src/decision_contract.rs"
-item = "fn:encode_constraint#0"
+item = "fn:constraint_digest#0"
 feeds = "per-constraint digest inside DecisionContract::validated_identity and ProgramSearchContract::identity"
 released = true
 status = "checked"

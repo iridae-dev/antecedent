@@ -728,3 +728,23 @@ groups = [
 record = "forecast.event_count_interval"
 routes = ["antecedent.PreparedEventForecast.count_interval"]
 groups = ["event_count_calibration: hawkes_recursive_refit_count_l90"]
+
+[[route]]
+record = "preference_learning.choice_model"
+routes = [
+  "antecedent_design.estimate_choice_model",
+  "antecedent.decision_learning.ChoiceModel.learn",
+]
+groups = [
+  "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95",
+]
+
+[[route]]
+record = "preference_learning.accepted_preferences"
+routes = [
+  "antecedent_design.estimate_accepted",
+  "antecedent.decision_learning.ChoiceModel.accept",
+]
+groups = [
+  "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95",
+]

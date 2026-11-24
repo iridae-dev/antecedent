@@ -1,0 +1,8804 @@
+{
+ "programs": [
+  {
+   "name": "production_two_goods",
+   "objective": [
+    -3,
+    -5
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 12
+    },
+    {
+     "coefficients": [
+      3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 18
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null
+   ],
+   "status": "optimal",
+   "objective_value": -36.0,
+   "objective_exact": "-36/1"
+  },
+  {
+   "name": "beale_cycling",
+   "objective": [
+    -75,
+    15000,
+    -2,
+    600
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      25,
+      -6000,
+      -4,
+      900
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      50,
+      -9000,
+      -2,
+      300
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    0,
+    0,
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "status": "optimal",
+   "objective_value": -5.0,
+   "objective_exact": "-5/1"
+  },
+  {
+   "name": "covering_at_least",
+   "objective": [
+    2,
+    3,
+    4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    0,
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null,
+    null
+   ],
+   "status": "optimal",
+   "objective_value": 19.0,
+   "objective_exact": "19/1"
+  },
+  {
+   "name": "equality_with_free_variable",
+   "objective": [
+    1,
+    2,
+    -1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      -1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    }
+   ],
+   "lower": [
+    null,
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    10,
+    10
+   ],
+   "status": "optimal",
+   "objective_value": -1.5,
+   "objective_exact": "-3/2"
+  },
+  {
+   "name": "free_variables_triangle",
+   "objective": [
+    1,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    }
+   ],
+   "lower": [
+    null,
+    null
+   ],
+   "upper": [
+    null,
+    null
+   ],
+   "status": "optimal",
+   "objective_value": -2.0,
+   "objective_exact": "-2/1"
+  },
+  {
+   "name": "degenerate_vertex",
+   "objective": [
+    -1,
+    -1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null
+   ],
+   "status": "optimal",
+   "objective_value": -2.0,
+   "objective_exact": "-2/1"
+  },
+  {
+   "name": "redundant_constraints",
+   "objective": [
+    -1,
+    -2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      2,
+      4
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      1,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    3,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -4.0,
+   "objective_exact": "-4/1"
+  },
+  {
+   "name": "all_fixed",
+   "objective": [
+    3,
+    -2,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    }
+   ],
+   "lower": [
+    1,
+    2,
+    3
+   ],
+   "upper": [
+    1,
+    2,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": 2.0,
+   "objective_exact": "2/1"
+  },
+  {
+   "name": "all_fixed_infeasible",
+   "objective": [
+    1,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    1,
+    1
+   ],
+   "upper": [
+    1,
+    1
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "contradictory_pair",
+   "objective": [
+    1,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    }
+   ],
+   "lower": [
+    null,
+    0
+   ],
+   "upper": [
+    null,
+    1
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "inconsistent_equalities",
+   "objective": [
+    0,
+    0,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      1,
+      2,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -5,
+    -5,
+    -5
+   ],
+   "upper": [
+    5,
+    5,
+    5
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "bounds_only",
+   "objective": [
+    1,
+    -1,
+    2
+   ],
+   "constraints": [],
+   "lower": [
+    -1,
+    -2,
+    0
+   ],
+   "upper": [
+    1,
+    2,
+    4
+   ],
+   "status": "optimal",
+   "objective_value": -3.0,
+   "objective_exact": "-3/1"
+  },
+  {
+   "name": "negative_box_cut",
+   "objective": [
+    1,
+    1,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      -1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    -3,
+    -3,
+    -3
+   ],
+   "upper": [
+    3,
+    3,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -2.0,
+   "objective_exact": "-2/1"
+  },
+  {
+   "name": "random_00",
+   "objective": [
+    0,
+    3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -3,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -11
+    },
+    {
+     "coefficients": [
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      3,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -2,
+    -1
+   ],
+   "upper": [
+    3,
+    -1
+   ],
+   "status": "optimal",
+   "objective_value": -3.0,
+   "objective_exact": "-3/1"
+  },
+  {
+   "name": "random_01",
+   "objective": [
+    -1,
+    1,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      0,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -10
+    },
+    {
+     "coefficients": [
+      -2,
+      -2,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -2
+   ],
+   "upper": [
+    0,
+    5,
+    1
+   ],
+   "status": "optimal",
+   "objective_value": 10.88888888888889,
+   "objective_exact": "98/9"
+  },
+  {
+   "name": "random_02",
+   "objective": [
+    -1,
+    -1,
+    0,
+    -1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0,
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      -2,
+      -3,
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 15
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      -3,
+      -2,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -2,
+      3
+     ],
+     "sense": "equal",
+     "rhs": -8
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 11
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    -2,
+    -3
+   ],
+   "upper": [
+    2,
+    2,
+    -2,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": 4.0,
+   "objective_exact": "4/1"
+  },
+  {
+   "name": "random_03",
+   "objective": [
+    3,
+    0,
+    3,
+    3,
+    3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      1,
+      0,
+      -1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      1,
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      -3,
+      -3,
+      2
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      -1,
+      3,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      -1,
+      3,
+      3,
+      -2,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -1,
+      2,
+      -2,
+      -2,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    -2,
+    -3,
+    -3,
+    0,
+    0
+   ],
+   "upper": [
+    0,
+    0,
+    -2,
+    1,
+    5
+   ],
+   "status": "optimal",
+   "objective_value": -11.4,
+   "objective_exact": "-57/5"
+  },
+  {
+   "name": "random_04",
+   "objective": [
+    -4,
+    -1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    0,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": -2.0,
+   "objective_exact": "-2/1"
+  },
+  {
+   "name": "random_05",
+   "objective": [
+    3,
+    -2,
+    3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -3
+   ],
+   "upper": [
+    2,
+    2,
+    -2
+   ],
+   "status": "optimal",
+   "objective_value": -19.0,
+   "objective_exact": "-19/1"
+  },
+  {
+   "name": "random_06",
+   "objective": [
+    0,
+    -4,
+    -1,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      0,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -3,
+      1,
+      2,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      -1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      0,
+      3,
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    -3,
+    0
+   ],
+   "upper": [
+    -1,
+    1,
+    -1,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": -3.0,
+   "objective_exact": "-3/1"
+  },
+  {
+   "name": "random_07",
+   "objective": [
+    4,
+    3,
+    -4,
+    3,
+    -2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      -1,
+      -2,
+      1,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      -2,
+      0,
+      -2,
+      -3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -2,
+    -1,
+    0,
+    -2,
+    -2
+   ],
+   "upper": [
+    -1,
+    4,
+    0,
+    3,
+    0
+   ],
+   "status": "optimal",
+   "objective_value": -15.0,
+   "objective_exact": "-15/1"
+  },
+  {
+   "name": "random_08",
+   "objective": [
+    1,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      0,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 8
+    }
+   ],
+   "lower": [
+    -1,
+    0
+   ],
+   "upper": [
+    3,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": -7.333333333333333,
+   "objective_exact": "-22/3"
+  },
+  {
+   "name": "random_09",
+   "objective": [
+    2,
+    2,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      2,
+      -3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -18
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    },
+    {
+     "coefficients": [
+      -3,
+      -1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    -2
+   ],
+   "upper": [
+    2,
+    2,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -14.0,
+   "objective_exact": "-14/1"
+  },
+  {
+   "name": "random_10",
+   "objective": [
+    -3,
+    -4,
+    2,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -3,
+      3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 20
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -11
+    },
+    {
+     "coefficients": [
+      0,
+      -1,
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      2,
+      2,
+      -2,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -2,
+    -1
+   ],
+   "upper": [
+    3,
+    -3,
+    3,
+    1
+   ],
+   "status": "optimal",
+   "objective_value": 11.0,
+   "objective_exact": "11/1"
+  },
+  {
+   "name": "random_11",
+   "objective": [
+    0,
+    -2,
+    0,
+    -3,
+    -2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      1,
+      -3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      -2,
+      2,
+      -3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -1,
+      2,
+      -3,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -3,
+    -2,
+    0
+   ],
+   "upper": [
+    3,
+    0,
+    -1,
+    1,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -9.0,
+   "objective_exact": "-9/1"
+  },
+  {
+   "name": "random_12",
+   "objective": [
+    -1,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 0
+    }
+   ],
+   "lower": [
+    -2,
+    -2
+   ],
+   "upper": [
+    3,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": -0.3333333333333333,
+   "objective_exact": "-1/3"
+  },
+  {
+   "name": "random_13",
+   "objective": [
+    1,
+    0,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      2,
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -5
+    }
+   ],
+   "lower": [
+    -1,
+    -2,
+    -1
+   ],
+   "upper": [
+    0,
+    0,
+    4
+   ],
+   "status": "optimal",
+   "objective_value": -1.0,
+   "objective_exact": "-1/1"
+  },
+  {
+   "name": "random_14",
+   "objective": [
+    4,
+    -3,
+    3,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -1,
+      -2
+     ],
+     "sense": "equal",
+     "rhs": -7
+    },
+    {
+     "coefficients": [
+      2,
+      3,
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      0,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    -2,
+    0
+   ],
+   "upper": [
+    -3,
+    2,
+    -2,
+    4
+   ],
+   "status": "optimal",
+   "objective_value": -21.0,
+   "objective_exact": "-21/1"
+  },
+  {
+   "name": "random_15",
+   "objective": [
+    1,
+    -2,
+    -2,
+    4,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      1,
+      -1,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -1,
+      3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    0,
+    -3,
+    -2
+   ],
+   "upper": [
+    -3,
+    2,
+    2,
+    2,
+    -2
+   ],
+   "status": "optimal",
+   "objective_value": -5.0,
+   "objective_exact": "-5/1"
+  },
+  {
+   "name": "random_16",
+   "objective": [
+    -4,
+    2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      3,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    -2,
+    -1
+   ],
+   "upper": [
+    1,
+    -1
+   ],
+   "status": "optimal",
+   "objective_value": 2.0,
+   "objective_exact": "2/1"
+  },
+  {
+   "name": "random_17",
+   "objective": [
+    -3,
+    -2,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      3,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -14
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -10
+    },
+    {
+     "coefficients": [
+      3,
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -15
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    0
+   ],
+   "upper": [
+    4,
+    -2,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -2.4615384615384617,
+   "objective_exact": "-32/13"
+  },
+  {
+   "name": "random_18",
+   "objective": [
+    2,
+    -3,
+    3,
+    3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -1,
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 11
+    },
+    {
+     "coefficients": [
+      3,
+      1,
+      0,
+      -1
+     ],
+     "sense": "equal",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -3,
+    -2
+   ],
+   "upper": [
+    3,
+    0,
+    2,
+    1
+   ],
+   "status": "optimal",
+   "objective_value": -13.0,
+   "objective_exact": "-13/1"
+  },
+  {
+   "name": "random_19",
+   "objective": [
+    2,
+    -4,
+    1,
+    0,
+    2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -1,
+      -2,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      -2,
+      3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -3,
+      -3,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "equal",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      2,
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    -3,
+    -2,
+    -1
+   ],
+   "upper": [
+    1,
+    1,
+    -1,
+    0,
+    0
+   ],
+   "status": "optimal",
+   "objective_value": -7.666666666666667,
+   "objective_exact": "-23/3"
+  },
+  {
+   "name": "random_20",
+   "objective": [
+    2,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -12
+    },
+    {
+     "coefficients": [
+      -2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    }
+   ],
+   "lower": [
+    -3,
+    -1
+   ],
+   "upper": [
+    -2,
+    1
+   ],
+   "status": "optimal",
+   "objective_value": -6.0,
+   "objective_exact": "-6/1"
+  },
+  {
+   "name": "random_21",
+   "objective": [
+    0,
+    4,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      3,
+      0,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 13
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -8
+    },
+    {
+     "coefficients": [
+      -2,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -17
+    }
+   ],
+   "lower": [
+    0,
+    -3,
+    -3
+   ],
+   "upper": [
+    5,
+    1,
+    -3
+   ],
+   "status": "optimal",
+   "objective_value": 0.0,
+   "objective_exact": "0/1"
+  },
+  {
+   "name": "random_22",
+   "objective": [
+    3,
+    1,
+    -2,
+    2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      -1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -5
+    },
+    {
+     "coefficients": [
+      2,
+      2,
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      -3,
+      1,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 11
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -1,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      -3,
+      1,
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 12
+    }
+   ],
+   "lower": [
+    -2,
+    -2,
+    -3,
+    -3
+   ],
+   "upper": [
+    -1,
+    -2,
+    -3,
+    -2
+   ],
+   "status": "optimal",
+   "objective_value": -8.0,
+   "objective_exact": "-8/1"
+  },
+  {
+   "name": "random_23",
+   "objective": [
+    0,
+    1,
+    4,
+    4,
+    4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      3,
+      2,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      3,
+      -2,
+      1,
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      -2,
+      3,
+      3,
+      -1,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      -2,
+      0,
+      -3
+     ],
+     "sense": "equal",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -3,
+      -1,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      0,
+      2,
+      -3,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -3,
+    -3,
+    -1
+   ],
+   "upper": [
+    -1,
+    -3,
+    0,
+    -2,
+    3
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "random_24",
+   "objective": [
+    -4,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      1,
+      -1
+     ],
+     "sense": "equal",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    }
+   ],
+   "lower": [
+    -1,
+    0
+   ],
+   "upper": [
+    3,
+    4
+   ],
+   "status": "optimal",
+   "objective_value": -16.0,
+   "objective_exact": "-16/1"
+  },
+  {
+   "name": "random_25",
+   "objective": [
+    1,
+    -2,
+    2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -3,
+      -2,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      -3,
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -30
+    },
+    {
+     "coefficients": [
+      0,
+      3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    }
+   ],
+   "lower": [
+    0,
+    -2,
+    -3
+   ],
+   "upper": [
+    5,
+    -1,
+    1
+   ],
+   "status": "optimal",
+   "objective_value": -4.0,
+   "objective_exact": "-4/1"
+  },
+  {
+   "name": "random_26",
+   "objective": [
+    1,
+    4,
+    -1,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      -3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      3,
+      0,
+      -1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      2,
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 14
+    }
+   ],
+   "lower": [
+    -1,
+    0,
+    0,
+    -3
+   ],
+   "upper": [
+    4,
+    3,
+    4,
+    -2
+   ],
+   "status": "optimal",
+   "objective_value": 17.0,
+   "objective_exact": "17/1"
+  },
+  {
+   "name": "random_27",
+   "objective": [
+    -4,
+    1,
+    -4,
+    -3,
+    3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -1,
+      2,
+      -2,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      2,
+      -1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      -3,
+      -1,
+      3,
+      0,
+      1
+     ],
+     "sense": "equal",
+     "rhs": -4
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    0,
+    -1,
+    -2
+   ],
+   "upper": [
+    -2,
+    4,
+    1,
+    2,
+    0
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "random_28",
+   "objective": [
+    4,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    }
+   ],
+   "lower": [
+    -3,
+    -1
+   ],
+   "upper": [
+    0,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -19.0,
+   "objective_exact": "-19/1"
+  },
+  {
+   "name": "random_29",
+   "objective": [
+    -1,
+    3,
+    -4
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      2
+     ],
+     "sense": "equal",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      -2,
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    0
+   ],
+   "upper": [
+    2,
+    2,
+    5
+   ],
+   "status": "optimal",
+   "objective_value": -21.0,
+   "objective_exact": "-21/1"
+  },
+  {
+   "name": "random_30",
+   "objective": [
+    1,
+    3,
+    -1,
+    2
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -3,
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -3,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      -3,
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    }
+   ],
+   "lower": [
+    -3,
+    -2,
+    0,
+    -3
+   ],
+   "upper": [
+    0,
+    -1,
+    2,
+    0
+   ],
+   "status": "optimal",
+   "objective_value": -13.0,
+   "objective_exact": "-13/1"
+  },
+  {
+   "name": "random_31",
+   "objective": [
+    3,
+    2,
+    -3,
+    -1,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      -1,
+      -3,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      2,
+      1,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      2,
+      1,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      2,
+      -3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      3,
+      -2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 7
+    }
+   ],
+   "lower": [
+    -2,
+    -3,
+    -2,
+    -1,
+    -3
+   ],
+   "upper": [
+    0,
+    -1,
+    1,
+    0,
+    -2
+   ],
+   "status": "infeasible"
+  },
+  {
+   "name": "random_32",
+   "objective": [
+    1,
+    1
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      -3,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": -6
+    }
+   ],
+   "lower": [
+    -1,
+    -2
+   ],
+   "upper": [
+    1,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": 2.0,
+   "objective_exact": "2/1"
+  },
+  {
+   "name": "random_33",
+   "objective": [
+    -2,
+    -3,
+    0
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    }
+   ],
+   "lower": [
+    -2,
+    -2,
+    -3
+   ],
+   "upper": [
+    1,
+    -1,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": 1.0,
+   "objective_exact": "1/1"
+  },
+  {
+   "name": "random_34",
+   "objective": [
+    4,
+    -2,
+    3,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      -3,
+      -1,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      -3,
+      3,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      -1,
+      -2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    0,
+    -3
+   ],
+   "upper": [
+    -1,
+    1,
+    0,
+    2
+   ],
+   "status": "optimal",
+   "objective_value": -11.833333333333334,
+   "objective_exact": "-71/6"
+  },
+  {
+   "name": "random_35",
+   "objective": [
+    1,
+    -1,
+    -1,
+    3,
+    -3
+   ],
+   "constraints": [
+    {
+     "coefficients": [
+      -3,
+      -2,
+      -1,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -1,
+      -1,
+      -2,
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      -3,
+      -3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      3,
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    0,
+    -2,
+    -1
+   ],
+   "upper": [
+    0,
+    0,
+    2,
+    2,
+    3
+   ],
+   "status": "optimal",
+   "objective_value": -10.666666666666666,
+   "objective_exact": "-32/3"
+  }
+ ],
+ "polytopes": [
+  {
+   "name": "random_00",
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -3,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -11
+    },
+    {
+     "coefficients": [
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      3,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -2,
+    -1
+   ],
+   "upper": [
+    3,
+    -1
+   ],
+   "vertices": [
+    [
+     2.0,
+     -1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "2/1",
+     "-1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_01",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      0,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -10
+    },
+    {
+     "coefficients": [
+      -2,
+      -2,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -2
+   ],
+   "upper": [
+    0,
+    5,
+    1
+   ],
+   "vertices": [
+    [
+     -2.0,
+     2.0,
+     -2.0
+    ],
+    [
+     -2.0,
+     2.2222222222222223,
+     -1.6666666666666667
+    ],
+    [
+     -2.0,
+     2.5,
+     -1.6666666666666667
+    ],
+    [
+     -2.0,
+     3.0,
+     -2.0
+    ],
+    [
+     -1.0,
+     2.0,
+     -2.0
+    ],
+    [
+     -1.0,
+     3.0,
+     -2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "20/9",
+     "-5/3"
+    ],
+    [
+     "-2/1",
+     "5/2",
+     "-5/3"
+    ],
+    [
+     "-2/1",
+     "3/1",
+     "-2/1"
+    ],
+    [
+     "-1/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "-1/1",
+     "3/1",
+     "-2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_02",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0,
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      -2,
+      -3,
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 15
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      -3,
+      -2,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -2,
+      3
+     ],
+     "sense": "equal",
+     "rhs": -8
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 11
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    -2,
+    -3
+   ],
+   "upper": [
+    2,
+    2,
+    -2,
+    2
+   ],
+   "vertices": [
+    [
+     -1.5,
+     0.3333333333333333,
+     -2.0,
+     -2.8333333333333335
+    ],
+    [
+     -1.3333333333333333,
+     0.3333333333333333,
+     -2.0,
+     -3.0
+    ],
+    [
+     -0.5,
+     -1.0,
+     -2.0,
+     -2.5
+    ],
+    [
+     0.0,
+     -1.0,
+     -2.0,
+     -3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/2",
+     "1/3",
+     "-2/1",
+     "-17/6"
+    ],
+    [
+     "-4/3",
+     "1/3",
+     "-2/1",
+     "-3/1"
+    ],
+    [
+     "-1/2",
+     "-1/1",
+     "-2/1",
+     "-5/2"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "-2/1",
+     "-3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_03",
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      1,
+      0,
+      -1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      1,
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      -3,
+      -3,
+      2
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      -1,
+      3,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      -1,
+      3,
+      3,
+      -2,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      -1,
+      2,
+      -2,
+      -2,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    -2,
+    -3,
+    -3,
+    0,
+    0
+   ],
+   "upper": [
+    0,
+    0,
+    -2,
+    1,
+    5
+   ],
+   "vertices": [
+    [
+     -1.9230769230769231,
+     -3.0,
+     -3.0,
+     0.8461538461538461,
+     2.230769230769231
+    ],
+    [
+     -1.8888888888888888,
+     -2.7777777777777777,
+     -3.0,
+     1.0,
+     2.3333333333333335
+    ],
+    [
+     -1.6666666666666667,
+     -2.3333333333333335,
+     -3.0,
+     1.0,
+     2.0
+    ],
+    [
+     -1.5,
+     -3.0,
+     -3.0,
+     0.0,
+     0.75
+    ],
+    [
+     -1.5,
+     -3.0,
+     -2.2142857142857144,
+     0.0,
+     1.9285714285714286
+    ],
+    [
+     -1.5,
+     -2.0,
+     -2.5,
+     1.0,
+     2.5
+    ],
+    [
+     -1.4,
+     -2.8,
+     -3.0,
+     0.0,
+     0.6
+    ],
+    [
+     -1.3333333333333333,
+     -2.6666666666666665,
+     -2.0,
+     0.0,
+     2.0
+    ],
+    [
+     -1.2121212121212122,
+     -1.878787878787879,
+     -2.0,
+     0.5454545454545454,
+     2.3636363636363638
+    ],
+    [
+     -1.0666666666666667,
+     -2.1333333333333333,
+     -2.0,
+     0.0,
+     1.6
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-25/13",
+     "-3/1",
+     "-3/1",
+     "11/13",
+     "29/13"
+    ],
+    [
+     "-17/9",
+     "-25/9",
+     "-3/1",
+     "1/1",
+     "7/3"
+    ],
+    [
+     "-5/3",
+     "-7/3",
+     "-3/1",
+     "1/1",
+     "2/1"
+    ],
+    [
+     "-3/2",
+     "-3/1",
+     "-3/1",
+     "0/1",
+     "3/4"
+    ],
+    [
+     "-3/2",
+     "-3/1",
+     "-31/14",
+     "0/1",
+     "27/14"
+    ],
+    [
+     "-3/2",
+     "-2/1",
+     "-5/2",
+     "1/1",
+     "5/2"
+    ],
+    [
+     "-7/5",
+     "-14/5",
+     "-3/1",
+     "0/1",
+     "3/5"
+    ],
+    [
+     "-4/3",
+     "-8/3",
+     "-2/1",
+     "0/1",
+     "2/1"
+    ],
+    [
+     "-40/33",
+     "-62/33",
+     "-2/1",
+     "6/11",
+     "26/11"
+    ],
+    [
+     "-16/15",
+     "-32/15",
+     "-2/1",
+     "0/1",
+     "8/5"
+    ]
+   ]
+  },
+  {
+   "name": "random_04",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    0,
+    2
+   ],
+   "vertices": [
+    [
+     0.0,
+     2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_05",
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -3
+   ],
+   "upper": [
+    2,
+    2,
+    -2
+   ],
+   "vertices": [
+    [
+     -2.0,
+     0.0,
+     -3.0
+    ],
+    [
+     -2.0,
+     0.0,
+     -2.0
+    ],
+    [
+     -2.0,
+     1.0,
+     -2.0
+    ],
+    [
+     -2.0,
+     2.0,
+     -3.0
+    ],
+    [
+     -1.0,
+     2.0,
+     -2.0
+    ],
+    [
+     2.0,
+     0.0,
+     -3.0
+    ],
+    [
+     2.0,
+     0.0,
+     -2.0
+    ],
+    [
+     2.0,
+     2.0,
+     -3.0
+    ],
+    [
+     2.0,
+     2.0,
+     -2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "-2/1",
+     "0/1",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "1/1",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "2/1",
+     "-3/1"
+    ],
+    [
+     "-1/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "-2/1"
+    ],
+    [
+     "2/1",
+     "2/1",
+     "-3/1"
+    ],
+    [
+     "2/1",
+     "2/1",
+     "-2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_06",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      0,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -3,
+      1,
+      2,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      -1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      0,
+      3,
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    -3,
+    0
+   ],
+   "upper": [
+    -1,
+    1,
+    -1,
+    2
+   ],
+   "vertices": [
+    [
+     -3.0,
+     0.0,
+     -3.0,
+     1.0
+    ],
+    [
+     -3.0,
+     1.0,
+     -2.0,
+     0.3333333333333333
+    ],
+    [
+     -2.5,
+     1.0,
+     -2.25,
+     0.25
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "0/1",
+     "-3/1",
+     "1/1"
+    ],
+    [
+     "-3/1",
+     "1/1",
+     "-2/1",
+     "1/3"
+    ],
+    [
+     "-5/2",
+     "1/1",
+     "-9/4",
+     "1/4"
+    ]
+   ]
+  },
+  {
+   "name": "random_07",
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      -1,
+      -2,
+      1,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      -2,
+      0,
+      -2,
+      -3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -2,
+    -1,
+    0,
+    -2,
+    -2
+   ],
+   "upper": [
+    -1,
+    4,
+    0,
+    3,
+    0
+   ],
+   "vertices": [
+    [
+     -2.0,
+     -1.0,
+     0.0,
+     -2.0,
+     -2.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     0.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     0.0,
+     -0.3333333333333333,
+     -2.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     0.0,
+     0.3333333333333333,
+     0.0
+    ],
+    [
+     -2.0,
+     -0.6666666666666666,
+     0.0,
+     0.3333333333333333,
+     0.0
+    ],
+    [
+     -2.0,
+     1.0,
+     0.0,
+     -2.0,
+     -2.0
+    ],
+    [
+     -2.0,
+     2.6666666666666665,
+     0.0,
+     -0.3333333333333333,
+     -2.0
+    ],
+    [
+     -1.875,
+     -1.0,
+     0.0,
+     0.25,
+     0.0
+    ],
+    [
+     -1.0,
+     -1.0,
+     0.0,
+     -2.0,
+     -2.0
+    ],
+    [
+     -1.0,
+     -1.0,
+     0.0,
+     -1.0,
+     -2.0
+    ],
+    [
+     -1.0,
+     -1.0,
+     0.0,
+     -0.8,
+     -1.4
+    ],
+    [
+     -1.0,
+     0.0,
+     0.0,
+     -1.0,
+     -2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "-1/1",
+     "0/1",
+     "-2/1",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "0/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "0/1",
+     "-1/3",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "0/1",
+     "1/3",
+     "0/1"
+    ],
+    [
+     "-2/1",
+     "-2/3",
+     "0/1",
+     "1/3",
+     "0/1"
+    ],
+    [
+     "-2/1",
+     "1/1",
+     "0/1",
+     "-2/1",
+     "-2/1"
+    ],
+    [
+     "-2/1",
+     "8/3",
+     "0/1",
+     "-1/3",
+     "-2/1"
+    ],
+    [
+     "-15/8",
+     "-1/1",
+     "0/1",
+     "1/4",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-1/1",
+     "0/1",
+     "-2/1",
+     "-2/1"
+    ],
+    [
+     "-1/1",
+     "-1/1",
+     "0/1",
+     "-1/1",
+     "-2/1"
+    ],
+    [
+     "-1/1",
+     "-1/1",
+     "0/1",
+     "-4/5",
+     "-7/5"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "0/1",
+     "-1/1",
+     "-2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_08",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      0,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 8
+    }
+   ],
+   "lower": [
+    -1,
+    0
+   ],
+   "upper": [
+    3,
+    2
+   ],
+   "vertices": [
+    [
+     0.6666666666666666,
+     2.0
+    ],
+    [
+     2.6666666666666665,
+     0.0
+    ],
+    [
+     3.0,
+     0.0
+    ],
+    [
+     3.0,
+     2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "2/3",
+     "2/1"
+    ],
+    [
+     "8/3",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_09",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      2,
+      -3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -18
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    },
+    {
+     "coefficients": [
+      -3,
+      -1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    -2
+   ],
+   "upper": [
+    2,
+    2,
+    3
+   ],
+   "vertices": [
+    [
+     -3.0,
+     2.0,
+     3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "2/1",
+     "3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_10",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -3,
+      3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 20
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -11
+    },
+    {
+     "coefficients": [
+      0,
+      -1,
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      2,
+      2,
+      -2,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -2,
+    -1
+   ],
+   "upper": [
+    3,
+    -3,
+    3,
+    1
+   ],
+   "vertices": [
+    [
+     1.0,
+     -3.0,
+     3.0,
+     -1.0
+    ],
+    [
+     2.25,
+     -3.0,
+     1.75,
+     -1.0
+    ],
+    [
+     3.0,
+     -3.0,
+     2.5,
+     -1.0
+    ],
+    [
+     3.0,
+     -3.0,
+     3.0,
+     -1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "1/1",
+     "-3/1",
+     "3/1",
+     "-1/1"
+    ],
+    [
+     "9/4",
+     "-3/1",
+     "7/4",
+     "-1/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "5/2",
+     "-1/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "3/1",
+     "-1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_11",
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      1,
+      -3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      -2,
+      2,
+      -3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -1,
+      2,
+      -3,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -3,
+    -2,
+    0
+   ],
+   "upper": [
+    3,
+    0,
+    -1,
+    1,
+    3
+   ],
+   "vertices": [
+    [
+     -1.0,
+     -3.0,
+     -3.0,
+     0.6666666666666666,
+     0.0
+    ],
+    [
+     -1.0,
+     -3.0,
+     -3.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -3.0,
+     -3.0,
+     1.0,
+     0.5
+    ],
+    [
+     -1.0,
+     -3.0,
+     -2.5,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -2.8333333333333335,
+     -3.0,
+     1.0,
+     0.6666666666666666
+    ],
+    [
+     -1.0,
+     -2.5,
+     -3.0,
+     0.3333333333333333,
+     0.0
+    ],
+    [
+     -1.0,
+     -2.5,
+     -3.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -1.5,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -0.16666666666666666,
+     -1.0,
+     1.0,
+     1.3333333333333333
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.3333333333333333,
+     -0.2222222222222222,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.3333333333333333,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.0,
+     0.6666666666666666,
+     1.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.0,
+     1.0,
+     1.0
+    ],
+    [
+     -0.42105263157894735,
+     -2.210526315789474,
+     -3.0,
+     -0.05263157894736842,
+     0.0
+    ],
+    [
+     0.0,
+     -2.0,
+     -3.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0,
+     1.0,
+     2.0
+    ],
+    [
+     0.0625,
+     0.0,
+     -1.6875,
+     -0.8125,
+     0.0
+    ],
+    [
+     0.14285714285714285,
+     -3.0,
+     -3.0,
+     0.2857142857142857,
+     0.0
+    ],
+    [
+     0.5,
+     -3.0,
+     -3.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.6666666666666666,
+     0.0,
+     -1.8888888888888888,
+     1.0,
+     0.0
+    ],
+    [
+     1.1428571428571428,
+     0.0,
+     -1.0,
+     -0.7142857142857143,
+     0.0
+    ],
+    [
+     1.6,
+     0.0,
+     -1.2,
+     1.0,
+     3.0
+    ],
+    [
+     2.0,
+     -3.0,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     2.0,
+     0.0,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     2.0,
+     0.0,
+     -1.0,
+     1.0,
+     3.0
+    ],
+    [
+     2.5,
+     -2.25,
+     -3.0,
+     1.0,
+     3.0
+    ],
+    [
+     2.8947368421052633,
+     -2.0526315789473686,
+     -3.0,
+     0.7368421052631579,
+     3.0
+    ],
+    [
+     3.0,
+     -3.0,
+     -3.0,
+     1.0,
+     2.5
+    ],
+    [
+     3.0,
+     -3.0,
+     -1.3333333333333333,
+     1.0,
+     0.0
+    ],
+    [
+     3.0,
+     -3.0,
+     -1.1818181818181819,
+     0.5454545454545454,
+     0.0
+    ],
+    [
+     3.0,
+     -3.0,
+     -1.0,
+     0.6666666666666666,
+     0.0
+    ],
+    [
+     3.0,
+     -3.0,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     3.0,
+     -3.0,
+     -1.0,
+     1.0,
+     0.5
+    ],
+    [
+     3.0,
+     -2.6,
+     -1.0,
+     0.4,
+     0.0
+    ],
+    [
+     3.0,
+     -2.5,
+     -3.0,
+     1.0,
+     3.0
+    ],
+    [
+     3.0,
+     -2.2,
+     -3.0,
+     0.8,
+     3.0
+    ],
+    [
+     3.0,
+     -2.0,
+     -3.0,
+     1.0,
+     3.0
+    ],
+    [
+     3.0,
+     -2.0,
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     3.0,
+     -1.5714285714285714,
+     -2.7142857142857144,
+     0.5714285714285714,
+     3.0
+    ],
+    [
+     3.0,
+     -0.5,
+     -1.0,
+     1.0,
+     3.0
+    ],
+    [
+     3.0,
+     0.0,
+     -1.8888888888888888,
+     1.0,
+     2.3333333333333335
+    ],
+    [
+     3.0,
+     0.0,
+     -1.7714285714285714,
+     -0.05714285714285714,
+     2.6857142857142855
+    ],
+    [
+     3.0,
+     0.0,
+     -1.6666666666666667,
+     0.2222222222222222,
+     3.0
+    ],
+    [
+     3.0,
+     0.0,
+     -1.6666666666666667,
+     1.0,
+     3.0
+    ],
+    [
+     3.0,
+     0.0,
+     -1.0,
+     -0.25,
+     1.625
+    ],
+    [
+     3.0,
+     0.0,
+     -1.0,
+     0.6666666666666666,
+     3.0
+    ],
+    [
+     3.0,
+     0.0,
+     -1.0,
+     1.0,
+     1.0
+    ],
+    [
+     3.0,
+     0.0,
+     -1.0,
+     1.0,
+     3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-1/1",
+     "-3/1",
+     "-3/1",
+     "2/3",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-3/1",
+     "-3/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-3/1",
+     "-3/1",
+     "1/1",
+     "1/2"
+    ],
+    [
+     "-1/1",
+     "-3/1",
+     "-5/2",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-17/6",
+     "-3/1",
+     "1/1",
+     "2/3"
+    ],
+    [
+     "-1/1",
+     "-5/2",
+     "-3/1",
+     "1/3",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-5/2",
+     "-3/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-3/2",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-1/6",
+     "-1/1",
+     "1/1",
+     "4/3"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-4/3",
+     "-2/9",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-4/3",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-1/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-1/1",
+     "2/3",
+     "1/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "1/1"
+    ],
+    [
+     "-8/19",
+     "-42/19",
+     "-3/1",
+     "-1/19",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "-3/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "2/1"
+    ],
+    [
+     "1/16",
+     "0/1",
+     "-27/16",
+     "-13/16",
+     "0/1"
+    ],
+    [
+     "1/7",
+     "-3/1",
+     "-3/1",
+     "2/7",
+     "0/1"
+    ],
+    [
+     "1/2",
+     "-3/1",
+     "-3/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "2/3",
+     "0/1",
+     "-17/9",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "8/7",
+     "0/1",
+     "-1/1",
+     "-5/7",
+     "0/1"
+    ],
+    [
+     "8/5",
+     "0/1",
+     "-6/5",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "2/1",
+     "-3/1",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "5/2",
+     "-9/4",
+     "-3/1",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "55/19",
+     "-39/19",
+     "-3/1",
+     "14/19",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-3/1",
+     "1/1",
+     "5/2"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-4/3",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-13/11",
+     "6/11",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-1/1",
+     "2/3",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-3/1",
+     "-1/1",
+     "1/1",
+     "1/2"
+    ],
+    [
+     "3/1",
+     "-13/5",
+     "-1/1",
+     "2/5",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-5/2",
+     "-3/1",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "-11/5",
+     "-3/1",
+     "4/5",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "-2/1",
+     "-3/1",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "-2/1",
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "-11/7",
+     "-19/7",
+     "4/7",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "-1/2",
+     "-1/1",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-17/9",
+     "1/1",
+     "7/3"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-62/35",
+     "-2/35",
+     "94/35"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-5/3",
+     "2/9",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-5/3",
+     "1/1",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-1/1",
+     "-1/4",
+     "13/8"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-1/1",
+     "2/3",
+     "3/1"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "1/1"
+    ],
+    [
+     "3/1",
+     "0/1",
+     "-1/1",
+     "1/1",
+     "3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_12",
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      -2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 0
+    }
+   ],
+   "lower": [
+    -2,
+    -2
+   ],
+   "upper": [
+    3,
+    2
+   ],
+   "vertices": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     0.16666666666666666
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "0/1"
+    ],
+    [
+     "1/2",
+     "1/6"
+    ]
+   ]
+  },
+  {
+   "name": "random_13",
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      2,
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -5
+    }
+   ],
+   "lower": [
+    -1,
+    -2,
+    -1
+   ],
+   "upper": [
+    0,
+    0,
+    4
+   ],
+   "vertices": [
+    [
+     -1.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     -1.0,
+     -2.0,
+     0.3333333333333333
+    ],
+    [
+     -1.0,
+     0.0,
+     -1.0
+    ],
+    [
+     -1.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     0.0,
+     -2.0,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     -1.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.6666666666666667
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-1/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "-1/1",
+     "-2/1",
+     "1/3"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "-1/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "5/3"
+    ]
+   ]
+  },
+  {
+   "name": "random_14",
+   "constraints": [
+    {
+     "coefficients": [
+      -2,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -1,
+      -2
+     ],
+     "sense": "equal",
+     "rhs": -7
+    },
+    {
+     "coefficients": [
+      2,
+      3,
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      0,
+      0
+     ],
+     "sense": "equal",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      2,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      -3,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    -2,
+    0
+   ],
+   "upper": [
+    -3,
+    2,
+    -2,
+    4
+   ],
+   "vertices": [
+    [
+     -3.0,
+     1.7142857142857142,
+     -2.0,
+     2.5714285714285716
+    ],
+    [
+     -3.0,
+     2.0,
+     -2.0,
+     3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "12/7",
+     "-2/1",
+     "18/7"
+    ],
+    [
+     "-3/1",
+     "2/1",
+     "-2/1",
+     "3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_15",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      1,
+      -1,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      3,
+      3,
+      -1,
+      3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 5
+    }
+   ],
+   "lower": [
+    -3,
+    -1,
+    0,
+    -3,
+    -2
+   ],
+   "upper": [
+    -3,
+    2,
+    2,
+    2,
+    -2
+   ],
+   "vertices": [
+    [
+     -3.0,
+     1.3333333333333333,
+     0.0,
+     2.0,
+     -2.0
+    ],
+    [
+     -3.0,
+     2.0,
+     0.0,
+     1.3333333333333333,
+     -2.0
+    ],
+    [
+     -3.0,
+     2.0,
+     0.0,
+     2.0,
+     -2.0
+    ],
+    [
+     -3.0,
+     2.0,
+     2.0,
+     2.0,
+     -2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "4/3",
+     "0/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "-3/1",
+     "2/1",
+     "0/1",
+     "4/3",
+     "-2/1"
+    ],
+    [
+     "-3/1",
+     "2/1",
+     "0/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "-3/1",
+     "2/1",
+     "2/1",
+     "2/1",
+     "-2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_16",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      3,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    -2,
+    -1
+   ],
+   "upper": [
+    1,
+    -1
+   ],
+   "vertices": [
+    [
+     -2.0,
+     -1.0
+    ],
+    [
+     -1.0,
+     -1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "-1/1",
+     "-1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_17",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      -1,
+      3,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -14
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -10
+    },
+    {
+     "coefficients": [
+      3,
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -15
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    0
+   ],
+   "upper": [
+    4,
+    -2,
+    3
+   ],
+   "vertices": [
+    [
+     -1.0,
+     -2.0,
+     2.6666666666666665
+    ],
+    [
+     -0.6,
+     -3.0,
+     2.4
+    ],
+    [
+     0.0,
+     -3.0,
+     2.0
+    ],
+    [
+     0.25,
+     -2.9166666666666665,
+     1.8333333333333333
+    ],
+    [
+     0.46153846153846156,
+     -2.0,
+     1.6923076923076923
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-1/1",
+     "-2/1",
+     "8/3"
+    ],
+    [
+     "-3/5",
+     "-3/1",
+     "12/5"
+    ],
+    [
+     "0/1",
+     "-3/1",
+     "2/1"
+    ],
+    [
+     "1/4",
+     "-35/12",
+     "11/6"
+    ],
+    [
+     "6/13",
+     "-2/1",
+     "22/13"
+    ]
+   ]
+  },
+  {
+   "name": "random_18",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      -1,
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 11
+    },
+    {
+     "coefficients": [
+      3,
+      1,
+      0,
+      -1
+     ],
+     "sense": "equal",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    -2,
+    0,
+    -3,
+    -2
+   ],
+   "upper": [
+    3,
+    0,
+    2,
+    1
+   ],
+   "vertices": [
+    [
+     1.0,
+     0.0,
+     -3.0,
+     -2.0
+    ],
+    [
+     1.0,
+     0.0,
+     2.0,
+     -2.0
+    ],
+    [
+     2.0,
+     0.0,
+     -3.0,
+     1.0
+    ],
+    [
+     2.0,
+     0.0,
+     2.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "1/1",
+     "0/1",
+     "-3/1",
+     "-2/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "2/1",
+     "-2/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "-3/1",
+     "1/1"
+    ],
+    [
+     "2/1",
+     "0/1",
+     "2/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_19",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -1,
+      -2,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 5
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      -2,
+      3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -3,
+      -3,
+      0,
+      -3,
+      -3
+     ],
+     "sense": "equal",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      2,
+      0,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    -3,
+    -2,
+    -1
+   ],
+   "upper": [
+    1,
+    1,
+    -1,
+    0,
+    0
+   ],
+   "vertices": [
+    [
+     0.0,
+     -1.0,
+     -2.5,
+     -0.3333333333333333,
+     -1.0
+    ],
+    [
+     0.0,
+     -1.0,
+     -2.0,
+     -1.3333333333333333,
+     0.0
+    ],
+    [
+     0.0,
+     -1.0,
+     -1.0,
+     -0.6666666666666666,
+     -0.6666666666666666
+    ],
+    [
+     0.0,
+     -1.0,
+     -1.0,
+     -0.3333333333333333,
+     -1.0
+    ],
+    [
+     0.0,
+     -0.6363636363636364,
+     -1.0,
+     -1.1515151515151516,
+     -0.5454545454545454
+    ],
+    [
+     0.0,
+     -0.5,
+     -1.75,
+     -1.8333333333333333,
+     0.0
+    ],
+    [
+     0.0,
+     -0.3333333333333333,
+     -2.3333333333333335,
+     -2.0,
+     0.0
+    ],
+    [
+     0.0,
+     -0.3333333333333333,
+     -2.0,
+     -2.0,
+     0.0
+    ],
+    [
+     0.0,
+     -0.3333333333333333,
+     -1.0,
+     -1.0,
+     -1.0
+    ],
+    [
+     0.0,
+     0.0,
+     -3.0,
+     -1.3333333333333333,
+     -1.0
+    ],
+    [
+     0.0,
+     0.3333333333333333,
+     -3.0,
+     -2.0,
+     -0.6666666666666666
+    ],
+    [
+     0.0,
+     0.6666666666666666,
+     -3.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     0.0,
+     0.6666666666666666,
+     -2.5,
+     -2.0,
+     -1.0
+    ],
+    [
+     0.2222222222222222,
+     -0.5555555555555556,
+     -2.0,
+     -2.0,
+     0.0
+    ],
+    [
+     0.3333333333333333,
+     -0.6666666666666666,
+     -2.1666666666666665,
+     -2.0,
+     0.0
+    ],
+    [
+     0.5,
+     -1.0,
+     -1.0,
+     -0.8333333333333334,
+     -1.0
+    ],
+    [
+     0.5555555555555556,
+     -0.8888888888888888,
+     -1.0,
+     -1.0,
+     -1.0
+    ],
+    [
+     0.6666666666666666,
+     0.0,
+     -3.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     1.0,
+     -1.0,
+     -2.5,
+     -1.3333333333333333,
+     -1.0
+    ],
+    [
+     1.0,
+     -1.0,
+     -2.25,
+     -1.8333333333333333,
+     -0.5
+    ],
+    [
+     1.0,
+     -1.0,
+     -1.5,
+     -1.3333333333333333,
+     -1.0
+    ],
+    [
+     1.0,
+     -0.8888888888888888,
+     -2.2777777777777777,
+     -2.0,
+     -0.4444444444444444
+    ],
+    [
+     1.0,
+     -0.8666666666666667,
+     -2.2333333333333334,
+     -2.0,
+     -0.4666666666666667
+    ],
+    [
+     1.0,
+     -0.3333333333333333,
+     -2.8333333333333335,
+     -2.0,
+     -1.0
+    ],
+    [
+     1.0,
+     -0.3333333333333333,
+     -2.5,
+     -2.0,
+     -1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "-1/1",
+     "-5/2",
+     "-1/3",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "-2/1",
+     "-4/3",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "-1/1",
+     "-2/3",
+     "-2/3"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "-1/1",
+     "-1/3",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "-7/11",
+     "-1/1",
+     "-38/33",
+     "-6/11"
+    ],
+    [
+     "0/1",
+     "-1/2",
+     "-7/4",
+     "-11/6",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/3",
+     "-7/3",
+     "-2/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/3",
+     "-2/1",
+     "-2/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/3",
+     "-1/1",
+     "-1/1",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "-3/1",
+     "-4/3",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "1/3",
+     "-3/1",
+     "-2/1",
+     "-2/3"
+    ],
+    [
+     "0/1",
+     "2/3",
+     "-3/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "2/3",
+     "-5/2",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "2/9",
+     "-5/9",
+     "-2/1",
+     "-2/1",
+     "0/1"
+    ],
+    [
+     "1/3",
+     "-2/3",
+     "-13/6",
+     "-2/1",
+     "0/1"
+    ],
+    [
+     "1/2",
+     "-1/1",
+     "-1/1",
+     "-5/6",
+     "-1/1"
+    ],
+    [
+     "5/9",
+     "-8/9",
+     "-1/1",
+     "-1/1",
+     "-1/1"
+    ],
+    [
+     "2/3",
+     "0/1",
+     "-3/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "-5/2",
+     "-4/3",
+     "-1/1"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "-9/4",
+     "-11/6",
+     "-1/2"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "-3/2",
+     "-4/3",
+     "-1/1"
+    ],
+    [
+     "1/1",
+     "-8/9",
+     "-41/18",
+     "-2/1",
+     "-4/9"
+    ],
+    [
+     "1/1",
+     "-13/15",
+     "-67/30",
+     "-2/1",
+     "-7/15"
+    ],
+    [
+     "1/1",
+     "-1/3",
+     "-17/6",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "1/1",
+     "-1/3",
+     "-5/2",
+     "-2/1",
+     "-1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_20",
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -12
+    },
+    {
+     "coefficients": [
+      -2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    }
+   ],
+   "lower": [
+    -3,
+    -1
+   ],
+   "upper": [
+    -2,
+    1
+   ],
+   "vertices": [
+    [
+     -3.0,
+     -1.0
+    ],
+    [
+     -3.0,
+     1.0
+    ],
+    [
+     -2.0,
+     -1.0
+    ],
+    [
+     -2.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "-1/1"
+    ],
+    [
+     "-3/1",
+     "1/1"
+    ],
+    [
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "-2/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_21",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      3,
+      0,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 13
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -8
+    },
+    {
+     "coefficients": [
+      -2,
+      -2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -17
+    }
+   ],
+   "lower": [
+    0,
+    -3,
+    -3
+   ],
+   "upper": [
+    5,
+    1,
+    -3
+   ],
+   "vertices": [
+    [
+     3.0,
+     1.0,
+     -3.0
+    ],
+    [
+     3.5,
+     1.0,
+     -3.0
+    ],
+    [
+     4.0,
+     0.0,
+     -3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "3/1",
+     "1/1",
+     "-3/1"
+    ],
+    [
+     "7/2",
+     "1/1",
+     "-3/1"
+    ],
+    [
+     "4/1",
+     "0/1",
+     "-3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_22",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      -1,
+      0
+     ],
+     "sense": "at_least",
+     "rhs": -5
+    },
+    {
+     "coefficients": [
+      2,
+      2,
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      -3,
+      1,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 11
+    },
+    {
+     "coefficients": [
+      0,
+      0,
+      2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -1,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      -3,
+      1,
+      0,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 12
+    }
+   ],
+   "lower": [
+    -2,
+    -2,
+    -3,
+    -3
+   ],
+   "upper": [
+    -1,
+    -2,
+    -3,
+    -2
+   ],
+   "vertices": [
+    [
+     -2.0,
+     -2.0,
+     -3.0,
+     -3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "-2/1",
+     "-3/1",
+     "-3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_23",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -3,
+      3,
+      2,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      3,
+      -2,
+      1,
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      -2,
+      3,
+      3,
+      -1,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      -2,
+      0,
+      -3
+     ],
+     "sense": "equal",
+     "rhs": 0
+    },
+    {
+     "coefficients": [
+      -2,
+      2,
+      -3,
+      -1,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      0,
+      2,
+      -3,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -1,
+    -3,
+    -3,
+    -3,
+    -1
+   ],
+   "upper": [
+    -1,
+    -3,
+    0,
+    -2,
+    3
+   ],
+   "vertices": [],
+   "vertices_exact": []
+  },
+  {
+   "name": "random_24",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      1,
+      -1
+     ],
+     "sense": "equal",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    }
+   ],
+   "lower": [
+    -1,
+    0
+   ],
+   "upper": [
+    3,
+    4
+   ],
+   "vertices": [
+    [
+     2.0,
+     0.0
+    ],
+    [
+     3.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "2/1",
+     "0/1"
+    ],
+    [
+     "3/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_25",
+   "constraints": [
+    {
+     "coefficients": [
+      -3,
+      -2,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      -3,
+      3,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": -30
+    },
+    {
+     "coefficients": [
+      0,
+      3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      2,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 8
+    }
+   ],
+   "lower": [
+    0,
+    -2,
+    -3
+   ],
+   "upper": [
+    5,
+    -1,
+    1
+   ],
+   "vertices": [
+    [
+     0.0,
+     -2.0,
+     -3.0
+    ],
+    [
+     0.0,
+     -2.0,
+     -1.0
+    ],
+    [
+     0.0,
+     -1.0,
+     -3.0
+    ],
+    [
+     0.0,
+     -1.0,
+     0.5
+    ],
+    [
+     3.5,
+     -1.0,
+     0.5
+    ],
+    [
+     4.666666666666667,
+     -2.0,
+     -1.0
+    ],
+    [
+     4.666666666666667,
+     -1.0,
+     -3.0
+    ],
+    [
+     5.0,
+     -2.0,
+     -3.0
+    ],
+    [
+     5.0,
+     -2.0,
+     -2.0
+    ],
+    [
+     5.0,
+     -1.5,
+     -3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "-2/1",
+     "-3/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "-3/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "1/2"
+    ],
+    [
+     "7/2",
+     "-1/1",
+     "1/2"
+    ],
+    [
+     "14/3",
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "14/3",
+     "-1/1",
+     "-3/1"
+    ],
+    [
+     "5/1",
+     "-2/1",
+     "-3/1"
+    ],
+    [
+     "5/1",
+     "-2/1",
+     "-2/1"
+    ],
+    [
+     "5/1",
+     "-3/2",
+     "-3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_26",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      -3,
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": -6
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      3,
+      0,
+      -1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      1,
+      2,
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": 14
+    }
+   ],
+   "lower": [
+    -1,
+    0,
+    0,
+    -3
+   ],
+   "upper": [
+    4,
+    3,
+    4,
+    -2
+   ],
+   "vertices": [
+    [
+     1.5,
+     3.0,
+     0.25,
+     -2.0
+    ],
+    [
+     1.5,
+     3.0,
+     2.25,
+     -2.0
+    ],
+    [
+     1.5714285714285714,
+     3.0,
+     0.0,
+     -2.142857142857143
+    ],
+    [
+     1.90625,
+     2.53125,
+     0.0,
+     -2.34375
+    ],
+    [
+     2.0,
+     2.0,
+     1.0,
+     -2.0
+    ],
+    [
+     2.0,
+     2.5384615384615383,
+     0.0,
+     -2.3076923076923075
+    ],
+    [
+     2.0,
+     3.0,
+     0.0,
+     -3.0
+    ],
+    [
+     2.0,
+     3.0,
+     0.0,
+     -2.0
+    ],
+    [
+     2.0,
+     3.0,
+     3.5,
+     -3.0
+    ],
+    [
+     2.235294117647059,
+     2.176470588235294,
+     0.7058823529411765,
+     -2.0
+    ],
+    [
+     2.32,
+     2.12,
+     0.96,
+     -2.0
+    ],
+    [
+     2.3684210526315788,
+     2.263157894736842,
+     2.5789473684210527,
+     -3.0
+    ],
+    [
+     2.5714285714285716,
+     3.0,
+     1.7142857142857142,
+     -2.0
+    ],
+    [
+     2.84,
+     2.44,
+     2.52,
+     -3.0
+    ],
+    [
+     3.0,
+     3.0,
+     3.0,
+     -3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "3/2",
+     "3/1",
+     "1/4",
+     "-2/1"
+    ],
+    [
+     "3/2",
+     "3/1",
+     "9/4",
+     "-2/1"
+    ],
+    [
+     "11/7",
+     "3/1",
+     "0/1",
+     "-15/7"
+    ],
+    [
+     "61/32",
+     "81/32",
+     "0/1",
+     "-75/32"
+    ],
+    [
+     "2/1",
+     "2/1",
+     "1/1",
+     "-2/1"
+    ],
+    [
+     "2/1",
+     "33/13",
+     "0/1",
+     "-30/13"
+    ],
+    [
+     "2/1",
+     "3/1",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "2/1",
+     "3/1",
+     "0/1",
+     "-2/1"
+    ],
+    [
+     "2/1",
+     "3/1",
+     "7/2",
+     "-3/1"
+    ],
+    [
+     "38/17",
+     "37/17",
+     "12/17",
+     "-2/1"
+    ],
+    [
+     "58/25",
+     "53/25",
+     "24/25",
+     "-2/1"
+    ],
+    [
+     "45/19",
+     "43/19",
+     "49/19",
+     "-3/1"
+    ],
+    [
+     "18/7",
+     "3/1",
+     "12/7",
+     "-2/1"
+    ],
+    [
+     "71/25",
+     "61/25",
+     "63/25",
+     "-3/1"
+    ],
+    [
+     "3/1",
+     "3/1",
+     "3/1",
+     "-3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_27",
+   "constraints": [
+    {
+     "coefficients": [
+      0,
+      -1,
+      2,
+      -2,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      2,
+      -1,
+      2,
+      -1,
+      0
+     ],
+     "sense": "equal",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      -3,
+      -1,
+      3,
+      0,
+      1
+     ],
+     "sense": "equal",
+     "rhs": -4
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    0,
+    -1,
+    -2
+   ],
+   "upper": [
+    -2,
+    4,
+    1,
+    2,
+    0
+   ],
+   "vertices": [],
+   "vertices_exact": []
+  },
+  {
+   "name": "random_28",
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      3,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      0,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 0
+    }
+   ],
+   "lower": [
+    -3,
+    -1
+   ],
+   "upper": [
+    0,
+    3
+   ],
+   "vertices": [
+    [
+     -2.5,
+     3.0
+    ],
+    [
+     -1.0,
+     3.0
+    ],
+    [
+     0.0,
+     0.5
+    ],
+    [
+     0.0,
+     1.5
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-5/2",
+     "3/1"
+    ],
+    [
+     "-1/1",
+     "3/1"
+    ],
+    [
+     "0/1",
+     "1/2"
+    ],
+    [
+     "0/1",
+     "3/2"
+    ]
+   ]
+  },
+  {
+   "name": "random_29",
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 9
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      2
+     ],
+     "sense": "equal",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      -2,
+      0,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": -3
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    0
+   ],
+   "upper": [
+    2,
+    2,
+    5
+   ],
+   "vertices": [
+    [
+     0.0,
+     -1.0,
+     2.0
+    ],
+    [
+     0.0,
+     2.0,
+     0.5
+    ],
+    [
+     2.0,
+     -1.0,
+     4.0
+    ],
+    [
+     2.0,
+     2.0,
+     2.5
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "-1/1",
+     "2/1"
+    ],
+    [
+     "0/1",
+     "2/1",
+     "1/2"
+    ],
+    [
+     "2/1",
+     "-1/1",
+     "4/1"
+    ],
+    [
+     "2/1",
+     "2/1",
+     "5/2"
+    ]
+   ]
+  },
+  {
+   "name": "random_30",
+   "constraints": [
+    {
+     "coefficients": [
+      -1,
+      -3,
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    },
+    {
+     "coefficients": [
+      0,
+      2,
+      -3,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": -1
+    },
+    {
+     "coefficients": [
+      2,
+      -3,
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    }
+   ],
+   "lower": [
+    -3,
+    -2,
+    0,
+    -3
+   ],
+   "upper": [
+    0,
+    -1,
+    2,
+    0
+   ],
+   "vertices": [
+    [
+     -3.0,
+     -1.3333333333333333,
+     0.0,
+     -3.0
+    ],
+    [
+     -3.0,
+     -1.3333333333333333,
+     0.0,
+     0.0
+    ],
+    [
+     -3.0,
+     -1.0,
+     0.0,
+     -3.0
+    ],
+    [
+     -3.0,
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     -3.0,
+     -1.0,
+     0.5,
+     -3.0
+    ],
+    [
+     -3.0,
+     -1.0,
+     0.5,
+     0.0
+    ],
+    [
+     -2.0,
+     -1.6666666666666667,
+     0.0,
+     -3.0
+    ],
+    [
+     -1.0,
+     -2.0,
+     0.0,
+     -2.0
+    ],
+    [
+     -1.0,
+     -2.0,
+     0.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -1.0,
+     0.0,
+     -3.0
+    ],
+    [
+     -1.0,
+     -1.0,
+     1.5,
+     -3.0
+    ],
+    [
+     0.0,
+     -2.0,
+     0.0,
+     -1.3333333333333333
+    ],
+    [
+     0.0,
+     -2.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     -2.0,
+     0.5,
+     -1.3333333333333333
+    ],
+    [
+     0.0,
+     -2.0,
+     0.5,
+     0.0
+    ],
+    [
+     0.0,
+     -1.0,
+     0.0,
+     -2.3333333333333335
+    ],
+    [
+     0.0,
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     -1.0,
+     2.0,
+     -2.3333333333333335
+    ],
+    [
+     0.0,
+     -1.0,
+     2.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-3/1",
+     "-4/3",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "-3/1",
+     "-4/3",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "-3/1",
+     "-1/1",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "-3/1",
+     "-1/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "-3/1",
+     "-1/1",
+     "1/2",
+     "-3/1"
+    ],
+    [
+     "-3/1",
+     "-1/1",
+     "1/2",
+     "0/1"
+    ],
+    [
+     "-2/1",
+     "-5/3",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "-1/1",
+     "-2/1",
+     "0/1",
+     "-2/1"
+    ],
+    [
+     "-1/1",
+     "-2/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-1/1",
+     "0/1",
+     "-3/1"
+    ],
+    [
+     "-1/1",
+     "-1/1",
+     "3/2",
+     "-3/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "0/1",
+     "-4/3"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "1/2",
+     "-4/3"
+    ],
+    [
+     "0/1",
+     "-2/1",
+     "1/2",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "0/1",
+     "-7/3"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "2/1",
+     "-7/3"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "2/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_31",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      -1,
+      -3,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -3,
+      0,
+      2,
+      1,
+      3
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      2,
+      1,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 8
+    },
+    {
+     "coefficients": [
+      1,
+      0,
+      2,
+      -3,
+      -2
+     ],
+     "sense": "at_least",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      3,
+      -2,
+      2
+     ],
+     "sense": "at_least",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      1,
+      -2,
+      2,
+      -1,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 7
+    }
+   ],
+   "lower": [
+    -2,
+    -3,
+    -2,
+    -1,
+    -3
+   ],
+   "upper": [
+    0,
+    -1,
+    1,
+    0,
+    -2
+   ],
+   "vertices": [],
+   "vertices_exact": []
+  },
+  {
+   "name": "random_32",
+   "constraints": [
+    {
+     "coefficients": [
+      2,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    },
+    {
+     "coefficients": [
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 4
+    },
+    {
+     "coefficients": [
+      -3,
+      3
+     ],
+     "sense": "equal",
+     "rhs": 6
+    },
+    {
+     "coefficients": [
+      0,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": -6
+    }
+   ],
+   "lower": [
+    -1,
+    -2
+   ],
+   "upper": [
+    1,
+    3
+   ],
+   "vertices": [
+    [
+     0.0,
+     2.0
+    ],
+    [
+     1.0,
+     3.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "2/1"
+    ],
+    [
+     "1/1",
+     "3/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_33",
+   "constraints": [
+    {
+     "coefficients": [
+      3,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 7
+    }
+   ],
+   "lower": [
+    -2,
+    -2,
+    -3
+   ],
+   "upper": [
+    1,
+    -1,
+    2
+   ],
+   "vertices": [
+    [
+     -2.0,
+     -2.0,
+     -3.0
+    ],
+    [
+     -2.0,
+     -2.0,
+     2.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     -3.0
+    ],
+    [
+     -2.0,
+     -1.0,
+     2.0
+    ],
+    [
+     1.0,
+     -2.0,
+     -3.0
+    ],
+    [
+     1.0,
+     -2.0,
+     2.0
+    ],
+    [
+     1.0,
+     -1.0,
+     -3.0
+    ],
+    [
+     1.0,
+     -1.0,
+     2.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "-2/1",
+     "-3/1"
+    ],
+    [
+     "-2/1",
+     "-2/1",
+     "2/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "-3/1"
+    ],
+    [
+     "-2/1",
+     "-1/1",
+     "2/1"
+    ],
+    [
+     "1/1",
+     "-2/1",
+     "-3/1"
+    ],
+    [
+     "1/1",
+     "-2/1",
+     "2/1"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "-3/1"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "2/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_34",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      -3,
+      -1,
+      -1
+     ],
+     "sense": "at_least",
+     "rhs": -4
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      1,
+      -3
+     ],
+     "sense": "at_least",
+     "rhs": -9
+    },
+    {
+     "coefficients": [
+      -3,
+      3,
+      2,
+      3
+     ],
+     "sense": "at_most",
+     "rhs": 10
+    },
+    {
+     "coefficients": [
+      0,
+      -3,
+      3,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -3
+    },
+    {
+     "coefficients": [
+      1,
+      -1,
+      -2,
+      -2
+     ],
+     "sense": "at_most",
+     "rhs": -2
+    }
+   ],
+   "lower": [
+    -3,
+    0,
+    0,
+    -3
+   ],
+   "upper": [
+    -1,
+    1,
+    0,
+    2
+   ],
+   "vertices": [
+    [
+     -2.0,
+     0.3333333333333333,
+     0.0,
+     1.0
+    ],
+    [
+     -1.8333333333333333,
+     0.0,
+     0.0,
+     1.5
+    ],
+    [
+     -1.3333333333333333,
+     0.0,
+     0.0,
+     2.0
+    ],
+    [
+     -1.0,
+     0.0,
+     0.0,
+     1.5
+    ],
+    [
+     -1.0,
+     0.0,
+     0.0,
+     2.0
+    ],
+    [
+     -1.0,
+     0.3333333333333333,
+     0.0,
+     2.0
+    ],
+    [
+     -1.0,
+     1.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "1/3",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "-11/6",
+     "0/1",
+     "0/1",
+     "3/2"
+    ],
+    [
+     "-4/3",
+     "0/1",
+     "0/1",
+     "2/1"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "0/1",
+     "3/2"
+    ],
+    [
+     "-1/1",
+     "0/1",
+     "0/1",
+     "2/1"
+    ],
+    [
+     "-1/1",
+     "1/3",
+     "0/1",
+     "2/1"
+    ],
+    [
+     "-1/1",
+     "1/1",
+     "0/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "random_35",
+   "constraints": [
+    {
+     "coefficients": [
+      -3,
+      -2,
+      -1,
+      0,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -1,
+      -1,
+      -2,
+      -1,
+      -3
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -2,
+      1,
+      -3,
+      -3,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -2,
+      -1,
+      3,
+      -2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 6
+    }
+   ],
+   "lower": [
+    0,
+    -1,
+    0,
+    -2,
+    -1
+   ],
+   "upper": [
+    0,
+    0,
+    2,
+    2,
+    3
+   ],
+   "vertices": [
+    [
+     0.0,
+     -1.0,
+     0.25,
+     -0.875,
+     0.125
+    ],
+    [
+     0.0,
+     -1.0,
+     0.5,
+     -1.75,
+     0.25
+    ],
+    [
+     0.0,
+     -1.0,
+     0.7307692307692307,
+     -1.4038461538461537,
+     -0.019230769230769232
+    ],
+    [
+     0.0,
+     -1.0,
+     0.7857142857142857,
+     -1.3214285714285714,
+     0.39285714285714285
+    ],
+    [
+     0.0,
+     -0.8571428571428571,
+     0.0,
+     -0.5714285714285714,
+     0.14285714285714285
+    ],
+    [
+     0.0,
+     -0.8387096774193549,
+     0.3870967741935484,
+     -2.0,
+     0.3548387096774194
+    ],
+    [
+     0.0,
+     -0.5,
+     0.0,
+     -2.0,
+     0.5
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     -2.0,
+     0.3333333333333333
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     -2.0,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     -0.4,
+     -0.2
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.6666666666666666,
+     -2.0,
+     -0.1111111111111111
+    ],
+    [
+     0.0,
+     0.0,
+     0.6666666666666666,
+     -2.0,
+     1.3333333333333333
+    ],
+    [
+     0.0,
+     0.0,
+     1.0,
+     -1.5,
+     -0.5
+    ],
+    [
+     0.0,
+     0.0,
+     1.2857142857142858,
+     -1.0714285714285714,
+     1.6428571428571428
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "-1/1",
+     "1/4",
+     "-7/8",
+     "1/8"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "1/2",
+     "-7/4",
+     "1/4"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "19/26",
+     "-73/52",
+     "-1/52"
+    ],
+    [
+     "0/1",
+     "-1/1",
+     "11/14",
+     "-37/28",
+     "11/28"
+    ],
+    [
+     "0/1",
+     "-6/7",
+     "0/1",
+     "-4/7",
+     "1/7"
+    ],
+    [
+     "0/1",
+     "-26/31",
+     "12/31",
+     "-2/1",
+     "11/31"
+    ],
+    [
+     "0/1",
+     "-1/2",
+     "0/1",
+     "-2/1",
+     "1/2"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "0/1",
+     "-2/1",
+     "1/3"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "0/1",
+     "-2/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "0/1",
+     "-2/5",
+     "-1/5"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "0/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "2/3",
+     "-2/1",
+     "-1/9"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "2/3",
+     "-2/1",
+     "4/3"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "1/1",
+     "-3/2",
+     "-1/2"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "9/7",
+     "-15/14",
+     "23/14"
+    ]
+   ]
+  },
+  {
+   "name": "unit_cube",
+   "constraints": [],
+   "lower": [
+    0,
+    0,
+    0
+   ],
+   "upper": [
+    1,
+    1,
+    1
+   ],
+   "vertices": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "1/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "1/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "standard_simplex",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    0,
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null,
+    null
+   ],
+   "vertices": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "cube_cut_by_plane",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    }
+   ],
+   "lower": [
+    0,
+    0,
+    0
+   ],
+   "upper": [
+    1,
+    1,
+    1
+   ],
+   "vertices": [
+    [
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0,
+     1.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     1.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "0/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "1/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "1/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "degenerate_pyramid",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      -1,
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      0,
+      -1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      2
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      1,
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    -1,
+    -1,
+    0
+   ],
+   "upper": [
+    1,
+    1,
+    null
+   ],
+   "vertices": [
+    [
+     -1.0,
+     -1.0,
+     0.0
+    ],
+    [
+     -1.0,
+     1.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     -1.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-1/1",
+     "-1/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "1/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "0/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "-1/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "1/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "square_with_duplicates",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    },
+    {
+     "coefficients": [
+      2,
+      0
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      0,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null
+   ],
+   "vertices": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "0/1"
+    ],
+    [
+     "0/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "0/1"
+    ],
+    [
+     "1/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "hexagon",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      -1,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 3
+    },
+    {
+     "coefficients": [
+      1,
+      -1
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    },
+    {
+     "coefficients": [
+      -1,
+      1
+     ],
+     "sense": "at_most",
+     "rhs": 2
+    }
+   ],
+   "lower": [
+    -2,
+    -2
+   ],
+   "upper": [
+    2,
+    2
+   ],
+   "vertices": [
+    [
+     -2.0,
+     -1.0
+    ],
+    [
+     -2.0,
+     0.0
+    ],
+    [
+     -1.0,
+     -2.0
+    ],
+    [
+     0.0,
+     -2.0
+    ],
+    [
+     0.0,
+     2.0
+    ],
+    [
+     1.0,
+     2.0
+    ],
+    [
+     2.0,
+     0.0
+    ],
+    [
+     2.0,
+     1.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "-2/1",
+     "-1/1"
+    ],
+    [
+     "-2/1",
+     "0/1"
+    ],
+    [
+     "-1/1",
+     "-2/1"
+    ],
+    [
+     "0/1",
+     "-2/1"
+    ],
+    [
+     "0/1",
+     "2/1"
+    ],
+    [
+     "1/1",
+     "2/1"
+    ],
+    [
+     "2/1",
+     "0/1"
+    ],
+    [
+     "2/1",
+     "1/1"
+    ]
+   ]
+  },
+  {
+   "name": "segment_from_equality",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "equal",
+     "rhs": 1
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    null,
+    null
+   ],
+   "vertices": [
+    [
+     0.0,
+     1.0
+    ],
+    [
+     1.0,
+     0.0
+    ]
+   ],
+   "vertices_exact": [
+    [
+     "0/1",
+     "1/1"
+    ],
+    [
+     "1/1",
+     "0/1"
+    ]
+   ]
+  },
+  {
+   "name": "empty_region",
+   "constraints": [
+    {
+     "coefficients": [
+      1,
+      1
+     ],
+     "sense": "at_least",
+     "rhs": 3
+    }
+   ],
+   "lower": [
+    0,
+    0
+   ],
+   "upper": [
+    1,
+    1
+   ],
+   "vertices": [],
+   "vertices_exact": []
+  }
+ ]
+}

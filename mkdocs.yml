@@ -49,6 +49,7 @@ nav:
   - From day zero to publication: tutorials/research-from-day-zero.md
   - From a new experiment to the next study: tutorials/experiment-to-next-study.md
   - Stop, continue or run longer: tutorials/decide-under-uncertainty.md
+  - Choose a discount when the cost of a return is a range: tutorials/decide-across-trade-offs.md
   - Replay and current decisions: tutorials/replay-and-current-decisions.md
   - Estimate an effect from observational data: tutorials/observational-study.md
   - When the comparison group does not overlap: tutorials/when-overlap-fails.md
@@ -127,7 +128,10 @@ nav:
     - Limits by route: guides/transport-scope.md
     - Population, time and uncertainty: population-time-uncertainty.md
   - Decisions and study planning:
-    - Evaluate actions with a decision contract: decisions.md
+    - Decide with a contract:
+      - Decisions: decisions.md
+      - Trade-off ranges in depth: preference-decisions.md
+      - Learn trade-off ranges: preference-learning.md
     - Decide from mixed evidence: guides/mixed-decisions.md
     - Which actions reach a target: guides/inverse-outcome.md
     - Rank further studies: design-ranking.md
@@ -195,6 +199,7 @@ nav:
   - Compiler crate graph: architecture/compiler-crate-graph.md
   - Thread inventory: architecture/thread-inventory.md
   - Identity and coupling contract: architecture/identity-contract.md
+  - Decision layer: architecture/decision-layer.md
   - Counterfactual query scope: architecture/counterfactual-coverage.md
   - Transport query scope: architecture/transport-coverage.md
   - Test performance: guides/test-performance.md

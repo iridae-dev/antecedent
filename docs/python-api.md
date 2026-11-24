@@ -31,6 +31,7 @@ python -m pdoc antecedent -o site/python
 | Interpret a result | <a href="../python/antecedent/results.html">results</a> |
 | Correct measurement | <a href="../python/antecedent/measurement_models.html">measurement_models</a> |
 | Track evidence overlap | <a href="../python/antecedent/evidence_ledger.html">evidence_ledger</a> |
+| Decide across trade-offs, fixed or ranges | <a href="../python/antecedent/decision.html">decision</a>, <a href="../python/antecedent/decision_learning.html">decision_learning</a>, <a href="../python/antecedent.html#UnitKey">UnitKey</a>, <a href="../python/antecedent/inference.html#ClassPrior">ClassPrior</a> |
 | Ask a derivative or cross-world question over time | [TemporalQuery](causal-responses.md#ask-a-derivative-or-cross-world-question-over-time) |
 | Declare adaptive procedures | <a href="../python/antecedent/adaptive_inference.html">adaptive_inference</a> |
 | Bind a callback contract | <a href="../python/antecedent/provider_callbacks.html">provider_callbacks</a> |
@@ -86,7 +87,8 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `decision_evidence` | Joint experimental outcomes, derived decision quantities, assumption ranges and robust / assumption-dependent / unresolved decisions | [decision-evidence.md](decision-evidence.md) |
 | `decision_reliability` | Reliability of sampled and adaptively selected decisions | [decision-reliability.md](decision-reliability.md) |
 | `decision_robust` | Admissibility rules and robustness for decisions under structural uncertainty | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
-| `decision` | Declare a decision problem and evaluate it on aligned joint draws | [decisions.md](decisions.md) |
+| `decision` | Declare a decision problem (a utility per action, or one value over several outcomes with fixed or ranged trade-offs), evaluate it on aligned joint draws or a source in hand, compile it with the analysis that estimates it, and read every result as `choice`, `kind`, `standing` and `statement` | [decisions.md](decisions.md) |
+| `decision_learning` | Optional: narrow trade-off ranges from recorded past decisions and stated comparisons (shape parameters included, by subdivision), estimate trade-offs from choices read as noisy (shape parameters by profile likelihood), and accept reviewed, versioned preferences | [preference-learning.md](preference-learning.md) |
 | `derived` | Derived treatments and factorized joint cells (point only) | [guides/joint-cells.md](guides/joint-cells.md) |
 | `descriptive` | Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms | [guides/descriptive-comparison.md](guides/descriptive-comparison.md) |
 | `design_models` | Declared likelihoods and priors of the randomized-design Bayesian estimators | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |

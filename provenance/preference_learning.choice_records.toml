@@ -1,0 +1,35 @@
+# Algorithm provenance for preference_learning.choice_records.
+
+feature_id = "preference_learning.choice_records"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] is an explicit judgment. The module declares recorded past choices (the options
+# offered, the expectation of each option as attribute means or weighted joint draws, the option
+# chosen, the belief source and the evidence-ledger rows), refuses invalid records and the reuse of
+# one observation row across records, and computes the expectation of the fixed part and of each
+# linear-form term of a value model under each option's belief: a weighted mean, or the value at the
+# means for a term affine in the attributes. No primary paper introduces this bookkeeping. The
+# methods that consume the features carry the citations: preference_learning.compatible_set
+# (revealed-preference inequalities) and preference_learning.choice_model (conditional logit).
+papers = []
+implementation_deviations = [
+ "An expectation from attribute means is the term evaluated at the means, which is exact only for a term affine in the attributes; any other term requires joint draws and is refused from means.",
+ "A parameter declared fixed (lower == upper) is substituted before the linear form is taken, so its term column is zero and its contribution is folded into the fixed part.",
+ "Realized outcomes are never read as what the decision-maker expected unless the belief source names that assumption, and pooling the choices of several decision-makers is itself a named assumption.",
+ "Observation rows are compared by exact spelling after trimming surrounding whitespace; the same row under two records is refused as double counting. No other normalisation of row identities is applied.",
+ "The exact-rational reference (choice_record_reference.py) was written by the same author in the same development effort as the implementation, not by an independent reviewer; no review has been recorded.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/choice_record.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/choice_record.rs",
+ "crates/antecedent-design/tests/choice_record_reference.rs (expected linear-form terms against exact rational arithmetic)",
+ "crates/antecedent-design/tests/oracle_data/choice_record_reference.py",
+ "crates/antecedent-design/tests/oracle_data/choice_record_reference.json",
+]

@@ -6,6 +6,12 @@
 //! `MaximinOverStructures` and `MinimaxOverIdentifiedSet` force a worst case;
 //! otherwise the declared policy decides. Unresolved structures and unresolved
 //! probability mass are reported with the text below.
+//!
+//! The decisions across a preference set combine per-structure scores that are
+//! affine functions of the trade-off parameters rather than numbers, so they
+//! choose by their own analysis, but they keep the structure masses with
+//! [`structure_masses`] and apply the same evidence gates through
+//! [`missing_evidence`] as the ordinary aggregation does.
 
 use crate::decision_contract::{DecisionCriterion, StructuralPolicy};
 
@@ -99,6 +105,87 @@ pub(crate) const UNRESOLVED_MASS_CAN_CHANGE_BAYES: &str =
 pub(crate) const NO_EVALUATED_POSITIVE_PROBABILITY: &str =
     "no evaluated structure has positive probability";
 
+/// What became of one structure, for its mass.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StructureState {
+    /// Evaluated.
+    Evaluated,
+    /// Not identified.
+    Unidentified,
+    /// Not evaluated.
+    Unevaluated,
+}
+
+/// Probability mass of the structures by what became of them; every field is `None` when no
+/// probabilities were supplied.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct StructureMasses {
+    /// Mass of evaluated structures.
+    pub evaluated: Option<f64>,
+    /// Mass of unidentified structures.
+    pub unidentified: Option<f64>,
+    /// Mass of unevaluated structures plus the mass left undeclared.
+    pub unevaluated: Option<f64>,
+}
+
+/// The masses of `structures`, each its supplied probability and what became of it, when
+/// `has_probabilities`: compensated sums per state, with the undeclared mass
+/// ([`unassigned_probability`]) counted as unevaluated and never renormalized away.
+pub(crate) fn structure_masses(
+    has_probabilities: bool,
+    structures: &[(Option<f64>, StructureState)],
+) -> StructureMasses {
+    let mass = |wanted: StructureState| -> Option<f64> {
+        has_probabilities.then(|| {
+            probability_sum(
+                structures.iter().filter(|(_, state)| *state == wanted).filter_map(|(p, _)| *p),
+            )
+        })
+    };
+    let unassigned = if has_probabilities {
+        unassigned_probability(structures.iter().filter_map(|(p, _)| *p))
+    } else {
+        0.0
+    };
+    StructureMasses {
+        evaluated: mass(StructureState::Evaluated),
+        unidentified: mass(StructureState::Unidentified),
+        unevaluated: mass(StructureState::Unevaluated).map(|m| m + unassigned),
+    }
+}
+
+/// The aggregation a structural policy names, for a criterion that does not force a worst case.
+pub(crate) const fn policy_kind(policy: StructuralPolicy) -> AggregateKind {
+    match policy {
+        StructuralPolicy::RequireInvariantBestAction => AggregateKind::Invariant,
+        StructuralPolicy::Maximin => AggregateKind::WorstCase,
+        StructuralPolicy::BayesOverStructures => AggregateKind::Bayes,
+        StructuralPolicy::ReportOnly => AggregateKind::Report,
+    }
+}
+
+/// The evidence an aggregation of `kind` needs and does not have, as the refusal text, once at
+/// least one structure was evaluated: invariance and a worst case need every structure
+/// evaluated, and Bayes weighting needs no unresolved mass and some evaluated mass. `None` when
+/// the aggregation may claim a choice.
+pub(crate) fn missing_evidence(
+    kind: AggregateKind,
+    all_resolved: bool,
+    unidentified_mass: f64,
+    unevaluated_mass: f64,
+    evaluated_mass: f64,
+) -> Option<&'static str> {
+    match kind {
+        AggregateKind::Invariant if !all_resolved => Some(INVARIANCE_UNCHECKED),
+        AggregateKind::WorstCase if !all_resolved => Some(WORST_CASE_NEEDS_EVERY_STRUCTURE),
+        AggregateKind::Bayes if unidentified_mass > 0.0 || unevaluated_mass > 0.0 => {
+            Some(UNRESOLVED_MASS_CAN_CHANGE_BAYES)
+        }
+        AggregateKind::Bayes if evaluated_mass <= 0.0 => Some(NO_EVALUATED_POSITIVE_PROBABILITY),
+        _ => None,
+    }
+}
+
 /// Compensated sum of nonnegative declared probabilities.
 pub(crate) fn probability_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     let mut sum = 0.0_f64;
@@ -151,12 +238,7 @@ impl StructureAggregator {
         let kind = match criterion {
             DecisionCriterion::MaximinOverStructures
             | DecisionCriterion::MinimaxOverIdentifiedSet => AggregateKind::WorstCase,
-            _ => match policy {
-                StructuralPolicy::RequireInvariantBestAction => AggregateKind::Invariant,
-                StructuralPolicy::Maximin => AggregateKind::WorstCase,
-                StructuralPolicy::BayesOverStructures => AggregateKind::Bayes,
-                StructuralPolicy::ReportOnly => AggregateKind::Report,
-            },
+            _ => policy_kind(policy),
         };
         Self { kind, sign, criterion, policy }
     }
@@ -220,6 +302,15 @@ impl StructureAggregator {
         if facts.candidates.is_empty() {
             return AggregateDecision::NoCandidate;
         }
+        if let Some(why) = missing_evidence(
+            self.kind,
+            facts.all_resolved,
+            facts.unidentified_mass,
+            facts.unevaluated_mass,
+            facts.evaluated_mass,
+        ) {
+            return AggregateDecision::Insufficient(why);
+        }
         match self.kind {
             AggregateKind::Invariant => Self::invariant(facts),
             AggregateKind::WorstCase => Self::worst_case(facts, worst_score),
@@ -229,9 +320,6 @@ impl StructureAggregator {
     }
 
     fn invariant(facts: &AggregateFacts<'_>) -> AggregateDecision {
-        if !facts.all_resolved {
-            return AggregateDecision::Insufficient(INVARIANCE_UNCHECKED);
-        }
         let winner = facts.leaders.first().and_then(|entry| {
             let first = &entry.1;
             let unique = first.len() == 1
@@ -249,19 +337,10 @@ impl StructureAggregator {
         facts: &AggregateFacts<'_>,
         worst_score: impl Fn(usize) -> f64,
     ) -> AggregateDecision {
-        if !facts.all_resolved {
-            return AggregateDecision::Insufficient(WORST_CASE_NEEDS_EVERY_STRUCTURE);
-        }
         Self::scored(facts, worst_score, AggregateChoice::WorstCase)
     }
 
     fn bayes(facts: &AggregateFacts<'_>, bayes_score: impl Fn(usize) -> f64) -> AggregateDecision {
-        if facts.unidentified_mass > 0.0 || facts.unevaluated_mass > 0.0 {
-            return AggregateDecision::Insufficient(UNRESOLVED_MASS_CAN_CHANGE_BAYES);
-        }
-        if facts.evaluated_mass <= 0.0 {
-            return AggregateDecision::Insufficient(NO_EVALUATED_POSITIVE_PROBABILITY);
-        }
         if facts.dropped_mass > 0.0 {
             return AggregateDecision::SupportWithheld;
         }

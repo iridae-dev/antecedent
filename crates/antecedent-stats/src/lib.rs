@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod adaptive_inference;
+pub mod binomial_interval;
 pub mod ci;
 pub mod cluster;
 pub mod continuous_error;
@@ -28,6 +29,7 @@ pub mod interference;
 pub mod joint_law;
 pub mod layout_rules;
 pub mod linalg;
+pub mod linear_program;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
@@ -96,6 +98,15 @@ pub use gam::{
     AdditiveDesign, GamFit, GamOptions, GamWorkspace, PredictorMatrix, RoughnessPenalty,
     SmoothSpec, expand_bspline, fit_gam, fit_gam_fixed_weighted_design, fit_gam_weighted,
     fit_gam_weighted_design, predict_gam,
+};
+pub use glm::{
+    ChoiceUtility, NonlinearChoiceError, NonlinearConditionalLogitFit,
+    NonlinearConditionalLogitOptions, SOBOL_DIMENSIONS, ShapeProfile, ShapeSearchOptions,
+    UtilityNotEvaluable, fit_nonlinear_conditional_logit,
+};
+pub use glm::{
+    ConditionalLogitDesign, ConditionalLogitError, ConditionalLogitFit, ConditionalLogitOptions,
+    conditional_logit_log_likelihood, fit_conditional_logit, fit_conditional_logit_with_context,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmLaplaceFit, GlmOptions,

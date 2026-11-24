@@ -996,6 +996,18 @@
   "predictive_assessment.score_interval": [
    "predictive_assessment.score_interval"
   ],
+  "preference_decision.certified": [
+   "preference_decision.certified"
+  ],
+  "preference_decision.exact": [
+   "preference_decision.exact"
+  ],
+  "preference_learning.choice_model": [
+   "preference_learning.choice_model"
+  ],
+  "preference_learning.compatible_set": [
+   "preference_learning.compatible_set"
+  ],
   "prior.composed_named_coordinates": [
    "prior.composed_named_coordinates"
   ],
@@ -3217,7 +3229,7 @@
     "An uncertainty requirement is met only by a supplied claim of exactly its own kind (none accepts any); the kind is a label supplied by the caller and is not verified against how the claim was produced.",
     "The contract identity is a canonical digest that ignores the order of rules and exclusions; a contract without rules keeps the earlier decision_contract_v1 bytes, so the wrapper adds no wire change for existing contracts."
    ],
-   "digest": "5eea6cb1c812801b1e97c5d159e86b4f8afdf619d3e6d7caeb537bc87b88dd70",
+   "digest": "a269de4a609aab62efc9100a3163f8640771442fe6bddf6852b4e66baabdaa9b",
    "id": "decision.admissibility",
    "review": "none",
    "scope_limits": [],
@@ -3240,7 +3252,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "d6f4c24bfcb8553fbb0ef46f7348156f8b49823992d5744006e7bf9c4ffb2559",
+   "digest": "31393ebb761632a34d107e58755e243c7c923dd7af35640e77acdfb9e1bbf00d",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3323,7 +3335,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "5500bcf5321039995e9b55a05bd9c4c2eb2d99ba421a67ab8c5e00a4c2f9f9d8",
+   "digest": "7b6c3260f86a792e0c446a23b26754512064cd7b2b2d20e360e87c85aa6b07f2",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -3344,7 +3356,7 @@
    "deviations": [
     "Verdicts range over supplied or checked structural members only; no completeness over graphs outside the supplied members is claimed."
    ],
-   "digest": "ac851ac317fa1d1a2ab6162b7bd36af47833c23dae57c8131ed244fee9285bbd",
+   "digest": "ddb0c322c78b3f27273e576211fd830ef52a625e3a0c1f41f2207f33e513f582",
    "id": "decision.robust_verdicts",
    "review": "none",
    "scope_limits": [],
@@ -3389,7 +3401,7 @@
     "Bayes choice is withheld if any positive probability has unresolved payoffs, including an omitted remainder below total mass one. Zero-probability atoms cannot exclude an action. Quantiles and maximum regrets cannot be aggregated by a probability-weighted mean of per-structure values and are refused for this policy.",
     "Minimax over an identified set reads the contract's utilities as losses and chooses the smallest worst-case expected loss; this is a stated convention, not a cited theorem."
    ],
-   "digest": "e8489504ce1304479f6208a3d1ba04dbd50289e7b0783b07c713ce3be2a3ec34",
+   "digest": "3e9245dd7083d7d4b6027e247b2ae1e8882bceabbbbb3563657eb3dd5a1d25be",
    "id": "decision.structural_policy",
    "review": "none",
    "scope_limits": [],
@@ -9377,7 +9389,7 @@
     "Each allocated record retains its original DGP, seed protocol, sample-size grid, scored counts, role and decision semantics. No unweighted record is borrowed by a weighted population and no normal record is borrowed by a Student or population-linear Gaussian construction.",
     "Point-route records retain ownership of input validation, declared target populations and their typed refusals. Cancellation is observed by those upstream executions; the endpoint selector itself is constant-work arithmetic on an existing estimate."
    ],
-   "digest": "25732b716f0080e63b613e7f45e47c0e8cfa45a2d546c3208e0e3478a2c57687",
+   "digest": "2780a9050209c43a8c39b3b86c4f7a15ee7de2a39410a06ed67541764d3b4bc3",
    "id": "estimate.uncertainty",
    "review": "none",
    "scope_limits": [],
@@ -9911,12 +9923,16 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "ALAN G. HAWKES"
+     ],
      "doi": "10.1093/biomet/58.1.83",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Mutually exciting processes"
      ],
-     "title": "Spectra of some self-exciting and mutually exciting point processes"
+     "title": "Spectra of some self-exciting and mutually exciting point processes",
+     "year": 1971
     },
     {
      "authors": [
@@ -9932,12 +9948,16 @@
      "year": 1974
     },
     {
+     "authors": [
+      "Y. Ogata"
+     ],
      "doi": "10.1109/TIT.1981.1056305",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Thinning algorithm for multivariate processes"
      ],
-     "title": "On Lewis' simulation method for point processes"
+     "title": "On Lewis' simulation method for point processes",
+     "year": 1981
     }
    ]
   },
@@ -12085,6 +12105,476 @@
       "fixed-bandwidth asymptotics of Bartlett-kernel HAC t-statistics"
      ],
      "title": "Kiefer and Vogelsang (2005), A New Asymptotic Theory for Heteroskedasticity-Autocorrelation Robust Tests, Econometric Theory 21(6)"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Outward rounding is obtained by computing each end with round-to-nearest and moving it one representable step outward (next_down / next_up), not by switching the rounding mode; exp and ln are moved two steps, which assumes the platform library functions err by less than that. Weighted sums are widened further by 2 (n + 1) eps times the sum of magnitudes so that any summation order is enclosed.",
+    "When the model has a linear form, the parameter-free parts are enclosed once per draw and combined affinely with the parameter intervals, and expectation margins combine the expected parts first, which removes the dependency between actions that share a parameter; otherwise the natural interval extension of the expression is used.",
+    "The certified quantities are those of the decision layer, not of the cited works: expectations, threshold probabilities P(U >= t), weighted empirical quantiles, largest per-draw regret and expected regret of actions whose attributes are causal quantities under a supplied law. A box is certified for an action only when its enclosures prove it better than every admissible rival by more than the tie tolerance on the whole box. Necessarily best and possibly best are read from certified boxes; worst-case regret over the set is enclosed, its upper end over every kept box and its lower end over boxes wholly inside the relations and their centre points.",
+    "Subdivision is deterministic: the undecided box of largest relative volume is split at the midpoint of its relatively widest parameter until every box is decided, a box budget (default 4096) is spent, or every width is at most a minimum fraction (default 1e-6) of its declared range. Undecided volume is reported rather than resolved.",
+    "Linear relations are checked per box with the same arithmetic: a box proven to violate a relation is dropped; a box neither proven inside nor outside is kept, flagged and counted in full. Reported fractions are volume fractions of kept boxes relative to the declared ranges, so they are not SMAA acceptability indices and carry no probability.",
+    "Hard constraints are evaluated once, independent of the preference parameters. Composition across causal structures is a repository construction outside the cited works.",
+    "The rigor checks against dense parameter grids and closed-form switch points in preference_certified.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded."
+   ],
+   "digest": "1187601fa7b325d36ef576bd97d32c5055dde46b89c98317fc7eaa37795f5af7",
+   "id": "preference_decision.certified",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Ramon E. Moore",
+      "R. Baker Kearfott",
+      "Michael J. Cloud"
+     ],
+     "doi": "10.1137/1.9780898717716",
+     "doi_verified": true,
+     "sections": [
+      "interval arithmetic with outward rounding, the natural interval extension and its inclusion property, and refinement of an enclosure by subdivision of the argument box (chapter and section numbers not independently verified)"
+     ],
+     "title": "Introduction to Interval Analysis",
+     "year": 2009
+    },
+    {
+     "authors": [
+      "Salvatore Greco",
+      "Vincent Mousseau",
+      "Roman Słowiński"
+     ],
+     "doi": "10.1016/j.ejor.2007.08.013",
+     "doi_verified": true,
+     "sections": [
+      "the necessary and possible preference relations over the set of compatible value functions (section numbers not independently verified)"
+     ],
+     "title": "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions",
+     "year": 2008
+    },
+    {
+     "authors": [
+      "Craig Boutilier",
+      "Relu Patrascu",
+      "Pascal Poupart",
+      "Dale Schuurmans"
+     ],
+     "doi": "10.1016/j.artint.2006.02.003",
+     "doi_verified": true,
+     "sections": [
+      "max regret of an alternative over a set of feasible utility parameters (section numbers not independently verified)"
+     ],
+     "title": "Constraint-based optimization and utility elicitation using the minimax decision criterion",
+     "year": 2006
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The necessary and possible relations are applied to the expected utilities (or expected losses) of actions whose attributes are causal quantities under a supplied law, with value v_a(theta) = c_a0 + sum_j theta_j c_aj affine in the preference parameters, not to rankings of alternatives on fixed criterion evaluations. The parameter set is a declared box cut by linear relations, not necessarily the UTA-GMS set of additive value functions compatible with a reference ranking.",
+    "Necessarily best means best by more than a tie tolerance at every admissible point, checked by one linear program per rival; possibly best means best (ties allowed) against every rival at one common admissible point, a single feasibility program. Both are statements about the best action, which is stronger than the pairwise necessary and possible relations of the cited paper.",
+    "Worst-case regret of an action is the largest shortfall from the best rival over the set, max over rivals of max over theta of (v_b - v_a), floored at zero, and the verdict names the action with the smallest; this is Boutilier et al.'s max regret over a utility polytope with expected utilities of causal quantities in place of known outcome utilities. Expected regret is answered through expected-utility margins, which rank actions identically at every point; its worst case refuses and is referred to the certified record.",
+    "A share is reported only for a supplied measure: the normalised weight of a finite set of weighted parameter points (declared, or drawn from the noisy-choice estimate), with ties within the tolerance shared equally. It is a first-rank acceptability index of that discrete measure, not SMAA's Monte Carlo integral over a density on the weight space; no central weight vectors, lower-rank indices or confidence factors are computed. The draw share of the necessarily best action is checked at every vertex of the set, enumerated up to a cap, and is a point diagnostic of the supplied law.",
+    "Composition across causal structures (structural policies, unidentified and unevaluated structure mass reported and never renormalised) is a repository construction outside the cited works.",
+    "The linear programs are solved by a working-set primal simplex over rows g . x <= h (each scaled to unit maximum coefficient), not a tableau method; free variables enter as placeholder rows released first, Bland's smallest-index rule is applied to the rows to release and to the blocking rows, and phase one relaxes every violated row by one auxiliary variable t in [0, 1]. Every outcome is rechecked from first principles before it is returned: feasibility and a non-negative least-squares fit of the objective by the tight rows (Lawson and Hanson's NNLS on Householder least squares) for an optimum, Farkas multipliers for infeasibility, a feasible improving ray for unboundedness. Tolerances are repository choices (pivot 1e-12, singularity ratio 1e-12, dependent-column ratio 1e-10).",
+    "Vertex enumeration solves every choice of n hyperplanes among the constraints and finite bounds and keeps the distinct feasible points, refused beyond a cap; it is brute force, not a pivoting enumeration.",
+    "The exact-rational linear-program reference (linear_program_reference.py, brute-force basis enumeration in fractions) and the dense-grid cross-check in preference_decision_structural.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+    "Across the members of a CPDAG or PAG atom of a graph posterior, a member's weight is the atom's posterior weight times a declared conditional mass within the class: uniform under a named assumption, or keyed by member fingerprint and normalised within each class. The measure is a declaration; the data cannot separate Markov equivalent members. For a PAG uniform is over the maximal ancestral graphs it represents. Without a declared measure, bayes_over_structures over class atoms is refused.",
+    "A class with more members than the declared exact limit (32 by default) is sampled only under a uniform measure that declares the draw: CPDAG members by clique-picking from an exact count (forbidden prefixes are the separators on the clique-tree edges from the root, written from the published method), PAG members by drawing every circle endpoint as a tail or an arrowhead with probability one half and keeping draws that are members, within a search budget, so its class size is a lower bound unless enumerated. A sampled decision gives no verdict over every member: under bayes_over_structures the verdict is the one on the sampled measure with Monte Carlo standard errors of the pairwise margins at each vertex; under maximin and invariance each sampled member's verdict with a one-sided 95% Clopper-Pearson bound on the mass where another action is best; identified, unidentified and unevaluated masses of a sampled class are exact Clopper-Pearson intervals of the draw shares scaled by the class mass, never renormalised. These reporting rules are repository constructions outside the cited works.",
+    "The clique-picking count is compared with brute-force enumeration on random chordal graphs and closed-form class sizes, and the draws are checked by chi-square against uniform (mec_uniform_sampling.rs); these checks were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
+    "A joint law of the arm means of a cluster-randomized design, a matched-pair experiment or a switchback experiment is read from an independent-unit bootstrap only under a declared premise that the units (clusters, pairs or sequences) were sampled independently from a larger population: randomization alone identifies the arm means and a conservative covariance bound for their linear combinations, not the cross-arm dependence of the arm-mean estimators. Clusters are resampled within each arm, keeping the arm sizes; pairs and sequences are resampled whole; every refit reruns the complete estimator, including a fixed pretreatment adjustment recentred at the resampled pretreatment mean. At least 99 refits and 30 units (clusters in each arm, pairs or sequences) are required; a refit the estimator refuses keeps its slot and the decision is refused, never computed on the remaining refits. These floors and the failure rule are repository choices. The law is labelled a bootstrap law, unverified, with no calibration measured.",
+    "The bootstrap's covariance checks (cluster refits independent across arms with the (n - 1)/n within-arm covariance, pair and sequence refits converging to their closed-form covariances) were written by the same author in the same development effort as the implementation, not by an independent reviewer."
+   ],
+   "digest": "12070cd2726890e66d8286b35bbaab740210bcd65f1496c890a82c5f6178faa9",
+   "id": "preference_decision.exact",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Salvatore Greco",
+      "Vincent Mousseau",
+      "Roman Słowiński"
+     ],
+     "doi": "10.1016/j.ejor.2007.08.013",
+     "doi_verified": true,
+     "sections": [
+      "the necessary and possible preference relations over the set of compatible value functions, each decided by a linear program (section numbers not independently verified)"
+     ],
+     "title": "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions",
+     "year": 2008
+    },
+    {
+     "authors": [
+      "Craig Boutilier",
+      "Relu Patrascu",
+      "Pascal Poupart",
+      "Dale Schuurmans"
+     ],
+     "doi": "10.1016/j.artint.2006.02.003",
+     "doi_verified": true,
+     "sections": [
+      "max regret of an alternative over a polytope of feasible utility parameters and the minimax-regret choice, computed by optimisation over the polytope (section numbers not independently verified)"
+     ],
+     "title": "Constraint-based optimization and utility elicitation using the minimax decision criterion",
+     "year": 2006
+    },
+    {
+     "authors": [
+      "Risto Lahdelma",
+      "Joonas Hokkanen",
+      "Pekka Salminen"
+     ],
+     "doi": "10.1016/S0377-2217(97)00163-X",
+     "doi_verified": true,
+     "sections": [
+      "the acceptability index: the share of a weight distribution over the feasible weight space under which an alternative is best (section numbers not independently verified)"
+     ],
+     "title": "SMAA - Stochastic multiobjective acceptability analysis",
+     "year": 1998
+    },
+    {
+     "authors": [
+      "Robert G. Bland"
+     ],
+     "doi": "10.1287/moor.2.2.103",
+     "doi_verified": true,
+     "sections": [
+      "the smallest-subscript rule for the entering and leaving choice, which prevents cycling"
+     ],
+     "title": "New Finite Pivoting Rules for the Simplex Method",
+     "year": 1977
+    },
+    {
+     "authors": [
+      "Charles L. Lawson",
+      "Richard J. Hanson"
+     ],
+     "doi": "10.1137/1.9781611971217",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 23: the NNLS active-set algorithm for non-negative least squares (section number not independently verified)"
+     ],
+     "title": "Solving Least Squares Problems",
+     "year": 1995
+    },
+    {
+     "authors": [
+      "Marcel Wienöbst",
+      "Max Bannach",
+      "Maciej Liskiewicz"
+     ],
+     "doi": "10.1609/aaai.v35i13.17448",
+     "doi_verified": true,
+     "sections": [
+      "the clique-picking count of the members of a Markov equivalence class over the clique trees of its chordal chain components, and uniform sampling of a member from that count (section numbers not independently verified)"
+     ],
+     "title": "Polynomial-Time Algorithms for Counting and Sampling Markov Equivalent DAGs",
+     "year": 2021
+    },
+    {
+     "authors": [
+      "C. J. CLOPPER",
+      "E. S. PEARSON"
+     ],
+     "doi": "10.1093/biomet/26.4.404",
+     "doi_verified": true,
+     "sections": [
+      "the exact binomial confidence interval from beta quantiles"
+     ],
+     "title": "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL",
+     "year": 1934
+    },
+    {
+     "authors": [
+      "B. Efron"
+     ],
+     "doi": "10.1214/aos/1176344552",
+     "doi_verified": true,
+     "sections": [
+      "the nonparametric bootstrap: the sampling law of a statistic estimated by recomputing it on samples drawn with replacement from the independent observations"
+     ],
+     "title": "Bootstrap Methods: Another Look at the Jackknife",
+     "year": 1979
+    },
+    {
+     "authors": [
+      "A. C. Davison",
+      "D. V. Hinkley"
+     ],
+     "doi": "10.1017/CBO9780511802843",
+     "doi_verified": true,
+     "sections": [
+      "Section 3.8: resampling whole clusters, and stratified resampling within strata (section number not independently verified)"
+     ],
+     "title": "Bootstrap Methods and their Application",
+     "year": 1997
+    },
+    {
+     "authors": [
+      "Jerzy Splawa-Neyman",
+      "D. M. Dabrowska",
+      "T. P. Speed"
+     ],
+     "doi": "10.1214/ss/1177012031",
+     "doi_verified": true,
+     "sections": [
+      "the randomization variance of a difference in arm means, whose cross-arm term rests on the joint distribution of the potential outcomes and is not identified"
+     ],
+     "title": "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9",
+     "year": 1990
+    },
+    {
+     "authors": [
+      "Guido W. Imbens",
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1017/CBO9781139025751",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 6: the finite-population randomization variance of the difference in means against its sampling variance when the units are a random sample from a larger population (chapter number not independently verified)"
+     ],
+     "title": "Causal Inference for Statistics, Social, and Biomedical Sciences",
+     "year": 2015
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The choice model is a conditional logit in beta = (lambda, lambda * theta) on the features (F, T_1, ..., T_K) of each option, with lambda > 0 the choice consistency and V = F + sum_k theta_k T_k the declared value under the recorded expectations; theta_k = beta_k / beta_0. The fixed part F carries the unit of account: an estimate is refused unless F differs between the options of at least one record, and refused when the estimated consistency is not positive. A free parameter whose term differs in no record is left out of the fit and reported as not learnable.",
+    "The estimate describes the trade-offs the recorded decision-makers acted on under the stated choice model and recorded expectations, not what the trade-offs should be.",
+    "The fit is Newton's method from beta = 0 on the within-set differences z_j = x_j - x_chosen, with Cholesky solves and step halving (at most 60 halvings) against a rounding allowance of 64 eps (|l| + n_sets); convergence is a gradient bound relative to sum_s max_j |z_j|. Full column rank of the within-set centred design is checked by Gram-Schmidt at relative tolerance 1e-9 before iterating, and separation (no finite maximum) is refused when a Newton step or the coefficient direction certifies a separating direction at tolerances 1e-8 and 1e-6. These are repository policies, not part of the cited method.",
+    "Covariance is the cluster sandwich I^-1 (sum_c s_c s_c') I^-1 with per-decider score sums when the fit holds at least two decision-makers, the inverse observed information otherwise; no small-sample multiplier such as C / (C - 1) is applied. The cited sandwich is for generalised estimating equations; here it is applied to the conditional logit score.",
+    "Standard errors of theta_k are the delta-method value sqrt(V_kk - 2 theta_k V_k0 + theta_k^2 V_00) / beta_0 and intervals are theta_hat +- z se; their coverage is not measured and is reported as not measured.",
+    "The measure over the preference set is a normal approximation to the sampling distribution of the estimate, not a posterior: draws beta = beta_hat + L z from a seeded generator, mapped to theta = beta_k / beta_0, kept only when beta_0 > 0 and the point lies in the declared set (learnable coordinates in their declared ranges, relations checked only when they touch no unresolved parameter, both within 1e-9), with equal weights. Restricting to the declared set truncates the approximation; unresolved parameters sit at the midpoint of their declared range as a placeholder the measure says nothing about.",
+    "The 50-digit conditional logit reference (conditional_logit_reference.py: Newton on the raw option features in decimal arithmetic) and the simulated-recovery checks were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+    "Under a value with shape parameters the conditional logit index is nonlinear in them. The log-likelihood is profiled over the shape parameters: at each shape value the ordinary conditional logit is fitted in the consistency and the linear trade-offs, and the shape values are searched from the centre of the declared box and a Sobol sequence (64 points by default) followed by a compass search from the best point (at most 200 refinements by default) and Fisher scoring in the direct parameters with the shape parameters kept inside their bounds; at most three shape parameters are searched by default and more are refused. A shape parameter whose term the within-record value differences never read is left out and reported as not learnable.",
+    "Each shape parameter carries a profile likelihood-ratio interval at the requested level, its end points located on an even profile grid (33 points by default, maximising over the other shape parameters) and refined by bisection between grid points; the remaining trade-offs keep Wald intervals from the expected information of the multinomial choice with a nonlinear index (first derivatives of the value only), or its cluster sandwich. The estimate is refused when the profile varies by less than half the chi-square(1) quantile over the declared range (not identified), when it lies on a declared bound (where the normal approximation and the two-sided interval do not hold), when two separated profile maxima lie near the overall maximum (the likelihood-ratio set is not an interval), and when the choices are separated at some shape value. These thresholds are repository policies.",
+    "The shape-path intervals resolve calibration under their own key (estimator preference.nonlinear_conditional_logit.profile, method wald_and_profile_likelihood_ratio) and are not measured until a coverage record exists.",
+    "The simulated-recovery and refusal checks of the shape path (nonlinear_conditional_logit.rs, preference_shape_learning.rs) were written by the same author in the same development effort as the implementation, not by an independent reviewer."
+   ],
+   "digest": "770f2058309da294a84b47c1dba08a972c86a7372b9a35428b7baa61611da869",
+   "id": "preference_learning.choice_model",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "the conditional logit model, P(i | set) proportional to exp(x_i . beta) over the options of each choice set, and its maximum-likelihood estimation with a concave log-likelihood (section numbers not independently verified)"
+     ],
+     "title": "Conditional logit analysis of qualitative choice behavior (McFadden, in Frontiers in Econometrics, ed. Zarembka, Academic Press, 1974)"
+    },
+    {
+     "authors": [
+      "KUNG-YEE LIANG",
+      "SCOTT L. ZEGER"
+     ],
+     "doi": "10.1093/biomet/73.1.13",
+     "doi_verified": true,
+     "sections": [
+      "the robust (sandwich) variance estimator with independent clusters"
+     ],
+     "title": "Longitudinal data analysis using generalized linear models",
+     "year": 1986
+    },
+    {
+     "authors": [
+      "A. W. van der Vaart"
+     ],
+     "doi": "10.1017/CBO9780511802256",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 3, the delta method: a smooth function of an asymptotically normal estimator is asymptotically normal with variance equal to the quadratic form of its gradient (section numbers not independently verified)"
+     ],
+     "title": "Asymptotic Statistics",
+     "year": 1998
+    },
+    {
+     "authors": [
+      "Itzhak Krinsky",
+      "A. Leslie Robb"
+     ],
+     "doi": "10.2307/1924536",
+     "doi_verified": true,
+     "sections": [
+      "simulating a nonlinear function of estimated coefficients by drawing the coefficients from their estimated asymptotic normal distribution"
+     ],
+     "title": "On Approximating the Statistical Properties of Elasticities",
+     "year": 1986
+    },
+    {
+     "authors": [
+      "D. J. Venzon",
+      "S. H. Moolgavkar"
+     ],
+     "doi": "10.2307/2347496",
+     "doi_verified": true,
+     "sections": [
+      "the profile likelihood-ratio confidence interval of one parameter, the set where twice the drop of the profile log-likelihood stays below the chi-square(1) quantile, and its end points found by root search"
+     ],
+     "title": "A Method for Computing Profile-Likelihood-Based Confidence Intervals",
+     "year": 1988
+    },
+    {
+     "authors": [
+      "I.M Sobol'"
+     ],
+     "doi": "10.1016/0041-5553(67)90144-9",
+     "doi_verified": true,
+     "sections": [
+      "the low-discrepancy sequence used to seed the search over shape values (section numbers not independently verified)"
+     ],
+     "title": "On the distribution of points in a cube and the approximate evaluation of integrals",
+     "year": 1967
+    },
+    {
+     "authors": [
+      "Stephen Joe",
+      "Frances Y. Kuo"
+     ],
+     "doi": "10.1137/070709359",
+     "doi_verified": true,
+     "sections": [
+      "direction numbers for the Sobol sequence; those of dimensions 2 to 8 are used"
+     ],
+     "title": "Constructing Sobol Sequences with Better Two-Dimensional Projections",
+     "year": 2008
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "This is not a nonparametric revealed-preference test. The value model is declared, value = F + sum_k theta_k T_k with expected parts from recorded beliefs, and each recorded choice of c over a rejected option j adds the linear relation sum_k theta_k (T_ck - T_jk) >= -tolerance - (F_c - F_j) on the preference parameters. The question answered is which parameters of that model are compatible with the records, not whether some utility function rationalises them; Afriat's and Varian's inequalities are the source of reading a choice as a linear inequality, not a procedure reproduced here.",
+    "A choice is weakly optimal within a declared additive tolerance in utility units. This is not Afriat's or Varian's multiplicative efficiency index and not UTA's per-statement error variables; when the records conflict, the reported tolerance needed is the declared tolerance plus the least common slack s >= 0 that makes every relation of the conflicting records hold together with the declared set, from one linear program.",
+    "Differences of expected parts smaller than 1e-12 times the larger operand are read as zero. A relation with no remaining coefficient is not added; if it is violated, the record alone contradicts the model and is reported as a single-record conflict.",
+    "Learned ranges are the minimum and maximum of each parameter over the declared set cut by the choice relations, two linear programs per parameter; narrowing is judged against the declared range restricted by the declared relations. Binding choices are the choice relations tight at the optimal vertices found for those extremes, not every relation that could be tight at some optimum.",
+    "A conflict is reported as a smallest set of conflicting records (exhaustive search over record subsets by increasing size, up to a configured size and a budget of 50 000 subsets, lexicographically first among the smallest), or, beyond that, as an irreducible set from Chinneck and Dravnieks' deletion filter applied to groups of relations (one group per record) with the declared ranges and relations always kept; an irreducible set need not be smallest.",
+    "Linear programs use the bounded-variable working-set primal simplex described under preference_decision.exact (Bland's rule on rows, single-variable phase one, every outcome rechecked by NNLS dual fit, Farkas multipliers or an improving ray).",
+    "A learned set is a range over the stated assumption that choices were optimal under the declared model and recorded expectations; it is not a probability statement.",
+    "The exact-rational reference (preference_set_learning_reference.py: vertex enumeration in fractions, exhaustive conflict subsets, tolerance by enumeration in (theta, s)) was written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+    "Under a value with shape parameters (a parameter inside min, max, exp or ln, or a product of two free parameters, found by closure) a recorded choice is a value relation, not a linear relation. Only the shape parameters are subdivided: on a shape box every difference of expected fixed and linear parts between the chosen and the rejected option is enclosed with outward-rounded interval arithmetic, leaving a linear system in the remaining parameters with interval coefficients. A box is outside when the outer system (some coefficient value of the box admits a solution, the united solution set of Oettli and Prager, linear within each sign orthant of the linear parameters, up to six orthant-enumerated parameters whose range crosses zero and a chord over-estimator of max(a t, b t) for any further one) is infeasible, inside when the inner system (one solution for every coefficient value of the box, made linear by one auxiliary variable per term) is feasible, and on the boundary otherwise; boundary boxes are split at the midpoint of the widest shape parameter relative to its declared range until every box is decided, the box budget (4096 by default) is spent or every width is at most a fraction (1e-4 by default) of its range. These policies are repository choices.",
+    "Under shape parameters the learned range of a shape parameter is the hull of the kept boxes and that of a linear parameter the hull of each kept box's outer linear-program range: both are outer ranges (basis enclosure), exact only up to the box width. The records conflict exactly when every box is dropped (a proof of emptiness); when no box is proven inside before the subdivision stops, neither emptiness nor non-emptiness is certified and the outcome is undetermined. A conflict under shape parameters is minimised only as far as smaller groups can be proven compatible (kind not_minimised otherwise), and its tolerance needed is the least common slack minimised over the examined shape points, an upper bound of the smallest one.",
+    "The shape-learning checks (preference_shape_learning.rs: a risk attitude enclosed from one lottery choice against its closed-form threshold, proven conflicts, an exhausted budget, a dense-grid comparison of the decision on the learned set) were written by the same author in the same development effort as the implementation, not by an independent reviewer."
+   ],
+   "digest": "eaa33b0ac1922b6c47a932ab83ebc43cb656670e0859ae5004e2db31fcf847e7",
+   "id": "preference_learning.compatible_set",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "S. N. Afriat"
+     ],
+     "doi": "10.2307/2525382",
+     "doi_verified": true,
+     "sections": [
+      "observed choices as a system of linear inequalities whose solvability is the condition for a rationalising utility (Afriat's inequalities)"
+     ],
+     "title": "The Construction of Utility Functions from Expenditure Data",
+     "year": 1967
+    },
+    {
+     "authors": [
+      "Hal R. Varian"
+     ],
+     "doi": "10.2307/1912771",
+     "doi_verified": true,
+     "sections": [
+      "revealed preference: a chosen bundle is revealed preferred to every bundle that was available, and the Afriat inequalities as a linear feasibility problem (section numbers not independently verified)"
+     ],
+     "title": "The Nonparametric Approach to Demand Analysis",
+     "year": 1982
+    },
+    {
+     "authors": [
+      "E. Jacquet-Lagreze",
+      "J. Siskos"
+     ],
+     "doi": "10.1016/0377-2217(82)90155-2",
+     "doi_verified": true,
+     "sections": [
+      "inference of piecewise-linear value-function parameters from stated preferences by linear programming, with error variables when the statements are inconsistent (section numbers not independently verified)"
+     ],
+     "title": "Assessing a set of additive utility functions for multicriteria decision-making, the UTA method",
+     "year": 1982
+    },
+    {
+     "authors": [
+      "Salvatore Greco",
+      "Vincent Mousseau",
+      "Roman Słowiński"
+     ],
+     "doi": "10.1016/j.ejor.2007.08.013",
+     "doi_verified": true,
+     "sections": [
+      "the set of all value functions compatible with the stated preference information, rather than one representative function (section numbers not independently verified)"
+     ],
+     "title": "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions",
+     "year": 2008
+    },
+    {
+     "authors": [
+      "John W. Chinneck",
+      "Erik W. Dravnieks"
+     ],
+     "doi": "10.1287/ijoc.3.2.157",
+     "doi_verified": true,
+     "sections": [
+      "the deletion filter for an irreducible infeasible subset"
+     ],
+     "title": "Locating Minimal Infeasible Constraint Sets in Linear Programs",
+     "year": 1991
+    },
+    {
+     "authors": [
+      "Robert G. Bland"
+     ],
+     "doi": "10.1287/moor.2.2.103",
+     "doi_verified": true,
+     "sections": [
+      "the smallest-subscript rule for the entering and leaving choice, which prevents cycling"
+     ],
+     "title": "New Finite Pivoting Rules for the Simplex Method",
+     "year": 1977
+    },
+    {
+     "authors": [
+      "Charles L. Lawson",
+      "Richard J. Hanson"
+     ],
+     "doi": "10.1137/1.9781611971217",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 23: the NNLS active-set algorithm for non-negative least squares (section number not independently verified)"
+     ],
+     "title": "Solving Least Squares Problems",
+     "year": 1995
+    },
+    {
+     "authors": [
+      "Ramon E. Moore",
+      "R. Baker Kearfott",
+      "Michael J. Cloud"
+     ],
+     "doi": "10.1137/1.9780898717716",
+     "doi_verified": true,
+     "sections": [
+      "outward-rounded interval enclosures of expressions and subdivision of a box to tighten them (section numbers not independently verified)"
+     ],
+     "title": "Introduction to Interval Analysis",
+     "year": 2009
+    },
+    {
+     "authors": [
+      "W. Oettli",
+      "W. Prager"
+     ],
+     "doi": "10.1007/BF01386090",
+     "doi_verified": true,
+     "sections": [
+      "the characterisation of the solutions of a linear system whose coefficients lie in intervals for some choice of the coefficients (the united solution set), used for the outer system on a shape box"
+     ],
+     "title": "Compatibility of approximate solution of linear equations with given error bounds for coefficients and right-hand sides",
+     "year": 1964
     }
    ]
   },

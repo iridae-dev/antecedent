@@ -174,6 +174,19 @@
     "url": "https://api.crossref.org/works/10.1007/978-3-662-12616-5",
     "year": 1992
   },
+  "10.1007/bf01386090": {
+    "authors": [
+      "W. Oettli",
+      "W. Prager"
+    ],
+    "doi": "10.1007/bf01386090",
+    "response_sha256": "30c510cd5076aa29d4f28fa2e1d5dd3cadf02855a8c6d8568104bc956f33bd86",
+    "titles": [
+      "Compatibility of approximate solution of linear equations with given error bounds for coefficients and right-hand sides"
+    ],
+    "url": "https://api.crossref.org/works/10.1007/BF01386090",
+    "year": 1964
+  },
   "10.1007/bf02846028": {
     "authors": [
       "Gisiro Maruyama"
@@ -197,6 +210,18 @@
     ],
     "url": "https://api.crossref.org/works/10.1016/0024-3795%2877%2990069-6",
     "year": 1977
+  },
+  "10.1016/0041-5553(67)90144-9": {
+    "authors": [
+      "I.M Sobol'"
+    ],
+    "doi": "10.1016/0041-5553(67)90144-9",
+    "response_sha256": "dc8a575a516e54160ed7bf976c9724bf42fd29f99723e4f674d0c344a072aa4e",
+    "titles": [
+      "On the distribution of points in a cube and the approximate evaluation of integrals"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/0041-5553%2867%2990144-9",
+    "year": 1967
   },
   "10.1016/0167-2789(92)90102-s": {
     "authors": [
@@ -267,6 +292,19 @@
     "url": "https://api.crossref.org/works/10.1016/0370-2693%2887%2991197-x",
     "year": 1987
   },
+  "10.1016/0377-2217(82)90155-2": {
+    "authors": [
+      "E. Jacquet-Lagreze",
+      "J. Siskos"
+    ],
+    "doi": "10.1016/0377-2217(82)90155-2",
+    "response_sha256": "0d0470b7f880a7e39fbdd942f2aa0fa7a172dbca2d22436032682ce23928b474",
+    "titles": [
+      "Assessing a set of additive utility functions for multicriteria decision-making, the UTA method"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/0377-2217%2882%2990155-2",
+    "year": 1982
+  },
   "10.1016/0771-050x(80)90013-3": {
     "authors": [
       "J.R. Dormand",
@@ -279,6 +317,21 @@
     ],
     "url": "https://api.crossref.org/works/10.1016/0771-050x%2880%2990013-3",
     "year": 1980
+  },
+  "10.1016/j.artint.2006.02.003": {
+    "authors": [
+      "Craig Boutilier",
+      "Relu Patrascu",
+      "Pascal Poupart",
+      "Dale Schuurmans"
+    ],
+    "doi": "10.1016/j.artint.2006.02.003",
+    "response_sha256": "7d427798c56d062d1dd4a314f2becd343de90176316ed02e363c9acc3977d3ec",
+    "titles": [
+      "Constraint-based optimization and utility elicitation using the minimax decision criterion"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/j.artint.2006.02.003",
+    "year": 2006
   },
   "10.1016/j.artint.2008.08.001": {
     "authors": [
@@ -305,6 +358,20 @@
     ],
     "url": "https://api.crossref.org/works/10.1016/j.cor.2008.04.004",
     "year": 2009
+  },
+  "10.1016/j.ejor.2007.08.013": {
+    "authors": [
+      "Salvatore Greco",
+      "Vincent Mousseau",
+      "Roman S\u0142owi\u0144ski"
+    ],
+    "doi": "10.1016/j.ejor.2007.08.013",
+    "response_sha256": "3386e169801b538858bb0330bf6370b03bd0350a22d1a2f5b5219e31e4a46e83",
+    "titles": [
+      "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/j.ejor.2007.08.013",
+    "year": 2008
   },
   "10.1016/j.jeconom.2007.05.001": {
     "authors": [
@@ -411,6 +478,20 @@
     "url": "https://api.crossref.org/works/10.1016/s0004-3702%2898%2900023-x",
     "year": 1998
   },
+  "10.1016/s0377-2217(97)00163-x": {
+    "authors": [
+      "Risto Lahdelma",
+      "Joonas Hokkanen",
+      "Pekka Salminen"
+    ],
+    "doi": "10.1016/s0377-2217(97)00163-x",
+    "response_sha256": "a78140771dcc1619cf8cfca5e0c65d22b66437573010e241a93f98596e0bef70",
+    "titles": [
+      "SMAA - Stochastic multiobjective acceptability analysis"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/s0377-2217%2897%2900163-x",
+    "year": 1998
+  },
   "10.1017/cbo9780511802256": {
     "authors": [
       "A. W. van der Vaart"
@@ -423,6 +504,19 @@
     "url": "https://api.crossref.org/works/10.1017/cbo9780511802256",
     "year": 1998
   },
+  "10.1017/cbo9780511802843": {
+    "authors": [
+      "A. C. Davison",
+      "D. V. Hinkley"
+    ],
+    "doi": "10.1017/cbo9780511802843",
+    "response_sha256": "469db3e5d7d9802e1cfccbaeb75f917449de102382218574fc9501f826653266",
+    "titles": [
+      "Bootstrap Methods and their Application"
+    ],
+    "url": "https://api.crossref.org/works/10.1017/cbo9780511802843",
+    "year": 1997
+  },
   "10.1017/cbo9780511803161": {
     "authors": [
       "Judea Pearl"
@@ -434,6 +528,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1017/cbo9780511803161",
     "year": 2009
+  },
+  "10.1017/cbo9781139025751": {
+    "authors": [
+      "Guido W. Imbens",
+      "Donald B. Rubin"
+    ],
+    "doi": "10.1017/cbo9781139025751",
+    "response_sha256": "499ebe6220bc5988db736c82414e78c49de2c128e9400e7a98c090306cd10abc",
+    "titles": [
+      "Causal Inference for Statistics, Social, and Biomedical Sciences"
+    ],
+    "url": "https://api.crossref.org/works/10.1017/cbo9781139025751",
+    "year": 2015
   },
   "10.1017/s0266466605050565": {
     "authors": [
@@ -1008,6 +1115,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1093/biomet/25.3-4.285",
     "year": 1933
+  },
+  "10.1093/biomet/26.4.404": {
+    "authors": [
+      "C. J. CLOPPER",
+      "E. S. PEARSON"
+    ],
+    "doi": "10.1093/biomet/26.4.404",
+    "response_sha256": "7de009321a6dc4aeeba3586793c97d4ee85f4c8982eab434b5deae7bb6fbf6e8",
+    "titles": [
+      "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/26.4.404",
+    "year": 1934
   },
   "10.1093/biomet/28.3-4.321": {
     "authors": [
@@ -1709,6 +1829,19 @@
     "url": "https://api.crossref.org/works/10.1126/sciadv.aau4996",
     "year": 2019
   },
+  "10.1137/070709359": {
+    "authors": [
+      "Stephen Joe",
+      "Frances Y. Kuo"
+    ],
+    "doi": "10.1137/070709359",
+    "response_sha256": "bfb209f7169850b1b2dc797a675b5ffb84efc7e55752a73cb5a6b69136ca72c4",
+    "titles": [
+      "Constructing Sobol Sequences with Better Two-Dimensional Projections"
+    ],
+    "url": "https://api.crossref.org/works/10.1137/070709359",
+    "year": 2008
+  },
   "10.1137/1.9780898717716": {
     "authors": [
       "Ramon E. Moore",
@@ -1722,6 +1855,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1137/1.9780898717716",
     "year": 2009
+  },
+  "10.1137/1.9781611971217": {
+    "authors": [
+      "Charles L. Lawson",
+      "Richard J. Hanson"
+    ],
+    "doi": "10.1137/1.9781611971217",
+    "response_sha256": "585cf989925b4f8251df697bef7685d0979f8c2469d9eb0d4e535ccec254c517",
+    "titles": [
+      "Solving Least Squares Problems"
+    ],
+    "url": "https://api.crossref.org/works/10.1137/1.9781611971217",
+    "year": 1995
   },
   "10.1137/1109020": {
     "authors": [
@@ -2687,6 +2833,19 @@
     "url": "https://api.crossref.org/works/10.1257/aer.20190159",
     "year": 2021
   },
+  "10.1287/ijoc.3.2.157": {
+    "authors": [
+      "John W. Chinneck",
+      "Erik W. Dravnieks"
+    ],
+    "doi": "10.1287/ijoc.3.2.157",
+    "response_sha256": "238e6f0aadb0b3153b6180fcafe9f095be9133684c9cb0d11c03f5fbf3203bba",
+    "titles": [
+      "Locating Minimal Infeasible Constraint Sets in Linear Programs"
+    ],
+    "url": "https://api.crossref.org/works/10.1287/ijoc.3.2.157",
+    "year": 1991
+  },
   "10.1287/mnsc.1050.0451": {
     "authors": [
       "James E. Smith",
@@ -2725,6 +2884,18 @@
     ],
     "url": "https://api.crossref.org/works/10.1287/mnsc.38.6.884",
     "year": 1992
+  },
+  "10.1287/moor.2.2.103": {
+    "authors": [
+      "Robert G. Bland"
+    ],
+    "doi": "10.1287/moor.2.2.103",
+    "response_sha256": "192134c2afedcd262f4f24d6a2f1e2872e002850395b8f546b5a65a1eb14fb53",
+    "titles": [
+      "New Finite Pivoting Rules for the Simplex Method"
+    ],
+    "url": "https://api.crossref.org/works/10.1287/moor.2.2.103",
+    "year": 1977
   },
   "10.1515/9781400829156-012": {
     "authors": [
@@ -2778,6 +2949,20 @@
     ],
     "url": "https://api.crossref.org/works/10.1515/jci-2014-0039",
     "year": 2015
+  },
+  "10.1609/aaai.v35i13.17448": {
+    "authors": [
+      "Marcel Wien\u00f6bst",
+      "Max Bannach",
+      "Maciej Liskiewicz"
+    ],
+    "doi": "10.1609/aaai.v35i13.17448",
+    "response_sha256": "9ee8f5491ec3d6663d0a849493566cf4463e1c533300ea5d16615454ad17483c",
+    "titles": [
+      "Polynomial-Time Algorithms for Counting and Sampling Markov Equivalent DAGs"
+    ],
+    "url": "https://api.crossref.org/works/10.1609/aaai.v35i13.17448",
+    "year": 2021
   },
   "10.17487/rfc8949": {
     "authors": [
@@ -2867,6 +3052,18 @@
     "url": "https://api.crossref.org/works/10.2307/1907743",
     "year": 1957
   },
+  "10.2307/1912771": {
+    "authors": [
+      "Hal R. Varian"
+    ],
+    "doi": "10.2307/1912771",
+    "response_sha256": "17fb257c95257724ed8f98d860fc44a565b7b376c85a3a3f882731ce739774b0",
+    "titles": [
+      "The Nonparametric Approach to Demand Analysis"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/1912771",
+    "year": 1982
+  },
   "10.2307/1912934": {
     "authors": [
       "Halbert White"
@@ -2891,6 +3088,19 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/1913610",
     "year": 1987
+  },
+  "10.2307/1924536": {
+    "authors": [
+      "Itzhak Krinsky",
+      "A. Leslie Robb"
+    ],
+    "doi": "10.2307/1924536",
+    "response_sha256": "3e33f08a16a54954bd987ad0b347a175733000e937235fc1e1f0b89107e50b85",
+    "titles": [
+      "On Approximating the Statistical Properties of Elasticities"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/1924536",
+    "year": 1986
   },
   "10.2307/2343787": {
     "authors": [
@@ -2931,6 +3141,31 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/2346806",
     "year": 1979
+  },
+  "10.2307/2347496": {
+    "authors": [
+      "D. J. Venzon",
+      "S. H. Moolgavkar"
+    ],
+    "doi": "10.2307/2347496",
+    "response_sha256": "c5444517e89400a2b6e54b53e19a387984e27e5b5746163eb86776882155de1a",
+    "titles": [
+      "A Method for Computing Profile-Likelihood-Based Confidence Intervals"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2347496",
+    "year": 1988
+  },
+  "10.2307/2525382": {
+    "authors": [
+      "S. N. Afriat"
+    ],
+    "doi": "10.2307/2525382",
+    "response_sha256": "71c2749d2d3e16d0cee2c23b5108e963e8eceef4d884f770d758276c36f59c5f",
+    "titles": [
+      "The Construction of Utility Functions from Expenditure Data"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2525382",
+    "year": 1967
   },
   "10.2307/2530245": {
     "authors": [

@@ -1266,3 +1266,265 @@ fn an_attached_record_round_trips_as_an_optional_section_of_its_host() {
     section.data = std::sync::Arc::from(&b"not a record"[..]);
     assert!(PropagationChainRecordWire::from_artifact(&damaged).is_err());
 }
+
+// ------------------------------------------------------------ deferred tables
+
+fn joint_quantity(variable: &str) -> ScientificQuantityWire {
+    ScientificQuantityWire {
+        version: 1,
+        variable_id: variable.into(),
+        variable_name: variable.into(),
+        role: "outcome".into(),
+        units: "points".into(),
+        population_id: "target_population".into(),
+        regime_id: "do(t=1)".into(),
+        horizon: 0,
+        functional_id: "mean".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    }
+}
+
+fn canonical(quantity: &ScientificQuantityWire) -> String {
+    let typed: ScientificQuantity = quantity.clone().try_into().expect("a valid quantity");
+    typed.canonical_identity()
+}
+
+fn joint_stages() -> Vec<ChainStageWire> {
+    ["x", "y"]
+        .iter()
+        .map(|id| {
+            ChainStageWire::new(
+                &format!("{id}_out"),
+                StageKind::DerivedQuantity,
+                &[*id],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            )
+        })
+        .collect()
+}
+
+fn joint_outputs() -> Vec<ChainJointOutputWire> {
+    vec![
+        ChainJointOutputWire { stage: "x_out".into(), quantity: joint_quantity("benefit") },
+        ChainJointOutputWire { stage: "y_out".into(), quantity: joint_quantity("harm") },
+    ]
+}
+
+/// Two posterior columns joined into a joint output law, with `values` as their draws (empty for
+/// the slots of a deferred table).
+fn joint_draft(x: &[f64], y: &[f64]) -> PropagationChainRecordWire {
+    PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "x_out",
+        vec![
+            ChainSourceWire::draws("x", LawMeaning::Posterior, TABLE, x)
+                .with_factor(SharedFactorKind::Row, "table-a"),
+            ChainSourceWire::draws("y", LawMeaning::Posterior, TABLE, y)
+                .with_factor(SharedFactorKind::Row, "table-b"),
+        ],
+        joint_stages(),
+    )
+    .with_output_quantity(joint_quantity("benefit"))
+    .with_joint_outputs(joint_outputs())
+}
+
+fn deferred_table(rows: u64, seed: u64) -> ChainDeferredTableWire {
+    ChainDeferredTableWire {
+        construction: DEFERRED_MOMENT_MATCHED_NORMAL.to_owned(),
+        rows,
+        seed,
+        slots: vec!["x".into(), "y".into()],
+        declared_cross: Vec::new(),
+        within_blocks: vec![vec!["x".into()], vec!["y".into()]],
+    }
+}
+
+/// A deferred draft as a compile leaves it: the joint-law format and the deferred feature.
+fn deferred_draft(rows: u64, seed: u64) -> PropagationChainDraftWire {
+    let mut record = joint_draft(&[], &[]);
+    record.version = PROPAGATION_CHAIN_JOINT_LAW_VERSION;
+    record.required_features = vec![
+        PROPAGATION_CHAIN_JOINT_LAW_FEATURE.to_owned(),
+        PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned(),
+    ];
+    PropagationChainDraftWire { record, deferred: deferred_table(rows, seed) }
+}
+
+/// The canonical stream of the two-column joint draft, written out independently of
+/// [`propagation_chain_identity`], with `deferred` written after the sources when present.
+fn joint_stream(
+    tag: &str,
+    sources: &[(&str, &str, &[f64])],
+    deferred: Option<&ChainDeferredTableWire>,
+    label: &str,
+) -> String {
+    let mut writer = CanonicalWriter::new(tag);
+    writer.word(u64::from(PROPAGATION_CHAIN_JOINT_LAW_VERSION));
+    writer
+        .word(TableConstruction::JointDraws.tag())
+        .word(ChainReading::Posterior.tag())
+        .text("x_out");
+    writer.word(1).text(&canonical(&joint_quantity("benefit")));
+    writer.word(2);
+    writer.text("x_out").text(&canonical(&joint_quantity("benefit")));
+    writer.text("y_out").text(&canonical(&joint_quantity("harm")));
+    writer.word(2);
+    for (id, factor, values) in sources {
+        writer
+            .text(id)
+            .word(Representation::Draws.tag())
+            .opt_word(Some(LawMeaning::Posterior.tag()))
+            .opt_text(Some(TABLE))
+            .word(1);
+        writer.word(1).word(1).text(factor); // one row factor
+        writer.word(values.len() as u64);
+        for value in *values {
+            writer.word(value.to_bits());
+        }
+    }
+    if let Some(table) = deferred {
+        writer
+            .text(&table.construction)
+            .word(table.rows)
+            .word(table.seed)
+            .texts(&table.slots)
+            .word(table.within_blocks.len() as u64);
+        for group in &table.within_blocks {
+            writer.texts(group);
+        }
+        writer.word(table.declared_cross.len() as u64);
+        for block in &table.declared_cross {
+            writer.word(block.first).word(block.second).word(block.terms.len() as u64);
+            for term in &block.terms {
+                writer.word(*term);
+            }
+        }
+    }
+    writer.word(2);
+    for (id, input) in [("x_out", "x"), ("y_out", "y")] {
+        writer
+            .text(id)
+            .word(StageKind::DerivedQuantity.tag())
+            .word(OperatorClass::Affine.tag())
+            .texts(&[input]);
+        writer.word(0); // no own factors
+        writer.word(1).word(1).real(1.0).word(1).real(0.0); // affine: fixed scale, fixed shift
+        writer.opt_word(None);
+    }
+    writer.word(0); // no changes
+    writer.text(label);
+    writer.finish_hex()
+}
+
+#[test]
+fn a_joint_law_record_keeps_its_identity_encoding_and_its_bytes() {
+    let x = normal_grid(1.0, 0.5);
+    let y = independent_grid(2.0, 0.25);
+    let record = PropagationChainRecordWire::seal(joint_draft(&x, &y), &ctx()).expect("seals");
+    assert_eq!(record.version, PROPAGATION_CHAIN_JOINT_LAW_VERSION);
+    let expected = joint_stream(
+        PROPAGATION_CHAIN_JOINT_LAW_TAG,
+        &[("x", "table-a", &x), ("y", "table-b", &y)],
+        None,
+        &record.label,
+    );
+    assert_eq!(record.identity, expected);
+    // A record never carries a deferred table, so its encoded bytes are the bytes of a record
+    // from before deferred tables existed; such bytes still decode.
+    let json = serde_json::to_string(&record).expect("encodes");
+    assert!(!json.contains("deferred"), "{json}");
+    let decoded: PropagationChainRecordWire = serde_json::from_str(&json).expect("decodes");
+    assert_eq!(decoded, record);
+    let bytes = record.export().expect("exports");
+    let replayed = PropagationChainRecordWire::decode(&bytes).expect("decodes");
+    assert_eq!(replayed, record);
+    replayed.consume(Some(&record.identity), &ctx()).expect("replays");
+}
+
+#[test]
+fn a_deferred_draft_has_its_own_identity_and_binds_rows_seed_and_layout() {
+    let draft = deferred_draft(400, 7);
+    let plan = draft.plan().expect("the rule plans a deferred draft");
+    let mut labelled = draft.clone();
+    plan.label.clone_into(&mut labelled.record.label);
+    let identity = propagation_chain_draft_identity(&labelled).expect("identity");
+    let empty: &[f64] = &[];
+    let expected = joint_stream(
+        PROPAGATION_CHAIN_DEFERRED_TAG,
+        &[("x", "table-a", empty), ("y", "table-b", empty)],
+        Some(&draft.deferred),
+        plan.label,
+    );
+    assert_eq!(identity, expected);
+    assert_ne!(propagation_chain_identity(&labelled.record).expect("identity"), identity);
+    for other in [deferred_draft(401, 7), deferred_draft(400, 8)] {
+        let mut other = other;
+        plan.label.clone_into(&mut other.record.label);
+        assert_ne!(propagation_chain_draft_identity(&other).expect("identity"), identity);
+    }
+    let mut regrouped = labelled.clone();
+    regrouped.deferred.within_blocks = vec![vec!["x".into(), "y".into()]];
+    assert_ne!(propagation_chain_draft_identity(&regrouped).expect("identity"), identity);
+}
+
+#[test]
+fn a_deferred_draft_is_never_sealed_exported_or_consumed() {
+    let draft = deferred_draft(400, 7);
+    let refused = |result: Result<(), Error>| match result {
+        Err(Error::Refused(refusal)) => {
+            assert_eq!(refusal.detail(), DEFERRED_SOURCE_UNBOUND);
+            assert_eq!(refusal.code(), "invalid_argument");
+        }
+        other => panic!("expected the deferred refusal, got {other:?}"),
+    };
+    // The draft's record carries the deferred feature marker, so it is refused on its own.
+    refused(PropagationChainRecordWire::seal(draft.record.clone(), &ctx()).map(|_| ()));
+    refused(draft.record.export().map(|_| ()));
+    refused(draft.record.consume(None, &ctx()).map(|_| ()));
+    // Encoded as it is, a reader that does not bind deferred tables refuses the feature.
+    let bytes = crate::to_cbor(&draft.record).expect("encodes");
+    assert_eq!(
+        PropagationChainRecordWire::decode(&bytes),
+        Err(PropagationChainError::UnsupportedSemantics("required features"))
+    );
+}
+
+#[test]
+fn a_malformed_deferred_table_is_refused_before_the_rule_runs() {
+    let malformed = |edit: &dyn Fn(&mut ChainDeferredTableWire)| {
+        let mut draft = deferred_draft(400, 7);
+        edit(&mut draft.deferred);
+        assert!(matches!(draft.plan(), Err(Error::Malformed(_))), "{:?}", draft.plan());
+    };
+    malformed(&|table| table.construction = "other".into());
+    malformed(&|table| table.rows = 1);
+    malformed(&|table| table.slots.push("z".into()));
+    malformed(&|table| table.slots.push("x".into()));
+    malformed(&|table| table.within_blocks = vec![vec!["x".into()]]);
+    malformed(&|table| table.within_blocks = vec![vec!["x".into()], vec!["x".into(), "y".into()]]);
+    malformed(&|table| {
+        table.declared_cross =
+            vec![ChainDeclaredBlockWire { first: 1, second: 0, terms: vec![0.1_f64.to_bits()] }];
+    });
+    malformed(&|table| {
+        table.declared_cross = vec![ChainDeclaredBlockWire { first: 0, second: 1, terms: vec![] }];
+    });
+    malformed(&|table| {
+        table.declared_cross =
+            vec![ChainDeclaredBlockWire { first: 0, second: 1, terms: vec![f64::NAN.to_bits()] }];
+    });
+    // A slot that already carries draws is not deferred.
+    let mut draft = deferred_draft(400, 7);
+    draft.record.sources[0].values = vec![1.0_f64.to_bits(); 400];
+    assert!(matches!(draft.plan(), Err(Error::Malformed(_))));
+    // A well-formed block between the two groups plans.
+    let mut draft = deferred_draft(400, 7);
+    draft.deferred.declared_cross =
+        vec![ChainDeclaredBlockWire { first: 0, second: 1, terms: vec![0.01_f64.to_bits()] }];
+    draft.plan().expect("plans");
+}

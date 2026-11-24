@@ -728,6 +728,14 @@ ignored = true
 grid = true
 
 [[group]]
+label = "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95"
+package = "antecedent-design"
+target = "decision_reliability_interval_calibration"
+tests = ["preference_choice_model_calibration::choice_model_trade_off_one_parameter_l95"]
+ignored = true
+grid = true
+
+[[group]]
 label = "decision_reliability_interval_calibration: ranking_probability_two_candidates_l95"
 package = "antecedent-design"
 target = "decision_reliability_interval_calibration"

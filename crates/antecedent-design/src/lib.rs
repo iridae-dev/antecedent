@@ -5,11 +5,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod accepted_preferences;
+mod accepted_preferences_artifact;
 pub mod adaptive_policy;
 pub mod adaptive_policy_search;
 pub mod candidate;
 pub mod candidate_generation;
 pub mod choice_evsi;
+pub mod choice_record;
 pub mod cohort_decision_input;
 pub mod composition_boundary;
 pub mod composition_bundle;
@@ -26,8 +29,10 @@ pub mod decision_refusal;
 pub mod decision_reliability;
 pub mod decision_robust_artifact;
 pub mod decision_robustness;
+pub mod decision_standing;
 pub mod decision_structural;
 pub mod decision_structural_artifact;
+pub mod decision_wire;
 pub mod design_ranking_artifact;
 pub mod error;
 pub mod evidence_plan;
@@ -44,6 +49,50 @@ pub mod objective;
 pub mod obligation_adapters;
 mod plan_common;
 pub mod planning;
+mod preference_artifact_error;
+pub mod preference_certified;
+pub mod preference_choice_model;
+pub mod preference_contract;
+pub mod preference_decision;
+mod preference_decision_artifact;
+mod preference_enclosure;
+pub mod preference_model;
+pub mod preference_refusal;
+mod preference_route_choice;
+mod preference_sampled;
+pub mod preference_set_learning;
+
+/// One entry point over the exact and the certified verdict across a preference set.
+///
+/// The route rule and the route-choosing entry points are defined without any code that learns
+/// preferences from recorded choices; deciding with accepted preferences is defined with them in
+/// [`crate::accepted_preferences`] and is reachable here as well.
+pub mod preference_evaluation {
+    pub use crate::accepted_preferences::{
+        decide_with_accepted, decide_with_accepted_with_context,
+    };
+    pub use crate::preference_route_choice::{
+        PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions,
+        PreferenceRoute, ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE,
+        ROUTE_PART_NOT_LOWERABLE, ROUTE_SHAPE_PARAMETERS, ROUTE_VALUE_RELATIONS,
+        ROUTE_WORST_CASE_OF_EXPECTED_REGRET, RouteChoice, StructuralPreferenceEvaluation,
+        decide_preferences, decide_preferences_on_means, decide_preferences_on_means_with_context,
+        decide_preferences_structural, decide_preferences_structural_with_context,
+        decide_preferences_with_context, preference_route,
+    };
+}
+
+/// Durable records of decisions across a preference set and of accepted preferences.
+///
+/// The record of a decision is defined without any code that learns preferences from recorded
+/// choices; the record of accepted preferences builds on it. Both share one refusal type.
+pub mod preference_artifact {
+    pub use crate::accepted_preferences_artifact::AcceptedPreferencesArtifact;
+    pub use crate::preference_artifact_error::PreferenceArtifactError;
+    pub use crate::preference_decision_artifact::{
+        PreferenceDecisionArtifact, REPLAY_RELATIVE_TOLERANCE,
+    };
+}
 pub mod preposterior;
 pub mod prior_signal;
 pub mod program_search;

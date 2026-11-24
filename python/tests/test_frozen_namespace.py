@@ -92,6 +92,7 @@ _EXPECTED_ALL = {
     "Frequentist",
     "Bayesian",
     "ClassPrior",
+    "UnitKey",
     "Identifier",
     "Estimator",
     "Latency",
