@@ -11670,16 +11670,22 @@ codes = ["effect_not_identified"]
 meaning = "The design's exposure declares bias bounds instead of no interference, so its arm means are not point identified; declare no interference or decide over the bounded set."
 
 [[detail]]
-id = "preference_compile.design_law_not_aligned"
-family = "preference_compile"
-codes = ["joint_law_required"]
-meaning = "The compiled design retains arm means with a conservative design-based covariance estimate, not an aligned joint law of its outcomes; read its means, or estimate the outcomes with a design whose inference draws an aligned law."
-
-[[detail]]
 id = "preference_compile.design_not_supported"
 family = "preference_compile"
 codes = ["route_not_supported"]
 meaning = "The compiled design has no arm coordinates the decision can read; use a static-regime, cluster-randomized or matched-pair or switchback experiment design."
+
+[[detail]]
+id = "preference_compile.design_sampling_undeclared"
+family = "preference_compile"
+codes = ["joint_law_required"]
+meaning = "Under randomization alone the cross-arm dependence of the design's arm-mean estimators is not identified, so its arm means carry no joint law; declare the premise that the independent units (clusters, pairs or sequences) were sampled independently from a larger population, with at least 99 refits, to read their independent-unit bootstrap law."
+
+[[detail]]
+id = "preference_compile.design_units_too_few"
+family = "preference_compile"
+codes = ["too_few_clusters"]
+meaning = "The design has too few independent units for an independent-unit bootstrap law: it needs at least 30 clusters in each arm, 30 matched pairs or 30 switchback sequences."
 
 [[detail]]
 id = "preference_compile.program_carries_decision"

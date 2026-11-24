@@ -1873,8 +1873,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_compile.class_sampling_budget",
     "preference_compile.cross_study_covariance_invalid",
     "preference_compile.design_exposure_bounded",
-    "preference_compile.design_law_not_aligned",
     "preference_compile.design_not_supported",
+    "preference_compile.design_sampling_undeclared",
+    "preference_compile.design_units_too_few",
     "preference_compile.program_carries_decision",
     "preference_compile.studies_share_evidence",
     "preference_compile.unit_key_invalid",
@@ -4848,8 +4849,9 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_compile.class_sampling_budget", &["route_not_supported"]),
     ("preference_compile.cross_study_covariance_invalid", &["invalid_argument"]),
     ("preference_compile.design_exposure_bounded", &["effect_not_identified"]),
-    ("preference_compile.design_law_not_aligned", &["joint_law_required"]),
     ("preference_compile.design_not_supported", &["route_not_supported"]),
+    ("preference_compile.design_sampling_undeclared", &["joint_law_required"]),
+    ("preference_compile.design_units_too_few", &["too_few_clusters"]),
     ("preference_compile.program_carries_decision", &["invalid_argument"]),
     ("preference_compile.studies_share_evidence", &["evidence_double_counted"]),
     ("preference_compile.unit_key_invalid", &["invalid_argument"]),
@@ -10231,10 +10233,12 @@ pub mod preference_compile {
     pub const CROSS_STUDY_COVARIANCE_INVALID: &str = "preference_compile.cross_study_covariance_invalid";
     /// Detail `preference_compile.design_exposure_bounded`.
     pub const DESIGN_EXPOSURE_BOUNDED: &str = "preference_compile.design_exposure_bounded";
-    /// Detail `preference_compile.design_law_not_aligned`.
-    pub const DESIGN_LAW_NOT_ALIGNED: &str = "preference_compile.design_law_not_aligned";
     /// Detail `preference_compile.design_not_supported`.
     pub const DESIGN_NOT_SUPPORTED: &str = "preference_compile.design_not_supported";
+    /// Detail `preference_compile.design_sampling_undeclared`.
+    pub const DESIGN_SAMPLING_UNDECLARED: &str = "preference_compile.design_sampling_undeclared";
+    /// Detail `preference_compile.design_units_too_few`.
+    pub const DESIGN_UNITS_TOO_FEW: &str = "preference_compile.design_units_too_few";
     /// Detail `preference_compile.program_carries_decision`.
     pub const PROGRAM_CARRIES_DECISION: &str = "preference_compile.program_carries_decision";
     /// Detail `preference_compile.studies_share_evidence`.

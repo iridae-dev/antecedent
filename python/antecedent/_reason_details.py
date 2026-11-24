@@ -2399,8 +2399,9 @@ class preference_compile:  # noqa: N801
     CLASS_SAMPLING_BUDGET: Final = "preference_compile.class_sampling_budget"
     CROSS_STUDY_COVARIANCE_INVALID: Final = "preference_compile.cross_study_covariance_invalid"
     DESIGN_EXPOSURE_BOUNDED: Final = "preference_compile.design_exposure_bounded"
-    DESIGN_LAW_NOT_ALIGNED: Final = "preference_compile.design_law_not_aligned"
     DESIGN_NOT_SUPPORTED: Final = "preference_compile.design_not_supported"
+    DESIGN_SAMPLING_UNDECLARED: Final = "preference_compile.design_sampling_undeclared"
+    DESIGN_UNITS_TOO_FEW: Final = "preference_compile.design_units_too_few"
     PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
     STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
     UNIT_KEY_INVALID: Final = "preference_compile.unit_key_invalid"
@@ -5627,8 +5628,9 @@ ALL: Final[tuple[str, ...]] = (
     "preference_compile.class_sampling_budget",
     "preference_compile.cross_study_covariance_invalid",
     "preference_compile.design_exposure_bounded",
-    "preference_compile.design_law_not_aligned",
     "preference_compile.design_not_supported",
+    "preference_compile.design_sampling_undeclared",
+    "preference_compile.design_units_too_few",
     "preference_compile.program_carries_decision",
     "preference_compile.studies_share_evidence",
     "preference_compile.unit_key_invalid",
@@ -8664,8 +8666,9 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_compile.class_sampling_budget": ("route_not_supported",),
     "preference_compile.cross_study_covariance_invalid": ("invalid_argument",),
     "preference_compile.design_exposure_bounded": ("effect_not_identified",),
-    "preference_compile.design_law_not_aligned": ("joint_law_required",),
     "preference_compile.design_not_supported": ("route_not_supported",),
+    "preference_compile.design_sampling_undeclared": ("joint_law_required",),
+    "preference_compile.design_units_too_few": ("too_few_clusters",),
     "preference_compile.program_carries_decision": ("invalid_argument",),
     "preference_compile.studies_share_evidence": ("evidence_double_counted",),
     "preference_compile.unit_key_invalid": ("invalid_argument",),

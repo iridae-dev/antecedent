@@ -36,8 +36,8 @@ pub use decision::{
     EvidenceSourceRef, EvsiProgram,
 };
 pub use decision::{
-    PreferenceChainInputFact, PreferenceJointLawFact, PreferenceParameterFact,
-    PreferenceQuantityFact, PreferenceValueFacts,
+    PreferenceChainInputFact, PreferenceDesignLawFact, PreferenceJointLawFact,
+    PreferenceParameterFact, PreferenceQuantityFact, PreferenceValueFacts,
 };
 pub(crate) use linear_gaussian::{
     linear_gaussian_physical_operators, linear_gaussian_program_operators,

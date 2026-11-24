@@ -356,6 +356,7 @@ impl PreparedNativeJointDesign {
             | JointDesignInference::SwitchbackExactRandomization { .. } => 1,
             JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
             JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::IndependentUnitBootstrap { replicates, .. }
             | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
             JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
@@ -720,6 +721,7 @@ impl NativeJointDesignResult {
             | JointDesignInference::SyntheticConformal { .. }
             | JointDesignInference::SwitchbackExactRandomization { .. } => ("", None, None),
             JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::IndependentUnitBootstrap { replicates, .. }
             | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => {
                 ("", Some(*replicates), None)
             }

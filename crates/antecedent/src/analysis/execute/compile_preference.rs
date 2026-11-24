@@ -413,6 +413,7 @@ pub(super) fn compile_entries(
             &read,
             bound.studies.get(source).map(|study| &study.schema),
             declared.as_ref().map(|law| law.fact().clone()),
+            None,
         );
         let program = decision_program(contract, &bound.identity, stated, (&demand, carrier));
         let goal = CompileGoal::Decision(program);
@@ -753,8 +754,9 @@ impl CompiledPreferenceDecision {
             }
             Sources::Design(design) => {
                 let (source, programs) = design.execute(self.demand.representation, ctx)?;
-                let evaluation =
+                let mut evaluation =
                     decide_with_context(&self.contract, &source, measure, options, ctx)?;
+                design.state_premise(&mut evaluation);
                 Ok(PreferenceDecisionExecution {
                     evaluation: CompiledPreferenceEvaluation::Single(evaluation),
                     source: Some(source),

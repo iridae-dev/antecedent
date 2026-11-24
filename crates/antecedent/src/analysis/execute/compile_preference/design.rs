@@ -7,14 +7,21 @@
 //!   one aligned law over the arm coordinates, with any failed refit refused rather than
 //!   dropped;
 //! * a cluster-randomized design and a matched-pair or switchback experiment: their arm means,
-//!   under an exposure free of interference. Neither has an aligned joint law: the cluster law
-//!   retains per-arm conservative Neyman covariance bounds
-//!   (`antecedent_estimate::joint_design::cluster_decision::JointClusterLaw`) and the
-//!   experiment law a conservative design-based covariance estimate of its arm means
-//!   (`antecedent_estimate::randomized_joint::matched_pair_joint_contrast`, the switchback
-//!   ITT variances), and the covariance of the potential outcomes across arms that a law
-//!   would need is not identified by a randomized design. A demand for a joint law of these
-//!   designs is refused at compile naming the design.
+//!   under an exposure free of interference. Randomization alone identifies the arm means and
+//!   a conservative covariance bound for their linear combinations, but not the dependence of
+//!   the arm-mean estimators across arms, which rests on the joint distribution of the
+//!   potential outcomes under both arms. A decision that needs a joint law of these designs
+//!   therefore reads one only under a declared premise that the independent units (clusters,
+//!   pairs or sequences) were sampled independently from a larger population: then the
+//!   independent-unit bootstrap
+//!   (`antecedent_estimate::joint_design::unit_bootstrap::joint_unit_bootstrap`) refits the
+//!   whole estimator on resampled units and its aligned refits are the law, with any failed
+//!   refit refused rather than dropped. Without the premise the demand is refused at compile
+//!   naming the design.
+//!
+//! The resampling law (its kind, unit, refits, seed and premise) is stated in the decision
+//! program, so it enters the program's identity, and the premise enters the evaluation's
+//! assumptions.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -27,11 +34,14 @@ use antecedent_core::reason_details::preference_compile;
 use antecedent_design::decision_contract::SourceRepresentation;
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 use antecedent_design::preference_contract::PreferenceContract;
+use antecedent_design::preference_evaluation::PreferenceEvaluation;
 use antecedent_estimate::joint_design::compiled::{
     JointDesignInference, JointDesignRecipe, JointNativeDesignLaw,
 };
 use antecedent_estimate::joint_design::experiment::ExperimentExposure;
-use antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap;
+use antecedent_estimate::joint_design::unit_bootstrap::{
+    IndependentUnit, MIN_INDEPENDENT_UNITS, MIN_REFITS, independent_units,
+};
 use antecedent_estimate::temporal_design::regime::MIN_REPLICATES;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -49,17 +59,24 @@ use crate::CausalError;
 use crate::analysis::joint_panel::designs::PreparedNativeJointDesign;
 use crate::analysis::native_claims::NativeDecisionSource;
 use crate::planner::PlanView;
-use crate::planner::lowered::{CarrierDemand, DecisionProgram};
+use crate::planner::lowered::{CarrierDemand, DecisionProgram, PreferenceDesignLawFact};
 use crate::planner::statistical::Realization;
 
-/// Aligned whole-subject bootstrap refits a static-regime design draws when the decision
-/// needs a joint law of its outcomes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// The refits a compiled design draws when the decision needs a joint law of its outcomes:
+/// aligned whole-subject refits of a static-regime design, or the independent-unit bootstrap
+/// of a cluster-randomized, matched-pair or switchback design.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DesignBootstrap {
-    /// Complete refits; at least the design's floor of 99.
+    /// Complete refits; at least the floor of 99.
     pub replicates: usize,
     /// Resampling seed.
     pub seed: u64,
+    /// Assumption identity of the declared premise that the design's independent units
+    /// (subjects, clusters, pairs or sequences) were sampled independently from a larger
+    /// population. Required for a randomized design, whose arm means carry no joint law
+    /// under randomization alone; stated with a static-regime design when given. The premise
+    /// enters the decision program's identity and the evaluation's assumptions.
+    pub sampling: Option<String>,
 }
 
 /// The designs whose arm coordinates a decision reads.
@@ -80,6 +97,8 @@ pub(super) struct DesignSource {
     design: PreparedNativeJointDesign,
     coordinates: Vec<ScientificQuantity>,
     inference: JointDesignInference,
+    /// The declared sampling premise the law rests on.
+    sampling: Option<String>,
 }
 
 impl DesignSource {
@@ -108,7 +127,28 @@ impl DesignSource {
                 NativeDecisionSource::Mean(self.arm_means(law.means.clone(), &dependency)?)
             }
             (JointNativeDesignLaw::StaticRegimeBootstrap(refits), _) => {
-                NativeDecisionSource::JointLaw(Box::new(self.refit_law(refits, &dependency)?))
+                let rng_id = format!("{:?}", self.inference);
+                NativeDecisionSource::JointLaw(Box::new(self.refit_law(
+                    (&refits.realizations, &refits.failures),
+                    rng_id,
+                    &dependency,
+                )?))
+            }
+            (JointNativeDesignLaw::IndependentUnitBootstrap(refits), _) => {
+                let JointDesignInference::IndependentUnitBootstrap { replicates, seed, .. } =
+                    &self.inference
+                else {
+                    return Err(law_refusal("the design returned another law".to_owned()));
+                };
+                let rng_id = format!(
+                    "independent_unit_bootstrap:{}:replicates={replicates}:seed={seed}",
+                    refits.unit.name()
+                );
+                NativeDecisionSource::JointLaw(Box::new(self.refit_law(
+                    (&refits.realizations, &refits.failures),
+                    rng_id,
+                    &dependency,
+                )?))
             }
             _ => return Err(law_refusal("the design returned another law".to_owned())),
         };
@@ -136,23 +176,39 @@ impl DesignSource {
         })
     }
 
+    /// Add the declared sampling premise to the assumptions the evaluation rests on.
+    pub(super) fn state_premise(&self, evaluation: &mut PreferenceEvaluation) {
+        let Some(premise) = &self.sampling else {
+            return;
+        };
+        let assumptions = match evaluation {
+            PreferenceEvaluation::Exact(result) => &mut result.assumptions,
+            PreferenceEvaluation::Certified(result) => &mut result.assumptions,
+        };
+        assumptions.push(premise.clone());
+        assumptions.sort();
+        assumptions.dedup();
+    }
+
     /// The aligned refits as one law over the arm coordinates: one row per refit, treated
-    /// arm then control arm. A failed refit is refused, never dropped.
+    /// arm then control arm, labelled with the resampling recipe `rng_id`. A failed refit is
+    /// refused, never dropped.
     fn refit_law(
         &self,
-        refits: &JointStaticRegimeBootstrap,
+        (realizations, failures): (&[Option<Vec<f64>>], &[Option<String>]),
+        rng_id: String,
         dependency: &str,
     ) -> Result<DistributionArtifact, PreferenceRouteError> {
-        let failed = refits.failures.iter().filter(|failure| failure.is_some()).count();
+        let failed = failures.iter().filter(|failure| failure.is_some()).count();
         if failed > 0 {
             return Err(law_refusal(format!(
                 "{failed} of {} refits failed; a failed slot is never dropped",
-                refits.realizations.len()
+                realizations.len()
             )));
         }
         let width = self.coordinates.len();
-        let mut rows = Vec::with_capacity(refits.realizations.len() * width);
-        for realization in &refits.realizations {
+        let mut rows = Vec::with_capacity(realizations.len() * width);
+        for realization in realizations {
             match realization {
                 Some(row) if row.len() == width => rows.extend_from_slice(row),
                 _ => return Err(law_refusal("a refit misaligned with the arms".to_owned())),
@@ -166,7 +222,7 @@ impl DesignSource {
             DistributionProvenance {
                 source_id: dependency.to_owned(),
                 provider_id: "antecedent.native_joint_design".to_owned(),
-                rng_id: format!("{:?}", self.inference),
+                rng_id,
                 snapshot_id: self.design.dependency().to_hex(),
                 causal_contract_id: self.design.program_identity().to_hex(),
             },
@@ -177,7 +233,7 @@ impl DesignSource {
                 version: 1,
                 identity,
                 axes: ["draw".to_owned(), "quantity".to_owned()],
-                shape: [refits.realizations.len(), width],
+                shape: [realizations.len(), width],
                 weights: None,
                 supported: None,
                 calibration: DistributionCalibration::NotMeasured,
@@ -218,23 +274,50 @@ fn bounded_exposure(design: &PreparedNativeJointDesign) -> PreferenceRouteError 
     .into()
 }
 
-/// The refusal of a joint-law demand on a design whose law carries arm means and a
-/// conservative design-based covariance, never an aligned joint law.
-fn law_not_aligned(design: &PreparedNativeJointDesign) -> PreferenceRouteError {
+/// The refusal of a joint-law demand on a randomized design with no declared sampling
+/// premise: under randomization alone the cross-arm dependence of the arm-mean estimators is
+/// not identified.
+fn sampling_undeclared(design: &PreparedNativeJointDesign) -> PreferenceRouteError {
     ExternalRefusal::new(
         antecedent_core::reason_code!("joint_law_required"),
         STAGE_COMPILE,
-        preference_compile::DESIGN_LAW_NOT_ALIGNED,
+        preference_compile::DESIGN_SAMPLING_UNDECLARED,
     )
     .with_offending(design.identification().method.clone())
-    .with_expected("aligned joint draws of every outcome under both arms")
+    .with_expected(
+        "a declared premise that the independent units (clusters, pairs or sequences) were \
+         sampled independently from a larger population, with at least 99 refits",
+    )
     .with_supplied(
-        "arm means with a conservative design-based covariance estimate; the covariance of \
-         the potential outcomes across arms is not identified by the randomization",
+        "arm means of a randomized design; under randomization alone the cross-arm dependence \
+         of the arm-mean estimators is not identified",
     )
     .with_remedy(
+        "declare the sampling premise and the refits to read the independent-unit bootstrap \
+         law, or decide with a value affine in the outcomes and an expectation criterion, \
+         which the arm means answer",
+    )
+    .into()
+}
+
+/// The refusal of an independent-unit bootstrap over fewer units than its floor.
+fn units_too_few(
+    design: &PreparedNativeJointDesign,
+    unit: IndependentUnit,
+    units: usize,
+) -> PreferenceRouteError {
+    let stratum = if unit == IndependentUnit::Cluster { " in each arm" } else { "" };
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("too_few_clusters"),
+        STAGE_COMPILE,
+        preference_compile::DESIGN_UNITS_TOO_FEW,
+    )
+    .with_offending(design.identification().method.clone())
+    .with_expected(format!("at least {MIN_INDEPENDENT_UNITS} {}s{stratum}", unit.name()))
+    .with_supplied(format!("{units} {}s{stratum}", unit.name()))
+    .with_remedy(
         "decide with a value affine in the outcomes and an expectation criterion, which the \
-         arm means answer",
+         arm means answer, or collect more independent units",
     )
     .into()
 }
@@ -333,39 +416,90 @@ fn bind_design(
     Ok(demanded)
 }
 
-/// The inference that supplies the representation the demand names, and the carrier the
-/// decision demands of the design's program.
+/// The fact stating a design's resampling law.
+fn design_law_fact(
+    (kind, unit): (&str, &str),
+    replicates: usize,
+    seed: u64,
+    sampling: Option<&str>,
+) -> PreferenceDesignLawFact {
+    PreferenceDesignLawFact {
+        kind: Arc::from(kind),
+        unit: Arc::from(unit),
+        replicates,
+        seed,
+        sampling: sampling.map(Arc::from),
+    }
+}
+
+/// The inference that supplies the representation the demand names, the carrier the
+/// decision demands of the design's program, and the resampling law it states.
 fn design_inference(
     design: &PreparedNativeJointDesign,
     kind: DesignKind,
     representation: SourceRepresentation,
     bootstrap: Option<DesignBootstrap>,
-) -> Result<(JointDesignInference, CarrierDemand), PreferenceRouteError> {
-    match (representation, kind, bootstrap) {
-        (SourceRepresentation::Mean, _, _) => {
-            Ok((JointDesignInference::Frequentist, CarrierDemand::Mean))
-        }
-        (_, DesignKind::Cluster | DesignKind::Experiment, _) => Err(law_not_aligned(design)),
-        (_, DesignKind::StaticRegime, Some(DesignBootstrap { replicates, seed }))
-            if replicates >= MIN_REPLICATES =>
-        {
+) -> Result<
+    (JointDesignInference, CarrierDemand, Option<PreferenceDesignLawFact>),
+    PreferenceRouteError,
+> {
+    if representation == SourceRepresentation::Mean {
+        return Ok((JointDesignInference::Frequentist, CarrierDemand::Mean, None));
+    }
+    match (kind, bootstrap) {
+        (DesignKind::StaticRegime, Some(refits)) if refits.replicates >= MIN_REPLICATES => {
+            let DesignBootstrap { replicates, seed, sampling } = refits;
             Ok((
                 JointDesignInference::StaticRegimeBootstrap { replicates, seed },
                 CarrierDemand::DecisionDraws,
+                Some(design_law_fact(
+                    ("static_regime_refits", "subject"),
+                    replicates,
+                    seed,
+                    sampling.as_deref(),
+                )),
             ))
         }
-        (_, DesignKind::StaticRegime, Some(_)) => {
+        (DesignKind::StaticRegime, Some(_)) => {
             Err(unpaired("fewer whole-subject refits than the design's floor of 99"))
         }
-        (_, DesignKind::StaticRegime, None) => {
+        (DesignKind::StaticRegime, None) => {
             Err(unpaired("the design's point law carries arm means only"))
         }
+        (
+            DesignKind::Cluster | DesignKind::Experiment,
+            Some(DesignBootstrap { replicates, seed, sampling: Some(sampling) }),
+        ) if !sampling.trim().is_empty() => {
+            let (unit, units) =
+                independent_units(design.recipe()).ok_or_else(|| unsupported_design(design))?;
+            if units < MIN_INDEPENDENT_UNITS {
+                return Err(units_too_few(design, unit, units));
+            }
+            if replicates < MIN_REFITS {
+                return Err(unpaired("fewer independent-unit refits than the floor of 99"));
+            }
+            Ok((
+                JointDesignInference::IndependentUnitBootstrap {
+                    replicates,
+                    seed,
+                    sampling: sampling.clone(),
+                },
+                CarrierDemand::DecisionDraws,
+                Some(design_law_fact(
+                    ("independent_unit_bootstrap", unit.name()),
+                    replicates,
+                    seed,
+                    Some(&sampling),
+                )),
+            ))
+        }
+        (DesignKind::Cluster | DesignKind::Experiment, _) => Err(sampling_undeclared(design)),
     }
 }
 
 /// Check, at compile, that the design's realization supplies the source the decision program
 /// demands: a mean of an affine value from the design's exact point functional, or aligned
-/// draws from its whole-subject refits.
+/// draws from its whole-subject or independent-unit refits.
 fn require_design_carrier(
     design: &PreparedNativeJointDesign,
     program: &DecisionProgram,
@@ -379,15 +513,21 @@ fn require_design_carrier(
                 && program.utility().is_affine()
                 && matches!(inference, JointDesignInference::Frequentist)
         }
-        CarrierDemand::DecisionDraws => {
-            matches!(inference, JointDesignInference::StaticRegimeBootstrap { .. })
-        }
+        CarrierDemand::DecisionDraws => matches!(
+            inference,
+            JointDesignInference::StaticRegimeBootstrap { .. }
+                | JointDesignInference::IndependentUnitBootstrap { .. }
+        ),
         CarrierDemand::ParameterPosterior
         | CarrierDemand::OutcomeLaw
         | CarrierDemand::PredictiveLaw
         | CarrierDemand::IdentifiedSet => false,
     };
-    if supplied { Ok(()) } else { Err(law_not_aligned(design)) }
+    if supplied {
+        Ok(())
+    } else {
+        Err(unpaired("the design's realization does not supply the carrier the decision demands"))
+    }
 }
 
 impl PreparedNativeJointDesign {
@@ -400,9 +540,11 @@ impl PreparedNativeJointDesign {
     /// is attached to layer four of the design's program, so its plan view shows the
     /// decision's quantities, carrier and parameters, and the carrier is checked against the
     /// realization at compile. When means suffice the design's frequentist point law
-    /// answers; otherwise a static-regime design's `bootstrap` declares the aligned
-    /// whole-subject refits that supply one law of every outcome under both arms. Nothing is
-    /// executed.
+    /// answers; otherwise `bootstrap` declares the refits that supply one law of every
+    /// outcome under both arms: a static-regime design's aligned whole-subject refits, or,
+    /// under a declared sampling premise, a randomized design's independent-unit bootstrap.
+    /// The resampling law is stated in the decision program and enters its identity. Nothing
+    /// is executed.
     ///
     /// # Errors
     /// A design that is not a static regime, a cluster-randomized design or a matched-pair or
@@ -410,9 +552,11 @@ impl PreparedNativeJointDesign {
     /// whose exposure declares bias bounds (`preference_compile.design_exposure_bounded`); an
     /// invalid contract; a quantity that is not one of the design's arm coordinates (naming
     /// the action and the attribute); a contract that needs a joint law of a cluster or
-    /// experiment design, which has none (`preference_compile.design_law_not_aligned`); a
-    /// static-regime contract that needs a joint law with no bootstrap declared, or fewer
-    /// refits than the design's floor (`joint_law_required`).
+    /// experiment design with no sampling premise declared
+    /// (`preference_compile.design_sampling_undeclared`) or with fewer independent units than
+    /// the bootstrap's floor (`preference_compile.design_units_too_few`); a contract that
+    /// needs a joint law with no refits declared, or fewer refits than the floor of 99
+    /// (`joint_law_required`).
     pub fn compile_for_preference_decision(
         &self,
         contract: &PreferenceContract,
@@ -427,12 +571,14 @@ impl PreparedNativeJointDesign {
         let (coordinates, kind) = design_coordinates(self)?;
         let quantities = bind_design(contract, &coordinates)?;
         let (mut demand, _) = demand_of(contract, quantities, false)?;
-        let (inference, carrier) = design_inference(self, kind, demand.representation, bootstrap)?;
+        let (inference, carrier, design_law) =
+            design_inference(self, kind, demand.representation, bootstrap)?;
+        let sampling = design_law.as_ref().and_then(|law| law.sampling().map(str::to_owned));
         demand.carrier = Some(carrier);
         let causal = vec![(self.program_identity().to_hex(), self.dependency().to_hex())];
         let identity = bound_identity(&contract_identity, &causal);
         let read: Vec<&DemandedQuantity> = demand.quantities.iter().collect();
-        let stated = super::facts::value_facts(contract, &demand, &read, None, None);
+        let stated = super::facts::value_facts(contract, &demand, &read, None, None, design_law);
         let program = decision_program(contract, &identity, stated, (&demand, carrier));
         require_design_carrier(self, &program, &inference)?;
         let lowered = self.lowered().with_decision(program).ok_or_else(|| {
@@ -456,6 +602,7 @@ impl PreparedNativeJointDesign {
                 design: self.with_lowered(Arc::new(lowered)),
                 coordinates,
                 inference,
+                sampling,
             })),
             shared: Arc::from(Vec::new()),
             joint: None,

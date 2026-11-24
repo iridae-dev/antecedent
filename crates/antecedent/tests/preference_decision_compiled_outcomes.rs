@@ -396,10 +396,10 @@ fn one_design_answers_by_its_arm_means_or_its_aligned_refits() {
     let cap = means.means[1];
     let refused = compile(kinked(cap, (0.1, 0.2)), None).unwrap_err();
     assert_eq!(refused.code(), Some("joint_law_required"));
-    let few = DesignBootstrap { replicates: 50, seed: 123 };
+    let few = DesignBootstrap { replicates: 50, seed: 123, sampling: None };
     assert!(compile(kinked(cap, (0.1, 0.2)), Some(few)).is_err());
 
-    let refits = DesignBootstrap { replicates: 99, seed: 123 };
+    let refits = DesignBootstrap { replicates: 99, seed: 123, sampling: None };
     let compiled = compile(kinked(cap, (0.1, 0.2)), Some(refits)).unwrap();
     assert_eq!(compiled.demand().representation, SourceRepresentation::JointDraws);
     let executed = compiled.execute(None, options(), &ctx).unwrap();

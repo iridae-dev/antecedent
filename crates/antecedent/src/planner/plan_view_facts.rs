@@ -107,7 +107,8 @@ pub(super) fn statistical_json(program: &StatisticalProgram) -> Fact {
 
 /// What a decision across preferences states: the quantities it reads, the representation it
 /// needs of its sources, its trade-off parameters with their admissible ranges, the bound
-/// contract and, for separately estimated outcomes, the joint law the chain will produce.
+/// contract, for separately estimated outcomes the joint law the chain will produce, and for a
+/// compiled design the resampling law it draws with its sampling premise.
 fn preference_json(
     facts: &crate::planner::lowered::PreferenceValueFacts,
     decision: &crate::planner::lowered::DecisionProgram,
@@ -147,6 +148,15 @@ fn preference_json(
                 .collect::<Vec<_>>(),
         })
     });
+    let design = facts.design_law().map(|law| {
+        fact!({
+            "kind": law.kind(),
+            "unit": law.unit(),
+            "replicates": law.replicates(),
+            "seed": law.seed(),
+            "sampling": law.sampling(),
+        })
+    });
     fact!({
         "bound_contract_identity": decision.contract_identity(),
         "representation": facts.representation(),
@@ -179,6 +189,7 @@ fn preference_json(
             }))
             .collect::<Vec<_>>(),
         "joint_law": joint,
+        "design_law": design,
     })
 }
 

@@ -429,6 +429,52 @@ impl PreferenceJointLawFact {
     }
 }
 
+/// The resampling law a compiled design draws for a decision that needs a joint law of its
+/// arm means, declared at compile.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreferenceDesignLawFact {
+    pub(crate) kind: Arc<str>,
+    pub(crate) unit: Arc<str>,
+    pub(crate) replicates: usize,
+    pub(crate) seed: u64,
+    pub(crate) sampling: Option<Arc<str>>,
+}
+
+impl PreferenceDesignLawFact {
+    /// The law: `static_regime_refits` (aligned whole-subject refits of a static-regime
+    /// design) or `independent_unit_bootstrap` (refits over the independent units of a
+    /// randomized design).
+    #[must_use]
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+
+    /// The unit resampled: `subject`, `cluster`, `pair` or `sequence`.
+    #[must_use]
+    pub fn unit(&self) -> &str {
+        &self.unit
+    }
+
+    /// Complete refits.
+    #[must_use]
+    pub const fn replicates(&self) -> usize {
+        self.replicates
+    }
+
+    /// Resampling seed.
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Assumption identity of the declared premise that the units were sampled independently
+    /// from a larger population; required for an independent-unit bootstrap.
+    #[must_use]
+    pub fn sampling(&self) -> Option<&str> {
+        self.sampling.as_deref()
+    }
+}
+
 /// What a plan states about a decision across preferences.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreferenceValueFacts {
@@ -437,6 +483,7 @@ pub struct PreferenceValueFacts {
     pub(crate) accepted: Arc<[Arc<str>]>,
     pub(crate) parameters: Arc<[PreferenceParameterFact]>,
     pub(crate) joint_law: Option<PreferenceJointLawFact>,
+    pub(crate) design_law: Option<PreferenceDesignLawFact>,
 }
 
 impl PreferenceValueFacts {
@@ -468,6 +515,12 @@ impl PreferenceValueFacts {
     #[must_use]
     pub const fn joint_law(&self) -> Option<&PreferenceJointLawFact> {
         self.joint_law.as_ref()
+    }
+
+    /// The resampling law a compiled design draws, when the decision reads one.
+    #[must_use]
+    pub const fn design_law(&self) -> Option<&PreferenceDesignLawFact> {
+        self.design_law.as_ref()
     }
 }
 
@@ -531,6 +584,19 @@ impl UtilityForm {
                         .text("joint_law")
                         .text(&joint.declaration)
                         .bytes(joint.program.as_bytes());
+                }
+                // The resampling law of a design changes the law the decision reads, and the
+                // design program's identity excludes the inference executed on it, so it is
+                // written when present.
+                if let Some(law) = &facts.design_law {
+                    writer
+                        .text("design_law")
+                        .text(&law.kind)
+                        .text(&law.unit)
+                        .word(law.replicates as u64)
+                        .word(law.seed)
+                        .word(u64::from(law.sampling.is_some()))
+                        .text(law.sampling.as_deref().unwrap_or(""));
                 }
             }
         }

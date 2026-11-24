@@ -4,8 +4,9 @@
 //! canonical identity. Beside it the plan states each quantity's coordinates (the schema
 //! variable when the source is a study, the regime, units, population, horizon, functional
 //! and scale), the representation the route reads and the ones the contract accepts, the
-//! trade-off parameters with their declared ranges and, when separately estimated outcomes are
-//! joined into one law, the propagation chain declared for them at compile.
+//! trade-off parameters with their declared ranges, when separately estimated outcomes are
+//! joined into one law, the propagation chain declared for them at compile and, when a compiled
+//! design draws a resampling law of its arm means, that law and its sampling premise.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +18,8 @@ use antecedent_design::preference_contract::PreferenceContract;
 
 use super::{DemandedQuantity, PreferenceDemand};
 use crate::planner::lowered::{
-    PreferenceJointLawFact, PreferenceParameterFact, PreferenceQuantityFact, PreferenceValueFacts,
+    PreferenceDesignLawFact, PreferenceJointLawFact, PreferenceParameterFact,
+    PreferenceQuantityFact, PreferenceValueFacts,
 };
 
 /// Stable name of a source representation.
@@ -33,13 +35,15 @@ pub(super) const fn representation_name(representation: SourceRepresentation) ->
 }
 
 /// The facts of `quantities` (the ones one source targets) under `demand`, resolving each
-/// quantity's variable in `schema` when the source is a study.
+/// quantity's variable in `schema` when the source is a study, with the joint law that joins
+/// separate studies or the resampling law a compiled design draws.
 pub(super) fn value_facts(
     contract: &PreferenceContract,
     demand: &PreferenceDemand,
     quantities: &[&DemandedQuantity],
     schema: Option<&CausalSchema>,
     joint_law: Option<PreferenceJointLawFact>,
+    design_law: Option<PreferenceDesignLawFact>,
 ) -> PreferenceValueFacts {
     let quantities = quantities
         .iter()
@@ -84,5 +88,6 @@ pub(super) fn value_facts(
         accepted: Arc::from(accepted),
         parameters: Arc::from(parameters),
         joint_law,
+        design_law,
     }
 }

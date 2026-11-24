@@ -12,11 +12,18 @@
 //! * a static-regime design (whole-subject refits supply an aligned law);
 //! * a cluster-randomized design of 20 clusters of 10 rows, alternately assigned, whose
 //!   baselines repeat in assigned pairs so both arms share them;
-//! * a matched-pair experiment over the same clusters, paired as assigned.
+//! * a matched-pair experiment over the same clusters, paired as assigned;
+//! * a cluster-randomized design and a matched-pair experiment of 64 clusters (32 in each arm,
+//!   32 pairs) whose per-row means carry a bounded cluster-level wobble, for the
+//!   independent-unit bootstrap.
 //!
-//! The randomized designs carry arm means with a conservative design-based covariance, not an
-//! aligned law of their outcomes, so a value that needs a joint law is refused at compile
-//! naming the design; an exposure with bias bounds leaves the arm means unidentified.
+//! Randomization alone does not identify the cross-arm dependence of the arm-mean estimators,
+//! so a value that needs a joint law of a randomized design is refused at compile naming the
+//! design unless the premise that its independent units were sampled independently from a
+//! larger population is declared; then the independent-unit bootstrap supplies the law, its
+//! kind, unit, refits, seed and premise enter the decision program's identity, and the premise
+//! enters the evaluation's assumptions. An exposure with bias bounds leaves the arm means
+//! unidentified.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,14 +31,14 @@ use antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign;
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
     self as pd, AcceptedPreferences, ActionInput, ActionKind, Attribute,
-    CompiledPreferenceDecision, DecisionCriterion, DesignBootstrap, PreferenceAction,
-    PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr,
-    PreferenceParameter, PreferencePolicy, PreferenceSet, PreferenceVerdict, StructuralPolicy,
-    ValueModel, shape,
+    CompiledPreferenceDecision, DecisionCriterion, DesignBootstrap, HardConstraint,
+    PreferenceAction, PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions,
+    PreferenceExpr, PreferenceParameter, PreferencePolicy, PreferenceSet, PreferenceVerdict,
+    StructuralPolicy, ValueModel, shape,
 };
-use antecedent::design::decision_contract::SourceRepresentation;
+use antecedent::design::decision_contract::{SourceRepresentation, UtilityExpr};
 use antecedent::planner::lowered::CarrierDemand;
-use antecedent::reason::reason_details::preference_compile;
+use antecedent::reason::reason_details::{decision_evaluation, preference_compile};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe;
@@ -111,6 +118,14 @@ fn model(range: (f64, f64), kink: Option<f64>) -> ValueModel {
 }
 
 fn contract(model: ValueModel, horizon: u32) -> PreferenceContract {
+    contract_with(model, horizon, vec![])
+}
+
+fn contract_with(
+    model: ValueModel,
+    horizon: u32,
+    constraints: Vec<HardConstraint>,
+) -> PreferenceContract {
     let action = |id: &str, regime: &str| PreferenceAction {
         id: id.into(),
         kind: ActionKind::Intervention,
@@ -122,7 +137,7 @@ fn contract(model: ValueModel, horizon: u32) -> PreferenceContract {
     AcceptedPreferences::declared(model).unwrap().contract(PreferenceContractParts {
         actions: vec![action("high", "on"), action("low", "off")],
         criterion: DecisionCriterion::PosteriorExpectedUtility,
-        constraints: vec![],
+        constraints,
         target_population: "patients".into(),
         horizon,
         structural_policy: StructuralPolicy::RequireInvariantBestAction,
@@ -241,6 +256,84 @@ fn matched_pair_design(ctx: &ExecutionContext) -> PreparedNativeJointDesign {
         .unwrap()
 }
 
+/// Clusters of the designs the independent-unit bootstrap reads: 32 in each arm, 32 pairs.
+const SAMPLED: usize = 64;
+
+/// A bounded cluster-level wobble in `[-1, 1]`.
+fn wobble(c: usize) -> f64 {
+    f64::from(u32::try_from(c * 7919 % 101).unwrap()) / 50.0 - 1.0
+}
+
+/// Cluster totals of `y` and `z = 2 y` over [`SAMPLED`] alternately assigned clusters: each
+/// assigned pair shares its baseline, each cluster carries its own wobble, and the treatment
+/// raises the per-row mean of `y` by 0.7.
+fn sampled_totals() -> (Vec<bool>, Vec<f64>, Vec<f64>) {
+    let assigned: Vec<bool> = (0..SAMPLED).map(|c| c % 2 == 0).collect();
+    let size = f64::from(u32::try_from(SIZE).unwrap());
+    let y: Vec<f64> = (0..SAMPLED)
+        .map(|c| {
+            let baseline = 2.0 + 0.1 * f64::from(u32::try_from((c / 2) % 5).unwrap());
+            size * (baseline + 0.05 * wobble(c) + if assigned[c] { 0.7 } else { 0.0 })
+        })
+        .collect();
+    let z = y.iter().map(|v| 2.0 * v).collect();
+    (assigned, y, z)
+}
+
+fn sampled_cluster_design(ctx: &ExecutionContext) -> PreparedNativeJointDesign {
+    let (assignments, y, z) = sampled_totals();
+    let recipe = JointClusterRecipe {
+        population: "patients".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 2,
+        cluster_ids: (0..SAMPLED).map(|c| format!("c{c}")).collect(),
+        cluster_sizes: vec![SIZE; SAMPLED],
+        assignment_law: "complete randomization of half the clusters".into(),
+        treated_clusters: SAMPLED / 2,
+        consistency: "consistency".into(),
+        assignments,
+        outcomes: vec![outcome("y", "points", y), outcome("z", "events", z)],
+        adjustments: vec![],
+        exposure: no_interference(),
+    };
+    PreparedNativeJointDesign::compile(JointDesignRecipe::DecisionCluster { recipe }, ctx).unwrap()
+}
+
+fn sampled_pair_design(ctx: &ExecutionContext) -> PreparedNativeJointDesign {
+    let (assignments, y, z) = sampled_totals();
+    let recipe = JointExperimentalRecipe {
+        population: "patients".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 2,
+        consistency: "consistency".into(),
+        exposure: no_interference(),
+        design: ExperimentalDesign::MatchedPairs {
+            cluster_ids: (0..SAMPLED).map(|c| format!("c{c}")).collect(),
+            pairs: (0..SAMPLED / 2).map(|p| (2 * p, 2 * p + 1)).collect(),
+            matching_variables: vec!["baseline".into()],
+            treatment_probabilities: vec![0.5; SAMPLED],
+            cluster_sizes: vec![SIZE; SAMPLED],
+            preassignment: "pairs fixed before assignment".into(),
+            independent_pairs: "pairs assigned independently".into(),
+        },
+        assignments,
+        outcomes: vec![outcome("y", "points", y), outcome("z", "events", z)],
+    };
+    PreparedNativeJointDesign::compile(JointDesignRecipe::DecisionExperiment { recipe }, ctx)
+        .unwrap()
+}
+
+/// Refits under the declared premise that the independent units were sampled.
+fn sampled_refits(replicates: usize, seed: u64) -> DesignBootstrap {
+    DesignBootstrap {
+        replicates,
+        seed,
+        sampling: Some("assumption.units_sampled_from_a_larger_population".into()),
+    }
+}
+
 fn verdict(compiled: &CompiledPreferenceDecision, ctx: &ExecutionContext) -> PreferenceVerdict {
     let executed = compiled.execute(None, options(), ctx).unwrap();
     executed.evaluation.single().unwrap().exact().unwrap().verdict.clone()
@@ -287,18 +380,35 @@ fn the_design_plan_carries_the_decision_and_its_carrier_is_checked_at_compile() 
 
     // A kinked value reads the whole-subject refits: aligned draws demanded of the design.
     let cap = 6.0;
-    let refits = DesignBootstrap { replicates: 99, seed: 123 };
-    let kinked = design
-        .compile_for_preference_decision(
-            &contract(model((0.1, 0.2), Some(cap)), 1),
-            Some(refits),
-            &ctx,
-        )
-        .unwrap();
+    let refits =
+        |replicates: usize, seed: u64| DesignBootstrap { replicates, seed, sampling: None };
+    let kinked_with = |bootstrap: DesignBootstrap| {
+        design
+            .compile_for_preference_decision(
+                &contract(model((0.1, 0.2), Some(cap)), 1),
+                Some(bootstrap),
+                &ctx,
+            )
+            .unwrap()
+    };
+    let kinked = kinked_with(refits(99, 123));
     assert_eq!(kinked.demand().carrier, Some(CarrierDemand::DecisionDraws));
-    let decision = kinked.plan_views()[0].evidence().decision().cloned().unwrap();
+    let view = &kinked.plan_views()[0];
+    let decision = view.evidence().decision().cloned().unwrap();
     assert_eq!(decision.carrier(), CarrierDemand::DecisionDraws);
     assert!(!decision.utility().is_affine());
+
+    // The plan states the whole-subject refits, and their count and seed enter the identity.
+    let law = decision.utility().preference_facts().unwrap().design_law().unwrap();
+    assert_eq!((law.kind(), law.unit()), ("static_regime_refits", "subject"));
+    assert_eq!((law.replicates(), law.seed(), law.sampling()), (99, 123, None));
+    assert!(json["evidence"]["decision"]["preference"]["design_law"].is_null(), "means only");
+    let stated = &view.to_json()["evidence"]["decision"]["preference"]["design_law"];
+    assert_eq!(stated["kind"], "static_regime_refits");
+    assert_eq!(stated["replicates"], 99);
+    assert_eq!(view.identity(), kinked_with(refits(99, 123)).plan_views()[0].identity());
+    assert_ne!(view.identity(), kinked_with(refits(99, 124)).plan_views()[0].identity());
+    assert_ne!(view.identity(), kinked_with(refits(100, 123)).plan_views()[0].identity());
 }
 
 #[test]
@@ -358,21 +468,42 @@ fn a_matched_pair_experiment_answers_by_its_arm_means() {
 }
 
 #[test]
-fn a_joint_law_of_a_randomized_design_and_a_bounded_exposure_are_refused_at_compile() {
+fn a_joint_law_of_a_randomized_design_needs_a_declared_sampling_premise() {
     let ctx = ExecutionContext::for_tests(17);
+    let kinked = contract(model((0.1, 0.2), Some(6.0)), 2);
+    for design in [sampled_cluster_design(&ctx), sampled_pair_design(&ctx)] {
+        let undeclared = [
+            None,
+            Some(DesignBootstrap { replicates: 99, seed: 1, sampling: None }),
+            Some(DesignBootstrap { replicates: 99, seed: 1, sampling: Some("  ".into()) }),
+        ];
+        for bootstrap in undeclared {
+            let refused =
+                design.compile_for_preference_decision(&kinked, bootstrap, &ctx).unwrap_err();
+            let refusal = refused.refusal().expect("a compile refusal");
+            assert_eq!(refusal.code, "joint_law_required");
+            assert_eq!(refusal.stage, "compile");
+            assert_eq!(refusal.detail, preference_compile::DESIGN_SAMPLING_UNDECLARED);
+            assert_eq!(refusal.offending.as_deref(), Some(design.identification().method.as_str()));
+        }
+        let few = design
+            .compile_for_preference_decision(&kinked, Some(sampled_refits(98, 1)), &ctx)
+            .unwrap_err();
+        let refusal = few.refusal().expect("a compile refusal");
+        assert_eq!(refusal.code, "joint_law_required");
+        assert_eq!(refusal.detail, decision_evaluation::JOINT_LAW_REQUIRED);
+    }
+
+    // Ten clusters in each arm, or ten pairs, are below the bootstrap's floor of thirty.
     for design in [cluster_design(no_interference(), &ctx), matched_pair_design(&ctx)] {
         let refused = design
-            .compile_for_preference_decision(
-                &contract(model((0.1, 0.2), Some(6.0)), 2),
-                Some(DesignBootstrap { replicates: 99, seed: 1 }),
-                &ctx,
-            )
+            .compile_for_preference_decision(&kinked, Some(sampled_refits(99, 1)), &ctx)
             .unwrap_err();
         let refusal = refused.refusal().expect("a compile refusal");
-        assert_eq!(refusal.code, "joint_law_required");
+        assert_eq!(refusal.code, "too_few_clusters");
         assert_eq!(refusal.stage, "compile");
-        assert_eq!(refusal.detail, preference_compile::DESIGN_LAW_NOT_ALIGNED);
-        assert_eq!(refusal.offending.as_deref(), Some(design.identification().method.as_str()));
+        assert_eq!(refusal.detail, preference_compile::DESIGN_UNITS_TOO_FEW);
+        assert_eq!(refusal.supplied.as_deref().map(|s| s.starts_with("10 ")), Some(true));
     }
 
     let bounded = cluster_design(
@@ -390,4 +521,132 @@ fn a_joint_law_of_a_randomized_design_and_a_bounded_exposure_are_refused_at_comp
     assert_eq!(refusal.code, "effect_not_identified");
     assert_eq!(refusal.stage, "compile");
     assert_eq!(refusal.detail, preference_compile::DESIGN_EXPOSURE_BOUNDED);
+}
+
+#[test]
+fn a_declared_sampling_premise_reads_the_independent_unit_bootstrap_of_a_cluster_design() {
+    let ctx = ExecutionContext::for_tests(19);
+    let design = sampled_cluster_design(&ctx);
+    let kinked = contract(model((0.1, 0.2), Some(5.8)), 2);
+    let compile = |bootstrap: DesignBootstrap| {
+        design.compile_for_preference_decision(&kinked, Some(bootstrap), &ctx).unwrap()
+    };
+    let compiled = compile(sampled_refits(99, 5));
+    assert_eq!(compiled.demand().representation, SourceRepresentation::JointDraws);
+    assert_eq!(compiled.demand().carrier, Some(CarrierDemand::DecisionDraws));
+    let view = &compiled.plan_views()[0];
+    let decision = view.evidence().decision().unwrap();
+    assert_eq!(decision.carrier(), CarrierDemand::DecisionDraws);
+    let law = decision.utility().preference_facts().unwrap().design_law().unwrap();
+    assert_eq!((law.kind(), law.unit()), ("independent_unit_bootstrap", "cluster"));
+    assert_eq!(law.sampling(), Some("assumption.units_sampled_from_a_larger_population"));
+    let stated = &view.to_json()["evidence"]["decision"]["preference"]["design_law"];
+    assert_eq!(stated["kind"], "independent_unit_bootstrap");
+    assert_eq!(stated["unit"], "cluster");
+    assert_eq!(stated["replicates"], 99);
+    assert_eq!(stated["seed"], 5);
+    assert_eq!(stated["sampling"], "assumption.units_sampled_from_a_larger_population");
+
+    // The refits, the seed and the premise enter the decision program's identity; the
+    // design's own program is untouched.
+    assert_eq!(view.identity(), compile(sampled_refits(99, 5)).plan_views()[0].identity());
+    assert_ne!(view.identity(), compile(sampled_refits(99, 6)).plan_views()[0].identity());
+    assert_ne!(view.identity(), compile(sampled_refits(120, 5)).plan_views()[0].identity());
+    let other = DesignBootstrap {
+        replicates: 99,
+        seed: 5,
+        sampling: Some("assumption.sites_drawn_at_random".into()),
+    };
+    assert_ne!(view.identity(), compile(other).plan_views()[0].identity());
+    assert!(design.lowered().evidence().decision().is_none());
+
+    let executed = compiled.execute(None, options(), &ctx).unwrap();
+    assert_eq!(executed.receipt.programs, [view.identity()]);
+    let Some(NativeDecisionSource::JointLaw(law)) = &executed.source else {
+        panic!("the independent-unit refits");
+    };
+    assert_eq!(law.shape(), [99, 4]);
+    let identity = &law.metadata().identity;
+    assert_eq!(identity.rng_id, "independent_unit_bootstrap:cluster:replicates=99:seed=5");
+    assert_eq!(identity.provider_id, "antecedent.native_joint_design");
+    // Every refit keeps the arms' 0.7 per-row benefit gap within the wobble's reach, and the
+    // harm is exactly twice the benefit in every refit.
+    let rows = law.draws().chunks(4);
+    for row in rows {
+        assert!((row[0] - row[2] - 0.7).abs() < 0.25, "{row:?}");
+        close(row[1], 2.0 * row[0], 1e-12);
+        close(row[3], 2.0 * row[2], 1e-12);
+    }
+    let evaluation = executed.evaluation.single().unwrap();
+    assert_eq!(evaluation.chosen_action(), Some("high"));
+    assert!(
+        evaluation
+            .assumptions()
+            .iter()
+            .any(|a| a == "assumption.units_sampled_from_a_larger_population")
+    );
+}
+
+#[test]
+fn a_kinked_value_and_a_probability_limit_run_on_a_matched_pair_bootstrap() {
+    let ctx = ExecutionContext::for_tests(23);
+    let design = sampled_pair_design(&ctx);
+    let premise = "assumption.units_sampled_from_a_larger_population";
+    let run = |contract: PreferenceContract| {
+        let compiled = design
+            .compile_for_preference_decision(&contract, Some(sampled_refits(199, 9)), &ctx)
+            .unwrap();
+        assert_eq!(compiled.demand().carrier, Some(CarrierDemand::DecisionDraws));
+        let law = compiled.plan_views()[0]
+            .evidence()
+            .decision()
+            .unwrap()
+            .utility()
+            .preference_facts()
+            .unwrap()
+            .design_law()
+            .cloned()
+            .unwrap();
+        assert_eq!(law.unit(), "pair");
+        let executed = compiled.execute(None, options(), &ctx).unwrap();
+        let Some(NativeDecisionSource::JointLaw(draws)) = &executed.source else {
+            panic!("the independent-unit refits");
+        };
+        assert_eq!(draws.shape(), [199, 4]);
+        assert_eq!(
+            draws.metadata().identity.rng_id,
+            "independent_unit_bootstrap:pair:replicates=199:seed=9"
+        );
+        let evaluation = executed.evaluation.single().unwrap().clone();
+        assert!(evaluation.assumptions().iter().any(|a| a == premise), "the premise is stated");
+        evaluation
+    };
+
+    // A kinked charge on harm above the treated arm's harm, worth at most a small share of
+    // the 0.42-point benefit margin at the highest harm rate.
+    let kinked = run(contract(model((0.1, 0.2), Some(5.8)), 2));
+    assert_eq!(kinked.chosen_action(), Some("high"));
+
+    // A probability limit on the treated arm's harm: met with near certainty one event above
+    // its mean, and never one event below it.
+    let harm_cap = |bound: f64| HardConstraint {
+        id: "harm_cap".into(),
+        expr: UtilityExpr::Input(1),
+        bound,
+        min_probability: 0.9,
+        units: "events".into(),
+        applies_to: vec!["high".into()],
+    };
+    let treated_harm = {
+        let law = design.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+        let JointNativeDesignLaw::DecisionExperiment(arms) = law.law() else {
+            panic!("an experiment law");
+        };
+        arms.means[1]
+    };
+    let met = run(contract_with(model((0.1, 0.2), None), 2, vec![harm_cap(treated_harm + 1.0)]));
+    assert_eq!(met.chosen_action(), Some("high"));
+    let breached =
+        run(contract_with(model((0.1, 0.2), None), 2, vec![harm_cap(treated_harm - 1.0)]));
+    assert_eq!(breached.chosen_action(), Some("low"));
 }
