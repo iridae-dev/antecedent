@@ -13,8 +13,9 @@ nothing is read from the library:
 * the mean outcome under ``do(t = a)`` is ``1 + 2 a + (1 + 1.5 a) * (mean of x)``;
 * a binary outcome has declared cell probabilities, and the predictive probability of success
   under ``do(t = a)`` is the target mix of them;
-* two Gaussian predictive worlds that share a declared residual law have a difference whose
-  variance is the posterior variance of the mean difference plus ``2 variance (1 - correlation)``.
+* two Gaussian predictive worlds that share a declared residual law and one target row have a
+  difference whose variance is ``2 variance (1 - correlation)`` plus the variance of the effect
+  over the target rows plus the posterior variance of the mean difference.
 
 A weak prior (scale 10) keeps the ridge shrinkage far below every tolerance, and the residuals
 sum to zero within each cell of the binary designs, so the least-squares coefficients are the
@@ -499,11 +500,13 @@ def test_gaussian_predictive_worlds_have_the_true_mean_and_declared_residual_spr
     assert abs(utilities["action-1"] - _world_at(1, 0.8)) < tolerance
     assert result.chosen[0] == "action-1"
     if not clusters:
-        # The two predictive residuals have correlation 0.3, so the variance of the difference
-        # is 2 * 0.4 * (1 - 0.3) = 0.56 plus the (here negligible) posterior variance of the
-        # mean difference.
+        # Each world pair is drawn at one target row, so the difference is the row's effect
+        # 2 + 1.5 x plus the residual difference. The residuals have correlation 0.3, so their
+        # difference has variance 2 * 0.4 * (1 - 0.3) = 0.56; the effect varies over the target
+        # mix (80% x = 1) with variance 1.5^2 * 0.8 * 0.2 = 0.36; the posterior variance of the
+        # mean difference is negligible.
         spread = _variance([pair[1] - pair[0] for pair in result.worlds])
-        assert abs(spread - 0.56) < 0.15, spread
+        assert abs(spread - (2 * 0.4 * (1 - 0.3) + 1.5**2 * 0.8 * 0.2)) < 0.15, spread
 
 
 @pytest.mark.parametrize("clusters", [False, True])

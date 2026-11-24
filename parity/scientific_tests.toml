@@ -257,7 +257,7 @@ evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.r
 evidence_assertion = "gaussian_predictive_worlds_have_the_true_mean_and_the_declared_residual_spread"
 kind = "known_truth"
 fixtures = []
-why = "Gaussian predictive worlds have the generating mean outcomes 1.8 and 5.0 and a world difference with variance 2 * 0.4 * (1 - 0.3). This source assertion is unearned."
+why = "Gaussian predictive worlds have the generating mean outcomes 1.8 and 5.0 and a world difference, drawn at one target row, with variance 2 * 0.4 * (1 - 0.3) plus the variance 1.5^2 * 0.8 * 0.2 of the effect over the target mix. This source assertion is unearned."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"

@@ -469,14 +469,22 @@ fn gaussian_predictive_worlds_have_the_true_mean_and_the_declared_residual_sprea
     near(utility(&result.decision.decision, "action-0"), world_at(0, 0.8), 0.1, "control world");
     near(utility(&result.decision.decision, "action-1"), world_at(1, 0.8), 0.1, "active world");
     assert_eq!(chosen(&result.decision.decision), "action-1");
-    // The two residuals have correlation 0.3, so the difference has variance
-    // 2 * 0.4 * (1 - 0.3) = 0.56 plus the negligible posterior variance of the mean difference.
+    // Each world pair is drawn at one target row, so the difference is the row's effect
+    // 2 + 1.5 x plus the residual difference. The residuals have correlation 0.3, so their
+    // difference has variance 2 * 0.4 * (1 - 0.3) = 0.56; the effect varies over the target
+    // mix (80% x = 1) with variance 1.5^2 * 0.8 * 0.2 = 0.36; the posterior variance of the
+    // mean difference is negligible.
     let differences: Vec<f64> =
         result.producer.worlds.iter().map(|pair| pair[1] - pair[0]).collect();
     let centre = differences.iter().sum::<f64>() / differences.len() as f64;
     let variance = differences.iter().map(|d| (d - centre).powi(2)).sum::<f64>()
         / (differences.len() - 1) as f64;
-    near(variance, 0.56, 0.15, "difference variance");
+    near(
+        variance,
+        2.0 * 0.4 * (1.0 - 0.3) + 1.5_f64.powi(2) * 0.8 * 0.2,
+        0.15,
+        "difference variance",
+    );
 }
 
 #[test]
