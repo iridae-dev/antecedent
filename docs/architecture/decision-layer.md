@@ -140,6 +140,51 @@ executed program that differs from the compiled one refuses
 
 Other decision programs keep exactly the plan facts they state without this route.
 
+**Support gating.** A compiled decision is a parent program composed over the study programs it
+reads. The parent is gated on the decision's own support unit: `preference_decision.exact` or
+`preference_decision.certified`, chosen at compile by `preference_route` from the contract
+alone, or `decision.contract` for an ordinary contract. Each child study program keeps its own
+cell unit and its own gate. A release build therefore refuses a decision whose unit is not
+licensed even when every estimate behind it is, and a licensed decision over an unlicensed
+estimate refuses through that estimate's gate. The parent's identity is a declaration over the
+child program identities and the decision layer, so the receipt's programs are the children and
+the decision is one program over them.
+
+## Programs over a source in hand
+
+A source the caller already holds is decided by a compiled terminal program, not by a free
+function. Each program has one support unit, a canonical declaration identity and a typed
+refusal; the engine is again chosen by `preference_route` from the contract alone, so the exact
+and certified engines are separate programs:
+
+| Program family | Source | Support unit |
+| --- | --- | --- |
+| `ContractLawDecision` | an ordinary contract on a declared law or grid of means | `decision.contract` |
+| `TradeoffLawDecision` | a value contract on aligned joint draws or a mean source, exact engine | `preference_decision.exact` |
+| `TradeoffCertifiedLawDecision` | the same sources, certified engine | `preference_decision.certified` |
+| `TradeoffStructuralDecision` | supplied claims or structures (`SuppliedClaimSet`), adapted as `SuppliedClaimDecision` adapts them, exact engine | `preference_decision.exact` |
+| `TradeoffCertifiedStructuralDecision` | the same claims, certified engine | `preference_decision.certified` |
+
+Accepted preferences enter as the contract's value, with the accepted identity inside the
+program's declaration; they need no program of their own. Sealing a decision record adds no
+program either: the record is the law program's result, sealed.
+
+Learning runs the same way:
+
+| Program family | Learns | Support unit |
+| --- | --- | --- |
+| `PreferenceCompatibleSet` | the compatible set of recorded or stated choices | `preference_learning.compatible_set` |
+| `PreferenceChoiceModel` | the conditional-logit trade-off rates and their intervals | `preference_learning.choice_model` |
+
+Accepting and relearning preferences runs the program of the basis they rest on.
+`preference_decision.artifact` and `preference_learning.accepted_preferences` are not support
+units: storing, versioning and replaying compute nothing of their own.
+
+In Python, `Contract.evaluate` on the value form, `decision_learning.CompatibleSet.learn`,
+`ChoiceModel.learn`, their `accept` and `AcceptedPreferences.relearn` reach these programs, and
+the ordinary form reaches `ContractLawDecision` as before. No Python decision call reaches a
+kernel directly.
+
 ## Evidence overlap, design law and structure classes
 
 **Several studies.** Separately estimated outcomes meet as one mean source when means suffice,
@@ -228,7 +273,8 @@ and [weigh the members of an equivalence class](../preference-decisions.md#weigh
 | Exact and certified routes | `preference_decision{,/region,/structural,/statements,/measure}`, `preference_certified{,/scoring,/subdivision}`, `preference_enclosure`, `preference_route_choice` (as `preference_evaluation`), `preference_sampled` | `_decision_tradeoff.py`, `TradeoffDecision` in `_decision_tradeoff_results.py` |
 | Standing, refusals, artifacts | `decision_standing`, `preference_refusal`, `decision_artifact`, `preference_decision_artifact` | `DecisionResult`, `Standing`, `CompiledReceipt` in `_decision_result.py`; `DecisionRefusal`, `PreferenceRefusal`, `replay` in `decision.py` |
 | Compiled route | `antecedent::analysis::execute::compile_preference{,/bind,/atoms,/structures,/outcomes,/joint,/evidence,/design,/facts}`; `antecedent::analysis::preference_decision` | `Contract.compile`, `CompiledDecision` in `_decision_compile.py`; sources in `_decision_sources.py`; `UnitKey` in `_row_evidence.py` |
-| Learning | `antecedent_design::{choice_record, preference_set_learning, preference_choice_model, accepted_preferences}`; `antecedent_stats::{linear_program, glm::conditional_logit, glm::nonlinear_conditional_logit}` | `antecedent.decision_learning` |
+| Programs over a source in hand | `antecedent::analysis::{claim_decision_programs, tradeoff_decision_programs}` | `Contract.evaluate` in `decision.py` and `_decision_tradeoff.py` |
+| Learning | `antecedent_design::{choice_record, preference_set_learning, preference_choice_model, accepted_preferences}`; `antecedent_stats::{linear_program, glm::conditional_logit, glm::nonlinear_conditional_logit}`; programs in `antecedent::analysis::preference_learning_programs` | `antecedent.decision_learning` |
 | Supporting kernels | `antecedent_stats::binomial_interval`, `antecedent_graph::{mec_uniform, pag_uniform}`, `antecedent_estimate::joint_design::unit_bootstrap`, row provenance beside the table (`compile_preference/evidence.rs`) | |
 
 Rust compiled entry points: `Study::compile_for_preference_decision`,
@@ -238,10 +284,12 @@ Rust compiled entry points: `Study::compile_for_preference_decision`,
 `PreparedNativeJointDesign::compile_for_preference_decision` and `::compile_for_contract_decision`,
 returning `CompiledDecision` (`CompiledPreferenceDecision`).
 
-These are the only public Rust ways to decide. The functions that decide on a source a caller
-already holds (a mean source, an aligned joint law, adapted structures, a sampled class) and the
-source builders that join several outcomes are crate-internal to `antecedent`: they are the
-lower layer the compiled route calls, not a second way in. The design crate's kernels
+With the programs over a source in hand (`TradeoffLawDecision`,
+`TradeoffCertifiedLawDecision`, `TradeoffStructuralDecision`,
+`TradeoffCertifiedStructuralDecision`) and the learning programs (`PreferenceCompatibleSet`,
+`PreferenceChoiceModel`), these are the only public Rust ways to decide or learn. The functions
+that evaluate a source inside those programs and the source builders that join several outcomes
+are crate-internal to `antecedent`, not a second way in. The design crate's kernels
 (`decide_preferences*`, `learn_compatible_set*`, `estimate_choice_model*`, `estimate_accepted*`)
 stay kernel API and are not re-exported by the facade.
 

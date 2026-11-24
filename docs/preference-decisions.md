@@ -82,6 +82,12 @@ lowers the decision into that analysis's own compiled plan. `source` is one prep
 sequence of prepared studies (one outcome each), or a compiled design of several outcomes
 (`joint_panel.prepare_native_joint_design`). Nothing is fitted until `execute()`.
 
+The decision is its own program composed over the analysis's programs. It is supported by its
+own unit (`preference_decision.exact` or `preference_decision.certified`, whichever engine the
+contract takes; `decision.contract` for an ordinary contract), and each study keeps the support
+of its own route. A decision runs only when both the decision and every estimate it reads are
+supported.
+
 At compile:
 
 - every quantity an action reads must be a coordinate the analysis targets: its outcome, a
@@ -147,12 +153,14 @@ law it read, when it read one, so the decision exports and replays as one evalua
 
 ### Evaluate on a source in hand
 
-`Contract.evaluate(source)` is the lower layer the compiled route calls. It reads a source you
-already hold: aligned joint draws (a `JointDistributionArtifact`), a `MeanSource`, a bound
-external claim, `decision.Structures`, the arm means of one experiment, or a propagation chain with
-joint outputs. Use it when the numbers come from outside a compiled analysis; it checks the
-coordinates and the representation but cannot check identification, the carrier or the overlap
-of the evidence behind the source.
+`Contract.evaluate(source)` decides on a source you already hold: aligned joint draws (a
+`JointDistributionArtifact`), a `MeanSource`, a bound external claim, `decision.Structures`, the
+arm means of one experiment, or a propagation chain with joint outputs. It runs a compiled
+program over that source: `TradeoffLawDecision` or `TradeoffCertifiedLawDecision` for draws or
+means, `TradeoffStructuralDecision` or `TradeoffCertifiedStructuralDecision` for claims and
+structures, the engine chosen by the contract as above. Use it when the numbers come from outside
+a compiled analysis; it checks the coordinates and the representation but cannot check
+identification, the carrier or the overlap of the evidence behind the source.
 
 ## Declare a value model
 
@@ -864,6 +872,7 @@ in [preference sets and recorded choices](reference/refusal-codes.md#preference-
 | Python | `antecedent.decision`: `attribute`, `tradeoff`, `relation`, `Curve`, the shapes, `Value`, `Action`, `Constraint`, `TradeoffPolicy`, `Measure`, `Structures`, `Contract(value=...).compile(...)` with `CompiledDecision` (`quantities`, `representation`, `carrier`, `trade_offs`, `parameter_ranges`, `joint_law`, `design_law`, `contract_identity`, `.class_sampling`, `.inspect()` and `.execute()`; `CompiledQuantity`, `TradeOffRange`, `JointLawPlan`, `JointLawInput`, `DesignLawPlan`), `Contract(value=...).evaluate(...)`, `TradeoffDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
 | Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `RowProvenance::of_table` and `RowProvenance::select_rows`; `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: the compiled entries (`Study::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `PreparedNativeJointDesign::compile_for_preference_decision`), `source_requirement`, `structure_claims`, `experiment_arm_quantity`, `export_decision`, `consume_decision` |
+| Rust, source in hand | `antecedent::analysis::tradeoff_decision_programs`: the `TradeoffLawDecision`, `TradeoffCertifiedLawDecision`, `TradeoffStructuralDecision` and `TradeoffCertifiedStructuralDecision` programs |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
 
 ## Sources

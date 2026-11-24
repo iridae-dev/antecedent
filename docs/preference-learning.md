@@ -493,7 +493,7 @@ The full tables are in
 | Language | Entry |
 | --- | --- |
 | Python | `antecedent.decision_learning`: `Option`, `Forecast`, `AnalysisAsOf`, `Realized`, `Stated`, `Record`, `Records`, `PerDecider`, `Pooled`, `CompatibleSet(...).learn` and `.accept`, `ChoiceModel(...).learn` and `.accept`, `ShapeSearch`, `Region`, `RegionCell`, `Undetermined`, `AcceptedPreferences`, `ReviewItem`, `load` |
-| Rust, analysis surface | `antecedent::analysis::preference_decision`: `analysis_options`, `analysis_belief_source`, `decide_accepted`, `export_accepted`, `consume_accepted` |
+| Rust, analysis surface | `antecedent::analysis::preference_learning_programs`: the `PreferenceCompatibleSet` and `PreferenceChoiceModel` programs; `antecedent::analysis::preference_decision`: `analysis_options`, `analysis_belief_source`, `export_accepted`, `consume_accepted`. Accepted preferences decide as the value of a contract, through the decision programs |
 | Rust, methods | `antecedent_design::choice_record` (`ChoiceRecordSet`, `choice_features`, `choice_features_at`), `preference_set_learning::learn_compatible_set` (`LearnedRegion`, `UndeterminedSet`), `preference_choice_model::estimate_choice_model`, `accepted_preferences::AcceptedPreferences`, `preference_model::ValueRelation`; `antecedent_stats::fit_nonlinear_conditional_logit` |
 
 ## Sources
