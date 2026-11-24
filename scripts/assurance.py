@@ -41,6 +41,7 @@ from _repo import REPO_ROOT, load_toml
 
 import identity_sites
 import rust_items
+import standing_sites
 
 RECORDS = Path("parity/assurance_records.toml")
 TOOLCHAIN = Path("formal/toolchain.toml")
@@ -238,6 +239,8 @@ def check(root: Path = REPO_ROOT) -> int:
     errors = validate(root, load_toml(root / RECORDS), load_toml(root / TOOLCHAIN))
     # The identity-site inventory the identity records cite must resolve against the code.
     errors += [f"identity sites: {e}" for e in identity_sites.validate(root, *identity_sites._load(root))]
+    # So must the standing-site inventory the standing records cite.
+    errors += [f"standing sites: {e}" for e in standing_sites.validate(root, *standing_sites._load(root))]
     for error in errors:
         print(f"assurance: {error}", file=sys.stderr)
     if not errors:
