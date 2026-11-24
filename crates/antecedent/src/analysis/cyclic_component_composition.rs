@@ -2854,4 +2854,266 @@ mod tests {
         result.inner.child.posterior.samples[0][0] += 1.0;
         assert!(bounded.export(&result, &ctx).is_err());
     }
+
+    /// The common fit schedule, the two output worlds and the action contract of the joint
+    /// posterior fixtures above, with `units` and `transform` on every output coordinate.
+    fn site_fit_inputs(
+        units: &str,
+        transform: &str,
+    ) -> (
+        ComponentJointPosteriorSchedule,
+        Vec<super::super::cyclic_action_world_decision::CyclicDecisionOutput>,
+        antecedent_design::decision_contract::DecisionContract,
+        Vec<ScientificQuantity>,
+    ) {
+        use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
+            UtilityExpr,
+        };
+        use antecedent_estimate::cyclic_likelihood::CyclicParameter;
+        use antecedent_io::quantity_wire::ScientificQuantityWire;
+        use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        let training = (0..260)
+            .map(|i| {
+                let traffic = f64::from(i % 5) * 0.4;
+                let disturbance = (f64::from(i) * 0.19).sin() * 0.2;
+                RegimeRow {
+                    values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
+                    clamps: vec![Clamp { variable: 0, value: traffic }],
+                }
+            })
+            .collect();
+        let schedule = ComponentJointPosteriorSchedule {
+            parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
+            training,
+            prior_sd: 1.0,
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.03,
+        };
+        let raw: Vec<_> = ["ordinary", "promoted"]
+            .iter()
+            .map(|regime| {
+                let mut q = quantity();
+                q.regime_id = (*regime).into();
+                q
+            })
+            .collect();
+        let outputs = raw
+            .iter()
+            .enumerate()
+            .map(|(world, quantity)| CyclicDecisionOutput {
+                world,
+                equation: 1,
+                quantity: ScientificQuantityWire::from(quantity),
+            })
+            .collect();
+        let quantities: Vec<_> = raw
+            .iter()
+            .map(|q| {
+                let mut declared = q.clone();
+                declared.units = units.into();
+                declared.transform_id = transform.into();
+                declared
+            })
+            .collect();
+        let contract = DecisionContract {
+            actions: quantities
+                .iter()
+                .enumerate()
+                .map(|(i, q)| DecisionAction {
+                    id: ["ordinary", "promoted"][i].into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![q.clone()],
+                    utility: UtilityExpr::Input(0),
+                })
+                .collect(),
+            utility_units: units.into(),
+            criterion: DecisionCriterion::ExpectedRegret,
+            constraints: vec![],
+            target_population: quantities[0].population_id.clone(),
+            horizon: quantities[0].horizon,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        (schedule, outputs, contract, quantities)
+    }
+
+    /// The single multi-output component of the vector fixtures above.
+    fn site_vector_request() -> VectorFeedbackRequest {
+        let original = request();
+        let mut traffic = original.components[1].clone();
+        traffic.interface.produces[0].name = "traffic".into();
+        traffic.interface.produces[0].quantity.variable_id = "game:traffic".into();
+        traffic.interface.produces[0].quantity.variable_name = "traffic".into();
+        traffic.interface.consumes[0].name = "from_wishlists".into();
+        let mut wishlists = original.components[0].clone();
+        wishlists.interface.produces[0].name = "wishlists".into();
+        wishlists.interface.consumes[0].name = "from_traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_id = "game:traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_name = "traffic".into();
+        VectorFeedbackRequest {
+            components: vec![VectorFeedbackComponent {
+                interface: InterfaceContract {
+                    component: "game".into(),
+                    produces: vec![
+                        traffic.interface.produces[0].clone(),
+                        wishlists.interface.produces[0].clone(),
+                    ],
+                    consumes: vec![
+                        traffic.interface.consumes[0].clone(),
+                        wishlists.interface.consumes[0].clone(),
+                    ],
+                },
+                outputs: vec![
+                    VectorFeedbackOutput {
+                        produced_port: "traffic".into(),
+                        equation: traffic.equation,
+                        consumed_ports: vec!["from_wishlists".into()],
+                    },
+                    VectorFeedbackOutput {
+                        produced_port: "wishlists".into(),
+                        equation: wishlists.equation,
+                        consumed_ports: vec!["from_traffic".into()],
+                    },
+                ],
+            }],
+            connections: vec![
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "traffic", "game", "from_traffic"),
+                    consumer_output: "wishlists".into(),
+                    coefficient: 0.3,
+                },
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "wishlists", "game", "from_wishlists"),
+                    consumer_output: "traffic".into(),
+                    coefficient: 0.2,
+                },
+            ],
+            noise_covariance: vec![0.04, 0.0, 0.0, 0.04],
+            noise: original.noise,
+            initial: original.initial,
+            worlds: vec![
+                ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 0.0)] },
+                ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 1.0)] },
+            ],
+            policy: original.policy,
+            factual: original.factual,
+        }
+    }
+
+    #[test]
+    fn site_cyclic_component_composition_identity_is_a_set_of_components_and_connections() {
+        use crate::identity_laws::{bit_exact, set_laws};
+        let ctx = ExecutionContext::for_tests(37);
+        let identity = |draft: ComponentFeedbackRequest| {
+            prepare_component_feedback(draft, &ctx)
+                .ok()
+                .map(|prepared| prepared.composition_identity())
+        };
+        let base = request();
+        set_laws(&[0_usize, 1], |picked| {
+            let mut draft = request();
+            draft.components = picked.iter().map(|&i| base.components[i].clone()).collect();
+            identity(draft)
+        });
+        set_laws(&[0_usize, 1], |picked| {
+            let mut draft = request();
+            draft.connections = picked.iter().map(|&i| base.connections[i].clone()).collect();
+            identity(draft)
+        });
+        bit_exact(|intercept| {
+            let mut draft = request();
+            draft.components[0].equation.intercept = intercept;
+            identity(draft)
+        });
+    }
+
+    #[test]
+    fn site_cyclic_component_joint_posterior_question_binds_components_fit_and_seed() {
+        use crate::identity_laws::all_distinct;
+        let ctx = ExecutionContext::for_tests(47);
+        let (schedule, outputs, contract, _) = site_fit_inputs("count", "identity");
+        let components = || {
+            let mut draft = request();
+            draft.noise_covariance = vec![0.04, 0.0, 0.0, 0.04];
+            draft.worlds = vec![
+                ComponentFeedbackWorld { clamps: vec![("traffic".into(), 0.0)] },
+                ComponentFeedbackWorld { clamps: vec![("traffic".into(), 1.0)] },
+            ];
+            draft
+        };
+        let identity = |draft: ComponentFeedbackRequest,
+                        schedule: ComponentJointPosteriorSchedule,
+                        ctx: &ExecutionContext| {
+            compile_joint_component_posterior_decision(
+                draft,
+                schedule,
+                outputs.clone(),
+                contract.clone(),
+                ctx,
+            )
+            .expect("compiles")
+            .lowered()
+            .identity()
+        };
+        let mut coupled = components();
+        coupled.connections[0].coefficient = 0.25;
+        let mut prior = schedule.clone();
+        prior.prior_sd = 2.0;
+        all_distinct(&[
+            identity(components(), schedule.clone(), &ctx),
+            identity(coupled, schedule.clone(), &ctx),
+            identity(components(), prior, &ctx),
+            identity(components(), schedule, &ExecutionContext::for_tests(48)),
+        ]);
+    }
+
+    #[test]
+    fn site_cyclic_component_vector_and_bounded_questions_bind_their_parts() {
+        use crate::identity_laws::all_distinct;
+        let ctx = ExecutionContext::for_tests(47);
+        let (schedule, outputs, contract, _) = site_fit_inputs("count", "identity");
+        let (_, _, bounded_contract, bounded_quantities) =
+            site_fit_inputs("dimensionless", "logistic");
+        let inner = |draft: VectorFeedbackRequest, schedule: ComponentJointPosteriorSchedule| {
+            compile_joint_vector_component_posterior_decision(
+                draft,
+                schedule,
+                outputs.clone(),
+                contract.clone(),
+                &ctx,
+            )
+            .expect("compiles")
+        };
+        let mut coupled = site_vector_request();
+        coupled.connections[0].coefficient = 0.25;
+        let mut prior = schedule.clone();
+        prior.prior_sd = 2.0;
+        all_distinct(&[
+            inner(site_vector_request(), schedule.clone()).lowered().identity(),
+            inner(coupled, schedule.clone()).lowered().identity(),
+            inner(site_vector_request(), prior.clone()).lowered().identity(),
+        ]);
+        let bounded =
+            |plan: CompiledJointVectorComponentPosteriorDecision,
+             contract: antecedent_design::decision_contract::DecisionContract| {
+                compile_bounded_component_posterior_decision(
+                    plan,
+                    bounded_quantities.clone(),
+                    contract,
+                )
+                .expect("compiles")
+                .lowered()
+                .identity()
+            };
+        let mut units = bounded_contract.clone();
+        units.utility_units = "probability".into();
+        all_distinct(&[
+            bounded(inner(site_vector_request(), schedule.clone()), bounded_contract.clone()),
+            bounded(inner(site_vector_request(), prior), bounded_contract),
+            bounded(inner(site_vector_request(), schedule), units),
+        ]);
+    }
 }

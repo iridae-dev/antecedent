@@ -243,17 +243,30 @@ fn entries(request: &PerPopulationSearchRequest) -> Vec<PopulationEntry<'_>> {
     entries
 }
 
-fn lower(request: &PerPopulationSearchRequest) -> Result<Arc<LoweredProgram>, CausalError> {
-    let populations = entries(request);
+/// The question: the declared contract's identity, then every population (label, row-set
+/// identity, own search contract) in label order. The populations are a set keyed by label: a
+/// repeated label is refused by the driver when the program runs.
+fn question_digest(
+    contract: &StaticDiscoveryContract,
+    populations: &[PopulationEntry<'_>],
+) -> [u8; 32] {
     let mut question = Declaration::new(QUESTION_TAG);
-    question
-        .field("search", &ContractIdentity(&request.contract))
-        .field("populations", populations.as_slice());
-    let question = question.finish();
+    question.field("search", &ContractIdentity(contract)).field("populations", populations);
+    question.finish()
+}
+
+/// The source: every population's row-set identity, in the label order of the question.
+fn source_digest(populations: &[PopulationEntry<'_>]) -> [u8; 32] {
     let mut source = Declaration::new(SOURCE_TAG);
     let rows: Vec<&RowSet> = populations.iter().map(|entry| &entry.rows).collect();
     source.field("rows", rows.as_slice());
-    let source = source.finish();
+    source.finish()
+}
+
+fn lower(request: &PerPopulationSearchRequest) -> Result<Arc<LoweredProgram>, CausalError> {
+    let populations = entries(request);
+    let question = question_digest(&request.contract, &populations);
+    let source = source_digest(&populations);
 
     let total_rows: u64 = populations.iter().map(|entry| entry.rows.rows()).sum();
     let columns = request.contract.variables.len() as u64;
@@ -416,5 +429,80 @@ impl CompiledPerPopulationDiscovery {
             .run(&self.request.contract, &rows, &scoped)
             .map_err(PerPopulationSearchError::Search)?;
         Ok(PerPopulationSearchRun { driver, lowered_program_identity: self.lowered.identity() })
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::{SemanticDigest, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
+
+    use super::{PerPopulationSearchRequest, entries, lower, question_digest, source_digest};
+    use crate::identity_laws::{all_distinct, set_laws};
+
+    fn table(shift: f64) -> TabularData {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = x.map(|value| value * shift);
+        let z = [1.0, 0.0, 1.0, 0.0];
+        TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..]), ("z", &z[..])])
+            .expect("a table")
+    }
+
+    fn contract(alpha: f64) -> StaticDiscoveryContract {
+        let mut contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Pc,
+            (0..3).map(VariableId::from_raw).collect(),
+            CiTestSpec::named("parcorr"),
+            7,
+        );
+        contract.constraints.alpha = alpha;
+        contract
+    }
+
+    fn request(populations: &[(&str, f64)], alpha: f64) -> PerPopulationSearchRequest {
+        PerPopulationSearchRequest::new(
+            contract(alpha),
+            populations.iter().map(|&(label, shift)| (label.to_owned(), table(shift))).collect(),
+        )
+    }
+
+    fn lowered(populations: &[(&str, f64)]) -> SemanticDigest {
+        lower(&request(populations, 0.01)).expect("lowered").identity()
+    }
+
+    fn digests(populations: &[(&str, f64)], alpha: f64) -> ([u8; 32], [u8; 32]) {
+        let declared = request(populations, alpha);
+        let sorted = entries(&declared);
+        (question_digest(&declared.contract, &sorted), source_digest(&sorted))
+    }
+
+    #[test]
+    fn site_compiled_per_population_discovery_populations_are_a_set_keyed_by_label() {
+        // The driver refuses a repeated label when the program runs.
+        set_laws(&[("north", 1.0), ("south", 2.0), ("east", 3.0)], |populations| {
+            let mut labels: Vec<&str> = populations.iter().map(|&(label, _)| label).collect();
+            labels.sort_unstable();
+            labels.dedup();
+            (labels.len() == populations.len()).then(|| digests(populations, 0.01).0)
+        });
+        let pair = [("north", 1.0), ("south", 2.0)];
+        all_distinct(&[
+            digests(&pair, 0.01).0,
+            digests(&pair, 0.001).0,
+            digests(&[("north", 2.0), ("south", 1.0)], 0.01).0,
+            digests(&[("north", 1.0), ("west", 2.0)], 0.01).0,
+        ]);
+        all_distinct(&[
+            digests(&pair, 0.01).1,
+            digests(&[("north", 1.0), ("south", 3.0)], 0.01).1,
+            digests(&[("north", 1.0)], 0.01).1,
+        ]);
+        assert_eq!(lowered(&pair), lowered(&[("south", 2.0), ("north", 1.0)]));
+        all_distinct(&[
+            lowered(&pair),
+            lowered(&[("north", 2.0), ("south", 1.0)]),
+            lowered(&[("north", 1.0), ("west", 2.0)]),
+        ]);
     }
 }

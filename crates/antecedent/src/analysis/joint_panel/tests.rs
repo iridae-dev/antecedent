@@ -1592,3 +1592,98 @@ fn continuous_search_grants_only_conditional_use_and_refuses_a_causal_scope_for_
     assert!(source.authorize(JointPanelScientificScope::IdentifiedCausal).is_err());
     assert!(!granted.search.global_certificate);
 }
+
+#[test]
+fn site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact() {
+    use crate::identity_laws::{bit_exact, ordered_laws};
+    let (_, request) = fixture();
+    let program = request.worlds[0].program.clone();
+    // The response adds the groups' contributions in scenario order, so a reordering can
+    // change the bits of the result.
+    ordered_laws(&program.scenarios, |scenarios| {
+        let mut reordered = program.clone();
+        reordered.scenarios = scenarios.to_vec();
+        Some(contracts::history_identity(&reordered))
+    });
+    bit_exact(|value| {
+        let mut declared = program.clone();
+        declared.scenarios[0].history[0].values[1] = value;
+        Some(contracts::history_identity(&declared))
+    });
+    // Covariates and seasons are per future response time.
+    ordered_laws(&[0.0, 1.0, 2.0], |confounder| {
+        let mut declared = program.clone();
+        declared.scenarios[0].confounder = confounder.to_vec();
+        Some(contracts::context_identity(&declared))
+    });
+    ordered_laws(&[0_usize, 1, 2], |season| {
+        let mut declared = program.clone();
+        declared.scenarios[0].season = season.to_vec();
+        Some(contracts::context_identity(&declared))
+    });
+}
+
+#[test]
+fn site_joint_panel_response_model_binds_the_source_and_the_fit_policy() {
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::NonGraphicalIdentification;
+    let model = |request: JointPanelRequest| {
+        let (source, _) = fixture();
+        let prepared =
+            Study::prepare_joint_panel(source, request, &ExecutionContext::for_tests(1)).unwrap();
+        match prepared.lowered().non_graphical_identification() {
+            Some(NonGraphicalIdentification::SpecifiedModelConditional { model }) => *model,
+            _ => panic!("the fixture's response is conditional on the specified panel model"),
+        }
+    };
+    let (_, request) = fixture();
+    let mut longer = request.clone();
+    longer.options.optimizer.max_iterations += 1;
+    let mut tighter = request.clone();
+    tighter.options.optimizer.gradient_tolerance = 1e-5;
+    all_distinct(&[model(request), model(longer), model(tighter)]);
+}
+
+#[test]
+fn site_joint_panel_imputation_declaration_orders_worlds_and_channels() {
+    use crate::analysis::lowering::joint_panel::imputation;
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    use crate::planner::lowered::NonGraphicalIdentification;
+    use antecedent_data::{ImputationDomain, ImputationSpec};
+    let (_, request) = fixture();
+    let spec = ImputationSpec::new();
+    let source = SemanticDigest::from_bytes([1; 32]);
+    let model = |request: &JointPanelRequest, domains: &[(Arc<str>, ImputationDomain)]| {
+        let program = imputation::lower(request, &spec, domains, source, 0).ok()?;
+        match program.non_graphical_identification()? {
+            NonGraphicalIdentification::SpecifiedModelConditional { model } => Some(*model),
+            _ => None,
+        }
+    };
+    // Responses are reported per world in declared order, and channels by position.
+    ordered_laws(&request.worlds, |worlds| {
+        let mut declared = request.clone();
+        declared.worlds = worlds.to_vec();
+        model(&declared, &[])
+    });
+    ordered_laws(&request.columns.channels, |channels| {
+        let mut declared = request.clone();
+        declared.columns.channels = channels.to_vec();
+        model(&declared, &[])
+    });
+    let named = |name: &str, domain| (Arc::<str>::from(name), domain);
+    all_distinct(&[
+        model(&request, &[]),
+        model(&request, &[named("confounder", ImputationDomain::Binary)]),
+        model(&request, &[named("confounder", ImputationDomain::Continuous)]),
+        model(&request, &[named("outcome", ImputationDomain::Binary)]),
+        model(
+            &request,
+            &[
+                named("confounder", ImputationDomain::Binary),
+                named("outcome", ImputationDomain::Binary),
+            ],
+        ),
+        model(&request, &[named("confounderbinary", ImputationDomain::Binary)]),
+    ]);
+}

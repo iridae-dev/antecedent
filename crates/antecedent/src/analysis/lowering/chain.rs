@@ -403,3 +403,92 @@ pub(crate) fn lower_chain_with_decision(
     }
     .finish())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::analysis::propagation_chain::{PropagationChain, compile_propagation_chain};
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+    use antecedent_contract::propagation_chain::{ChainReading, TableConstruction};
+    use antecedent_core::ExecutionContext;
+    use antecedent_io::propagation_chain_record::{
+        ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    };
+
+    fn source(values: &[f64]) -> ChainSourceWire {
+        ChainSourceWire::draws("estimate", LawMeaning::Sampling, "rows", values)
+    }
+
+    #[test]
+    fn site_chain_source_digest_orders_rows_and_frames_its_texts() {
+        ordered_laws(&[1.0_f64, 2.0, 3.0], |values| Some(source_digest(&source(values), None)));
+        bit_exact(|value| Some(source_digest(&source(&[value, 1.0]), None)));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |pair| *pair,
+            |(id, representation)| {
+                let mut wire = source(&[1.0]);
+                (*id).clone_into(&mut wire.id);
+                (*representation).clone_into(&mut wire.representation);
+                Some(source_digest(&wire, None))
+            },
+        );
+    }
+
+    #[test]
+    fn site_chain_source_digest_binds_a_deferred_slot_by_its_column() {
+        let table = |slots: &[&str], rows: u64, seed: u64| ChainDeferredTableWire {
+            construction: "moment_matched_normal".into(),
+            rows,
+            seed,
+            slots: slots.iter().map(|slot| (*slot).to_owned()).collect(),
+            declared_cross: Vec::new(),
+            within_blocks: Vec::new(),
+        };
+        let digest = |slots: &[&str], rows: u64, seed: u64| {
+            source_digest(&source(&[]), Some(&table(slots, rows, seed)))
+        };
+        all_distinct(&[
+            digest(&["estimate", "other"], 8, 3),
+            digest(&["other", "estimate"], 8, 3),
+            digest(&["estimate", "other"], 9, 3),
+            digest(&["estimate", "other"], 8, 4),
+            source_digest(&source(&[]), None),
+        ]);
+    }
+
+    #[test]
+    fn site_chain_lowered_query_binds_the_declaration() {
+        let ctx = ExecutionContext::for_tests(23);
+        let draft = |values: &[f64], slope: f64| {
+            PropagationChain::draft(
+                TableConstruction::JointDraws,
+                ChainReading::Spread,
+                "output",
+                vec![ChainSourceWire::draws("source", LawMeaning::Sampling, "aligned", values)],
+                vec![ChainStageWire::new(
+                    "output",
+                    StageKind::DerivedQuantity,
+                    &["source"],
+                    ChainOpWire::affine(
+                        ChainCoefficientWire::fixed(slope),
+                        ChainCoefficientWire::fixed(0.0),
+                    ),
+                )],
+            )
+        };
+        let identity = |values: &[f64], slope: f64| {
+            compile_propagation_chain(draft(values, slope), &ctx)
+                .expect("chain compiler")
+                .lowered()
+                .identity()
+        };
+        all_distinct(&[
+            identity(&[1.0, 2.0, 3.0], 2.0),
+            identity(&[2.0, 1.0, 3.0], 2.0),
+            identity(&[1.0, 2.0, 3.0], 3.0),
+        ]);
+    }
+}

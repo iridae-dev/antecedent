@@ -16,6 +16,8 @@ mod chain;
 mod decision;
 mod linear_gaussian;
 mod planning;
+#[cfg(test)]
+mod site_tests;
 
 use std::sync::Arc;
 

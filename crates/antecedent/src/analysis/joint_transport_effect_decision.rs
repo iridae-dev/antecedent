@@ -705,4 +705,143 @@ mod tests {
         assert_eq!(replay.fit, result.fit);
         assert_eq!(replay.decision.decision, result.decision.decision);
     }
+
+    /// The known-truth declaration above, rebuilt for each identity the site test compares.
+    #[allow(clippy::too_many_lines, reason = "one declaration read top to bottom")]
+    fn effect_request() -> JointTransportEffectDecisionRequest {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(2);
+        let mut graph = antecedent_graph::Admg::with_variables(3);
+        let source_node = graph.dense_of_static(treatment).unwrap();
+        let target_node = graph.dense_of_static(outcome).unwrap();
+        graph.insert_directed(source_node, target_node).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome,
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [treatment],
+        );
+        let quantity = ScientificQuantity {
+            variable_id: "2".into(),
+            variable_name: "outcome effect".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: "do(0=1)-do(0=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(1.0),
+                    ),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let rows = 40;
+        let source = SourceData {
+            id: "trial-a".into(),
+            identity: DataIdentity {
+                snapshot_digest: "trial-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("trial-{i}")).collect(),
+            },
+            treatment: (0..rows).map(|i| i % 2 == 0).collect(),
+            outcome: (0..rows).map(|i| 3.0 + if i % 2 == 0 { 2.0 } else { 0.0 }).collect(),
+            covariates: Vec::new(),
+            noise_variance: 0.1,
+        };
+        let target = TargetData {
+            identity: DataIdentity {
+                snapshot_digest: "target-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("target-{i}")).collect(),
+            },
+            rows,
+            covariates: Vec::new(),
+        };
+        let model = JointTransportModel {
+            graph: TransportGraphClass::FixedDag,
+            features: Vec::new(),
+            varying: VaryingBlock::Intercept,
+            sharing: SourceSharing::IndependentVaryingBlocks,
+            dependence: SourceDependence::IndependentSamples,
+            priors: JointPriors {
+                invariant: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+                varying: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+            },
+            max_unsupported_mass: 0.0,
+            conflict_z_threshold: 3.0,
+        };
+        JointTransportEffectDecisionRequest {
+            diagram,
+            query,
+            model,
+            sources: vec![source],
+            target,
+            options: JointTransportOptions { draws: 1024, seed: 91 },
+            quantity,
+            decision,
+        }
+    }
+
+    #[test]
+    fn site_joint_transport_effect_decision_question_binds_rows_options_and_contract() {
+        let question = |request: JointTransportEffectDecisionRequest| {
+            let plan = compile_joint_transport_effect_decision(request).ok()?;
+            match plan.lowered().scientific().target() {
+                ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+                _ => None,
+            }
+        };
+        let mut seed = effect_request();
+        seed.options.seed = 92;
+        let mut draws = effect_request();
+        draws.options.draws = 2048;
+        // Source rows are positional: the posterior schedule and the datum identities read them
+        // in declared order.
+        let mut swapped = effect_request();
+        swapped.sources[0].treatment.swap(0, 1);
+        swapped.sources[0].outcome.swap(0, 1);
+        let mut outcome = effect_request();
+        outcome.sources[0].outcome[0] = 5.5;
+        let mut units = effect_request();
+        units.decision.utility_units = "points".into();
+        let mut target = effect_request();
+        target.target.identity.snapshot_digest = "another-target-snapshot".into();
+        crate::identity_laws::all_distinct(&[
+            question(effect_request()),
+            question(seed),
+            question(draws),
+            question(swapped),
+            question(outcome),
+            question(units),
+            question(target),
+        ]);
+    }
 }

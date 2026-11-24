@@ -3066,11 +3066,271 @@ pub fn consume_panel_block_sampling_assumption_union(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
     use antecedent_contract::propagation_chain::{
         ChainReading, LawMeaning, StageKind, TableConstruction,
     };
     use antecedent_io::propagation_chain_record::{ChainOpWire, ChainSourceWire, ChainStageWire};
     use antecedent_io::quantity_wire::ScientificQuantityWire;
+
+    /// Row-aligned identifiers whose first entries are a law's elements and whose remaining
+    /// `n - head.len()` entries are fixed.
+    fn site_ids(head: &[String], n: usize, prefix: &str) -> Vec<String> {
+        head.iter().cloned().chain((head.len()..n).map(|row| format!("{prefix}-{row}"))).collect()
+    }
+
+    fn site_head() -> [String; 3] {
+        ["first".to_owned(), "second".to_owned(), "third".to_owned()]
+    }
+
+    /// A raw-unit chain over `n` sampling rows.
+    fn site_raw_draft(n: u32) -> PropagationChainRecordWire {
+        let mut original = draft(0.0);
+        original.sources[0].values =
+            (0..n).map(|row| (1.0 + f64::from(row) / f64::from(n)).to_bits()).collect();
+        original
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_binds_replicates_in_declared_order() {
+        let ctx = ExecutionContext::for_tests(11);
+        let request = |ids: &[String]| SamplingAssumptionUnionRequest {
+            original: draft(0.0),
+            bootstrap: (0..100).map(|i| draft((f64::from(i) - 49.5) * 0.002)).collect(),
+            replicate_ids: site_ids(ids, 100, "resample"),
+            resampling_design_identity: "fixed-row-bootstrap-seed-11-v1".into(),
+            level: 0.95,
+        };
+        let identity = |request: SamplingAssumptionUnionRequest, ctx: &ExecutionContext| {
+            compile_sampling_assumption_union(request, ctx).expect("compiles").lowered().identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut level = base.clone();
+        level.level = 0.9;
+        let mut design = base.clone();
+        design.resampling_design_identity = "other-row-bootstrap".into();
+        let mut swapped = base.clone();
+        swapped.bootstrap.swap(0, 1);
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(level, &ctx),
+            identity(design, &ctx),
+            identity(swapped, &ctx),
+            identity(base, &ExecutionContext::for_tests(12)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_iid_binds_rows_in_order_and_level_bits() {
+        let ctx = ExecutionContext::for_tests(31);
+        let request = |ids: &[String], level: f64| IidSamplingAssumptionUnionRequest {
+            original: site_raw_draft(40),
+            unit_ids: site_ids(ids, 40, "unit"),
+            bootstrap_replicates: 100,
+            level,
+        };
+        let identity = |request: IidSamplingAssumptionUnionRequest, ctx: &ExecutionContext| {
+            compile_iid_sampling_assumption_union(request, ctx)
+                .ok()
+                .map(|plan| plan.lowered().identity())
+        };
+        ordered_laws(&site_head(), |ids| identity(request(ids, 0.95), &ctx));
+        bit_exact(|level| identity(request(&site_head(), level), &ctx));
+        let base = request(&site_head(), 0.95);
+        let mut replicates = base.clone();
+        replicates.bootstrap_replicates = 101;
+        let mut values = base.clone();
+        values.original.sources[0].values.swap(0, 1);
+        all_distinct(&[
+            identity(base.clone(), &ctx).expect("compiles"),
+            identity(replicates, &ctx).expect("compiles"),
+            identity(values, &ctx).expect("compiles"),
+            identity(base, &ExecutionContext::for_tests(32)).expect("compiles"),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_cluster_binds_rows_and_cluster_labels() {
+        let ctx = ExecutionContext::for_tests(37);
+        let request = |ids: &[String]| ClusterSamplingAssumptionUnionRequest {
+            original: site_raw_draft(40),
+            unit_ids: site_ids(ids, 40, "unit"),
+            cluster_ids: (0..40).map(|row| format!("cluster-{}", row / 2)).collect(),
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let identity = |request: ClusterSamplingAssumptionUnionRequest, ctx: &ExecutionContext| {
+            compile_cluster_sampling_assumption_union(request, ctx)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut moved = base.clone();
+        moved.cluster_ids.swap(0, 2);
+        let mut level = base.clone();
+        level.level = 0.9;
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(moved, &ctx),
+            identity(level, &ctx),
+            identity(base, &ExecutionContext::for_tests(38)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_stratified_cluster_binds_rows_and_strata() {
+        let ctx = ExecutionContext::for_tests(43);
+        let request = |ids: &[String]| StratifiedClusterSamplingAssumptionUnionRequest {
+            original: site_raw_draft(40),
+            unit_ids: site_ids(ids, 40, "unit"),
+            cluster_ids: (0..40).map(|i| format!("cluster-{}", i / 2)).collect(),
+            stratum_ids: (0..40).map(|i| format!("stratum-{}", i / 20)).collect(),
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let identity = |request: StratifiedClusterSamplingAssumptionUnionRequest,
+                        ctx: &ExecutionContext| {
+            compile_stratified_cluster_sampling_assumption_union(request, ctx)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut moved = base.clone();
+        moved.cluster_ids.swap(0, 2);
+        let mut level = base.clone();
+        level.level = 0.9;
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(moved, &ctx),
+            identity(level, &ctx),
+            identity(base, &ExecutionContext::for_tests(44)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_moving_block_binds_rows_and_block() {
+        let ctx = ExecutionContext::for_tests(41);
+        let request = |ids: &[String]| MovingBlockSamplingAssumptionUnionRequest {
+            original: site_raw_draft(40),
+            unit_ids: site_ids(ids, 40, "time"),
+            block_length: 5,
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let identity = |request: MovingBlockSamplingAssumptionUnionRequest,
+                        ctx: &ExecutionContext| {
+            compile_moving_block_sampling_assumption_union(request, ctx)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut block = base.clone();
+        block.block_length = 6;
+        let mut values = base.clone();
+        values.original.sources[0].values.swap(0, 1);
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(block, &ctx),
+            identity(values, &ctx),
+            identity(base, &ExecutionContext::for_tests(42)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_stratified_moving_block_binds_rows_and_series() {
+        let ctx = ExecutionContext::for_tests(47);
+        let request = |ids: &[String]| StratifiedMovingBlockSamplingAssumptionUnionRequest {
+            original: site_raw_draft(40),
+            unit_ids: site_ids(ids, 40, "row"),
+            stratum_ids: (0..40).map(|i| format!("series-{}", i % 2)).collect(),
+            block_length: 4,
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let identity = |request: StratifiedMovingBlockSamplingAssumptionUnionRequest,
+                        ctx: &ExecutionContext| {
+            compile_stratified_moving_block_sampling_assumption_union(request, ctx)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut series = base.clone();
+        series.stratum_ids.swap(0, 1);
+        let mut block = base.clone();
+        block.block_length = 5;
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(series, &ctx),
+            identity(block, &ctx),
+            identity(base, &ExecutionContext::for_tests(48)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_panel_block_binds_rows_and_panels() {
+        let ctx = ExecutionContext::for_tests(53);
+        let request = |ids: &[String]| PanelBlockSamplingAssumptionUnionRequest {
+            original: site_raw_draft(200),
+            unit_ids: site_ids(ids, 200, "row"),
+            panel_ids: (0..200).map(|i| format!("panel-{:02}", i % 10)).collect(),
+            block_length: 4,
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let identity = |request: PanelBlockSamplingAssumptionUnionRequest,
+                        ctx: &ExecutionContext| {
+            compile_panel_block_sampling_assumption_union(request, ctx)
+                .expect("compiles")
+                .lowered()
+                .identity()
+        };
+        ordered_laws(&site_head(), |ids| Some(identity(request(ids), &ctx)));
+        let base = request(&site_head());
+        let mut panels = base.clone();
+        panels.panel_ids.swap(0, 1);
+        let mut block = base.clone();
+        block.block_length = 5;
+        all_distinct(&[
+            identity(base.clone(), &ctx),
+            identity(panels, &ctx),
+            identity(block, &ctx),
+            identity(base, &ExecutionContext::for_tests(54)),
+        ]);
+    }
+
+    #[test]
+    fn site_sampling_assumption_union_fingerprint_orders_chains_and_keeps_bits() {
+        let result = |ids: &[String], lower: f64| SamplingAssumptionUnionResult {
+            original_lower: 0.0,
+            original_upper: 1.0,
+            union_lower: lower,
+            union_upper: 2.0,
+            level: 0.95,
+            calibration: "not_measured",
+            chain_identities: ids.to_vec(),
+            lowered_program_identity: SemanticDigest::from_bytes([7; 32]),
+        };
+        ordered_laws(&site_head(), |ids| Some(fingerprint(&result(ids, -1.0))));
+        bit_exact(|lower| Some(fingerprint(&result(&site_head(), lower))));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |pair| *pair,
+            |(left, right)| {
+                Some(fingerprint(&result(&[(*left).to_owned(), (*right).to_owned()], -1.0)))
+            },
+        );
+    }
 
     fn draft(shift: f64) -> PropagationChainRecordWire {
         PropagationChain::draft(

@@ -1763,3 +1763,248 @@ mod continuous_chain_tests {
         assert!(compile_continuous_chain_transport(invalid, &ctx).is_err());
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, set_laws};
+    use antecedent_core::{RegimeId, Value};
+    use antecedent_estimate::counterfactual_transport_sampled::{
+        OverlapDeclaration, SampledAxis, SampledRegimeCountsParts, SampledTransportLimits,
+        SamplingDesign, UnseenCellRule,
+    };
+    use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    /// Binary `X -> M -> Y` with the direct `X -> Y` edge, at times 0, 1 and 2.
+    fn problem() -> CounterfactualTransportProblem {
+        let id = VariableId::from_raw;
+        CounterfactualTransportProblem::new(
+            &[(id(0), vec![0.0, 1.0]), (id(1), vec![0.0, 1.0]), (id(2), vec![0.0, 1.0])],
+            &[(id(0), id(1)), (id(1), id(2)), (id(0), id(2))],
+            &[],
+        )
+        .expect("a binary mediation graph")
+    }
+
+    fn path_spec(active_edges: Vec<(u32, u32)>) -> TemporalPathSpec {
+        TemporalPathSpec {
+            treatment: 0,
+            outcome: 2,
+            control_bits: 0.0_f64.to_bits(),
+            active_bits: 1.0_f64.to_bits(),
+            outcome_level_bits: 1.0_f64.to_bits(),
+            times: vec![(0, 0), (1, 1), (2, 2)],
+            active_edges,
+        }
+    }
+
+    fn worlds(
+        spec: &TemporalPathSpec,
+    ) -> (CounterfactualTransportQuery, CounterfactualTransportQuery) {
+        let target: Arc<str> = Arc::from("target");
+        let sources: Arc<[CounterfactualTransportSource]> = Arc::from(Vec::new());
+        queries(&problem(), &target, &sources, spec).expect("a time-ordered path query")
+    }
+
+    fn law(population: &str) -> ExactDiscreteLaw {
+        ExactDiscreteLaw::try_new(
+            population,
+            RegimeId::from_raw(0),
+            Vec::<antecedent_expr::InterventionAssignment>::new(),
+            vec![DiscreteAxis {
+                variable: VariableId::from_raw(2),
+                values: Arc::from(vec![Value::f64(0.0), Value::f64(1.0)]),
+            }],
+            vec![0.4, 0.6],
+            format!("snapshot:{population}"),
+            LawTolerance::default(),
+        )
+        .expect("a normalized exact law")
+    }
+
+    #[test]
+    fn site_temporal_path_transport_exact_laws_are_a_set() {
+        let spec = path_spec(vec![(0, 2)]);
+        let (active, baseline) = worlds(&spec);
+        let options = TemporalPathOptionsWire::from(&CounterfactualTransportOptions::default());
+        let catalog = EvidenceCatalog::empty();
+        let identity = |populations: &[&str]| {
+            let laws: Vec<ExactDiscreteLaw> = populations.iter().map(|name| law(name)).collect();
+            let data = ExactTransportData::try_new(laws, 1 << 16).ok()?;
+            lower(&problem(), &active, &baseline, &catalog, &data, &spec, &options)
+                .ok()
+                .map(|lowered| query_of(&lowered))
+        };
+        // The laws are keyed by population, regime and world (a repeated binding is refused),
+        // so the evidence is a set of laws.
+        set_laws(&["target", "source-a", "source-b"], identity);
+        let data = ExactTransportData::try_new(vec![law("target")], 1 << 16).expect("one law");
+        let other_spec = path_spec(vec![(0, 1)]);
+        let (other_active, other_baseline) = worlds(&other_spec);
+        let named = TemporalPathOptionsWire::from(&CounterfactualTransportOptions {
+            variable_names: vec!["x".into(), "m".into(), "y".into()],
+            ..CounterfactualTransportOptions::default()
+        });
+        all_distinct(&[
+            identity(&["target"]),
+            lower(
+                &problem(),
+                &other_active,
+                &other_baseline,
+                &catalog,
+                &data,
+                &other_spec,
+                &options,
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered)),
+            lower(&problem(), &active, &baseline, &catalog, &data, &spec, &named)
+                .ok()
+                .map(|lowered| query_of(&lowered)),
+        ]);
+    }
+
+    fn table(population: &str, treated: u64) -> SampledRegimeCounts {
+        SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from(population),
+            regime: RegimeId::from_raw(0),
+            interventions: Vec::new(),
+            axes: vec![SampledAxis { variable: VariableId::from_raw(2), levels: vec![0.0, 1.0] }],
+            counts: vec![100 - treated, treated],
+            snapshot_identity: Arc::from(format!("snapshot:{population}")),
+            design: SamplingDesign::IndependentUnits,
+            structural_zeros: Vec::new(),
+        })
+        .expect("a sampled count table")
+    }
+
+    #[test]
+    fn site_sampled_temporal_path_transport_tables_are_sorted_by_key() {
+        let spec = path_spec(vec![(0, 2)]);
+        let (active, baseline) = worlds(&spec);
+        let options = TemporalPathOptionsWire::from(&CounterfactualTransportOptions::default());
+        let catalog = EvidenceCatalog::empty();
+        let identity = |tables: &[(&str, u64)]| {
+            let request = SampledTransportRequest {
+                tables: tables.iter().map(|(name, treated)| table(name, *treated)).collect(),
+                overlap: OverlapDeclaration::all_independent(),
+                unseen_rule: UnseenCellRule::Refuse,
+                limits: SampledTransportLimits::default(),
+            };
+            let wire = SampledPathRequestWire::from_request(&request);
+            lower_sampled(&problem(), &active, &baseline, &catalog, &wire, &spec, &options)
+                .ok()
+                .map(|lowered| query_of(&lowered))
+        };
+        // Tables are keyed by population, regime and world and sorted by that key; the sampled
+        // estimator refuses a repeated key when it runs, so only reorderings are compared here.
+        let base = identity(&[("target", 60), ("source-a", 55), ("source-b", 50)]);
+        assert_eq!(base, identity(&[("source-b", 50), ("target", 60), ("source-a", 55)]));
+        assert_eq!(base, identity(&[("source-a", 55), ("source-b", 50), ("target", 60)]));
+        all_distinct(&[
+            base,
+            identity(&[("target", 60), ("source-a", 55)]),
+            identity(&[("target", 61), ("source-a", 55), ("source-b", 50)]),
+        ]);
+    }
+
+    fn chain_request() -> ContinuousChainTransportRequest {
+        let source = (0..200)
+            .map(|i| {
+                let x = f64::from(i % 25) / 25.0;
+                let treated = i >= 100;
+                let a = if treated { 1.0 } else { 0.0 };
+                let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
+                let noise2 = if (i / 50) % 2 == 0 { -1.0 } else { 1.0 };
+                let m1 = x + a + noise1;
+                let m2 = 2.0 * m1 + 3.0 * a + noise2;
+                ContinuousChainSourceRow {
+                    baseline: x,
+                    treated,
+                    mediators: vec![m1, m2],
+                    outcome: 3.0 + x + m2 + 4.0 * a,
+                }
+            })
+            .collect();
+        ContinuousChainTransportRequest {
+            source,
+            target_baseline: (0..25).map(|i| f64::from(i) / 25.0).collect(),
+            mediator_parents: vec![vec![], vec![0], vec![0, 1]],
+            treatment_edges: vec![true, true, true],
+            active_treatment_edges: vec![true, false, false],
+            bootstrap_replicates: 100,
+        }
+    }
+
+    #[test]
+    fn site_continuous_chain_transport_question_binds_rows_schedule_and_seed() {
+        let question = |request: ContinuousChainTransportRequest, seed: u64| {
+            let ctx = ExecutionContext::for_tests(seed);
+            compile_continuous_chain_transport(request, &ctx)
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // Source rows and target baselines are positional: the paired bootstrap draws them by
+        // index from the seeded schedule.
+        let mut source_rows = chain_request();
+        source_rows.source.swap(0, 1);
+        let mut target_rows = chain_request();
+        target_rows.target_baseline.swap(0, 1);
+        let mut edges = chain_request();
+        edges.active_treatment_edges = vec![false, true, true];
+        let mut replicates = chain_request();
+        replicates.bootstrap_replicates = 101;
+        all_distinct(&[
+            question(chain_request(), 991),
+            question(chain_request(), 992),
+            question(source_rows, 991),
+            question(target_rows, 991),
+            question(edges, 991),
+            question(replicates, 991),
+        ]);
+    }
+
+    #[test]
+    fn site_continuous_chain_transport_result_fingerprint_reads_every_field() {
+        let base = ContinuousChainTransportResult {
+            active: 1.0,
+            baseline: 0.5,
+            contrast: 0.5,
+            interval: (0.25, 0.75),
+            calibration: "not_measured",
+            lowered_program_identity: SemanticDigest::from_bytes([3; 32]),
+        };
+        let mut variants = vec![base.clone()];
+        let mut changed = base.clone();
+        changed.active = 1.5;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.baseline = 0.6;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.contrast = 0.4;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.interval = (0.75, 0.25);
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.calibration = "measured";
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.lowered_program_identity = SemanticDigest::from_bytes([4; 32]);
+        variants.push(changed);
+        all_distinct(&variants.iter().map(continuous_chain_fingerprint).collect::<Vec<_>>());
+        bit_exact(|contrast| {
+            let mut changed = base.clone();
+            changed.contrast = contrast;
+            Some(continuous_chain_fingerprint(&changed))
+        });
+    }
+}

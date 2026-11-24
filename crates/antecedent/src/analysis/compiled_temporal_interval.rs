@@ -278,7 +278,85 @@ mod identity_tests {
         InitialStateLaw, InitialStatePopulation, InitialStateSpec,
     };
 
-    use super::{IntervalEstimand, TemporalDependentIntervalRequest, question_digest};
+    use antecedent_estimate::temporal_dependent_interval::{SequenceHistory, UnitHistories};
+
+    use super::{
+        IntervalEstimand, TemporalDependentIntervalRequest, question_digest, source_digest,
+    };
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    fn law(states: &[(u32, f64)]) -> Option<IntervalEstimand> {
+        InitialStateLaw::new(InitialStatePopulation::Target, "law", states.to_vec())
+            .ok()
+            .map(|law| IntervalEstimand::Marginalized(InitialStateSpec::Law(law)))
+    }
+
+    fn panel(units: Option<Vec<UnitHistories>>) -> TemporalDependentIntervalRequest {
+        TemporalDependentIntervalRequest::new(
+            "panel",
+            units,
+            [0, 1],
+            IntervalEstimand::Observed,
+            DependentIntervalConfig::default(),
+        )
+    }
+
+    fn unit(unit_id: u64, histories: Vec<SequenceHistory>) -> UnitHistories {
+        UnitHistories { unit_id, histories }
+    }
+
+    #[test]
+    fn site_compiled_temporal_interval_question_orders_the_sequence_and_the_law() {
+        ordered_laws(&[0_u32, 1], |sequence| {
+            Some(question_digest(&request(
+                [sequence[0], sequence[1]],
+                IntervalEstimand::Observed,
+                0.1,
+            )))
+        });
+        ordered_laws(&[(0_u32, 0.25), (1, 0.75)], |states| {
+            law(states).map(|estimand| question_digest(&request([0, 1], estimand, 0.1)))
+        });
+        bit_exact(|fraction| {
+            Some(question_digest(&request([0, 1], IntervalEstimand::Observed, fraction)))
+        });
+        all_distinct(&[
+            question_digest(&request([0, 1], IntervalEstimand::Observed, 0.1)),
+            question_digest(&request([0, 1], IntervalEstimand::FixedState(0), 0.1)),
+            question_digest(&request(
+                [0, 1],
+                IntervalEstimand::Marginalized(InitialStateSpec::Point(0)),
+                0.1,
+            )),
+            question_digest(&request([0, 1], law(&[(0, 1.0)]).expect("a law"), 0.1)),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_temporal_interval_source_orders_units_and_histories() {
+        let first = unit(1, vec![SequenceHistory::two_step(0, 0, 1, 0, 1, 2.0)]);
+        let second = unit(2, vec![SequenceHistory::two_step(0, 1, 0, 1, 0, -1.0)]);
+        ordered_laws(&[first.clone(), second.clone()], |units| {
+            Some(source_digest(&panel(Some(units.to_vec()))))
+        });
+        let histories = [
+            SequenceHistory::two_step(0, 0, 1, 0, 1, 2.0),
+            SequenceHistory::two_step(1, 1, 1, 0, 0, 3.0),
+        ];
+        ordered_laws(&histories, |ordered| {
+            Some(source_digest(&panel(Some(vec![unit(1, ordered.to_vec())]))))
+        });
+        bit_exact(|y| {
+            let history = SequenceHistory::two_step(0, 0, 1, 0, 1, y);
+            Some(source_digest(&panel(Some(vec![unit(1, vec![history])]))))
+        });
+        all_distinct(&[
+            source_digest(&panel(None)),
+            source_digest(&panel(Some(Vec::new()))),
+            source_digest(&panel(Some(vec![first]))),
+            source_digest(&panel(Some(vec![second]))),
+        ]);
+    }
 
     fn request(
         sequence: [u32; 2],

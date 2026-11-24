@@ -970,6 +970,64 @@ mod tests {
         assert_ne!(question(&two_source(0.0)), question(&two_source(-0.0)), "reals by bits");
     }
 
+    /// `question`: the selection targets are a set (identification reads a node set); outcomes
+    /// and treatments are ordered (the identification record lists them in declared order); the
+    /// population texts are framed; the request kind is tagged; the two sources of a two-source
+    /// query are ordered (each binds its own catalog).
+    #[test]
+    fn site_transport_identification_question_selections_are_a_set() {
+        use crate::identity_laws::{
+            ADVERSARIAL_TEXT, all_distinct, injective, ordered_laws, set_laws,
+        };
+
+        let request = |selections: &[u32], outcomes: &[u32], source: &str, target: &str| {
+            let mut graph = Admg::with_variables(4);
+            for to in 1..4 {
+                graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(to)).ok()?;
+            }
+            let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
+            let diagram =
+                SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections)).ok()?;
+            Some(question(&TransportIdentificationRequest::Classical {
+                diagram,
+                query: ClassicalTransportQuery {
+                    outcomes: outcomes.iter().copied().map(v).collect(),
+                    treatments: Arc::from([v(0)]),
+                    source: Arc::from(source),
+                    target: Arc::from(target),
+                },
+                limits: SidLimits::default(),
+            }))
+        };
+        set_laws(&[1, 2, 3], |selections| request(selections, &[2, 1], "s", "t"));
+        ordered_laws(&[1, 2, 3], |outcomes| request(&[1], outcomes, "s", "t"));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(source, target)| request(&[1], &[2], source, target),
+        );
+        let mut swapped = two_source(1.0);
+        if let TransportIdentificationRequest::TwoSourceZTransport { query, .. } = &mut swapped {
+            query.sources.swap(0, 1);
+        }
+        let TransportIdentificationRequest::Classical { diagram, query, limits } = classical()
+        else {
+            unreachable!("classical() is a classical request")
+        };
+        let catalog = TransportIdentificationRequest::Catalog {
+            diagram,
+            query,
+            catalog: EvidenceCatalog::empty(),
+            limits,
+        };
+        all_distinct(&[
+            question(&classical()),
+            question(&catalog),
+            question(&two_source(1.0)),
+            question(&swapped),
+        ]);
+    }
+
     #[test]
     fn a_compiled_identification_refuses_reentry() {
         let ctx = ExecutionContext::for_tests(0);

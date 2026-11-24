@@ -145,3 +145,63 @@ impl CompiledChainObservationRecovery {
         evaluate_chain_recovery(&request.plan, &request.observed)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::VariableId;
+    use antecedent_graph::{Admg, DenseNodeId};
+    use antecedent_identify::{
+        ChainPartial, ChainRecoveryDecision, ChainRecoveryQuery, decide_chain_recovery,
+    };
+
+    use super::*;
+    use crate::identity_laws::{ADVERSARIAL_TEXT, bit_exact, injective, ordered_laws};
+
+    /// The checked plan of the response chain `R1 -> R2` with `X1 -> X2`.
+    fn plan() -> ChainRecoveryPlan {
+        let mut graph = Admg::with_variables(6);
+        for (from, to) in [(0, 1), (0, 4), (2, 4), (1, 5), (3, 5), (2, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let v = VariableId::from_raw;
+        let query = ChainRecoveryQuery {
+            first: ChainPartial { variable: v(0), response: v(2), proxy: v(4) },
+            second: ChainPartial { variable: v(1), response: v(3), proxy: v(5) },
+        };
+        let ctx = ExecutionContext::for_tests(0);
+        let ChainRecoveryDecision::Recovered(plan) =
+            decide_chain_recovery(&graph, &query, &ctx).unwrap()
+        else {
+            panic!("expected a recovery plan");
+        };
+        *plan
+    }
+
+    /// An exact observed law whose first cell is `first`, or `None` when it is refused.
+    fn law(first: f64) -> Option<ChainPatternLaw> {
+        ChainPatternLaw::new([[first, 0.1], [0.1, 0.1]], [0.1, 0.1], [0.1, 0.2], 0.2).ok()
+    }
+
+    fn digest(plan: &ChainRecoveryPlan, observed: ChainPatternLaw) -> [u8; 32] {
+        request_bytes(&ChainRecoveryRequest { plan: plan.clone(), observed })
+    }
+
+    /// `request_bytes`: the plan's premises are ordered (the identifier states them in order and
+    /// seals the plan with them) and framed; the observed cells enter by their bits.
+    #[test]
+    fn site_chain_recovery_request_premises_are_ordered_and_framed() {
+        let base = plan();
+        let observed = law(0.0).unwrap();
+        let with = |premises: &[&str]| {
+            let mut plan = base.clone();
+            plan.premises = premises.iter().map(|premise| (*premise).to_owned()).collect();
+            Some(digest(&plan, observed))
+        };
+        ordered_laws(&["p1", "p2", "p3"], &with);
+        injective(&ADVERSARIAL_TEXT, |parts| *parts, |&(a, b)| with(&[a, b]));
+        bit_exact(|first| law(first).map(|observed| digest(&base, observed)));
+        let mut flipped = base.clone();
+        flipped.tail_depends_on_head_variable = !flipped.tail_depends_on_head_variable;
+        assert_ne!(digest(&flipped, observed), digest(&base, observed));
+    }
+}

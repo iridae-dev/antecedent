@@ -95,14 +95,14 @@ pub struct CompiledZTransport {
 /// targets as a set; the catalog by its own canonical encoding, whose environments, regimes and
 /// bindings are sets; the derivation's record, query and arenas by their wire forms, whose
 /// arenas list nodes in their interned order; the request in the order the assignment keeps it
-/// (sorted by variable), each value by its canonical encoding. A wire that does not encode
-/// writes its error under its own tag.
+/// (sorted by variable), each value by its canonical encoding. An arena that does not encode
+/// refuses the compile.
 fn canonical(
     prepared: &PreparedZTransport,
     request: &Assignment,
     limits: ExactEvaluationLimits,
     empirical: bool,
-) -> [u8; 32] {
+) -> Result<[u8; 32], IoError> {
     let functional = prepared.functional();
     let derivation = functional.derivation();
     let mut writer = CanonicalWriter::new("antecedent.z_transport.compiled_input.v2");
@@ -113,8 +113,8 @@ fn canonical(
     Canonical::encode(&SetOf(diagram.selection_targets()), &mut writer);
     Canonical::encode(&Wire(&derivation.to_record()), &mut writer);
     Canonical::encode(&Wire(&ZTransportQueryWire::from_query(derivation.query())), &mut writer);
-    write_arena(&mut writer, derivation.arena());
-    write_arena(&mut writer, functional.arena());
+    write_arena(&mut writer, derivation.arena())?;
+    write_arena(&mut writer, functional.arena())?;
     writer.word(u64::from(functional.root().raw()));
     CanonicalEncode::encode(functional.catalog(), &mut writer);
     writer
@@ -130,17 +130,16 @@ fn canonical(
         CanonicalEncode::encode(value, &mut writer);
     }
     writer.word(limits.operations as u64).word(limits.depth as u64);
-    writer.finish()
+    Ok(writer.finish())
 }
 
-/// An expression arena by its wire form, or its conversion error under its own tag.
-fn write_arena(writer: &mut CanonicalWriter, arena: &antecedent_expr::CausalExprArena) {
-    match expr_arena_to_wire(arena) {
-        Ok(wire) => Canonical::encode(&Wire(&wire), writer),
-        Err(error) => {
-            writer.text("unencodable").text(&error.to_string());
-        }
-    }
+/// An expression arena by its wire form.
+fn write_arena(
+    writer: &mut CanonicalWriter,
+    arena: &antecedent_expr::CausalExprArena,
+) -> Result<(), IoError> {
+    Canonical::encode(&Wire(&expr_arena_to_wire(arena)?), writer);
+    Ok(())
 }
 
 fn compile_refusal(error: &CausalError) -> IoError {
@@ -155,7 +154,7 @@ fn compile(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransport, IoError> {
     antecedent_estimate::refuse_cancelled(ctx, "z-transport compile").map_err(IoError::from)?;
-    let bytes = canonical(&prepared, &request, limits, empirical);
+    let bytes = canonical(&prepared, &request, limits, empirical)?;
     let shape = if empirical { &EMPIRICAL } else { &EXACT };
     let input = ZTransportInput { prepared, request, limits, empirical };
     let program = KernelProgram::compile(shape, input, &bytes, ctx)
@@ -337,6 +336,7 @@ mod identity_tests {
 
     use super::*;
     use crate::analysis::z_transport::tests::fixture;
+    use crate::identity_laws::{all_distinct, set_laws};
 
     fn prepared() -> (PreparedZTransport, Assignment) {
         let ctx = ExecutionContext::for_tests(0);
@@ -348,21 +348,60 @@ mod identity_tests {
         (prepared, request)
     }
 
+    fn digest(
+        prepared: &PreparedZTransport,
+        request: &Assignment,
+        limits: ExactEvaluationLimits,
+        empirical: bool,
+    ) -> [u8; 32] {
+        canonical(prepared, request, limits, empirical).unwrap()
+    }
+
     #[test]
     fn the_z_transport_input_identity_is_canonical() {
         let limits = ExactEvaluationLimits::default();
         let (first, request) = prepared();
         let (second, _) = prepared();
-        let base = canonical(&first, &request, limits, false);
-        assert_eq!(base, canonical(&second, &request, limits, false), "repeatable");
-        assert_ne!(base, canonical(&first, &request, limits, true), "a changed provider kind");
+        let base = digest(&first, &request, limits, false);
+        assert_eq!(base, digest(&second, &request, limits, false), "repeatable");
+        assert_ne!(base, digest(&first, &request, limits, true), "a changed provider kind");
         let tighter = ExactEvaluationLimits { operations: limits.operations - 1, ..limits };
-        assert_ne!(base, canonical(&first, &request, tighter, false), "changed limits");
+        assert_ne!(base, digest(&first, &request, tighter, false), "changed limits");
         let level = |value: f64| {
             let request = Assignment::from_pairs([(VariableId::from_raw(2), Value::f64(value))]);
-            canonical(&first, &request, limits, false)
+            digest(&first, &request, limits, false)
         };
         assert_ne!(level(0.0), level(-0.0), "reals by bits");
         assert_ne!(base, level(0.0), "a changed request value");
+    }
+
+    /// `canonical`: the request is a set keyed by variable (the assignment sorts it and keeps
+    /// one value per variable); the laws are ordered (the provider takes each coordinate's domain
+    /// order from the first law listing it, so the order reaches the evaluation).
+    #[test]
+    fn site_z_transport_request_is_keyed_and_laws_ordered() {
+        let limits = ExactEvaluationLimits::default();
+        let (first, _) = prepared();
+        set_laws(&[(2_u32, 0.0), (3, 1.0), (0, 0.5)], |pairs| {
+            let request = Assignment::from_pairs(
+                pairs
+                    .iter()
+                    .map(|&(variable, value)| (VariableId::from_raw(variable), Value::f64(value))),
+            );
+            Some(digest(&first, &request, limits, false))
+        });
+        let ctx = ExecutionContext::for_tests(0);
+        let (diagram, functional, data, request) = fixture(false);
+        let mut laws: Vec<_> = data.laws().to_vec();
+        assert!(laws.len() >= 2, "the fixture declares several laws");
+        laws.reverse();
+        let reversed = ExactTransportData::try_new(laws, data.max_support_rows()).unwrap();
+        let prepared_reversed =
+            StudyBuilder::z_transport(diagram, functional, reversed, request.clone(), limits, &ctx)
+                .unwrap();
+        all_distinct(&[
+            digest(&first, &request, limits, false),
+            digest(&prepared_reversed, &request, limits, false),
+        ]);
     }
 }

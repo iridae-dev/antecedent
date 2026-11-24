@@ -169,11 +169,14 @@ pub(crate) fn lower(
 
 #[cfg(test)]
 mod identity_tests {
+    use std::sync::Arc;
+
     use antecedent_core::{NodeRef, VariableId};
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_model::GraphFalsificationConfig;
 
     use super::{graph_digest, query_digest};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
 
     fn dag(labels: &[u32], edges: &[(u32, u32)]) -> Dag {
         let mut dag = Dag::empty();
@@ -201,5 +204,74 @@ mod identity_tests {
         assert_eq!(query_digest(graph, &config(0.05)), query_digest(graph, &config(0.05)));
         assert_ne!(query_digest(graph, &config(0.05)), query_digest(graph, &config(0.1)));
         assert_ne!(query_digest(graph, &config(0.0)), query_digest(graph, &config(-0.0)));
+    }
+
+    /// The DAG of `labels` and `edges`, `None` when the graph refuses an edge (a repeat or a
+    /// cycle).
+    fn try_dag(labels: &[u32], edges: &[(u32, u32)]) -> Option<Dag> {
+        let mut dag = Dag::empty();
+        for &label in labels {
+            dag.add_node(NodeRef::Static(VariableId::from_raw(label))).ok()?;
+        }
+        for &(from, to) in edges {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).ok()?;
+        }
+        Some(dag)
+    }
+
+    #[test]
+    fn site_graph_falsification_edges_are_a_set_and_labels_are_ordered() {
+        // The tested implications read the edge set; the edges index dense nodes, whose labels
+        // name the variables in dense order.
+        set_laws(&[(0_u32, 1_u32), (1, 2), (0, 2)], |edges| {
+            try_dag(&[0, 1, 2], edges).map(|graph| graph_digest(&graph))
+        });
+        ordered_laws(&[0_u32, 1, 7], |labels| {
+            try_dag(labels, &[(0, 1), (1, 2)]).map(|graph| graph_digest(&graph))
+        });
+    }
+
+    #[test]
+    fn site_graph_falsification_query_reads_reals_by_bits_and_options_by_presence() {
+        let graph = graph_digest(&dag(&[0, 1], &[(0, 1)]));
+        bit_exact(|alpha| {
+            Some(query_digest(graph, &GraphFalsificationConfig { alpha, ..Default::default() }))
+        });
+        bit_exact(|significance| {
+            Some(query_digest(
+                graph,
+                &GraphFalsificationConfig { significance, ..Default::default() },
+            ))
+        });
+        bit_exact(|share| {
+            Some(query_digest(
+                graph,
+                &GraphFalsificationConfig {
+                    max_equivalent_share: Some(share),
+                    ..Default::default()
+                },
+            ))
+        });
+        let with = |share: Option<f64>, seed: Option<u64>| {
+            query_digest(
+                graph,
+                &GraphFalsificationConfig {
+                    max_equivalent_share: share,
+                    seed,
+                    ..Default::default()
+                },
+            )
+        };
+        all_distinct(&[
+            with(None, None),
+            with(Some(0.0), None),
+            with(None, Some(0)),
+            with(Some(0.0), Some(0)),
+            query_digest(graph_digest(&dag(&[0, 1], &[])), &GraphFalsificationConfig::default()),
+            query_digest(
+                graph,
+                &GraphFalsificationConfig { ci_test: Arc::from("gcm"), ..Default::default() },
+            ),
+        ]);
     }
 }

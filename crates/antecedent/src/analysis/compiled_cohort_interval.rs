@@ -23,7 +23,9 @@ use antecedent_contract::ClaimKind;
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_io::IoError;
 
-use super::cohort_decision::{CohortDecisionSource, NativeCohortFit, measure_cohort_interval};
+use super::cohort_decision::{
+    CohortDecisionSource, NativeCohortFit, NativeFitRows, measure_cohort_interval,
+};
 use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, frequentist,
 };
@@ -52,18 +54,17 @@ pub struct CompiledCohortInterval {
     lowered: Arc<LoweredProgram>,
 }
 
-fn question_digest(
-    native: &NativeCohortFit,
-    source: &CohortDecisionSource,
-    level: f64,
-) -> [u8; 32] {
+/// The question: the identity of the fit's export, the identity of the cohort source and the
+/// nominal level, each framed, the level by its bits.
+fn question_digest(export: &str, source: &str, level: f64) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.cohort_mean_interval.question.v1");
-    writer.text(native.export().identity()).text(source.identity()).real(level);
+    writer.text(export).text(source).real(level);
     writer.finish()
 }
 
-fn source_digest(native: &NativeCohortFit) -> [u8; 32] {
-    let rows = native.rows();
+/// The retained rows the fit replays: outcome and treatment, the modifier ids and one column
+/// per modifier, every list in row (or column) order.
+fn source_digest(rows: &NativeFitRows) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.cohort_mean_interval.rows.v1");
     writer.reals(&rows.outcome).reals(&rows.treatment).texts(&rows.feature_ids);
     writer.word(rows.features.len() as u64);
@@ -84,8 +85,8 @@ fn lower(
         plan_id: PLAN_ID,
         kind: FunctionalKind::AssignmentContrast,
         graph_class: "as_the_cohort_mean_contrast_route",
-        question: question_digest(native, source, level),
-        source: source_digest(native),
+        question: question_digest(native.export().identity(), source.identity(), level),
+        source: source_digest(rows),
         source_role: EvidenceRole::Observations,
         realization: frequentist("ols_hc3_treatment_by_basis_student_t", PLAN_ID)?,
         uncertainty: UncertaintyReading::Sampling,
@@ -171,5 +172,48 @@ impl CompiledCohortInterval {
             lowered_program_identity: self.lowered.identity(),
             calibration_route: CALIBRATION_ROUTE,
         })
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::{NativeFitRows, question_digest, source_digest};
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    fn rows(outcome: &[f64], features: &[(&str, Vec<f64>)]) -> NativeFitRows {
+        NativeFitRows {
+            outcome: outcome.to_vec(),
+            treatment: vec![0.0, 1.0, 0.0],
+            features: features.iter().map(|(_, column)| column.clone()).collect(),
+            feature_ids: features.iter().map(|(id, _)| (*id).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn site_compiled_cohort_interval_question_frames_the_identities_and_the_level() {
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |(export, source)| Some(question_digest(export, source, 0.95)),
+        );
+        bit_exact(|level| Some(question_digest("export", "source", level)));
+    }
+
+    #[test]
+    fn site_compiled_cohort_interval_source_keeps_rows_and_modifiers_in_order() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| Some(source_digest(&rows(outcome, &[]))));
+        let (ages, sexes) = (vec![1.0, 2.0, 3.0], vec![0.0, 1.0, 1.0]);
+        ordered_laws(&[("age", ages.clone()), ("sex", sexes.clone())], |features| {
+            Some(source_digest(&rows(&[1.0, 2.0, 3.0], features)))
+        });
+        all_distinct(&[
+            source_digest(&rows(&[1.0, 2.0, 3.0], &[("age", ages.clone())])),
+            source_digest(&rows(&[1.0, 2.0, 3.0], &[("age", sexes.clone())])),
+            source_digest(&rows(&[1.0, 2.0, 3.0], &[("sex", ages)])),
+            source_digest(&rows(&[1.0, 2.0, 3.0], &[("sex", sexes)])),
+            source_digest(&rows(&[1.0, 2.0, 3.0], &[])),
+        ]);
     }
 }

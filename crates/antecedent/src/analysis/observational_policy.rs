@@ -1726,3 +1726,235 @@ impl crate::analysis::program_handle::CompiledProgramHandle for CompiledPolicySu
         &self.lowered
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    fn request(outcome: &[f64], columns: &[(String, Vec<f64>)]) -> ObservationalPolicyRequest {
+        ObservationalPolicyRequest {
+            outcome: outcome.to_vec(),
+            treatment: vec![0.0; outcome.len()],
+            adjustment: columns
+                .iter()
+                .map(|(name, values)| AdjustmentColumn {
+                    name: name.clone(),
+                    values: values.clone(),
+                })
+                .collect(),
+            spec: ObservationalPolicySpecWire::default(),
+        }
+    }
+
+    fn digest(request: &ObservationalPolicyRequest) -> Option<[u8; 32]> {
+        policy_request_digest(request, 7).ok()
+    }
+
+    #[test]
+    fn site_observational_policy_request_digest_orders_rows_and_frames_columns() {
+        // Rows are positional (row-aligned outcome, treatment and columns; the fold and
+        // held-out schedules index them), and so are the columns of the design matrices.
+        ordered_laws(&[1.0, 2.0, 3.0], |rows: &[f64]| digest(&request(rows, &[])));
+        let columns = vec![
+            ("x".to_owned(), vec![1.0]),
+            ("w".to_owned(), vec![2.0]),
+            ("v".to_owned(), vec![3.0]),
+        ];
+        ordered_laws(&columns, |columns: &[(String, Vec<f64>)]| digest(&request(&[1.0], columns)));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |(first, second)| {
+                digest(&request(
+                    &[1.0],
+                    &[((*first).to_owned(), vec![1.0]), ((*second).to_owned(), vec![1.0])],
+                ))
+            },
+        );
+        // A value moved across a column boundary is another request.
+        assert_ne!(
+            digest(&request(&[1.0], &[("x".into(), vec![1.0, 2.0]), ("w".into(), vec![3.0])])),
+            digest(&request(&[1.0], &[("x".into(), vec![1.0]), ("w".into(), vec![2.0, 3.0])]))
+        );
+        // Rows moved from the outcome to the treatment column are another request: each column
+        // is count-prefixed (without the prefix these two write the same words).
+        let split = |outcome: Vec<f64>, treatment: Vec<f64>| {
+            let mut declared = request(&[], &[]);
+            declared.outcome = outcome;
+            declared.treatment = treatment;
+            digest(&declared)
+        };
+        assert_ne!(split(vec![1.0, f64::from_bits(1)], Vec::new()), split(vec![1.0], vec![0.0]));
+        bit_exact(|value| digest(&request(&[value], &[])));
+        let base = request(&[1.0, 2.0], &[]);
+        let mut treated = base.clone();
+        treated.treatment[0] = 1.0;
+        let mut declared = base.clone();
+        declared.spec.support = Some(vec![0.0, 1.0]);
+        all_distinct(&[
+            policy_request_digest(&base, 7).ok(),
+            policy_request_digest(&base, 8).ok(),
+            digest(&treated),
+            digest(&declared),
+        ]);
+    }
+
+    fn graph_request(shift: f64) -> ObservationalPolicyRequest {
+        let (mut outcome, mut treatment, mut x, mut w) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for i in 0_u32..80 {
+            let xi = if i % 2 == 0 { -1.0 } else { 1.0 };
+            let wi = if (i / 2) % 2 == 0 { -1.0 } else { 1.0 };
+            let action = if (i / 4) % 2 == 0 { 0.0 } else { 1.0 };
+            outcome.push(shift + 0.3 * xi + 0.1 * wi + 0.2 * action + 0.01 * f64::from(i % 7));
+            treatment.push(action);
+            x.push(xi);
+            w.push(wi);
+        }
+        ObservationalPolicyRequest {
+            outcome,
+            treatment,
+            adjustment: vec![
+                AdjustmentColumn { name: "x".into(), values: x },
+                AdjustmentColumn { name: "w".into(), values: w },
+            ],
+            spec: ObservationalPolicySpecWire {
+                support: Some(vec![0.0, 1.0]),
+                objective: Some("maximize".into()),
+                evaluation: Some("cross_fitted_learning".into()),
+                folds: Some(3),
+                known_propensity_columns: Some(vec![vec![0.5; 80], vec![0.5; 80]]),
+                causal_graph: Some(PolicyGraphDeclaration {
+                    nodes: vec!["x".into(), "w".into(), "a".into(), "y".into()],
+                    edges: vec![
+                        ("x".into(), "a".into()),
+                        ("w".into(), "a".into()),
+                        ("x".into(), "y".into()),
+                        ("w".into(), "y".into()),
+                        ("a".into(), "y".into()),
+                    ],
+                    treatment: "a".into(),
+                    outcome: "y".into(),
+                    information_set: vec!["x".into()],
+                }),
+                seed: 5,
+                ..ObservationalPolicySpecWire::default()
+            },
+        }
+    }
+
+    #[test]
+    fn site_observational_policy_subsampling_binds_policy_and_schedule() {
+        let query = |shift: f64, rows: usize, replicates: usize, seed: u64| {
+            let ctx = ExecutionContext::for_tests(seed);
+            let plan = compile_policy_subsampling(graph_request(shift), rows, replicates, &ctx)
+                .expect("a valid subsampling schedule");
+            query_of(plan.lowered())
+        };
+        all_distinct(&[
+            query(1.0, 40, 100, 5),
+            query(1.5, 40, 100, 5),
+            query(1.0, 41, 100, 5),
+            query(1.0, 40, 101, 5),
+            query(1.0, 40, 100, 6),
+        ]);
+    }
+
+    fn candidate() -> CrossFittedPolicyValueCandidate {
+        CrossFittedPolicyValueCandidate {
+            report: ObservationalPolicyReportWire {
+                evaluation: "cross_fitted_learning".into(),
+                estimand: "fold-policy average".into(),
+                assumptions: vec!["declared".into()],
+                objective: "maximize".into(),
+                support: vec![0.0, 1.0],
+                value: 1.0,
+                se: 0.1,
+                action_values: Vec::new(),
+                reference: None,
+                propensity_source: "known".into(),
+                evaluation_rows: 3,
+                learning_rows: 3,
+                rows_dropped_missing: 0,
+                row_index: vec![0, 1, 2],
+                policy_actions: vec![0.0, 1.0, 1.0],
+                scores: vec![1.0, 2.0, 3.0],
+                calibration: "not_measured".into(),
+            },
+            interval: CrossFittedPolicyValueInterval {
+                lower: 0.8,
+                upper: 1.2,
+                level: 0.95,
+                calibration: "not_measured".into(),
+            },
+            basis: CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    validation: String::new(),
+                    query: "q".into(),
+                    graph_class: "g".into(),
+                    structure: "fixed".into(),
+                    modality: "tabular".into(),
+                    inference: "frequentist".into(),
+                    estimator: "e".into(),
+                    interval_method: "m".into(),
+                    se_kind: "s".into(),
+                    dependence: "iid".into(),
+                    posterior: String::new(),
+                    functional: "f".into(),
+                    level: 0.95,
+                    identification: "point".into(),
+                },
+                scope: CalibrationScopeWire {
+                    row_count: 3,
+                    replicates_ok: Some(100),
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+            },
+            slot: CalibrationSlotWire::not_measured("site test"),
+        }
+    }
+
+    #[test]
+    fn site_observational_policy_subsampling_fingerprint_reads_every_result_field() {
+        let fingerprint = |candidate: &CrossFittedPolicyValueCandidate| {
+            policy_subsampling_fingerprint(candidate).expect("a result fingerprint")
+        };
+        let base = candidate();
+        let mut variants = vec![base.clone()];
+        let mut changed = base.clone();
+        changed.report.scores.swap(0, 2);
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.interval.lower = 0.7;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.interval.upper = 1.3;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.interval.level = 0.9;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.interval.calibration = "measured".into();
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.basis.scope.row_count = 4;
+        variants.push(changed);
+        all_distinct(&variants.iter().map(fingerprint).collect::<Vec<_>>());
+        bit_exact(|lower| {
+            let mut changed = base.clone();
+            changed.interval.lower = lower;
+            policy_subsampling_fingerprint(&changed).ok()
+        });
+    }
+}

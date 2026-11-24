@@ -248,3 +248,44 @@ pub(crate) fn canonical_cbor<T: serde::Serialize>(
 ) -> Result<Vec<u8>, antecedent_io::IoError> {
     antecedent_io::to_cbor(value)
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{ADVERSARIAL_TEXT, all_distinct, injective};
+
+    const fn shape(plan_id: &'static str) -> KernelProgramShape {
+        KernelProgramShape {
+            cell: ProgramCell::SampleSplitEffect,
+            plan_id,
+            functional: FunctionalKind::Association,
+            evaluator: "site_test_evaluator",
+            realization: KernelRealization::Exact,
+            uncertainty: UncertaintyReading::None,
+            role: EvidenceRole::Observations,
+            graph_class: "none",
+            data: DataClassification::Tabular,
+            design: "site test",
+        }
+    }
+
+    /// `input_digest`: the plan id and the family's canonical bytes are framed, so moving bytes
+    /// across their boundary names another input; the lowered program's question, source digest
+    /// and specified model are that one digest.
+    #[test]
+    fn site_kernel_programs_input_digest_frames_the_plan_and_the_bytes() {
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(plan, bytes)| Some(input_digest(&shape(plan), bytes.as_bytes())),
+        );
+        let digest = input_digest(&shape("plan"), b"input");
+        let lowered = lower(&shape("plan"), b"input").unwrap();
+        assert_eq!(lowered.scientific().source_digest, Some(digest));
+        all_distinct(&[
+            lowered.identity(),
+            lower(&shape("plan"), b"other").unwrap().identity(),
+            lower(&shape("other"), b"input").unwrap().identity(),
+        ]);
+    }
+}

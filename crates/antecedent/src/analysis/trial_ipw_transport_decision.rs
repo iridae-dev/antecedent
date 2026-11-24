@@ -787,4 +787,104 @@ mod tests {
         }
         assert!(covered <= 4 && correct <= 4);
     }
+
+    /// The raw-row declaration above, for the site test's comparisons.
+    fn ipw_request() -> TrialIpwTransportDecisionRequest {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(2);
+        let mut graph = antecedent_graph::Admg::with_variables(3);
+        let source_node = graph.dense_of_static(treatment).unwrap();
+        let outcome_node = graph.dense_of_static(outcome).unwrap();
+        graph.insert_directed(source_node, outcome_node).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome,
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [treatment],
+        );
+        let quantity = ScientificQuantity {
+            variable_id: "2".into(),
+            variable_name: "effect".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: "do(0=1)-do(0=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let rows = TrialIpwRows {
+            unit_ids: (0..80).map(|i| format!("unit-{i}")).collect(),
+            outcomes: (0..80).map(|i| if i < 40 && i % 2 == 0 { 1.0 } else { 0.0 }).collect(),
+            treatment: (0..80).map(|i| i % 2 == 0).collect(),
+            trial: (0..80).map(|i| i < 40).collect(),
+            selection_probability: vec![0.5; 80],
+            treatment_probability: vec![0.5; 80],
+            draws: 100,
+            seed: 31,
+        };
+        TrialIpwTransportDecisionRequest { diagram, query, rows, quantity, decision }
+    }
+
+    #[test]
+    fn site_trial_ipw_transport_decision_question_orders_rows_and_binds_parts() {
+        let question = |request: TrialIpwTransportDecisionRequest| {
+            let plan = compile_trial_ipw_transport_decision(request).ok()?;
+            match plan.lowered().scientific().target() {
+                ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+                _ => None,
+            }
+        };
+        let base = ipw_request();
+        let mut seed = base.clone();
+        seed.rows.seed = 32;
+        let mut draws = base.clone();
+        draws.rows.draws = 101;
+        // The Bayesian bootstrap weights a row by its position, so rows are read in order.
+        let mut swapped = base.clone();
+        swapped.rows.treatment.swap(0, 1);
+        swapped.rows.outcomes.swap(0, 1);
+        let mut renamed = base.clone();
+        renamed.rows.unit_ids[0] = "another-unit".into();
+        let mut units = base.clone();
+        units.decision.utility_units = "points".into();
+        crate::identity_laws::all_distinct(&[
+            question(base),
+            question(seed),
+            question(draws),
+            question(swapped),
+            question(renamed),
+            question(units),
+        ]);
+    }
 }

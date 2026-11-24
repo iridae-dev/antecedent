@@ -227,3 +227,58 @@ impl CompiledMeasuredEffectPool {
         pool_measured_effect(&request.points, &request.variances, request.naive)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    fn imputation(probability: Vec<f64>, outcome: Vec<f64>, seed: u64) -> [u8; 32] {
+        imputation_bytes(&ImputationRequest {
+            declaration: ExposureMeasurement::Soft { probability },
+            columns: ImputationColumns { outcome, covariates: vec![1.0, 2.0], covariate_count: 1 },
+            draw_count: 4,
+            seed,
+        })
+    }
+
+    /// `imputation_bytes`: the declaration enters by its own identity text (framed), the columns
+    /// are unit-ordered and count-framed, the draw count and seed by value.
+    #[test]
+    fn site_measured_exposure_effect_imputation_orders_the_units() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| {
+            Some(imputation(vec![0.2, 0.8, 0.5], outcome.to_vec(), 1))
+        });
+        all_distinct(&[
+            imputation(vec![0.2, 0.8], vec![1.0, 2.0], 1),
+            imputation(vec![0.8, 0.2], vec![1.0, 2.0], 1),
+            imputation(vec![0.2, 0.8], vec![1.0, 2.0], 2),
+            imputation(vec![0.2, 0.8], vec![1.0], 1),
+        ]);
+        bit_exact(|x| Some(imputation(vec![0.2, 0.8], vec![x, 2.0], 1)));
+    }
+
+    fn pooling(points: &[f64], variances: &[f64], naive: Option<f64>) -> [u8; 32] {
+        pooling_bytes(&PoolingRequest {
+            points: points.to_vec(),
+            variances: variances.to_vec(),
+            naive,
+        })
+    }
+
+    /// `pooling_bytes`: the per-draw points and variances are ordered (the pooled effect reports
+    /// them in draw order and sums them in that order) and count-framed; the naive estimate
+    /// carries a presence word.
+    #[test]
+    fn site_measured_exposure_effect_pooling_orders_the_draws() {
+        let variances = [0.1, 0.2, 0.3];
+        ordered_laws(&[1.0, 2.0, 3.0], |points| Some(pooling(points, &variances, None)));
+        all_distinct(&[
+            pooling(&[1.0, 2.0], &[0.1, 0.2], None),
+            pooling(&[1.0, 2.0], &[0.1, 0.2], Some(0.0)),
+            pooling(&[1.0, 2.0], &[0.1, 0.2], Some(1.0)),
+            pooling(&[1.0], &[2.0, 0.1, 0.2], None),
+        ]);
+        bit_exact(|x| Some(pooling(&[1.0, 2.0], &[0.1, 0.2], Some(x))));
+    }
+}

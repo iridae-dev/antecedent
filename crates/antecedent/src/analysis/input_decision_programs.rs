@@ -1284,3 +1284,7 @@ impl CompiledAdaptivePolicySearch {
         self.search.execute(source, &scoped).map_err(TerminalError::Kernel)
     }
 }
+
+#[cfg(test)]
+#[path = "input_decision_programs_site_tests.rs"]
+mod site_tests;

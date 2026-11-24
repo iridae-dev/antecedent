@@ -1116,3 +1116,155 @@ impl EvidenceDecisionProgram {
         SemanticDigest::from_bytes(writer.finish())
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    fn decision() -> DecisionProgram {
+        DecisionProgram {
+            carrier: CarrierDemand::Mean,
+            utility: DecisionProgram::utility_form(None),
+            actions: 2,
+            constraints: 0,
+            chance_threshold: 0.95,
+            utility_unit: None,
+            contract_identity: None,
+            information_value: None,
+            scenario_source: None,
+        }
+    }
+
+    fn evsi(candidates: &[&str], prior: &[&str]) -> EvsiProgram {
+        EvsiProgram {
+            candidates: candidates.iter().map(|&id| Arc::<str>::from(id)).collect(),
+            prior_observation_ids: prior.iter().map(|&id| Arc::<str>::from(id)).collect(),
+            rng_seed: 3,
+            mc_error_tolerance: 0.01,
+            require_net_value: false,
+            tie_tolerance: 0.0,
+            max_candidates: 8,
+            rank: EvsiProgram::schedule(1, 4, 16, 0.0),
+            cost_map: None,
+            monte_carlo: EvsiProgram::quote_tasks(2, 64).expect("a small store"),
+        }
+    }
+
+    fn program(
+        sources: Vec<EvidenceSourceRef>,
+        decision: Option<DecisionProgram>,
+    ) -> SemanticDigest {
+        EvidenceDecisionProgram {
+            sources: Arc::from(sources),
+            composition: Composition::Single,
+            decision,
+            planning: None,
+            chain: None,
+        }
+        .identity()
+    }
+
+    fn source(role: EvidenceRole, digest: Option<u8>) -> EvidenceSourceRef {
+        EvidenceSourceRef { role, digest: digest.map(|byte| [byte; 32]) }
+    }
+
+    fn composed(composition: Composition) -> SemanticDigest {
+        EvidenceDecisionProgram {
+            sources: Arc::from(Vec::new()),
+            composition,
+            decision: None,
+            planning: None,
+            chain: None,
+        }
+        .identity()
+    }
+
+    #[test]
+    fn site_decision_evidence_program_orders_sources_and_tags_its_parts() {
+        // Sources are written in the role order the lowering declares them.
+        ordered_laws(
+            &[
+                source(EvidenceRole::Observations, Some(1)),
+                source(EvidenceRole::Trial, Some(2)),
+                source(EvidenceRole::PriorArtifact, None),
+            ],
+            |sources: &[EvidenceSourceRef]| Some(program(sources.to_vec(), None)),
+        );
+        all_distinct(&[
+            program(Vec::new(), None),
+            program(vec![source(EvidenceRole::Observations, None)], None),
+            program(vec![source(EvidenceRole::Observations, Some(0))], None),
+            program(vec![source(EvidenceRole::Trial, None)], None),
+            program(Vec::new(), Some(decision())),
+            composed(Composition::Transported),
+            composed(Composition::AtomMixture { atoms: 2 }),
+            composed(Composition::AtomMixture { atoms: 3 }),
+            composed(Composition::ScenarioSet { scenarios: 2 }),
+            composed(Composition::Pooled { sources: 2 }),
+            composed(Composition::Chained { stages: 2 }),
+        ]);
+        assert_eq!(program(Vec::new(), None), composed(Composition::Single));
+    }
+
+    fn with(edit: fn(&mut DecisionProgram)) -> SemanticDigest {
+        let mut changed = decision();
+        edit(&mut changed);
+        program(Vec::new(), Some(changed))
+    }
+
+    #[test]
+    fn site_decision_decision_program_frames_its_optional_fields() {
+        all_distinct(&[
+            program(Vec::new(), Some(decision())),
+            with(|d| d.utility_unit = Some(Arc::from("u"))),
+            with(|d| d.contract_identity = Some(Arc::from("u"))),
+            with(|d| d.scenario_source = Some(Arc::from("u"))),
+            with(|d| d.information_value = Some(evsi(&["a"], &[]))),
+            with(|d| d.carrier = CarrierDemand::OutcomeLaw),
+            with(|d| d.actions = 3),
+            with(|d| d.constraints = 1),
+        ]);
+        bit_exact(|threshold| {
+            let mut changed = decision();
+            changed.chance_threshold = threshold;
+            Some(program(Vec::new(), Some(changed)))
+        });
+    }
+
+    fn evsi_digest(evsi: &EvsiProgram) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("site");
+        evsi.write(&mut writer);
+        writer.finish()
+    }
+
+    #[test]
+    fn site_decision_evsi_frames_candidates_prior_ids_and_reals() {
+        // Candidate and prior-observation lists are count-prefixed and each id framed.
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |(candidate, prior)| Some(evsi_digest(&evsi(&[*candidate], &[*prior]))),
+        );
+        all_distinct(&[
+            evsi_digest(&evsi(&["a", "b"], &[])),
+            evsi_digest(&evsi(&["a"], &["b"])),
+            evsi_digest(&evsi(&[], &["a", "b"])),
+            evsi_digest(&evsi(&["ab"], &[])),
+            evsi_digest(&evsi(&["a"], &["ab"])),
+            evsi_digest(&evsi(&["a"], &["a", "b"])),
+        ]);
+        bit_exact(|tolerance| {
+            let mut program = evsi(&["a"], &[]);
+            program.mc_error_tolerance = tolerance;
+            Some(evsi_digest(&program))
+        });
+        bit_exact(|tie| {
+            let mut program = evsi(&["a"], &[]);
+            program.tie_tolerance = tie;
+            Some(evsi_digest(&program))
+        });
+    }
+}

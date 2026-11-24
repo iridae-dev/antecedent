@@ -979,4 +979,153 @@ mod tests {
         assert_eq!(other.fit, result.fit);
         assert_ne!(other.decision.chain.identity(), result.decision.chain.identity());
     }
+
+    /// The paired-outcome declaration above, rebuilt for each identity the site test compares.
+    #[allow(clippy::too_many_lines, reason = "one declaration read top to bottom")]
+    fn predictive_request() -> JointTransportPredictiveDecisionRequest {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(2);
+        let mut graph = antecedent_graph::Admg::with_variables(3);
+        let from = graph.dense_of_static(treatment).unwrap();
+        let to = graph.dense_of_static(outcome).unwrap();
+        graph.insert_directed(from, to).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome,
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [treatment],
+        );
+        let world = |value: u8| ScientificQuantity {
+            variable_id: "2".into(),
+            variable_name: "target outcome".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(0={value})"),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let worlds = [world(0), world(1)];
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![worlds[0].clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![worlds[1].clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(1.0),
+                    ),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let rows = 40;
+        let source = SourceData {
+            id: "trial-a".into(),
+            identity: DataIdentity {
+                snapshot_digest: "trial-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("trial-{i}")).collect(),
+            },
+            treatment: (0..rows).map(|i| i % 2 == 0).collect(),
+            outcome: (0..rows).map(|i| 3.0 + if i % 2 == 0 { 2.0 } else { 0.0 }).collect(),
+            covariates: Vec::new(),
+            noise_variance: 0.1,
+        };
+        let target = TargetData {
+            identity: DataIdentity {
+                snapshot_digest: "target-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("target-{i}")).collect(),
+            },
+            rows,
+            covariates: Vec::new(),
+        };
+        let model = JointTransportModel {
+            graph: TransportGraphClass::FixedDag,
+            features: Vec::new(),
+            varying: VaryingBlock::Intercept,
+            sharing: SourceSharing::SharedVaryingBlock,
+            dependence: SourceDependence::IndependentSamples,
+            priors: JointPriors {
+                invariant: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+                varying: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+            },
+            max_unsupported_mass: 0.0,
+            conflict_z_threshold: 3.0,
+        };
+        JointTransportPredictiveDecisionRequest {
+            diagram,
+            query,
+            model,
+            sources: vec![source],
+            target,
+            options: JointTransportOptions { draws: 1024, seed: 92 },
+            target_noise_variance: 0.1,
+            target_noise_correlation: 1.0,
+            worlds,
+            decision,
+        }
+    }
+
+    fn question(request: JointTransportPredictiveDecisionRequest) -> Option<[u8; 32]> {
+        let plan = compile_joint_transport_predictive_decision(request).ok()?;
+        match plan.lowered().scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn site_joint_transport_predictive_decision_question_binds_worlds_rows_and_premises() {
+        let mut seed = predictive_request();
+        seed.options.seed = 93;
+        // Source rows are positional: the posterior schedule and the datum identities read them
+        // in declared order.
+        let mut swapped = predictive_request();
+        swapped.sources[0].treatment.swap(0, 1);
+        swapped.sources[0].outcome.swap(0, 1);
+        let mut variance = predictive_request();
+        variance.target_noise_variance = 0.2;
+        let mut correlation = predictive_request();
+        correlation.target_noise_correlation = 0.5;
+        let mut units = predictive_request();
+        units.decision.utility_units = "points".into();
+        // The worlds are (untreated, treated): the order names which world is which.
+        let mut worlds = predictive_request();
+        worlds.worlds.swap(0, 1);
+        crate::identity_laws::all_distinct(&[
+            question(predictive_request()),
+            question(seed),
+            question(swapped),
+            question(variance),
+            question(correlation),
+            question(units),
+            question(worlds),
+        ]);
+        crate::identity_laws::bit_exact(|value| {
+            let mut request = predictive_request();
+            request.target_noise_correlation = value;
+            question(request)
+        });
+    }
 }

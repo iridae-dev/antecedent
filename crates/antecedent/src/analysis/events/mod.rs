@@ -1033,3 +1033,56 @@ mod limits {
         assert!(history(n + 1).validate(true).is_err());
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::{Arrival, EventHistory, EventWindow, digest};
+    use crate::identity_laws::{bit_exact, injective, ordered_laws};
+
+    fn history(catalog: &[&str], events: Vec<Arrival>, start: f64) -> EventHistory {
+        EventHistory {
+            catalog: catalog.iter().map(|name| (*name).to_owned()).collect(),
+            time_unit: "hour".into(),
+            origin: "origin".into(),
+            source: "log".into(),
+            empty_origin: start,
+            window: EventWindow { start, end: 10.0 },
+            left: vec![],
+            events,
+            gaps: vec![],
+        }
+    }
+
+    /// The source digest of a history the native route accepts, `None` when it refuses it.
+    fn source(history: &EventHistory) -> Option<[u8; 32]> {
+        history.validate(true).ok()?;
+        digest("antecedent.events.site", history).ok().map(|digest| *digest.as_bytes())
+    }
+
+    #[test]
+    fn site_events_source_digest_orders_the_catalog_and_the_arrivals() {
+        // An arrival names its type by catalog index, so the catalog is ordered.
+        ordered_laws(&["a", "b", "c"], |catalog| {
+            source(&history(catalog, vec![Arrival { time: 1.0, kind: 0 }], 0.0))
+        });
+        // Arrivals are read in time order, which validation enforces: another order is refused.
+        let arrivals = vec![Arrival { time: 1.0, kind: 0 }, Arrival { time: 2.0, kind: 1 }];
+        assert!(source(&history(&["a", "b"], arrivals.clone(), 0.0)).is_some());
+        let mut reversed = arrivals;
+        reversed.reverse();
+        assert!(source(&history(&["a", "b"], reversed, 0.0)).is_none());
+        // Times are written exactly; the encoding frames and escapes every text.
+        bit_exact(|start| source(&history(&["a"], Vec::new(), start)));
+        let parts = [("ab", "c"), ("a", "bc"), ("a\",\"origin\":\"b", "c")];
+        injective(
+            &parts,
+            |pair| *pair,
+            |pair| {
+                let mut declared = history(&["a"], Vec::new(), 0.0);
+                declared.time_unit = pair.0.to_owned();
+                declared.origin = pair.1.to_owned();
+                source(&declared)
+            },
+        );
+    }
+}

@@ -859,3 +859,92 @@ impl CompiledDiscoveredClassTransport {
         })
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, SemanticDigest,
+        TransportQuery, VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
+
+    use super::{
+        DiscoveredClassEvidence, DiscoveredClassStage, DiscoveredClassTransportRequest, RowSet,
+        lower,
+    };
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+
+    fn v(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    fn table(shift: f64) -> TabularData {
+        let x = [0.0, 1.0, 2.0, 3.0];
+        let y = x.map(|value| value + shift);
+        let z = [1.0, 0.0, 1.0, 0.0];
+        TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..]), ("z", &z[..])])
+            .expect("a table")
+    }
+
+    fn request(
+        targets: Vec<VariableId>,
+        stage: DiscoveredClassStage,
+    ) -> DiscoveredClassTransportRequest {
+        let contract = StaticDiscoveryContract::new(
+            StaticAlgorithm::Pc,
+            vec![v(0), v(1), v(2)],
+            CiTestSpec::named("parcorr"),
+            7,
+        );
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: v(2),
+                treatment: ContinuousDomain::new(v(0), GridSpec::Values(Arc::from([0.0, 1.0]))),
+            }),
+            "trial",
+            "clinic",
+            [v(0)],
+        );
+        DiscoveredClassTransportRequest::new(contract, table(0.0), targets, query, stage)
+    }
+
+    fn identity(request: &DiscoveredClassTransportRequest, search: u8) -> SemanticDigest {
+        lower(request, SemanticDigest::from_bytes([search; 32])).expect("lowered").identity()
+    }
+
+    fn estimate(replicates: u32) -> DiscoveredClassStage {
+        let mut evidence = DiscoveredClassEvidence::new(table(0.0), table(1.0));
+        evidence.bootstrap_replicates = replicates;
+        DiscoveredClassStage::Estimate { evidence }
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_question_sets_the_targets_and_binds_the_stage() {
+        set_laws(&[v(1), v(2)], |targets| {
+            Some(identity(&request(targets.to_vec(), DiscoveredClassStage::Envelope), 0))
+        });
+        let envelope = request(vec![v(1)], DiscoveredClassStage::Envelope);
+        all_distinct(&[
+            identity(&envelope, 0),
+            identity(&envelope, 1),
+            identity(&envelope.clone().with_member_bound(5), 0),
+            identity(&request(vec![v(1)], estimate(0)), 0),
+            identity(&request(vec![v(1)], estimate(10)), 0),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_rows_follow_the_search_order() {
+        ordered_laws(&[v(0), v(1), v(2)], |variables| {
+            Some(RowSet::of(&table(0.0), variables).digest())
+        });
+        all_distinct(&[
+            RowSet::of(&table(0.0), &[v(0), v(1), v(2)]).digest(),
+            RowSet::of(&table(1.0), &[v(0), v(1), v(2)]).digest(),
+            RowSet::of(&table(0.0), &[v(0), v(9)]).digest(),
+        ]);
+    }
+}

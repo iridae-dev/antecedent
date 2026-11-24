@@ -1018,4 +1018,147 @@ mod mar_schedule_tests {
             }
         }
     }
+
+    /// The binary, unconfounded declaration above; `edit` changes its target frame and
+    /// contract before compiling.
+    #[allow(clippy::too_many_lines, reason = "one declaration read top to bottom")]
+    fn mar_question(
+        edit: impl Fn(&mut MarTargetStandardization, &mut DecisionContract),
+        bootstrap: Option<MarClusterBootstrap>,
+    ) -> Option<[u8; 32]> {
+        let x: Vec<f64> = (0..80).map(|i| f64::from(i % 2)).collect();
+        let t: Vec<f64> = (0..80).map(|i| f64::from((i / 2) % 2)).collect();
+        let y: Vec<f64> = (0..80)
+            .map(|i| {
+                if i % 13 == 0 {
+                    f64::NAN
+                } else {
+                    t[i] * (0.5 + x[i]) + x[i] * 0.2 + (i % 5) as f64 * 0.1
+                }
+            })
+            .collect();
+        let table = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(19);
+        let producer = CompiledGraphImputation::compile(
+            table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+                imputation: ImputationSpec::new()
+                    .with_imputations(2)
+                    .with_iterations(2)
+                    .with_seed(17),
+                domains: Arc::from(vec![1, 0, 1]),
+                posterior_draws: 100,
+                prior_scale: 1.0,
+                execution_seed: 19,
+            },
+            &ctx,
+        )
+        .unwrap();
+        let mut target = MarTargetStandardization {
+            observation_mechanism_id: "mar-v1".into(),
+            sampling_design_id: "cluster-design-v1".into(),
+            frame: RawTargetFrame {
+                columns: vec![(
+                    2,
+                    (0..80).map(|i| if i % 7 == 0 { None } else { Some(x[i]) }).collect(),
+                )],
+                row_ids: (0..80).map(|i| format!("target-{i}")).collect(),
+                cluster_ids: (0..80).map(|i| format!("cluster-{}", i / 4)).collect(),
+                weights: (0..80).map(|i| if i % 2 == 0 { 2.0 } else { 1.0 }).collect(),
+                observation_probabilities: vec![0.8; 80],
+                always_observed: vec![],
+            },
+            selection_targets: vec![2],
+            source_population: "source".into(),
+            target_population: "target".into(),
+            source_sample: producer.source_identity().to_hex(),
+            target_sample: "target-sample".into(),
+            source_unit_ids: (0..80).map(|i| format!("source-{i}")).collect(),
+            bandwidths: vec![],
+            min_kernel_overlap: 0.0,
+            kernel: false,
+            confounded: false,
+        };
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "target effect".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        };
+        let mut decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        edit(&mut target, &mut decision);
+        let plan = compile_graph_imputation_mar_transport_with_cluster(
+            producer, target, quantity, decision, bootstrap,
+        )
+        .ok()?;
+        match plan.lowered().scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn site_graph_imputation_mar_transport_question_binds_target_contract_and_schedule() {
+        let keep = |_: &mut MarTargetStandardization, _: &mut DecisionContract| {};
+        crate::identity_laws::all_distinct(&[
+            mar_question(keep, None),
+            mar_question(
+                |target: &mut MarTargetStandardization, _: &mut DecisionContract| {
+                    target.frame.weights[0] = 3.0;
+                },
+                None,
+            ),
+            mar_question(
+                |target: &mut MarTargetStandardization, _: &mut DecisionContract| {
+                    target.observation_mechanism_id = "mar-v2".into();
+                },
+                None,
+            ),
+            mar_question(
+                |_: &mut MarTargetStandardization, decision: &mut DecisionContract| {
+                    decision.utility_units = "points".into();
+                },
+                None,
+            ),
+            // The fixed frame and the cluster bootstrap carry different tags.
+            mar_question(keep, Some(MarClusterBootstrap { replicates: 40, seed: 7 })),
+            mar_question(keep, Some(MarClusterBootstrap { replicates: 40, seed: 8 })),
+            mar_question(keep, Some(MarClusterBootstrap { replicates: 41, seed: 7 })),
+        ]);
+    }
 }

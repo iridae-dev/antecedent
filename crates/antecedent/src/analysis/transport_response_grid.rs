@@ -238,15 +238,10 @@ fn question_digest(
     question.finish()
 }
 
-fn lower(
-    diagram: &SelectionDiagram,
-    query: &TransportQuery,
-    trial: &TransportTrialSpec,
-    columns: &TransportResponseGridColumns,
-    inputs: &GridInputs,
-    outcome: VariableId,
-) -> Result<Arc<LoweredProgram>, CausalError> {
-    let question = question_digest(diagram, query, trial, columns);
+/// The numbers the kernel reads, every column in row order and the grid-aligned columns
+/// grid-point-major: outcome, trial membership, selection probability, the grid, the observed
+/// regression, the grid regressions and the response weights, each count-prefixed.
+fn source_digest(inputs: &GridInputs) -> [u8; 32] {
     let mut source = CanonicalWriter::new("antecedent.transport_response_grid.inputs.v1");
     source
         .reals(&inputs.outcome)
@@ -256,7 +251,19 @@ fn lower(
         .reals(&inputs.observed_regression)
         .reals(&inputs.target_regression)
         .reals(&inputs.response_weight);
-    let source = source.finish();
+    source.finish()
+}
+
+fn lower(
+    diagram: &SelectionDiagram,
+    query: &TransportQuery,
+    trial: &TransportTrialSpec,
+    columns: &TransportResponseGridColumns,
+    inputs: &GridInputs,
+    outcome: VariableId,
+) -> Result<Arc<LoweredProgram>, CausalError> {
+    let question = question_digest(diagram, query, trial, columns);
+    let source = source_digest(inputs);
     let n = inputs.outcome.len() as u64;
     let points = inputs.grid.len() as u64;
     let mut query_variables = vec![outcome, trial.trial, trial.selection_probability];
@@ -356,6 +363,7 @@ mod identity_tests {
     use antecedent_graph::{Admg, DenseNodeId};
 
     use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
 
     fn v(raw: u32) -> VariableId {
         VariableId::from_raw(raw)
@@ -392,6 +400,59 @@ mod identity_tests {
             weights.iter().copied().map(v).collect::<Vec<_>>(),
         );
         question_digest(diagram, &query, &trial, &columns)
+    }
+
+    fn checked(selections: &[u32], weights: &[u32]) -> Option<[u8; 32]> {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).ok()?;
+        }
+        let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
+        let selection_diagram =
+            SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections)).ok()?;
+        Some(digest(&selection_diagram, &[0.0, 1.0], weights))
+    }
+
+    #[test]
+    fn site_transport_response_grid_question_sets_selections_and_orders_the_columns() {
+        set_laws(&[1_u32, 2], |selections| checked(selections, &[9, 10]));
+        ordered_laws(&[9_u32, 10, 11], |weights| checked(&[1, 2], weights));
+        let graph = diagram(&[(0, 2), (1, 2)], &[1, 2]);
+        ordered_laws(&[0.0, 1.0, 2.0], |grid| Some(digest(&graph, grid, &[9, 10])));
+        bit_exact(|point| Some(digest(&graph, &[point, 1.0], &[9, 10])));
+    }
+
+    fn inputs(outcome: &[f64]) -> GridInputs {
+        let n = outcome.len();
+        GridInputs {
+            outcome: outcome.to_vec(),
+            trial: (0..n).map(|row| row % 2 == 0).collect(),
+            selection: vec![0.5; n],
+            grid: vec![0.0, 1.0],
+            observed_regression: vec![1.0; n],
+            target_regression: vec![2.0; 2 * n],
+            response_weight: vec![1.0; 2 * n],
+        }
+    }
+
+    #[test]
+    fn site_transport_response_grid_source_orders_rows_and_frames_the_columns() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| Some(source_digest(&inputs(outcome))));
+        bit_exact(|value| Some(source_digest(&inputs(&[value, 2.0]))));
+        let base = inputs(&[1.0, 2.0]);
+        // A value moved from one column to the next is a different input.
+        let mut moved = base.clone();
+        moved.selection.push(moved.observed_regression.remove(0));
+        let mut weights = base.clone();
+        weights.response_weight[0] = 3.0;
+        let mut regression = base.clone();
+        regression.target_regression[0] = 3.0;
+        all_distinct(&[
+            source_digest(&base),
+            source_digest(&moved),
+            source_digest(&weights),
+            source_digest(&regression),
+        ]);
     }
 
     #[test]

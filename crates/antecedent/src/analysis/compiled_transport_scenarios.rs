@@ -149,12 +149,13 @@ fn write_assignment(writer: &mut CanonicalWriter, assignment: &Assignment) {
 
 /// The laws the plans evaluate, by their content identities in retained order, and the samples
 /// an empirical plug-in fitted them from: each sample's population, regime, snapshot,
-/// intervention world and every column (sorted by variable) cell by cell.
+/// intervention world (a set of assignments, sorted by variable) and every column (sorted by
+/// variable) cell by cell.
 fn source_digest(
     data: &ExactTransportData,
     empirical: Option<&StatisticalTransportInput>,
 ) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.transport_scenario_set.laws.v2");
+    let mut writer = CanonicalWriter::new("antecedent.transport_scenario_set.laws.v3");
     writer.word(data.law_identities().len() as u64);
     for identity in data.law_identities() {
         writer.bytes(identity.as_bytes());
@@ -174,7 +175,12 @@ fn source_digest(
             .word(u64::from(sample.regime.raw()))
             .text(&sample.snapshot_identity)
             .word(sample.interventions.len() as u64);
-        for intervention in sample.interventions.iter() {
+        // A set: the fit compares the world to its regime's interventions by variable, so the
+        // order of the assignments does not enter (a repeated variable disagrees with the regime
+        // and is refused when the program runs).
+        let mut interventions: Vec<_> = sample.interventions.iter().collect();
+        interventions.sort_by_key(|intervention| intervention.variable);
+        for intervention in interventions {
             CanonicalEncode::encode(&intervention.variable, &mut writer);
             CanonicalEncode::encode(&intervention.value, &mut writer);
         }
@@ -351,27 +357,34 @@ impl CompiledTransportScenarios {
 
 #[cfg(test)]
 mod identity_tests {
-    use antecedent_core::{SearchLimits, Value, VariableDomain};
+    use antecedent_core::{RegimeId, SearchLimits, Value, VariableDomain};
+    use antecedent_estimate::RegimeSample;
+    use antecedent_expr::InterventionAssignment;
     use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
     use antecedent_identify::ClassicalTransportQuery;
     use antecedent_identify::sid::scenarios::{ScenarioCoordinate, TransportScenario};
 
     use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
 
     fn v(raw: u32) -> VariableId {
         VariableId::from_raw(raw)
     }
 
     fn scenario(name: &str, selections: &[u32]) -> TransportScenario {
+        try_scenario(name, selections).expect("a valid scenario")
+    }
+
+    fn try_scenario(name: &str, selections: &[u32]) -> Option<TransportScenario> {
         let mut graph = Admg::with_variables(3);
         for (a, b) in [(0, 1), (0, 2), (1, 2)] {
             graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
         }
         let selections = selections.iter().copied().map(v).collect::<Vec<_>>();
-        TransportScenario {
+        Some(TransportScenario {
             name: Arc::from(name),
             diagram: SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections))
-                .unwrap(),
+                .ok()?,
             weight: None,
             coordinates: [(0, "z"), (1, "x"), (2, "y")]
                 .into_iter()
@@ -382,11 +395,20 @@ mod identity_tests {
                     unit: None,
                 })
                 .collect(),
-        }
+        })
     }
 
     fn digest(scenarios: Vec<TransportScenario>, outcomes: &[u32], level: f64) -> [u8; 32] {
-        let set = TransportScenarioSet::try_new(scenarios).unwrap();
+        let request = Assignment::from_pairs([(v(1), Value::f64(level))]);
+        try_digest(scenarios, outcomes, &request).expect("a valid scenario set")
+    }
+
+    fn try_digest(
+        scenarios: Vec<TransportScenario>,
+        outcomes: &[u32],
+        request: &Assignment,
+    ) -> Option<[u8; 32]> {
+        let set = TransportScenarioSet::try_new(scenarios).ok()?;
         let question = ScenarioQuestion::Classical(ClassicalTransportQuery {
             outcomes: outcomes.iter().copied().map(v).collect(),
             treatments: Arc::from([v(1)]),
@@ -397,16 +419,86 @@ mod identity_tests {
             budget: SearchLimits { operations: 1000, depth: 16 },
             memory_limit_bytes: None,
         };
-        let request = Assignment::from_pairs([(v(1), Value::f64(level))]);
-        question_digest(
+        Some(question_digest(
             &set,
             &question,
             &limits,
-            &request,
+            request,
             ExactEvaluationLimits::default(),
             "provider",
             &[(Arc::from("direct"), "compiled".to_owned())],
-        )
+        ))
+    }
+
+    fn request(pairs: &[(u32, f64)]) -> Assignment {
+        Assignment::from_pairs(pairs.iter().map(|&(id, value)| (v(id), Value::f64(value))))
+    }
+
+    fn scenarios(specs: &[(&str, &[u32])]) -> Option<Vec<TransportScenario>> {
+        specs.iter().map(|&(name, selections)| try_scenario(name, selections)).collect()
+    }
+
+    #[test]
+    fn site_compiled_transport_scenarios_question_reads_scenarios_and_selections_as_sets() {
+        let specs: [(&str, &[u32]); 3] = [("direct", &[]), ("shift", &[0, 2]), ("narrow", &[0])];
+        set_laws(&specs, |chosen| try_digest(scenarios(chosen)?, &[2, 0], &Assignment::default()));
+        set_laws(&[0_u32, 2], |selections| {
+            let shifted = try_scenario("shift", selections)?;
+            try_digest(vec![scenario("direct", &[]), shifted], &[2, 0], &Assignment::default())
+        });
+        set_laws(&[(1_u32, 1.0), (0, 2.0)], |pairs| try_digest(pair(), &[2, 0], &request(pairs)));
+        bit_exact(|value| try_digest(pair(), &[2, 0], &request(&[(1, value)])));
+    }
+
+    #[test]
+    fn site_compiled_transport_scenarios_question_orders_the_outcomes() {
+        ordered_laws(&[2_u32, 0, 1], |outcomes| {
+            try_digest(pair(), outcomes, &Assignment::default())
+        });
+    }
+
+    fn sample(population: &str, interventions: &[(u32, f64)]) -> RegimeSample {
+        RegimeSample {
+            population: Arc::from(population),
+            regime: RegimeId::from_raw(1),
+            snapshot_identity: Arc::from("snapshot"),
+            interventions: interventions
+                .iter()
+                .map(|&(id, value)| InterventionAssignment {
+                    variable: v(id),
+                    value: Value::f64(value),
+                })
+                .collect(),
+            columns: [(v(2), vec![Some(1.0), None])].into_iter().collect(),
+        }
+    }
+
+    fn sampled(samples: Vec<RegimeSample>) -> [u8; 32] {
+        let empty = ExactTransportData::try_new(Vec::new(), 1).unwrap();
+        let input = StatisticalTransportInput { supplied: Vec::new(), samples };
+        source_digest(&empty, Some(&input))
+    }
+
+    #[test]
+    fn site_compiled_transport_scenarios_source_orders_samples_and_sets_their_worlds() {
+        ordered_laws(&["north", "south"], |populations| {
+            Some(sampled(populations.iter().map(|population| sample(population, &[])).collect()))
+        });
+        // A repeated variable disagrees with the regime: the fit refuses it when the program runs.
+        set_laws(&[(0_u32, 1.0), (1, 0.0)], |world| {
+            let mut variables: Vec<u32> = world.iter().map(|&(id, _)| id).collect();
+            variables.sort_unstable();
+            variables.dedup();
+            (variables.len() == world.len()).then(|| sampled(vec![sample("north", world)]))
+        });
+        let empty = ExactTransportData::try_new(Vec::new(), 1).unwrap();
+        all_distinct(&[
+            source_digest(&empty, None),
+            sampled(Vec::new()),
+            sampled(vec![sample("north", &[])]),
+            sampled(vec![sample("north", &[(0, 1.0)])]),
+            sampled(vec![sample("north", &[(0, 2.0)])]),
+        ]);
     }
 
     fn pair() -> Vec<TransportScenario> {

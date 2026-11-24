@@ -305,13 +305,16 @@ mod tests {
     use std::sync::Arc;
 
     use antecedent_core::{
-        CausalQuery, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, VariableId,
+        AverageEffectQuery, CanonicalWriter, CausalQuery, ContinuousDomain, GridSpec,
+        ResponseFunctional, ResponseQuery, VariableId,
     };
     use antecedent_data::TabularData;
     use antecedent_discovery::adjacency_mask::AdjacencyMask;
     use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
+    use antecedent_graph::{Admg, SelectionDiagram};
 
-    use super::retention_key;
+    use super::{graph_posterior, query_digest, retention_key, variable_set};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
     use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 
     const T: usize = 0;
@@ -384,5 +387,95 @@ mod tests {
         assert_ne!(both, bare);
         assert_ne!(one, bare);
         assert_ne!(one, both);
+    }
+
+    #[test]
+    fn site_query_digest_frames_the_query() {
+        let ate = |treatment: u32, outcome: u32| {
+            query_digest(&CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(treatment),
+                VariableId::from_raw(outcome),
+            )))
+        };
+        let response = |levels: Vec<f64>| {
+            query_digest(&CausalQuery::Response(ResponseQuery::new(
+                ResponseFunctional::MeanCurve {
+                    outcome: VariableId::from_raw(1),
+                    treatment: ContinuousDomain::new(
+                        VariableId::from_raw(0),
+                        GridSpec::Values(Arc::from(levels)),
+                    ),
+                },
+            )))
+        };
+        assert_eq!(ate(0, 1), ate(0, 1));
+        all_distinct(&[
+            ate(0, 1),
+            ate(1, 0),
+            ate(0, 2),
+            response(vec![0.5, 1.5]),
+            response(vec![0.5]),
+            response(vec![0.5, 2.5]),
+        ]);
+    }
+
+    #[test]
+    fn site_query_digest_selection_targets_are_a_set() {
+        // A selection diagram refuses a repeated target, so sorting is the whole
+        // canonicalization of the set the retention key writes.
+        set_laws(&[0_u32, 2], |targets: &[u32]| {
+            let diagram = SelectionDiagram::try_new(
+                Admg::with_variables(3),
+                targets.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+            )
+            .ok()?;
+            let mut writer = CanonicalWriter::new("site");
+            variable_set(&mut writer, diagram.selection_targets());
+            Some(writer.finish())
+        });
+    }
+
+    /// A DAG posterior over `t, y, z` whose atoms are `(weight, t -> target)`.
+    fn posterior(atoms: &[(f64, usize)]) -> Option<GraphPosterior> {
+        let summary = SamplingSummary {
+            ess: 1.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("site"),
+            rejected_invalid: 0,
+        };
+        let masks: Vec<AdjacencyMask> = atoms
+            .iter()
+            .map(|&(_, target)| {
+                let mut mask = AdjacencyMask::EMPTY;
+                mask.set_edge(3, T, target, true);
+                mask
+            })
+            .collect();
+        let weights: Vec<f64> = atoms.iter().map(|&(weight, _)| weight).collect();
+        GraphPosterior::from_atoms(3, weights, masks, vec![0.0; 9], vec![0.0; 9], summary).ok()
+    }
+
+    fn posterior_digest(posterior: Option<&GraphPosterior>) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("site");
+        graph_posterior(&mut writer, posterior);
+        writer.finish()
+    }
+
+    #[test]
+    fn site_query_digest_posterior_atoms_are_ordered() {
+        // A retained per-atom identification is index-aligned with the posterior's atoms; with
+        // equal weights only the atoms' order tells the two posteriors apart.
+        ordered_laws(&[(0.5, Y), (0.5, Z)], |atoms: &[(f64, usize)]| {
+            posterior(atoms).map(|posterior| posterior_digest(Some(&posterior)))
+        });
+        let forward = posterior(&[(0.25, Y), (0.75, Z)]).unwrap();
+        let swapped_weights = posterior(&[(0.75, Y), (0.25, Z)]).unwrap();
+        all_distinct(&[
+            posterior_digest(Some(&forward)),
+            posterior_digest(Some(&swapped_weights)),
+            posterior_digest(None),
+        ]);
+        bit_exact(|weight| {
+            posterior(&[(weight, Y), (1.0, Z)]).map(|posterior| posterior_digest(Some(&posterior)))
+        });
     }
 }

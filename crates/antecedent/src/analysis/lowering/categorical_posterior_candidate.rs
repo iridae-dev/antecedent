@@ -111,3 +111,27 @@ pub(crate) fn lower(
     }
     .finish())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::lower;
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::ProblemTarget;
+
+    #[test]
+    fn site_categorical_posterior_candidate_program_binds_the_source_and_the_query() {
+        let identity = |source: u8, query: u8| {
+            *lower([source; 32], [query; 32], 8, 2)
+                .expect("a lowered candidate")
+                .identity()
+                .as_bytes()
+        };
+        all_distinct(&[identity(1, 1), identity(2, 1), identity(1, 2)]);
+        let program = lower([1; 32], [2; 32], 8, 2).expect("a lowered candidate");
+        assert!(matches!(
+            program.scientific().target(),
+            ProblemTarget::QueryFunctional { query, .. } if *query == [2; 32]
+        ));
+        assert_eq!(program.scientific().source_digest(), Some([1; 32]));
+    }
+}

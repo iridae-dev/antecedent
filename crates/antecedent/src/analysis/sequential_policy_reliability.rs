@@ -625,4 +625,70 @@ mod tests {
                 .unwrap();
         assert_eq!(result.draws, replay.draws);
     }
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    #[test]
+    fn site_sequential_policy_reliability_declaration_orders_policies_and_binds_mode() {
+        let identity = |actions: &[usize], unit: &str, seed: u64, rollouts: u64| {
+            let (model, _) = fixture();
+            let policies = actions
+                .iter()
+                .map(|&action| {
+                    PolicySpec::Contingent(
+                        ContingentPolicy::new(format!("always-{action}"))
+                            .decide(HistoryKey::root(), action),
+                    )
+                })
+                .collect();
+            compile_sequential_policy_reliability(
+                model,
+                policies,
+                unit.into(),
+                SequentialReliabilityMode::Rollout(RolloutConfig { seed, rollouts }),
+            )
+            .ok()
+            .map(|plan| query_of(plan.lowered()))
+        };
+        // The candidates are reported, drawn and assessed in declared order.
+        crate::identity_laws::ordered_laws(&[0, 1], |actions: &[usize]| {
+            identity(actions, "utility", 5, 128)
+        });
+        crate::identity_laws::all_distinct(&[
+            identity(&[0, 1], "utility", 5, 128),
+            identity(&[0, 1], "points", 5, 128),
+            identity(&[0, 1], "utility", 6, 128),
+            identity(&[0, 1], "utility", 5, 129),
+        ]);
+    }
+
+    #[test]
+    fn site_sequential_policy_reliability_report_digest_reads_the_report() {
+        let (model, policies) = fixture();
+        let plan = compile_sequential_policy_reliability(
+            model,
+            policies,
+            "utility".into(),
+            SequentialReliabilityMode::Rollout(RolloutConfig { seed: 5, rollouts: 128 }),
+        )
+        .unwrap();
+        let report = plan.execute(&ExecutionContext::for_tests(1)).unwrap().report;
+        let mut unit = report.clone();
+        unit.utility_unit = "points".into();
+        let mut decided = report.clone();
+        decided.decided_id = "another-policy".into();
+        let mut draws = report.clone();
+        draws.draws_digest = "0".repeat(64);
+        crate::identity_laws::all_distinct(&[
+            report_digest(&report).unwrap(),
+            report_digest(&unit).unwrap(),
+            report_digest(&decided).unwrap(),
+            report_digest(&draws).unwrap(),
+        ]);
+    }
 }

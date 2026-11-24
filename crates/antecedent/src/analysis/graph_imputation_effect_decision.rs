@@ -2423,3 +2423,127 @@ mod paired_world_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    use antecedent_design::decision_contract::{
+        DecisionAction, DecisionCriterion, StructuralPolicy, UtilityExpr,
+    };
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    fn quantity(regime: &str, units: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "outcome".into(),
+            role: QuantityRole::Outcome,
+            units: units.into(),
+            population_id: "target".into(),
+            regime_id: regime.into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        }
+    }
+
+    /// One action per input, the first reading its input and the second scoring zero.
+    fn decision(inputs: [&ScientificQuantity; 2], units: &str) -> DecisionContract {
+        DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![inputs[0].clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![inputs[1].clone()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: units.into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        }
+    }
+
+    #[test]
+    fn site_graph_imputation_effect_decision_question_binds_producer_source_and_contract() {
+        let effect = quantity("do(t=1)-do(t=0)", "score");
+        let other = quantity("do(t=1)-do(t=0)", "points");
+        let question = |producer: u8, source: u8, quantity: &ScientificQuantity, units: &str| {
+            lower_outer(
+                SemanticDigest::from_bytes([producer; 32]),
+                SemanticDigest::from_bytes([source; 32]),
+                quantity,
+                &decision([quantity, quantity], units),
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered))
+        };
+        all_distinct(&[
+            question(1, 2, &effect, "score"),
+            question(3, 2, &effect, "score"),
+            question(1, 3, &effect, "score"),
+            // The producer program and its source are fixed fields, never interchangeable.
+            question(2, 1, &effect, "score"),
+            question(1, 2, &other, "score"),
+            question(1, 2, &effect, "points"),
+        ]);
+    }
+
+    #[test]
+    fn site_graph_imputation_paired_world_decision_question_orders_worlds_and_tags_options() {
+        let worlds = vec![quantity("do(t=0)", "score"), quantity("do(t=1)", "score")];
+        let contract = decision([&worlds[0], &worlds[1]], "score");
+        let policy = |variance: f64, correlation: f64, seed: u64| GaussianPredictivePolicy {
+            residual_variance: variance,
+            cross_world_correlation: correlation,
+            seed,
+        };
+        let question = |quantities: &[ScientificQuantity],
+                        predictive: bool,
+                        gaussian: Option<GaussianPredictivePolicy>| {
+            let pair = [quantities[0].clone(), quantities[1].clone()];
+            lower_paired_outer(
+                SemanticDigest::from_bytes([1; 32]),
+                SemanticDigest::from_bytes([2; 32]),
+                &pair,
+                &contract,
+                None,
+                None,
+                predictive,
+                gaussian,
+                None,
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered))
+        };
+        // World 0 is the untreated and world 1 the treated outcome: the order names the world.
+        ordered_laws(&worlds, |quantities: &[ScientificQuantity]| {
+            question(quantities, false, None)
+        });
+        all_distinct(&[
+            question(&worlds, false, None),
+            question(&worlds, true, None),
+            question(&worlds, true, Some(policy(1.0, 0.5, 3))),
+            question(&worlds, true, Some(policy(2.0, 0.5, 3))),
+            question(&worlds, true, Some(policy(1.0, 0.25, 3))),
+            question(&worlds, true, Some(policy(1.0, 0.5, 4))),
+        ]);
+        bit_exact(|correlation| question(&worlds, true, Some(policy(1.0, correlation, 3))));
+    }
+}

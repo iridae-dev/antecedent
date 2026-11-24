@@ -1321,14 +1321,25 @@ impl Canonical for ModelLoglikField<'_> {
 
 type QueryUnlock = (antecedent_core::QueryId, Arc<[VariableId]>);
 
+/// A query's unlock lists in declared order (the ranker reads the first entry for a query),
+/// each list as a set: the ranker only asks whether a candidate's variable or environment is in
+/// it, so its order and a repetition never reach the identity.
 struct QueryUnlockField<'a>(&'a [QueryUnlock]);
+
+/// The raw ids of an unlock list, sorted and deduplicated.
+fn raw_set(raw: impl Iterator<Item = u32>) -> Vec<u64> {
+    let mut words: Vec<u64> = raw.map(u64::from).collect();
+    words.sort_unstable();
+    words.dedup();
+    words
+}
 
 impl Canonical for QueryUnlockField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
         out.word(self.0.len() as u64);
         for (query, unlocked) in self.0 {
             out.word(u64::from(query.raw()));
-            variables(out, unlocked);
+            out.words(&raw_set(unlocked.iter().map(|variable| variable.raw())));
         }
     }
 }
@@ -1341,10 +1352,8 @@ impl Canonical for EnvironmentUnlockField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
         out.word(self.0.len() as u64);
         for (query, environments) in self.0 {
-            out.word(u64::from(query.raw())).word(environments.len() as u64);
-            for environment in environments.iter() {
-                out.word(u64::from(environment.raw()));
-            }
+            out.word(u64::from(query.raw()));
+            out.words(&raw_set(environments.iter().map(|environment| environment.raw())));
         }
     }
 }
@@ -1417,3 +1426,7 @@ impl Canonical for SampleField<'_> {
         self.0.graph.encode(out);
     }
 }
+
+#[cfg(test)]
+#[path = "design_planning_programs_site_tests.rs"]
+mod site_tests;

@@ -274,6 +274,61 @@ mod identity_tests {
     use antecedent_io::NotCertifiedCertificateWire;
 
     use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
+
+    #[test]
+    fn site_compiled_smoothed_dose_learners_question_sets_selections_and_orders_the_grid() {
+        // `SelectionDiagram::try_new` refuses a repeated selection target.
+        set_laws(&[0_u32, 2], |selections| {
+            let mut unique = selections.to_vec();
+            unique.sort_unstable();
+            unique.dedup();
+            (unique.len() == selections.len()).then(|| digest(selections, &[0.5, 1.0], "learners"))
+        });
+        ordered_laws(&[0.5, 1.0, 1.5], |grid| Some(digest(&[0, 2], grid, "learners")));
+        bit_exact(|dose| Some(digest(&[0, 2], &[dose, 1.0], "learners")));
+        all_distinct(&[
+            digest(&[0, 2], &[0.5, 1.0], "learners"),
+            digest(&[0, 2], &[0.5, 1.0], "other"),
+            digest(&[0], &[0.5, 1.0], "learners"),
+        ]);
+    }
+
+    fn rows(outcome: &[f64]) -> SmoothedDoseInput {
+        SmoothedDoseInput {
+            features: vec![0],
+            covariates: vec![vec![0.1; outcome.len()]],
+            outcome: outcome.to_vec(),
+            dose: vec![0.5; outcome.len()],
+            dose_density: vec![1.0; outcome.len()],
+            source: vec![true; outcome.len()],
+            sampling: TrialSampling::NestedCohort,
+            sampling_weights: None,
+            cluster: None,
+            serial_lag: None,
+        }
+    }
+
+    #[test]
+    fn site_compiled_smoothed_dose_learners_source_orders_the_rows() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| Some(source_digest(&rows(outcome))));
+        bit_exact(|value| Some(source_digest(&rows(&[value, 2.0]))));
+        let base = rows(&[1.0, 2.0]);
+        let independent =
+            SmoothedDoseInput { sampling: TrialSampling::IndependentSamples, ..base.clone() };
+        let weighted = SmoothedDoseInput { sampling_weights: Some(vec![1.0, 2.0]), ..base.clone() };
+        let clustered = SmoothedDoseInput { cluster: Some(vec![0, 1]), ..base.clone() };
+        let serial = SmoothedDoseInput { serial_lag: Some(1), ..base.clone() };
+        let no_features = SmoothedDoseInput { features: Vec::new(), ..base.clone() };
+        all_distinct(&[
+            source_digest(&base),
+            source_digest(&independent),
+            source_digest(&weighted),
+            source_digest(&clustered),
+            source_digest(&serial),
+            source_digest(&no_features),
+        ]);
+    }
 
     fn diagram(selections: &[u32]) -> SelectionDiagram {
         let mut graph = Admg::with_variables(3);

@@ -748,6 +748,133 @@ mod tests {
         .unwrap();
         assert_eq!(replay, result);
     }
+
+    /// `(trial id, surrogate effect, terminal effect)` of twenty trials on one line.
+    fn trial_rows(prefix: &str, shift: f64) -> Vec<(String, f64, f64)> {
+        (0..20)
+            .map(|i| {
+                let x = -1.0 + 2.0 * f64::from(i) / 19.0;
+                let noise = if i % 2 == 0 { 0.01 } else { -0.01 };
+                (format!("{prefix}-trial-{i}"), x, 0.3 + 2.0 * x + shift + noise)
+            })
+            .collect()
+    }
+
+    fn assessment_of(
+        source: &[(String, f64, f64)],
+        target: &[(String, f64, f64)],
+        grid: &[f64],
+    ) -> BridgeTransportPremiseAssessmentRequest {
+        let validation = |trials: &[(String, f64, f64)]| TrialLevelValidation {
+            trials: trials
+                .iter()
+                .map(|(_, surrogate_effect, terminal_effect)| TrialEffectPair {
+                    surrogate_effect: *surrogate_effect,
+                    terminal_effect: *terminal_effect,
+                })
+                .collect(),
+            min_trials: 3,
+            min_r_squared: 0.0,
+        };
+        BridgeTransportPremiseAssessmentRequest {
+            premise: TransportabilityPremise {
+                id: "surrogate-line-invariant".into(),
+                statement: "the trial-level surrogate relation transfers".into(),
+                established_in: BridgeScope {
+                    population_id: "source".into(),
+                    regime_id: "trial".into(),
+                },
+                applies_to: BridgeScope {
+                    population_id: "target".into(),
+                    regime_id: "trial".into(),
+                },
+                evidence: Some("independent-target-validation".into()),
+            },
+            source: validation(source),
+            target: validation(target),
+            source_trial_ids: source.iter().map(|(id, ..)| id.clone()).collect(),
+            target_trial_ids: target.iter().map(|(id, ..)| id.clone()).collect(),
+            surrogate_grid: grid.to_vec(),
+            equivalence_margin: 0.2,
+        }
+    }
+
+    fn question_of(request: BridgeTransportPremiseAssessmentRequest) -> Option<[u8; 32]> {
+        let plan = compile_bridge_transport_premise_assessment(request).ok()?;
+        match plan.lowered().scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn site_bridge_transport_premise_assessment_question_orders_trials_and_binds_parts() {
+        let grid = [-0.8, 0.0, 0.8];
+        let target = trial_rows("target", 0.05);
+        // Each trial is aligned with its identity and the least-squares sums accumulate in
+        // declared order, so the bit-exact fit reads the trials in that order.
+        crate::identity_laws::ordered_laws(
+            &trial_rows("source", 0.0),
+            |source: &[(String, f64, f64)]| question_of(assessment_of(source, &target, &grid)),
+        );
+        let source = trial_rows("source", 0.0);
+        // The grid is a set held in its canonical form: an unsorted grid is refused.
+        assert!(question_of(assessment_of(&source, &target, &[0.8, 0.0, -0.8])).is_none());
+        let mut margin = assessment_of(&source, &target, &grid);
+        margin.equivalence_margin = 0.25;
+        let mut premise = assessment_of(&source, &target, &grid);
+        premise.premise.id = "another-premise".into();
+        let mut renamed = target.clone();
+        renamed[0].0 = "renamed-trial".into();
+        crate::identity_laws::all_distinct(&[
+            question_of(assessment_of(&source, &target, &grid)),
+            question_of(assessment_of(&source, &trial_rows("target", 0.06), &grid)),
+            question_of(assessment_of(&source, &target, &[-0.8, 0.0, 0.7])),
+            question_of(assessment_of(&source, &renamed, &grid)),
+            question_of(margin),
+            question_of(premise),
+        ]);
+    }
+
+    #[test]
+    fn site_bridge_transport_premise_assessment_result_fingerprint_reads_every_field() {
+        let plan = compile_bridge_transport_premise_assessment(assessment_of(
+            &trial_rows("source", 0.0),
+            &trial_rows("target", 0.05),
+            &[-0.8, 0.0, 0.8],
+        ))
+        .expect("a valid assessment");
+        let base = plan.execute(&ExecutionContext::for_tests(73)).expect("both trial fits");
+        let mut variants = vec![base.clone()];
+        let mut changed = base.clone();
+        changed.source_fit.intercept += 1.0;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.target_fit.slope += 1.0;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.equivalence_screen_passed = !changed.equivalence_screen_passed;
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.calibration = "measured";
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.lowered_program_identity = antecedent_core::SemanticDigest::from_bytes([1; 32]);
+        variants.push(changed);
+        // Grid points are reported in grid order.
+        let mut changed = base.clone();
+        changed.grid.swap(0, 2);
+        variants.push(changed);
+        let mut changed = base.clone();
+        changed.grid[1].upper += 1.0;
+        variants.push(changed);
+        crate::identity_laws::all_distinct(&variants.iter().map(fingerprint).collect::<Vec<_>>());
+        crate::identity_laws::bit_exact(|difference| {
+            let mut changed = base.clone();
+            changed.grid[0].difference = difference;
+            Some(fingerprint(&changed))
+        });
+    }
 }
 
 /// Joint intercept and slope draws under the normal linear trial model and

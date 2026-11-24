@@ -927,3 +927,120 @@ mod identity_tests {
         assert_ne!(base, identity([1.0, 2.0], Some(0.5)));
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        BetaHyperparameters, ExternalPriorSource, ExternalPriorWeight, GammaHyperparameters,
+        GaussianCoefficientPrior, KernelFamily, PriorSet, PriorSpec, TransportPolicy,
+    };
+
+    use super::{
+        BandwidthSensitivityInput, BetaCompositionInput, GammaCompositionInput,
+        GaussianCompositionInput, OwnedTransportContext, TagTransportInput, canonical_identity,
+    };
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    const TAG: &str = "antecedent.prior_composition.site_test";
+
+    fn prior(mean: f64) -> PriorSet {
+        PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+                mean: Arc::from([mean]),
+                variance: Arc::from([1.0]),
+            })],
+            ..PriorSet::default()
+        }
+    }
+
+    fn source(id: &str, mean: f64) -> ExternalPriorSource {
+        ExternalPriorSource {
+            id: Arc::from(id),
+            prior: prior(mean),
+            weight: ExternalPriorWeight { alpha: 0.5, mixture_weight: None },
+            ess: None,
+        }
+    }
+
+    fn tag_transport(populations: &[Option<&str>], target: Option<&str>) -> [u8; 32] {
+        let sources = populations.iter().map(|_| source("s", 0.5)).collect();
+        canonical_identity(
+            TAG,
+            &TagTransportInput {
+                sources,
+                baseline: prior(0.0),
+                context: OwnedTransportContext {
+                    source_populations: populations
+                        .iter()
+                        .map(|population| population.map(str::to_owned))
+                        .collect(),
+                    target_population: target.map(str::to_owned),
+                    policy: Some(TransportPolicy::InvariantConditionalOutcome),
+                    adjustment: None,
+                    coef_index: None,
+                },
+            },
+        )
+    }
+
+    /// `canonical_identity`: every family's sources are ordered (the kernels sum, mix and report
+    /// them in declared order, and a floating sum follows that order), the population tags are
+    /// aligned with the sources and framed, the bandwidth grid and its rows are ordered, reals
+    /// by their bits, and the family tag separates the families.
+    #[test]
+    fn site_prior_composition_sources_and_grids_are_ordered() {
+        ordered_laws(&[("a", 0.5), ("b", 1.0), ("c", 2.0)], |sources| {
+            let sources = sources.iter().map(|&(id, mean)| source(id, mean)).collect();
+            Some(canonical_identity(
+                TAG,
+                &GaussianCompositionInput { sources, baseline: prior(0.0) },
+            ))
+        });
+        ordered_laws(&[(3_u64, 10_u64, 0.5), (1, 4, 1.0), (2, 5, 0.25)], |sources| {
+            let base = BetaHyperparameters { alpha: 1.0, beta: 1.0 };
+            Some(canonical_identity(TAG, &BetaCompositionInput { base, sources: sources.to_vec() }))
+        });
+        ordered_laws(&[(3_u64, 10.0, 0.5), (1, 4.0, 1.0), (2, 5.0, 0.25)], |sources| {
+            let base = GammaHyperparameters { shape: 1.0, rate: 1.0 };
+            Some(canonical_identity(
+                TAG,
+                &GammaCompositionInput { base, sources: sources.to_vec() },
+            ))
+        });
+        let bandwidths = |bandwidths: &[f64]| {
+            canonical_identity(
+                TAG,
+                &BandwidthSensitivityInput {
+                    family: KernelFamily::Gaussian,
+                    bandwidths: bandwidths.to_vec(),
+                    distances: vec![0.0, 1.0],
+                    unit_effects: vec![1.0, 2.0],
+                    min_ess_fraction: 0.05,
+                },
+            )
+        };
+        ordered_laws(&[0.5, 1.0, 2.0], |grid| Some(bandwidths(grid)));
+        ordered_laws(&[Some("p"), None, Some("q")], |populations| {
+            Some(tag_transport(populations, Some("t")))
+        });
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(a, b)| Some(tag_transport(&[Some(a), Some(b)], None)),
+        );
+        let gaussian =
+            GaussianCompositionInput { sources: vec![source("a", 0.5)], baseline: prior(0.0) };
+        all_distinct(&[
+            tag_transport(&[Some("p")], None),
+            tag_transport(&[Some("p")], Some("")),
+            tag_transport(&[None], Some("p")),
+            canonical_identity("antecedent.prior_composition.other_site_test", &gaussian),
+            canonical_identity(TAG, &gaussian),
+        ]);
+        bit_exact(|x| Some(bandwidths(&[x, 1.0])));
+    }
+}

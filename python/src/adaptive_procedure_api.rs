@@ -1140,3 +1140,42 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(repeated_measures_posterior_consume, module)?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use serde_json::{Value, json};
+
+    use super::posterior_bundle_identity;
+
+    fn identity(declaration: &Value, posterior: &str) -> String {
+        posterior_bundle_identity(declaration, posterior).expect("a JSON value encodes")
+    }
+
+    fn parsed(text: &str) -> Value {
+        serde_json::from_str(text).expect("a JSON declaration")
+    }
+
+    #[test]
+    fn site_adaptive_procedure_api_posterior_bundle_identity_frames_its_parts() {
+        // Object members are a set: serde_json holds an object as a key-sorted map.
+        assert_eq!(
+            identity(&parsed(r#"{"a":1,"b":[1,2]}"#), "p"),
+            identity(&parsed(r#"{"b":[1,2],"a":1}"#), "p")
+        );
+        // Arrays keep their order.
+        assert_ne!(
+            identity(&parsed(r#"{"b":[1,2]}"#), "p"),
+            identity(&parsed(r#"{"b":[2,1]}"#), "p")
+        );
+        // The declaration is length-prefixed before the posterior text.
+        let split = [("ab", "c"), ("a", "bc"), ("a:b", ""), ("a", ":b")]
+            .map(|(declaration, posterior)| identity(&json!(declaration), posterior));
+        for (index, left) in split.iter().enumerate() {
+            for right in &split[index + 1..] {
+                assert_ne!(left, right);
+            }
+        }
+        // Reals are written by their shortest round-trip text, which keeps the sign of zero.
+        assert_ne!(identity(&json!(0.0), "p"), identity(&json!(-0.0), "p"));
+    }
+}

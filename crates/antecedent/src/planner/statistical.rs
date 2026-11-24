@@ -617,6 +617,7 @@ fn declaration_error(error: antecedent_core::DeclarationError) -> CausalError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity_laws::{all_distinct, ordered_laws};
 
     fn declared_algorithm(estimator: EstimatorId) -> PosteriorAlgorithm {
         let inference = InferenceMode::Bayesian(crate::BayesianConfig::laplace());
@@ -647,5 +648,104 @@ mod tests {
         }
         assert!(EstimatorId::BayesianRobustAte.posterior_is_bayesian_bootstrap());
         assert!(!EstimatorId::BayesianGcomp.posterior_is_bayesian_bootstrap());
+    }
+
+    fn declared() -> StatisticalProgram {
+        StatisticalProgram::declared(DeclaredProgram {
+            identifier: None,
+            estimator: None,
+            inference: &InferenceMode::Frequentist,
+            bootstrap_replicates: 0,
+            sampling_design: None,
+            design: DesignShape::not_design_based("test"),
+            operators: Vec::new(),
+        })
+        .expect("declared program")
+    }
+
+    fn slot(role: ModelRole, inputs: &[u32]) -> ModelSlot {
+        ModelSlot {
+            role,
+            family: Arc::from("ols"),
+            inputs: inputs.iter().copied().map(VariableId::from_raw).collect(),
+            output: Some(VariableId::from_raw(9)),
+        }
+    }
+
+    fn with_models(models: Vec<ModelSlot>) -> SemanticDigest {
+        let mut program = declared();
+        program.models = Arc::from(models);
+        program.identity()
+    }
+
+    #[test]
+    fn site_statistical_models_and_their_inputs_are_ordered() {
+        // Slots are in the estimator's fixed role order (the plan view lists them and the
+        // associational route reads the first); inputs are design columns in column order.
+        ordered_laws(
+            &[ModelRole::Propensity, ModelRole::Outcome, ModelRole::Nuisance],
+            |roles: &[ModelRole]| {
+                Some(with_models(roles.iter().map(|&role| slot(role, &[0, 1])).collect()))
+            },
+        );
+        ordered_laws(&[0_u32, 1, 2], |inputs: &[u32]| {
+            Some(with_models(vec![slot(ModelRole::Outcome, inputs)]))
+        });
+        all_distinct(&[
+            with_models(Vec::new()),
+            with_models(vec![slot(ModelRole::Outcome, &[0, 1])]),
+            with_models(vec![slot(ModelRole::Outcome, &[0]), slot(ModelRole::Outcome, &[1])]),
+            with_models(vec![ModelSlot { output: None, ..slot(ModelRole::Outcome, &[0, 1]) }]),
+            with_models(vec![ModelSlot {
+                family: Arc::from("glm"),
+                ..slot(ModelRole::Outcome, &[0, 1])
+            }]),
+        ]);
+    }
+
+    fn with(edit: fn(&mut StatisticalProgram)) -> SemanticDigest {
+        let mut program = declared();
+        edit(&mut program);
+        program.identity()
+    }
+
+    #[test]
+    fn site_statistical_realization_and_plans_are_tagged() {
+        all_distinct(&[
+            declared().identity(),
+            with(|p| p.realization = Realization::ExactPoint { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::DeclaredPosterior { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::DeclaredPredictive { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::GraphImputationV1),
+            with(|p| p.realization = Realization::CategoricalPosteriorCandidateV1),
+            with(|p| p.realization = Realization::SequentialKnownLawMonteCarlo),
+            with(|p| p.realization = Realization::SequentialTrajectoryBootstrap),
+            with(|p| {
+                p.realization = Realization::NestedFit {
+                    producer_program: SemanticDigest::from_bytes([0; 32]),
+                    method: Arc::from("e"),
+                    law: NestedFitLaw::Posterior,
+                };
+            }),
+            with(|p| {
+                p.realization = Realization::NestedFit {
+                    producer_program: SemanticDigest::from_bytes([0; 32]),
+                    method: Arc::from("e"),
+                    law: NestedFitLaw::Predictive,
+                };
+            }),
+            with(|p| p.folds = Some(FoldPlan { folds: 2, unit: ResampleUnit::Row, embargo: None })),
+            with(|p| {
+                p.folds = Some(FoldPlan { folds: 2, unit: ResampleUnit::Row, embargo: Some(0) });
+            }),
+            with(|p| {
+                p.resampling = Some(ResamplingPlan {
+                    method: ResamplingMethod::Bootstrap,
+                    replicates: 2,
+                    unit: ResampleUnit::Row,
+                });
+            }),
+            with(|p| p.design = DesignShape::quoted(10, 2, true)),
+        ]);
     }
 }

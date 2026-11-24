@@ -1063,4 +1063,45 @@ mod tests {
         assert_ne!(row_factor("rows", "tabl", &rows(&[1, 2, 3])), base);
         assert_ne!(row_factor("shared_rows", "table", &rows(&[1, 2, 3])), base);
     }
+
+    fn table(t: &[f64], y: &[f64]) -> TabularData {
+        let schema = antecedent_core::CausalSchemaBuilder::new()
+            .continuous("t")
+            .treatment()
+            .continuous("y")
+            .outcome()
+            .build()
+            .unwrap();
+        TabularData::try_from_schema_f64(schema, [("t", t), ("y", y)]).unwrap()
+    }
+
+    /// `rows_digest`: the rows are ordered (a row's index in its table names the observation),
+    /// and the analysis mask is not part of the observations, so a masked table digests as
+    /// its unmasked rows.
+    #[test]
+    fn site_evidence_rows_digest_orders_the_rows_and_ignores_the_mask() {
+        let t = [0.0, 1.0, 0.0, 1.0];
+        crate::identity_laws::ordered_laws(&[1.0, 2.0, 3.0, 4.0], |y| {
+            rows_digest(&table(&t, y)).ok()
+        });
+        let base = rows_digest(&table(&t, &[1.0, 2.0, 3.0, 4.0])).unwrap();
+        let masked = table(&t, &[1.0, 2.0, 3.0, 4.0])
+            .with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&[
+                true, false, true, true,
+            ]))
+            .unwrap();
+        assert_eq!(rows_digest(&masked).unwrap(), base);
+        assert_ne!(rows_digest(&table(&t, &[1.0, 2.0, 3.0, 5.0])).unwrap(), base);
+    }
+
+    /// `unit_observation` (the unit ledger's observation key): the namespace is
+    /// length-prefixed before the label, so no two (namespace, label) pairs share a key.
+    #[test]
+    fn site_evidence_unit_observation_frames_the_namespace() {
+        crate::identity_laws::injective(
+            &crate::identity_laws::ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(namespace, label)| Some(unit_observation(namespace, label)),
+        );
+    }
 }

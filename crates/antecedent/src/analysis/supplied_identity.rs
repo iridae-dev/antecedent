@@ -400,6 +400,9 @@ impl Canonical for IdentifiedUtility {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
+    };
 
     fn digest(build: impl FnOnce(&mut Declaration)) -> [u8; 32] {
         let mut declaration = Declaration::new("antecedent.supplied_identity.test.v1");
@@ -475,6 +478,229 @@ mod tests {
             }
             other => panic!("expected a compile refusal, got {other:?}"),
         }
+    }
+
+    fn encoded(value: &(impl Canonical + ?Sized)) -> [u8; 32] {
+        digest(|d| {
+            d.field("value", value);
+        })
+    }
+
+    fn quantity(variable: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: antecedent_contract::QuantityRole::Outcome,
+            units: "units".into(),
+            population_id: "target".into(),
+            regime_id: "do(a=1)".into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn contract_of(actions: &[&str], constraints: &[&str]) -> DecisionContract {
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionCriterion, HardConstraint, StructuralPolicy,
+            UtilityExpr,
+        };
+        DecisionContract {
+            actions: actions
+                .iter()
+                .map(|id| DecisionAction {
+                    id: (*id).to_owned(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![quantity(id)],
+                    utility: UtilityExpr::Input(0),
+                })
+                .collect(),
+            utility_units: "units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: constraints
+                .iter()
+                .map(|id| HardConstraint {
+                    id: (*id).to_owned(),
+                    expr: UtilityExpr::Input(0),
+                    bound: 1.0,
+                    min_probability: 1.0,
+                    units: "units".into(),
+                    applies_to: vec![],
+                })
+                .collect(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::Maximin,
+        }
+    }
+
+    fn admissible_of(actions: &[&str], constraints: &[&str]) -> AdmissibleDecisionContract {
+        AdmissibleDecisionContract {
+            contract: contract_of(actions, constraints),
+            rules: antecedent_design::decision_contract::AdmissibilityRules::default(),
+        }
+    }
+
+    #[test]
+    fn site_supplied_identity_set_of_sorts_and_deduplicates_framed_items() {
+        set_laws(&[3_u64, 1, 2], |items| Some(encoded(&SetOf(items))));
+        set_laws(&["b".to_owned(), "a".to_owned(), "c".to_owned()], |items| {
+            Some(encoded(&SetOf(items)))
+        });
+        // Each item is its own framed sub-digest, so two different items never merge.
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&SetOf(&[(*a, *b)]))));
+        bit_exact(|x| Some(encoded(&SetOf(&[x, 1.0]))));
+        // A set is not the list of the same items.
+        all_distinct(&[encoded(&SetOf(&[1_u64, 2])), encoded(&[1_u64, 2][..])]);
+    }
+
+    #[test]
+    fn site_supplied_identity_list_is_counted_and_ordered() {
+        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded(items)));
+        ordered_laws(&["a".to_owned(), "b".to_owned()], |items| Some(encoded(items)));
+        // The count word frames nested lists: [[1], [2, 3]] is not [[1, 2], [3]].
+        let nested =
+            [vec![vec![1_u64], vec![2, 3]], vec![vec![1, 2], vec![3]], vec![vec![1, 2, 3]]];
+        injective(&nested, Clone::clone, |lists| Some(encoded(lists)));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&[*a, *b][..])));
+        bit_exact(|x| Some(encoded(&[x][..])));
+        // An option's presence word frames it.
+        all_distinct(&[encoded(&None::<u64>), encoded(&Some(0_u64)), encoded(&Some(1_u64))]);
+    }
+
+    #[test]
+    fn site_supplied_identity_fields_are_named_and_framed() {
+        // A field's name and its value are framed: neither a renamed field nor a value that
+        // moves between fields shares an identity.
+        let pairs = [("a", "v"), ("b", "v"), ("a", "w"), ("ab", ""), ("a", "b")];
+        injective(
+            &pairs,
+            |p| *p,
+            |(name, value)| {
+                Some(digest(|d| {
+                    d.field(name, *value);
+                }))
+            },
+        );
+        injective(
+            &ADVERSARIAL_TEXT,
+            |p| *p,
+            |(a, b)| {
+                Some(digest(|d| {
+                    d.field("a", *a).field("b", *b);
+                }))
+            },
+        );
+    }
+
+    #[test]
+    fn site_supplied_identity_decision_contract_orders_actions_and_constraints() {
+        let actions = ["A", "B", "C"];
+        let constraints = ["c1", "c2", "c3"];
+        // Results are reported in declaration order, so the ids are ordered after the
+        // contract's own set identity.
+        ordered_laws(&actions, |items| Some(encoded(&contract_of(items, &constraints))));
+        ordered_laws(&constraints, |items| Some(encoded(&contract_of(&actions, items))));
+        ordered_laws(&actions, |items| Some(encoded(&admissible_of(items, &constraints))));
+        ordered_laws(&constraints, |items| Some(encoded(&admissible_of(&actions, items))));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&contract_of(&[*a, *b], &[]))));
+        let mut changed = contract_of(&actions, &constraints);
+        changed.constraints[0].bound = 2.0;
+        all_distinct(&[
+            encoded(&contract_of(&actions, &constraints)),
+            encoded(&changed),
+            encoded(&contract_of(&actions[..2], &constraints)),
+            encoded(&contract_of(&actions, &constraints[..2])),
+        ]);
+    }
+
+    #[test]
+    fn site_supplied_identity_atom_support_and_exclusions_are_ordered() {
+        use antecedent_design::decision_robustness::InputSupport;
+        let entry = |action: &str, input: usize, status: SupportStatus| InputSupport {
+            action_id: action.into(),
+            input,
+            status,
+        };
+        let entries = [
+            entry("A", 0, SupportStatus::Supported),
+            entry("A", 1, SupportStatus::WeakOverlap),
+            entry("B", 0, SupportStatus::Extrapolative),
+        ];
+        // Ordered: status_of reads the first entry for an input.
+        let support = |per_input: &[InputSupport]| AtomSupport {
+            overall: SupportStatus::Supported,
+            per_input: per_input.to_vec(),
+        };
+        ordered_laws(&entries, |items| Some(encoded(&support(items))));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |p| *p,
+            |(a, b)| {
+                Some(encoded(&support(&[
+                    entry(a, 0, SupportStatus::Supported),
+                    entry(b, 0, SupportStatus::Supported),
+                ])))
+            },
+        );
+        let utility = |exclusions: &[&str], lower: f64| IdentifiedUtility {
+            action_id: "A".into(),
+            utility: IdentifiedSet { lower, upper: 2.0 },
+            hard_exclusions: exclusions.iter().map(|id| (*id).to_owned()).collect(),
+            support: AtomSupport::supported(),
+        };
+        // Ordered: the exclusions are reported with the action in the order supplied.
+        ordered_laws(&["c1", "c2", "c3"], |items| Some(encoded(&utility(items, 1.0))));
+        bit_exact(|lower| Some(encoded(&utility(&[], lower))));
+        all_distinct(&[
+            encoded(&AtomSupport::supported()),
+            encoded(&AtomSupport::unassessed()),
+            encoded(&support(&entries[..1])),
+        ]);
+    }
+
+    #[test]
+    fn site_supplied_identity_graph_edges_are_a_set_and_labels_dense_ordered() {
+        use antecedent_graph::DenseNodeId;
+        let graph = |labels: &[u32], edges: &[(u32, u32)]| -> Option<[u8; 32]> {
+            let mut admg = Admg::empty();
+            for &label in labels {
+                admg.add_node(NodeRef::Static(VariableId::from_raw(label))).ok()?;
+            }
+            for &(from, to) in edges {
+                admg.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+                    .ok()?;
+            }
+            Some(encoded(&admg))
+        };
+        let labels = [0_u32, 1, 2, 3];
+        set_laws(&[(0_u32, 1_u32), (1, 2), (2, 3)], |edges| graph(&labels, edges));
+        // The dense labels say which variable each edge is about.
+        ordered_laws(&[0_u32, 1, 2], |labels| graph(labels, &[(0, 1)]));
+    }
+
+    #[test]
+    fn site_supplied_identity_node_ref_variants_are_tagged() {
+        use antecedent_core::{EnvironmentId, Lag};
+        let variable = VariableId::from_raw(1);
+        all_distinct(&[
+            encoded(&NodeRef::Static(variable)),
+            encoded(&NodeRef::Static(VariableId::from_raw(2))),
+            encoded(&NodeRef::Lagged { variable, lag: Lag::from_raw(0) }),
+            encoded(&NodeRef::Lagged { variable, lag: Lag::from_raw(1) }),
+            encoded(&NodeRef::Unfolded { variable, offset: 1 }),
+            encoded(&NodeRef::Unfolded { variable, offset: -1 }),
+            encoded(&NodeRef::Unfolded { variable, offset: 0 }),
+            encoded(&NodeRef::Context { variable, environment: None }),
+            encoded(&NodeRef::Context { variable, environment: Some(EnvironmentId::from_raw(0)) }),
+        ]);
+    }
+
+    #[test]
+    fn site_supplied_identity_wire_lists_keep_their_order() {
+        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded(&Wire(&items.to_vec()))));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&Wire(&(*a, *b)))));
     }
 
     #[test]

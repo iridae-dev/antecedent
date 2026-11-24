@@ -13,7 +13,9 @@
 
 use antecedent_contract::DataClassification;
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::nested_markov_binary::{FitOptions, NestedMarkovInput, Regime};
+use antecedent_estimate::nested_markov_binary::{
+    AdmgDeclaration, FitOptions, NestedMarkovInput, Regime,
+};
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::nested_markov_artifact::{
@@ -57,6 +59,21 @@ const POSTERIOR: KernelProgramShape = KernelProgramShape {
     design: "nested-Markov posterior over declared regime counts",
 };
 
+/// The declared graph as the kernel reads it, which is the form the artifacts store: the
+/// variables in coordinate order, the directed edges sorted and each once, and the bidirected
+/// edges as unordered pairs (lower endpoint first), sorted and each once. The kernel compares
+/// and fits that canonical form, so two spellings of one graph are one declaration.
+fn canonical_graph(graph: &AdmgDeclaration) -> NestedGraphWire {
+    let mut directed = graph.directed.clone();
+    directed.sort_unstable();
+    directed.dedup();
+    let mut bidirected: Vec<(usize, usize)> =
+        graph.bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
+    bidirected.sort_unstable();
+    bidirected.dedup();
+    NestedGraphWire { variables: graph.variables.clone(), directed, bidirected }
+}
+
 /// The declared graph, regime counts and fit options, as the artifacts store them.
 #[derive(Serialize)]
 struct Declaration {
@@ -68,11 +85,7 @@ struct Declaration {
 impl Declaration {
     fn of(input: &NestedMarkovInput, options: &FitOptions) -> Self {
         Self {
-            graph: NestedGraphWire {
-                variables: input.graph.variables.clone(),
-                directed: input.graph.directed.clone(),
-                bidirected: input.graph.bidirected.clone(),
-            },
+            graph: canonical_graph(&input.graph),
             regimes: input
                 .regimes
                 .iter()
@@ -290,5 +303,112 @@ impl CompiledNestedMarkovPosterior {
             input.sampler.clone(),
             ctx,
         )
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::SemanticDigest;
+    use antecedent_estimate::nested_markov_binary::RegimeCounts;
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+
+    fn input(graph: AdmgDeclaration, cells: Vec<f64>) -> NestedMarkovInput {
+        NestedMarkovInput {
+            graph,
+            regimes: vec![RegimeCounts {
+                regime: Regime::Observational,
+                levels: vec![2, 2, 2, 2],
+                cells,
+            }],
+        }
+    }
+
+    fn cells() -> Vec<f64> {
+        (1..=16).map(f64::from).collect()
+    }
+
+    fn fisher(graph: AdmgDeclaration, cells: Vec<f64>, level: f64) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        Study::compile_nested_markov_fisher(input(graph, cells), FitOptions::default(), level, &ctx)
+            .unwrap()
+            .lowered()
+            .identity()
+    }
+
+    fn posterior(graph: AdmgDeclaration, prior: Prior) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        Study::compile_nested_markov_posterior(
+            input(graph, cells()),
+            FitOptions::default(),
+            prior,
+            Options::default(),
+            &ctx,
+        )
+        .unwrap()
+        .lowered()
+        .identity()
+    }
+
+    fn with_edges(directed: &[(usize, usize)], bidirected: &[(usize, usize)]) -> AdmgDeclaration {
+        AdmgDeclaration {
+            directed: directed.to_vec(),
+            bidirected: bidirected.to_vec(),
+            ..AdmgDeclaration::selected()
+        }
+    }
+
+    /// `compile_nested_markov_fisher`: the graph's edges are sets (the kernel reads the sorted,
+    /// deduplicated, unordered-bidirected form), the variables and the cells are ordered
+    /// (coordinate order, `x1` most significant), the level by its bits.
+    #[test]
+    fn site_nested_markov_fisher_edges_are_sets() {
+        let bidirected = [(1, 3)];
+        set_laws(&[(0, 1), (1, 2), (2, 3)], |directed| {
+            Some(fisher(with_edges(directed, &bidirected), cells(), 0.95))
+        });
+        let directed = [(0, 1), (1, 2), (2, 3)];
+        set_laws(&[(1, 3), (0, 2)], |bidirected| {
+            Some(fisher(with_edges(&directed, bidirected), cells(), 0.95))
+        });
+        assert_eq!(
+            fisher(with_edges(&directed, &[(3, 1)]), cells(), 0.95),
+            fisher(with_edges(&directed, &[(1, 3)]), cells(), 0.95),
+            "a bidirected edge is an unordered pair"
+        );
+        ordered_laws(&["X1", "X2", "X3", "X4"], |names| {
+            let graph = AdmgDeclaration {
+                variables: names.iter().map(|name| (*name).to_owned()).collect(),
+                ..AdmgDeclaration::selected()
+            };
+            Some(fisher(graph, cells(), 0.95))
+        });
+        let mut swapped = cells();
+        swapped.swap(0, 15);
+        assert_ne!(
+            fisher(AdmgDeclaration::selected(), swapped, 0.95),
+            fisher(AdmgDeclaration::selected(), cells(), 0.95),
+            "the cells are ordered"
+        );
+        assert_ne!(
+            fisher(AdmgDeclaration::selected(), cells(), 0.9),
+            fisher(AdmgDeclaration::selected(), cells(), 0.95),
+            "the level is read"
+        );
+    }
+
+    /// `compile_nested_markov_posterior`: the same canonical graph, and the prior is read.
+    #[test]
+    fn site_nested_markov_posterior_edges_are_sets() {
+        set_laws(&[(0, 1), (1, 2), (2, 3)], |directed| {
+            Some(posterior(with_edges(directed, &[(1, 3)]), Prior::default()))
+        });
+        let mut other = Prior::default();
+        other.alpha[0] = 2.0;
+        all_distinct(&[
+            posterior(AdmgDeclaration::selected(), Prior::default()),
+            posterior(AdmgDeclaration::selected(), other),
+        ]);
     }
 }
