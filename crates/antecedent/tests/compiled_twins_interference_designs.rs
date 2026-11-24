@@ -7,9 +7,13 @@
 //! its standard error, and the smallest exposure probability. The route calls the same kernel with
 //! the same inputs. The one difference is the Monte Carlo exposure-probability seed of a design
 //! too large to enumerate: the direct entry takes the caller's seed and the route derives it from
-//! the execution context, so the direct call here is given the derived seed. The route's
-//! calibration slot is keyed by the same estimator (`interference.ht_hajek`) as the measured
-//! Bernoulli design.
+//! the execution context, so the direct call here is given the derived seed.
+//!
+//! Every design runs the estimator `interference.ht_hajek`, but its coverage records were
+//! measured under Bernoulli assignment with `NeighborCount` exposure only. Each other assignment
+//! x mapping pair carries its own calibration key (functional label
+//! `interference.<assignment>.<mapping>`) and reports coverage not measured, while the measured
+//! Bernoulli/`NeighborCount` design keeps the key its records carry.
 #![allow(
     deprecated,
     clippy::cast_precision_loss,
@@ -27,6 +31,9 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
+use antecedent_io::calibration::{
+    CONSTRUCTION_NOT_MEASURED, CalibrationBasisWire, CalibrationKeyWire, calibration_slot,
+};
 
 fn same(direct: f64, compiled: f64, label: &str) {
     assert_eq!(direct.to_bits(), compiled.to_bits(), "{label}: direct {direct} vs {compiled}");
@@ -216,4 +223,143 @@ fn monte_carlo_exposure_probabilities_agree_under_the_derived_seed() {
         (1.0, 0.5),
         &assignment,
     );
+}
+
+/// A ring of `n` units, each reading both neighbours with unit weight: the network the
+/// Bernoulli/`NeighborCount` coverage records were measured on.
+fn unit_ring(n: usize) -> Vec<NetworkEdge> {
+    (0..n)
+        .flat_map(|unit| {
+            [(unit + n - 1) % n, (unit + 1) % n]
+                .into_iter()
+                .map(move |from| NetworkEdge::new(from as u64, unit as u64, 1.0))
+        })
+        .collect()
+}
+
+/// The calibration basis of the primary interval of a one-shot run, bound to the inspected
+/// contract as the coverage tests bind it.
+fn primary_basis(
+    design: AssignmentDesign,
+    exposure: ExposureMapping,
+    from: (f64, f64),
+    to: (f64, f64),
+    assignment: &[bool],
+) -> CalibrationBasisWire {
+    let data = TabularData::from_f64_columns([("y", outcomes(assignment).as_slice())]).unwrap();
+    let network = NetworkData::try_new(data.clone(), unit_ring(assignment.len())).unwrap();
+    let query = InterferenceQuery::new(
+        design,
+        exposure,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: from.0, neighbors: from.1 },
+            to: ExposureLevel { own: to.0, neighbors: to.1 },
+        },
+    );
+    let study = Study::tabular(data)
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(0x1F7E)).unwrap();
+    assert_eq!(result.logical_plan.estimator.as_deref(), Some("interference.ht_hajek"));
+    let contract = study.inspect().unwrap();
+    result.calibration_bases(&contract).unwrap().remove(0)
+}
+
+/// The coverage of `interference.ht_hajek` was measured under Bernoulli assignment with
+/// `NeighborCount` exposure on a unit-weight ring of 200 to 800 units. That design still reads its
+/// record; complete randomization and the other mappings run the same estimator under their own
+/// calibration key, which differs from the measured key only in the design label, and report
+/// coverage not measured.
+#[test]
+fn only_bernoulli_neighbor_count_reads_the_measured_interference_coverage() {
+    // Two hundred units, the smallest measured size; every requested exposure level is realized.
+    let pattern = [true, true, true, false, false, true, false, false, false, false];
+    let assignment = (0..200).map(|unit| pattern[unit % pattern.len()]).collect::<Vec<_>>();
+    let bernoulli = || AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) };
+    let measured = primary_basis(
+        bernoulli(),
+        ExposureMapping::NeighborCount,
+        (0.0, 0.0),
+        (1.0, 0.0),
+        &assignment,
+    );
+    assert_eq!(measured.key.functional, "", "the measured design keeps its key");
+    let slot = calibration_slot(&measured);
+    assert_ne!(slot.status.as_str(), "not_measured", "{slot:#?}");
+    assert!(
+        slot.record_id
+            .as_deref()
+            .is_some_and(|id| id.contains("interference_dag_bernoulli_neighbor_count")),
+        "{slot:#?}"
+    );
+
+    let treated = assignment.iter().filter(|&&on| on).count();
+    let complete = || AssignmentDesign::CompleteRandomization { treated };
+    let designs = [
+        (
+            "interference.complete_randomization.own_treatment",
+            complete(),
+            ExposureMapping::OwnTreatment,
+            (0.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "interference.complete_randomization.neighbor_count",
+            complete(),
+            ExposureMapping::NeighborCount,
+            (0.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "interference.complete_randomization.neighbor_fraction",
+            complete(),
+            ExposureMapping::NeighborFraction,
+            (0.0, 0.5),
+            (1.0, 0.5),
+        ),
+        (
+            "interference.complete_randomization.weighted_neighbor_exposure",
+            complete(),
+            ExposureMapping::WeightedNeighborExposure,
+            (1.0, 0.0),
+            (1.0, 1.0),
+        ),
+        (
+            "interference.bernoulli.own_treatment",
+            bernoulli(),
+            ExposureMapping::OwnTreatment,
+            (0.0, 0.0),
+            (1.0, 0.0),
+        ),
+        (
+            "interference.bernoulli.neighbor_fraction",
+            bernoulli(),
+            ExposureMapping::NeighborFraction,
+            (0.0, 0.5),
+            (1.0, 0.5),
+        ),
+        (
+            "interference.bernoulli.weighted_neighbor_exposure",
+            bernoulli(),
+            ExposureMapping::WeightedNeighborExposure,
+            (1.0, 0.0),
+            (1.0, 1.0),
+        ),
+    ];
+    for (label, design, exposure, from, to) in designs {
+        let basis = primary_basis(design, exposure, from, to, &assignment);
+        assert_eq!(basis.key.functional, label);
+        let slot = calibration_slot(&basis);
+        assert_eq!(slot.status.as_str(), "not_measured", "{label}: {slot:#?}");
+        assert_eq!(slot.reason.as_deref(), Some(CONSTRUCTION_NOT_MEASURED), "{label}");
+        assert!(slot.record_id.is_none(), "{label}: {slot:#?}");
+        // Only the design label separates this key from the measured one.
+        let unlabelled = CalibrationKeyWire { functional: String::new(), ..basis.key.clone() };
+        assert_eq!(unlabelled, measured.key, "{label}");
+    }
 }

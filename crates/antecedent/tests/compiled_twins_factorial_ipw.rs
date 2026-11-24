@@ -262,6 +262,34 @@ fn declared_factorial_refuses_a_design_that_is_not_four_cells() {
     assert!(run_factorial(&y, bernoulli).is_err());
 }
 
+/// The independent-factor intervals carry their own estimator in the calibration key, so no
+/// coverage record measured for another randomized estimator or design annotates them: until
+/// one is measured for this estimator they report coverage not measured.
+#[test]
+fn declared_factorial_intervals_read_no_coverage_measured_for_another_estimator() {
+    let design = factorial(160);
+    let data = TabularData::from_f64_columns([("outcome", design.y.as_slice())]).unwrap();
+    let ctx = ExecutionContext::for_tests(0x7717_0D);
+    let prepared = Study::tabular(data.clone())
+        .query(four_cell_query(&design))
+        .estimator(EstimatorId::RandomizedFactorialBernoulliHt)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.randomized_effect().unwrap().interval_95.is_some());
+    let contract = prepared.contract_for_result(&result).unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert!(!bases.is_empty());
+    for basis in &bases {
+        assert_eq!(basis.key.estimator, "randomized.factorial_bernoulli_ht");
+        let slot = antecedent_io::calibration::calibration_slot(basis);
+        assert_eq!(slot.status.as_str(), "not_measured", "{slot:#?}");
+        assert!(slot.record_id.is_none(), "{slot:#?}");
+    }
+}
+
 /// Whether `artifact` is refused by the encoder's own recompute.
 fn refused(artifact: &antecedent_io::AnalysisResultWire, names: &[String], label: &str) -> bool {
     antecedent_io::encode_analysis_result_artifact(artifact, names.to_vec(), label).is_err()

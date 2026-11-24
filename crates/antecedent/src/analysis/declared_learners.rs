@@ -8,7 +8,9 @@
 //! does for the built-in learners and calls the estimator's `fit_with_factories` with the
 //! study's execution context, so the result is the one that method returns for the same
 //! inputs. The estimator records the factories as unverified assumptions and keeps their fold
-//! provenance; the declaration's identity extends the estimator identity of the program.
+//! provenance; the declaration's identity extends the estimator identity of the program, and
+//! a digest of it extends the calibration key's functional label (`calibration_label`), so
+//! coverage measured with the built-in learners never annotates a factory fit.
 //!
 //! The declaration is admitted at build only where that route is the one that runs: a static
 //! average effect on a tabular table under a declared DAG, a configured estimator of one of
@@ -193,6 +195,24 @@ pub(crate) fn spec_identity(
         config.treatment_config = Some(declared);
     }
     wire
+}
+
+/// The calibration key's functional suffix of declared learner factories.
+///
+/// Every coverage record of the cross-fitted estimators was measured with their built-in
+/// nuisance learners, so a fit with caller-supplied factories is a different interval
+/// construction. `learners=caller_factory:<blake3 hex of the declared identity>` keeps its interval
+/// from binding to those records, and to a record measured under other factories; it reports
+/// coverage not measured until a record is measured under the same declared learners. `None`
+/// without factories, so every other study keeps its key.
+#[must_use]
+pub(crate) fn calibration_label(factories: Option<&LearnerFactories>) -> Option<String> {
+    factories.map(|factories| {
+        format!(
+            "learners=caller_factory:{}",
+            blake3::hash(factories.identity().as_bytes()).to_hex()
+        )
+    })
 }
 
 /// Fit the study's configured cross-fitted estimator with the declared factories.

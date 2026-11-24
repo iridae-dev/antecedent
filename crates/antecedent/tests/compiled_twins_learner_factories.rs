@@ -11,7 +11,9 @@
 //! compiled AIPW score table carries exactly the out-of-fold propensities the nuisance cross-fit
 //! returns on the compiled fold plan. The known-truth test checks the compiled factory fit
 //! against the planted effect of the fixture, and the refusal tests check that a declaration
-//! the factory route would not serve is refused at build.
+//! the factory route would not serve is refused at build. The calibration test checks that a
+//! factory fit's calibration key carries the declared learners, so coverage measured with the
+//! built-in learners never annotates it.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -55,6 +57,11 @@ fn fixture() -> Fixture {
 }
 
 fn factories() -> LearnerFactories {
+    factories_named(FACTORY_IDENTITY)
+}
+
+/// The linear outcome and logistic propensity factories under `identity`.
+fn factories_named(identity: &str) -> LearnerFactories {
     let outcome: Arc<dyn LearnerFactory> = Arc::from(
         antecedent_learn::resolve_for(
             LearnerSpec::Linear(LinearSpec::default()),
@@ -69,7 +76,7 @@ fn factories() -> LearnerFactories {
         )
         .unwrap(),
     );
-    LearnerFactories::new(outcome, treatment, FACTORY_IDENTITY).unwrap()
+    LearnerFactories::new(outcome, treatment, identity).unwrap()
 }
 
 fn run(fixture: &Fixture, spec: impl Into<antecedent::EstimatorSpec>) -> StudyResult {
@@ -340,6 +347,61 @@ fn the_declared_identity_extends_the_inference_binding() {
     let built_in = binding(None);
     assert_ne!(first, second);
     assert_ne!(first, built_in);
+}
+
+/// The primary calibration basis of a prepared AIPW fit on `fixture`, with the factories
+/// declared under `identity`, or with the built-in learners when `identity` is `None`.
+fn aipw_basis(
+    fixture: &Fixture,
+    identity: Option<&str>,
+) -> antecedent_io::calibration::CalibrationBasisWire {
+    let mut builder = Study::tabular(fixture.data.clone())
+        .graph(fixture.dag.clone())
+        .query(fixture.query.clone())
+        .estimator(AipwAte::new().with_bootstrap_replicates(0))
+        .refute(RefuteSuite::None);
+    if let Some(identity) = identity {
+        builder = builder.learner_factories(factories_named(identity));
+    }
+    let prepared = builder.build().unwrap().prepare(&ctx()).unwrap();
+    let result = prepared.estimate_retained(&ctx()).unwrap();
+    let contract = prepared.contract_for_result(&result).unwrap();
+    result.calibration_bases(&contract).unwrap().remove(0)
+}
+
+/// Every coverage record of the cross-fitted estimators was measured with their built-in
+/// learners. A fit with declared factories carries the same calibration key extended by a
+/// digest of the declared identity, so it never reads those records (it reports coverage not
+/// measured) nor a record measured under other factories.
+#[test]
+fn declared_factories_never_read_coverage_measured_with_the_built_in_learners() {
+    use antecedent_io::calibration::{CONSTRUCTION_NOT_MEASURED, calibration_slot};
+    // A thousand rows lie inside the measured range of the built-in AIPW records.
+    let (data, dag, query) = confounded_scm(1000, 21);
+    let fixture = Fixture { data, dag, query };
+    let built_in = aipw_basis(&fixture, None);
+    assert_eq!(built_in.key.estimator, "aipw");
+    assert_ne!(
+        calibration_slot(&built_in).reason.as_deref(),
+        Some(CONSTRUCTION_NOT_MEASURED),
+        "the built-in learners' construction is measured"
+    );
+    let declared = aipw_basis(&fixture, Some(FACTORY_IDENTITY));
+    let prefix = format!("{}+learners=caller_factory:", built_in.key.functional);
+    assert!(declared.key.functional.starts_with(&prefix), "{}", declared.key.functional);
+    // Only the learner label separates the two keys.
+    let unlabelled = antecedent_io::calibration::CalibrationKeyWire {
+        functional: built_in.key.functional.clone(),
+        ..declared.key.clone()
+    };
+    assert_eq!(unlabelled, built_in.key);
+    let slot = calibration_slot(&declared);
+    assert_eq!(slot.status.as_str(), "not_measured", "{slot:#?}");
+    assert_eq!(slot.reason.as_deref(), Some(CONSTRUCTION_NOT_MEASURED));
+    assert!(slot.record_id.is_none(), "{slot:#?}");
+    // Two declared identities are two constructions.
+    let other = aipw_basis(&fixture, Some("another learner pair"));
+    assert_ne!(other.key.functional, declared.key.functional);
 }
 
 #[test]
