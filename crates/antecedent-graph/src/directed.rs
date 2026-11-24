@@ -9,7 +9,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -24,8 +24,71 @@ use crate::workspace::GraphWorkspace;
 ///
 /// Every graph that stores `Static` labels claims them here when it adds a node, so the refusal
 /// is one rule. The set is derived from the node table, so it never takes part in equality.
+///
+/// The set is two plain vectors rather than a tree or a hash table: a claim or lookup runs no
+/// recursion, hashing or rebalancing, so a bounded model checker follows graph construction
+/// exactly, and the set never depends on a hash seed.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct StaticLabels(Option<Arc<BTreeSet<VariableId>>>);
+pub(crate) struct StaticLabels(Option<Arc<ClaimedLabels>>);
+
+/// Claimed variables: an ascending run plus the variables claimed since the last merge.
+///
+/// A claim appends to `recent`; `recent` is sorted and merged into `sorted` once it holds at
+/// least [`Self::MERGE_AT`] variables and at least the square root of `sorted.len()`. A lookup is
+/// one binary search plus a scan of `recent`. `n` claims in ascending order cost `O(n log n)`
+/// (every merge appends); in the worst order the merges move `O(n^1.5)` elements.
+#[derive(Clone, Debug, Default)]
+struct ClaimedLabels {
+    /// Merged variables, strictly ascending.
+    sorted: Vec<VariableId>,
+    /// Variables claimed since the last merge, in claim order.
+    recent: Vec<VariableId>,
+}
+
+impl ClaimedLabels {
+    /// Smallest `recent` run that is merged.
+    const MERGE_AT: usize = 32;
+
+    fn contains(&self, variable: VariableId) -> bool {
+        self.recent.contains(&variable) || self.sorted.binary_search(&variable).is_ok()
+    }
+
+    /// Record a variable that is not yet claimed.
+    fn insert(&mut self, variable: VariableId) {
+        self.recent.push(variable);
+        let run = self.recent.len();
+        if run >= Self::MERGE_AT && run.saturating_mul(run) >= self.sorted.len() {
+            self.merge();
+        }
+    }
+
+    /// Sort `recent` and merge it into `sorted`.
+    fn merge(&mut self) {
+        let mut recent = core::mem::take(&mut self.recent);
+        recent.sort_unstable();
+        match (self.sorted.last(), recent.first()) {
+            (Some(&last), Some(&first)) if last > first => {
+                let mut merged = Vec::with_capacity(self.sorted.len() + recent.len());
+                let (mut left, mut right) = (0, 0);
+                while left < self.sorted.len() && right < recent.len() {
+                    if self.sorted[left] < recent[right] {
+                        merged.push(self.sorted[left]);
+                        left += 1;
+                    } else {
+                        merged.push(recent[right]);
+                        right += 1;
+                    }
+                }
+                merged.extend_from_slice(&self.sorted[left..]);
+                merged.extend_from_slice(&recent[right..]);
+                self.sorted = merged;
+            }
+            _ => self.sorted.extend_from_slice(&recent),
+        }
+        recent.clear();
+        self.recent = recent;
+    }
+}
 
 impl StaticLabels {
     /// No labels claimed; usable in `const` constructors.
@@ -42,7 +105,7 @@ impl StaticLabels {
         let NodeRef::Static(variable) = node else {
             return Ok(());
         };
-        if self.0.as_ref().is_some_and(|claimed| claimed.contains(&variable)) {
+        if self.0.as_ref().is_some_and(|claimed| claimed.contains(variable)) {
             return Err(GraphError::InvalidEndpoints {
                 message: "a variable labels at most one static node",
             });
@@ -72,11 +135,17 @@ pub(crate) struct DirectedCore {
     static_labels: StaticLabels,
     children: Arc<Vec<Vec<DenseNodeId>>>,
     parents: Arc<Vec<Vec<DenseNodeId>>>,
-    /// Every directed edge, keyed `(parent, child)`: the duplicate check is one lookup rather
-    /// than a scan of an insertion-ordered row.
-    edge_index: Arc<HashSet<(DenseNodeId, DenseNodeId)>>,
+    /// Every directed edge, keyed `(parent, child)`, once the graph has more than
+    /// [`EDGE_INDEX_FROM_NODES`] nodes: the duplicate check is then one lookup rather than a scan
+    /// of an insertion-ordered row. A smaller graph scans the shorter of the parent's child row
+    /// and the child's parent row (fewer than [`EDGE_INDEX_FROM_NODES`] entries), so building it
+    /// hashes nothing.
+    edge_index: Option<Arc<HashSet<(DenseNodeId, DenseNodeId)>>>,
     insert_ws: GraphWorkspace,
 }
+
+/// Node count above which [`DirectedCore`] keeps a hashed edge index.
+const EDGE_INDEX_FROM_NODES: usize = 64;
 
 /// The edge index is derived from the adjacency rows and its hash order is not stable between
 /// two graphs with the same edges, so the rendering leaves it out: equal graphs render alike.
@@ -105,7 +174,7 @@ impl DirectedCore {
             static_labels: StaticLabels::new(),
             children: Arc::new(Vec::new()),
             parents: Arc::new(Vec::new()),
-            edge_index: Arc::new(HashSet::new()),
+            edge_index: None,
             insert_ws: GraphWorkspace::default(),
         }
     }
@@ -145,10 +214,23 @@ impl DirectedCore {
         Ok(DenseNodeId::from_raw(id))
     }
 
-    /// One empty adjacency row. Called once per added node.
+    /// One empty adjacency row. Called once per added node. The node that takes the graph past
+    /// [`EDGE_INDEX_FROM_NODES`] nodes builds the edge index from the rows.
     pub(crate) fn push_node(&mut self) {
         Arc::make_mut(&mut self.children).push(Vec::new());
         Arc::make_mut(&mut self.parents).push(Vec::new());
+        if self.edge_index.is_none() && self.children.len() > EDGE_INDEX_FROM_NODES {
+            let index: HashSet<(DenseNodeId, DenseNodeId)> = self
+                .children
+                .iter()
+                .enumerate()
+                .flat_map(|(i, kids)| {
+                    let from = DenseNodeId::from_index(i);
+                    kids.iter().map(move |&to| (from, to))
+                })
+                .collect();
+            self.edge_index = Some(Arc::new(index));
+        }
     }
 
     /// Outgoing lists, node order.
@@ -195,7 +277,16 @@ impl DirectedCore {
 
     /// Whether `from -> to` is already present.
     pub(crate) fn has_edge(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        self.edge_index.contains(&(from, to))
+        if let Some(index) = &self.edge_index {
+            return index.contains(&(from, to));
+        }
+        let (kids, parents) = (self.children_of(from), self.parents_of(to));
+        if kids.len() <= parents.len() { kids.contains(&to) } else { parents.contains(&from) }
+    }
+
+    /// Directed edge count.
+    fn edge_count(&self) -> usize {
+        self.children.iter().map(Vec::len).sum()
     }
 
     /// Reachability using a reusable workspace.
@@ -298,7 +389,9 @@ impl DirectedCore {
     pub(crate) fn push_unchecked(&mut self, from: DenseNodeId, to: DenseNodeId) {
         Arc::make_mut(&mut self.children)[from.as_usize()].push(to);
         Arc::make_mut(&mut self.parents)[to.as_usize()].push(from);
-        Arc::make_mut(&mut self.edge_index).insert((from, to));
+        if let Some(index) = &mut self.edge_index {
+            Arc::make_mut(index).insert((from, to));
+        }
     }
 
     /// Append `from -> to` when it is not already present. Does not search for a cycle.
@@ -313,9 +406,21 @@ impl DirectedCore {
     /// Directed edge-set equality: the same `(parent, child)` pairs, whatever order the edges
     /// were inserted in. Neither the row order nor the insertion scratch is part of the graph.
     pub(crate) fn same_edges(&self, other: &Self) -> bool {
+        // Each parent row is determined by the children, so the child rows decide.
+        if Arc::ptr_eq(&self.children, &other.children) {
+            return true;
+        }
         // The edge index holds exactly the pairs in the adjacency rows, so set equality of the
-        // index is edge-set equality (and each parent row is determined by the children).
-        Arc::ptr_eq(&self.edge_index, &other.edge_index) || self.edge_index == other.edge_index
+        // index is edge-set equality.
+        if let (Some(mine), Some(theirs)) = (&self.edge_index, &other.edge_index) {
+            return Arc::ptr_eq(mine, theirs) || mine == theirs;
+        }
+        // A graph holds each edge once, so equal counts plus inclusion is set equality.
+        self.edge_count() == other.edge_count()
+            && self.children.iter().enumerate().all(|(i, kids)| {
+                let from = DenseNodeId::from_index(i);
+                kids.iter().all(|&to| other.has_edge(from, to))
+            })
     }
 
     /// Node-table and edge-list equality. The insertion scratch is not part of the graph.
@@ -497,4 +602,101 @@ pub(crate) fn sorted_row_pairs(
     }
     pairs.sort_unstable();
     pairs
+}
+
+#[cfg(test)]
+mod label_and_edge_index_tests {
+    use antecedent_core::VariableId;
+
+    use crate::error::GraphError;
+    use crate::types::{DenseNodeId, NodeRef};
+    use crate::{Admg, Dag};
+
+    /// A permutation of `0..count`, scrambled by a multiplier coprime to `count`.
+    fn scrambled(count: u32, multiplier: u32) -> impl Iterator<Item = u32> {
+        (0..count).map(move |index| (index * multiplier + 7) % count)
+    }
+
+    fn node(variable: u32) -> NodeRef {
+        NodeRef::Static(VariableId::from_raw(variable))
+    }
+
+    /// Claims in ascending, descending and scrambled order, across many merges of the recent
+    /// run, refuse every repeated variable and accept every new one.
+    #[test]
+    fn static_labels_refuse_repeats_in_every_claim_order() {
+        let count = 5000_u32;
+        let orders: [Vec<u32>; 3] =
+            [(0..count).collect(), (0..count).rev().collect(), scrambled(count, 2_741).collect()];
+        for order in orders {
+            let mut dag = Dag::empty();
+            for (claimed, &raw) in order.iter().enumerate() {
+                // Sparse variables, so a dense lookup by raw id could not stand in for the set.
+                dag.add_node(node(raw * 3)).unwrap();
+                if claimed % 97 == 0 {
+                    for &earlier in &order[..=claimed] {
+                        assert!(matches!(
+                            dag.add_node(node(earlier * 3)),
+                            Err(GraphError::InvalidEndpoints { .. })
+                        ));
+                    }
+                }
+            }
+            for &raw in &order {
+                assert!(dag.add_node(node(raw * 3)).is_err());
+                assert!(dag.add_node(node(raw * 3 + 1)).is_ok());
+            }
+        }
+    }
+
+    /// The duplicate check and graph equality agree before and after the edge index is built
+    /// (the 65th node), including edges inserted before the index existed.
+    #[test]
+    fn edge_checks_agree_across_the_edge_index_threshold() {
+        let id = DenseNodeId::from_raw;
+        for nodes in [3_u32, 64, 65, 200] {
+            let edges: Vec<(u32, u32)> = (0..nodes)
+                .flat_map(|from| (from + 1..nodes).map(move |to| (from, to)))
+                .filter(|&(from, to)| (from * 31 + to * 17) % 5 < 2)
+                .collect();
+            // Edges inserted while the graph grows: each edge goes in once both ends exist.
+            let mut growing = Dag::empty();
+            let mut next = 0;
+            for added in 0..nodes {
+                growing.add_node(node(added)).unwrap();
+                while next < edges.len() && edges[next].1 <= added {
+                    let (from, to) = edges[next];
+                    growing.insert_directed(id(from), id(to)).unwrap();
+                    next += 1;
+                }
+            }
+            // The same edges inserted in reverse into a graph built at full size.
+            let mut built = Dag::with_variables(nodes);
+            for &(from, to) in edges.iter().rev() {
+                built.insert_directed(id(from), id(to)).unwrap();
+            }
+            assert_eq!(growing, built);
+            for &(from, to) in &edges {
+                for graph in [&mut growing, &mut built] {
+                    assert!(matches!(
+                        graph.insert_directed(id(from), id(to)),
+                        Err(GraphError::DuplicateEdge { .. })
+                    ));
+                }
+            }
+            let mut admg = Admg::with_variables(nodes);
+            for &(from, to) in &edges {
+                admg.insert_directed(id(from), id(to)).unwrap();
+            }
+            assert!(admg.insert_directed(id(edges[0].0), id(edges[0].1)).is_err());
+            // One edge fewer is a different graph.
+            let mut fewer = Dag::with_variables(nodes);
+            for &(from, to) in &edges[1..] {
+                fewer.insert_directed(id(from), id(to)).unwrap();
+            }
+            assert_ne!(fewer, built);
+            fewer.insert_directed(id(edges[0].0), id(edges[0].1)).unwrap();
+            assert_eq!(fewer, built);
+        }
+    }
 }
