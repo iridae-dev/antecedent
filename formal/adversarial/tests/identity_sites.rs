@@ -206,6 +206,14 @@ proptest! {
         let same = law_key(&left) == law_key(&right);
         prop_assert_eq!(law(&left).content_identity() == law(&right).content_identity(), same);
         prop_assert!(law(&left).accepts_content_identity(&law(&left).content_identity_v1()));
+        // Each field alone is significant: a law that differs from `left` only in its snapshot
+        // or only in its population has another identity.
+        let mut snapshot = left.clone();
+        snapshot.snapshot.push('z');
+        prop_assert_ne!(law(&left).content_identity(), law(&snapshot).content_identity());
+        let mut population = left.clone();
+        population.population.push('z');
+        prop_assert_ne!(law(&left).content_identity(), law(&population).content_identity());
     }
 
     /// Where the v1 descriptor joins raw text across a field boundary, two different laws share
@@ -268,5 +276,7 @@ proptest! {
     #[test]
     fn value_encoding_is_injective(left in value(), right in value()) {
         prop_assert_eq!(value_digest(&left) == value_digest(&right), left == right);
+        // The pair a merged encoding would confuse first: the two zeros differ in sign bit.
+        prop_assert_ne!(value_digest(&Value::Float64(0.0)), value_digest(&Value::Float64(-0.0)));
     }
 }

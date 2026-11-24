@@ -17,7 +17,7 @@
 
 [runners.rust]
 directory = "formal/adversarial"
-command = ["cargo", "test"]
+command = ["cargo", "test", "--no-fail-fast"]
 
 [runners.python]
 directory = "python"
@@ -777,14 +777,14 @@ old = """    if schema_aligned(&order.nodes) {
         return Ok(GraphIdentityWire::Dag(DagWire {"""
 new = """    if true {
         return Ok(GraphIdentityWire::Dag(DagWire {"""
-caught_by = ["identity_sites.graph_identity_binds_labels", "identity_sites.dag_labels_bound"]
+caught_by = ["identity_sites.graph_identity_binds_labels", "identity_sites.graph_exhaustive_three_nodes_dag", "identity_sites.dag_labels_bound"]
 
 [[mutations]]
 id = "graph_identity_keeps_dense_order"
 file = "crates/antecedent-io-core/src/identity/graph.rs"
 old = "        order.sort_by(|&a, &b| labels[a].cmp(&labels[b]).then(a.cmp(&b)));"
 new = "        let _ = &labels;"
-caught_by = ["identity_sites.graph_dense_order_keeps_identity", "identity_sites.dag_dense_order_bound"]
+caught_by = ["identity_sites.graph_dense_order_keeps_identity", "identity_sites.graph_exhaustive_three_nodes_dag", "identity_sites.dag_dense_order_bound"]
 
 [[mutations]]
 id = "value_encoding_merges_signed_zero"

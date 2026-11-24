@@ -248,6 +248,12 @@ proptest! {
         let (resolves, unresolved, unverified) = &left;
         let current = plan(resolves, unresolved, unverified);
         prop_assert!(current.accepts_identity(&current.identity_v1()));
+        // Moving the last resolved id to the front of the unresolved list changes the identity.
+        if let Some((last, kept)) = resolves.split_last() {
+            let mut moved = unresolved.clone();
+            moved.insert(0, last.clone());
+            prop_assert_ne!(current.identity(), plan(kept, &moved, unverified).identity());
+        }
     }
 
     /// `SignalRequest::fingerprint`: the exact-request rule. Lineage order does not matter; a
