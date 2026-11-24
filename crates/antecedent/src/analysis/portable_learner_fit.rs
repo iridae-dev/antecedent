@@ -72,7 +72,7 @@ mod tests {
         let view = DesignView::from_column_major(&design, 3, 2).unwrap();
         let mut out = [0.0; 3];
         fitted.predict(view, &mut out, &ExecutionContext::production_default(0)).unwrap();
-        assert_eq!(out, [1.0, 3.0, 7.0]);
+        assert_eq!(out.map(f64::to_bits), [1.0_f64, 3.0, 7.0].map(f64::to_bits));
         let exported = fitted.portable().unwrap();
         assert_eq!(exported.columns, 2);
         assert!(matches!(exported.model, PredictionMap::Linear { logistic: false, .. }));

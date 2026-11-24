@@ -14,7 +14,12 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp, reason = "the bits are compared exactly")]
+#![allow(
+    clippy::float_cmp,
+    clippy::type_complexity,
+    clippy::too_many_lines,
+    reason = "the bits are compared exactly; each case table spells its hyperparameters and sources inline"
+)]
 
 use std::sync::Arc;
 

@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     deprecated,
-    reason = "the direct facade kernels are the paths under comparison and become deprecated wrappers"
+    clippy::unusual_byte_groupings,
+    reason = "the direct facade kernels are the paths under comparison and become deprecated wrappers; the execution seeds spell the test family's number"
 )]
 #![allow(clippy::float_cmp, reason = "bit-identical equality is the property under test")]
 

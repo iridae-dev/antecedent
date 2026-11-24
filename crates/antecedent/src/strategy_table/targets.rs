@@ -655,19 +655,15 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
         }
 
         // Policy value (`policy_shape`).
-        EstimatorId::RandomizedIpwPolicy => {
+        // The net readings answer the same frozen inputs as the IPW values they net costs from.
+        EstimatorId::RandomizedIpwPolicy | EstimatorId::RandomizedIpwPolicyNet => {
             frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::Ipw]))
         }
         EstimatorId::RandomizedDrPolicy => {
             frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::DoublyRobust]))
         }
-        EstimatorId::RandomizedMultiActionIpwPolicy => {
-            frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::MultiAction]))
-        }
-        EstimatorId::RandomizedIpwPolicyNet => {
-            frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::Ipw]))
-        }
-        EstimatorId::RandomizedMultiActionIpwPolicyNet => {
+        EstimatorId::RandomizedMultiActionIpwPolicy
+        | EstimatorId::RandomizedMultiActionIpwPolicyNet => {
             frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::MultiAction]))
         }
         EstimatorId::BayesianBinaryPolicyValue => bayesian(

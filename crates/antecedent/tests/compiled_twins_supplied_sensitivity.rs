@@ -25,7 +25,9 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::too_many_lines,
-    reason = "bits are compared exactly; the fixtures are small"
+    clippy::cast_possible_wrap,
+    clippy::manual_midpoint,
+    reason = "bits are compared exactly; the fixtures are small; the oracle enumerates at most a few dozen pairs and writes the mid-rank as the textbook does"
 )]
 
 use antecedent::analysis::supplied_sensitivity_programs::{
@@ -532,8 +534,8 @@ fn ratio_evalues_are_the_closed_form_of_vanderweele_and_ding() {
     assert!(close(range.break_even.unwrap(), bounds.point, 0.0));
     // At confounder strength s the worst-case adjusted risk ratio is RR / (s^2 / (2 s - 1)),
     // capped at the null.
-    for point in &range.tested {
-        let s = point.parameter;
+    for point in range.tested.iter() {
+        let s: f64 = point.parameter;
         let factor = s * s / (2.0 * s - 1.0);
         assert!(close(point.target, (3.9 / factor).max(1.0), 1e-12), "strength {s}");
         assert!(close(point.test.unwrap(), (1.8 / factor).max(1.0), 1e-12), "strength {s}");

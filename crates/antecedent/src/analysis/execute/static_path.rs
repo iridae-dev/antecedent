@@ -399,6 +399,10 @@ impl<'a> StaticAteExecution<'a> {
     }
 
     /// Point fit through the retained operation, the checked receipt, or the generic estimator.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per retained operation, checked receipt and declared learner source"
+    )]
     fn fit_point(
         &mut self,
         checked: &StaticCheckedFits,

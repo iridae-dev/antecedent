@@ -129,7 +129,7 @@ fn exposures(assignment: &[bool], mapping: &ExposureMapping) -> Vec<(f64, f64)> 
                     let total: f64 = sources.iter().map(|(_, w)| w).sum();
                     treated.map(|(_, w)| w).sum::<f64>() / total
                 }
-                other => panic!("no reading of mapping {other:?}"),
+                other @ ExposureMapping::Custom(_) => panic!("no reading of mapping {other:?}"),
             };
             (own, neighbors)
         })

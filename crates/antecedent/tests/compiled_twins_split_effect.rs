@@ -26,7 +26,6 @@ use antecedent_data::TabularData;
 use antecedent_io::measured_inference::MeasuredInference;
 
 #[path = "common/sparse_scm.rs"]
-#[allow(dead_code, reason = "the shared fixture module serves several test targets")]
 mod sparse_scm;
 
 use sparse_scm::{Scm, Topology};

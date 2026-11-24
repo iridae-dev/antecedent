@@ -18,6 +18,10 @@ use pyo3::types::PyAny;
 use super::{CallbackState, PythonFactory, PythonReceipt, admission_error, callback_context};
 
 /// The configured estimator a declared-learner study runs.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one estimator is configured per call and moved into the study"
+)]
 enum Configured {
     Dml(antecedent::estimate::DmlAte),
     Aipw(antecedent::estimate::AipwAte),

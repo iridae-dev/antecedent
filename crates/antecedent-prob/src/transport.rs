@@ -297,7 +297,7 @@ impl TransportError {
             Self::InvalidWeights { .. } => "transport_invalid_weights",
             Self::UnknownPolicy { .. } => "transport_unknown_policy",
             Self::CoefIndexOutOfRange { .. } => "transport_coef_index_out_of_range",
-            Self::Refused { code, .. } => *code,
+            Self::Refused { code, .. } => code,
         }
     }
 }

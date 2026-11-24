@@ -207,7 +207,7 @@ pub(super) fn evaluate_dose_grid_bias_aware_compiled(
         let run = compiled.execute(&band_ctx).map_err(crate::py_err)?;
         if !agrees(&run, done.result()) {
             return Err(crate::serialization_err(
-                "dose_grid: the compiled bias-aware program and the sealed row disagree".to_owned(),
+                "dose_grid: the compiled bias-aware program and the sealed row disagree",
             ));
         }
         let mut report: serde_json::Value = serde_json::from_str(&report_json(&done)?)
