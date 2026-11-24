@@ -1,0 +1,38 @@
+feature_id = "sensitivity.matched_hidden_bias"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Rosenbaum's sensitivity analysis of a matched design a caller supplies, compiled as the
+# MatchedDesignSensitivity program (crates/antecedent/src/analysis/supplied_sensitivity_programs.rs)
+# over the kernels of crates/antecedent-validate/src/rosenbaum.rs and vector_sensitivity.rs. Under
+# hidden bias at most Gamma the odds of treatment of two units of one matched set differ by at most
+# Gamma; the signed-rank statistic of matched pairs is then stochastically at most the sum of its
+# ranks times independent Bernoulli(Gamma / (1 + Gamma)) indicators, whose upper tail is the
+# reported bound (Rosenbaum 1987; Rosenbaum 2002, ch. 4). Matched sets with several controls use
+# the separable approximation of Gastwirth, Krieger and Rosenbaum (2000). The exact dynamic
+# program over doubled ranks, the bisection for the break-even Gamma and the weakest-coordinate
+# reading of a vector target are written in-repo.
+papers = [
+ { title = "Sensitivity analysis for certain permutation inferences in matched observational studies", sections = ["The sensitivity model with parameter Gamma and the bound on the signed-rank statistic for matched pairs"] },
+ { title = "Observational Studies", sections = ["Ch. 4: sensitivity to hidden bias; the bounding Bernoulli law of the signed-rank statistic and the sensitivity value"] },
+ { title = "Asymptotic separability in sensitivity analysis", sections = ["The separable approximation: per-set worst-case expectation then variance, referred to the normal law with summed moments"] },
+]
+
+implementation_deviations = [
+ "The signed-rank bound is computed exactly by a dynamic program over doubled average ranks while pairs times the doubled rank sum stays within 1e8 table updates (about 460 untied pairs), and by the normal approximation with the tie-corrected variance beyond it; which law was used is reported (exact). Zero differences are dropped and tied absolute differences share an average rank.",
+ "The break-even Gamma is the largest Gamma whose upper bound is at most alpha, found by doubling and bisection on log Gamma to a relative width of 1e-10, reported as infinite beyond 1e12 and absent when the test does not reject at Gamma = 1.",
+ "The matched-set bound is the separable normal approximation only; no exact law is computed for sets with several controls. Scores are the outcomes or Hodges-Lehmann aligned ranks (outcomes minus their set mean, ranked across all sets).",
+ "A vector target (one matched design per coordinate) is read at its weakest coordinate: the largest upper bound across coordinates at every Gamma, and the smallest break-even Gamma (absent when some coordinate does not reject at Gamma = 1). This aggregation is repository-defined, not from the cited works.",
+ "The program reads only what the caller supplies (pair differences or matched sets): the matching itself, the outcome model and the claim the bound is about are the caller's, and nothing about them is checked. Every number is an assumption range of the supplied design; no calibration is measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/compiled_twins_supplied_sensitivity.rs (the signed-rank bound against an enumeration of every sign vector with average ranks computed in the test, so the Gamma = 1 bound is the exact randomization p-value; the break-even Gamma against the enumerated crossing; the closed form (Gamma / (1 + Gamma))^n of all-positive pairs; the matched-set randomization moments and the worst-case expectation against every binary hidden covariate; bit equality with the direct kernel calls)",
+ "crates/antecedent-validate/src/rosenbaum.rs unit tests (brute-force enumeration with ties and zeros, amplification of Rosenbaum and Silber)",
+ "python/tests/test_compiled_twins_supplied_sensitivity.py (the Python entry against the deprecated direct functions and the exact randomization p-value 153/4096)",
+]

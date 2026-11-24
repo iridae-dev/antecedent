@@ -70,7 +70,7 @@ fn suite_of(name: &str) -> PyResult<TargetSuite> {
 }
 
 /// A target defined by `source` (hex of 32 bytes, or the digest of the label list when absent).
-fn target_of(
+pub(crate) fn target_of(
     family: &str,
     temporal: bool,
     bayesian: bool,
@@ -151,7 +151,7 @@ fn report_json(report: &TargetRefutationReport) -> Value {
     })
 }
 
-fn scalar_target(source: Option<&str>, labels: &[&str]) -> PyResult<RefutationTarget> {
+pub(crate) fn scalar_target(source: Option<&str>, labels: &[&str]) -> PyResult<RefutationTarget> {
     target_of(
         "scalar_average_effect",
         false,
@@ -197,7 +197,7 @@ fn sensitivity_evalue(
     .to_string())
 }
 
-fn scale_of(scale: &str) -> PyResult<EffectScale> {
+pub(crate) fn scale_of(scale: &str) -> PyResult<EffectScale> {
     EffectScale::parse(scale).ok_or_else(|| {
         value_err(format!(
             "unknown effect scale {scale:?}; expected risk_ratio, odds_ratio_rare, \
@@ -208,7 +208,7 @@ fn scale_of(scale: &str) -> PyResult<EffectScale> {
 }
 
 /// The setting a vector of coordinates is read in: absent for a plain effect vector.
-fn model_of(name: Option<&str>) -> PyResult<Option<ComponentModel>> {
+pub(crate) fn model_of(name: Option<&str>) -> PyResult<Option<ComponentModel>> {
     match name {
         None => Ok(None),
         Some("mediation") => Ok(Some(ComponentModel::Mediation)),

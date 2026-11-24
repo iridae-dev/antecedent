@@ -7,6 +7,9 @@ use crate::{graphs::Admg, transport_interference_api::parse_catalog};
 use antecedent::analysis::design_planning_programs::{
     TerminalError, compile_z_transport_evidence_plan, compile_z_transport_failure_snapshot,
 };
+use antecedent::analysis::z_transport_sensitivity_program::{
+    CompiledZTransportMechanismSensitivity, compile_z_transport_mechanism_sensitivity,
+};
 use antecedent::design::{
     CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, TransportEvidenceCandidate,
     ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
@@ -872,15 +875,16 @@ impl PreparedZTransportStage {
         let diagram = self.diagram.clone();
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || {
-            antecedent::validate::z_transport_mechanism_sensitivity(
-                &diagram,
-                inner.prepared().functional(),
-                inner.prepared().data(),
+            compile_mechanism_sensitivity(
+                diagram,
+                inner.prepared().functional().clone(),
+                inner.prepared().data().clone(),
                 max_fraction,
                 decision_threshold,
                 &ctx,
-            )
-            .map_err(error)
+            )?
+            .execute(&ctx)
+            .map_err(mechanism_refusal)
         })?;
         let baseline_digest =
             antecedent::ZTransportSensitivityArtifactWire::baseline_digest(&baseline_bytes);
@@ -1096,6 +1100,36 @@ fn consume_z_transport_artifact(
     })
 }
 
+/// The compiled `ZTransportMechanismSensitivity` program of the declared inputs.
+fn compile_mechanism_sensitivity(
+    diagram: SelectionDiagram,
+    functional: antecedent::identify::BoundZTransportFunctional,
+    data: antecedent::estimate::ExactTransportData,
+    max_fraction: f64,
+    decision_threshold: Option<f64>,
+    ctx: &ExecutionContext,
+) -> PyResult<CompiledZTransportMechanismSensitivity> {
+    compile_z_transport_mechanism_sensitivity(
+        diagram,
+        functional,
+        data,
+        max_fraction,
+        decision_threshold,
+        ctx,
+    )
+    .map_err(error)
+}
+
+/// A compiled program's refusal as the direct kernel call raised it.
+fn mechanism_refusal(
+    failure: TerminalError<antecedent::validate::ZTransportSensitivityError>,
+) -> PyErr {
+    match failure {
+        TerminalError::Kernel(failure) => error(failure),
+        TerminalError::Refused(failure) => error(failure),
+    }
+}
+
 /// Independently recheck a portable sensitivity artifact under the consumer's
 /// limits. The typed result's query binding and provider snapshot are
 /// recomputed from the embedded baseline, so the consumed dictionary carries
@@ -1126,15 +1160,16 @@ fn consume_z_transport_sensitivity_artifact(
         let (diagram, functional, data, _request, _limits, _point) =
             ZTransportArtifactWire::reconstruct(&wire.baseline_artifact, limits, &ctx)
                 .map_err(error)?;
-        let typed = antecedent::validate::z_transport_mechanism_sensitivity(
-            &diagram,
-            &functional,
-            &data,
+        let typed = compile_mechanism_sensitivity(
+            diagram,
+            functional,
+            data,
             wire.max_fraction,
             wire.decision_threshold,
             &ctx,
-        )
-        .map_err(error)?;
+        )?
+        .execute(&ctx)
+        .map_err(mechanism_refusal)?;
         Ok((wire, typed))
     })?;
     let value = serde_json::json!({

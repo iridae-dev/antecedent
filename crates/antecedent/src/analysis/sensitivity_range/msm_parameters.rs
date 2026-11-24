@@ -16,11 +16,14 @@
 //! * [`SensitivityRangeRequest::MsmParametersRefittingWeights`]:
 //!   [`msm_parameter_fit_refitting_weights`] with the declared numerator and denominator
 //!   covariate columns of the table, and [`component_ovb_range`] on the refitted summaries. The
-//!   refitted weight models cover treatment only; censoring is not modelled in the refit.
+//!   refitted weight models cover treatment only; censoring is not modelled in the refit;
+//! * [`SensitivityRangeRequest::MsmParameterEValuePosterior`] and
+//!   [`SensitivityRangeRequest::MsmParametersOvbPosterior`]: the posterior of the same weighted
+//!   design (the `msm_posterior` module) and the posterior ranges on its draws.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{CausalQuery, LongitudinalRegimeMethod, VariableId};
+use antecedent_core::{CausalQuery, ExecutionContext, LongitudinalRegimeMethod, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_validate::target_native::{RefutationTarget, TargetFamily};
 use antecedent_validate::{
@@ -36,15 +39,15 @@ use crate::error::CausalError;
 use crate::result::StudyResult;
 
 /// The weighted design of the route's marginal structural model, on its observed subjects.
-struct MsmDesign {
+pub(super) struct MsmDesign {
     /// Observed subjects' rows in the table.
-    rows: Vec<usize>,
+    pub(super) rows: Vec<usize>,
     /// Terminal outcome of each observed subject.
-    outcome: Vec<f64>,
+    pub(super) outcome: Vec<f64>,
     /// One 0/1 treatment column per period.
-    exposures: Vec<Vec<f64>>,
+    pub(super) exposures: Vec<Vec<f64>>,
     /// Stabilized sequential weight of each observed subject.
-    weights: Vec<f64>,
+    pub(super) weights: Vec<f64>,
 }
 
 impl PreparedStudy {
@@ -56,12 +59,15 @@ impl PreparedStudy {
         result: &StudyResult,
         program: [u8; 32],
         request: &SensitivityRangeRequest,
+        ctx: &ExecutionContext,
     ) -> Result<Option<SensitivityRangeOutcome>, CausalError> {
         if !matches!(
             request,
             SensitivityRangeRequest::MsmParameters { .. }
                 | SensitivityRangeRequest::MsmParameterEValue
                 | SensitivityRangeRequest::MsmParametersRefittingWeights(_)
+                | SensitivityRangeRequest::MsmParameterEValuePosterior { .. }
+                | SensitivityRangeRequest::MsmParametersOvbPosterior { .. }
         ) {
             return Ok(None);
         }
@@ -157,6 +163,10 @@ impl PreparedStudy {
                     model,
                 )?;
                 SensitivityRangeOutcome::MsmParametersRefittingWeights { fit, range }
+            }
+            SensitivityRangeRequest::MsmParameterEValuePosterior { .. }
+            | SensitivityRangeRequest::MsmParametersOvbPosterior { .. } => {
+                super::msm_posterior::msm_posterior_range(&design, target, request, ctx)?
             }
             _ => return Ok(None),
         };

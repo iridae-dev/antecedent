@@ -39,7 +39,10 @@
 //! * The marginal structural model analyses ([`SensitivityRangeRequest::MsmParameters`],
 //!   [`SensitivityRangeRequest::MsmParameterEValue`] and
 //!   [`SensitivityRangeRequest::MsmParametersRefittingWeights`]) read the weighted design of a
-//!   longitudinal regime study fitted with the marginal structural model method.
+//!   longitudinal regime study fitted with the marginal structural model method;
+//!   [`SensitivityRangeRequest::MsmParameterEValuePosterior`] and
+//!   [`SensitivityRangeRequest::MsmParametersOvbPosterior`] read the conjugate posterior of that
+//!   weighted design ([`MsmParameterPosterior`]) under keyed streams of the context seed.
 //! * [`sensitivity_vector_range`] reads several compiled results as the coordinates of one
 //!   vector target.
 //!
@@ -80,9 +83,11 @@ use crate::error::CausalError;
 use crate::result::StudyResult;
 
 mod msm_parameters;
+mod msm_posterior;
 mod posterior;
 mod vector;
 
+pub use msm_posterior::{MSM_POSTERIOR_STREAM, MsmParameterPosterior};
 pub use vector::{SensitivityVectorOutcome, SensitivityVectorRequest, sensitivity_vector_range};
 
 /// Most strata the empirical marginal sensitivity model reads.
@@ -187,6 +192,25 @@ pub enum SensitivityRangeRequest {
     /// Partial-R² sensitivity of the period parameters with weight models refitted in a unit
     /// bootstrap, so their standard errors carry the cost of estimating the weights.
     MsmParametersRefittingWeights(MsmRefitRequest),
+    /// E-values of the period parameters over the posterior of the marginal structural model's
+    /// weighted design ([`MsmParameterPosterior`]): each parameter draw over the residual
+    /// standard deviation of the same draw.
+    MsmParameterEValuePosterior {
+        /// Credible level of the limit E-values.
+        level: f64,
+        /// Posterior draws (between 2 and 100000).
+        draws: usize,
+    },
+    /// Partial-R² sensitivity of the period parameters over the posterior of the marginal
+    /// structural model's weighted design.
+    MsmParametersOvbPosterior {
+        /// Credible level of the adjusted limits.
+        level: f64,
+        /// Outcome partial R² of the extreme-scenario curve, in `(0, 1]`.
+        r2yz_extreme: f64,
+        /// Posterior draws (between 2 and 100000).
+        draws: usize,
+    },
 }
 
 /// The weight models and bootstrap of [`SensitivityRangeRequest::MsmParametersRefittingWeights`].
@@ -361,6 +385,16 @@ pub enum SensitivityRangeOutcome {
         /// The range of the refitted summaries, read at the weakest parameter.
         range: AssumptionRange,
     },
+    /// [`SensitivityRangeRequest::MsmParameterEValuePosterior`] and
+    /// [`SensitivityRangeRequest::MsmParametersOvbPosterior`].
+    MsmParameterPosterior {
+        /// The posterior draws of the parameters and of the residual standard deviation.
+        posterior: MsmParameterPosterior,
+        /// E-values of the parameters, for the E-value analysis.
+        evalue: Option<PosteriorEValue>,
+        /// The range, read at the weakest parameter.
+        range: AssumptionRange,
+    },
 }
 
 impl SensitivityRangeOutcome {
@@ -379,7 +413,8 @@ impl SensitivityRangeOutcome {
             | Self::MediationPosterior { range, .. }
             | Self::MsmParameters { range, .. }
             | Self::MsmParameterEValue { range, .. }
-            | Self::MsmParametersRefittingWeights { range, .. } => Some(range),
+            | Self::MsmParametersRefittingWeights { range, .. }
+            | Self::MsmParameterPosterior { range, .. } => Some(range),
             Self::MarginalSensitivity { .. } => None,
         }
     }
@@ -455,7 +490,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<SensitivityRangeOutcome, CausalError> {
         let (data, program) = self.checked_result(result, ctx)?;
-        if let Some(outcome) = self.msm_parameter_range(data, result, program, request)? {
+        if let Some(outcome) = self.msm_parameter_range(data, result, program, request, ctx)? {
             return Ok(outcome);
         }
         let bound = Self::bound_from(data, result, program)?;
@@ -516,7 +551,9 @@ impl PreparedStudy {
             }
             SensitivityRangeRequest::MsmParameters { .. }
             | SensitivityRangeRequest::MsmParameterEValue
-            | SensitivityRangeRequest::MsmParametersRefittingWeights(_) => {
+            | SensitivityRangeRequest::MsmParametersRefittingWeights(_)
+            | SensitivityRangeRequest::MsmParameterEValuePosterior { .. }
+            | SensitivityRangeRequest::MsmParametersOvbPosterior { .. } => {
                 Err(CausalError::Unsupported {
                     message: "the marginal structural model parameters are read from a \
                               longitudinal regime study fitted with the marginal structural \

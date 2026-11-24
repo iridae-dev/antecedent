@@ -2,12 +2,16 @@
 //!
 //! Format version 2. The embedded baseline is replayed through the point
 //! artifact's own consumer, so a forged baseline point with a valid digest is
-//! refused before any sensitivity range is compared.
+//! refused before any sensitivity range is compared. The range is computed by the
+//! compiled `ZTransportMechanismSensitivity` program on the replayed premises.
 use antecedent_core::{ExecutionContext, RegimeId};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use antecedent_io::{IoError, decode_with_version, to_cbor};
-use antecedent_validate::z_transport_mechanism_sensitivity;
 use serde::{Deserialize, Serialize};
+
+use crate::analysis::z_transport_sensitivity_program::{
+    TerminalError, compile_z_transport_mechanism_sensitivity,
+};
 
 /// The sensitivity artifact format this reader writes and accepts.
 pub const Z_TRANSPORT_SENSITIVITY_ARTIFACT_VERSION: u32 = 2;
@@ -95,19 +99,24 @@ impl ZTransportSensitivityArtifactWire {
     ) -> Result<Self, IoError> {
         let consumed =
             ZTransportArtifactWire::consume_with_limits(&baseline_artifact, limits, ctx)?;
-        let result = z_transport_mechanism_sensitivity(
-            &consumed.diagram,
-            &consumed.functional,
-            &consumed.data,
+        let provider_snapshots =
+            consumed.data.laws().iter().map(|law| law.snapshot_identity().to_owned()).collect();
+        let program = compile_z_transport_mechanism_sensitivity(
+            consumed.diagram,
+            consumed.functional,
+            consumed.data,
             max_fraction,
             decision_threshold,
             ctx,
         )
-        .map_err(|error| match error {
-            antecedent_validate::ZTransportSensitivityError::Cancelled => IoError::Refused {
-                code: antecedent_core::reason_code!("transport_budget_cancel"),
-                message: error.to_string(),
-            },
+        .map_err(|error| IoError::Convert(error.to_string()))?;
+        let result = program.execute(ctx).map_err(|error| match error {
+            TerminalError::Kernel(antecedent_validate::ZTransportSensitivityError::Cancelled) => {
+                IoError::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    message: antecedent_validate::ZTransportSensitivityError::Cancelled.to_string(),
+                }
+            }
             other => IoError::Convert(other.to_string()),
         })?;
         let digest = Self::baseline_digest(&baseline_artifact);
@@ -116,12 +125,7 @@ impl ZTransportSensitivityArtifactWire {
             baseline_artifact,
             baseline_artifact_digest: digest,
             baseline_premises_digest: consumed.wire.premises_digest,
-            provider_snapshots: consumed
-                .data
-                .laws()
-                .iter()
-                .map(|law| law.snapshot_identity().to_owned())
-                .collect(),
+            provider_snapshots,
             source_regime: result.source_regime.raw(),
             max_fraction,
             decision_threshold,
