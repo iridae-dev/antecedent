@@ -48,7 +48,7 @@ sha256 = "a038a3288b133a09133d25131bef210ad84a3a56677c7875f9eaa3e8920c1f48"
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
 items = ["enum AdmissibilityError", "enum UncertaintyKind", "enum UncertaintyRequirement", "fn identity", "fn support_met", "fn tag", "fn to_refusal", "fn validate", "fn weakest_allowed", "struct AdmissibilityRules", "struct AdmissibleDecisionContract", "struct DeclaredExclusion", "struct SupportRule"]
-sha256 = "d6406688064752a7a73e2f6d53d84f895348550a1e9e1bfe1bca7e95d54263cf"
+sha256 = "676a75c901515cfc14de86582389b03148fa4bd28e4a9de67ea668f78299309e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

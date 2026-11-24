@@ -40,7 +40,7 @@ sha256 = "dbd0a7dd3e8872e1b2a55dd9cae3ba422c924fb7468db8e14b0bc0afa97dbae0"
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
 items = ["fn identity", "fn name", "fn tag", "fn to_refusal", "fn validate"]
-sha256 = "dcd9a1b08f80b5ecb9942bbf727c280e08d23b76a63dedf74a10cef3b30b7fa3"
+sha256 = "0b6365527c436f8eb6a88031d0ea0d8840f9e9a4e25e4c9e467f14a9560445a3"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

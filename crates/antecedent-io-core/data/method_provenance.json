@@ -364,6 +364,9 @@
   "decision_reliability.selection_corrected_interval": [
    "decision_reliability.selection_corrected_interval"
   ],
+  "design.adaptive_policy_search": [
+   "design.adaptive_policy_search"
+  ],
   "design.conditional_study_ranking": [
    "design.conditional_study_ranking"
   ],
@@ -536,6 +539,9 @@
   ],
   "estimate.sampling_weights": [
    "estimate.sampling_weights"
+  ],
+  "estimate.temporal_linear_prediction": [
+   "estimate.temporal_linear_prediction"
   ],
   "estimate.tier_diagnostics": [
    "estimate.tier_diagnostics"
@@ -1176,6 +1182,9 @@
   "transport.bridge_premise_assessment": [
    "transport.bridge_premise_assessment"
   ],
+  "transport.classical_identification": [
+   "transport.classical_identification"
+  ],
   "transport.covariate_shift_cohort_effect": [
    "transport.covariate_shift_cohort_effect"
   ],
@@ -1259,6 +1268,12 @@
   ],
   "transport.typed_mechanism_transport": [
    "transport.typed_mechanism_transport"
+  ],
+  "transport.z_identification": [
+   "transport.z_identification"
+  ],
+  "validate.discovery_stability": [
+   "validate.discovery_stability"
   ]
  },
  "estimator": {
@@ -2324,7 +2339,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "a68029c00f6d50330f485b0a7dabbef1f8acc354c83ce4340ca84732ef4820e0",
+   "digest": "1baeb1d85d0eee4356674c5537402b4f78958603b0ba31e14249871fe4a24464",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2409,13 +2424,19 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Ramon E. Moore",
+      "R. Baker Kearfott",
+      "Michael J. Cloud"
+     ],
      "doi": "10.1137/1.9780898717716",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Chapter 2: interval arithmetic",
       "Chapter 3: the fundamental theorem of interval arithmetic (inclusion monotonicity)"
      ],
-     "title": "Introduction to Interval Analysis"
+     "title": "Introduction to Interval Analysis",
+     "year": 2009
     }
    ]
   },
@@ -2495,12 +2516,18 @@
      "year": 1989
     },
     {
+     "authors": [
+      "A. Colin Cameron",
+      "Jonah B. Gelbach",
+      "Douglas L. Miller"
+     ],
      "doi": "10.1162/rest.90.3.414",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Section 2: the pairs cluster bootstrap"
      ],
-     "title": "Bootstrap-Based Improvements for Inference with Clustered Errors"
+     "title": "Bootstrap-Based Improvements for Inference with Clustered Errors",
+     "year": 2008
     }
    ]
   },
@@ -2511,9 +2538,10 @@
    ],
    "deviations": [
     "Original native diagnostic scope and semantic coordinate/contributor lineage survive original decision/inverse evaluation; actual reexecution resolves only the matching original operation; fresh imports retain original unresolved status without execution authority or calibration upgrade.",
+    "A native result is admitted only when its contract replayed with nothing unresolved, or with only declared dependencies.* gaps (operations and criteria the bytes alone cannot re-derive, which the retained source is later re-executed against); any other unresolved reference, such as a tampered identity, is refused as source-unverified.",
     "Original support diagnostics, original contracted-result decoder, original checked estimator and original inverse/decision numerical engines are reused. No new statistical method. Original bound external source consumers retain full request/provider/quantities/values/support/attestation; the original external claim format contains no numerical diagnostic arrays, which remain explicitly unavailable."
    ],
-   "digest": "50e21c5c615cb26026fafc60db3d175fa4415bd289229a5ed5324742e831d863",
+   "digest": "bf288db1b61c58f09707d0d2b71f9eb19e1ec0c3411b951bedaaa8f024d2e506",
    "id": "composition.source_evidence",
    "review": "none",
    "scope_limits": [],
@@ -2524,7 +2552,7 @@
     "Original finite-law functional engine and complete original law artifact/request replay retain original numeric meanings. Actual native source diagnostics are cited by semantic coordinates/snapshot; native row origin requires full original source plus actual opaque native law comparison, never metadata.",
     "Original scoped diagnostics and actual action contributor identities survive projection; imported original unresolved status and source trust/calibration remain explicit."
    ],
-   "digest": "62bace240e8c2e0891ff5bf981f57391a6bdb8df9e319b4a4c615681c8a8b850",
+   "digest": "32961ba9e63d5406565f6dce2ca2a7678d1f3f800e69d02f6a9a2e21897bc0b7",
    "id": "composition.source_lineage",
    "review": "none",
    "scope_limits": [],
@@ -2578,9 +2606,9 @@
    "deviations": [
     "The classification is relative to the declared graph: a dependence that is not declared as an edge is not detected, and a node's identity, coordinate, support, trust and calibration standing are declarations the producer supplies, not facts the library checks.",
     "Stage reuse never proves a claim supported. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws support even when every number is reusable.",
-    "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states."
+    "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states. A held record that differs from the earlier snapshot, including one that appears where none was held (point-only or required before), forces recomputation of its owner as a calibration change, so calibration never rises across reused numbers; lowering a held record to point-only or required raises no calibration change: the numbers stand and the interval is simply no longer held."
    ],
-   "digest": "9cf1a66c5f6444623ce3d1d714087e2156394adadb5dabcbc20be48b93e2adfe",
+   "digest": "ad53d701e62b299feaa4822040ebb670ea619ddbbdda218a00f13052af516c41",
    "id": "composition_verification.claim_revalidation",
    "review": "none",
    "scope_limits": [],
@@ -2588,9 +2616,9 @@
   },
   {
    "deviations": [
-    "Intentionally implements no interval, posterior or coverage statement for a revalidated or composed claim, and no inheritance of a calibration record by a claim about another target. A calibration record that no longer holds at the claim's coordinate is carried as a calibration withdrawal on the claim (its interval is annotated, the point value stands); it is never refused and never silently kept."
+    "Intentionally implements no interval, posterior or coverage statement for a revalidated or composed claim, and no inheritance of a calibration record by a claim about another target. A calibration record that no longer holds at the claim's coordinate is carried as a calibration withdrawal on the claim (its interval is annotated, the point value stands); it is never refused and never silently kept. A held record that replaces another or appears where none was held is not attached to reused numbers either: its owner is recomputed."
    ],
-   "digest": "46fa05bbb1a3fee4acff02b80016f5babdca5baf8efd88feee002618e3b6bb72",
+   "digest": "baed07e1391f9df01bec2f61a3baf4aead277cd50d1be9dff5c00d5137693f37",
    "id": "composition_verification.revalidated_interval",
    "review": "none",
    "scope_limits": [],
@@ -2905,7 +2933,7 @@
     "The target-frame route standardizes the paired worlds over the declared baseline rows and refuses rows outside the training support; it is not a transport of the effect to another population.",
     "No coverage or frequentist reliability is claimed: every result labels its calibration not_measured, and the prospective selection grid test keeps ties, wrong choices and refusals as observations."
    ],
-   "digest": "bbc0c25e66291adff88738d4b0e30168d6c1827117ec92d6c3b388266babe587",
+   "digest": "3357291e93aefb01e7a2780cae0cda79fe21091445629d5022cf327afece8457",
    "id": "cyclic.action_world_decisions",
    "review": "none",
    "scope_limits": [],
@@ -2924,7 +2952,7 @@
     "The bounded route applies the logistic transform to each real-valued fitted predictive draw after fitting; it does not change the structural ports or the Gaussian disturbances, which stay real-valued, and it is not a bounded-outcome model.",
     "Reliability is not measured: results label calibration not_measured, and the reliability scope depends on the design but not on the training replicate."
    ],
-   "digest": "758ad8d93ce061fe71c14230a158092777d131601b63ebd42ea6d33e57324a17",
+   "digest": "3012ce9029a48a993b9891e0f9ef44f865d00969452369ea3e9bf23482db42d2",
    "id": "cyclic.component_posterior_decisions",
    "review": "none",
    "scope_limits": [],
@@ -3147,7 +3175,7 @@
     "An uncertainty requirement is met only by a supplied claim of exactly its own kind (none accepts any); the kind is a label supplied by the caller and is not verified against how the claim was produced.",
     "The contract identity is a canonical digest that ignores the order of rules and exclusions; a contract without rules keeps the earlier decision_contract_v1 bytes, so the wrapper adds no wire change for existing contracts."
    ],
-   "digest": "8a0308cd7f4e34dc460167fa38cf9aad922228f18473d85987bd324fee1f7f9b",
+   "digest": "df2050cba4789ee2394e18535bb6cc278f63d8228717faec4d554016dfea8a41",
    "id": "decision.admissibility",
    "review": "none",
    "scope_limits": [],
@@ -3170,7 +3198,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "e3da9283067bfc822c21337407bad5ecf6295855fa4248701188a5632a5650c1",
+   "digest": "cf8ac1ab55af0eadf33db7a71631c88a50f7105e3851427357eae41757f2c543",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3253,7 +3281,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "cebb058711285a6d74983cde63e786c19b2b522d6a2ec515d4065d062757584a",
+   "digest": "60c3157c151b2fd0bf8a2ac4e44da1d0a6cb024a63a0a8758a143d4a759a2635",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -3685,6 +3713,31 @@
   },
   {
    "deviations": [
+    "Derivative-free elite-refit evolution strategy with a seeded uniform first generation, smoothed Gaussian refits, a coordinate pattern polish and a fixed evaluation budget. No derivative is estimated and no global-optimality certificate is claimed; an exhausted budget is reported as an incomplete result.",
+    "Policies are bounded families (open-loop schedule, threshold, piecewise-constant, clipped linear feedback and small complete trees) over a closed parameter box. Each is lowered to a value program that the temporal rollout executes, and the lowered program and the direct rule agree exactly.",
+    "Cumulative cost, cumulative exposure and realised per-step action constraints are checked on rollout paths as hard feasibility conditions with chance-constraint style reporting. The Wilson upper bound on the violation probability is an approximation; a finite sample never certifies a zero violation probability. No objective penalty stands in for feasibility.",
+    "Every proposal is evaluated on the same shared draws (common random numbers across policies and parameter draws), so policy values and paired contrasts share draws. The optimisation and held-out splits use independent noise.",
+    "The result is labelled a fitted-model optimisation unless an identified policy effect is requested and the response source states an identification basis; otherwise the request is refused. The selected policy's in-sample value is optimistic; a held-out value on independent draws or held-out units is reported, and a design with none is refused or flagged.",
+    "Independent evidence: a stationary-state treatment threshold with a closed-form optimum and a linear-quadratic feedback problem with a Riccati optimum and a closed-form best open-loop schedule, each simulated by a separate generator and recomputed by a standalone script."
+   ],
+   "digest": "6fce0a3d88174f9437e9dc41d2512eb88227a569b403eef49590c077e2e09f83",
+   "id": "design.adaptive_policy_search",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: piecewise-constant or tree families beyond their lowering, not the facade model-source binding, and not any claim of global optimality"
+   ],
+   "sources": [
+    {
+     "sections": [
+      "Section 4: continuous multi-extremal optimization by elite refitting of a Gaussian sampling law"
+     ],
+     "title": "The Cross-Entropy Method for Combinatorial and Continuous Optimization",
+     "url": "https://doi.org/10.1023/A:1010091220143"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Independent deterministic exhaustive finite-set comparison and bounded coordinate pattern search; the existing decision functional engine evaluates every mean/law objective and hard risk constraint.",
     "Operational bounds, scheduled control costs, budget and linear restrictions remain hard feasibility conditions. No objective penalty stands in for feasibility.",
     "Finite exhaustion certifies only the declared candidate set under its supplied retained law. Sampling-based selected-decision reliability is not measured; no population or continuous global optimum is implied.",
@@ -3789,13 +3842,14 @@
    "deviations": [
     "addressed_by is a screen on population, regime and joint law, not an identification theorem: a study that passes it repairs a contract only when the theorem-specific checker that owns the contract accepts the hypothetical evidence.",
     "EstablishAssumption is never satisfiable by a study; a proposed study does not prove an assumption.",
-    "Identifiers eo1:<kind>:<hash> are digests of the canonical content, independent of variable order and sensitive to provenance; they are fingerprints for equality, not security tokens.",
+    "Identifiers eo1:<kind>:<hash> are the first 128 bits (32 hex digits) of the BLAKE3 digest of the canonical content, independent of variable order and sensitive to provenance; they are fingerprints for equality, not security tokens. The canonical content is unframed text, made injective on accepted inputs by refusing a population, slot, family, source or proof step that contains ';' followed by the key of a later field, a slot containing '|', and a repeated slot. validate() re-checks a hand-built or decoded obligation and refuses a stored id that differs from the one derived from its content.",
+    "An unresolved assumption record that cannot form an obligation (an id containing a reserved identity separator) is refused by try_unresolved_assumption_obligations, never dropped; the infallible unresolved_assumption_obligations skips such a record and is kept for compatibility.",
     "The z-transport adapter preserves checked expression leaves and binding failures and is consumed by ZTransportRepairFamily through the public generic repair facade; it emits no factor request for a failure without a checked formula.",
     "Scientific quantities can be explicitly bound to every requested variable, retaining units, population, regime identity, horizon, functional, conditioning and transform in the canonical obligation ID. Display-name changes do not change identity. A declared coordinate requires a compatible offered coordinate in the necessary-condition screen. Structural obligations with no measurement declaration retain their original IDs and never infer units.",
     "Repair obligation wire records preserve the full shared ScientificQuantityWire descriptors, refuse duplicate variables and reject descriptor tampering against the stored obligation ID.",
     "No causal, interval or calibration claim is made."
    ],
-   "digest": "29606d81e49e78a5b407c110f9e1306905deed99ed813bd68f6a8090b254a195",
+   "digest": "a2a4048142a63c2933b1ff4469a367756a5d8cceaf5063b494318080ca5c3641",
    "id": "design.evidence_obligations",
    "review": "none",
    "scope_limits": [],
@@ -3865,12 +3919,18 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Sandra M Eldridge",
+      "Deborah Ashby",
+      "Sally Kerry"
+     ],
      "doi": "10.1093/ije/dyl129",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Design effect with variable cluster size: 1 + ((1 + CV^2) m - 1) rho"
      ],
-     "title": "Sample size for cluster randomized trials: effect of coefficient of variation of cluster size and analysis method"
+     "title": "Sample size for cluster randomized trials: effect of coefficient of variation of cluster size and analysis method",
+     "year": 2006
     }
    ]
   },
@@ -8879,6 +8939,19 @@
   },
   {
    "deviations": [
+    "The answer is the conditional expectation E[target_t | listed lags, variable = level] under the linear fit, an association of the observed series. No graph is read, nothing is identified and no adjustment set is chosen, so it is not do(variable = level); it equals an interventional mean only when the listed columns are a valid adjustment set, the relation is linear and no other listed column descends from the held variable, none of which is checked.",
+    "Point only: no standard error, interval or calibration is computed or claimed.",
+    "A rank-deficient design (collinear or constant lagged columns), a non-finite value, a non-finite level and a held variable outside the listed columns are refused by the kernel, never answered.",
+    "The compiled program polls cancellation before the fit and before the prediction; the kernel itself does not poll inside its single least-squares solve."
+   ],
+   "digest": "7ca6d805ef77bd237cc52dbe57c4e9c547645fdcd38b582d84fcd9dbdf07c868",
+   "id": "estimate.temporal_linear_prediction",
+   "review": "none",
+   "scope_limits": [],
+   "sources": []
+  },
+  {
+   "deviations": [
     "The estimator is restricted to a single linear mediator and three OLS regressions, with treatment at lag one and mediator and outcome at the current time; covariate adjustment, multiple mediators, nonlinearities, interactions, and longer temporal pathways are absent.",
     "The mediated effect is the product of fitted path coefficients. The Baron-Kenny significance-step procedure is not implemented.",
     "The public execution path forcibly aliases natural and controlled mediation requests. That alias is valid only under the restricted linear no-interaction model and is not a general identification result for natural effects.",
@@ -10299,9 +10372,10 @@
     "No graph search. The identifier stamps consistency, positivity, and the design's known-assignment statement; it does not derive an identifying functional from a DAG.",
     "NoInterference is recorded for unit-randomized designs and omitted for cluster randomization and switchback, which record their own partial-interference or no-carryover statements instead.",
     "Wald complier and one-sided treatment-on-treated queries add exclusion, monotonicity, a nonzero first stage, and, for treatment on the treated, one-sided noncompliance. Those statements are declared, not tested.",
-    "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators."
+    "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators. For a Bernoulli design the recorded statistic is the absolute Horvitz-Thompson contrast over every Bernoulli assignment weighted by its known probability; fixed-count designs record the absolute difference in means (exhaustive or Monte Carlo).",
+    "A fixed CUPED coefficient records a pre-assignment covariate fixed independently of the outcomes as an identification assumption. An estimated-slope CUPED adjustment records its pre-assignment covariate as an estimation assumption that states the slope is estimated from these outcomes and that the independent-row score variance does not propagate that estimation."
    ],
-   "digest": "fe5a01bafa2bae387bc3c1e7aedae6cc69a1f57ff593abf1efafe7612449cb4f",
+   "digest": "af81d523e0d5511ec525873e1fa5deede27cef0046f8b299105313b290629c4e",
    "id": "identify.randomized.design",
    "review": "none",
    "scope_limits": [],
@@ -10487,7 +10561,7 @@
     "A calibration label is a declaration naming a record; the contract layer does not verify that the record exists or covers at the consumer's coordinate.",
     "No calibration design is executed; the whole-method design for any composed interval is a recorded decision only and is never measured by this record."
    ],
-   "digest": "46466c262a2042939310803e3f0412ee19491fbc55e84fa8c9d20506e69de7b0",
+   "digest": "38e65e18e9d64de8fdb7601105cb0bd012880a0726ac756234b7171c522c84d7",
    "id": "interface_contract.calibration_inheritance",
    "review": "none",
    "scope_limits": [],
@@ -10498,7 +10572,7 @@
     "No fact is inferred: support, semantic identity, uncertainty meaning and measurement models come from an explicit interface basis supplied by the caller.",
     "Component-specific support (admission of another context, bridge support, measurement operation support) stays with each component; the shared check never admits a population change."
    ],
-   "digest": "659bb973fbde58572e05cbbf2326dcc7e179261af4a7e939a3817c092277585a",
+   "digest": "651dce7e552c6a486c2d9e9b4e0f7f802e7efec45f133717b3ce1e524bcaa853",
    "id": "interface_contract.component_adapters",
    "review": "none",
    "scope_limits": [],
@@ -10574,7 +10648,7 @@
     "No unit conversion, bridge or transport is inferred: a difference in units, population or regime is a refusal, and the remedy names the declared route that would support it.",
     "No interval, posterior or calibration record is produced or measured; a connection carries the producer's label unchanged."
    ],
-   "digest": "6653f027d8b1dd009f1e788a735e6f72082c7dccbe60ff69200e0321dd179969",
+   "digest": "48d7647cfb4f532a7da0e138cd0bea219e299d3958768a023df758a40d276f78",
    "id": "interface_contract.scientific_interface",
    "review": "none",
    "scope_limits": [],
@@ -11989,7 +12063,7 @@
     "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
     "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured."
    ],
-   "digest": "4544fd19cd641eb2eb809d3fcb907e716ad95c2f4a1b94c5db80d44789a77a10",
+   "digest": "e581492e33f0362971ea631d0b2a87f41656cf102108f134d9ff27201b3493cd",
    "id": "provider_callback.consumers",
    "review": "none",
    "scope_limits": [],
@@ -12002,7 +12076,7 @@
     "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
     "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured."
    ],
-   "digest": "0bb7b73e4a75f07846aa7ca8df9ed070dba190a3b57e4036ba24f6cbced266ba",
+   "digest": "10bc49535a2fb449ecdcd8268730257b0892f779df44e7fea0b21bb79467c30e",
    "id": "provider_callback.law_posterior_protocol",
    "review": "none",
    "scope_limits": [],
@@ -12015,7 +12089,7 @@
     "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
     "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured."
    ],
-   "digest": "dff901beaa6876683925f2ac73978336df90bc005867336cbd91ff840b2cbdd7",
+   "digest": "1230120f8e9bcbcfffec871b02e7cc51bd3aca2764caa36f2a9a10e202fee440",
    "id": "provider_callback.portable_result",
    "review": "none",
    "scope_limits": [],
@@ -12028,7 +12102,7 @@
     "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
     "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured."
    ],
-   "digest": "ff297c6c8954ed5b22256d6baf4dbbb2ddf124b75af5210118b60babd857311b",
+   "digest": "676e6238c6595ce50ab87d5f5971dfc50a6317326c8d2b3aa4bc7fadb3bd2fd5",
    "id": "provider_callback.replay_policy",
    "review": "none",
    "scope_limits": [],
@@ -12041,7 +12115,7 @@
     "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
     "No interval, posterior guarantee, joint law, identification evidence or native trust is produced; the interface projection is point-only or not measured."
    ],
-   "digest": "02d6b983682634868493f8867536c4c36525f307a3f644fb2914c041493d4659",
+   "digest": "1e4dc2453299b77001661bd0834c41473877a939a1df80296283ba487f601120",
    "id": "provider_callback.unsupported_claims",
    "review": "none",
    "scope_limits": [],
@@ -13223,6 +13297,57 @@
   },
   {
    "deviations": [
+    "Classical sID is complete only in the paper experimental-information family (arXiv:1312.7485v1); target-only ordinary ID is attempted before source experimental factors.",
+    "The finite evidence-catalog search and the binding of a derivation to a catalog are a separate sound-incomplete contract with deterministic bounded alternatives; budget exhaustion and catalog gaps are inconclusive, never s-hedge witnesses.",
+    "sID line 3 (intervention enlargement over the non-ancestors W of the outcome) is evaluated as a weighted average that needs the observational law on every W cell it weights, a support requirement the published line does not state.",
+    "Meta-transport completeness is scoped to the classical complete source-experiment family; negative claims require a common s-hedge checked against every declared source.",
+    "The compiled program identifies on each execution and claims no uncertainty; the identified functional is evaluated by the route that consumes it."
+   ],
+   "digest": "32a56b4b7af2c27423f3b0f20583735d1b861c6429bf54caad4c4799df7984e3",
+   "id": "transport.classical_identification",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Elias Bareinboim",
+      "Judea Pearl"
+     ],
+     "doi": "10.1515/jci-2012-0004",
+     "doi_verified": true,
+     "sections": [
+      "Section 3: direct transportability",
+      "Section 5, Figure 5: c-component decomposition and source/target factor selection"
+     ],
+     "title": "A General Algorithm for Deciding Transportability of Experimental Results",
+     "year": 2013
+    },
+    {
+     "authors": [
+      "Judea Pearl",
+      "Elias Bareinboim"
+     ],
+     "doi": "10.1214/14-STS486",
+     "doi_verified": true,
+     "sections": [
+      "Section 3, Definition 5: S-admissibility",
+      "Section 3, Theorem 2 and equation (3.5): covariate-specific transportability and standardization"
+     ],
+     "title": "External Validity: From Do-Calculus to Transportability Across Populations",
+     "year": 2014
+    },
+    {
+     "sections": [
+      "Figure 5: μsID, lines 1–4, 6–10",
+      "Definition of μs-hedge and obstruction theorem"
+     ],
+     "title": "Meta-Transportability of Causal Effects: A Formal Approach",
+     "url": "https://proceedings.mlr.press/v31/bareinboim13a.pdf"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The invariance premise is a declaration and is never tested; the selection-diagram premise is checked only structurally (the selection node's children are inside the declared modifiers and those modifiers are exactly the model's features).",
     "Overlap is a support-box necessary condition (per-feature disjointness and rows outside the fitted box). No density ratio, weight diagnostic or positivity guarantee is computed; the value is labelled extrapolative.",
     "Point-only: no standard error, interval or law is inherited from the source model's own fit. An interval or law request is refused with the evidence that would support it.",
@@ -13814,6 +13939,30 @@
      ],
      "title": "External Validity: From Do-Calculus to Transportability Across Populations",
      "year": 2014
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Single-source TRz is sound and incomplete within 4 controllable finite discrete variables and any number of observed ones, bounded by the search budget; a budget or cancellation is a limits receipt, never a verdict.",
+    "A line-11 obstruction is reported only as structural in the declared controllable set; other search failures are not certified.",
+    "Two-source combination searches each source separately on its own selection diagram and combines complementary factors only under two factorizations (disconnected graph components, intervention-separated outcome groups); a single connected c-factor that would need one joint law over both sources' interventions is refused as z_transport.multi_source_combination_not_searched, never fabricated. Classical meta-transport is not called.",
+    "Binding cites joint laws only: separate marginals never bind a joint factor, and duplicate evidence binds by one deterministic rule (a family regime before a concrete one, otherwise the lowest regime id).",
+    "The compiled program identifies on each execution and claims no uncertainty; the identified functional is evaluated by the route that consumes it."
+   ],
+   "digest": "52c425139485fab76837dabcd059d70f38092e7d7f943b4701a8fe24ed103bb9",
+   "id": "transport.z_identification",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "TRz: lines 1-11",
+      "line 10: exchange of a controllable coordinate for a source experiment",
+      "line 11: obstruction"
+     ],
+     "title": "Causal Transportability with Limited Experiments",
+     "url": "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
     }
    ]
   },

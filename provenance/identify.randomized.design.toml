@@ -41,7 +41,7 @@ record_sha256 = "2d184a771857689290840a1c2fc353b8b870ac4898472229c5e6c16e85ef0bc
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
 items = ["fn push_randomized_core_assumptions", "fn push_randomized_covariate_assumptions", "fn push_randomized_design_assumptions", "fn randomized_identification"]
-sha256 = "3d8813ce179d2ce1d9424f626d28ad99b27941f74d9735971fa08be8abf46315"
+sha256 = "9d7220e09dcc6054363f81faecf79860f2c706832823003d92b51e8018d054cc"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

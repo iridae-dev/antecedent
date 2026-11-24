@@ -39,4 +39,4 @@ record_sha256 = "1a2281d77e31662a950389634321ed4b73d22f2a5780131a7d18856de1de3ed
 role = "implementation"
 path = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
 items = ["module"]
-sha256 = "475fb2c389ec21afe420268b90d1860ad0cfa568c5875dc1aca385a9b58cb9e3"
+sha256 = "2380d77d66935af0d5cf752230d4e399870149216338c25b2f7cd7bf54d8bcb9"
