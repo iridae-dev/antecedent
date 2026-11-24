@@ -453,3 +453,90 @@ fn result_lineage_carries_merkle_digests_that_change_with_the_source() {
         Err(ProvenanceChainError::DigestMismatch { .. })
     ));
 }
+
+/// A digest of artifact bytes, to pin them compactly.
+fn bytes_digest(bytes: &[u8]) -> String {
+    antecedent_core::CanonicalWriter::new("antecedent.test.artifact_bytes")
+        .bytes(bytes)
+        .finish_hex()
+}
+
+#[test]
+fn contract_and_result_bytes_are_pinned() {
+    use UtilityExpr as U;
+    let every_operator = HardConstraint {
+        id: "every-operator".into(),
+        expr: U::Max(
+            Box::new(U::Min(
+                Box::new(U::Add(Box::new(U::Input(0)), Box::new(U::Const(-0.25)))),
+                Box::new(U::Mul(Box::new(U::Const(3.0)), Box::new(U::Input(1)))),
+            )),
+            Box::new(U::Sub(Box::new(U::Neg(Box::new(U::Input(1)))), Box::new(U::Const(1.5)))),
+        ),
+        bound: 2.0,
+        min_probability: 0.5,
+        units: "units".into(),
+        applies_to: vec!["risky".into()],
+    };
+    let mut found = Vec::new();
+    let criteria = [
+        DecisionCriterion::PosteriorExpectedUtility,
+        DecisionCriterion::PosteriorExpectedLoss,
+        DecisionCriterion::ThresholdProbability { threshold: 1.25 },
+        DecisionCriterion::Quantile { p: 0.3 },
+        DecisionCriterion::MinimaxOverIdentifiedSet,
+        DecisionCriterion::MaximinOverStructures,
+        DecisionCriterion::Regret,
+        DecisionCriterion::ExpectedRegret,
+    ];
+    let policies = [
+        StructuralPolicy::RequireInvariantBestAction,
+        StructuralPolicy::Maximin,
+        StructuralPolicy::BayesOverStructures,
+        StructuralPolicy::ReportOnly,
+    ];
+    let kinds = [ActionKind::Regime, ActionKind::Study, ActionKind::External];
+    for (i, criterion) in criteria.into_iter().enumerate() {
+        let mut c = contract();
+        c.criterion = criterion;
+        c.structural_policy = policies[i % policies.len()];
+        c.actions[1].kind = kinds[i % kinds.len()];
+        c.constraints.push(every_operator.clone());
+        let artifact = DecisionContractArtifact::new(c.clone()).unwrap();
+        found.push(bytes_digest(&artifact.to_bytes("pinned").unwrap()));
+        found.push(bytes_digest(
+            antecedent_design::decision_artifact::contract_to_json(&c).unwrap().as_bytes(),
+        ));
+        if let Ok(result) = evaluate_contract(&c, &source()) {
+            let artifact = DecisionResultArtifact::new(result, &source());
+            found.push(bytes_digest(&artifact.to_bytes("pinned").unwrap()));
+        }
+    }
+    assert_eq!(found, PINNED_BYTES);
+}
+
+/// Digests of the bytes these cases write; any change to a wire changes them.
+const PINNED_BYTES: &[&str] = &[
+    "9caa07ed21d7c12f051da502d1a3179a08e293ab12f3478bb2ff835342206ac4",
+    "afe81a73463d1c34afd3593dfe3223f8731398ec67d59bc752beb093d37a05b3",
+    "808c2e82c70fc401020939f1808a4c2bb8046efad1ede1bb875a1fafad1820aa",
+    "2d8e260c48ade442a831cee1bf22467fc0cfada067a807931ac6f6df5b464d7c",
+    "b8028c9f40922a85d9d0fe586bff75d3f8b915dda2d31a91b39beaf8ef168640",
+    "7776008fdcf0166148cef6914ea709762a17d855131048737015d57f09c942ef",
+    "a9ee75b8a7af612b4c4f9727850464dc2445d507efa548d0d2f370a8ed267e19",
+    "a224139c71dc0fa82bdc9cd7ddae9e5f5e3dd54562c24e9b4a1df3bfe6152523",
+    "45b3e5178b6cf41c23188e6a977701e2e5709d8ea862f17074367ba723a83357",
+    "3e678e476f310d700850aa0515bc1f7dd2543d1c519d76508c227ee50913d3d3",
+    "1963aa661674f82672bda548f6dfa223bca934db0351306a9f37f9a954d6f3c5",
+    "3af1d170fceee48ef06cac8004b1dbde2dafb03c52aa70ad462db8662d67189b",
+    "418cd451ee34a800f720f587a530152335847e628170dab3c45274246e2e096e",
+    "069728b9d4336a56ca1d731e0988006dd77104f20a280f598b57c65c7e5c6baa",
+    "f5b07c09bd0ef2f512d0d6ebef7b503b9c2a3624d387a853ceb17eeb22239259",
+    "c179e41e5afa97bff714d5ddd76aead19c4cbad955e4d5e12f0d2cb4876c9dbb",
+    "2f4fc1716219fb1a4e53b4eeab0e0db9ae054cca091a16e5870ffbbe9112f105",
+    "b13805cbc08e5dfacf46d671bb93131f00031d56ae737e37d87942865e59b87a",
+    "d14129be9235ba44637caf9876bc04b107255b81cda6dfad16005984a46f336f",
+    "aed3ece2ec46605efcd078d0fc84ab608da92d1aa8a8b01ff07001d1286f7f4d",
+    "354df6020340354644696e6acf1ec066281a70ba0639ed01cd2650027a663065",
+    "fab5b59b5efc493a9919be643694d9424ecc60f527cb022985beef57f4877f7b",
+];

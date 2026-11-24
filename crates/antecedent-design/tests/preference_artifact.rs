@@ -759,3 +759,73 @@ fn the_effective_tie_tolerance_is_stored_only_when_a_numerical_bound_widens_it()
     assert_eq!(effective.to_bits(), 1e-3_f64.to_bits());
     decision_round_trip(&artifact, &source);
 }
+
+/// A digest of artifact bytes, to pin them compactly.
+fn bytes_digest(bytes: &[u8]) -> String {
+    antecedent_core::CanonicalWriter::new("antecedent.test.artifact_bytes")
+        .bytes(bytes)
+        .finish_hex()
+}
+
+#[test]
+fn decision_artifact_bytes_are_pinned() {
+    use antecedent_design::decision_contract::{HardConstraint, UtilityExpr as U};
+    let every_operator = HardConstraint {
+        id: "every-operator".into(),
+        expr: U::Max(
+            Box::new(U::Min(
+                Box::new(U::Add(Box::new(U::Input(0)), Box::new(U::Const(-0.25)))),
+                Box::new(U::Mul(Box::new(U::Const(3.0)), Box::new(U::Input(1)))),
+            )),
+            Box::new(U::Sub(Box::new(U::Neg(Box::new(U::Input(1)))), Box::new(U::Const(1.5)))),
+        ),
+        bound: 400.0,
+        min_probability: 0.75,
+        units: "usd".into(),
+        applies_to: vec!["B".into(), "A".into()],
+    };
+    let budget = HardConstraint {
+        id: "budget".into(),
+        expr: U::Input(1),
+        bound: 4.5,
+        min_probability: 1.0,
+        units: "usd".into(),
+        applies_to: vec![],
+    };
+    let source = standard_law(&cost_model(), 0.0);
+    let mut found = Vec::new();
+    for (model, criterion) in [
+        (cost_model(), DecisionCriterion::PosteriorExpectedUtility),
+        (cost_model(), DecisionCriterion::PosteriorExpectedLoss),
+        (cost_model(), DecisionCriterion::ExpectedRegret),
+        (cost_model(), DecisionCriterion::ThresholdProbability { threshold: 3.1 }),
+        (cost_model(), DecisionCriterion::Quantile { p: 0.4 }),
+        (cost_model(), DecisionCriterion::Regret),
+        (squared_model(), DecisionCriterion::PosteriorExpectedUtility),
+    ] {
+        let mut c = contract(model, PreferencePolicy::ReportOnly);
+        c.criterion = criterion;
+        c.constraints = vec![every_operator.clone(), budget.clone()];
+        c.actions[1].kind = ActionKind::Study;
+        let artifact = PreferenceDecisionArtifact::evaluate(
+            c,
+            &source,
+            None,
+            PreferenceEvaluationOptions::default(),
+        )
+        .unwrap();
+        found.push(bytes_digest(&artifact.to_bytes("pinned").unwrap()));
+    }
+    assert_eq!(found, PINNED_BYTES);
+}
+
+/// Digests of the bytes these cases write; any change to a wire changes them.
+const PINNED_BYTES: &[&str] = &[
+    "e163506b4e14c9f8c18983898be9cedcb44e281c05f9237bdc866f82012c32b9",
+    "d9b972270d06040dc62b47ab1e9b5891c02a669555752b41efb4548ea2305f04",
+    "7b9ac5acd48ffd9fe61789cca859c5e74bd122778fe897a0d5f9ededafe46dfd",
+    "26dbbdfc8f7e309afc517fa53e42dae34f7d7a55ebeb3da5687d7c1fc7979852",
+    "db1c5562907754597ab53b2fd18708dc3ade538158332147d483177e5ba97de8",
+    "47ec2fc9c756f6785d44d7c25ccdc6f171bc281ab68acd8b358c3577507da772",
+    "d5cb586f4d4f3aad5c96edfa4f82e6d90e0de7df52fbd0bab1aae190f240fae3",
+];

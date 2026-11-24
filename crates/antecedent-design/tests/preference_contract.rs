@@ -539,3 +539,132 @@ fn a_degenerate_contract_with_one_quantity_per_action_binds_and_probes() {
     let bound = c.bind(&[1.0, 1.0]).unwrap();
     assert!(close(bound.actions[1].utility.evaluate(&[12.0]).unwrap(), 3.0 - 12.0 - 1.0));
 }
+
+/// Contracts that between them reach every criterion, structural policy, action kind and
+/// expression operator the identity encodes.
+fn identity_cases() -> Vec<PreferenceContract> {
+    use UtilityExpr as U;
+    let every_operator = HardConstraint {
+        id: "every-operator".into(),
+        expr: U::Max(
+            Box::new(U::Min(
+                Box::new(U::Add(Box::new(U::Input(0)), Box::new(U::Const(-0.25)))),
+                Box::new(U::Mul(Box::new(U::Const(3.0)), Box::new(U::Input(1)))),
+            )),
+            Box::new(U::Sub(Box::new(U::Neg(Box::new(U::Input(1)))), Box::new(U::Const(1.5)))),
+        ),
+        bound: 40.0,
+        min_probability: 0.75,
+        units: "usd".into(),
+        applies_to: vec!["wait".into(), "treat".into()],
+    };
+    let mut base = contract();
+    base.constraints.push(every_operator);
+    let mut cases = Vec::new();
+    for criterion in [
+        DecisionCriterion::PosteriorExpectedUtility,
+        DecisionCriterion::PosteriorExpectedLoss,
+        DecisionCriterion::ThresholdProbability { threshold: 1.25 },
+        DecisionCriterion::Quantile { p: 0.3 },
+        DecisionCriterion::MinimaxOverIdentifiedSet,
+        DecisionCriterion::MaximinOverStructures,
+        DecisionCriterion::Regret,
+        DecisionCriterion::ExpectedRegret,
+    ] {
+        cases.push(PreferenceContract { criterion, ..base.clone() });
+    }
+    for structural_policy in [
+        StructuralPolicy::RequireInvariantBestAction,
+        StructuralPolicy::Maximin,
+        StructuralPolicy::BayesOverStructures,
+    ] {
+        cases.push(PreferenceContract { structural_policy, ..base.clone() });
+    }
+    for kind in [ActionKind::Policy, ActionKind::Regime, ActionKind::Study, ActionKind::External] {
+        let mut c = base.clone();
+        c.actions[0].kind = kind;
+        cases.push(c);
+    }
+    cases
+}
+
+#[test]
+fn identities_are_pinned() {
+    // Each case's preference contract identity and the identity of the ordinary contract it
+    // binds to at the declared lower corner.
+    let found: Vec<(String, String)> = identity_cases()
+        .iter()
+        .map(|c| {
+            let lower: Vec<f64> = c.model.preferences.bounds().iter().map(|b| b.0).collect();
+            (c.identity().unwrap(), c.bind(&lower).unwrap().identity().unwrap())
+        })
+        .collect();
+    let pinned: Vec<(String, String)> =
+        PINNED.iter().map(|(a, b)| ((*a).to_owned(), (*b).to_owned())).collect();
+    assert_eq!(found, pinned);
+}
+
+/// Identities the encoders give for these cases; any change to an encoder or a domain tag
+/// changes them.
+const PINNED: &[(&str, &str)] = &[
+    (
+        "affd724233e58a03d6f06932cb5fed075cf6b2a056d961cf4db09f31f9f45e16",
+        "7a4118450b7f6ed17709061fee61eb8ea80cda99e681ca8f99ae53583984789d",
+    ),
+    (
+        "f59b1c1110a582366987fc6641a047fae823a01decb059ad42a1b79b6dae82d9",
+        "a52052488d2ac9921de8346af77d0d6530b1b30f0b08b5231f0f2f19e30dbca1",
+    ),
+    (
+        "6340414603a4cfcf95b7a6fb13e2f069a4bd702ab9a68a5265b37cbe3c718e09",
+        "e2d83dfcc0443e5e9c5b68b4064a786669f19d4f19e9bd1b1fddf63ada20c2b7",
+    ),
+    (
+        "22d47c1baa49737ce7a63ae096b4e40805524e49d867f8a3b70e797ade746463",
+        "98b0b0609e86db4d7b9fb14b1857f9d24ca31a44ac07f22d7ee0443026e2d6a9",
+    ),
+    (
+        "ab377592d8e2faee6e25f1a863e5f4b6edf388658d6c89ec422fa698c043c8a5",
+        "99bba56b257a91c88decb74566f25164e2db1eaf09b80d0325236adbfe67c91c",
+    ),
+    (
+        "dfeb697fcbfb5333813f13ef9215f507ea3e5e274b6d146612197b8dc962b85f",
+        "8616f9861f75be02627fbd126a95e141b333663f44e07fbe9eaf7fb69264f87a",
+    ),
+    (
+        "fc4fef890b327a795b7c05fb3cfa343d96680c99303da2cf602e97da1b470412",
+        "cfbb9678cb6b78b5ba370f6ea29a052c4b2c4bf412e6bb22b23fe618e372d8d7",
+    ),
+    (
+        "93c37a04a8c614bb2e03455e5412c19fc7836028c1a4495f7b55d3312f2732f8",
+        "225adb19c5f4d7c33885174491a82d1fa8f0bf8398f01417590ecd738e842319",
+    ),
+    (
+        "028e97ca004bc78e5523fc442510a36367553b9143823f83c0b7781a3e64bec2",
+        "cc4826d80153a72c889f30ad4516bedbdb98770e66670d82da38572a007395ab",
+    ),
+    (
+        "4af8f57cba6c1a4629f3bdc9825c03491d95be3689589528ec0beddb804e4127",
+        "7ec75940a59fc725325915f25910d321db4befa8bf68acf358a149232e3d3489",
+    ),
+    (
+        "d18f9cde7986cdf1b6057f8ae7f9642800942826af7dbdc920b0846172e8628e",
+        "df998f94705a16ba6c373e9c443dc1f2896deec946bc5817fddce6dc22e61e82",
+    ),
+    (
+        "046bab1de9d18b95285575dab708b4b93db63da7feb888e7a47ba365e91cac3b",
+        "d858a55930ac2d4d230f1821a78a23b9881b169e9070b844f8132eb42bba6aa2",
+    ),
+    (
+        "e053f281d6250a293bd8fe47664f645c1225f8aea53c933b4fdfd443c6b4b4d4",
+        "ec4be8830aa9e1e8a13e45666fa9a90fb50bb97846659385dcd2aabd0105a878",
+    ),
+    (
+        "a9181cadfe4686ff6d72cc2ce65c8a7d2f0f0be3cc26033cf2320116bc2ac6bb",
+        "97c74d087ccfe16337cfb16f67b06c6282bc8f0e283106aefcc754169f5b0aab",
+    ),
+    (
+        "c23584ad21fd02ef5e295b2fd84dbd374caf67e075cb27090c95b0df6fc54cbb",
+        "455caff435ecfb906b979d3117036fdba1210077a3450b9f09ae485c72d0295d",
+    ),
+];
