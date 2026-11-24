@@ -33,6 +33,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec,
     MediationContrast, MediationQuery, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
+use antecedent_data::TableView;
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,

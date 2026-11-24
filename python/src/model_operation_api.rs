@@ -17,8 +17,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent::analysis::model_operation::ModelOperationAnswer;
+use antecedent::data::TableView;
 use antecedent::execution::{CausalRng, RngFactory, StreamDomain};
-use antecedent::prelude::{ExecutionContext, Intervention, TabularData, VariableId};
+use antecedent::prelude::{ExecutionContext, TabularData, VariableId};
 use antecedent::query::{
     ArrowStrengthsTarget, CausalQuery, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
     ModelOperation, PopulationDoContrastTarget, SimulateQuery, SimulationTarget,

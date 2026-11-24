@@ -75,6 +75,13 @@ pub(super) fn capability_status(capability: &str) -> Option<(bool, Vec<&'static 
 /// # Errors
 ///
 /// [`NotSupported`] in a release build when `capability` is not a supported unit.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "no entry point gates on a capability record; the support tests read it"
+    )
+)]
 pub(crate) fn require_capability_route(
     ctx: &ExecutionContext,
     capability: &'static str,
@@ -92,6 +99,7 @@ pub(crate) fn require_capability_route(
 /// # Errors
 ///
 /// [`NotSupported`] in a release build when `capability` is not a supported unit.
+#[allow(dead_code, reason = "no entry point gates on a capability record without a context")]
 pub(crate) fn require_capability_route_unscoped(
     capability: &'static str,
     route: &'static str,
@@ -103,6 +111,13 @@ pub(crate) fn require_capability_route_unscoped(
     )
 }
 
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "no entry point gates on a capability record; the support tests read it"
+    )
+)]
 fn capability_route_gate(
     capability: &'static str,
     route: &'static str,

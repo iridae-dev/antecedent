@@ -24,7 +24,6 @@ use antecedent_model::nonlinear_equilibrium::{Clamp, EquilibriumError};
 use antecedent_prob::metropolis::MetropolisOptions;
 use serde::{Deserialize, Serialize};
 
-use super::cyclic::gate_decision;
 use super::cyclic_action_world_decision::CyclicDecisionOutput;
 use super::cyclic_posterior_action_decision::{
     CompiledCyclicPosteriorDecision, CyclicPosteriorDecisionError, CyclicPosteriorDecisionRequest,
@@ -33,6 +32,7 @@ use super::cyclic_posterior_action_decision::{
 use super::propagation_chain_decision::{
     ChainDecisionResult, compile_action_world_chain_decision, consume_chain_decision,
 };
+use crate::analysis::cyclic::gate_decision;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceRole, EvidenceSourceRef, FunctionalKind,
     IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget,
@@ -84,7 +84,7 @@ pub enum CyclicTargetFeedbackError {
     /// A support-gate refusal of the route's unit (`gate_decision`) carries
     /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
     /// and reports the `cyclic_decision.not_supported` detail and the `not_supported` code.
-    #[error("{}: {0}", super::cyclic::decision_detail(.0))]
+    #[error("{}: {}", crate::analysis::cyclic::decision_detail(.0), .0)]
     Invalid(&'static str),
     /// The source cyclic posterior decision refused.
     #[error("cyclic target feedback source: {0}")]
@@ -103,7 +103,7 @@ impl CyclicTargetFeedbackError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::decision_detail(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::decision_detail(message)),
             _ => None,
         }
     }
@@ -112,7 +112,7 @@ impl CyclicTargetFeedbackError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::invalid_code(message)),
             _ => None,
         }
     }
@@ -358,7 +358,9 @@ pub fn compile_cyclic_target_feedback_decision(
     Ok(plan)
 }
 
-impl super::program_handle::CompiledProgramHandle for CompiledCyclicTargetFeedbackDecision {
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledCyclicTargetFeedbackDecision
+{
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -771,7 +773,7 @@ pub(crate) mod tests {
         assert_eq!(plan.plan_view().route().as_str(), "CyclicTargetFeedbackDecision");
         // The program reports the decision of the unit its route is bound to, and the plan view
         // reads the same decision.
-        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let handle: &dyn crate::analysis::program_handle::CompiledProgramHandle = &plan;
         let decision = handle.support();
         assert_eq!(
             plan.plan_view().unit_support().map(|unit| unit.status()),
@@ -779,8 +781,8 @@ pub(crate) mod tests {
         );
         // The decision gate is inert until it is switched on; once on, it consults the same
         // decision, so a development build records the would-refuse of an unsupported unit.
-        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
         }
         let scope = plan.decision_reliability_scope().unwrap();
         let mut replicate = request.clone();

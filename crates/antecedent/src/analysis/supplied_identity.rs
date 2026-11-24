@@ -74,6 +74,7 @@ impl Declaration {
     }
 
     /// Whether a runtime callback is bound.
+    #[cfg_attr(not(test), allow(dead_code, reason = "read by the identity tests"))]
     pub(crate) const fn has_callback(&self) -> bool {
         self.writer.has_runtime_callback()
     }
@@ -123,7 +124,7 @@ impl<T: serde::Serialize> Canonical for Wire<'_, T> {
 }
 
 /// An enum variant: its tag, then its fields.
-pub(crate) fn variant(out: &mut CanonicalWriter, tag: &str) -> &mut CanonicalWriter {
+pub(crate) fn variant<'w>(out: &'w mut CanonicalWriter, tag: &str) -> &'w mut CanonicalWriter {
     out.text(tag)
 }
 
@@ -237,7 +238,7 @@ impl Canonical for SupportStatus {
 
 impl Canonical for ScientificQuantity {
     fn encode(&self, out: &mut CanonicalWriter) {
-        Wire(self).encode(out);
+        Wire(&antecedent_io_core::quantity_wire::ScientificQuantityWire::from(self)).encode(out);
     }
 }
 

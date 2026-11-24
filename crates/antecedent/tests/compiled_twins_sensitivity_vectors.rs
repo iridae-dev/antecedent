@@ -92,7 +92,7 @@ impl Stream {
     }
 }
 
-fn dag(variables: usize, edges: &[(u32, u32)]) -> Dag {
+fn dag(variables: u32, edges: &[(u32, u32)]) -> Dag {
     let mut graph = Dag::with_variables(variables);
     for &(a, b) in edges {
         graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();

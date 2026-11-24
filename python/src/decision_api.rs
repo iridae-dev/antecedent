@@ -80,7 +80,7 @@ fn decision_context() -> ExecutionContext {
 /// Evaluate `contract` on `source` through its compiled program. The outer error is the
 /// compiler's refusal, raised; the inner one is the evaluator's, returned as a refusal.
 fn evaluate_compiled_contract(
-    contract: antecedent::design::decision_contract::DecisionContract,
+    contract: antecedent::analysis::inverse_query::DecisionContract,
     source: ContractSource,
 ) -> PyResult<Result<DecisionResult, DecisionEvalError>> {
     let ctx = decision_context();

@@ -72,7 +72,7 @@ impl CompiledGraphFalsification {
 }
 
 fn refuse(message: &str) -> CausalError {
-    crate::unsupported_reason!("option_not_applicable", "graph falsification {message}")
+    crate::compile_reason!("option_not_applicable", "graph falsification {message}")
 }
 
 impl PreparedStudy {

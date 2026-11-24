@@ -106,7 +106,7 @@ impl CompiledModelOperation {
 }
 
 fn refuse(message: &str) -> CausalError {
-    crate::unsupported_reason!("option_not_applicable", "a fitted-model operation {message}")
+    crate::compile_reason!("option_not_applicable", "a fitted-model operation {message}")
 }
 
 impl PreparedStudy {

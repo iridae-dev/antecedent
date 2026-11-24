@@ -40,12 +40,12 @@ use antecedent_model::nonlinear_equilibrium::{
 use antecedent_prob::metropolis::MetropolisOptions;
 use serde::{Deserialize, Serialize};
 
-use super::cyclic::gate_decision;
 use super::cyclic_action_world_decision::CyclicDecisionOutput;
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
 };
+use crate::analysis::cyclic::gate_decision;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -98,7 +98,7 @@ pub enum CyclicPosteriorDecisionError {
     /// A support-gate refusal of the route's unit (`gate_decision`) carries
     /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
     /// and reports the `cyclic_decision.not_supported` detail and the `not_supported` code.
-    #[error("{}: {0}", super::cyclic::decision_detail(.0))]
+    #[error("{}: {}", crate::analysis::cyclic::decision_detail(.0), .0)]
     Invalid(&'static str),
     /// Cyclic model, posterior likelihood or equilibrium refusal.
     #[error("cyclic posterior decision model: {0}")]
@@ -120,7 +120,7 @@ impl CyclicPosteriorDecisionError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::decision_detail(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::decision_detail(message)),
             _ => None,
         }
     }
@@ -129,7 +129,7 @@ impl CyclicPosteriorDecisionError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::invalid_code(message)),
             _ => None,
         }
     }
@@ -432,7 +432,7 @@ fn compile_cyclic_posterior_action_decision_checked(
     Ok(plan)
 }
 
-impl super::program_handle::CompiledProgramHandle for CompiledCyclicPosteriorDecision {
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledCyclicPosteriorDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -1025,7 +1025,7 @@ mod tests {
         assert_eq!(plan.plan_view().route().as_str(), "CyclicPosteriorActionDecision");
         // The program reports the decision of the unit its route is bound to, and the plan view
         // reads the same decision.
-        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let handle: &dyn crate::analysis::program_handle::CompiledProgramHandle = &plan;
         let decision = handle.support();
         assert_eq!(
             plan.plan_view().unit_support().map(|unit| unit.status()),
@@ -1033,8 +1033,8 @@ mod tests {
         );
         // The decision gate is inert until it is switched on; once on, it consults the same
         // decision, so a development build records the would-refuse of an unsupported unit.
-        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
         }
         let result = plan.execute(&ctx).expect("joint fitted predictive worlds");
         assert!(result.posterior.diagnostics_pass);

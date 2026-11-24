@@ -31,6 +31,7 @@ use antecedent::discovery::{
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent::{CompiledExecution, DiscoveredStructure, DiscoverySpec, Study};
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+use antecedent_data::TableView;
 use antecedent_data::{
     MultiEnvironmentData, SamplingRegularity, TabularData, TimeIndex, TimeSeriesData,
 };

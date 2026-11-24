@@ -22,8 +22,8 @@ use antecedent_model::nonlinear_equilibrium::{
     Activation, Clamp, Equation, EquilibriumModel, SolvePolicy,
 };
 
-use super::cyclic::{CyclicPreparedState, gate_decision};
 use super::{PreparedStudy, Study};
+use crate::analysis::cyclic::{CyclicPreparedState, gate_decision};
 use crate::planner::lowered::{
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
     NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
@@ -798,7 +798,7 @@ pub enum JointComponentPosteriorError {
     /// A support-gate refusal of the route's unit (`gate_decision`) carries
     /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
     /// and reports the `cyclic_component.not_supported` detail and the `not_supported` code.
-    #[error("{}: {0}", super::cyclic::component_detail(.0))]
+    #[error("{}: {}", crate::analysis::cyclic::component_detail(.0), .0)]
     Invalid(&'static str),
 }
 
@@ -808,7 +808,7 @@ impl JointComponentPosteriorError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::component_detail(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::component_detail(message)),
             _ => None,
         }
     }
@@ -817,7 +817,7 @@ impl JointComponentPosteriorError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::invalid_code(message)),
             _ => None,
         }
     }
@@ -1018,7 +1018,9 @@ pub fn compile_joint_component_posterior_decision(
     Ok(plan)
 }
 
-impl super::program_handle::CompiledProgramHandle for CompiledJointComponentPosteriorDecision {
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledJointComponentPosteriorDecision
+{
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -1473,7 +1475,7 @@ pub fn compile_joint_vector_component_posterior_decision(
     Ok(plan)
 }
 
-impl super::program_handle::CompiledProgramHandle
+impl crate::analysis::program_handle::CompiledProgramHandle
     for CompiledJointVectorComponentPosteriorDecision
 {
     fn program(&self) -> &Arc<LoweredProgram> {
@@ -1752,7 +1754,9 @@ pub fn compile_bounded_component_posterior_decision(
     Ok(CompiledBoundedComponentPosteriorDecision { inner, quantities, contract, lowered })
 }
 
-impl super::program_handle::CompiledProgramHandle for CompiledBoundedComponentPosteriorDecision {
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledBoundedComponentPosteriorDecision
+{
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }

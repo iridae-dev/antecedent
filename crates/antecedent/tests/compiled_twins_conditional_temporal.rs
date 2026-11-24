@@ -33,6 +33,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, Lag,
     MediationContrast, MediationQuery, OutcomeFunctional, StreamDomain, VariableId,
 };
+use antecedent_data::TableView;
 use antecedent_data::{
     LaggedColumn, MissingDeclaration, MissingPolicy, TabularData, TimeSeriesData,
 };

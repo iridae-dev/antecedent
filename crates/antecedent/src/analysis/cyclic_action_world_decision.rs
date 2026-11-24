@@ -31,12 +31,12 @@ use antecedent_io::propagation_chain_record::{
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
-use super::cyclic::{CyclicPreparedState, gate_decision};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
 };
 use super::{PreparedStudy, Study};
+use crate::analysis::cyclic::{CyclicPreparedState, gate_decision};
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceRole, EvidenceSourceRef,
     FunctionalKind, LoweredProgram, ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts,
@@ -68,7 +68,7 @@ pub enum CyclicActionDecisionError {
     /// A support-gate refusal of the route's unit (`gate_decision`) carries
     /// the gate's `reason=not_supported: …` message here and keeps that class: it displays
     /// and reports the `cyclic_decision.not_supported` detail and the `not_supported` code.
-    #[error("{}: {0}", super::cyclic::decision_detail(.0))]
+    #[error("{}: {}", crate::analysis::cyclic::decision_detail(.0), .0)]
     Invalid(&'static str),
     /// A cyclic model or solve was refused.
     #[error("cyclic action decision source: {0}")]
@@ -90,7 +90,7 @@ impl CyclicActionDecisionError {
     #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::decision_detail(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::decision_detail(message)),
             _ => None,
         }
     }
@@ -99,7 +99,7 @@ impl CyclicActionDecisionError {
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {
-            Self::Invalid(message) => Some(super::cyclic::invalid_code(message)),
+            Self::Invalid(message) => Some(crate::analysis::cyclic::invalid_code(message)),
             _ => None,
         }
     }
@@ -276,7 +276,7 @@ pub fn compile_cyclic_action_world_decision(
     Ok(plan)
 }
 
-impl super::program_handle::CompiledProgramHandle for CompiledCyclicActionDecision {
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledCyclicActionDecision {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered
     }
@@ -584,7 +584,7 @@ mod tests {
         assert_eq!(plan.plan_view().route().as_str(), "CyclicActionWorldDecision");
         // The program reports the decision of the unit its route is bound to, and the plan view
         // reads the same decision.
-        let handle: &dyn super::program_handle::CompiledProgramHandle = &plan;
+        let handle: &dyn crate::analysis::program_handle::CompiledProgramHandle = &plan;
         let decision = handle.support();
         assert_eq!(
             plan.plan_view().unit_support().map(|unit| unit.status()),
@@ -592,8 +592,8 @@ mod tests {
         );
         // The decision gate is inert until it is switched on; once on, it consults the same
         // decision, so a development build records the would-refuse of an unsupported unit.
-        if !super::cyclic::COMPILED_DECISION_GATE_LIVE {
-            assert!(super::cyclic::gate_decision(&ctx, &plan).is_ok());
+        if !crate::analysis::cyclic::COMPILED_DECISION_GATE_LIVE {
+            assert!(crate::analysis::cyclic::gate_decision(&ctx, &plan).is_ok());
         }
         let result = plan.execute(&ctx).expect("paired model-derived worlds");
         assert_eq!(result.decision.decision.n_draws, 4);

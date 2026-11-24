@@ -72,7 +72,6 @@ use antecedent_design::{
 };
 use antecedent_graph::Admg;
 use antecedent_identify::IdentificationResult;
-use antecedent_io_core::distribution_artifact::DistributionTrust;
 use antecedent_io_core::prior_bank::{PriorArtifactBody, PriorSourceRef};
 use antecedent_io_core::{PriorCatalog, TargetDesign};
 

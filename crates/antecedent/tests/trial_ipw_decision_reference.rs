@@ -14,7 +14,8 @@
 use std::sync::Arc;
 
 use antecedent::analysis::trial_ipw_predictive_decision::{
-    TrialIpwPredictiveDecisionRequest, compile_trial_ipw_predictive_decision,
+    TrialIpwPredictiveDecisionRequest, TrialIpwRows as PredictiveRows,
+    compile_trial_ipw_predictive_decision,
 };
 use antecedent::analysis::trial_ipw_transport_decision::{
     TrialIpwRows, TrialIpwTransportDecisionRequest, compile_trial_ipw_transport_decision,
@@ -82,6 +83,30 @@ fn rows(outcomes: Vec<f64>, selection: f64, assignment: f64) -> TrialIpwRows {
         treatment_probability: vec![assignment; n],
         draws: DRAWS,
         seed: 31,
+    }
+}
+
+/// The same rows in the predictive family's own row type.
+fn predictive_rows(outcomes: Vec<f64>, selection: f64, assignment: f64) -> PredictiveRows {
+    let TrialIpwRows {
+        unit_ids,
+        outcomes,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        draws,
+        seed,
+    } = rows(outcomes, selection, assignment);
+    PredictiveRows {
+        unit_ids,
+        outcomes,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        draws,
+        seed,
     }
 }
 
@@ -229,7 +254,7 @@ fn the_predictive_worlds_are_the_arm_empirical_laws_and_independent_given_the_de
     let request = TrialIpwPredictiveDecisionRequest {
         diagram,
         query,
-        rows: rows(outcomes, 0.3, 0.6),
+        rows: predictive_rows(outcomes, 0.3, 0.6),
         worlds,
         decision,
         independent_potential_outcomes_given_mass: true,
@@ -327,7 +352,7 @@ fn both_trial_ipw_routes_report_and_consult_their_support_unit() {
     let plan = compile_trial_ipw_predictive_decision(TrialIpwPredictiveDecisionRequest {
         diagram,
         query,
-        rows: rows(outcomes, 0.3, 0.6),
+        rows: predictive_rows(outcomes, 0.3, 0.6),
         worlds,
         decision,
         independent_potential_outcomes_given_mass: true,
