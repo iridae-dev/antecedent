@@ -877,15 +877,19 @@ impl PreparedStudy {
     /// ([`crate::planner::lowered::LoweredProgram::with_decision`]), so the handle executes
     /// what it prepared with the decision beside it. Either way every result the handle
     /// produces reports the identity of the program its plan holds, which is never the
-    /// ordinary program without the decision.
+    /// ordinary program without the decision. The handle's retained operation was sealed to
+    /// the program it prepared, so it is sealed again to the decision program: deferred for
+    /// a handle not yet materialized, and for a materialized one rebound from its own
+    /// operation as a rebound branch is.
     ///
     /// # Errors
     /// `route_not_lowered` when this handle carries no lowered program, when `compiled`
-    /// carries no decision, or when the handle's own program already carries one; a failure
-    /// to seal the handle's inspection metadata.
+    /// carries no decision, or when the handle's own program already carries one; a refusal
+    /// of the sealing; a failure to seal the handle's inspection metadata.
     pub(crate) fn executing_decision(
         &self,
         compiled: &Arc<crate::planner::lowered::LoweredProgram>,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let own = self.plan.require_lowered(None)?;
         let program = if compiled.decides_over(own) {
@@ -908,6 +912,34 @@ impl PreparedStudy {
         plan.lowered = Some(program);
         let mut ready = self.clone();
         ready.plan = Arc::new(plan);
+        ready.execution = antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || {
+                let mut source = self.analysis.clone();
+                if crate::analysis::functional_validation::requested(&source) {
+                    source.settings.refute = crate::analysis::builder::RefuteSuite::None;
+                }
+                let counterfactual = source.compile_counterfactual()?;
+                let nested_counterfactual = source.compile_nested_counterfactual()?;
+                let binding = ready.plan.binding();
+                let seal_context = SealContext {
+                    source: &source,
+                    analysis: &source,
+                    plan: &ready.plan,
+                    binding: &binding,
+                    ctx,
+                    route: source.route_input_classified(),
+                    counterfactual: counterfactual.as_ref(),
+                    nested_counterfactual: nested_counterfactual.as_ref(),
+                    previous: self.materialized.then_some(&self.execution),
+                };
+                if self.materialized {
+                    seal_execution(&seal_context)
+                } else {
+                    seal_deferred_execution(&seal_context)
+                }
+            },
+        )?;
         ready.program_cache = std::sync::OnceLock::new();
         ready.contract_cache = std::sync::OnceLock::new();
         ready.inspection_header = std::sync::OnceLock::new();

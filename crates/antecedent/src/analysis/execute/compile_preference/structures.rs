@@ -205,7 +205,7 @@ pub(super) fn compile_structure(
             Err(error) => return Err(error.into()),
         },
     };
-    let runner = handle.executing_decision(program)?;
+    let runner = handle.executing_decision(program, ctx)?;
     let view = PlanView::of_plan(
         runner.plan(),
         PlanStage::Compiled,
