@@ -4,13 +4,18 @@
 //! artifact are Rust's (`antecedent::estimate::measurement::measured_exposure` and
 //! `antecedent::measured_exposure`). Python states the declaration as JSON, runs its own
 //! per-draw study lifecycle on the completed columns and hands the per-draw estimates back
-//! for pooling; a refusal comes back as structured JSON.
+//! for pooling; a refusal comes back as structured JSON. The imputation and the pooling run
+//! through their compiled program families
+//! (`antecedent::analysis::kernel_programs::measured_exposure_effect`), which pass the support
+//! gate of their unit and then make the same kernel call.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::Study;
+use antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns;
 use antecedent::estimate::measurement::{
     DetectionFunctionDeclaration, ExposureDraws, ExposureErrorDeclaration, ExposureMeasurement,
-    ImputationData, MeasurementError, RatePair, impute_exposure, pool_measured_effect,
+    MeasurementError, RatePair,
 };
 use antecedent::measured_exposure::{consume_exposure_draws, export_exposure_draws};
 use pyo3::prelude::*;
@@ -197,10 +202,10 @@ fn measured_exposure_impute(declaration_json: &str) -> PyResult<Outcome> {
     let draws = index(map, "draws")?;
     let seed = unsigned(map, "seed")?;
     let ctx = execution_context(seed, None, None);
-    let data = ImputationData { outcome: &outcome, covariates: &covariates, covariate_count };
-    Ok(finish(
-        impute_exposure(&declaration, &data, draws, seed, &ctx).map(|draws| draws_json(&draws)),
-    ))
+    let columns = ImputationColumns { outcome, covariates, covariate_count };
+    let compiled = Study::compile_exposure_imputation(declaration, columns, draws, seed, &ctx)
+        .map_err(crate::py_err)?;
+    Ok(finish(compiled.impute(&ctx).map(|draws| draws_json(&draws))))
 }
 
 /// The identity of a declaration, without imputing.
@@ -225,7 +230,10 @@ fn measured_exposure_pool(pool_json: &str) -> PyResult<Outcome> {
     if !(level > 0.0 && level < 1.0) {
         return Err(crate::value_err("level must lie strictly between 0 and 1"));
     }
-    Ok(finish(pool_measured_effect(&points, &variances, None).map(|effect| {
+    let ctx = execution_context(0, None, None);
+    let compiled = Study::compile_measured_effect_pool(points, variances, None, &ctx)
+        .map_err(crate::py_err)?;
+    Ok(finish(compiled.pool(&ctx).map(|effect| {
         let (lower, upper) = effect.interval(level);
         json!({
             "estimate": effect.pooled.point,

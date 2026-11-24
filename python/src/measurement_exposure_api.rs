@@ -4,20 +4,25 @@
 //! them as JSON. Every check, correction and refusal is Rust's
 //! (`antecedent::estimate::measurement::exposure_routes`): a refusal comes back as structured
 //! JSON for the Python layer to raise as its own typed exception, and a malformed declaration
-//! that never reached the checks is an input error.
+//! that never reached the checks is an input error. The misclassification correction, the
+//! soft-exposure effect, the detection-dependent prevalence and the repeat-coding fit run
+//! through their compiled program families
+//! (`antecedent::analysis::kernel_programs::exposure_measurement`), which pass the support gate
+//! of their unit and then make the same kernel call.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::Study;
+use antecedent::analysis::kernel_programs::exposure_measurement::{
+    DetectionColumns, RepeatCodings, SoftExposureColumns, SoftExposureMethod,
+};
 use antecedent::estimate::measurement::{
-    DeclaredEstimate, MeasurementError, SoftExposureCombination,
-    correct_detection_dependent_prevalence, correct_exposure_misclassification,
-    correct_soft_exposure_effect, fit_repeat_codings, soft_exposure_reliability_report,
+    DeclaredEstimate, MeasurementError, soft_exposure_reliability_report,
 };
 use antecedent::inference::measurement_error::{
-    BinaryErrorRates, DetectionAdjusted, DetectionAnchor, DetectionData, DetectionDeclaration,
-    DetectionDirection, DetectionFunction, ExposureErrorStructure, ExposureOutcomeCounts,
-    FalsePositiveRate, LatentClassConstraints, LatentClassData, LatentClassSettings,
-    SoftExposureData, exposure_rates_from_validation,
+    BinaryErrorRates, DetectionAdjusted, DetectionAnchor, DetectionDeclaration, DetectionDirection,
+    DetectionFunction, ExposureErrorStructure, ExposureOutcomeCounts, FalsePositiveRate,
+    LatentClassConstraints, LatentClassSettings, exposure_rates_from_validation,
 };
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
@@ -141,27 +146,27 @@ fn measurement_exposure_misclassification(declaration_json: &str) -> PyResult<Ou
     let min_youden = real(map, "min_youden")?;
     let level = level_of(map)?;
     let ctx = execution_context(0, None, None);
-    Ok(finish(correct_exposure_misclassification(&counts, &structure, min_youden, &ctx).and_then(
-        |fit| {
-            let a = &fit.association;
-            Ok(json!({
-                "observed_prevalence_cases": a.observed_prevalence_cases,
-                "observed_prevalence_controls": a.observed_prevalence_controls,
-                "prevalence_cases": a.prevalence_cases,
-                "prevalence_controls": a.prevalence_controls,
-                "naive_log_odds_ratio": a.naive_log_odds_ratio,
-                "log_odds_ratio": a.log_odds_ratio,
-                "odds_ratio": a.odds_ratio,
-                "variance": a.variance,
-                "variance_sampling": a.variance_sampling,
-                "variance_rates": a.variance_rates,
-                "youden_cases": a.youden_cases,
-                "youden_controls": a.youden_controls,
-                "differential": a.differential,
-                "estimate": estimate_json(&fit.estimate, level)?,
-            }))
-        },
-    )))
+    let compiled = Study::compile_exposure_misclassification(counts, structure, min_youden, &ctx)
+        .map_err(crate::py_err)?;
+    Ok(finish(compiled.correct(&ctx).and_then(|fit| {
+        let a = &fit.association;
+        Ok(json!({
+            "observed_prevalence_cases": a.observed_prevalence_cases,
+            "observed_prevalence_controls": a.observed_prevalence_controls,
+            "prevalence_cases": a.prevalence_cases,
+            "prevalence_controls": a.prevalence_controls,
+            "naive_log_odds_ratio": a.naive_log_odds_ratio,
+            "log_odds_ratio": a.log_odds_ratio,
+            "odds_ratio": a.odds_ratio,
+            "variance": a.variance,
+            "variance_sampling": a.variance_sampling,
+            "variance_rates": a.variance_rates,
+            "youden_cases": a.youden_cases,
+            "youden_controls": a.youden_controls,
+            "differential": a.differential,
+            "estimate": estimate_json(&fit.estimate, level)?,
+        }))
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -180,30 +185,23 @@ fn measurement_soft_exposure(declaration_json: &str) -> PyResult<Outcome> {
     let level = level_of(map)?;
     let method = object(member(map, "method")?, "method")?;
     let kind = text(method, "kind")?;
-    let supplied;
     let combination = match kind.as_str() {
-        "posterior_mean" => SoftExposureCombination::PosteriorMean,
-        "multiple_imputation" => SoftExposureCombination::MultipleImputation {
+        "posterior_mean" => SoftExposureMethod::PosteriorMean,
+        "multiple_imputation" => SoftExposureMethod::MultipleImputation {
             draw_count: index(method, "draw_count")?,
             seed: unsigned(method, "seed")?,
         },
-        "supplied_draws" => {
-            supplied = reals(method, "draws")?;
-            SoftExposureCombination::SuppliedDraws {
-                draws: &supplied,
-                draw_count: index(method, "draw_count")?,
-            }
-        }
+        "supplied_draws" => SoftExposureMethod::SuppliedDraws {
+            draws: reals(method, "draws")?,
+            draw_count: index(method, "draw_count")?,
+        },
         other => return Err(crate::value_err(format!("unknown soft-exposure method `{other}`"))),
     };
-    let data = SoftExposureData {
-        outcome: &outcome,
-        probability: &probability,
-        covariates: &covariates,
-        covariate_count,
-    };
+    let columns = SoftExposureColumns { outcome, probability, covariates, covariate_count };
     let ctx = execution_context(0, None, None);
-    Ok(finish(correct_soft_exposure_effect(&data, &combination, &ctx).and_then(|effect| {
+    let compiled =
+        Study::compile_soft_exposure_effect(columns, combination, &ctx).map_err(crate::py_err)?;
+    Ok(finish(compiled.correct(&ctx).and_then(|effect| {
         let substitution = effect.substitution.as_ref().map(|s| {
             json!({
                 "mean_posterior_variance": s.mean_posterior_variance,
@@ -371,40 +369,39 @@ fn measurement_detection_dependent(declaration_json: &str) -> PyResult<Outcome> 
     };
     let floor = real(map, "min_net_detection")?;
     let level = level_of(map)?;
-    let data = DetectionData { detected: &detected, covariate: &covariate };
+    let columns = DetectionColumns { detected, covariate };
     let ctx = execution_context(0, None, None);
-    Ok(finish(
-        correct_detection_dependent_prevalence(&data, &declaration, &fp, floor, &ctx).and_then(
-            |result| match result.adjusted {
-                DetectionAdjusted::Point(p) => Ok(json!({
-                    "kind": "point",
-                    "units": p.units,
-                    "observed_rate": p.observed_rate,
-                    "mean_detection": p.mean_detection,
-                    "prevalence": p.prevalence,
-                    "variance": p.variance,
-                    "variance_sampling": p.variance_sampling,
-                    "variance_parameters": p.variance_parameters,
-                    "outside_unit_interval": p.outside_unit_interval,
-                    "estimate": match &result.estimate {
-                        Some(estimate) => estimate_json(estimate, level)?,
-                        None => Json::Null,
-                    },
-                })),
-                DetectionAdjusted::Bounds(b) => Ok(json!({
-                    "kind": "bounds",
-                    "units": b.units,
-                    "observed_rate": b.observed_rate,
-                    "mean_detection_lower": b.mean_detection_lower,
-                    "mean_detection_upper": b.mean_detection_upper,
-                    "lower": b.lower,
-                    "upper": b.upper,
-                    "lower_standard_error": b.lower_standard_error,
-                    "upper_standard_error": b.upper_standard_error,
-                })),
+    let compiled =
+        Study::compile_detection_dependent_prevalence(columns, declaration, fp, floor, &ctx)
+            .map_err(crate::py_err)?;
+    Ok(finish(compiled.correct(&ctx).and_then(|result| match result.adjusted {
+        DetectionAdjusted::Point(p) => Ok(json!({
+            "kind": "point",
+            "units": p.units,
+            "observed_rate": p.observed_rate,
+            "mean_detection": p.mean_detection,
+            "prevalence": p.prevalence,
+            "variance": p.variance,
+            "variance_sampling": p.variance_sampling,
+            "variance_parameters": p.variance_parameters,
+            "outside_unit_interval": p.outside_unit_interval,
+            "estimate": match &result.estimate {
+                Some(estimate) => estimate_json(estimate, level)?,
+                None => Json::Null,
             },
-        ),
-    ))
+        })),
+        DetectionAdjusted::Bounds(b) => Ok(json!({
+            "kind": "bounds",
+            "units": b.units,
+            "observed_rate": b.observed_rate,
+            "mean_detection_lower": b.mean_detection_lower,
+            "mean_detection_upper": b.mean_detection_upper,
+            "lower": b.lower,
+            "upper": b.upper,
+            "lower_standard_error": b.lower_standard_error,
+            "upper_standard_error": b.upper_standard_error,
+        })),
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -457,11 +454,12 @@ fn measurement_repeat_codings(declaration_json: &str) -> PyResult<Outcome> {
         },
         seed: if present(map, "seed").is_some() { unsigned(map, "seed")? } else { defaults.seed },
     };
-    let data =
-        LatentClassData { codings: &codings, units, coding_count, categories, latent_levels };
+    let codings = RepeatCodings { codings, units, coding_count, categories, latent_levels };
     let constraints = LatentClassConstraints { exchangeable, lowest_level };
     let ctx = execution_context(0, None, None);
-    Ok(finish(fit_repeat_codings(&data, &constraints, &settings, &ctx).map(|fit| {
+    let compiled = Study::compile_repeat_codings(codings, constraints, settings, &ctx)
+        .map_err(crate::py_err)?;
+    Ok(finish(compiled.fit(&ctx).map(|fit| {
         let errors = fit.standard_errors.as_ref();
         json!({
             "latent_levels": fit.latent_levels,
