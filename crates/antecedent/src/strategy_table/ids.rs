@@ -468,17 +468,6 @@ pub enum EstimatorId {
     RandomizedIpwPolicy,
     /// Fixed multi-action policy IPW value under known randomized action probabilities.
     RandomizedMultiActionIpwPolicy,
-    /// Fixed binary policy value read as the point-only evaluator reads it: the
-    /// inverse-probability value minus the mean assigned cost, with the IPW row-score standard
-    /// errors and pointwise intervals around it.
-    RandomizedIpwPolicyNet,
-    /// Fixed multi-action policy value read as the point-only evaluator reads it: the
-    /// inverse-probability value minus the mean assigned cost, with the multi-action IPW
-    /// row-score standard errors and pointwise intervals around it.
-    RandomizedMultiActionIpwPolicyNet,
-    /// Horvitz-Thompson 2x2 main effects and interaction over a four-cell multi-arm design
-    /// assigned independently by row, with Young-inequality variance bounds.
-    RandomizedFactorialBernoulliHt,
     /// Randomized product-limit survival/RMST or competing-risk incidence.
     RandomizedSurvivalProductLimit,
     /// Prespecified sequential inverse-probability regime value.
@@ -568,6 +557,17 @@ pub enum EstimatorId {
     BayesianIvBounds,
     /// Bernoulli ITT residualized by the pooled slope of a declared pre-assignment covariate.
     RandomizedEstimatedCupedHt,
+    /// Fixed binary policy value read as the point-only evaluator reads it: the
+    /// inverse-probability value minus the mean assigned cost, with the IPW row-score standard
+    /// errors and pointwise intervals around it.
+    RandomizedIpwPolicyNet,
+    /// Fixed multi-action policy value read as the point-only evaluator reads it: the
+    /// inverse-probability value minus the mean assigned cost, with the multi-action IPW
+    /// row-score standard errors and pointwise intervals around it.
+    RandomizedMultiActionIpwPolicyNet,
+    /// Horvitz-Thompson 2x2 main effects and interaction over a four-cell multi-arm design
+    /// assigned independently by row, with Young-inequality variance bounds.
+    RandomizedFactorialBernoulliHt,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
