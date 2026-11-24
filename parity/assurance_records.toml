@@ -225,8 +225,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "0828208c07532d96863fdbe682fd48a8921d5d5ef6341be2fe9c4884f9d136b3"
-checked_commit = "7dae9c72947fc02da71dd9ec1f6fcfb1ab74e8b5"
+inputs_digest = "9b932266e045f3093f15043b9cdced7ba90dfddb137dbb5a4e969753ca9c37b5"
+checked_commit = "7ec9ea9c4f010b848ef4d4dab2b10d9467ad909c"
 
 [[records]]
 id = "contract.transformations_keep_obligations"
@@ -550,8 +550,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "9a24aefc29d3a0b4903e94c4ed1a44a1846bba3ba84e83e0b6e2dcd431688916"
-checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
+inputs_digest = "5f47671a56f889de4579e53e1cf3d3f89cc232f4512da5fa92fbcf03f8210ffa"
+checked_commit = "7ec9ea9c4f010b848ef4d4dab2b10d9467ad909c"
 
 [[records]]
 id = "revalidation.raised_only_by_recomputation"
@@ -689,8 +689,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = ""
-checked_commit = ""
+inputs_digest = "1d9e1fb37ebdadff2dbcd95a9df6e253de30e581b70d2cc400063a3ca8c2a7ce"
+checked_commit = "7ec9ea9c4f010b848ef4d4dab2b10d9467ad909c"
 
 [[records]]
 id = "support.summary_never_better_than_label"
@@ -766,8 +766,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = ""
-checked_commit = ""
+inputs_digest = "01f7a8e045f1e6d71d7b627f0f53ed29a9b91a7cb7c629d1abdeea217471e9e5"
+checked_commit = "7ec9ea9c4f010b848ef4d4dab2b10d9467ad909c"
 
 [[records]]
 id = "acceptance.retained_artifact"
@@ -1324,5 +1324,5 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
-checked_commit = "0000000000000000000000000000000000000000"
+inputs_digest = "e68790a2b8b6fe046c6fc686f0d1a9ea44df0afd7fd8e9fd6cf6a500fe1015ea"
+checked_commit = "7ec9ea9c4f010b848ef4d4dab2b10d9467ad909c"
