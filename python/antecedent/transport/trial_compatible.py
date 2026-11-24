@@ -34,7 +34,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from .. import _native
+from .. import _deprecation, _native
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -71,8 +71,11 @@ __all__ = [
     "TrialCompatibleEstimate",
     "TrialConfidenceSet",
     "VerifiedTrialEstimate",
+    "analyze_trial_compatible_discovered_transport",
+    "analyze_trial_compatible_transport_confidence_set",
     "estimate_trial_compatible_discovered_transport",
     "estimate_trial_compatible_transport_confidence_set",
+    "replay_trial_compatible_transport_confidence_set",
     "verify_trial_compatible_transport_confidence_set_against",
     "verify_trial_compatible_transport_estimate",
 ]
@@ -353,7 +356,15 @@ def estimate_trial_compatible_discovered_transport(
             type.
         CausalValueError: ``alpha`` is not strictly between 0 and 1, or a variable name is not
             in the contract.
+
+    Deprecated: :func:`analyze_trial_compatible_discovered_transport` takes the same arguments
+    and returns the identical estimate through the compiled ``DiscoveredClassTransport``
+    program.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.trial_compatible.estimate_trial_compatible_discovered_transport",
+        "antecedent.transport.trial_compatible.analyze_trial_compatible_discovered_transport(...)",
+    )
     names, request = _common(
         contract,
         source,
@@ -512,7 +523,16 @@ def estimate_trial_compatible_transport_confidence_set(
         CausalValueError: ``alpha`` is not strictly between 0 and 1, the support bounds are not
             finite with ``support_lower < support_upper``, or a variable name is not in the
             contract.
+
+    Deprecated: :func:`analyze_trial_compatible_transport_confidence_set` takes the same
+    arguments and returns the identical set through the compiled ``DiscoveredClassTransport``
+    program.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.trial_compatible.estimate_trial_compatible_transport_confidence_set",
+        "antecedent.transport.trial_compatible."
+        "analyze_trial_compatible_transport_confidence_set(...)",
+    )
     lower, upper = _check_support(support_lower, support_upper)
     names, request = _common(
         contract,
@@ -593,7 +613,16 @@ def verify_trial_compatible_transport_confidence_set_against(
 
     Raises:
         DiscoveredTransportRefusal: the receipt does not replay against the supplied inputs.
+
+    Deprecated: :func:`replay_trial_compatible_transport_confidence_set` takes the same
+    arguments and returns the identical recomputed set through the compiled
+    ``DiscoveredClassTransport`` program.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.trial_compatible."
+        "verify_trial_compatible_transport_confidence_set_against",
+        "antecedent.transport.trial_compatible.replay_trial_compatible_transport_confidence_set(...)",
+    )
     receipt = container_bytes(receipt)
     if not isinstance(receipt, (bytes, bytearray)):
         raise CausalTypeError("receipt must be bytes")
@@ -636,3 +665,231 @@ def verify_trial_compatible_transport_confidence_set_against(
     _raise_transport(refusal, names, outcome=found, report=report)
     assert body is not None and artifact is not None
     return _set_of(body, bytes(artifact), found, report)
+
+
+def _compiled(
+    stage: str,
+    names: Sequence[str],
+    request: Mapping[str, Any],
+    execution: Execution | None,
+    **settings: Any,
+) -> tuple[str, bytes, Outcome, RunReport]:
+    """Run ``stage`` through the compiled ``DiscoveredClassTransport`` program.
+
+    The class is searched on ``discovery`` when it was supplied and on ``source`` otherwise, as
+    in the direct entries. A refusal of the transport request or of the stage raises
+    :class:`DiscoveredTransportRefusal` with the discovery attached; a refusal of the search is
+    the compiler's error.
+    """
+    discovery = request["discovery_columns"]
+    body, refusal, discovery_text, _program, artifact = call_native(
+        execution,
+        _native.discovered_class_transport_compiled,
+        stage,
+        request["contract_json"],
+        request["names"],
+        request["source_columns"] if discovery is None else discovery,
+        request["query_json"],
+        request["selection_targets"],
+        request["member_bound"],
+        source_columns=request["source_columns"],
+        target_columns=request["target_columns"],
+        bootstrap_replicates=request["bootstrap_replicates"],
+        cancel="cancel",
+        memory=None,
+        threads="threads",
+        **settings,
+    )
+    found, report = _found(discovery_text, None, names)
+    _raise_transport(refusal, names, outcome=found, report=report)
+    assert body is not None and artifact is not None
+    return body, bytes(artifact), found, report
+
+
+def analyze_trial_compatible_discovered_transport(
+    contract: StaticContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    grid: Sequence[float],
+    selection_targets: Sequence[str],
+    alpha: float,
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 0,
+    discovery: Mapping[str, Any] | None = None,
+    execution: Execution | None = None,
+) -> TrialCompatibleEstimate:
+    """Refine the discovered class with the trial and estimate, through the compiled program.
+
+    The ``DiscoveredClassTransport`` program searches ``discovery`` (or ``source``) with the
+    compiled ``DiscoverStatic`` program, refines the class with the trial in ``source`` and
+    estimates every retained member. Arguments and the result are those of
+    :func:`estimate_trial_compatible_discovered_transport`, and the estimate, the compatibility
+    proof and the artifact are identical.
+
+    Returns:
+        A :class:`TrialCompatibleEstimate`; read ``answer`` and ``compatibility`` first.
+
+    Raises:
+        DiscoveredTransportRefusal: as :func:`estimate_trial_compatible_discovered_transport`.
+        CausalError: the compiler's refusal of the contract or of the searched table, or a
+            failed or cancelled search.
+    """
+    names, request = _common(
+        contract,
+        source,
+        target,
+        outcome,
+        treatment,
+        grid,
+        selection_targets,
+        source_population,
+        target_population,
+        member_bound,
+        bootstrap_replicates,
+        discovery,
+    )
+    body, artifact, found, report = _compiled(
+        "trial_compatible_estimate", names, request, execution, alpha=_check_alpha(alpha)
+    )
+    wire = json.loads(body)
+    estimate = wire["estimate"]
+    return TrialCompatibleEstimate(
+        levels=tuple(float(x) for x in estimate["levels"]),
+        members=_members(estimate["members"]),
+        answer=_answer(estimate["answer"]),
+        report_identity=str(estimate["report_identity"]),
+        identity=str(estimate["identity"]),
+        compatibility=_compatibility(wire["compatibility"]),
+        outcome=found,
+        report=report,
+        _artifact_bytes=artifact,
+    )
+
+
+def analyze_trial_compatible_transport_confidence_set(
+    contract: StaticContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    selection_targets: Sequence[str],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    discovery: Mapping[str, Any] | None = None,
+    execution: Execution | None = None,
+) -> TrialConfidenceSet:
+    """Compute the whole-procedure set through the compiled program.
+
+    The ``DiscoveredClassTransport`` program searches ``discovery`` (or ``source``) with the
+    compiled ``DiscoverStatic`` program and computes the bounded-outcome set. Arguments and the
+    result are those of :func:`estimate_trial_compatible_transport_confidence_set`; the set,
+    its calibration annotation and its receipt are identical.
+
+    Returns:
+        A :class:`TrialConfidenceSet`; read ``kind``, ``lower`` and ``upper`` first.
+
+    Raises:
+        DiscoveredTransportRefusal: as :func:`estimate_trial_compatible_transport_confidence_set`.
+        CausalError: the compiler's refusal of the contract or of the searched table, or a
+            failed or cancelled search.
+    """
+    lower, upper = _check_support(support_lower, support_upper)
+    names, request = _common(
+        contract,
+        source,
+        target,
+        outcome,
+        treatment,
+        [0.0, 1.0],
+        selection_targets,
+        source_population,
+        target_population,
+        member_bound,
+        bootstrap_replicates,
+        discovery,
+    )
+    body, artifact, found, report = _compiled(
+        "trial_confidence_set",
+        names,
+        request,
+        execution,
+        alpha=_check_alpha(alpha),
+        support_lower=lower,
+        support_upper=upper,
+    )
+    return _set_of(body, artifact, found, report)
+
+
+def replay_trial_compatible_transport_confidence_set(
+    receipt: bytes,
+    contract: StaticContract,
+    source: Mapping[str, Any],
+    target: Mapping[str, Any],
+    *,
+    outcome: str,
+    treatment: str,
+    selection_targets: Sequence[str],
+    alpha: float,
+    support_lower: float,
+    support_upper: float,
+    source_population: str = "source",
+    target_population: str = "target",
+    member_bound: int | None = None,
+    bootstrap_replicates: int = 200,
+    discovery: Mapping[str, Any] | None = None,
+    execution: Execution | None = None,
+) -> TrialConfidenceSet:
+    """Recompute a set from its original inputs and check it against ``receipt``, compiled.
+
+    The ``DiscoveredClassTransport`` program searches ``discovery`` (or ``source``) with the
+    compiled ``DiscoverStatic`` program, recomputes the set from the supplied inputs (including
+    the original bootstrap) and checks the receipt against it. Arguments and the result are
+    those of :func:`verify_trial_compatible_transport_confidence_set_against`.
+
+    Returns:
+        The recomputed :class:`TrialConfidenceSet`.
+
+    Raises:
+        DiscoveredTransportRefusal: the receipt does not replay against the supplied inputs.
+        CausalError: the compiler's refusal of the contract or of the searched table.
+    """
+    receipt = container_bytes(receipt)
+    if not isinstance(receipt, (bytes, bytearray)):
+        raise CausalTypeError("receipt must be bytes")
+    lower, upper = _check_support(support_lower, support_upper)
+    names, request = _common(
+        contract,
+        source,
+        target,
+        outcome,
+        treatment,
+        [0.0, 1.0],
+        selection_targets,
+        source_population,
+        target_population,
+        member_bound,
+        bootstrap_replicates,
+        discovery,
+    )
+    body, artifact, found, report = _compiled(
+        "trial_confidence_set_replay",
+        names,
+        request,
+        execution,
+        alpha=_check_alpha(alpha),
+        support_lower=lower,
+        support_upper=upper,
+        receipt=bytes(receipt),
+    )
+    return _set_of(body, artifact, found, report)

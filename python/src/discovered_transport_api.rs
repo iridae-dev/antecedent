@@ -56,7 +56,7 @@ fn pair_json(a: VariableId, b: VariableId, reason: &str) -> Json {
     json!({ "a": a.raw(), "b": b.raw(), "reason": reason })
 }
 
-fn envelope_json(report: &DiscoveredTransportReport) -> Json {
+pub(crate) fn envelope_json(report: &DiscoveredTransportReport) -> Json {
     let envelope = report.envelope();
     let members: Vec<Json> = envelope
         .members()

@@ -140,6 +140,66 @@ impl PerPopulationDiscoveryHandle {
         }
     }
 
+    /// Run the contract on each population's columns through the compiled
+    /// `PerPopulationStructureSearch` program, on a fresh driver that replaces this one when
+    /// every population succeeds. Returns `(report, refusal, program identity)`; the driver's
+    /// refusal leaves this handle's driver as it was.
+    #[pyo3(signature = (contract_json, populations, names, columns, *, threads=None, cancel=None))]
+    #[allow(clippy::too_many_arguments, reason = "one request: contract, labels, data")]
+    fn compiled_run(
+        &mut self,
+        py: Python<'_>,
+        contract_json: &str,
+        populations: Vec<String>,
+        names: Vec<String>,
+        columns: Vec<Vec<NumericColumn<'_>>>,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<String>, Option<String>, Option<String>)> {
+        use antecedent::Study;
+        use antecedent::analysis::compiled_per_population_discovery::{
+            PerPopulationSearchError, PerPopulationSearchRequest,
+        };
+        let parsed = parse_json(contract_json)?;
+        let map = contract_map(&parsed, "static")?;
+        let seed = get_u64(map, "seed")?;
+        let contract = static_contract(map, names.len())?;
+        if populations.len() != columns.len() {
+            return Err(input_err("give one set of columns per population"));
+        }
+        let batches = columns
+            .iter()
+            .map(|set| crate::numeric_columns_to_batch(&names, set))
+            .collect::<PyResult<Vec<_>>>()?;
+        let ctx =
+            crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+        let (result, program) = crate::detach_catch(py, move || {
+            let mut declared: Vec<(String, TabularData)> = Vec::with_capacity(batches.len());
+            for (population, batch) in populations.into_iter().zip(&batches) {
+                let (data, _): (TabularData, _) = crate::discovery_api::tabular_from_batch(batch)?;
+                declared.push((population, data));
+            }
+            let request = PerPopulationSearchRequest::new(contract, declared);
+            let compiled =
+                Study::compile_per_population_discovery(request, &ctx).map_err(crate::py_err)?;
+            let program = compiled.lowered().identity().to_hex();
+            Ok((compiled.execute(&ctx), program))
+        })?;
+        match result {
+            Ok(run) => {
+                let text = run.report().map(per_population_report_json);
+                self.inner = Some(run.into_driver());
+                Ok((text, None, Some(program)))
+            }
+            Err(PerPopulationSearchError::Search(error)) => {
+                let (text, refusal) = reply(Err(error))?;
+                Ok((text, refusal, Some(program)))
+            }
+            Err(PerPopulationSearchError::Program(error)) => Err(crate::py_err(error)),
+            Err(other) => Err(input_err(other.to_string())),
+        }
+    }
+
     /// The last report in which every population succeeded, as JSON.
     fn report_json(&self) -> Option<String> {
         self.inner.as_ref().and_then(PerPopulationDiscovery::report).map(per_population_report_json)

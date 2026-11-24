@@ -1060,6 +1060,46 @@ class PerPopulationDiscovery(ScientificResult):
         assert text is not None
         return _per_population_report(str(text), self._names)
 
+    def compiled_run(
+        self,
+        contract: StaticContract,
+        populations: Mapping[str, Mapping[str, Any]],
+        *,
+        execution: Execution | None = None,
+    ) -> PerPopulationReport:
+        """Run ``contract`` on each population's columns through the compiled program.
+
+        The request lowers to the ``PerPopulationStructureSearch`` program over the declared
+        population row sets (its identity is the sorted labels, each population's row-set
+        identity and the search each population runs under) and runs the per-population driver
+        on a fresh driver, which replaces this one when every population succeeds. Arguments,
+        the report and the refusals are those of :meth:`run`; the retained statistics of an
+        earlier run are not reused, so the work is redone and the report is the same.
+
+        Raises:
+            SelectiveDiscoveryRefusal: as :meth:`run`; this driver is then left as it was.
+            CausalDiscoveryError: the algorithm failed or was cancelled.
+        """
+        if not isinstance(contract, StaticContract):
+            raise CausalTypeError("contract must be a StaticContract")
+        if not isinstance(populations, Mapping):
+            raise CausalTypeError("populations must map a label to a column mapping")
+        labels = [_name(label, "population") for label in populations]
+        columns = [_columns(contract, populations[label]) for label in labels]
+        policy = _policy(execution)
+        text, refusal, _program = policy._call(
+            self._handle.compiled_run,
+            json.dumps(contract.to_wire(), sort_keys=True),
+            labels,
+            list(contract.variables),
+            columns,
+            **_controls(policy),
+        )
+        _raise(refusal)
+        self._names = tuple(contract.variables)
+        assert text is not None
+        return _per_population_report(str(text), self._names)
+
     @property
     def report(self) -> PerPopulationReport | None:
         """The last report in which every population succeeded, or ``None``."""
