@@ -48,6 +48,7 @@
 - **Stored z-transport snapshots need a schema-aligned selection diagram.** A diagram whose node `i` is not variable `i` is refused by the snapshot digest instead of being stored under a dense-index wire that names other variables.
 - **Decision-draw digests break a repeated candidate id by content.** Only an unvalidated carrier can repeat an id; its digest no longer depends on listing order.
 - **Hand-built dynamic schedules are validated.** `TemporalPolicy::validate` refuses a `TemporalPolicy::Dynamic` whose `active_at` is not strictly ascending with the new `InterventionError::UnorderedDynamicSchedule`; activity is looked up by binary search and the identity writes the offsets as given, so an unsorted or repeated schedule answered wrongly and spelled one schedule twice. `TemporalPolicy::dynamic` already built the canonical form.
+- A fresh-process recalculation plan no longer reports frozen portable scores as reused when the data snapshot was not declared when they were frozen and its data were not supplied: the score artifact is refused for missing data, as it already was for a changed snapshot.
 
 ## 3.0.0
 

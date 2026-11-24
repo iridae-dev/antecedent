@@ -107,4 +107,77 @@ theorem rust_identification_never_raised
   rw [identification_status_kept_or_lowered_spec] at h
   exact (identificationKeptOrLowered_iff _ _).1 (by simpa using h)
 
+/-! ## Every other derivation and the handoff chain -/
+
+/-- `ClaimKind` as the specification names it. -/
+def kindSpec : claim.ClaimKind → Kind
+  | .Point => .point
+  | .Bounds => .bounds
+  | .Mixture => .mixture
+  | .Response => .response
+  | .PolicyValue => .policyValue
+  | .Refusal => .refusal
+  | .Incomplete => .incomplete
+  | .Associational => .associational
+
+theorem kindSpec_bijective :
+    (∀ a b, kindSpec a = kindSpec b → a = b) ∧ ∀ s, ∃ a, kindSpec a = s := by
+  refine ⟨fun a b h => ?_, fun s => ?_⟩
+  · cases a <;> cases b <;> simp_all [kindSpec]
+  · cases s
+    exacts [⟨.Point, rfl⟩, ⟨.Bounds, rfl⟩, ⟨.Mixture, rfl⟩, ⟨.Response, rfl⟩,
+      ⟨.PolicyValue, rfl⟩, ⟨.Refusal, rfl⟩, ⟨.Incomplete, rfl⟩, ⟨.Associational, rfl⟩]
+
+/-- `domain_upgraded` is `domainUpgraded`. -/
+theorem domain_upgraded_spec (p d : claim.DomainStatus) :
+    claim.domain_upgraded p d = ok (domainUpgraded (domainSpec p) (domainSpec d)) := by
+  cases p <;> cases d <;>
+    simp [claim.domain_upgraded, domain_eq_spec, core.cmp.PartialEq.ne.trait_default, core.cmp.PartialEq.ne.default, bne, is_positive_spec, domainSpec, domainUpgraded,
+      Domain.asserts]
+
+/-- `domain_departs` is `domainDeparts`. -/
+theorem domain_departs_spec (p d : claim.DomainStatus) :
+    claim.domain_departs p d = ok (domainDeparts (domainSpec p) (domainSpec d)) := by
+  cases p <;> cases d <;>
+    simp [claim.domain_departs, domain_eq_spec, core.cmp.PartialEq.ne.trait_default, core.cmp.PartialEq.ne.default, bne, domainSpec, domainDeparts]
+
+/-- `associational_derives_causal` is `associationalDerivesCausal`. -/
+theorem associational_derives_causal_spec (p d : claim.ClaimKind) :
+    claim.associational_derives_causal p d =
+      ok (associationalDerivesCausal (kindSpec p) (kindSpec d)) := by
+  cases p <;> cases d <;>
+    simp [claim.associational_derives_causal, kindSpec, associationalDerivesCausal, Kind.noValue]
+
+/-- `non_value_derives_value` is `nonValueDerivesValue`. -/
+theorem non_value_derives_value_spec (p d : claim.ClaimKind) :
+    claim.non_value_derives_value p d = ok (nonValueDerivesValue (kindSpec p) (kindSpec d)) := by
+  cases p <;> cases d <;>
+    simp [claim.non_value_derives_value, kindSpec, nonValueDerivesValue, Kind.noValue]
+
+/-- `identification_slot_added` is `identificationSlotAdded`. -/
+theorem identification_slot_added_spec (every derived : Bool) :
+    claim.identification_slot_added every derived = ok (identificationSlotAdded every derived) := by
+  cases every <;> cases derived <;> simp [claim.identification_slot_added, identificationSlotAdded]
+
+/-- `chain_retains` is `chainRetains`. -/
+theorem chain_retains_spec (c f n r o : Bool) :
+    claim.chain_retains c f n r o = ok (chainRetains c f n r o) := by
+  cases c <;> cases f <;> cases n <;> cases r <;> cases o <;>
+    simp [claim.chain_retains, chainRetains]
+
+/-- Whenever neither production kind rule refuses, the derived kind is no stronger. -/
+theorem rust_kind_rules_never_raise {p d : claim.ClaimKind}
+    (ha : claim.associational_derives_causal p d = ok false)
+    (hv : claim.non_value_derives_value p d = ok false) :
+    (kindSpec d).level ≤ (kindSpec p).level := by
+  rw [associational_derives_causal_spec] at ha
+  rw [non_value_derives_value_spec] at hv
+  exact (kind_rules_iff _ _).1 ⟨by simpa using ha, by simpa using hv⟩
+
+/-- Whenever the production departure rule accepts, the derived domain status is no higher. -/
+theorem rust_domain_departs_never_raises {p d : claim.DomainStatus}
+    (h : claim.domain_departs p d = ok false) : (domainSpec d).le (domainSpec p) := by
+  rw [domain_departs_spec] at h
+  exact (domainDeparts_iff _ _).1 (by simpa using h)
+
 end AntecedentRust.Standing

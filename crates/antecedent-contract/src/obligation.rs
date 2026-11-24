@@ -147,9 +147,16 @@ impl ObligationRecord {
     /// Whether this obligation still blocks a stronger claim.
     #[must_use]
     pub const fn is_unresolved(&self) -> bool {
-        self.kind.is_unresolved()
-            || matches!(self.status, AssumptionStatus::Declared | AssumptionStatus::Contradicted)
+        obligation_unresolved(self.kind, self.status)
     }
+}
+
+/// Whether an obligation of this kind, on an assumption with this status,
+/// still blocks a stronger claim: its check did not run or failed, or its
+/// assumption is only declared or is contradicted.
+const fn obligation_unresolved(kind: ObligationKind, status: AssumptionStatus) -> bool {
+    kind.is_unresolved()
+        || matches!(status, AssumptionStatus::Declared | AssumptionStatus::Contradicted)
 }
 
 #[cfg(test)]

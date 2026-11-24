@@ -37,6 +37,20 @@ inductive antecedent_core.identification.IdentificationStatus where
 | GraphDependent : antecedent_core.identification.IdentificationStatus
 | NotIdentified : antecedent_core.identification.IdentificationStatus
 
+/-- [antecedent_contract::claim::ClaimKind]
+    Source: 'crates/antecedent-contract/src/claim.rs'
+    Visibility: public -/
+@[discriminant isize]
+inductive claim.ClaimKind where
+| Point : claim.ClaimKind
+| Bounds : claim.ClaimKind
+| Mixture : claim.ClaimKind
+| Response : claim.ClaimKind
+| PolicyValue : claim.ClaimKind
+| Refusal : claim.ClaimKind
+| Incomplete : claim.ClaimKind
+| Associational : claim.ClaimKind
+
 /-- [antecedent_contract::claim::DomainStatus]
     Source: 'crates/antecedent-contract/src/claim.rs'
     Visibility: public -/

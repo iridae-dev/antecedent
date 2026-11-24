@@ -6,3 +6,9 @@ mod bound_identity;
 
 #[cfg(kani)]
 mod graph_identity;
+
+#[cfg(kani)]
+mod revalidation;
+
+#[cfg(kani)]
+mod support_labels;

@@ -1070,12 +1070,11 @@ impl Planner<'_> {
         if let Some(by) = self.refused_dependency(deps, Some(Stage::DataSnapshot)) {
             return StageStatus::Refused { reason: RefusalReason::Blocked { by } };
         }
-        // A data snapshot that differs from the one the scores were frozen on is a change
-        // even when the snapshot stage itself is refused (so it never entered the changed
-        // set): the frozen scores do not describe that data and cannot be claimed reused.
-        if !resume.supplied_data
-            && self.own_change(Stage::DataSnapshot) == Some(ChangeKind::Modified)
-        {
+        // A data snapshot that differs from the one the scores were frozen on, or that the
+        // scores were frozen without, is a change even when the snapshot stage itself is
+        // refused (so it never entered the changed set): the frozen scores do not describe
+        // that data and cannot be claimed reused.
+        if !resume.supplied_data && self.own_change(Stage::DataSnapshot).is_some() {
             return StageStatus::Refused {
                 reason: RefusalReason::Unavailable { missing: MissingDependency::Data },
             };

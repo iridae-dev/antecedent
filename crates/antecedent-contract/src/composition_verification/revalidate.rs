@@ -599,9 +599,7 @@ fn own_causes(
             }
             // A standing that moved without withdrawing is an own change: reusing the
             // stage artifact must not carry authority across it.
-            if before.trust != node.trust
-                && !matches!(node.trust, TrustStanding::Withdrawn | TrustStanding::Undeclared)
-            {
+            if trust_move_is_numerical(before.trust, node.trust) {
                 causes.push(NumericalCause::TrustChanged);
             }
             if matches!(before.support, SupportStanding::Unsupported { .. })
@@ -648,6 +646,31 @@ fn own_causes(
         causes.push(NumericalCause::Observed);
     }
     causes
+}
+
+/// Whether a provider trust standing that moved between the snapshots asks for
+/// recomputation: it moved, and not to a standing that withdraws the node.
+fn trust_move_is_numerical(before: TrustStanding, now: TrustStanding) -> bool {
+    before != now && !trust_withdraws(now)
+}
+
+/// Whether a provider trust standing withdraws the node: trust no longer
+/// holds, or the producer did not state it.
+const fn trust_withdraws(now: TrustStanding) -> bool {
+    matches!(now, TrustStanding::Withdrawn | TrustStanding::Undeclared)
+}
+
+/// The class of a claim from what stands against it: any withdrawal withdraws
+/// it, numerical reasons alone ask for recomputation, and only a claim with
+/// neither is still valid.
+const fn revalidation_class(withdrawn: bool, numerical: bool) -> Revalidation {
+    if withdrawn {
+        Revalidation::Withdrawn
+    } else if numerical {
+        Revalidation::Recompute
+    } else {
+        Revalidation::StillValid
+    }
 }
 
 fn held_record(declaration: &CalibrationDeclaration) -> Option<Held> {
@@ -704,11 +727,13 @@ fn own_withdrawals(
     if let SupportStanding::Unsupported { coordinates } = &node.support {
         out.push(own(WithdrawalKind::Support, coordinates.join(",")));
     }
-    if node.trust == TrustStanding::Withdrawn {
-        out.push(own(WithdrawalKind::ProviderTrust, "provider_trust_withdrawn".to_owned()));
-    }
-    if node.trust == TrustStanding::Undeclared {
-        out.push(own(WithdrawalKind::ProviderTrust, "provider_trust_undeclared".to_owned()));
+    if trust_withdraws(node.trust) {
+        let detail = if node.trust == TrustStanding::Withdrawn {
+            "provider_trust_withdrawn"
+        } else {
+            "provider_trust_undeclared"
+        };
+        out.push(own(WithdrawalKind::ProviderTrust, detail.to_owned()));
     }
     match effect {
         Some(ObservedEffect::Withdrawn { cause }) => {
@@ -863,13 +888,8 @@ pub fn revalidate(
         let (calibration, holding, withdrawal) = evaluate_calibration(node, blocked, &states);
         working.holding = holding;
         working.withdrawals.extend(withdrawal);
-        let class = if !working.withdrawals.is_empty() {
-            Revalidation::Withdrawn
-        } else if !working.numerical.is_empty() {
-            Revalidation::Recompute
-        } else {
-            Revalidation::StillValid
-        };
+        let class =
+            revalidation_class(!working.withdrawals.is_empty(), !working.numerical.is_empty());
         claims.insert(
             key.to_owned(),
             ClaimRevalidation {

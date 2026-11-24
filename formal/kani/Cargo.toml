@@ -15,6 +15,7 @@ license = "MIT OR Apache-2.0"
 antecedent-core = { path = "../../crates/antecedent-core" }
 antecedent-io-core = { path = "../../crates/antecedent-io-core", default-features = false }
 antecedent-graph = { path = "../../crates/antecedent-graph" }
+antecedent-contract = { path = "../../crates/antecedent-contract" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }

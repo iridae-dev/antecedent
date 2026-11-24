@@ -60,6 +60,16 @@ def claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus.eq
   let other1 := read_discriminant other
   ok (self1 = other1)
 
+/-- Trait implementation: [antecedent_contract::claim::{impl core::cmp::PartialEq<antecedent_contract::claim::DomainStatus> for antecedent_contract::claim::DomainStatus}]
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+@[reducible]
+impl_def claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus :
+  core.cmp.PartialEq claim.DomainStatus claim.DomainStatus := {
+  eq := claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus.eq
+  ne := core.cmp.PartialEq.ne.trait_default
+    claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus
+}
+
 /-- [antecedent_contract::claim::{antecedent_contract::claim::DomainStatus}::is_positive]:
     Source: 'crates/antecedent-contract/src/claim.rs' -/
 def claim.DomainStatus.is_positive
@@ -73,6 +83,120 @@ def claim.DomainStatus.is_positive
   | claim.DomainStatus.Unknown => ok false
   | claim.DomainStatus.Limited => ok false
   | claim.DomainStatus.NotClaimed => ok false
+
+/-- [antecedent_contract::claim::chain_retains]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.chain_retains
+  (contiguous : Bool) (first_complete : Bool) (next_complete : Bool)
+  (retained_by_first : Bool) (omitted : Bool) :
+  Result Bool
+  := do
+  if contiguous
+  then
+    if first_complete
+    then ok (¬ omitted)
+    else
+      if next_complete
+      then ok (¬ omitted)
+      else if retained_by_first
+           then ok (¬ omitted)
+           else ok false
+  else ok false
+
+/-- [antecedent_contract::claim::domain_upgraded]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.domain_upgraded
+  (parent : claim.DomainStatus) (derived : claim.DomainStatus) :
+  Result Bool
+  := do
+  let b ← claim.DomainStatus.is_positive derived
+  if b
+  then
+    core.cmp.PartialEq.ne.trait_default
+      claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus parent derived
+  else ok false
+
+/-- [antecedent_contract::claim::domain_departs]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.domain_departs
+  (parent : claim.DomainStatus) (derived : claim.DomainStatus) :
+  Result Bool
+  := do
+  let b ←
+    core.cmp.PartialEq.ne.trait_default
+      claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus derived parent
+  if b
+  then
+    core.cmp.PartialEq.ne.trait_default
+      claim.DomainStatus.Insts.CoreCmpPartialEqDomainStatus derived
+      claim.DomainStatus.Unknown
+  else ok false
+
+/-- [antecedent_contract::claim::associational_derives_causal]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.associational_derives_causal
+  (parent : claim.ClaimKind) (derived : claim.ClaimKind) : Result Bool := do
+  let b ←
+    match parent with
+    | claim.ClaimKind.Point => ok false
+    | claim.ClaimKind.Bounds => ok false
+    | claim.ClaimKind.Mixture => ok false
+    | claim.ClaimKind.Response => ok false
+    | claim.ClaimKind.PolicyValue => ok false
+    | claim.ClaimKind.Refusal => ok false
+    | claim.ClaimKind.Incomplete => ok false
+    | claim.ClaimKind.Associational => ok true
+  if b
+  then
+    let b1 ←
+      match derived with
+      | claim.ClaimKind.Point => ok false
+      | claim.ClaimKind.Bounds => ok false
+      | claim.ClaimKind.Mixture => ok false
+      | claim.ClaimKind.Response => ok false
+      | claim.ClaimKind.PolicyValue => ok false
+      | claim.ClaimKind.Refusal => ok true
+      | claim.ClaimKind.Incomplete => ok true
+      | claim.ClaimKind.Associational => ok true
+    ok (¬ b1)
+  else ok false
+
+/-- [antecedent_contract::claim::non_value_derives_value]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.non_value_derives_value
+  (parent : claim.ClaimKind) (derived : claim.ClaimKind) : Result Bool := do
+  let b ←
+    match parent with
+    | claim.ClaimKind.Point => ok false
+    | claim.ClaimKind.Bounds => ok false
+    | claim.ClaimKind.Mixture => ok false
+    | claim.ClaimKind.Response => ok false
+    | claim.ClaimKind.PolicyValue => ok false
+    | claim.ClaimKind.Refusal => ok true
+    | claim.ClaimKind.Incomplete => ok true
+    | claim.ClaimKind.Associational => ok false
+  if b
+  then
+    let b1 ←
+      match derived with
+      | claim.ClaimKind.Point => ok false
+      | claim.ClaimKind.Bounds => ok false
+      | claim.ClaimKind.Mixture => ok false
+      | claim.ClaimKind.Response => ok false
+      | claim.ClaimKind.PolicyValue => ok false
+      | claim.ClaimKind.Refusal => ok true
+      | claim.ClaimKind.Incomplete => ok true
+      | claim.ClaimKind.Associational => ok false
+    ok (¬ b1)
+  else ok false
+
+/-- [antecedent_contract::claim::identification_slot_added]:
+    Source: 'crates/antecedent-contract/src/claim.rs' -/
+def claim.identification_slot_added
+  (every_parent_has_slot : Bool) (derived_has_slot : Bool) : Result Bool := do
+  if derived_has_slot
+  then ok (¬ every_parent_has_slot)
+  else ok false
 
 /-- [antecedent_contract::claim::domain_change_allowed]:
     Source: 'crates/antecedent-contract/src/claim.rs' -/

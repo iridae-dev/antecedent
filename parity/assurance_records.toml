@@ -96,8 +96,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "5f8f39df2aadd0169219e8ef188451b3f877e9f8e7abf5908938f47c247b36b6"
-checked_commit = "7cb802699e11d5a4cdd7ee80c77fa4b6bc18b14c"
+inputs_digest = "09a38e5b3dc7f58f21b5a09fa454b63305ab7d09aa3b0f18c244ace3e74c3074"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "identity.order_insensitive_declarations"
@@ -231,10 +231,12 @@ checked_commit = "7dae9c72947fc02da71dd9ec1f6fcfb1ab74e8b5"
 [[records]]
 id = "contract.transformations_keep_obligations"
 proposition = "A contract's claim holds wherever its premises hold, and dropping a premise is not sound in general. Composing transformation reports, and any chain of them, keeps every unresolved obligation of every step, records every effect any step recorded on each layer, and is refused when any step was refused: no chain of transformations ends with a stronger standing than a step left it."
-scope = "The composition rule of TransformationReport::compose, as a model over obligations (id, kind, status) and per-layer effects. Input identities and refusal messages are outside this record. The production compose is exercised by the adversarial campaign (contract.* cases)."
+scope = "The composition rule of TransformationReport::compose, as a model over obligations (id, kind, status) and per-layer effects. The obligation decisions (obligation_merge, obligation_kept_on_replace) and the unresolved rule (obligation_unresolved) are the production Rust translated by Charon and Aeneas and proved equal to the model's; the loop that applies them to the record list and the per-layer union are modeled. Input identities and refusal messages are outside this record. The production compose is also exercised by the adversarial campaign (contract.* cases)."
 trusted = [
     "the Lean 4 kernel",
-    "the model's addObligation states the obligation rule of TransformationReport::compose (reviewed, not machine-checked)",
+    "Charon and Aeneas translate the Rust items faithfully",
+    "the Aeneas model of the standard-library operations the items use: enum discriminant reads and boolean operations",
+    "the loop of TransformationReport::compose applies obligation_merge and obligation_kept_on_replace to its record list as addObligationBy states (reviewed, not machine-checked)",
 ]
 limitations = [
     "Obligation records are compared by id, kind and status in the model; the production comparison also covers scope, source, required check, evidence, assumption and description.",
@@ -251,10 +253,19 @@ justification = [
     "Antecedent.Contract.chain_keeps_unresolved",
     "Antecedent.Contract.chain_keeps_effects",
     "Antecedent.Contract.compose_refused",
+    "Antecedent.Contract.addObligationBy_eq",
+    "AntecedentRust.Transform.obligation_merge_spec",
+    "AntecedentRust.Transform.obligation_kept_on_replace_spec",
+    "AntecedentRust.Transform.obligation_unresolved_spec",
 ]
-implementation = ["antecedent_contract::transform::TransformationReport::compose"]
-obligations = ["A machine check connecting TransformationReport::compose to Report.compose is not yet in place; see scope."]
-limitations = []
+implementation = [
+    "antecedent_contract::transform::TransformationReport::compose",
+    "antecedent_contract::transform::obligation_merge",
+    "antecedent_contract::transform::obligation_kept_on_replace",
+    "antecedent_contract::obligation::obligation_unresolved",
+]
+obligations = ["The record loop and the per-layer union of TransformationReport::compose are modeled, not translated; see scope."]
+limitations = ["The code claims no associativity or identity for composition, and none is proved."]
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -268,11 +279,42 @@ theorems = [
     "Antecedent.Contract.compose_refused",
     "Antecedent.Contract.chain_keeps_unresolved",
     "Antecedent.Contract.chain_keeps_effects",
+    "Antecedent.Contract.addObligationBy_eq",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Transform.lean",
+    "formal/rust/AntecedentRust/Extracted/Transform/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Transform/Funs.lean",
+]
+theorems = [
+    "AntecedentRust.Transform.obligation_merge_spec",
+    "AntecedentRust.Transform.obligation_kept_on_replace_spec",
+    "AntecedentRust.Transform.obligation_unresolved_spec",
+    "AntecedentRust.Transform.rust_compose_keeps_unresolved",
+]
+rust_items = [
+    { file = "crates/antecedent-contract/src/transform.rs", items = [
+        "enum:ObligationMerge#0",
+        "fn:obligation_merge#0",
+        "fn:obligation_kept_on_replace#0",
+        "impl:TransformationReport#0/fn:compose#0",
+    ] },
+    { file = "crates/antecedent-contract/src/obligation.rs", items = [
+        "enum:ObligationKind#0",
+        "impl:ObligationKind#0/fn:is_unresolved#0",
+        "impl:ObligationRecord#0/fn:is_unresolved#0",
+        "fn:obligation_unresolved#0",
+    ] },
+    { file = "crates/antecedent-core/src/assumption.rs", items = ["enum:AssumptionStatus#0"] },
 ]
 
 [records.result]
-inputs_digest = "16523ba9e58ae62afaa74467dd621cb5ab11f3904554eccf63477bb0c7c021c3"
-checked_commit = "4382fb44cb96811da901aa99712269934ad48b64"
+inputs_digest = "1911f214f02b5056ce6cf6adde2512b7e66f6c1075aea25777e504784e2653cf"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
 
 [[records]]
 id = "identity.static_graph_and_law_identities"
@@ -332,3 +374,397 @@ rust_items = [
 inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
 checked_commit = "0000000000000000000000000000000000000000"
 
+[[records]]
+id = "claim_standing.derivations_never_raised"
+proposition = "A derivation that derived_departs_from_parents accepts, for any operation other than a relay, claims no stronger kind, identification slot or domain status than any of its parents, so no sequence of accepted derivations raises the standing of a claim it started from, and none asserts a positive domain status a parent did not hold. The checked composer's claim is no stronger than any parent it admits. The production kind, slot and domain rules compute exactly the specification's rules."
+scope = "The departure rules of derived_departs_from_parents for every operation (associational_derives_causal, non_value_derives_value, identification_slot_added, domain_upgraded, domain_departs, identification_status_kept_or_lowered), translated by Charon and Aeneas; the function that applies them over the parent list and the axes is modeled (derivationAccepted). compose_claims reaches this function today only for a relay, which keeps its own stricter checks (record claim_standing.never_raised); the rules for other operations close the gaps a future derivation would otherwise pass through. The identified-mass checks only refuse more and are not covered. The checked composer (compose_checked_study_claims, facade crate) is modeled, not translated: its parent admission and the claim it builds are stated in checkedParentAdmitted and checkedDerived."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate the Rust items faithfully",
+    "the Aeneas model of the standard-library operations the items use: enum discriminant reads, u8 comparison and boolean operations",
+    "derived_departs_from_parents applies the translated rules to every parent and axis as derivationAccepted states (reviewed, not machine-checked)",
+    "compose_checked_study_claims admits parents and builds its claim as checkedParentAdmitted and checkedDerived state (reviewed, not machine-checked)",
+]
+limitations = [
+    "The kind order ranks refusal and incomplete below association, and association below every causal kind; it says nothing about which of two causal kinds is stronger, so a derivation between them is held to the operation's own checks.",
+    "A derivation that drops an identification slot is refused although dropping one asserts less: the slot carries the unidentified mass a consumer must see.",
+]
+
+[records.operation]
+inputs = ["the parent claims", "the derived claim", "the operation"]
+output = "acceptance of the derived claim, or a typed refusal naming the first departure"
+premises = ["the operation is not a relay (a relay is covered by claim_standing.never_raised)"]
+transformation = "refuse a causal claim from an association, a value from a refusal or incomplete parent, an identification slot some parent lacks, a dropped or stronger identification slot, a positive domain status a parent did not hold, and any other domain status that is neither the parent's nor unknown"
+justification = [
+    "Antecedent.Standing.kind_rules_iff",
+    "Antecedent.Standing.domainDeparts_iff",
+    "Antecedent.Standing.derivation_le",
+    "Antecedent.Standing.descends_le",
+    "Antecedent.Standing.derivation_no_new_assertion",
+    "Antecedent.Standing.checked_composer_le",
+    "AntecedentRust.Standing.domain_departs_spec",
+    "AntecedentRust.Standing.associational_derives_causal_spec",
+    "AntecedentRust.Standing.non_value_derives_value_spec",
+]
+implementation = [
+    "antecedent_contract::claim::compose_claims",
+    "antecedent_contract::claim::derived_departs_from_parents",
+    "antecedent_contract::claim::identification_strengthened",
+    "antecedent_contract::claim::domain_upgraded",
+    "antecedent_contract::claim::domain_departs",
+    "antecedent_contract::claim::associational_derives_causal",
+    "antecedent_contract::claim::non_value_derives_value",
+    "antecedent_contract::claim::identification_slot_added",
+    "antecedent::analysis::checked_claim_composition::compose_checked_study_claims",
+]
+obligations = ["The loop of derived_departs_from_parents over parents and axes, and the checked composer, are modeled, not translated; see scope."]
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Standing.lean"]
+theorems = [
+    "Antecedent.Standing.kind_rules_iff",
+    "Antecedent.Standing.domainDeparts_iff",
+    "Antecedent.Standing.domainUpgraded_departs",
+    "Antecedent.Standing.Derivable.le_trans",
+    "Antecedent.Standing.derivation_le",
+    "Antecedent.Standing.descends_le",
+    "Antecedent.Standing.derivation_no_new_assertion",
+    "Antecedent.Standing.checked_composer_le",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Standing.lean",
+    "formal/rust/AntecedentRust/Extracted/Standing/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Standing/Funs.lean",
+]
+theorems = [
+    "AntecedentRust.Standing.domain_upgraded_spec",
+    "AntecedentRust.Standing.domain_departs_spec",
+    "AntecedentRust.Standing.associational_derives_causal_spec",
+    "AntecedentRust.Standing.non_value_derives_value_spec",
+    "AntecedentRust.Standing.identification_slot_added_spec",
+    "AntecedentRust.Standing.rust_kind_rules_never_raise",
+    "AntecedentRust.Standing.rust_domain_departs_never_raises",
+]
+rust_items = [
+    { file = "crates/antecedent-contract/src/claim.rs", items = [
+        "enum:ClaimKind#0",
+        "enum:DomainStatus#0",
+        "impl:DomainStatus#0/fn:is_positive#0",
+        "fn:compose_claims#0",
+        "fn:derived_departs_from_parents#0",
+        "fn:identification_strengthened#0",
+        "fn:identification_status_kept_or_lowered#0",
+        "fn:domain_upgraded#0",
+        "fn:domain_departs#0",
+        "fn:associational_derives_causal#0",
+        "fn:non_value_derives_value#0",
+        "fn:identification_slot_added#0",
+    ] },
+    { file = "crates/antecedent-core/src/identification.rs", items = [
+        "enum:IdentificationStatus#0",
+        "impl:IdentificationStatus#0/fn:strength_rank#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "613f7daf6b55569d6aacf6ab47efd87f88707c6f476bc68e1080be805104bc95"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
+
+[[records]]
+id = "claim_standing.handoff_chain_keeps_losses"
+proposition = "Chaining two handoff receipts omits exactly what either hop omitted, keeps every unresolved item and every unavailable operation of either hop, retains no field any hop omitted and no field no hop declared retained, and retains nothing across receipts about different claims, which it marks discontinuous. A chain is equivalent to its input claim only if neither hop omitted or left anything unresolved, the hops describe one path, and the chain ends at the claim it started from. Along any chain of hops, nothing any hop omitted is ever retained. The production retention rule computes exactly the specification's rule."
+scope = "HandoffReceipt::chain and HandoffReceipt::equivalent_claim, as a model over field-name lists (Receipt.chain) that calls the retention rule chain_retains, which is translated by Charon and Aeneas. merge_unique and the list filtering are modeled. The production chain is also exercised by the adversarial campaign (claims.handoff_chain_never_restores_a_loss)."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate the Rust items faithfully",
+    "the Aeneas model of boolean operations",
+    "HandoffReceipt::chain and merge_unique compute the lists as Receipt.chain and mergeUnique state (reviewed, not machine-checked)",
+]
+limitations = [
+    "The code claims no associativity for chain, and none is proved: which fields a chain establishes depends on whether each hop is complete.",
+]
+
+[records.operation]
+inputs = ["a handoff receipt", "the next handoff receipt"]
+output = "the receipt of the chain"
+premises = []
+transformation = "omitted, unresolved and unavailable lists merged; a field retained when the hops are contiguous, either hop is complete or both retained it, and no hop omitted it; a discontinuity recorded as unresolved"
+justification = [
+    "Antecedent.Standing.chain_omitted",
+    "Antecedent.Standing.chain_keeps_unresolved",
+    "Antecedent.Standing.chain_retained_not_omitted",
+    "Antecedent.Standing.chain_retained_declared",
+    "Antecedent.Standing.chain_discontinuous",
+    "Antecedent.Standing.chain_equivalent",
+    "Antecedent.Standing.chainAll_never_restores",
+    "AntecedentRust.Standing.chain_retains_spec",
+]
+implementation = [
+    "antecedent_contract::claim::HandoffReceipt::chain",
+    "antecedent_contract::claim::HandoffReceipt::equivalent_claim",
+    "antecedent_contract::claim::chain_retains",
+]
+obligations = ["merge_unique and the list filtering of HandoffReceipt::chain are modeled, not translated; see scope."]
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Standing.lean"]
+theorems = [
+    "Antecedent.Standing.mem_mergeUnique",
+    "Antecedent.Standing.chain_omitted",
+    "Antecedent.Standing.chain_keeps_unresolved",
+    "Antecedent.Standing.chain_unavailable",
+    "Antecedent.Standing.chain_retained_not_omitted",
+    "Antecedent.Standing.chain_retained_declared",
+    "Antecedent.Standing.chain_discontinuous",
+    "Antecedent.Standing.chain_equivalent",
+    "Antecedent.Standing.chainAll_keeps_omitted",
+    "Antecedent.Standing.chainAll_never_restores",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Standing.lean",
+    "formal/rust/AntecedentRust/Extracted/Standing/Funs.lean",
+]
+theorems = ["AntecedentRust.Standing.chain_retains_spec"]
+rust_items = [
+    { file = "crates/antecedent-contract/src/claim.rs", items = [
+        "struct:HandoffReceipt#0",
+        "impl:HandoffReceipt#0/fn:chain#0",
+        "impl:HandoffReceipt#0/fn:equivalent_claim#0",
+        "fn:merge_unique#0",
+        "fn:chain_retains#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = "9a24aefc29d3a0b4903e94c4ed1a44a1846bba3ba84e83e0b6e2dcd431688916"
+checked_commit = "d9789a89f674271ef33246edcf01ad5a58d300f9"
+
+[[records]]
+id = "revalidation.raised_only_by_recomputation"
+proposition = "Combining revalidation classes is associative, commutative and idempotent, with still valid as identity and withdrawn absorbing. A recalculation stage is still valid only when reused; a change of an input never leaves its dependents still valid, and withdraws them exactly when the input is gone. In a composition graph a claim is still valid only when nothing stands against it: a provider trust standing that moved never leaves it still valid (restored trust asks for recomputation), and a withdrawn or undeclared trust withdraws it. A provider's trust holds exactly at a verified level. An evidence-ledger result keeps its class only when no source was lost, and a reclassification never returns a result to valid. The production rules compute exactly the specification's rules."
+scope = "TrustStanding::of_provider, trust_move_is_numerical, trust_withdraws, revalidation_class, loss_class and status_step (antecedent-contract), translated by Charon and Aeneas. Revalidation::worst and ChangeKind::revalidation (antecedent-core) are checked by Kani over their whole finite domain: a second Aeneas translation of Revalidation beside the contract one would clash. StageStatus::revalidation is stated in the model (StageStatus.revalidation) and checked on generated workflows: its refusal payload holds an Arc, which Aeneas leaves opaque. How RecalcPlan::plan and revalidate choose the inputs of these rules (identities, dependency propagation) is not translated: their maps and graphs are outside the Aeneas subset and a Kani bound over BLAKE3 identities is not affordable, so the adversarial campaign exercises them on generated workflows and graphs (recalc.* and revalidation.* cases)."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate the Rust items faithfully",
+    "the Aeneas model of the standard-library operations the items use: enum discriminant reads, usize comparison and boolean operations",
+    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of Revalidation::worst and ChangeKind::revalidation",
+    "revalidate passes trust_move_is_numerical, trust_withdraws and every other numerical reason and withdrawal to revalidation_class as claimClass states (reviewed, not machine-checked)",
+]
+limitations = [
+    "That a still-valid stage's effective identity is unchanged, and that a recomputed one changed, is checked on generated workflows (recalc.reuse_only_without_a_change), not proved.",
+]
+
+[records.operation]
+inputs = ["what changed between two snapshots: stage identities, provider trust standings, lost sources"]
+output = "the three-state class of each stage, claim or ledger result"
+premises = []
+transformation = "withdrawn when any withdrawal stands, recompute when only numerical reasons stand, still valid otherwise; a moved trust standing is a numerical reason unless it withdraws; a reclassification takes the more severe of the new and current classes"
+justification = [
+    "Antecedent.Revalidation.worst_assoc",
+    "Antecedent.Revalidation.worst_comm",
+    "Antecedent.Revalidation.worst_stillValid",
+    "Antecedent.Revalidation.StageStatus.stillValid_iff",
+    "Antecedent.Revalidation.ChangeKind.revalidation_lowers",
+    "Antecedent.Revalidation.trust_move_never_still_valid",
+    "Antecedent.Revalidation.still_valid_trust",
+    "Antecedent.Revalidation.Trust.ofProvider_held",
+    "Antecedent.Revalidation.lossClass_stillValid",
+    "Antecedent.Revalidation.reclassify_monotone",
+    "worst_is_a_join",
+    "AntecedentRust.Revalidation.revalidation_class_spec",
+    "AntecedentRust.Revalidation.status_step_spec",
+]
+implementation = [
+    "antecedent_core::recalc::Revalidation::worst",
+    "antecedent_core::recalc::ChangeKind::revalidation",
+    "antecedent_core::recalc::StageStatus::revalidation",
+    "antecedent_core::recalc::RecalcPlan::plan",
+    "antecedent_contract::composition_verification::graph::TrustStanding::of_provider",
+    "antecedent_contract::composition_verification::revalidate::revalidate",
+    "antecedent_contract::composition_verification::revalidate::trust_move_is_numerical",
+    "antecedent_contract::composition_verification::revalidate::trust_withdraws",
+    "antecedent_contract::composition_verification::revalidate::revalidation_class",
+    "antecedent_contract::evidence_ledger::ledger::loss_class",
+    "antecedent_contract::evidence_ledger::ledger::status_step",
+]
+obligations = ["How plan and revalidate compute the inputs of the translated rules is exercised by the adversarial campaign, not proved; see scope."]
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Revalidation.lean"]
+theorems = [
+    "Antecedent.Revalidation.worst_comm",
+    "Antecedent.Revalidation.worst_assoc",
+    "Antecedent.Revalidation.worst_idem",
+    "Antecedent.Revalidation.worst_stillValid",
+    "Antecedent.Revalidation.worst_withdrawn",
+    "Antecedent.Revalidation.worst_eq_stillValid",
+    "Antecedent.Revalidation.ChangeKind.revalidation_lowers",
+    "Antecedent.Revalidation.StageStatus.stillValid_iff",
+    "Antecedent.Revalidation.StageStatus.withdrawn_iff",
+    "Antecedent.Revalidation.revalidationClass_stillValid",
+    "Antecedent.Revalidation.Trust.ofProvider_held",
+    "Antecedent.Revalidation.trust_move_never_still_valid",
+    "Antecedent.Revalidation.trust_withdrawn_withdraws",
+    "Antecedent.Revalidation.still_valid_trust",
+    "Antecedent.Revalidation.lossClass_stillValid",
+    "Antecedent.Revalidation.lossClass_withdrawn",
+    "Antecedent.Revalidation.statusStep_worst",
+    "Antecedent.Revalidation.statusStep_never_restores",
+    "Antecedent.Revalidation.reclassify_monotone",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Revalidation.lean",
+    "formal/rust/AntecedentRust/Extracted/Revalidation/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Revalidation/Funs.lean",
+]
+theorems = [
+    "AntecedentRust.Revalidation.of_provider_spec",
+    "AntecedentRust.Revalidation.trust_move_is_numerical_spec",
+    "AntecedentRust.Revalidation.trust_withdraws_spec",
+    "AntecedentRust.Revalidation.revalidation_class_spec",
+    "AntecedentRust.Revalidation.loss_class_spec",
+    "AntecedentRust.Revalidation.status_step_spec",
+]
+rust_items = [
+    { file = "crates/antecedent-core/src/recalc.rs", items = ["enum:Revalidation#0"] },
+    { file = "crates/antecedent-contract/src/composition_verification/graph.rs", items = [
+        "enum:TrustStanding#0",
+        "impl:TrustStanding#0/fn:of_provider#0",
+    ] },
+    { file = "crates/antecedent-contract/src/provider_trust.rs", items = ["enum:ProviderTrust#0"] },
+    { file = "crates/antecedent-contract/src/composition_verification/revalidate.rs", items = [
+        "fn:trust_move_is_numerical#0",
+        "fn:trust_withdraws#0",
+        "fn:revalidation_class#0",
+        "fn:own_causes#0",
+        "fn:own_withdrawals#0",
+        "fn:revalidate#0",
+    ] },
+    { file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs", items = [
+        "fn:loss_class#0",
+        "enum:StatusStep#0",
+        "fn:status_step#0",
+        "impl:EvidenceLedger#0/fn:source_loss_class#0",
+        "impl:EvidenceLedger#0/fn:reclassify#0",
+    ] },
+]
+
+[[records.checks]]
+kind = "bounded_model_check"
+tool = "kani"
+harnesses = [
+    { file = "formal/kani/src/revalidation.rs", name = "worst_is_a_join" },
+    { file = "formal/kani/src/revalidation.rs", name = "a_change_never_keeps_a_dependent_valid" },
+]
+rust_items = [
+    { file = "crates/antecedent-core/src/recalc.rs", items = [
+        "enum:Revalidation#0",
+        "impl:Revalidation#0/fn:worst#0",
+        "enum:ChangeKind#0",
+        "impl:ChangeKind#0/fn:revalidation#0",
+        "impl:StageStatus#0/fn:revalidation#0",
+        "impl:RecalcPlan#0/fn:plan#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = ""
+checked_commit = ""
+
+[[records]]
+id = "support.summary_never_better_than_label"
+proposition = "check_static_point_labels accepts a static grid's summary only when every coordinate label is at most as severe as the summary and the summary is one of the labels; it accepts the worst label; and a grid with a missing-evidence coordinate is summarized as missing evidence or refused. The production severity order is the specification's."
+scope = "antecedent_contract::check_static_point_labels over every grid of at most four labels (Kani: the function's iterator and refusal construction are outside the Aeneas subset), SupportStatus::severity translated by Charon and Aeneas, and the summary rule as a Lean model (labelsAccepted) over lists of any length."
+trusted = [
+    "the Lean 4 kernel",
+    "Charon and Aeneas translate SupportStatus::severity faithfully",
+    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of check_static_point_labels",
+]
+limitations = [
+    "Kani covers grids of at most four labels; the Lean model covers every length but is not the production function.",
+]
+
+[records.operation]
+inputs = ["the per-coordinate support labels", "the summary label", "the value count"]
+output = "acceptance, or a typed refusal naming the mismatch"
+premises = []
+transformation = "the summary must be the most severe label"
+justification = [
+    "Antecedent.Revalidation.labelsAccepted_summary",
+    "accepted_summary_is_never_better_than_a_label",
+    "missing_evidence_is_never_hidden",
+    "AntecedentRust.Support.severity_spec",
+]
+implementation = [
+    "antecedent_contract::support_labels::check_static_point_labels",
+    "antecedent_core::response::SupportStatus::severity",
+]
+obligations = []
+limitations = []
+
+[[records.checks]]
+kind = "machine_checked_proof"
+tool = "lean"
+files = ["formal/Antecedent/Revalidation.lean"]
+theorems = [
+    "Antecedent.Revalidation.Support.severity_injective",
+    "Antecedent.Revalidation.worstLabel_ge",
+    "Antecedent.Revalidation.labelsAccepted_summary",
+]
+
+[[records.checks]]
+kind = "verified_implementation"
+tool = "lean+aeneas"
+files = [
+    "formal/rust/AntecedentRust/Support.lean",
+    "formal/rust/AntecedentRust/Extracted/Support/Types.lean",
+    "formal/rust/AntecedentRust/Extracted/Support/Funs.lean",
+]
+theorems = ["AntecedentRust.Support.severity_spec"]
+rust_items = [
+    { file = "crates/antecedent-core/src/response.rs", items = [
+        "enum:SupportStatus#0",
+        "impl:SupportStatus#0/fn:severity#0",
+    ] },
+]
+
+[[records.checks]]
+kind = "bounded_model_check"
+tool = "kani"
+harnesses = [
+    { file = "formal/kani/src/support_labels.rs", name = "accepted_summary_is_never_better_than_a_label" },
+    { file = "formal/kani/src/support_labels.rs", name = "worst_label_summary_is_accepted" },
+    { file = "formal/kani/src/support_labels.rs", name = "missing_evidence_is_never_hidden" },
+]
+rust_items = [
+    { file = "crates/antecedent-contract/src/support_labels.rs", items = ["fn:check_static_point_labels#0"] },
+    { file = "crates/antecedent-core/src/response.rs", items = [
+        "enum:SupportStatus#0",
+        "impl:SupportStatus#0/fn:severity#0",
+    ] },
+]
+
+[records.result]
+inputs_digest = ""
+checked_commit = ""
