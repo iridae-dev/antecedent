@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from . import _direct_status
 from ._api import describe_refusal
 from ._coerce import coerce_refute
 from ._columns import refuse_named_identifiers
@@ -395,7 +396,7 @@ class RetargetMember:
     uncertainty_kind: str
     query_index: int | None = None
     n_eff: float | None = None
-    support_status: str = "not_assessed"
+    support_status: str = _direct_status.NOT_ASSESSED
     refusal_code: str | None = None
     refusal_detail: str | None = None
     refusal_message: str | None = None
@@ -677,7 +678,7 @@ def _retarget_member(raw: Mapping[str, Any], kind: str) -> RetargetMember:
         support_status=(
             "not_supported"
             if failure.get("support_refused")
-            else ("not_assessed" if failure else "supported")
+            else (_direct_status.NOT_ASSESSED if failure else "supported")
         ),
         refusal_code=failure.get("reason_code"),
         refusal_detail=failure.get("detail"),

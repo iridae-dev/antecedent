@@ -1,0 +1,32 @@
+feature_id = "estimate.dose_grid_bias_aware"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled bias-aware dose-grid row (crates/antecedent/src/analysis/compiled_dose_grid_bias_aware.rs).
+# The route binds a randomized-dose response-grid request, its declared bound on |m'''|, the
+# band's multiplier replicate count and the declared row weights or dependence into a lowered
+# program and evaluates the kernel of estimate.dose_grid_functional
+# (provenance/estimate.dose_grid_functional.toml, estimate_dose_grid_bias_aware_declared); it adds
+# no estimator of its own.
+papers = [
+ { title = "Simple and Honest Confidence Intervals in Nonparametric Regression", doi = "10.3982/QE1199", sections = ["worst-case bias of a linear smoother over a class with a bounded derivative", "the folded-normal critical value of the bias-aware fixed-length interval"] },
+ { title = "Local Polynomial Modelling and Its Applications (Fan and Gijbels, Chapman and Hall, 1996)", sections = ["local polynomial fitting by kernel-weighted least squares, with the fitted coefficients giving the regression function and its derivatives (construction only; chapter and section numbers not re-verified for this record)"] },
+]
+
+implementation_deviations = [
+  "The worst-case bias bound M/6 times the sum of |l_i| |D_i - d|^3 treats the Taylor remainders at the rows as independent and so is conservative; a contrast adds the two doses' bounds.",
+  "The simultaneous band adds the worst-case bias to a Gaussian multiplier sup-t half-width over the grid; its multipliers are drawn from the execution context's seed, per row, per declared cluster, or per block of lag + 1 rows.",
+  "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused.",
+  "The bandwidth is declared by the caller inside a declared range and never data-selected; the claim is about the dose response under the declared curvature bound.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/compiled_twins_dose_feedback.rs (a noise-free cubic response, whose error the worst-case bound dominates term by term, inside every interval and the band; a noise-free quadratic contrast reproduced exactly with zero bias; the twin of the direct entry)",
+  "crates/antecedent/tests/dose_grid_statements_calibration.rs",
+  "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs",
+]

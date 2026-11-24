@@ -251,7 +251,30 @@ impl AdaptiveInferenceSession {
     /// threshold, exploration mass, outcome structure or look schedule outside the
     /// measured cells still reports its interval, with its calibration annotated
     /// `outside_measured_scope` or `not_measured`.
+    ///
+    /// The session computes this interval outside the causal compiler. The compiled
+    /// `AdaptiveResultInterval` program family runs the same seal, replay and measured
+    /// consumer:
+    /// [`Study::compile_adaptive_interval`](crate::analysis::execute::Study::compile_adaptive_interval)
+    /// then `execute(ctx)`, whose run carries this measured inference unchanged.
+    #[deprecated(
+        since = "3.1.0",
+        note = "computes the interval outside the causal compiler; use Study::compile_adaptive_interval(&session, request, artifact_id)?.execute(ctx), which seals, replays and measures the same result and returns this measured inference in MeasuredIntervalRun::measured"
+    )]
     pub fn measured_interval(
+        &self,
+        request: &AdaptiveResultSpec,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_io::measured_inference::MeasuredInference, AdaptiveInferenceRefusal>
+    {
+        self.measure_result_interval(request, artifact_id, ctx)
+    }
+
+    /// The interval of one result: the result sealed under `artifact_id`, replayed and bound
+    /// by the native measured consumer. The deprecated direct entry and the compiled
+    /// `AdaptiveResultInterval` family both run it.
+    pub(crate) fn measure_result_interval(
         &self,
         request: &AdaptiveResultSpec,
         artifact_id: &str,

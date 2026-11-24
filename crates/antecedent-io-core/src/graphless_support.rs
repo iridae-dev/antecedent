@@ -189,6 +189,31 @@ pub fn classify_graphless(
     })
 }
 
+/// Support key of the independent-factor Horvitz–Thompson 2×2 reading of a four-cell multi-arm
+/// randomized design: the factor-A and factor-B main effects and their interaction with
+/// Young-inequality variance bounds. Execution, contract emission and artifact verification
+/// all classify that result under this key.
+pub const FACTORIAL_BERNOULLI_KEY: GraphlessSupportKey<'static> = GraphlessSupportKey {
+    family: "randomized_effect",
+    design: "factorial_2x2_bernoulli",
+    method: "independent_factor_ht_young_bound_contrasts",
+    inference_claim: "three_pointwise_95_normal_intervals",
+};
+
+/// Assignment-design label of a randomized result read as independent-factor 2×2 contrasts.
+pub const FACTORIAL_BERNOULLI_DESIGN: &str = "factorial_2x2_bernoulli";
+
+/// Fewest observed rows in every cell before the three pointwise intervals are published.
+pub const FACTORIAL_BERNOULLI_MIN_CELL_ROWS: usize = 30;
+
+/// Uncertainty label of the independent-factor 2×2 reading with its three published intervals.
+pub const FACTORIAL_BERNOULLI_INTERVAL_UNCERTAINTY: &str =
+    "factorial_bernoulli_ht_young_bound_pointwise_normal_intervals";
+
+/// Uncertainty label of the independent-factor 2×2 reading reported as points and bounds only.
+pub const FACTORIAL_BERNOULLI_POINT_UNCERTAINTY: &str =
+    "factorial_bernoulli_ht_young_variance_bound_no_interval";
+
 /// Code of the diagnostic by which a Bayesian design posterior states the support row it ran
 /// under. Such a result has no design section of its own, so the row key and the observed
 /// support ride in the diagnostic's fields.

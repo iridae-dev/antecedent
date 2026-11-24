@@ -34,6 +34,11 @@ the grid, widened by the same bias bound. The band is drawn from ``band_seed`` a
 when the artifact is consumed. Its calibration is not_measured. The bound is a declaration, not
 something the data establish.
 
+A bias-aware row runs through the compiler: the request is bound into the ``DoseGridBiasAware``
+program and executed under the band's seed, and :attr:`DoseFunctionalResult.program` names the
+route, the lowered program's identity and ``dose_grid_bias_aware``, the estimator key its
+measured coverage is recorded under. The sealed artifact holds the same numbers, bit for bit.
+
 The ``execution`` argument owns the worker threads, the memory limit and cancellation.
 Independent grid fits preserve request order;
 small grids use serial execution. The same controls apply during artifact recomputation.
@@ -79,6 +84,7 @@ from ._artifact_protocol import (
 from ._native import consume_dose_grid_artifact as _consume
 from ._native import consume_dose_grid_posterior_artifact as _consume_posterior
 from ._native import dose_support_labels as _support_labels
+from ._native import evaluate_dose_grid_bias_aware_compiled as _evaluate_bias_aware
 from ._native import evaluate_dose_grid_functional as _evaluate
 from ._native import evaluate_dose_grid_posterior as _evaluate_posterior
 from ._posterior_row import PosteriorRowEstimate
@@ -94,6 +100,7 @@ __all__ = [
     "DoseContrast",
     "DoseDeclaredRows",
     "DoseFunctionalResult",
+    "DoseGridProgram",
     "DoseGridRefusal",
     "DosePoint",
     "DoseSupport",
@@ -264,6 +271,30 @@ def _bias_aware(section: Mapping[str, Any] | None) -> DoseBiasAware | None:
 
 
 @dataclass(frozen=True, slots=True)
+class DoseGridProgram:
+    """The compiled program a bias-aware row ran through.
+
+    ``route`` is the plan route (``DoseGridBiasAware``), ``lowered_program_identity`` the
+    identity of the lowered program (lowercase hex) and ``calibration_estimator`` the estimator
+    key the measured coverage of the bias-aware intervals and band is recorded under.
+    """
+
+    route: str
+    lowered_program_identity: str
+    calibration_estimator: str
+
+
+def _program(section: Mapping[str, Any] | None) -> DoseGridProgram | None:
+    if section is None:
+        return None
+    return DoseGridProgram(
+        route=str(section["route"]),
+        lowered_program_identity=str(section["lowered_program_identity"]),
+        calibration_estimator=str(section["calibration_estimator"]),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class DoseDeclaredRows:
     """What declared sampling weights, clusters or a serial lag did to the fit.
 
@@ -330,6 +361,9 @@ class DoseFunctionalResult:
     bias_aware: DoseBiasAware | None = None
     #: What declared sampling weights, clusters or a serial lag did; ``None`` for plain rows.
     declared_rows: DoseDeclaredRows | None = None
+    #: The compiled program a bias-aware row ran through; ``None`` for any other row and for a
+    #: consumed artifact (a replay recomputes the row, it does not compile it).
+    program: DoseGridProgram | None = field(default=None, compare=False)
 
     @artifact_export
     def export(self) -> ExportedArtifact:
@@ -579,6 +613,7 @@ def _result(report_json: str, artifact: bytes) -> DoseFunctionalResult:
         quadratic_mean=bool(request.get("quadratic_mean", False)),
         bias_aware=_bias_aware(result.get("bias_aware")),
         declared_rows=_declared_rows(result.get("declared_rows")),
+        program=_program(report.get("program")),
     )
 
 
@@ -684,7 +719,9 @@ def _dose_functional(
             "band_seed": band_seed,
         }
     dose_column = _column(dose, "dose")
-    report, artifact, refusal = _evaluate(
+    # A bias-aware row runs through its compiled program (DoseGridBiasAware).
+    evaluate = _evaluate if curvature_bound is None else _evaluate_bias_aware
+    report, artifact, refusal = evaluate(
         json.dumps(request, allow_nan=False),
         dose_column,
         _column(outcome, "outcome"),

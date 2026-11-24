@@ -17,7 +17,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 from numpy.typing import ArrayLike
 
-from . import _deprecation, _native
+from . import _deprecation, _direct_status, _native
 from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
 from .execution import Execution, resolve_execution
@@ -453,7 +453,7 @@ class LongitudinalRegimeEstimate:
     method: str = "ipw"
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     period_effects: tuple[float, ...] | None = None
     standard_errors: tuple[float, ...] | None = None
     stabilizing_numerator_probabilities: tuple[float, ...] | None = None
@@ -550,7 +550,7 @@ class SequentialContrastEstimate:
     fits_reused: int = 0
     supported: bool = False
     calibration_measured: bool = False
-    support_status: str = "unsupported_uncalibrated"
+    support_status: str = _direct_status.UNSUPPORTED_UNCALIBRATED
     assumptions: tuple[str, ...] = (
         "sequential_conditional_exchangeability_given_measured_history",
         "positivity_at_each_decision",
@@ -572,7 +572,7 @@ class RegimeValue:
     matched_observed_fraction: float
     maximum_weight: float
     uncertainty: str = "not_estimated"
-    support_status: str = "caller_supplied_sequential_probabilities"
+    support_status: str = _direct_status.CALLER_SUPPLIED_SEQUENTIAL_PROBABILITIES
     assumptions: tuple[str, ...] = (
         "consistency for the specified binary treatment history",
         "sequential exchangeability conditional on the supplied pre-decision histories",
@@ -590,7 +590,7 @@ class GFormulaValue:
     minimum_censoring_survival: float
     fold_ownership: tuple[tuple[str, int], ...]
     uncertainty: str = "not_estimated"
-    support_status: str = "caller_supplied_conditional_outcome_predictions"
+    support_status: str = _direct_status.CALLER_SUPPLIED_CONDITIONAL_OUTCOME_PREDICTIONS
     crossfit_status: str = "not_claimed"
     assumptions: tuple[str, ...] = (
         "consistency for the specified treatment regime",
@@ -610,7 +610,7 @@ class DoublyRobustRegimeValue:
     minimum_censoring_probability: float
     fold_ownership: tuple[tuple[str, int], ...]
     uncertainty: str = "not_estimated"
-    support_status: str = "caller_supplied_sequential_Q_and_probabilities"
+    support_status: str = _direct_status.CALLER_SUPPLIED_SEQUENTIAL_Q_AND_PROBABILITIES
     crossfit_status: str = "fold_ids_aligned_but_crossfit_not_independently_verified"
     assumptions: tuple[str, ...] = (
         "consistency for the specified treatment regime",
@@ -641,7 +641,7 @@ class MarginalStructuralModelResult:
     crossfit_status: str = (
         "caller_supplied propensity data dependence is not independently verified"
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "consistency for the observed longitudinal treatment histories",
         "sequential exchangeability conditional on the histories used for treatment probabilities",

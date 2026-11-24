@@ -27,6 +27,18 @@ pub struct BernoulliFactorial2x2 {
     pub interaction_variance_bound: f64,
 }
 
+/// The 2×2 contrasts of [`estimate_factorial_2x2_cells`] with the diagonal Horvitz–Thompson
+/// variance of each cell mean.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BernoulliFactorialCells {
+    /// Cell means, contrasts and their variance bounds.
+    pub contrasts: BernoulliFactorial2x2,
+    /// Diagonal Horvitz–Thompson variance estimate of each cell mean, in cell order:
+    /// `(1/n²) Σ 1{cell} (1 − q) (y / q)²`. Each contrast bound is four times the
+    /// squared-weight sum of these.
+    pub cell_variances: Vec<f64>,
+}
+
 /// Finite-row cell means and factorial contrasts for two independent Bernoulli factors.
 pub fn estimate_factorial_2x2(
     outcome: &[f64],
@@ -52,17 +64,69 @@ pub fn estimate_factorial_2x2(
     if probability_a.iter().chain(probability_b).any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
         return Err("both factor assignment probabilities must be strictly between zero and one");
     }
+    let mut cells = Vec::with_capacity(n);
+    let mut cell_probability = Vec::with_capacity(n);
+    for i in 0..n {
+        let a = usize::from(factor_a[i]);
+        let b = usize::from(factor_b[i]);
+        let qa = if a == 1 { probability_a[i] } else { 1.0 - probability_a[i] };
+        let qb = if b == 1 { probability_b[i] } else { 1.0 - probability_b[i] };
+        cells.push(2 * a + b);
+        cell_probability.push(qa * qb);
+    }
+    // The factor checks above are the whole contract of this entry; a product of two
+    // in-range probabilities is not re-checked, so this entry's answers are unchanged.
+    cell_contrasts(outcome, &cells, &cell_probability).map(|fit| fit.contrasts)
+}
 
+/// [`estimate_factorial_2x2`] from each row's realized cell (`2a + b`, in cell order) and the
+/// known probability of that cell.
+///
+/// The cell probability of two independent factors is `qa · qb`, where `qa` is the factor-A
+/// probability of the realized level (`pa` or `1 − pa`) and likewise `qb`; a caller that states
+/// the cell probability as that product gets the numbers of [`estimate_factorial_2x2`] to the
+/// bit. The contrasts and bounds read only the realized cell's probability, so they are the same
+/// Horvitz–Thompson estimators for any independent-row assignment to four known-probability
+/// cells.
+///
+/// # Errors
+///
+/// Misaligned or empty inputs, a non-finite outcome, a cell index outside `0..4`, a cell
+/// probability outside `(0, 1)`, or a cell with no observed row.
+pub fn estimate_factorial_2x2_cells(
+    outcome: &[f64],
+    cells: &[usize],
+    cell_probability: &[f64],
+) -> Result<BernoulliFactorialCells, &'static str> {
+    let n = outcome.len();
+    if n == 0 || cells.len() != n || cell_probability.len() != n {
+        return Err("outcome, cells, and cell probabilities must have equal non-zero length");
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite");
+    }
+    if cells.iter().any(|cell| *cell >= 4) {
+        return Err("factorial cell index must be one of the four 2x2 cells");
+    }
+    if cell_probability.iter().any(|q| !q.is_finite() || *q <= 0.0 || *q >= 1.0) {
+        return Err("cell assignment probabilities must be strictly between zero and one");
+    }
+    cell_contrasts(outcome, cells, cell_probability)
+}
+
+/// The Horvitz–Thompson cell means, contrasts and bounds of validated, aligned rows.
+fn cell_contrasts(
+    outcome: &[f64],
+    cells: &[usize],
+    cell_probability: &[f64],
+) -> Result<BernoulliFactorialCells, &'static str> {
+    let n = outcome.len();
     let mut sums = [0.0; 4];
     let mut variance_terms = [0.0; 4];
     let mut support = [0_usize; 4];
     for i in 0..n {
-        let a = usize::from(factor_a[i]);
-        let b = usize::from(factor_b[i]);
-        let cell = 2 * a + b;
-        let qa = if a == 1 { probability_a[i] } else { 1.0 - probability_a[i] };
-        let qb = if b == 1 { probability_b[i] } else { 1.0 - probability_b[i] };
-        let q = qa * qb;
+        let cell = cells[i];
+        let q = cell_probability[i];
         support[cell] += 1;
         sums[cell] += outcome[i] / q;
         // An observed cell occurs with probability q. Its inverse-probability
@@ -88,15 +152,18 @@ pub fn estimate_factorial_2x2(
             .map(|(variance, weight)| variance * weight.powi(2))
             .sum::<f64>()
     };
-    Ok(BernoulliFactorial2x2 {
-        cell_means: means.to_vec(),
-        cell_support: support.to_vec(),
-        factor_a_effect: contrast(factor_a_weights),
-        factor_b_effect: contrast(factor_b_weights),
-        interaction_effect: contrast(interaction_weights),
-        factor_a_variance_bound: variance_bound(factor_a_weights),
-        factor_b_variance_bound: variance_bound(factor_b_weights),
-        interaction_variance_bound: variance_bound(interaction_weights),
+    Ok(BernoulliFactorialCells {
+        contrasts: BernoulliFactorial2x2 {
+            cell_means: means.to_vec(),
+            cell_support: support.to_vec(),
+            factor_a_effect: contrast(factor_a_weights),
+            factor_b_effect: contrast(factor_b_weights),
+            interaction_effect: contrast(interaction_weights),
+            factor_a_variance_bound: variance_bound(factor_a_weights),
+            factor_b_variance_bound: variance_bound(factor_b_weights),
+            interaction_variance_bound: variance_bound(interaction_weights),
+        },
+        cell_variances: variances.to_vec(),
     })
 }
 

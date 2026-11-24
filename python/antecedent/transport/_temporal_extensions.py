@@ -36,6 +36,7 @@ from typing import Any, Literal, cast
 
 from antecedent import _reason_details
 
+from .. import _deprecation
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -170,6 +171,50 @@ class TemporalUnitPanel:
         return cls(
             snapshot_id,
             [UnitHistories(u, sorted(h, key=lambda x: x.time_id)) for u, h in grouped.items()],
+        )
+
+    def compiled_dependent_interval(
+        self,
+        *,
+        sequence: Sequence[int],
+        estimand: str = MARGINALIZED_LABEL,
+        fixed_state: int | None = None,
+        target_law: InitialStateLaw | int | None = None,
+        replicates: int = 500,
+        level: float = 0.95,
+        method: Literal["studentized"] = "studentized",
+        min_units: int = 20,
+        max_failed_fraction: float = 0.05,
+        execution: Execution | None = None,
+    ) -> MeasuredInference:
+        """The measured whole-unit response interval through the compiled program.
+
+        The panel, the sequence, the estimand and the resampling design are bound into the
+        compiled ``TemporalDependentInterval`` program, whose execution builds the original
+        whole-unit candidate (studentized resampling of whole units, seeded from
+        ``execution.seed``) and replays it with the native measured consumer. The interval is
+        reported with its calibration status; calibration never withholds it. The arguments
+        and refusals are those of :func:`temporal_dependent_interval`.
+        """
+        execution = resolve(execution)
+        return cast(
+            MeasuredInference,
+            _temporal_interval_entry(
+                self,
+                sequence=sequence,
+                estimand=estimand,
+                fixed_state=fixed_state,
+                target_law=target_law,
+                replicates=replicates,
+                seed=execution.seed,
+                level=level,
+                method=method,
+                min_units=min_units,
+                max_failed_fraction=max_failed_fraction,
+                measured=True,
+                compiled=True,
+                execution=execution,
+            ),
         )
 
     def _wire(self) -> list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None:
@@ -661,7 +706,15 @@ def temporal_dependent_interval(
     the explicit target initial-state law (0.3, 0.7). The original panel and
     full interval receipt are independently replayed. Other histories, laws
     and methods refuse rather than borrowing this construction's evidence.
+
+    Deprecated: :meth:`TemporalUnitPanel.compiled_dependent_interval` runs the same
+    candidate and measured consumer through the compiled ``TemporalDependentInterval``
+    program and returns the identical interval.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.temporal_dependent_interval",
+        "antecedent.transport.TemporalUnitPanel.compiled_dependent_interval(...)",
+    )
     execution = resolve(execution)
     return cast(
         MeasuredInference,
@@ -706,6 +759,7 @@ def _temporal_interval_entry(
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
     measured: bool,
+    compiled: bool = False,
     execution: Execution | None = None,
 ) -> MeasuredInference | TemporalIntervalCandidate:
     """Shared source validation; candidate and measured authority remain separate."""
@@ -717,13 +771,13 @@ def _temporal_interval_entry(
     law, point = (None, None) if target_law is None else _law_args(target_law)
     from .. import _native
 
-    candidate = getattr(
-        _native,
-        "temporal_dependent_interval_measured"
-        if measured
-        else "temporal_dependent_interval_candidate",
-        None,
-    )
+    if compiled:
+        entry = "temporal_dependent_interval_compiled"
+    elif measured:
+        entry = "temporal_dependent_interval_measured"
+    else:
+        entry = "temporal_dependent_interval_candidate"
+    candidate = getattr(_native, entry, None)
     arguments = (
         panel.snapshot_id,
         panel._wire(),

@@ -455,19 +455,29 @@ pub fn temporal_dependent_interval(
     config: &DependentIntervalConfig,
 ) -> Result<antecedent_io::measured_inference::MeasuredInference, IoError> {
     let ctx = antecedent_core::ExecutionContext::production_default(config.seed);
-    let wire = temporal_dependent_interval_candidate(
-        snapshot_id,
-        units,
-        sequence,
-        estimand,
-        config,
-        &ctx,
-    )?;
+    measure_dependent_interval(snapshot_id, units, sequence, estimand, config, &ctx)
+}
+
+/// The measured whole-unit interval under `ctx`: the original candidate is built and its
+/// artifact replayed by the native measured consumer. The deprecated direct entry (under the
+/// production context of `config.seed`) and the compiled `TemporalDependentInterval` family
+/// (under the caller's context) both run it; the resampling stream is seeded from `config.seed`
+/// in both, so the context changes cancellation and admission, never a number.
+pub(crate) fn measure_dependent_interval(
+    snapshot_id: &str,
+    units: Option<Vec<UnitHistories>>,
+    sequence: [u32; 2],
+    estimand: IntervalEstimand,
+    config: &DependentIntervalConfig,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_io::measured_inference::MeasuredInference, IoError> {
+    let wire =
+        temporal_dependent_interval_candidate(snapshot_id, units, sequence, estimand, config, ctx)?;
     antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
         &wire.export()?,
         &wire.seal,
         &antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(),
-        &ctx,
+        ctx,
     )
 }
 

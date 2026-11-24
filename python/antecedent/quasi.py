@@ -24,7 +24,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from . import _deprecation
+from . import _deprecation, _direct_status
 from ._data import as_columns
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
@@ -105,7 +105,7 @@ class DifferenceInDifferencesEstimate:
         "stable_treatment_assignment",
         "no_interference",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,7 +201,7 @@ class PanelDifferenceInDifferencesEstimate:
         "no_interference",
         "independent_sampling_clusters",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     cohort: int | None = None
     period: int | None = None
 
@@ -306,7 +306,7 @@ class StaggeredAdoptionEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     diagnostics: tuple[str, ...] = (
         "comparison_support_counts_reported_per_cohort_period",
         "pretrend_not_tested",
@@ -352,7 +352,7 @@ class StaggeredEventStudyEstimate:
         "balanced_panel",
         "independent_sampling_clusters",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     diagnostics: tuple[str, ...] = (
         "cohort_specific_effects_reported_by_event_time",
         "event_time_minus_one_is_reference_and_omitted",
@@ -701,7 +701,7 @@ class SyntheticControlEstimate:
     augmentation_ridge: float | None = None
     observed_window: ObservedWindowSupport | None = None
     uncertainty: str = "point_only_with_unsupported_placebo_rank"
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     diagnostics: tuple[str, ...] = (
         "placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",
     )
@@ -793,7 +793,7 @@ class SyntheticDifferenceInDifferencesEstimate:
         "no_interference_between_units",
         "no_concurrent_treated_unit_specific_shock",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     diagnostics: tuple[str, ...] = (
         "balanced_panel_and_two_pre_periods_required",
         "unit_and_time_weights_are_simplex_constrained",
@@ -879,7 +879,7 @@ class AugmentedPanelDiDEstimate:
         "strict_propensity_overlap",
         "supplied_nuisance_predictions_are_valid_for_the_evaluation_rows",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     diagnostics: tuple[str, ...] = (
         "propensity_range_and_weighted_control_effective_sample_size_reported",
         "cross_fitting_is_caller_declared_not_verified",
@@ -1056,7 +1056,7 @@ class PeriodHistoryMatchEstimate:
     interval_upper: float | None = None
     supported: bool = False
     calibration_measured: bool = False
-    support_status: str = "unsupported_uncalibrated"
+    support_status: str = _direct_status.UNSUPPORTED_UNCALIBRATED
 
 
 @dataclass(frozen=True, slots=True)
@@ -1188,7 +1188,7 @@ class LocalPolynomialRatioEstimate:
         "independent_observations_within_bandwidth",
         "no_interference",
     )
-    support_status: str = "off_axis_interval_evidence"
+    support_status: str = _direct_status.OFF_AXIS_INTERVAL_EVIDENCE
     diagnostics: tuple[str, ...] = (
         "local_quadratic_triangular_kernel",
         "left_right_window_counts_reported",
@@ -1518,7 +1518,7 @@ class CategoricalDidEstimate:
         "stable_treatment_level_within_subject",
         "no_interference",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
 
     def contrast(self, level: Any) -> CategoricalDidContrast:
         """The contrast of ``level`` against the reference."""

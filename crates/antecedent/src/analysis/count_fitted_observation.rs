@@ -29,7 +29,7 @@ use antecedent_contract::ExternalRefusal;
 /// Seed of the Monte Carlo stream when the caller names none.
 pub const DEFAULT_SEED: u64 = 0x0b5e_7a71_0c0f_17ed;
 
-fn refusal_of(error: &antecedent_io::IoError) -> ObservationQueryRefusal {
+pub(crate) fn refusal_of(error: &antecedent_io::IoError) -> ObservationQueryRefusal {
     let (code, message) = match error {
         antecedent_io::IoError::Refused { code, message } => (*code, message.clone()),
         other => (antecedent_core::reason_code!("invalid_argument"), other.to_string()),
@@ -130,7 +130,45 @@ impl CountFittedObservation {
     /// supported minimum, complete rows, sample size) has no currently attesting coverage
     /// record, or when the Monte Carlo error of an endpoint exceeds its declared share of
     /// the interval width (`measured_interval.draws_not_converged`).
+    ///
+    /// The posterior interval is computed outside the causal compiler. The compiled
+    /// `CountFittedInterval` program family runs the same measured consumer:
+    /// [`Study::compile_count_fitted_interval`](crate::analysis::execute::Study::compile_count_fitted_interval)
+    /// then `execute(ctx)`, whose run carries this measured inference unchanged.
+    #[deprecated(
+        since = "3.1.0",
+        note = "computes the posterior interval outside the causal compiler; use Study::compile_count_fitted_interval(observation, level)?.execute(ctx), which runs the same measured consumer and returns this measured inference in MeasuredIntervalRun::measured"
+    )]
     pub fn interval(
+        &self,
+        level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<MeasuredInference, ObservationQueryRefusal> {
+        self.measured_interval_at(level, ctx)
+    }
+
+    /// The calibration claim of the posterior probability: the same measured interval,
+    /// the claim "this interval covers the probability under the generating tables at
+    /// the stated level".
+    ///
+    /// # Errors
+    /// As [`Self::interval`].
+    #[deprecated(
+        since = "3.1.0",
+        note = "computes the posterior interval outside the causal compiler; use Study::compile_count_fitted_interval(observation, level)?.execute(ctx), which runs the same measured consumer and returns this measured inference in MeasuredIntervalRun::measured"
+    )]
+    pub fn calibrated_probability(
+        &self,
+        level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<MeasuredInference, ObservationQueryRefusal> {
+        self.measured_interval_at(level, ctx)
+    }
+
+    /// The measured interval at `level`: the retained source at that level, encoded and
+    /// replayed by the native measured consumer. The deprecated direct entries and the
+    /// compiled `CountFittedInterval` family both run it.
+    pub(crate) fn measured_interval_at(
         &self,
         level: f64,
         ctx: &ExecutionContext,
@@ -142,19 +180,5 @@ impl CountFittedObservation {
         wire.level_bits = level.to_bits();
         let bytes = wire.encode().map_err(|e| refusal_of(&e))?;
         CountFittedIntervalArtifactWire::measure(&bytes).map_err(|e| refusal_of(&e))
-    }
-
-    /// The calibration claim of the posterior probability: the same measured interval,
-    /// the claim "this interval covers the probability under the generating tables at
-    /// the stated level".
-    ///
-    /// # Errors
-    /// As [`Self::interval`].
-    pub fn calibrated_probability(
-        &self,
-        level: f64,
-        ctx: &ExecutionContext,
-    ) -> Result<MeasuredInference, ObservationQueryRefusal> {
-        self.interval(level, ctx)
     }
 }

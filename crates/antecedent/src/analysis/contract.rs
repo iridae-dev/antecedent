@@ -258,6 +258,17 @@ fn graphless_coordinate(
         let CausalQuery::RandomizedEffect(query) = query else { return Err(MISMATCH) };
         let (family, design, method, _assignment_unit, claim) = query.graphless_coordinate();
         coordinate = Some(format!("graphless:{family}/{design}/{method}/{claim}"));
+        // The independent-factor 2x2 reading of a four-cell multi-arm design is selected by its
+        // estimator, not by the query, and is supported under its own row.
+        if result.randomized_effect().is_some_and(|fit| {
+            *fit.assignment_design == *antecedent_io::graphless_support::FACTORIAL_BERNOULLI_DESIGN
+        }) {
+            let key = antecedent_io::graphless_support::FACTORIAL_BERNOULLI_KEY;
+            coordinate = Some(format!(
+                "graphless:{}/{}/{}/{}",
+                key.family, key.design, key.method, key.inference_claim
+            ));
+        }
     }
     if result.longitudinal_regime().is_some() {
         use antecedent_core::LongitudinalRegimeMethod as Method;

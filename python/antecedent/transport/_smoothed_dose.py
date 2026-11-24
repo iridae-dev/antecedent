@@ -23,6 +23,9 @@ separately; neither is ever added to the estimate. The smoothing-bias diagnostic
 computed from the fitted curve alone (it is zero for a fit linear in the dose). The whole-estimator interval (joint outer refit percentile bootstrap) is formed by
 :meth:`PreparedSmoothedDose.interval` and carries its calibration slot.
 The derivation is in ``docs/architecture/smoothed-dose-response-transport.md``.
+
+:func:`antecedent.transport.advanced.analyze_smoothed_dose` fits the same grid with the caller's
+own learners through the compiled ``SmoothedDoseLearnerTransport`` program.
 """
 
 from __future__ import annotations

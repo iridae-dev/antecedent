@@ -1,0 +1,30 @@
+feature_id = "transport.smoothed_dose_caller_learners"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled smoothed dose-response transport fitted with caller-supplied learners
+# (crates/antecedent/src/analysis/compiled_smoothed_dose_learners.rs). The route decides the
+# transport by sID, binds the query, options, learner identity and rows into a lowered program and
+# evaluates the cross-fitted smoothed score of estimate.smoothed_dose
+# (provenance/estimate.smoothed_dose.toml) through estimate_smoothed_dose_with_factories, with the
+# caller's factories in place of the library learners; it adds no estimator of its own.
+papers = [
+ { title = "Non-parametric methods for doubly robust estimation of continuous treatment effects (Kennedy, Ma, McHugh and Small, J. R. Stat. Soc. B 79:1229-1245)", sections = ["kernel-smoothed dose-response estimation with a known or estimated generalized propensity"] },
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.1: identification conditions for the nonparticipant target"] },
+]
+
+implementation_deviations = [
+  "The outcome curve and source membership are fitted by caller factories the library does not verify; the estimate records them as unverified (external_nuisances_unverified) and keeps each fold model's provenance.",
+  "Caller learners run without bootstrap replicates and refuse time-ordered rows, whose folds would train on the complement of each held-out fold: the route is point-only and calibration is reported as not_measured.",
+  "The certificate, bounds, known-density, dose-support and local-support refusals are those of the library-learner route and are decided before any learner is fitted.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/compiled_twins_dose_feedback.rs (with the library learners handed over as caller factories, the compiled grid matches the 50-digit reference crates/antecedent-estimate/tests/oracle_data/smoothed_dose_declared_reference.json; the twin of the direct factory entry)",
+  "crates/antecedent-estimate/tests/smoothed_dose_declared_reference.rs",
+]

@@ -179,7 +179,28 @@ pub fn fit_cohort_effect(
 /// # Errors
 /// A source not built from `native`, a shifted cohort, a `not_measured` level or fit size
 /// (no attesting record), or a changed artifact.
+///
+/// The interval is computed outside the causal compiler. The compiled `CohortMeanInterval`
+/// program family runs the same measured consumer:
+/// [`Study::compile_cohort_interval`](crate::analysis::execute::Study::compile_cohort_interval)
+/// then `execute(ctx)`, whose run carries this measured inference unchanged.
+#[deprecated(
+    since = "3.1.0",
+    note = "computes the cohort-mean interval outside the causal compiler; use Study::compile_cohort_interval(native, source, level)?.execute(ctx), which runs the same measured consumer and returns this measured inference in MeasuredIntervalRun::measured"
+)]
 pub fn measured_cohort_interval(
+    native: &NativeCohortFit,
+    source: &CohortDecisionSource,
+    level: f64,
+    ctx: &ExecutionContext,
+) -> Result<MeasuredInference, antecedent_io::IoError> {
+    measure_cohort_interval(native, source, level, ctx)
+}
+
+/// The measured interval of `source`'s cohort mean: both retained artifacts encoded and
+/// replayed by the native measured consumer. The deprecated direct entry and the compiled
+/// `CohortMeanInterval` family both run it.
+pub(crate) fn measure_cohort_interval(
     native: &NativeCohortFit,
     source: &CohortDecisionSource,
     level: f64,

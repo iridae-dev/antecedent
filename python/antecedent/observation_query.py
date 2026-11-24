@@ -61,7 +61,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1167,6 +1167,9 @@ class CountFittedObservation(ScientificResult):
     ) -> MeasuredInference:
         """The posterior interval at ``level``, annotated with its calibration status.
 
+        Deprecated: :meth:`compiled_interval` runs the same measured consumer through the
+        compiled ``CountFittedInterval`` program and returns the identical interval.
+
         A level, draw count or sample size the coverage grid did not measure is computed and
         reported with ``outside_measured_scope`` or ``not_measured``; calibration never withholds it.
 
@@ -1174,7 +1177,41 @@ class CountFittedObservation(ScientificResult):
             ObservationQueryRefusal: when the Monte Carlo error of an endpoint is large against
                 the interval width (use more draws).
         """
-        measured, refusal = _native.count_fitted_observation_interval(
+        _deprecation.direct_path_deprecated(
+            "antecedent.observation_query.CountFittedObservation.interval",
+            "antecedent.observation_query.CountFittedObservation.compiled_interval(level=...)",
+        )
+        return self._direct_interval(level, execution)
+
+    def calibrated_probability(
+        self, *, level: float = 0.95, execution: Execution | None = None
+    ) -> MeasuredInference:
+        """The calibration claim of the posterior probability: the same measured interval.
+
+        Deprecated: :meth:`compiled_interval` returns the identical interval through the
+        compiled ``CountFittedInterval`` program.
+        """
+        _deprecation.direct_path_deprecated(
+            "antecedent.observation_query.CountFittedObservation.calibrated_probability",
+            "antecedent.observation_query.CountFittedObservation.compiled_interval(level=...)",
+        )
+        return self._direct_interval(level, execution)
+
+    def compiled_interval(
+        self, *, level: float = 0.95, execution: Execution | None = None
+    ) -> MeasuredInference:
+        """The posterior interval at ``level`` through the compiled ``CountFittedInterval`` program.
+
+        The retained counts, question, prior, draw count and seed and the level are bound into a
+        lowered program whose execution replays the source with the native measured consumer:
+        the equal-tailed posterior interval of the fitted conditional probability, annotated
+        with the calibration status of its construction (calibration never withholds it).
+
+        Raises:
+            ObservationQueryRefusal: when the Monte Carlo error of an endpoint is large against
+                the interval width (use more draws).
+        """
+        measured, refusal = _native.count_fitted_observation_compiled_interval(
             self._source, _number(level, "level"), cancel=_cancel(execution)
         )
         raise_refusal(refusal, ObservationQueryRefusal)
@@ -1182,11 +1219,14 @@ class CountFittedObservation(ScientificResult):
             raise CausalValueError("the native interval returned neither result nor refusal")
         return MeasuredInference._from_native(measured)
 
-    def calibrated_probability(
-        self, *, level: float = 0.95, execution: Execution | None = None
-    ) -> MeasuredInference:
-        """The calibration claim of the posterior probability: the same measured interval."""
-        return self.interval(level=level, execution=execution)
+    def _direct_interval(self, level: float, execution: Execution | None) -> MeasuredInference:
+        measured, refusal = _native.count_fitted_observation_interval(
+            self._source, _number(level, "level"), cancel=_cancel(execution)
+        )
+        raise_refusal(refusal, ObservationQueryRefusal)
+        if measured is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native interval returned neither result nor refusal")
+        return MeasuredInference._from_native(measured)
 
 
 def count_fitted_observation(

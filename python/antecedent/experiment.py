@@ -23,7 +23,7 @@ from typing import Literal
 
 import numpy as np
 
-from . import _deprecation
+from . import _deprecation, _direct_status
 from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved, scalar_or_values
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
@@ -341,7 +341,7 @@ class SwitchbackEstimate:
     treatment_arms: tuple[str, str]
     estimand: str = "unit_period_itt"
     uncertainty: str = "independent_sequence_cluster_sandwich_standard_error_no_interval"
-    support_status: str = "unsupported_direct_estimator_utility"
+    support_status: str = _direct_status.UNSUPPORTED_DIRECT_ESTIMATOR_UTILITY
     assumptions: tuple[str, ...] = (
         "known marginal randomization probability for every unit-period",
         "independent assignment sequences with arbitrary within-sequence dependence",
@@ -761,7 +761,24 @@ class RandomizedEffect:
         conservative design-based variance bound, not a calibrated interval
         or a support-matrix support. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
+
+        The stratified design is deprecated here: ``analyze`` with the same query runs the
+        compiled ``RandomizedEffect`` route, which returns the same effect and variance bound.
         """
+        if (
+            not isinstance(self.design, MultiArmExperimentDesign)
+            and isinstance(self.design.assignment, StratifiedRandomization)
+            and not (
+                self.exact_randomization_test
+                or self.ancova_covariates
+                or self.cuped is not None
+                or self.estimated_cuped is not None
+            )
+        ):
+            _deprecation.direct_path_deprecated(
+                "antecedent.experiment.RandomizedEffect.estimate (stratified design)",
+                "antecedent.analyze(data, query=RandomizedEffect(outcome, design))",
+            )
         if isinstance(self.design, MultiArmExperimentDesign):
             raise CausalUnsupportedError(
                 "multi-arm RandomizedEffect requires analyze or prepare to retain every arm and the assignment record",
@@ -799,10 +816,6 @@ class RandomizedEffect:
             names, columns = as_columns(data)
             if self.outcome not in names:
                 raise CausalValueError(f"outcome column {self.outcome!r} is missing from data")
-            _deprecation.direct_path_deprecated(
-                "antecedent.experiment.RandomizedEffect.estimate (stratified design)",
-                "antecedent.analyze(data, query=RandomizedEffect(outcome, design))",
-            )
             estimated_raw = _estimate_stratified_effect(
                 np.asarray(columns[names.index(self.outcome)], dtype=np.float64),
                 list(realized),
@@ -857,7 +870,14 @@ class RandomizedExperimentEstimate:
     effect: float
     variance_upper_bound: float
     assignment_design: Literal[
-        "bernoulli", "complete", "cluster", "stratified", "switchback", "factorial_2x2", "multi_arm"
+        "bernoulli",
+        "complete",
+        "cluster",
+        "stratified",
+        "switchback",
+        "factorial_2x2",
+        "factorial_2x2_bernoulli",
+        "multi_arm",
     ]
     assignment_units: tuple[str, ...]
     outcome_units: tuple[str, ...]
@@ -991,7 +1011,7 @@ class ComplierEffectEstimate:
     interval_95: tuple[float, float] | None = None
     estimand: str = "cace_late"
     uncertainty: str = "asymptotic_influence_function_standard_error"
-    support_status: str = "unsupported_direct_estimator_utility"
+    support_status: str = _direct_status.UNSUPPORTED_DIRECT_ESTIMATOR_UTILITY
     assumptions: tuple[str, ...] = (
         "random assignment of the encouragement with known positive probabilities",
         "exclusion restriction: assignment affects outcome only through treatment receipt",
@@ -1023,7 +1043,7 @@ class CUPEDEstimate:
     adjustment_coefficient: float
     standard_error: float
     uncertainty: str = "asymptotic_independent_unit_standard_error"
-    support_status: str = "unsupported_direct_estimator_utility"
+    support_status: str = _direct_status.UNSUPPORTED_DIRECT_ESTIMATOR_UTILITY
     assumptions: tuple[str, ...] = (
         "known independent Bernoulli assignment probabilities",
         "the pre-treatment covariate is measured before assignment",
@@ -1072,7 +1092,7 @@ class ANCOVAEstimate:
     treated_support: int
     control_support: int
     uncertainty: str = "hc0_independent_unit_standard_error_no_interval"
-    support_status: str = "unsupported_direct_estimator_utility"
+    support_status: str = _direct_status.UNSUPPORTED_DIRECT_ESTIMATOR_UTILITY
     assumptions: tuple[str, ...] = (
         "independent Bernoulli assignment with a common known probability",
         "all adjustment covariates were measured before assignment",
@@ -1170,7 +1190,7 @@ class RandomizationTest:
     assignments_enumerated: int
     null: str = "sharp_no_effect"
     uncertainty: str = "exact_randomization_test_under_declared_bernoulli_design"
-    support_status: str = "unsupported_direct_inference_utility"
+    support_status: str = _direct_status.UNSUPPORTED_DIRECT_INFERENCE_UTILITY
 
 
 def exact_randomization_test(

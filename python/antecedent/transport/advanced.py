@@ -24,7 +24,9 @@ from ._advanced_producers import (
 )
 from ._augmented_grid import (
     AugmentedResponseGrid,
+    CompiledAugmentedResponseGrid,
     SelectionOverlap,
+    compile_augmented_response_grid,
     estimate_augmented_response_grid,
 )
 from ._counterfactual import (
@@ -229,7 +231,9 @@ from ._temporal_extensions import (
 
 __all__ = [
     "AugmentedResponseGrid",
+    "CompiledAugmentedResponseGrid",
     "SelectionOverlap",
+    "compile_augmented_response_grid",
     "estimate_augmented_response_grid",
     "SampledRecoveryCandidate",
     "SampledRecoveryIdentity",

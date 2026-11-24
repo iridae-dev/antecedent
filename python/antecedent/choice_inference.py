@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -621,13 +621,47 @@ class ChoiceInferenceSession:
         Raises:
             ChoiceInferenceRefusal: a result the contract cannot produce, or a stopping
                 decision, which has no interval (``route_not_supported``).
+
+        Deprecated: :meth:`compiled_interval` seals, replays and measures the same
+        result through the compiled ``ChoiceResultInterval`` program and returns the identical
+        interval.
         """
+        _deprecation.direct_path_deprecated(
+            "antecedent.choice_inference.ChoiceInferenceSession.measured_interval",
+            "antecedent.choice_inference.ChoiceInferenceSession.compiled_interval(request)",
+        )
         execution = resolve_execution(execution)
         from ._measured_inference import MeasuredInference
 
         native = _unwrap(
             execution._call(
                 self._handle.measured_interval, _json(request._wire()), cancel=execution.cancel
+            )
+        )
+        return MeasuredInference._from_native(native)
+
+    def compiled_interval(self, request: Request, *, execution: Execution | None = None) -> Any:
+        """The interval of one result through the compiled ``ChoiceResultInterval`` program.
+
+        The session, the request and the artifact id the result is sealed under are bound into a
+        lowered program whose execution seals the result, replays it in a fresh reader and
+        measures it with the native consumer of :meth:`measured_interval`. The interval is
+        reported with its calibration status; calibration never withholds it.
+
+        Returns:
+            A :class:`antecedent.MeasuredInference` carrying the scalar, its interval, its
+            calibration status and the governing record.
+
+        Raises:
+            ChoiceInferenceRefusal: ``route_not_supported`` for a result the contract cannot
+                produce or an interval of a kind the replayed result does not carry.
+        """
+        execution = resolve_execution(execution)
+        from ._measured_inference import MeasuredInference
+
+        native = _unwrap(
+            execution._call(
+                self._handle.compiled_interval, _json(request._wire()), cancel=execution.cancel
             )
         )
         return MeasuredInference._from_native(native)
