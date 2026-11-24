@@ -744,7 +744,6 @@ class TargetRefutation(ScientificResult):
         )
 
 
-@outcome_operation
 def _native_preparation(
     source: PreparedAnalysis[Any] | Outcome[Any],
     execution: Execution | None,
@@ -804,6 +803,7 @@ def _native_preparation(
     return engine._native, controls, completed
 
 
+@outcome_operation
 def refute_target(
     source: PreparedAnalysis[Any] | Outcome[Any],
     *,

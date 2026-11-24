@@ -853,16 +853,21 @@ def test_exact_complete_randomization_inference_retains_fisher_p_value():
     assert any("fisher_sharp_null_two_sided" in item for item in result.assumptions or ())
     with pytest.raises(CausalUnsupportedError, match="requires analyze or prepare"):
         require_success(query.estimate({"y": [1.0, 2.0, 3.0, 4.0]}))
-    with pytest.raises(CausalValueError, match="unadjusted complete"):
-        ant.experiment.RandomizedEffect(
-            "y",
-            ant.experiment.ExperimentDesign(
-                ant.interference.BernoulliAssignment(0.5),
-                [True, False, True, False],
-                [f"u{i}" for i in range(4)],
-                [f"y{i}" for i in range(4)],
-            ),
-            exact_randomization_test=True,
+    # A Bernoulli design is tested exactly only while its assignments can be enumerated (at
+    # most twenty rows); the compiler refuses a larger one.
+    large = ant.experiment.RandomizedEffect(
+        "y",
+        ant.experiment.ExperimentDesign(
+            ant.interference.BernoulliAssignment(0.5),
+            [i % 2 == 0 for i in range(21)],
+            [f"u{i}" for i in range(21)],
+            [f"y{i}" for i in range(21)],
+        ),
+        exact_randomization_test=True,
+    )
+    with pytest.raises(CausalError, match="unadjusted Bernoulli design of at most twenty rows"):
+        require_success(
+            ant.analyze({"y": [float(i) for i in range(21)]}, query=large, refute="none")
         )
 
 
