@@ -4977,8 +4977,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact::seal"
-disposition = "pending"
-owner = "a compiled route for finite cross-world execution (unit cross_world_execution.finite_markovian_scm): the facade CrossWorldExecution::seal and the Python seal execute through this function outside the compiler"
+disposition = "kernel"
+reason = "kernel API; the compiled CrossWorldFiniteExecution route seals through this same function after gating its program on the unit"
 
 [[row]]
 path = "antecedent_io_core::cross_world_execution_artifact::request_of"
@@ -5287,8 +5287,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifact::seal"
-disposition = "pending"
-owner = "a compiled route for the general temporal counterfactual: the facade GeneralTemporalCounterfactual::evaluate and its Python entry execute through this function outside the compiler"
+disposition = "kernel"
+reason = "kernel API; the compiled GeneralTemporalCounterfactual route seals through this same function after gating its program on the unit"
 
 [[row]]
 path = "antecedent_io_core::transport_proof::TransportProofWire::check"
@@ -5298,10 +5298,6 @@ disposition = "consume"
 path = "antecedent_io_core::transport_proof::TransportProofWire::inspect"
 disposition = "consume"
 
-[[python]]
-path = "python/antecedent/cross_world_execution.py::seal"
-disposition = "pending"
-owner = "a compiled route for finite cross-world execution (unit cross_world_execution.finite_markovian_scm); this wrapper's native seals through CrossWorldExecutionArtifact::seal outside the compiler"
 
 [[row]]
 path = "antecedent::estimate::longitudinal_regime::evaluate_g_formula_value"
@@ -5332,3 +5328,13 @@ replacement = "route:LongitudinalRegime"
 path = "python/antecedent/regimes.py::evaluate_sequential_doubly_robust"
 disposition = "deprecated"
 replacement = "route:LongitudinalRegime"
+
+[[row]]
+path = "antecedent::analysis::cross_world_execution::CrossWorldExecution::seal"
+disposition = "deprecated"
+replacement = "route:CrossWorldFiniteExecution"
+
+[[row]]
+path = "antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual::evaluate"
+disposition = "deprecated"
+replacement = "route:GeneralTemporalCounterfactual"

@@ -11,9 +11,11 @@
 #[deprecated(since = "3.1.0")] pub fn <antecedent::Study>::fn compile_for_evsi<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::count_fitted_observation::CountFittedObservation>::fn calibrated_probability(&self, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::observation_query::ObservationQueryRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::count_fitted_observation::CountFittedObservation>::fn interval(&self, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::observation_query::ObservationQueryRefusal>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn seal(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::recovery_chain::RecoveryChain>::fn recover(self, observed: antecedent_estimate::recovery_chain::ChainPatternLaw) -> core::result::Result<Self, antecedent_identify::recovery_chain::ChainRecoveryError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::sample_split_effect::SplitEffect>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::sample_split_parent_set_effect::ParentSetEffect>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn evaluate(request: &antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::api::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::api::transport_trial_to_weighted_target<T: antecedent_data::table::TableView + ?core::marker::Sized>(declaration: &antecedent::WeightedTargetDeclaration, table: &T, identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>) -> core::result::Result<antecedent::WeightedTrialTransport, antecedent::CausalError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::choice_ranking::rank_hierarchical_studies(prior: &antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior, respondents: &[alloc::vec::Vec<u32>], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
@@ -1481,6 +1483,8 @@ impl core::clone::Clone for antecedent::analysis::joint_transport_predictive_dec
 impl core::clone::Clone for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest
 impl core::clone::Clone for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult
 impl core::clone::Clone for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery
+impl core::clone::Clone for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution
+impl core::clone::Clone for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings
@@ -4232,6 +4236,8 @@ impl core::fmt::Debug for antecedent::analysis::joint_transport_predictive_decis
 impl core::fmt::Debug for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest
 impl core::fmt::Debug for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings
@@ -6005,6 +6011,8 @@ impl core::marker::Freeze for antecedent::analysis::joint_transport_predictive_d
 impl core::marker::Freeze for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -7483,6 +7491,8 @@ impl core::marker::Send for antecedent::analysis::joint_transport_predictive_dec
 impl core::marker::Send for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::marker::Send for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -9671,6 +9681,8 @@ impl core::marker::Sync for antecedent::analysis::joint_transport_predictive_dec
 impl core::marker::Sync for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::marker::Sync for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -11155,6 +11167,8 @@ impl core::marker::Unpin for antecedent::analysis::joint_transport_predictive_de
 impl core::marker::Unpin for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -12585,6 +12599,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_tra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -13984,6 +14000,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_transp
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -20617,6 +20635,7 @@ pub fn <antecedent::Study>::fn compile_chain_observation_recovery(plan: antecede
 pub fn <antecedent::Study>::fn compile_choice_interval<'s>(session: &'s antecedent::ChoiceInferenceSession, request: antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str) -> core::result::Result<antecedent::analysis::compiled_choice_interval::CompiledChoiceInterval<'s>, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_cohort_interval(native: antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64) -> core::result::Result<antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_count_fitted_interval(observation: antecedent::analysis::count_fitted_observation::CountFittedObservation, level: f64) -> core::result::Result<antecedent::analysis::compiled_count_fitted_interval::CompiledCountFittedInterval, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_cross_world_execution(request: antecedent_io_core::cross_world_execution_artifact::CrossWorldRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_decision_program<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent::analysis::DecisionCompileRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::CompiledDecisionProgram, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_detection_dependent_prevalence(columns: antecedent::analysis::kernel_programs::exposure_measurement::DetectionColumns, declaration: antecedent_stats::measurement_error::detection::DetectionDeclaration, false_positive: antecedent_stats::measurement_error::detection::FalsePositiveRate, min_net_detection: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_discovered_class_transport(request: antecedent::analysis::compiled_discovered_transport::DiscoveredClassTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_discovered_transport::CompiledDiscoveredClassTransport, antecedent::CausalError>
@@ -20633,6 +20652,7 @@ pub fn <antecedent::Study>::fn compile_for_preference_decision(&self, contract: 
 pub fn <antecedent::Study>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_gamma_power_prior_composition(base: antecedent_prob::conjugate_moment_match::GammaHyperparameters, sources: alloc::vec::Vec<(u64, f64, f64)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledGammaPowerPriorComposition, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_gamma_power_prior_selection(source: antecedent_prob::power_prior_alpha::GammaSource, counts: alloc::vec::Vec<u64>, options: antecedent_prob::power_prior_alpha::AlphaSelectionOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_general_temporal_counterfactual(request: antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_joint_bayesian_transport(identification: antecedent_identify::transport::TransportIdentification, model: antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: alloc::vec::Vec<antecedent_estimate::joint_bayesian_transport::SourceData>, target: antecedent_estimate::joint_bayesian_transport::TargetData, options: antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_joint_cells_learners(request: antecedent::analysis::compiled_joint_cells_learners::JointCellsLearnersRequest) -> core::result::Result<antecedent::analysis::compiled_joint_cells_learners::CompiledJointCellsLearners, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_kernel_bandwidth_sensitivity(family: antecedent_prob::transport_target::KernelFamily, bandwidths: alloc::vec::Vec<f64>, distances: alloc::vec::Vec<f64>, unit_effects: alloc::vec::Vec<f64>, min_ess_fraction: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledKernelBandwidthSensitivity, antecedent::CausalError>
@@ -21555,11 +21575,11 @@ pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn ar
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionIdentity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn identity(&self) -> &antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionIdentity
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn interval(&self) -> core::result::Result<(f64, f64), antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
+pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn into_artifact(self) -> antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifact
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn measured_interval(&self, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::cross_world_interval::CrossWorldInterval, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn posterior(&self) -> core::result::Result<(f64, f64), antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionRefusalWire>
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn result(&self) -> &antecedent_counterfactual::selective::finite_executor::FiniteExecutionResult
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn resume(&mut self, request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::finite_executor::FiniteExecutionResult, antecedent_counterfactual::selective::refusal::CrossWorldExecutionError>
-pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn seal(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
 pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn whole_path_uncertainty(&self, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::cross_world_execution::WholePathAccount, antecedent_counterfactual::selective::refusal::CrossWorldExecutionError>
 pub fn <antecedent::analysis::cross_world_execution::WholePathAccount>::const fn uncertainty(&self) -> &antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
@@ -22240,6 +22260,14 @@ pub fn <antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObse
 pub fn <antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery>::fn observed(&self) -> &antecedent_estimate::recovery_chain::ChainPatternLaw
 pub fn <antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery>::fn plan(&self) -> &antecedent_identify::recovery_chain::ChainRecoveryPlan
 pub fn <antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution>::const fn request(&self) -> &antecedent_io_core::cross_world_execution_artifact::CrossWorldRequestWire
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution>::fn seal(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::cross_world_execution::CrossWorldExecution, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::const fn request(&self) -> &antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalRequestWire
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn correct(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::exposure_routes::DetectionDependentPrevalence, antecedent_estimate::measurement::MeasurementError>
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn plan_view(&self) -> antecedent::planner::PlanView
@@ -22900,7 +22928,6 @@ pub fn <antecedent::analysis::supplied_sensitivity_programs::MatchedDesign>::con
 pub fn <antecedent::analysis::supplied_sensitivity_programs::SuppliedEstimate>::const fn kind(&self) -> &'static str
 pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn artifact(&self) -> &antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifact
 pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalIdentity>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
-pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn evaluate(request: &antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
 pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn export(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
 pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn identity(&self) -> &antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalIdentity
 pub fn <antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual>::fn receipt(&self) -> &antecedent_counterfactual::temporal_cross_world::general::GeneralAbductionReceipt
@@ -24332,6 +24359,7 @@ pub mod antecedent::analysis::joint_transport_effect_decision
 pub mod antecedent::analysis::joint_transport_predictive_decision
 pub mod antecedent::analysis::kernel_programs
 pub mod antecedent::analysis::kernel_programs::chain_recovery
+pub mod antecedent::analysis::kernel_programs::counterfactual_seal
 pub mod antecedent::analysis::kernel_programs::exposure_measurement
 pub mod antecedent::analysis::kernel_programs::external_feedback
 pub mod antecedent::analysis::kernel_programs::learned_joint_transport
@@ -25717,6 +25745,10 @@ pub struct antecedent::analysis::joint_transport_predictive_decision::JointTrans
 pub struct antecedent::analysis::joint_transport_predictive_decision::JointTransportPredictiveDecisionResult
 pub struct antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery
 pub struct antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery has private fields
+pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution
+pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution has private fields
+pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
+pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual has private fields
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence has private fields
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
@@ -32651,6 +32683,7 @@ pub variant antecedent::planner::PlanRoute::ContractLawDecision
 pub variant antecedent::planner::PlanRoute::CountFittedInterval
 pub variant antecedent::planner::PlanRoute::CounterfactualClass
 pub variant antecedent::planner::PlanRoute::CounterfactualTransportIdentification
+pub variant antecedent::planner::PlanRoute::CrossWorldFiniteExecution
 pub variant antecedent::planner::PlanRoute::CyclicActionWorldDecision
 pub variant antecedent::planner::PlanRoute::CyclicFamily(&'static str)
 pub variant antecedent::planner::PlanRoute::CyclicPosteriorActionDecision
@@ -32689,6 +32722,7 @@ pub variant antecedent::planner::PlanRoute::GcmDag
 pub variant antecedent::planner::PlanRoute::GcmSimulateDag
 pub variant antecedent::planner::PlanRoute::GcmTemporal
 pub variant antecedent::planner::PlanRoute::GcmTemporalClass
+pub variant antecedent::planner::PlanRoute::GeneralTemporalCounterfactual
 pub variant antecedent::planner::PlanRoute::GraphFalsification
 pub variant antecedent::planner::PlanRoute::GraphImputation
 pub variant antecedent::planner::PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision
