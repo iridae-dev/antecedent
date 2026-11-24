@@ -8,9 +8,8 @@ use super::{
     Transformation, ValidityBitmap, VariableId, WHOLE_METHOD_CALIBRATION, contract_map,
     declaration_json, discover_on_split, discovery_failure, error_json, estimate_effect_on_split,
     estimate_parent_set_effect, estimate_parent_set_effect_with_knowledge, field, get_text,
-    get_u64, hex, input_err, json, measure_parent_set_source, measure_source, outcome_json,
-    parse_json, pyclass, pyfunction, pymethods, refusal_json, report_json, split_evidence_sources,
-    static_contract, wrap_pyfunction,
+    get_u64, hex, input_err, json, outcome_json, parse_json, pyclass, pyfunction, pymethods,
+    refusal_json, report_json, split_evidence_sources, static_contract, wrap_pyfunction,
 };
 
 // ---------------------------------------------------------------------------
@@ -467,7 +466,11 @@ fn sample_split_effect_measure(
 ) -> PyResult<Measured> {
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    let result = crate::detach_catch(py, move || Ok(measure_source(source, &ctx)))?;
+    let result = crate::detach_catch(py, move || {
+        let compiled =
+            antecedent::Study::compile_split_effect_source(source, &ctx).map_err(crate::py_err)?;
+        Ok(compiled.measure(&ctx))
+    })?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
@@ -556,7 +559,11 @@ fn sample_split_parent_set_effect_measure(
 ) -> PyResult<Measured> {
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    let result = crate::detach_catch(py, move || Ok(measure_parent_set_source(source, &ctx)))?;
+    let result = crate::detach_catch(py, move || {
+        let compiled = antecedent::Study::compile_split_parent_set_effect_source(source, &ctx)
+            .map_err(crate::py_err)?;
+        Ok(compiled.measure(&ctx))
+    })?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
