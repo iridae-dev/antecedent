@@ -51,6 +51,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _deprecation
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -408,6 +409,16 @@ class CohortDecisionSource(ScientificResult):
         )
 
     # -- unsupported routes ---------------------------------------------------------------------
+    @staticmethod
+    def _interval_level(level: float) -> float:
+        if (
+            isinstance(level, bool)
+            or not isinstance(level, int | float)
+            or not (0.0 < float(level) < 1.0)
+        ):
+            raise CausalValueError("level= must be strictly between 0 and 1")
+        return float(level)
+
     def interval(self, *, level: float = 0.95) -> MeasuredInference:
         """The measured interval of the cohort mean of a natively fitted linear effect.
 
@@ -418,15 +429,38 @@ class CohortDecisionSource(ScientificResult):
         a shifted cohort raises a typed :class:`CohortDecisionRefusal`
         (``cohort_decision.interval_requires_native_fit`` or
         ``cohort_decision.interval_not_supported``).
+
+        Deprecated: :meth:`compiled_interval` runs the same measured consumer through the
+        compiled ``CohortMeanInterval`` program and returns the identical interval.
         """
-        if (
-            isinstance(level, bool)
-            or not isinstance(level, int | float)
-            or not (0.0 < float(level) < 1.0)
-        ):
-            raise CausalValueError("level= must be strictly between 0 and 1")
+        _deprecation.direct_path_deprecated(
+            "antecedent.cohort_decision.CohortDecisionSource.interval",
+            "antecedent.cohort_decision.CohortDecisionSource.compiled_interval(level=...)",
+        )
         measured, refusal = _interval(
-            self._artifact_bytes, self._expectation(), self._native_fit, float(level)
+            self._artifact_bytes, self._expectation(), self._native_fit, self._interval_level(level)
+        )
+        if refusal is not None:
+            raise CohortDecisionRefusal(json.loads(refusal))
+        if measured is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native interval returned neither a result nor a refusal")
+        return MeasuredInference._from_native(measured)
+
+    def compiled_interval(self, *, level: float = 0.95) -> MeasuredInference:
+        """The cohort-mean interval through the compiled ``CohortMeanInterval`` program.
+
+        The native fit, this source and the level are bound into a lowered program whose
+        execution replays the fit from its retained rows and the source under its identity and
+        returns the Student-t interval (HC3 covariance, ``n - p`` degrees of freedom) with its
+        calibration status. A source from a declared compact export, a portable model or a
+        shifted cohort raises a typed :class:`CohortDecisionRefusal`
+        (``cohort_decision.interval_requires_native_fit`` or
+        ``cohort_decision.interval_not_supported``).
+        """
+        from ._native import cohort_decision_compiled_interval as _compiled_interval
+
+        measured, refusal = _compiled_interval(
+            self._artifact_bytes, self._expectation(), self._native_fit, self._interval_level(level)
         )
         if refusal is not None:
             raise CohortDecisionRefusal(json.loads(refusal))
@@ -440,7 +474,7 @@ class CohortDecisionSource(ScientificResult):
         ``kind`` is ``probability``, ``quantile``, ``nonlinear_utility`` or ``joint_law``.
         """
         if kind == "interval":
-            self.interval()
+            self.compiled_interval()
         raise CohortDecisionRefusal(json.loads(_law_refusal(kind)))
 
     # -- decision and replay -----------------------------------------------------------------

@@ -66,7 +66,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -924,12 +924,44 @@ class AdaptiveInferenceSession:
         Raises:
             AdaptiveInferenceRefusal: ``route_not_supported`` for a result the contract cannot
                 produce or an interval of a kind the replayed result does not carry.
+
+        Deprecated: :meth:`compiled_interval` seals, replays and measures the same
+        result through the compiled ``AdaptiveResultInterval`` program and returns the identical
+        interval.
         """
+        _deprecation.direct_path_deprecated(
+            "antecedent.adaptive_inference.AdaptiveInferenceSession.measured_interval",
+            "antecedent.adaptive_inference.AdaptiveInferenceSession.compiled_interval(request)",
+        )
         execution = resolve_execution(execution)
         from ._measured_inference import MeasuredInference
 
         native = _unwrap(
             self._handle.measured_interval(_request_json(request), cancel=execution.cancel)
+        )
+        return MeasuredInference._from_native(native)
+
+    def compiled_interval(self, request: Request, *, execution: Execution | None = None) -> Any:
+        """The interval of one result through the compiled ``AdaptiveResultInterval`` program.
+
+        The session, the request and the artifact id the result is sealed under are bound into a
+        lowered program whose execution seals the result, replays it in a fresh reader and
+        measures it with the native consumer of :meth:`measured_interval`. The interval is
+        reported with its calibration status; calibration never withholds it.
+
+        Returns:
+            A :class:`antecedent.MeasuredInference` carrying the scalar, its interval, its
+            calibration status and the governing record.
+
+        Raises:
+            AdaptiveInferenceRefusal: ``route_not_supported`` for a result the contract cannot
+                produce or an interval of a kind the replayed result does not carry.
+        """
+        execution = resolve_execution(execution)
+        from ._measured_inference import MeasuredInference
+
+        native = _unwrap(
+            self._handle.compiled_interval(_request_json(request), cancel=execution.cancel)
         )
         return MeasuredInference._from_native(native)
 
