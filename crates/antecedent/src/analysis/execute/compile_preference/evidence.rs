@@ -182,9 +182,13 @@ enum UnitKeySource {
 /// a key in the same namespace (for example `hospital_mrn`); keys in different namespaces are
 /// never compared. A key is a column of the study's table (an integer, real or boolean column
 /// that no row leaves missing and that is neither the treatment nor the outcome), or one label
-/// per row of the table. The label of a row is canonical, type-tagged text: `text:<value>`,
+/// per row of the table. Units are compared by canonical, type-tagged labels: `text:<value>`,
 /// `int64:<decimal>`, `float64:<16 lowercase hex digits of the bits>` or `bool:<0|1>`, so the
-/// text `"1"` and the integer `1` are different units; a key column yields the same labels.
+/// text `"1"` and the integer `1` are different units; a key column yields such labels. The type
+/// of supplied labels is stated by the constructor: [`UnitKey::text_labels`] reads each identifier
+/// as text whatever it contains (`"2023:017"` is the text `2023:017`), and
+/// [`UnitKey::canonical_labels`] takes labels already in the canonical form, each checked at
+/// build.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnitKey {
     namespace: Arc<str>,
@@ -199,9 +203,20 @@ impl UnitKey {
         Self { namespace: Arc::from(namespace), source: UnitKeySource::Column(variable) }
     }
 
-    /// One canonical label per row of the study's table, in identifier space `namespace`.
+    /// One text identifier per row of the study's table, in identifier space `namespace`. Each
+    /// identifier is text whatever characters it holds, a `:` included; it becomes the canonical
+    /// label `text:<identifier>`.
     #[must_use]
-    pub fn labels(namespace: &str, labels: Vec<String>) -> Self {
+    pub fn text_labels(namespace: &str, identifiers: Vec<String>) -> Self {
+        let labels: Vec<String> = identifiers.into_iter().map(|id| format!("text:{id}")).collect();
+        Self { namespace: Arc::from(namespace), source: UnitKeySource::Labels(Arc::from(labels)) }
+    }
+
+    /// One canonical, type-tagged label per row of the study's table (as the type documentation
+    /// spells them), in identifier space `namespace`. A label not in that form is refused at
+    /// build: an untagged identifier is never read as a tag.
+    #[must_use]
+    pub fn canonical_labels(namespace: &str, labels: Vec<String>) -> Self {
         Self { namespace: Arc::from(namespace), source: UnitKeySource::Labels(Arc::from(labels)) }
     }
 
@@ -238,6 +253,26 @@ pub(crate) struct ResolvedUnits {
 
 fn declaration_error(detail: String) -> CausalError {
     CausalError::SchemaMismatch { detail }
+}
+
+/// Whether `label` is in the canonical, type-tagged form: `text:` and a non-blank identifier,
+/// `int64:` and the decimal a 64-bit integer prints as, `float64:` and 16 lowercase hex digits of
+/// a finite real's bits, or `bool:0` / `bool:1`.
+fn canonical_label(label: &str) -> bool {
+    let Some((tag, value)) = label.split_once(':') else {
+        return false;
+    };
+    match tag {
+        "text" => !value.trim().is_empty(),
+        "int64" => value.parse::<i64>().is_ok_and(|number| number.to_string() == value),
+        "float64" => {
+            value.len() == 16
+                && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                && u64::from_str_radix(value, 16).is_ok_and(|bits| f64::from_bits(bits).is_finite())
+        }
+        "bool" => value == "0" || value == "1",
+        _ => false,
+    }
 }
 
 /// Canonical labels of a key column, one per row.
@@ -353,6 +388,14 @@ impl EvidenceRows {
                             return Err(declaration_error(
                                 "every unit label is non-blank text".to_owned(),
                             ));
+                        }
+                        if let Some(label) = labels.iter().find(|label| !canonical_label(label)) {
+                            return Err(declaration_error(format!(
+                                "unit label {label:?} is not canonical, type-tagged text \
+                                 (text:<identifier>, int64:<decimal>, float64:<16 lowercase hex \
+                                 digits> or bool:<0|1>); declare raw text identifiers with \
+                                 UnitKey::text_labels"
+                            )));
                         }
                         (None, Arc::clone(labels))
                     }

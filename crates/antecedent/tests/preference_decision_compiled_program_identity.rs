@@ -39,6 +39,11 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 
+/// The receipt's executed entries when every plan ran and reported its identity.
+fn all_ran(programs: &[SemanticDigest]) -> Vec<Option<SemanticDigest>> {
+    programs.iter().copied().map(Some).collect()
+}
+
 fn options() -> PreferenceEvaluationOptions {
     PreferenceEvaluationOptions::default()
 }
@@ -235,7 +240,7 @@ fn one_study_executes_the_decision_program_its_receipt_names() {
 
     let executed = compiled.execute(None, options(), &ctx).unwrap();
     assert_eq!(executed.receipt.programs, [stated]);
-    assert_eq!(executed.receipt.executed, [stated], "the executed result reports it");
+    assert_eq!(executed.receipt.executed, [Some(stated)], "the executed result reports it");
 
     // A caller's prepared handle executes the decision program too; the caller's own handle
     // keeps its ordinary program.
@@ -249,7 +254,7 @@ fn one_study_executes_the_decision_program_its_receipt_names() {
     assert_eq!(ran, Some(stated));
     assert_ne!(ordinary, Some(stated));
     let executed = held.execute(None, options(), &ctx).unwrap();
-    assert_eq!(executed.receipt.executed, executed.receipt.programs);
+    assert_eq!(executed.receipt.executed, all_ran(&executed.receipt.programs));
     assert_eq!(prepared.estimate_retained(&ctx).unwrap().lowered_program_identity(), ordinary);
 }
 
@@ -271,7 +276,7 @@ fn studies_joined_by_a_chain_execute_their_decision_programs_and_the_chain() {
     let chain = compiled.joint_law().expect("a declared chain").fact().program();
     let executed = compiled.execute(None, options(), &ctx).unwrap();
     assert_eq!(executed.receipt.programs, [pairs[0].0, pairs[1].0, chain]);
-    assert_eq!(executed.receipt.executed, executed.receipt.programs);
+    assert_eq!(executed.receipt.executed, all_ran(&executed.receipt.programs));
 
     // The same through the callers' prepared handles.
     let handles = [benefit.prepare(&ctx).unwrap(), harm.prepare(&ctx).unwrap()];
@@ -286,7 +291,7 @@ fn studies_joined_by_a_chain_execute_their_decision_programs_and_the_chain() {
         assert_eq!(ran, Some(stated));
     }
     let executed = held.execute(None, options(), &ctx).unwrap();
-    assert_eq!(executed.receipt.executed, executed.receipt.programs);
+    assert_eq!(executed.receipt.executed, all_ran(&executed.receipt.programs));
 }
 
 /// A confounded table over `t, y, z`.
@@ -360,7 +365,7 @@ fn posterior_body() {
     let executed = compiled.execute(None, options(), &ctx).unwrap();
     let stated: Vec<SemanticDigest> = pairs.iter().map(|(stated, _)| *stated).collect();
     assert_eq!(executed.receipt.programs, stated);
-    assert_eq!(executed.receipt.executed, stated);
+    assert_eq!(executed.receipt.executed, all_ran(&stated));
 }
 
 #[test]

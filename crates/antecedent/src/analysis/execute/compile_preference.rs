@@ -238,8 +238,15 @@ fn executed_identity(
     plan: Option<&PlanView>,
     result: &crate::StudyResult,
 ) -> Result<Option<SemanticDigest>, PreferenceRouteError> {
-    let compiled = plan.and_then(PlanView::semantic_identity);
-    let executed = result.lowered_program_identity();
+    checked_executed(plan.and_then(PlanView::semantic_identity), result.lowered_program_identity())
+}
+
+/// `executed`, the identity an executed result reports, when it is `compiled`, the identity of
+/// the plan compiled for it; otherwise the refusal `preference_compile.executed_program_mismatch`.
+pub(super) fn checked_executed(
+    compiled: Option<SemanticDigest>,
+    executed: Option<SemanticDigest>,
+) -> Result<Option<SemanticDigest>, PreferenceRouteError> {
     if executed != compiled {
         let hex = |digest: Option<SemanticDigest>| {
             digest.map_or_else(|| "none".to_owned(), |digest| digest.to_hex())
@@ -696,11 +703,13 @@ pub struct PreferenceDecisionReceipt {
     /// structure's decision plan, the design's program, and the chain that joined separately
     /// estimated outcomes.
     pub programs: Vec<SemanticDigest>,
-    /// The lowered program identity each executed result reports, in the order of
-    /// [`Self::programs`]. Execution refuses a result whose identity is not its plan's
-    /// (`preference_compile.executed_program_mismatch`), so the two agree; a runtime-callback
-    /// program, which has no semantic identity, reports none and is not listed.
-    pub executed: Vec<SemanticDigest>,
+    /// The lowered program identity each executed result reports, aligned with
+    /// [`Self::programs`] position by position. Execution refuses a result whose identity is not
+    /// its plan's (`preference_compile.executed_program_mismatch`), so a present entry equals the
+    /// program beside it. An entry is `None` where no executed result reports an identity: a
+    /// structure whose estimation failed without ending the run (it is left unevaluated), or a
+    /// runtime-callback program, which has no semantic identity.
+    pub executed: Vec<Option<SemanticDigest>>,
     /// Identity of the measure over the preference set the execution read; `None` without
     /// one.
     pub measure: Option<String>,
@@ -833,7 +842,7 @@ impl CompiledPreferenceDecision {
 
     fn receipt(
         &self,
-        (programs, executed): (Vec<SemanticDigest>, Vec<SemanticDigest>),
+        (programs, executed): (Vec<SemanticDigest>, Vec<Option<SemanticDigest>>),
         measure: Option<&PreferenceMeasure>,
         options: &PreferenceEvaluationOptions,
     ) -> PreferenceDecisionReceipt {
@@ -881,11 +890,11 @@ impl CompiledPreferenceDecision {
                 self.execute_studies(studies, structures, measure, options, ctx)
             }
             Sources::Design(design) => {
-                let (source, programs) = design.execute(self.demand.representation, ctx)?;
+                let (source, programs, executed) =
+                    design.execute(self.demand.representation, ctx)?;
                 let mut evaluation =
                     decide_with_context(&self.contract, &source, measure, options, ctx)?;
                 design.state_premise(&mut evaluation);
-                let executed = programs.clone();
                 Ok(PreferenceDecisionExecution {
                     evaluation: CompiledPreferenceEvaluation::Single(evaluation),
                     source: Some(source),
@@ -915,12 +924,15 @@ impl CompiledPreferenceDecision {
                 return Err(not_identified(&self.demand.quantities, 1.0, "no prepared structure"));
             };
             let result = runner.estimate_retained(ctx)?;
-            executed.extend(executed_identity(structure.plan.as_ref(), &result)?);
+            let ran = executed_identity(structure.plan.as_ref(), &result)?;
+            if let Some(plan) = &structure.plan {
+                programs.push(plan.identity());
+                executed.push(ran);
+            }
             let response = retained_response(&result).ok_or_else(no_response)?;
             let claim =
                 NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
             inputs.push(claim.decision_source(&requirement)?);
-            programs.extend(structure.plan.as_ref().map(PlanView::identity));
         }
         let source = if let [input] = inputs.as_slice() {
             input.source.clone()
@@ -929,7 +941,7 @@ impl CompiledPreferenceDecision {
                 outcomes::join_studies(&inputs, studies, self.joint.as_ref(), ctx)?;
             if let Some(chain) = chain {
                 programs.extend(self.joint.as_ref().map(|joint| joint.fact().program()));
-                executed.push(chain);
+                executed.push(Some(chain));
             }
             source
         };
@@ -990,4 +1002,25 @@ fn retained_response(result: &crate::StudyResult) -> Option<antecedent_core::Cau
         }
     }
     Some(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_executed_identity_other_than_the_compiled_one_is_refused() {
+        let compiled = SemanticDigest::from_bytes([1; 32]);
+        let other = SemanticDigest::from_bytes([2; 32]);
+        assert_eq!(checked_executed(Some(compiled), Some(compiled)).unwrap(), Some(compiled));
+        assert_eq!(checked_executed(None, None).unwrap(), None);
+        for (stated, ran) in [(Some(compiled), Some(other)), (Some(compiled), None)] {
+            let error = checked_executed(stated, ran).unwrap_err();
+            let refusal = error.refusal().expect("a route refusal");
+            assert_eq!(
+                refusal.detail,
+                antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH
+            );
+        }
+    }
 }

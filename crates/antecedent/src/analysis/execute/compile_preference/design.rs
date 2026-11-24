@@ -53,7 +53,8 @@ use super::bind::{bound_identity, coordinate_refusal, quantity_inputs};
 use super::outcomes::{OutcomeDependence, law_refusal, unpaired};
 use super::{
     CompiledPreferenceDecision, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL,
-    PreferenceRouteError, STAGE_BIND, STAGE_COMPILE, Sources, decision_program, demand_of,
+    PreferenceRouteError, STAGE_BIND, STAGE_COMPILE, Sources, checked_executed, decision_program,
+    demand_of,
 };
 use crate::CausalError;
 use crate::analysis::joint_panel::designs::PreparedNativeJointDesign;
@@ -90,6 +91,10 @@ enum DesignKind {
     Experiment,
 }
 
+/// What one execution of a design produced: the source, the compiled program identity, and the
+/// identity the executed result reported, aligned with it.
+type DesignExecution = (NativeDecisionSource, Vec<SemanticDigest>, Vec<Option<SemanticDigest>>);
+
 /// A compiled design read as the source of a decision, entering the design's program with the
 /// decision attached to layer four.
 #[derive(Clone, Debug)]
@@ -106,14 +111,17 @@ impl DesignSource {
         self.design.plan_view()
     }
 
-    /// Execute the design once and read the representation the demand named.
+    /// Execute the design once and read the representation the demand named. Returns the
+    /// source, the compiled program's identity and the identity the executed result reports,
+    /// refusing a result of another program (`preference_compile.executed_program_mismatch`).
     pub(super) fn execute(
         &self,
         representation: SourceRepresentation,
         ctx: &ExecutionContext,
-    ) -> Result<(NativeDecisionSource, Vec<SemanticDigest>), PreferenceRouteError> {
+    ) -> Result<DesignExecution, PreferenceRouteError> {
         let result = self.design.execute(self.inference.clone(), ctx)?;
-        let programs = vec![result.program_identity()];
+        let compiled = self.design.program_identity();
+        let ran = checked_executed(Some(compiled), Some(result.program_identity()))?;
         let dependency = result.dependency_identity().to_hex();
         let source = match (result.law(), representation) {
             (JointNativeDesignLaw::StaticRegime(point), SourceRepresentation::Mean) => {
@@ -152,7 +160,7 @@ impl DesignSource {
             }
             _ => return Err(law_refusal("the design returned another law".to_owned())),
         };
-        Ok((source, programs))
+        Ok((source, vec![compiled], vec![ran]))
     }
 
     /// The arm means, treated arm then control arm, as a mean source over the arm

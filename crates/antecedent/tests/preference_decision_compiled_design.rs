@@ -377,6 +377,8 @@ fn the_design_plan_carries_the_decision_and_its_carrier_is_checked_at_compile() 
     // The execution enters the decision-bearing program.
     let executed = probe.execute(None, options(), &ctx).unwrap();
     assert_eq!(executed.receipt.programs, [view.identity()]);
+    // The executed entry is what the design's result reported, checked against the plan.
+    assert_eq!(executed.receipt.executed, [Some(view.identity())]);
 
     // A kinked value reads the whole-subject refits: aligned draws demanded of the design.
     let cap = 6.0;

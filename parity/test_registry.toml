@@ -11488,6 +11488,20 @@ path = "crates/antecedent/src/analysis/execute/bayesian_path.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-compile-preference"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile_preference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-compile-preference-structures"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile_preference/structures.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "engineering-crates-antecedent-src-analysis-execute-checked-bayesian-static-mediation"
 crate = "antecedent"
 cargo_target = "lib"

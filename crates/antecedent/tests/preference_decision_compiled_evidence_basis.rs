@@ -205,7 +205,7 @@ fn study(data: &TabularData) -> Study {
 }
 
 fn keyed(data: &TabularData, labels: Vec<String>) -> Study {
-    dose_builder(data, 2, 1).unit_key(UnitKey::labels(NAMESPACE, labels)).build().unwrap()
+    dose_builder(data, 2, 1).unit_key(UnitKey::canonical_labels(NAMESPACE, labels)).build().unwrap()
 }
 
 /// Rows `rows` of the shared table, with `t` and the outcome in column `outcome`.

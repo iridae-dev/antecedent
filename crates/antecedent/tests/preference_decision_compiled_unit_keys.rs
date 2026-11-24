@@ -210,7 +210,7 @@ fn study(data: &TabularData) -> Study {
 
 /// A study of a two-column table whose rows observe the units `labels`.
 fn keyed(data: &TabularData, namespace: &str, labels: Vec<String>) -> Study {
-    dose_builder(data, 2, 1).unit_key(UnitKey::labels(namespace, labels)).build().unwrap()
+    dose_builder(data, 2, 1).unit_key(UnitKey::canonical_labels(namespace, labels)).build().unwrap()
 }
 
 fn patients(range: impl Iterator<Item = u32>) -> Vec<String> {
@@ -291,11 +291,11 @@ fn studies_without_declarations_keep_the_table_content_judgement_and_encoding() 
         )
     );
     let first = dose_builder(&table, 3, 1)
-        .unit_key(UnitKey::labels(NAMESPACE, patients(0..200)))
+        .unit_key(UnitKey::canonical_labels(NAMESPACE, patients(0..200)))
         .build()
         .unwrap();
     let second = dose_builder(&table, 3, 2)
-        .unit_key(UnitKey::labels(NAMESPACE, patients(500..700)))
+        .unit_key(UnitKey::canonical_labels(NAMESPACE, patients(500..700)))
         .build()
         .unwrap();
     let refused = compile_preference_decision_across_studies(
@@ -560,7 +560,7 @@ fn a_key_column_identifies_units_and_a_malformed_key_is_refused() {
     assert_eq!(refusal_of(&refused).1, preference_compile::UNIT_KEY_INVALID);
     assert!(dose_builder(&benefit, 3, 1).unit_key(key(2, " ")).build().is_err());
     assert!(dose_builder(&benefit, 3, 1).unit_key(key(9, NAMESPACE)).build().is_err());
-    let short = UnitKey::labels(NAMESPACE, patients(0..10));
+    let short = UnitKey::canonical_labels(NAMESPACE, patients(0..10));
     assert!(dose_builder(&benefit, 3, 1).unit_key(short).build().is_err());
 }
 
@@ -609,4 +609,57 @@ fn only_the_pairs_that_share_units_need_a_declared_block() {
     )
     .unwrap_err();
     assert_eq!(refusal_of(&refused).1, preference_compile::STUDIES_SHARE_EVIDENCE);
+}
+
+#[test]
+fn text_identifiers_holding_a_colon_are_text_units() {
+    let ctx = ExecutionContext::for_tests(23);
+    // Registry numbers such as `2023:017`: the text before the colon differs between years,
+    // but every identifier is text, so the studies are compared by the units they share.
+    let ids = |years: std::ops::Range<u32>| -> Vec<String> {
+        years.flat_map(|year| (0..100).map(move |n| format!("{year}:{n:03}"))).collect()
+    };
+    let text = |data: &TabularData, ids: Vec<String>| {
+        dose_builder(data, 2, 1).unit_key(UnitKey::text_labels(NAMESPACE, ids)).build().unwrap()
+    };
+    let first = text(&benefit_table(), ids(2023..2025));
+    let second = text(&harm_table(), ids(2024..2026));
+    let refused = compile_preference_decision_across_studies(
+        &[&first, &second],
+        &contract(),
+        distinct(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal_of(&refused),
+        (
+            "evidence_double_counted",
+            preference_compile::STUDIES_SHARE_EVIDENCE,
+            Some("100 shared units in namespace hospital_mrn")
+        )
+    );
+    // Text identifiers are the same units as the canonical text labels of the same values.
+    let canonical = keyed(
+        &harm_table(),
+        NAMESPACE,
+        ids(2024..2026).into_iter().map(|id| format!("text:{id}")).collect(),
+    );
+    let refused = compile_preference_decision_across_studies(
+        &[&first, &canonical],
+        &contract(),
+        distinct(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(refusal_of(&refused).2, Some("100 shared units in namespace hospital_mrn"));
+    // An untagged identifier given as a canonical label is refused at build rather than read
+    // as a type tag.
+    let untagged = UnitKey::canonical_labels(NAMESPACE, ids(2023..2025));
+    assert!(dose_builder(&benefit_table(), 2, 1).unit_key(untagged).build().is_err());
+    for label in ["int64:017", "float64:3FF0000000000000", "bool:2", "text: ", "uuid:7"] {
+        let labels = (0..200).map(|_| label.to_owned()).collect();
+        let key = UnitKey::canonical_labels(NAMESPACE, labels);
+        assert!(dose_builder(&benefit_table(), 2, 1).unit_key(key).build().is_err(), "{label}");
+    }
 }

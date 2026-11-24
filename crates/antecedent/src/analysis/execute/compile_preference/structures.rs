@@ -13,7 +13,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, IdentificationStatus, ResponseIdentification};
+use antecedent_core::{
+    ExecutionContext, IdentificationStatus, ResponseIdentification, SemanticDigest,
+};
 use antecedent_design::preference_decision::PreferenceMeasure;
 use antecedent_design::preference_evaluation::PreferenceEvaluationOptions;
 
@@ -216,6 +218,20 @@ pub(super) fn compile_structure(
     Ok(Ok((view, identified, runner)))
 }
 
+/// Record one structure's compiled plan and the identity its execution reported, keeping the
+/// two lists aligned position by position: a structure without a plan adds to neither, and one
+/// whose estimation failed without ending the run (`ran` is `None`) adds its plan and `None`.
+fn record_run(
+    (programs, executed): (&mut Vec<SemanticDigest>, &mut Vec<Option<SemanticDigest>>),
+    compiled: Option<SemanticDigest>,
+    ran: Option<SemanticDigest>,
+) {
+    if let Some(compiled) = compiled {
+        programs.push(compiled);
+        executed.push(ran);
+    }
+}
+
 /// A cancellation or resource refusal ends the run; any other estimation failure leaves a
 /// structure unevaluated.
 fn fatal(error: &CausalError) -> bool {
@@ -259,10 +275,9 @@ impl CompiledPreferenceDecision {
                 atoms.push(structural_atom(graph_key, weight, None));
                 continue;
             };
-            programs.extend(structure.plan.as_ref().map(PlanView::identity));
-            match runner.estimate_retained(ctx) {
+            let ran = match runner.estimate_retained(ctx) {
                 Ok(result) => {
-                    executed.extend(executed_identity(structure.plan.as_ref(), &result)?);
+                    let ran = executed_identity(structure.plan.as_ref(), &result)?;
                     if let Some(response) = retained_response(&result) {
                         identified += weight;
                         atoms.push(structural_atom(graph_key, weight, Some(response)));
@@ -270,13 +285,20 @@ impl CompiledPreferenceDecision {
                         unevaluable += weight;
                         atoms.push(unevaluated_atom(graph_key, weight));
                     }
+                    ran
                 }
                 Err(error) if fatal(&error) => return Err(error.into()),
                 Err(_) => {
                     unevaluable += weight;
                     atoms.push(unevaluated_atom(graph_key, weight));
+                    None
                 }
-            }
+            };
+            record_run(
+                (&mut programs, &mut executed),
+                structure.plan.as_ref().map(PlanView::identity),
+                ran,
+            );
         }
         let sampled = structures
             .iter()
@@ -376,5 +398,24 @@ const fn unevaluated_atom(graph_key: u64, weight: f64) -> StructuralResponseAtom
         value: None,
         posterior: None,
         response: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_structure_keeps_the_receipt_aligned() {
+        let digest = |byte: u8| SemanticDigest::from_bytes([byte; 32]);
+        let mut programs = Vec::new();
+        let mut executed = Vec::new();
+        // Ran, failed without ending the run, no plan, ran.
+        record_run((&mut programs, &mut executed), Some(digest(1)), Some(digest(1)));
+        record_run((&mut programs, &mut executed), Some(digest(2)), None);
+        record_run((&mut programs, &mut executed), None, None);
+        record_run((&mut programs, &mut executed), Some(digest(4)), Some(digest(4)));
+        assert_eq!(programs, vec![digest(1), digest(2), digest(4)]);
+        assert_eq!(executed, vec![Some(digest(1)), None, Some(digest(4))]);
     }
 }
