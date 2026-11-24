@@ -5205,6 +5205,9 @@ routes = [
   { route = "antecedent.observation_query.PreparedMechanismComposition.compile_joint_measured_observation", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.observation_query.PreparedMechanismComposition.compile_dependent_measured_observation", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.observation_query.JointMeasuredObservationPlan.consume", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.fitted_dependent_measurement.PreparedMechanismComposition.compile_fitted_dependent_measurement", stage = "uncertainty", status = "supported", claim = "point_only" },
+  { route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.consume", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6182,6 +6185,29 @@ routes = [
   { route = "antecedent.external_mechanism.export_artifact", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.external_mechanism.consume_artifact", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.python.external_mechanisms.consume_artifact", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "cyclic.action_world_decisions"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.cyclic_decision.execute_action_world", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.cyclic_decision.execute_posterior_action", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.cyclic_decision.execute_target_feedback", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.cyclic_decision.consume_artifact", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "cyclic.component_posterior_decisions"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.cyclic_component.execute_joint_decision", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.cyclic_component.execute_bounded_decision", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.cyclic_component.consume_artifact", stage = "consume", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7729,6 +7755,35 @@ routes = [
 ]
 
 [[record]]
+id = "graph_imputation.compiled_decision"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "graph_imputation.compiled" },
+  { code = "invalid_argument", detail = "graph_imputation.execution_refused" },
+  { code = "cancelled_no_claim", detail = "graph_imputation.cancelled" },
+  { code = "execution_resource_limit", detail = "graph_imputation.resource_limit" },
+]
+routes = [
+  { route = "antecedent.graph_imputation.decision.effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.bernoulli_predictive_world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.gaussian_predictive_world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.bernoulli_predictive_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.gaussian_predictive_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.confounded_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.confounded_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.kernel_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.kernel_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.confounded_kernel_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.mar_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision.consume", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.graph_imputation_decision.compile_graph_imputation_decision", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.graph_imputation_decision.consume_graph_imputation_decision", stage = "consume", status = "supported", claim = "point_only" },
+]
+
+[[record]]
 id = "categorical_treatment.compiled_candidate"
 status = "supported"
 refusals = [
@@ -8109,4 +8164,239 @@ id = "forecast.event_count_interval"
 status = "not_supported"
 routes = [
   { route = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "interval" },
+]
+
+[[record]]
+id = "transport.bridge_decision"
+status = "supported"
+refusals = [
+  { code = "bridge_binding_mismatch", detail = "scientific_bridge.transport_premise_mismatch" },
+  { code = "bridge_mapping_not_supported", detail = "scientific_bridge.outside_validated_range" },
+  { code = "distribution_meaning_mismatch", detail = "scientific_bridge.draws_meaning_mismatch" },
+  { code = "sampling_dependence_unknown", detail = "scientific_bridge.source_dependence_missing" },
+  { code = "bridge_mapping_not_supported", detail = "scientific_bridge.validation_trials_too_few" },
+]
+routes = [
+  { route = "antecedent.analysis.bridge_transport_decision.compile_bridge_transport_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.CompiledBridgeTransportDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_transport_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgeTransportDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_robust_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgeRobustDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_posterior_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgePosteriorDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.consume_bridge_transport_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_transport_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_robust_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_posterior_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.bridge_transport_decision.compile_bridge_transport_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.bridge_transport_decision.consume_bridge_transport_decision", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.bridge_premise_assessment"
+status = "supported"
+refusals = [
+  { code = "bridge_mapping_not_supported", detail = "scientific_bridge.validation_trials_too_few" },
+  { code = "bridge_mapping_not_supported", detail = "scientific_bridge.degenerate_validation" },
+  { code = "bridge_mapping_not_supported", detail = "scientific_bridge.validation_r_squared_too_low" },
+]
+routes = [
+  { route = "antecedent.analysis.bridge_transport_premise_assessment.compile_bridge_transport_premise_assessment", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_premise_assessment.CompiledBridgeTransportPremiseAssessment.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.bridge_transport_premise_assessment.consume_bridge_transport_premise_assessment", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.bridge_transport_decision.compile_premise_assessment", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.bridge_transport_decision.consume_premise_assessment", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.joint_transport_decision"
+status = "supported"
+refusals = [
+  { code = "transport_support_failure", detail = "bayesian_transport.weak_overlap" },
+  { code = "invalid_argument", detail = "bayesian_transport.prior_data_overlap" },
+  { code = "transport_missing_evidence", detail = "bayesian_transport.identification_not_certified" },
+  { code = "route_not_supported", detail = "bayesian_transport.unsupported_graph" },
+  { code = "sampling_dependence_unknown", detail = "bayesian_transport.source_dependence" },
+  { code = "design_rank_deficient", detail = "bayesian_transport.singular_fit" },
+]
+routes = [
+  { route = "antecedent.analysis.joint_transport_effect_decision.compile_joint_transport_effect_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.joint_transport_effect_decision.CompiledJointTransportEffectDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.joint_transport_effect_decision.consume_joint_transport_effect_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.joint_transport_predictive_decision.compile_joint_transport_predictive_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.joint_transport_predictive_decision.CompiledJointTransportPredictiveDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.joint_transport_predictive_decision.consume_joint_transport_predictive_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.transport.decisions.compile_joint_transport_decision", stage = "prepare", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.trial_ipw_decision"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "decision_contract.invalid_declaration" },
+]
+routes = [
+  { route = "antecedent.analysis.trial_ipw_transport_decision.compile_trial_ipw_transport_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.trial_ipw_transport_decision.CompiledTrialIpwTransportDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.trial_ipw_transport_decision.consume_trial_ipw_transport_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.trial_ipw_predictive_decision.compile_trial_ipw_predictive_decision", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.trial_ipw_predictive_decision.CompiledTrialIpwPredictiveDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.trial_ipw_predictive_decision.consume_trial_ipw_predictive_decision", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.transport.decisions.compile_trial_ipw_decision", stage = "prepare", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "transport.temporal_path_specific"
+status = "supported"
+refusals = [
+  { code = "transport_proven_non_transportable", detail = "counterfactual_transport.checked_obstruction" },
+  { code = "transport_missing_provider", detail = "counterfactual_transport.missing_law" },
+  { code = "transport_support_failure", detail = "counterfactual_transport.support_failure" },
+  { code = "invalid_argument", detail = "counterfactual_transport.invalid_query" },
+  { code = "transport_budget_cancel", detail = "counterfactual_transport.budget" },
+]
+routes = [
+  { route = "antecedent.analysis.temporal_path_transport.compile_temporal_path_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.CompiledTemporalPathTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.consume_temporal_path_transport", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.compile_sampled_temporal_path_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.CompiledSampledTemporalPathTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.consume_sampled_temporal_path_transport", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.compile_continuous_chain_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.CompiledContinuousChainTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.temporal_path_transport.consume_continuous_chain_transport", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.transport.temporal_paths.compile_temporal_path_transport", stage = "prepare", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "composition.sampling_assumption_union"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "sampling_assumption_union.invalid_declaration" },
+  { code = "not_supported", detail = "sampling_assumption_union.not_supported" },
+  { code = "external_binding_mismatch", detail = "sampling_assumption_union.replay_mismatch" },
+]
+routes = [
+  { route = "antecedent.analysis.sampling_assumption_union.compile_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.sampling_assumption_union.compile_iid_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.sampling_assumption_union.compile_cluster_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.sampling_assumption_union.compile_moving_block_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.sampling_assumption_union.consume_sampling_assumption_union", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.python.sampling_assumption_union.sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.python.sampling_assumption_union.consume_sampling_assumption_union", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "composition.propagation_chain"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "propagation_chain.ancestry_bytes" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.assumption_envelope_needs_both_axes" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.assumption_envelope_needs_draws" },
+  { code = "route_not_supported", detail = "propagation_chain.assumption_envelope_operator" },
+  { code = "invalid_argument", detail = "propagation_chain.budget_exceeded" },
+  { code = "cancelled_no_claim", detail = "propagation_chain.cancelled" },
+  { code = "invalid_argument", detail = "propagation_chain.denominator_not_bounded" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.draws_are_not_an_enclosure" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.enclosure_is_not_a_law" },
+  { code = "route_not_supported", detail = "propagation_chain.enclosure_unbounded" },
+  { code = "invalid_argument", detail = "propagation_chain.family_authority" },
+  { code = "invalid_argument", detail = "propagation_chain.family_covariance" },
+  { code = "evidence_overlap_unknown", detail = "propagation_chain.family_dependence" },
+  { code = "invalid_argument", detail = "propagation_chain.family_estimate" },
+  { code = "invalid_argument", detail = "propagation_chain.family_meaning" },
+  { code = "invalid_argument", detail = "propagation_chain.family_shape" },
+  { code = "execution_cancelled", detail = "propagation_chain.family_table_cancelled" },
+  { code = "invalid_argument", detail = "propagation_chain.family_table_refused" },
+  { code = "moment_matched_table_work_budget", detail = "propagation_chain.family_table_work_limit" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.interval_cannot_be_pooled" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.interval_is_not_a_posterior" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.interval_not_measured" },
+  { code = "invalid_argument", detail = "propagation_chain.invalid_request" },
+  { code = "distribution_meaning_mismatch", detail = "propagation_chain.law_meaning_mismatch" },
+  { code = "invalid_argument", detail = "propagation_chain.lowering" },
+  { code = "invalid_argument", detail = "propagation_chain.malformed" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.mixed_draws_and_interval" },
+  { code = "route_not_lowered", detail = "propagation_chain.not_lowered" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.not_read_as_posterior" },
+  { code = "not_supported", detail = "propagation_chain.not_supported" },
+  { code = "route_not_supported", detail = "propagation_chain.operator_not_supported_for_stage" },
+  { code = "distribution_meaning_mismatch", detail = "propagation_chain.outcome_law_is_not_an_estimate_pool" },
+  { code = "evidence_overlap_unknown", detail = "propagation_chain.overlap_unknown_in_independent_product" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.parameter_law_is_not_predictive" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.point_cannot_be_pooled" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.point_has_no_posterior" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.point_has_no_spread" },
+  { code = "evidence_double_counted", detail = "propagation_chain.pool_inputs_duplicated" },
+  { code = "evidence_overlap_unknown", detail = "propagation_chain.pool_overlap_unknown" },
+  { code = "invalid_argument", detail = "propagation_chain.pool_refused" },
+  { code = "evidence_double_counted", detail = "propagation_chain.pool_shares_evidence" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.predictive_disturbance_required" },
+  { code = "distribution_meaning_mismatch", detail = "propagation_chain.predictive_reading_required" },
+  { code = "invalid_argument", detail = "propagation_chain.product_table_refused" },
+  { code = "invalid_argument", detail = "propagation_chain.program_mismatch" },
+  { code = "invalid_argument", detail = "propagation_chain.record_invalid" },
+  { code = "invalid_argument", detail = "propagation_chain.record_refused" },
+  { code = "public_builder_reentry", detail = "propagation_chain.reentry" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.reweight_needs_draws" },
+  { code = "distribution_meaning_mismatch", detail = "propagation_chain.sampling_is_not_predictive" },
+  { code = "uncertainty_representation_insufficient", detail = "propagation_chain.sampling_law_is_not_a_posterior" },
+  { code = "evidence_double_counted", detail = "propagation_chain.shared_factor_in_independent_product" },
+  { code = "invalid_argument", detail = "propagation_chain.stage_invalidated" },
+  { code = "invalid_argument", detail = "propagation_chain.stage_left_domain" },
+  { code = "invalid_argument", detail = "propagation_chain.too_many_inputs" },
+  { code = "invalid_argument", detail = "propagation_chain.too_many_nodes" },
+  { code = "joint_law_required", detail = "propagation_chain.unaligned_draws" },
+  { code = "invalid_argument", detail = "propagation_chain.unknown_stage" },
+  { code = "invalid_argument", detail = "propagation_chain.unknown_value" },
+  { code = "posterior_draws_below_supported", detail = "propagation_chain.update_effective_size" },
+]
+routes = [
+  { route = "antecedent.analysis.propagation_chain.compile_propagation_chain", stage = "representation", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.propagation_chain.PropagationChainPlan.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.propagation_chain.PropagationChain.seal", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.propagation_chain.consume_propagation_chain", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.propagation_chain.propagate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.propagation_chain.consume_propagation_chain", stage = "consume", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "design.experiment_planning"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "planning.adaptive" },
+  { code = "invalid_argument", detail = "planning.allocation" },
+  { code = "invalid_argument", detail = "planning.allocation_ratio" },
+  { code = "invalid_argument", detail = "planning.alpha" },
+  { code = "invalid_argument", detail = "planning.assurance" },
+  { code = "invalid_argument", detail = "planning.attrition" },
+  { code = "invalid_argument", detail = "planning.cluster" },
+  { code = "invalid_argument", detail = "planning.covariates" },
+  { code = "invalid_argument", detail = "planning.decision" },
+  { code = "invalid_argument", detail = "planning.effect" },
+  { code = "evidence_cannot_reach_level", detail = "planning.effect_unreachable" },
+  { code = "invalid_argument", detail = "planning.factorial" },
+  { code = "invalid_argument", detail = "planning.goal" },
+  { code = "invalid_argument", detail = "planning.group_sequential" },
+  { code = "invalid_argument", detail = "planning.interference" },
+  { code = "invalid_argument", detail = "planning.multi_arm" },
+  { code = "invalid_argument", detail = "planning.outcome" },
+  { code = "invalid_argument", detail = "planning.power" },
+  { code = "invalid_argument", detail = "planning.precision" },
+  { code = "invalid_argument", detail = "planning.prior" },
+  { code = "invalid_argument", detail = "planning.simulation" },
+  { code = "invalid_argument", detail = "planning.size" },
+  { code = "evidence_cannot_reach_level", detail = "planning.size_unreachable" },
+  { code = "invalid_argument", detail = "planning.stratified" },
+  { code = "route_not_supported", detail = "planning.study" },
+  { code = "invalid_argument", detail = "planning.success" },
+  { code = "invalid_argument", detail = "planning.switchback" },
+]
+routes = [
+  { route = "antecedent.analysis.planning.compile_planning", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.planning.PlanningPlan.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.Study.compile_for_planning", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.python.design.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
 ]

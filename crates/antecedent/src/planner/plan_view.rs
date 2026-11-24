@@ -2345,8 +2345,13 @@ mod tests {
             assert_eq!(view.supported(), decision.status == CellStatus::Supported);
             assert_eq!(view.missing_evidence(), decision.missing_evidence.as_slice());
         }
-        assert_eq!(UnitSupportView::of_route(PlanRoute::SamplingAssumptionUnion), None);
-        assert_eq!(UnitSupportView::of_route(PlanRoute::PropagationChain("spread")), None);
+        for route in [
+            PlanRoute::SamplingAssumptionUnion,
+            PlanRoute::PropagationChain("spread"),
+            PlanRoute::Planning("bernoulli"),
+        ] {
+            assert!(UnitSupportView::of_route(route).is_some(), "{} is bound", route.as_str());
+        }
         assert_eq!(UnitSupportView::of_route(PlanRoute::StaticAteDag), None);
     }
 }

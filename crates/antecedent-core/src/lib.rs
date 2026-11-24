@@ -193,6 +193,10 @@ pub use query::{
     policy_graphless_coordinate, randomized_graphless_coordinate,
 };
 pub use query::{
+    ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
+    ModelOperationFault, PopulationDoContrastTarget,
+};
+pub use query::{
     AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
     MAX_REFUSED_AFTER_BYTES, MIN_PREDICTIVE_FOLDS,
 };

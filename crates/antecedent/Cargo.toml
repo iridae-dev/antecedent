@@ -1114,6 +1114,9 @@ path = "tests/temporal_sequential_gcomp_class_known_truth.rs"
 name = "interference_estimators_known_truth"
 path = "tests/interference_estimators_known_truth.rs"
 [[test]]
+name = "compiled_twins_gcm"
+path = "tests/compiled_twins_gcm.rs"
+[[test]]
 name = "compiled_twins_interference"
 path = "tests/compiled_twins_interference.rs"
 
@@ -1148,6 +1151,9 @@ path = "tests/response_cells_known_truth.rs"
 [[test]]
 name = "graph_imputation_known_truth"
 path = "tests/graph_imputation_known_truth.rs"
+[[test]]
+name = "graph_imputation_decision_known_truth"
+path = "tests/graph_imputation_decision_known_truth.rs"
 
 [[test]]
 name = "prepared_adjusted_retarget"
@@ -1160,6 +1166,13 @@ path = "tests/prepared_adjusted_retarget_calibration.rs"
 [[test]]
 name = "compiled_robust_decisions"
 path = "tests/compiled_robust_decisions.rs"
+[[test]]
+name = "compiled_twins_decisions"
+path = "tests/compiled_twins_decisions.rs"
+
+[[test]]
+name = "compiled_twins_sensitivity"
+path = "tests/compiled_twins_sensitivity.rs"
 
 [[test]]
 name = "bayesian_randomized_calibration"
@@ -1350,6 +1363,18 @@ name = "composition_posterior_decision_bundle"
 path = "tests/composition_posterior_decision_bundle.rs"
 
 [[test]]
+name = "joint_transport_decision_reference"
+path = "tests/joint_transport_decision_reference.rs"
+
+[[test]]
+name = "trial_ipw_decision_reference"
+path = "tests/trial_ipw_decision_reference.rs"
+
+[[test]]
+name = "temporal_path_transport_reference"
+path = "tests/temporal_path_transport_reference.rs"
+
+[[test]]
 name = "bridge_transport_premise_calibration"
 
 [[test]]
@@ -1366,6 +1391,9 @@ name = "cyclic_target_feedback_choice_calibration"
 
 [[test]]
 name = "fitted_dependent_measurement_calibration"
+[[test]]
+name = "observation_structural_support"
+path = "tests/observation_structural_support.rs"
 
 [[test]]
 name = "graph_imputation_binary_cluster_calibration"
@@ -1399,6 +1427,15 @@ name = "graph_narrow_policy_calibration"
 
 [[test]]
 name = "iid_sampling_assumption_union_calibration"
+
+[[test]]
+name = "sampling_assumption_union_known_truth"
+
+[[test]]
+name = "propagation_chain_known_truth"
+
+[[test]]
+name = "planning_known_truth"
 
 [[test]]
 name = "joint_transport_predictive_calibration"

@@ -434,6 +434,15 @@ class CompiledTemporalPath:
         frozen: Mapping[str, Any] = _freeze_json(json.loads(self._native.plan_json()))
         return frozen
 
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit this route runs under, or ``None`` while unbound.
+
+        A dictionary with ``unit`` (the capability record), ``status``, ``supported`` and the
+        ``missing_evidence`` a not supported unit still lacks. Reading it changes no identity.
+        """
+        decision = json.loads(self._native.unit_support_json())
+        return None if decision is None else dict(decision)
+
     def run(self, *, execution: Execution | None = None) -> TemporalPathResult:
         """Evaluate both path worlds and their contrast."""
         native = _call(self._execution if execution is None else execution, self._native.execute)

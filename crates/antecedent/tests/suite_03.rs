@@ -27,8 +27,12 @@ mod class_prior_contract;
 mod cluster_dml_retarget;
 #[path = "cohort_decision.rs"]
 mod cohort_decision;
+#[path = "compiled_twins_discovery.rs"]
+mod compiled_twins_discovery;
 #[path = "compiled_twins_iv_bounds.rs"]
 mod compiled_twins_iv_bounds;
+#[path = "compiled_twins_static.rs"]
+mod compiled_twins_static;
 #[path = "compiled_twins_trial_transport.rs"]
 mod compiled_twins_trial_transport;
 #[path = "complier_effect_route.rs"]

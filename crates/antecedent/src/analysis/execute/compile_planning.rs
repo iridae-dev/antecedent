@@ -277,15 +277,21 @@ fn saturating_count(x: f64) -> u64 {
     x.ceil().max(0.0) as u64
 }
 
+/// The namespace of the names a plan gives its analysis, prior, model family and program. These
+/// are program names, not refusal details.
+const PLANNING_NAMESPACE: &str = "planning";
+
 /// The statistical program of a plan: the analysis the design is read with.
 fn statistical_program(request: &PlanningRequest) -> Result<StatisticalProgram, CausalError> {
     let declaration = |error: antecedent_core::DeclarationError| CausalError::Compile {
         message: error.to_string(),
     };
-    let analysis = format!("planning.{}", request.design.analysis(&request.assumptions));
+    let analysis =
+        format!("{PLANNING_NAMESPACE}.{}", request.design.analysis(&request.assumptions));
     let (realization, posterior) = if request.criterion.is_bayesian() {
-        let prior = Prior::new(format!("planning.{}.normal_prior", request.criterion.as_str()))
-            .map_err(declaration)?;
+        let prior =
+            Prior::new(format!("{PLANNING_NAMESPACE}.{}.normal_prior", request.criterion.as_str()))
+                .map_err(declaration)?;
         let likelihood = LikelihoodModel::new(analysis).map_err(declaration)?;
         (
             Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone())),
@@ -306,7 +312,7 @@ fn statistical_program(request: &PlanningRequest) -> Result<StatisticalProgram, 
         models: Arc::from(vec![ModelSlot {
             role: ModelRole::Outcome,
             family: Arc::from(format!(
-                "planning.{}.{}",
+                "{PLANNING_NAMESPACE}.{}.{}",
                 request.assumptions.outcome.as_str(),
                 request.design.as_str()
             )),
@@ -337,7 +343,7 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
             outcome: None,
             query: *program.request_identity().as_bytes(),
         },
-        plan_id: Arc::from(format!("planning.{design}")),
+        plan_id: Arc::from(format!("{PLANNING_NAMESPACE}.{design}")),
         data,
         graph_class: "none",
         query_variables: Arc::from(Vec::new()),

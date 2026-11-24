@@ -56,9 +56,9 @@ record_sha256 = "8ceb2041d04c83a9a81af17326b294d47d94674be1924e438484de06e3183b5
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
-path = "crates/antecedent/src/discovery.rs"
+path = "crates/antecedent/src/discovery/engines.rs"
 items = ["fn dbn_posterior_for", "fn discover_ci_screened_posterior", "fn discover_dbn_posterior", "fn discover_dbn_posterior_panel", "fn discover_exact_dag_marginals", "fn discover_exact_dag_posterior", "fn discover_exact_pag_posterior", "fn discover_fci", "fn discover_ges", "fn discover_order_mcmc", "fn discover_pag_mcmc", "fn discover_pc", "fn discover_rfci", "fn discover_structure_mcmc", "fn static_constraints", "fn static_fdr"]
-sha256 = "b2325c02bfa7f5449fce3433890b8fd369e177165c9cbd4ee683205ff75ac0b3"
+sha256 = "cec0ed861debfba41a6b0245f78789324837316f39a6a355385a2e6848e54a9d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -132,19 +132,28 @@ pub fn allocate(total: u64, weights: &[f64]) -> Vec<u64> {
 /// weight that is zero or not finite.
 pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRefusal> {
     if weights.is_empty() {
-        return Err(PlanningRefusal::invalid("planning.allocation", "no weights to split over"));
+        return Err(PlanningRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "planning.allocation",
+            "no weights to split over",
+            None,
+        ));
     }
     if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-        return Err(PlanningRefusal::invalid(
+        return Err(PlanningRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
             "planning.allocation",
             "allocation weights must be finite and nonnegative",
+            None,
         ));
     }
     let sum: f64 = weights.iter().sum();
     if !sum.is_finite() || sum <= 0.0 {
-        return Err(PlanningRefusal::invalid(
+        return Err(PlanningRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
             "planning.allocation",
             "allocation weights must have a positive finite total",
+            None,
         ));
     }
     let raw: Vec<f64> = weights.iter().map(|w| total as f64 * w / sum).collect();
@@ -830,9 +839,11 @@ impl<'a> Planner<'a> {
 
     fn minimum_units(&self) -> Result<u64, PlanningRefusal> {
         let none = || {
-            PlanningRefusal::invalid(
+            PlanningRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
                 "planning.size",
                 format!("no size up to {MINIMUM_SCAN} gives every arm two analysed units"),
+                None,
             )
         };
         if !self.arm_sizes_nondecreasing() {
@@ -1209,7 +1220,7 @@ impl<'a> Planner<'a> {
         if minimum > max_units {
             return Err(PlanningRefusal::new(
                 antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                "planning.size",
+                "planning.size_unreachable",
                 format!("the smallest feasible size {minimum} exceeds max_units {max_units}"),
                 Some(RELAX_TARGET),
             ));
@@ -1224,7 +1235,7 @@ impl<'a> Planner<'a> {
                 let reached = self.criterion(max_units, effect)?.0;
                 return Err(PlanningRefusal::new(
                     antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                    "planning.size",
+                    "planning.size_unreachable",
                     format!(
                         "the {} reaches {reached:.6} at max_units {max_units}, short of the \
                          target {}{}",
@@ -1320,7 +1331,7 @@ impl<'a> Planner<'a> {
             if upper_bound.is_some() || high > 1e6 * self.scale() {
                 return Err(PlanningRefusal::new(
                     antecedent_core::reason_code!("evidence_cannot_reach_level"),
-                    "planning.effect",
+                    "planning.effect_unreachable",
                     format!(
                         "no admissible effect reaches power {target} at {units} units (power \
                          {reached:.6} at effect {high})"
@@ -1480,13 +1491,15 @@ pub fn plan_analytic(request: &PlanningRequest) -> Result<PlanningResult, Planni
         PlanningGoal::Evaluate { units } | PlanningGoal::MinimumDetectableEffect { units }
             if !planner.feasible(units) =>
         {
-            return Err(PlanningRefusal::invalid(
+            return Err(PlanningRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
                 "planning.size",
                 format!(
                     "{units} {}s leave an arm with fewer than two analysed units; the smallest \
                      feasible size is {minimum}",
                     request.design.unit()
                 ),
+                None,
             ));
         }
         PlanningGoal::Evaluate { units } => (units, request.assumptions.effect),

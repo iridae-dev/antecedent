@@ -11370,6 +11370,20 @@ calibration = "exact_or_point_only_no_interval"
 artifact_consumer_fixture = "observation_query.finite_law_conditioning.dependent_indicator_replay.artifact"
 provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
 exact_request_verification = "not_applicable_no_external_provider"
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.fitted_dependent_measurement.PreparedMechanismComposition.compile_fitted_dependent_measurement"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_posterior_quadrature.truth"
+oracle_kind = "closed_form"
+oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; labelled validation counts 70, 10, 10, 10 under C=0 and 5, 5, 5, 85 under C=1 with a symmetric Dirichlet(1) prior per row, so the joint positive cell has posterior Beta(11, 93) under C=0 and Beta(86, 18) under C=1; both indicators observed positive."
+expected_values = "The posterior draws of P(Y=1 | a=1, b=1) = 0.1 (1 - p) + 0.7 p with p = 0.1 b / (0.9 a + 0.1 b) have the mean and variance of a two-dimensional Beta quadrature of the two independent posterior cells; the plug-in is the value at the posterior-mean cells 11/104 and 86/104."
+tolerance = "draw mean within five Monte Carlo standard errors and draw variance within 12 percent of the quadrature at 1000 fixed-seed draws; absolute 1e-12 for the plug-in"
+calibration = "uncalibrated_spread_no_interval_not_measured"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "observation_query.finite_law_conditioning"

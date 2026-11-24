@@ -113,6 +113,10 @@ pub enum SimulationTarget {
         /// Steps before the panel, most recent first, laid out like `panel`.
         history: Arc<[f64]>,
     },
+    /// A named do-sampler (weighting, kernel density or Metropolis-Hastings) for one outcome.
+    DoSample(super::model_operations::DoSamplerTarget),
+    /// The fitted model's falsification evaluation on the study's rows.
+    ModelEvaluation(super::model_operations::ModelEvaluationTarget),
 }
 
 fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence) {
@@ -145,6 +149,8 @@ impl SimulationTarget {
             Self::Counterfactual { .. } => "counterfactual",
             Self::TemporalRollout { .. } => "temporal_rollout",
             Self::TemporalCounterfactual { .. } => "temporal_counterfactual",
+            Self::DoSample(_) => "do_sample",
+            Self::ModelEvaluation(_) => "model_evaluation",
         }
     }
 }
@@ -204,6 +210,14 @@ impl CanonicalEncode for SimulationTarget {
                     .reals(panel)
                     .reals(history);
             }
+            Self::DoSample(target) => {
+                writer.word(9);
+                target.encode(writer);
+            }
+            Self::ModelEvaluation(target) => {
+                writer.word(10);
+                target.encode(writer);
+            }
         }
     }
 }
@@ -253,6 +267,11 @@ impl SimulateQuery {
             | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
                 (schedule.steps.first().and_then(|step| step.intervention.primary_variable()), None)
             }
+            SimulationTarget::DoSample(target) => (
+                target.interventions.first().and_then(Intervention::primary_variable),
+                Some(target.outcome),
+            ),
+            SimulationTarget::ModelEvaluation(_) => (None, None),
         }
     }
 

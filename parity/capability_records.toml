@@ -14439,11 +14439,11 @@ prerequisite_records = ["mechanism_composition.acyclic_joint_model", "measuremen
 prerequisite_reason = "Executes only on a model the composition contract accepted, and conditions on a measured value only through a measurement model the measurement contract validated (construct, population, regime, arm and representation version all matching). No interval, posterior or coverage claim is inherited from either."
 bounds = { cancellation = true }
 inference_inventory_disposition = "point_output_listed_not_measured"
-surface_rust = ["crates/antecedent/src/analysis/observation_query.rs"]
+surface_rust = ["crates/antecedent/src/analysis/observation_query.rs", "crates/antecedent/src/analysis/fitted_dependent_measurement.rs"]
 surface_exports = ["python/antecedent/observation_query.py"]
 owned_exports = ["Recorded", "Assigned", "Hypothetical", "Measured", "ObservationClaim", "ObservationQueryRefusal", "PairedLaw", "ThresholdRow", "ConsumedObservationClaim", "condition_on", "intervene_on", "condition_versus_intervene", "threshold_crossing", "consume_observation_query_artifact"]
 surface_pyo3 = ["python/src/observation_query_api.rs"]
-surface_values = ["ContinuousAssignments", "ParameterRedrawRequest", "PosteriorDraws", "ParameterInterval", "RedrawPrior", "RedrawPriorWire", "RedrawTargetWire", "RetainedMechanismWire", "ObservationQueryRefusal", "ObservationRequest", "ObservationClaim", "ConsumedObservationClaim", "MeasuredSlotWire", "ObservationQueryWire", "ObservationResultWire", "Direction", "Recorded", "Assigned", "Hypothetical", "Measured", "PairedLaw", "ThresholdRow", "PairedLaws", "ThresholdRows", "JointMeasuredObservationRequest", "DependentMeasuredObservationRequest", "JointMeasuredObservationPlan", "DependentMeasuredObservationPlan", "DependentMeasurementWire"]
+surface_values = ["ContinuousAssignments", "ParameterRedrawRequest", "PosteriorDraws", "ParameterInterval", "RedrawPrior", "RedrawPriorWire", "RedrawTargetWire", "RetainedMechanismWire", "ObservationQueryRefusal", "ObservationRequest", "ObservationClaim", "ConsumedObservationClaim", "MeasuredSlotWire", "ObservationQueryWire", "ObservationResultWire", "Direction", "Recorded", "Assigned", "Hypothetical", "Measured", "PairedLaw", "ThresholdRow", "PairedLaws", "ThresholdRows", "JointMeasuredObservationRequest", "DependentMeasuredObservationRequest", "JointMeasuredObservationPlan", "DependentMeasuredObservationPlan", "DependentMeasurementWire", "FittedDependentMeasurementRequest", "FittedDependentMeasurementReport", "FittedDependentMeasurementInterval", "FittedDependentMeasurementError"]
 refusals = [
   { detail = "observation_query.blank_field", remedy = "Name the outcome variable and the variable and level of every slot." },
   { detail = "observation_query.count_fitted_refused", remedy = "Correct the declaration the message names." },
@@ -14531,6 +14531,9 @@ routes = [
   { name = "antecedent.observation_query.PreparedMechanismComposition.compile_joint_measured_observation", stage = "evaluate", status = "supported", claim = "point_only", covers = ["JointMeasuredObservationPlan.execute"] },
   { name = "antecedent.observation_query.PreparedMechanismComposition.compile_dependent_measured_observation", stage = "evaluate", status = "supported", claim = "point_only", covers = ["JointMeasuredObservationPlan.execute"] },
   { name = "antecedent.observation_query.JointMeasuredObservationPlan.consume", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.fitted_dependent_measurement.PreparedMechanismComposition.compile_fitted_dependent_measurement", stage = "uncertainty", status = "supported", claim = "point_only", uncertainty_output = "uncalibrated_parameter_draws", interval_route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration", covers = ["CompiledFittedDependentMeasurement.execute", "CompiledFittedDependentMeasurement.lowered", "CompiledFittedDependentMeasurement.plan_view", "FittedDependentMeasurementReport.nominal_interval"] },
+  { name = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration", stage = "uncertainty", status = "supported", claim = "interval", covers = ["CompiledFittedDependentMeasurement.calibration_basis"] },
+  { name = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.consume", stage = "consume", status = "supported", claim = "point_only", covers = ["CompiledFittedDependentMeasurement.export"] },
 ]
 fixtures = [
   { shared_evidence = true, id = "observation_query.finite_law_conditioning.disagreeing_pair.positive", role = "positive", intent = "On a confounded finite model P(Y=1|S=1)=0.78 and P(Y=1|do(S=1))=0.6 are both computed exactly from one model and both equal the hand values; the largest difference is 0.18.", evidence_test = "crates/antecedent-model/tests/observation_query.rs", evidence_assertion = "conditioning_and_intervention_disagree_on_a_confounded_model_and_both_are_exact" },
@@ -14577,6 +14580,8 @@ fixtures = [
   { shared_evidence = true, id = "observation_query.finite_law_conditioning.joint_measured_replay.artifact", role = "artifact", intent = "The joint measured claim's version-3 artifact is replayed through the compiled plan under its retained program identity and returns the same result.", evidence_test = "crates/antecedent/tests/observation_query_facade.rs", evidence_assertion = "joint_measured_query_compiles_and_replays_two_indicators" },
   { shared_evidence = true, id = "observation_query.finite_law_conditioning.dependent_indicator_errors.positive", role = "positive", intent = "A declared joint error table of two dependent indicators compiles to the DependentMeasuredObservation program, and P(Y=1 | both positive) equals the hand Bayes value from that table (posterior 0.085 / 0.175 for the construct); a table that is not normalized is refused at compilation.", evidence_test = "crates/antecedent/tests/observation_query_facade.rs", evidence_assertion = "dependent_indicator_errors_use_the_joint_table_and_replay" },
   { shared_evidence = true, id = "observation_query.finite_law_conditioning.dependent_indicator_replay.artifact", role = "artifact", intent = "The dependent-error claim's version-4 artifact is replayed through the compiled plan under its retained program identity and returns the same result.", evidence_test = "crates/antecedent/tests/observation_query_facade.rs", evidence_assertion = "dependent_indicator_errors_use_the_joint_table_and_replay" },
+  { shared_evidence = true, id = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive", role = "positive", intent = "Labelled joint validation counts of two dependent indicators, with a symmetric Dirichlet prior on each construct row, compile to the FittedDependentMeasuredObservation program; the plug-in answer at the posterior-mean error table equals the hand Bayes value, the posterior draws are aligned, the spread is reported as not measured, and the artifact replays under its program identity.", evidence_test = "crates/antecedent/tests/observation_query_facade.rs", evidence_assertion = "fitted_joint_error_table_propagates_labelled_count_uncertainty" },
+  { id = "observation_query.finite_law_conditioning.fitted_joint_error_posterior_quadrature.truth", role = "truth", intent = "The mean and variance of the posterior draws of P(Y=1 | both indicators positive) equal an independent two-dimensional Beta quadrature of the Dirichlet posterior (the answer depends only on the joint positive cell of each construct row, whose marginals are Beta(11, 93) and Beta(86, 18)): the draw mean within five Monte Carlo standard errors and the draw variance within 12 percent at 1000 fixed-seed draws; the plug-in equals the answer at the posterior-mean cells.", evidence_test = "crates/antecedent/tests/observation_structural_support.rs", evidence_assertion = "fitted_joint_error_table_draws_match_the_dirichlet_posterior_quadrature", limitations = "One fixed validation design and one query; the spread is a posterior conditional on the composed model and the labelled validation design with no repeated-sampling coverage claim, which the interval route reports through its calibration status." },
 ]
 [[record.inference_outputs]]
 id = "observation_query.finite_law_conditioning.exact.1"
@@ -17746,6 +17751,83 @@ fixtures = [
   { id = "cyclic.external_mechanisms.python_resolver_failure.negative", role = "negative", intent = "Python surface: a raising resolver is a resolver failure, distinct from an absent implementation.", evidence_test = "python/tests/test_external_cyclic_mechanisms.py", evidence_assertion = "test_a_resolver_that_raises_is_a_resolver_failure_not_an_absent_implementation" },
   { shared_evidence = true, id = "cyclic.external_mechanisms.analytic_determinant.positive", role = "positive", intent = "The analytic determinant score equals a central difference in a feedback loop.", evidence_test = "crates/antecedent-estimate/src/external_cyclic_fit.rs", evidence_assertion = "analytic_determinant_score_matches_a_central_difference_in_a_loop" },
   { id = "cyclic.external_mechanisms.central_difference_score.truth", role = "truth", shared_evidence = true, intent = "The analytic determinant score of an external mechanism in a feedback loop equals an independent central-difference derivative of the log-likelihood to 1e-7 where the difference exceeds 1e-3.", evidence_test = "crates/antecedent-estimate/src/external_cyclic_fit.rs", evidence_assertion = "analytic_determinant_score_matches_a_central_difference_in_a_loop" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "cyclic.action_world_decisions"
+capability = "cyclic.action_world_decisions"
+status = "supported"
+consumer_question = "Can the decision between hard-clamp action worlds of a specified or jointly fitted cyclic feedback model, optionally standardized over a target baseline frame, be derived on shared disturbance draws and replayed independently?"
+theorem = "Each action's world is the equilibrium of the specified feedback equations under that action's hard clamps, solved on the same disturbance row (and, for a fitted model, the same posterior parameter draw), so shared disturbances and baselines cancel in the paired difference. The decision compiler evaluates the declared utility over those aligned rows; the target-frame route averages the same paired worlds over the declared target baseline rows. The result is conditional on the specified equations, fixed disturbance covariance, prior and sampler schedule, and a fitted posterior is published only when its diagnostics pass. No identification beyond the specified model and no calibrated reliability is implied: calibration stays not_measured."
+reference = "provenance/cyclic.action_world_decisions.toml"
+guarantee = "model_conditional_paired_action_world_decision_with_independent_replay_and_unmeasured_reliability"
+graph_class = "Specified cyclic feedback systems with hard-clamp interventions; the graph and equilibrium assumptions are those of cyclic.general_systems."
+population_semantics = "The declared model, its disturbance rows or posterior predictive law, and for the target-frame route the declared target baseline rows inside the training support; no transport beyond that frame is implied."
+evidence_family = "Cyclic equilibrium models with paired hard-clamp worlds, fitted posterior draws and target frames, and their retained decision artifacts."
+provider = "antecedent::analysis::cyclic_action_world_decision; antecedent::analysis::cyclic_posterior_action_decision; antecedent::analysis::cyclic_target_feedback_decision"
+estimand = "Model-conditional utility of each hard-clamp action world and the verdict over them; for the posterior and target-frame routes, predictive over the fitted feedback weights."
+inference_claim = "none"
+owners = ["antecedent"]
+identity_inputs = ["equations", "noise law", "worlds", "training rows", "prior and sampler schedule", "target frame", "decision contract", "output coordinates", "seed"]
+wire_changes = ["None; the combined decision artifacts keep their current versions and verification."]
+compatibility = "Registers the existing implementation and its hand-solved evidence; no calibrated reliability is supported."
+search = false
+prerequisite_records = ["cyclic.general_systems"]
+prerequisite_reason = "The solver, equilibrium likelihood and clamp semantics are those of the general cyclic systems."
+bounds = { cancellation = true }
+refusals = []
+routes = [
+  { name = "antecedent.cyclic_decision.execute_action_world", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.cyclic_decision.execute_posterior_action", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.cyclic_decision.execute_target_feedback", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.cyclic_decision.consume_artifact", stage = "consume", status = "supported", claim = "none" },
+]
+fixtures = [
+  { id = "cyclic.action_world_decisions.fitted_worlds.positive", role = "positive", intent = "A jointly fitted feedback weight, sampled with passing diagnostics, gives paired action worlds whose decision replays independently.", evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs", evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay" },
+  { id = "cyclic.action_world_decisions.target_frame_refusals.negative", role = "negative", intent = "A target population that differs from the contract and a target row outside the training support are refused at compilation.", evidence_test = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs", evidence_assertion = "compiler_identity_population_support_and_study_scope" },
+  { id = "cyclic.action_world_decisions.consumer_replay.artifact", role = "artifact", intent = "The combined action-world artifact replays under the expected program identity, an identity that differs is refused and a repeated world is refused.", evidence_test = "python/tests/test_cyclic_decisions.py", evidence_assertion = "test_specified_action_worlds_are_paired_and_replayed" },
+  { id = "cyclic.action_world_decisions.hand_solved_worlds.truth", role = "truth", intent = "With traffic clamped at c the wishlists equilibrium equals (0.3 c + e) / 0.9 on every disturbance row, the clamped coordinate equals c, and the promoted action is uniquely optimal.", evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs", evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed" },
+  { id = "cyclic.action_world_decisions.target_effect_closed_form.truth", role = "truth", intent = "For every posterior draw b the paired target-world action effect equals 0.2 / (1 - 0.2 b) to 1e-7 and its posterior mean recovers the planted 0.2 / 0.94.", evidence_test = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs", evidence_assertion = "paired_target_worlds_refit_and_replay" },
+  { id = "cyclic.action_world_decisions.python_hand_solved_worlds.truth", role = "truth", intent = "Python surface: the compiled worlds equal the hand-solved equilibria on four disturbance rows.", evidence_test = "python/tests/test_cyclic_unit_support.py", evidence_assertion = "test_compiled_action_worlds_equal_the_hand_solved_equilibria" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
+
+[[record]]
+id = "cyclic.component_posterior_decisions"
+capability = "cyclic.component_posterior_decisions"
+status = "supported"
+consumer_question = "Can feedback declared between components with explicit coefficients be fitted jointly from common training rows, decided between hard-clamp action worlds, optionally through a logistic bounded transform, and replayed independently?"
+theorem = "Connected scalar or vector components with declared coupling coefficients lower to one specified cyclic system whose solvability is certified globally; the declared coupling coefficients are fitted jointly from one common set of training rows and the fitted system is solved in each action world on shared disturbances. For a component pair whose consumer depends on the clamped producer with coupling b and self weight s, the paired change is b / (1 - s) for each posterior draw. A bounded decision applies the logistic transform to each real-valued fitted draw after fitting, so the bounded values lie in [0, 1] while the structural ports and Gaussian disturbances remain real-valued. The result is conditional on the declared components, coefficients, covariance and sampler schedule; calibration stays not_measured and a cycle among components is solved only through this jointly fitted route."
+reference = "provenance/cyclic.component_posterior_decisions.toml"
+guarantee = "model_conditional_component_feedback_decision_with_independent_replay_and_unmeasured_reliability"
+graph_class = "Components connected by declared port couplings with feedback, lowered to one specified cyclic system under global contraction."
+population_semantics = "The declared components and common training rows; no population transport is implied."
+evidence_family = "Connected scalar and vector feedback components with a common training schedule, their fitted worlds and their retained decision artifacts."
+provider = "antecedent::analysis::cyclic_component_composition"
+estimand = "Model-conditional utility of each component action world and the verdict over them, predictive over the fitted couplings; bounded outputs are logistic transforms of the real-valued predictive."
+inference_claim = "none"
+owners = ["antecedent"]
+identity_inputs = ["components", "port connections", "coefficients", "noise law", "worlds", "common training rows", "prior and sampler schedule", "output coordinates", "decision contract", "transform"]
+wire_changes = ["None; the component decision artifacts keep their current versions and verification."]
+compatibility = "Registers the existing implementation and its hand-solved evidence; interface_contract.cyclic_composition keeps refusing component cycles that are not declared through this route."
+search = false
+prerequisite_records = ["cyclic.general_systems", "cyclic.action_world_decisions"]
+prerequisite_reason = "The fitted worlds and the decision are those of the posterior action-world decisions over the general cyclic systems."
+bounds = { cancellation = true }
+refusals = []
+routes = [
+  { name = "antecedent.cyclic_component.execute_joint_decision", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.cyclic_component.execute_bounded_decision", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.cyclic_component.consume_artifact", stage = "consume", status = "supported", claim = "none" },
+]
+fixtures = [
+  { id = "cyclic.component_posterior_decisions.vector_components.positive", role = "positive", intent = "A vector component with two internal outputs is fitted jointly, solved in two hard-clamp worlds and decided; the decision replays independently.", evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs", evidence_assertion = "vector_components_fit_joint_worlds_and_replay" },
+  { id = "cyclic.component_posterior_decisions.contraction.negative", role = "negative", intent = "A feedback declaration that does not require global contraction is refused at preparation.", evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs", evidence_assertion = "feedback_requires_global_contraction_semantics" },
+  { id = "cyclic.component_posterior_decisions.bounded_replay.artifact", role = "artifact", intent = "The bounded decision replays independently, and a changed transform and a changed posterior are refused.", evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs", evidence_assertion = "bounded_component_worlds_replay_after_joint_fit" },
+  { id = "cyclic.component_posterior_decisions.coupling_closed_form.truth", role = "truth", intent = "For every posterior draw b the paired change between the traffic clamps equals b / 0.8 to 1e-7, the posterior mean recovers the planted 0.3 and the promoted action is uniquely optimal.", evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs", evidence_assertion = "common_training_rows_refit_and_replay_the_connected_action_decision" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -21743,6 +21825,66 @@ fixtures = [
   { id = "graph_imputation.compiled_candidate.covering_record.construction", role = "construction", intent = "The nearest-rank interval route resolves a covering attesting record to a calibrated slot, replays, and never extrapolates beyond the rows the record measured.", evidence_test = "crates/antecedent-io/src/measured_inference/graph_candidate.rs", evidence_assertion = "a_covering_attesting_record_supports_the_route_and_it_replays" },
   { id = "graph_imputation.compiled_candidate.budget.budget", role = "budget", intent = "The native bounded DAG search returns a SearchReceipt on operation exhaustion.", evidence_test = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", evidence_assertion = "bounded_search_returns_precise_operation_stop_receipt" },
 ]
+[[record]]
+id = "graph_imputation.compiled_decision"
+capability = "graph_imputation.compiled_decision"
+status = "supported"
+consumer_question = "Given a graph-selection imputation of incomplete rows, which of a declared set of actions has the largest posterior expected utility when the utility reads the model-conditional effect, the paired treatment worlds or the predictive outcome worlds, at the source or transported to a declared target frame?"
+theorem = "The decision stage is the expected-utility contract of the chain decision compiler applied to aligned draws of the graph-imputation mixture: the expected utility of an action is the sample mean of its declared utility over the draws, and the chosen action is the one with the largest mean. The draws are the producer's pooled posterior effect draws, or the control and active outcome-mean worlds of one shared coefficient draw, or Bernoulli-logit or Gaussian predictive outcomes of a target unit, each from the conjugate or Laplace child fit of every retained graph on every completed table. A transported route standardizes the child fit to a declared target frame (binary strata, a Gaussian-kernel density ratio calibrated to the frame's covariate means, or a missing-at-random complete-case design with inverse observation weights); a target resampling contributes one draw per replicate. For utilities linear in the quantity they read, the expected utility is the generating value of that quantity less the declared cost, which the known-truth fixtures check against a closed-form generating effect."
+reference = "provenance/graph_imputation.compiled_decision.toml"
+guarantee = "model_conditional_expected_utility_and_choice_reported_not_measured_no_interval"
+graph_class = "The labeled two- to four-variable direct-effect DAG support of the graph-imputation composite, declared before scoring."
+population_semantics = "The source population of the rows, or the declared target population of an independent target frame whose selected covariates may differ from the source; the target frame, its bandwidths and the missing-at-random design are assumptions the data cannot test."
+evidence_family = "Exact source-bound observations, the retained graph-specific operations, a declared decision contract and, for a transported route, a declared target frame."
+provider = "antecedent::analysis::graph_imputation_effect_decision::CompiledGraphImputationEffectDecision"
+estimand = "posterior expected utility of each declared action over the model-conditional average treatment effect, the paired treatment-world outcome means or the predictive outcome of a target unit"
+inference_claim = "point_only"
+inference_notes = "The result is a model-conditional ranking over posterior draws. A graph-imputation decision reports calibration as not_measured: no interval, coverage or decision reliability is claimed, and a bootstrap route's replicate draws describe source-only uncertainty under the declared resampling unit."
+owners = ["antecedent", "antecedent-io", "antecedent-py", "python/antecedent"]
+identity_inputs = ["source content and schema", "graph support, treatment, outcome, model, seeds and bounds", "decision contract identity and the quantity coordinates it reads", "target frame, selection, bandwidths, observation design and weights for a transported route", "bootstrap replicates, seed and cluster identities", "Gaussian residual variance, correlation and seed for predictive worlds"]
+wire_changes = ["Bounded combined artifact holding the original source, the decision contract and the chain; consumption recompiles the program, replays the producer under its retained identities and refuses a changed binding."]
+compatibility = "Additive; no existing decision, graph-imputation or artifact identity changes."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { detail = "graph_imputation.compiled", when = "The Python bridge receives an invalid source, contract or target declaration.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.execution_refused", when = "A bounded graph atom, a target standardization or the decision refuses.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.cancelled", when = "The supplied execution token is cancelled.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.resource_limit", when = "The execution admission pool cannot fund the schedule.", remedy = "Correct the declaration, source or resources the refusal names." },
+]
+routes = [
+  { name = "antecedent.graph_imputation.decision.effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.bernoulli_predictive_world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.gaussian_predictive_world", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.bernoulli_predictive_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.gaussian_predictive_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.confounded_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.confounded_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.kernel_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.kernel_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.confounded_kernel_transport_cluster_bootstrap", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.mar_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.graph_imputation.decision.consume", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.python.graph_imputation_decision.compile_graph_imputation_decision", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.python.graph_imputation_decision.consume_graph_imputation_decision", stage = "consume", status = "supported", claim = "point_only" },
+]
+fixtures = [
+  { id = "graph_imputation.compiled_decision.source_effect.truth", role = "truth", intent = "A source effect decision's posterior-mean effect, treat utility and chosen action equal the generating effect 2 + 1.5 * 0.5 of a balanced design with zero-sum cell residuals and the declared cost, at a cost below and a cost above that effect.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "a_source_effect_decision_matches_the_true_effect_and_a_threshold_decides_it" },
+  { id = "graph_imputation.compiled_decision.source_worlds.truth", role = "truth", intent = "Paired source treatment worlds' expected outcomes equal the generating mean outcomes 1 + 2 a + (1 + 1.5 a) * 0.5 and the larger world is chosen.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "source_treatment_worlds_have_the_true_mean_outcomes" },
+  { id = "graph_imputation.compiled_decision.binary_transport.truth", role = "truth", intent = "A binary-strata transport to a target frame with 80% x = 1 reports the generating effect 2 + 1.5 * 0.8, and a cost between the source and the target effect flips the action; a forty-replicate whole-cluster resampling of the frame is centred on the same truth.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "binary_transport_matches_the_effect_at_the_target_frame_and_changes_the_action" },
+  { id = "graph_imputation.compiled_decision.confounded_transport.truth", role = "truth", intent = "A transport from a source where a binary confounder drives treatment (40 and 10 rows per cell) reports the generating effect at the target frame whatever the treatment imbalance.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "confounded_transport_matches_the_effect_at_the_target_frame" },
+  { id = "graph_imputation.compiled_decision.kernel_transport.truth", role = "truth", intent = "A Gaussian-kernel transport to a continuous target frame with mean 0.8 reports the generating effect 2 + 1.5 * 0.8 from a source whose modifier has mean 0.5.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "kernel_transport_matches_the_effect_at_the_continuous_target_frame" },
+  { id = "graph_imputation.compiled_decision.mar_transport.truth", role = "truth", intent = "A declared missing-at-random complete-case target with design weights reports the generating effect at the weighted complete-case covariate mean computed from the raw frame.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "missing_at_random_transport_matches_the_weighted_complete_case_target" },
+  { id = "graph_imputation.compiled_decision.gaussian_predictive_worlds.truth", role = "truth", intent = "Gaussian predictive worlds have the generating mean outcome at the target frame and the difference of the two worlds has the variance implied by the declared residual variance and cross-world correlation.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "gaussian_predictive_worlds_have_the_true_mean_and_the_declared_residual_spread" },
+  { id = "graph_imputation.compiled_decision.bernoulli_predictive_worlds.truth", role = "truth", intent = "Bernoulli predictive worlds have the success probabilities implied by the declared cell success rates and the target mix, and their outcomes are zero or one.", evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs", evidence_assertion = "bernoulli_predictive_worlds_have_the_true_success_probabilities" },
+  { id = "graph_imputation.compiled_decision.effect_replay.positive", role = "positive", intent = "The whole graph-selection imputation schedule on rows with a planted effect yields a posterior mean effect above the decision cost, and the producer receipt and the decision replay independently.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "graph_imputation_effect_decision_replays_known_positive_effect" },
+  { id = "graph_imputation.compiled_decision.transport_refusals.negative", role = "negative", intent = "A target frame whose units overlap the source and a target stratum without source support refuse before any execution.", evidence_test = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs", evidence_assertion = "missing_source_graph_mixture_transports_to_target_and_replays" },
+  { id = "graph_imputation.compiled_decision.predictive_replay.artifact", role = "artifact", intent = "A predictive-world decision artifact replays its worlds and decision under independently retained program identity and refuses a changed model binding or changed cluster identities.", evidence_test = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", evidence_assertion = "bernoulli_predictive_worlds_replay_and_bind_model" },
+]
+
 
 [[record]]
 id = "categorical_treatment.compiled_candidate"
@@ -21780,7 +21922,7 @@ routes = [
   { name = "antecedent.categorical_posterior_candidate.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent_io.measured_inference.categorical_candidate.measure_source", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.categorical_posterior_candidate.interval", stage = "uncertainty", status = "supported", claim = "interval" },
-  { name = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval", stage = "uncertainty", status = "supported", claim = "interval", covers = ["CompiledCategoricalPosteriorCandidateHandle", "export", "inspect", "interval", "measured_interval", "consume"] },
+  { name = "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval", stage = "uncertainty", status = "supported", claim = "interval", covers = ["CompiledCategoricalPosteriorCandidateHandle", "export", "inspect", "interval", "measured_interval", "consume", "unit_support"] },
 ]
 fixtures = [
   { id = "categorical_treatment.compiled_candidate.lowering.positive", role = "positive", intent = "The retained program compiles and replays from its source and reports the credible interval with its calibration status.", evidence_test = "crates/antecedent/src/analysis/categorical_posterior_candidate.rs", evidence_assertion = "candidate_compiles_a_posterior_claim_and_replays_its_source" },
@@ -21834,7 +21976,7 @@ refusals = [
 routes = [
   { name = "antecedent_io.measured_inference.mnar_candidate.measure_source", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
-  { name = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval", covers = ["NativePreparedMnarFixedShift", "mnar_fixed_shift_prepare", "measured_interval"] },
+  { name = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval", covers = ["NativePreparedMnarFixedShift", "NativePreparedMnarFixedShift.unit_support", "mnar_fixed_shift_prepare", "measured_interval"] },
 ]
 fixtures = [
   { id = "mnar_fixed_shift.compiled_candidate.shifted_interval.construction", role = "construction", intent = "The interval ends of the declared-shift candidate equal the hand calculation: arm means 2 and 3 with a shift of 1 give point 1.2, variance 0.8*0.2/25 + 2*(40/19)/20, and ends 1.2 -/+ 1.959964 times its square root.", evidence_test = "crates/antecedent-io/src/measured_inference/mnar_candidate.rs", evidence_assertion = "execution_matches_hand_calculated_shifted_interval", shared_evidence = true },
@@ -23657,4 +23799,841 @@ fixtures = [
 ]
 routes = [
   { name = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "interval", refusal_test = "crates/antecedent/tests/events.rs", refusal_assertion = "unmeasured_count_interval_is_withheld" },
+]
+
+[[record]]
+id = "transport.bridge_decision"
+capability = "transport.bridge_decision"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "Given a surrogate-to-terminal bridge whose transportability premise is declared, what decision does the transported predictive law of the terminal outcome support, and can an independent consumer replay it?"
+theorem = "The source draws are mapped row for row by the declared bridge mapping (an affine map, or the fitted trial-level line with its Student-t coefficient draws), so the transported law is the source table with the bridged column replaced under the same alignment; each action's utility is then averaged over those rows, so a linear utility scores the mean of the mapped draws and a squared utility their second moment. The result is conditional on the declared transport premise, which is retained in the program identity and never estimated here. The assessed variant binds a matching premise assessment; the robust variant shifts every mapped row across the assessed discrepancy envelope; the target-posterior variant scores an independent normal target-line posterior with the transferred source innovation."
+reference = "provenance/transport.bridge_decision.toml"
+guarantee = "premise_conditional_decision_on_the_transported_predictive_law_with_independent_replay"
+graph_class = "Not applicable: a declared bridge contract and a declared transport premise, not a graph."
+population_semantics = "The target population of the bridge and the decision; the source law and the validation trials come from the population and regime the premise names, and the premise is declared, not estimated."
+evidence_family = "Aligned posterior-predictive or interventional-predictive draws of the surrogate, a checked bridge contract with a declared transportability premise, and, for the assessed variants, independent source and target validation trials."
+provider = "antecedent::analysis::bridge_transport_decision over antecedent::analysis::scientific_bridge and the chain decision compiler"
+estimand = "Expected utility of each declared action over the transported terminal-outcome law, conditional on the declared premise."
+inference_claim = "none"
+inference_notes = "A decision under a declared premise with an uncalibrated spread; no interval, coverage or decision reliability is claimed (calibration is reported as not_measured)."
+owners = [
+    "antecedent",
+    "antecedent-contract",
+    "antecedent-design",
+    "antecedent-io",
+]
+prerequisite_records = [
+    "scientific_bridge.distribution_bridges",
+    "transport.surrogate_bridge_premise",
+    "transport.bridge_premise_assessment",
+]
+prerequisite_reason = "The route executes the bridge of draws, states the transport premise and, for the assessed variants, binds the premise assessment of its own record."
+identity_inputs = [
+    "bridge contract (mapping, assumptions, transport premise, dependence)",
+    "source draw table and its alignment",
+    "stream seed",
+    "decision contract",
+    "premise assessment identity (assessed variants)",
+    "robust contract (robust variant)",
+    "target posterior premises (target-posterior variant)",
+]
+wire_changes = [
+    "None: the combined artifacts bridge_transport_decision_v1, assessed_bridge_transport_decision_v1 and their robust and target-posterior siblings already exist; this record registers them.",
+]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes."
+search = false
+refusals = [
+    { detail = "scientific_bridge.transport_premise_mismatch" },
+    { detail = "scientific_bridge.outside_validated_range" },
+    { detail = "scientific_bridge.draws_meaning_mismatch" },
+    { detail = "scientific_bridge.source_dependence_missing" },
+    { detail = "scientific_bridge.validation_trials_too_few" },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.compile_bridge_transport_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.CompiledBridgeTransportDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_transport_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgeTransportDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_robust_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgeRobustDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.compile_assessed_bridge_posterior_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.CompiledAssessedBridgePosteriorDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.consume_bridge_transport_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_transport_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_robust_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_decision.consume_assessed_bridge_posterior_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.bridge_transport_decision.compile_bridge_transport_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.bridge_transport_decision.consume_bridge_transport_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.affine_known_map.truth"
+role = "truth"
+intent = "An affine bridge 0.5 + 2x maps the source draws row for row to a known column: the linear utility equals 0.5 + 2 mean(x), the squared utility equals the second moment of that column (4 var(x) above the squared mean), the larger second moment wins, and the sealed artifact replays; every number is computed in the test from the draws it generates."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "an_affine_bridge_decision_scores_the_known_map_of_the_source_draws"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.robust_bounds_hand_written.truth"
+role = "truth"
+intent = "A trial-level bridge maps the draws through the fitted line (the bridged mean equals the line at the draws within the coefficient draws' Monte Carlo error), and the linear action's robust bounds equal that mean shifted by the widest Bonferroni Wald band computed from hand-written ordinary least squares."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "the_robust_bounds_shift_the_fitted_line_mean_by_the_hand_written_bands"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.conditional_decision.positive"
+role = "positive"
+intent = "A predictive affine bridge with a declared premise and a nonlinear utility compiles, executes, exports and replays."
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "predictive_transport_bridge_and_nonlinear_utility_compile_together"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.matched_assessment_artifact.artifact"
+role = "artifact"
+intent = "A matched trial validation and bridge decision export one artifact that an independent consumer replays, with the assessment and decision equal to the live result."
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "matched_trial_validation_and_bridge_decision_replay_together"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.no_declared_premise.negative"
+role = "negative"
+intent = "A bridge with no declared transportability premise does not compile."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "a_bridge_without_a_declared_premise_does_not_compile"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.mismatched_assessment.negative"
+role = "negative"
+intent = "An assessment whose source mapping is not the bridge's own mapping is refused when binding the assessed decision."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "an_assessment_of_another_mapping_is_not_the_assessment_of_the_bridge"
+
+[[record.fixtures]]
+id = "transport.bridge_decision.support_unit.lifecycle"
+role = "lifecycle"
+intent = "A compiled program reports the support decision of its unit, and a run records what a release build would refuse only while the unit is unsupported."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "the_routes_report_and_consult_the_support_unit_of_their_records"
+
+[[record]]
+id = "transport.bridge_premise_assessment"
+capability = "transport.bridge_premise_assessment"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "How far do the source and target validation trials' surrogate-to-terminal lines differ over a prespecified surrogate grid, and does the discrepancy stay inside a stated margin?"
+theorem = "Each scope's trials are fitted by ordinary least squares; at a grid point x the discrepancy is the target line minus the source line, its variance is the sum over scopes of rss / (n - 2) * (1 / n + (x - xbar)^2 / Sxx), and the band is the Gaussian Wald band difference +- z se with z the normal quantile 1 - 0.05 / (2 k) over the k grid points. The equivalence screen passes when every band lies strictly inside the margin. The bands are model-conditional diagnostics under independent Gaussian trial residuals; the screen is not proof of transportability and no error control is claimed."
+reference = "provenance/transport.bridge_premise_assessment.toml"
+guarantee = "model_conditional_simultaneous_wald_bands_with_equivalence_screen_and_independent_replay"
+graph_class = "Not applicable: two sets of validation trials and a declared premise."
+population_semantics = "The source scope of the validated surrogate relation and the target scope it is proposed to apply to; the trials of each scope are supplied and independent."
+evidence_family = "Source and target trial-level pairs of surrogate and terminal treatment effects, aligned trial identities, a prespecified surrogate grid inside both observed ranges and a positive equivalence margin."
+provider = "antecedent::analysis::bridge_transport_premise_assessment over antecedent_contract::bridge::fit_trial_level_linear"
+estimand = "The difference between the target and source trial-level terminal-effect lines at each grid point, with its band."
+inference_claim = "none"
+inference_notes = "Uncalibrated simultaneous bands and a screen; no coverage or equivalence error control is claimed (calibration is reported as not_measured)."
+owners = [
+    "antecedent",
+    "antecedent-contract",
+]
+prerequisite_records = [
+    "transport.surrogate_bridge_premise",
+]
+prerequisite_reason = "The assessment evaluates the premise that record declares and binds against the diagram."
+identity_inputs = [
+    "premise (established in, applies to, statement, evidence)",
+    "source and target trial pairs and identities",
+    "fit thresholds (minimum trials, minimum R squared)",
+    "surrogate grid",
+    "equivalence margin",
+]
+wire_changes = [
+    "None: the bridge_transport_premise_assessment_v1 artifact already exists; this record registers it.",
+]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes."
+search = false
+refusals = [
+    { detail = "scientific_bridge.validation_trials_too_few" },
+    { detail = "scientific_bridge.degenerate_validation" },
+    { detail = "scientific_bridge.validation_r_squared_too_low" },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_premise_assessment.compile_bridge_transport_premise_assessment"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_premise_assessment.CompiledBridgeTransportPremiseAssessment.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.bridge_transport_premise_assessment.consume_bridge_transport_premise_assessment"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.bridge_transport_decision.compile_premise_assessment"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.bridge_transport_decision.consume_premise_assessment"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.fixtures]]
+id = "transport.bridge_premise_assessment.wald_bands_hand_written.truth"
+role = "truth"
+intent = "The source and target lines, the standard error, the Bonferroni Wald bounds and the equivalence screen equal a hand-written ordinary least squares construction for a 0.05 and a 0.5 planted target shift (the shift is the known difference at every grid point; the 0.2 screen passes the first and fails the second)."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "the_premise_assessment_bands_equal_the_hand_written_wald_construction"
+
+[[record.fixtures]]
+id = "transport.bridge_premise_assessment.planted_shift_replay.artifact"
+role = "artifact"
+intent = "Independent target trials with a planted 0.05 shift pass the equivalence screen, report not_measured, export and replay under the retained program identity."
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs"
+evidence_assertion = "independent_target_trials_replay_the_bridge_discrepancy"
+
+[[record.fixtures]]
+id = "transport.bridge_premise_assessment.premise_assessment_python.positive"
+role = "positive"
+intent = "The Python surface fits both trial lines against numpy least squares and replays the assessment."
+evidence_test = "python/tests/test_bridge_transport_decision.py"
+evidence_assertion = "test_the_premise_assessment_fits_both_trial_lines_and_replays"
+
+[[record.fixtures]]
+id = "transport.bridge_premise_assessment.grid_outside_overlap.negative"
+role = "negative"
+intent = "A grid point outside the observed surrogate range of the trials is refused."
+evidence_test = "python/tests/test_bridge_transport_decision.py"
+evidence_assertion = "test_a_grid_outside_the_trial_overlap_is_refused"
+
+[[record]]
+id = "transport.joint_transport_decision"
+capability = "transport.joint_transport_decision"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "Given randomized source trials and a target covariate frame, what decision do the target average treatment effect posterior, or the paired target outcome worlds, support under the joint source-target Gaussian transport model?"
+theorem = "With a known noise variance and Gaussian priors the joint posterior of the shared treatment block and the source-varying block is the exact conjugate Gaussian (precision P0 + sum Z'Z / sigma^2); the effect route scores utilities on the aligned posterior draws of the target average effect, which for a model without covariates is the treatment coefficient, and the predictive route scores paired outcome draws b + e0 and b + tau + e1 whose disturbances share the declared correlation rho, so the paired difference has variance Var(tau) + 2 sigma^2 (1 - rho). The structural identification is the supplied certificate; the cross-world correlation and the transport of the baseline and residual variance are declared premises."
+reference = "provenance/transport.joint_transport_decision.toml"
+guarantee = "exact_conjugate_posterior_decision_conditional_on_declared_baseline_and_cross_world_premises"
+graph_class = "Fixed selection DAG with a randomized binary treatment and a continuous outcome; an ADMG or a graph posterior is refused."
+population_semantics = "The target population named by the transport query; its covariate frame is supplied as an empirical sample, and for the predictive route the source baseline block and the residual variance are assumed to apply in it."
+evidence_family = "Independent source trials (treatment, outcome, covariates, known noise variance, observation identities), a target covariate sample, Gaussian priors with provenance and an overlap rule."
+provider = "antecedent::analysis::joint_transport_effect_decision and joint_transport_predictive_decision over antecedent_estimate::joint_bayesian_transport"
+estimand = "Expected utility of each declared action over the target average-effect posterior (effect route) or over the paired target outcome worlds (predictive route)."
+inference_claim = "none"
+inference_notes = "A decision on exact posterior draws; no interval, coverage or decision reliability is claimed (calibration is reported as not_measured)."
+owners = [
+    "antecedent",
+    "antecedent-estimate",
+    "antecedent-design",
+    "antecedent-io",
+]
+prerequisite_records = [
+    "transport.joint_bayesian",
+]
+prerequisite_reason = "The posterior of both routes is the fit of that record."
+identity_inputs = [
+    "selection diagram and transport query",
+    "model, priors and overlap rule",
+    "source and target rows with observation identities",
+    "draw count and seed",
+    "effect coordinate (effect route) or the two outcome worlds, target noise variance and correlation (predictive route)",
+    "decision contract",
+]
+wire_changes = [
+    "None: the joint_transport_effect_decision_v1 and joint_transport_predictive_decision_v2 artifacts already exist; this record registers them.",
+]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes."
+search = false
+refusals = [
+    { detail = "bayesian_transport.weak_overlap" },
+    { detail = "bayesian_transport.prior_data_overlap" },
+    { detail = "bayesian_transport.identification_not_certified" },
+    { detail = "bayesian_transport.unsupported_graph" },
+    { detail = "bayesian_transport.source_dependence" },
+    { detail = "bayesian_transport.singular_fit" },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_effect_decision.compile_joint_transport_effect_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_effect_decision.CompiledJointTransportEffectDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_effect_decision.consume_joint_transport_effect_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_predictive_decision.compile_joint_transport_predictive_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_predictive_decision.CompiledJointTransportPredictiveDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.joint_transport_predictive_decision.consume_joint_transport_predictive_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.transport.decisions.compile_joint_transport_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.effect_conjugate_posterior.truth"
+role = "truth"
+intent = "The effect posterior moments, the target effect draws and the decision utilities equal the hand-solved two-parameter conjugate posterior for planted effects 2 and 0.5 and two baselines; the verdict follows the planted effect net of the cost."
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "the_effect_posterior_and_its_decision_equal_the_hand_solved_conjugate_posterior"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.predictive_worlds_conjugate.truth"
+role = "truth"
+intent = "The paired target outcome draws follow the hand-derived posterior predictive law, with paired-difference variance Var(tau) + 2 sigma^2 (1 - rho) for rho 1 and 0, and the decision scores those draws."
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "the_predictive_worlds_follow_the_hand_solved_posterior_predictive_law"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.baseline_shift.positive"
+role = "positive"
+intent = "A baseline shift of 27 leaves the planted effect, hence the verdict, unchanged, and the posterior equals the hand-solved one."
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "the_effect_decision_is_the_decision_of_the_planted_effect_not_of_the_baseline"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.effect_replay.artifact"
+role = "artifact"
+intent = "The fitted target effect and its utility export and replay independently against known truth."
+evidence_test = "crates/antecedent/src/analysis/joint_transport_effect_decision.rs"
+evidence_assertion = "fitted_target_effect_and_utility_replay_against_known_truth"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.predictive_replay.artifact"
+role = "artifact"
+intent = "The paired outcome worlds export and replay, and changing the declared correlation keeps the fit and changes the chain."
+evidence_test = "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs"
+evidence_assertion = "paired_target_outcomes_replay_with_a_shared_baseline"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.off_coordinate_or_impossible_correlation.negative"
+role = "negative"
+intent = "A quantity off the exact effect coordinate, a correlation outside [-1, 1] and a non-positive residual variance each refuse to compile."
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "a_decision_off_the_effect_coordinate_and_an_impossible_correlation_refuse"
+
+[[record.fixtures]]
+id = "transport.joint_transport_decision.support_unit.lifecycle"
+role = "lifecycle"
+intent = "Each compiled program reports the support decision of its unit, and a run records what a release build would refuse only while the unit is unsupported."
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "both_joint_transport_routes_report_and_consult_their_support_unit"
+
+[[record]]
+id = "transport.trial_ipw_decision"
+capability = "transport.trial_ipw_decision"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "Given independent trial rows with known selection and treatment probabilities and a target sample, what decision do the Bayesian-bootstrap target average effect, or the predictive outcome worlds on the trial's empirical support, support?"
+theorem = "With Dirichlet(1, ..., 1) weights pi over the m trial rows the effect draw is (m / n_target) sum_i pi_i score_i with the inverse-odds score sign * (1 - s) / s * y / P(arm) (Dahabreh et al. 2020, equation 2), so its mean is sum_i score_i / n_target and its variance (m / n_target)^2 var_pop(score) / (m + 1). The predictive route selects an arm row with probability proportional to its Dirichlet mass times a within-arm constant, so each arm's marginal law is that arm's empirical outcome law, and the two arms use disjoint Dirichlet blocks. The cross-world independence of the two potential outcomes given the mass is a declared premise."
+reference = "provenance/transport.trial_ipw_decision.toml"
+guarantee = "model_conditional_dirichlet_pushforward_decision_with_declared_cross_world_independence"
+graph_class = "Fixed selection DAG with a randomized binary treatment; the structural certificate must yield a direct or standardizing formula."
+population_semantics = "Source-trial units and target units with supplied selection and treatment probabilities; target outcomes and assignments are ignored and the target sample size is fixed."
+evidence_family = "Raw trial and target rows with outcomes, treatment, trial membership, selection and treatment probabilities, draw count and seed."
+provider = "antecedent::analysis::trial_ipw_transport_decision and trial_ipw_predictive_decision over antecedent_estimate::trial_to_target_bayesian_bootstrap"
+estimand = "Expected utility of each declared action over the target average-effect draws (effect route) or over the predictive outcome worlds (predictive route)."
+inference_claim = "none"
+inference_notes = "A decision on Dirichlet draws conditional on the supplied probabilities; no interval, coverage or decision reliability is claimed (calibration is reported as not_measured)."
+owners = [
+    "antecedent",
+    "antecedent-estimate",
+    "antecedent-design",
+]
+identity_inputs = [
+    "selection diagram and transport query",
+    "raw rows with unit identities",
+    "selection and treatment probabilities",
+    "draw count and seed",
+    "effect coordinate (effect route) or outcome worlds and the cross-world premise (predictive route)",
+    "decision contract",
+]
+wire_changes = [
+    "None: the trial_ipw_transport_effect_decision_v1 and trial_ipw_transport_predictive_decision_v1 artifacts already exist; this record registers them.",
+]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes."
+search = false
+refusals = [
+    { detail = "decision_contract.invalid_declaration" },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_transport_decision.compile_trial_ipw_transport_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_transport_decision.CompiledTrialIpwTransportDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_transport_decision.consume_trial_ipw_transport_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_predictive_decision.compile_trial_ipw_predictive_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_predictive_decision.CompiledTrialIpwPredictiveDecision.execute"
+stage = "evaluate"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.analysis.trial_ipw_predictive_decision.consume_trial_ipw_predictive_decision"
+stage = "consume"
+status = "supported"
+claim = "none"
+
+[[record.routes]]
+name = "antecedent.transport.decisions.compile_trial_ipw_decision"
+stage = "prepare"
+status = "supported"
+claim = "none"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.dirichlet_score_moments.truth"
+role = "truth"
+intent = "The effect draws have the exact Dirichlet mean sum score / n_target and variance (m / n_target)^2 var_pop(score) / (m + 1) of the hand-written inverse-odds scores, lie in their convex hull, and the decision scores them (treat for a unit cost, hold for a cost above the mean)."
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "the_effect_draws_follow_the_exact_dirichlet_moments_of_the_inverse_odds_scores"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.arm_empirical_predictive.truth"
+role = "truth"
+intent = "The predictive draws of each arm sit on that arm's empirical support with frequency 1/2 per value, the two arms have zero covariance, and the nonlinear utility scores the rows (hold 2, treat 1)."
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "the_predictive_worlds_are_the_arm_empirical_laws_and_independent_given_the_declared_premise"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.effect_replay.positive"
+role = "positive"
+intent = "The trial effect posterior refits and replays from raw rows and refuses altered rows."
+evidence_test = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
+evidence_assertion = "trial_effect_is_refit_and_replayed_from_raw_rows"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.predictive_replay.artifact"
+role = "artifact"
+intent = "The predictive worlds refit and replay from raw evidence, a changed row is refused and an undeclared cross-world premise refuses compilation."
+evidence_test = "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs"
+evidence_assertion = "predictive_worlds_refit_and_replay_raw_evidence"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.off_coordinate_or_single_arm.negative"
+role = "negative"
+intent = "A quantity off the exact effect coordinate refuses to compile and a trial with a single treatment arm refuses to draw."
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "a_decision_off_the_effect_coordinate_and_an_undeclared_premise_refuse"
+
+[[record.fixtures]]
+id = "transport.trial_ipw_decision.support_unit.lifecycle"
+role = "lifecycle"
+intent = "Each compiled program reports the support decision of its unit, and a run records what a release build would refuse only while the unit is unsupported."
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "both_trial_ipw_routes_report_and_consult_their_support_unit"
+
+[[record]]
+id = "transport.temporal_path_specific"
+capability = "transport.temporal_path_specific"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "On an explicitly time-ordered graph, what is the path-specific contrast of a treatment in the target population, transported from the source evidence?"
+theorem = "The unrolled graph is time-checked (every directed edge advances time); the active world reads the active treatment level on the declared edges and the baseline level on the others; each world's target outcome probability is identified and evaluated by the finite counterfactual transport engine on the same regime laws, and the contrast is their difference, exact for the supplied laws. The sampled route is the plug-in on count tables with a paired delta-method spread, and the continuous chain fits sequential linear mechanisms on randomized source units and composes the worlds, with a paired bootstrap spread."
+reference = "provenance/transport.temporal_path_specific.toml"
+guarantee = "exact_contrast_on_supplied_finite_laws_with_plug_in_sampled_and_linear_chain_variants_and_independent_replay"
+graph_class = "Explicitly time-ordered finite selection ADMG (exact and sampled routes); an observed DAG with independent structural errors and linear mechanisms (continuous chain)."
+population_semantics = "The target population of the transport problem; source evidence regimes are cited by the identified derivations and supplied as exact laws, count tables or randomized source rows."
+evidence_family = "Exact finite laws, or sampled count tables with a declared overlap and unseen-cell rule, or randomized source rows with sequential mediators and a target baseline sample."
+provider = "antecedent::analysis::temporal_path_transport over antecedent::analysis::counterfactual_transport and antecedent_estimate::counterfactual_transport_sampled"
+estimand = "The target-population difference between the outcome probability (or mean) under the active edge intervention and under the baseline world."
+inference_claim = "none"
+inference_notes = "Point contrast on the supplied evidence; the sampled and continuous spreads are uncalibrated and no coverage is claimed (calibration is reported as not_measured)."
+owners = [
+    "antecedent",
+    "antecedent-identify",
+    "antecedent-estimate",
+    "antecedent-expr",
+    "antecedent-io",
+]
+prerequisite_records = [
+    "counterfactual.transport_general",
+]
+prerequisite_reason = "The exact and sampled routes identify and evaluate each world with that record's engine."
+identity_inputs = [
+    "unrolled graph, selections and time coordinates",
+    "treatment, outcome, control, active and outcome levels",
+    "active edges",
+    "evidence catalog and regime laws or count tables (with overlap and unseen-cell rule)",
+    "or the source rows, mediator parents, treatment edges and bootstrap schedule (continuous chain)",
+]
+wire_changes = [
+    "None: the temporal_path_transport_v1 and sampled_temporal_path_transport_v1 artifacts already exist; this record registers them.",
+]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes. The static transported path-specific route stays closed."
+search = false
+refusals = [
+    { detail = "counterfactual_transport.checked_obstruction" },
+    { detail = "counterfactual_transport.missing_law" },
+    { detail = "counterfactual_transport.support_failure" },
+    { detail = "counterfactual_transport.invalid_query" },
+    { detail = "counterfactual_transport.budget" },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.compile_temporal_path_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.CompiledTemporalPathTransport.execute"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.consume_temporal_path_transport"
+stage = "consume"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.compile_sampled_temporal_path_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.CompiledSampledTemporalPathTransport.execute"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.consume_sampled_temporal_path_transport"
+stage = "consume"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.compile_continuous_chain_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.CompiledContinuousChainTransport.execute"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.temporal_path_transport.consume_continuous_chain_transport"
+stage = "consume"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.transport.temporal_paths.compile_temporal_path_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.exact_enumerated_direct_effect.truth"
+role = "truth"
+intent = "The exact contrast, both world probabilities and the replay equal the independent finite-SCM oracle's enumerated target values (1/2, 23/64 and the direct effect 9/64 of the covariate-shift mediation model), and a non-time-ordered arrow refuses."
+evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
+evidence_assertion = "time_ordered_direct_path_transport_matches_independent_oracle"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.sampled_enumerated_direct_effect.truth"
+role = "truth"
+intent = "The sampled plug-in on count tables proportional to the exact laws equals the same enumerated direct effect, and the sealed estimate replays."
+evidence_test = "crates/antecedent/tests/temporal_path_transport_reference.rs"
+evidence_assertion = "the_sampled_path_contrast_converges_to_the_enumerated_direct_effect"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.continuous_chain_planted_paths.truth"
+role = "truth"
+intent = "A linear sequential chain with planted coefficients recovers the path contrast 2 for the treatment-to-first-mediator edge and 7 for the remaining edges within 1e-10, and refuses a mediator ordering that is not time-ordered."
+evidence_test = "crates/antecedent/src/analysis/temporal_path_transport.rs"
+evidence_assertion = "continuous_chain_shared_schedule_replays"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.sampled_python.positive"
+role = "positive"
+intent = "The Python surface returns the plug-in contrast 9/64 on integer counts with an uncalibrated standard error and replays."
+evidence_test = "python/tests/test_temporal_path_transport.py"
+evidence_assertion = "test_sampled_path_contrast_is_the_plug_in_with_an_uncalibrated_error_and_replays"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.exact_python_replay.artifact"
+role = "artifact"
+intent = "The exact contrast equals the enumerated rational truth through Python and an independent consumer replays it, refusing a foreign identity."
+evidence_test = "python/tests/test_temporal_path_transport.py"
+evidence_assertion = "test_exact_path_contrast_matches_the_enumerated_direct_effect_and_replays"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.arrow_not_advancing_time.negative"
+role = "negative"
+intent = "An arrow that does not advance time is refused for the sampled route."
+evidence_test = "crates/antecedent/tests/temporal_path_transport_reference.rs"
+evidence_assertion = "an_arrow_that_does_not_advance_time_is_refused_for_the_sampled_route"
+
+[[record.fixtures]]
+id = "transport.temporal_path_specific.support_unit.lifecycle"
+role = "lifecycle"
+intent = "The exact and sampled programs report the support decision of their unit, and a run records what a release build would refuse only while the unit is unsupported."
+evidence_test = "crates/antecedent/tests/temporal_path_transport_reference.rs"
+evidence_assertion = "the_path_routes_report_and_consult_the_support_unit_of_their_record"
+
+
+[[record]]
+id = "composition.sampling_assumption_union"
+capability = "composition.sampling_assumption_union"
+status = "supported"
+consumer_question = "Around an assumption envelope whose sampling rows are resampled whole-chain, which interval joins the bootstrap lower and upper endpoint bounds at the final composed coordinate, and what does it not claim?"
+theorem = "The original chain and every resampled rerun are compiled and executed through the propagation-chain program. Each rerun keeps the declared interval assumptions fixed and resamples only the sampling rows (independent units, complete clusters, stratified clusters, overlapping moving blocks, panels with blocks, or reruns the caller declares). With lower_hat and upper_hat the weighted means of the original rowwise lower and upper enclosures and lower* and upper* the same means over the reruns, the reported bounds are the basic bootstrap bounds with type-7 quantiles and a Bonferroni split of the level, lower = 2 lower_hat - Q_(1 - a/2)(lower*) and upper = 2 upper_hat - Q_(a/2)(upper*). On hand-built replicates whose endpoint means are known the bounds equal that formula exactly; on raw units of known variance the resampled interval's half-width reproduces the sampling standard error of the mean within bootstrap noise (about 1.96 times 0.5 over the square root of 400 for the independent-unit case, larger for complete clusters and moving blocks of a dependent series). The bounds are a bootstrap candidate for the assumption-identified set: the level is nominal, coverage is not measured, and the Imbens-Manski construction for a partially identified parameter is not implemented."
+reference = "provenance/composition.sampling_assumption_union.toml"
+guarantee = "whole_chain_endpoint_bootstrap_candidate_for_assumption_set_coverage_not_measured"
+graph_class = "No graph is identified. The union is over a declared propagation chain of reading assumption_envelope with at least one sampling-draw source and one interval source; stages and interval assumptions are those of the original chain."
+population_semantics = "The raw sampling units of the declared table are the resampling population: independent rows, whole clusters (cluster independence declared), overlapping blocks of one equally spaced series (stationarity and weak dependence declared), or panels. Interval assumptions are held fixed in every rerun."
+evidence_family = "Hand-built replicate schedules with known endpoint means, and raw 0/1 unit tables of known mean and variance under independent, clustered and slowly varying serial structure."
+provider = "Native whole-chain bootstrap over the native propagation-chain compiler; resampling streams are keyed from the execution seed."
+estimand = "Bonferroni basic-bootstrap bounds of the lower and upper endpoint means of an assumption envelope at one composed coordinate."
+inference_claim = "none"
+inference_notes = "The result is a bootstrap candidate with calibration not_measured; no coverage statement is made and none is earned by this record. Coverage experiments for the independent-unit, cluster and moving-block schemes are separate, measured on dev machines through the calibration registry."
+owners = ["antecedent", "python/antecedent"]
+identity_inputs = ["original chain declaration", "resampling scheme, unit, cluster, block and panel declarations", "replicate count or declared rerun schedule and identities", "level", "execution seed", "lowered program"]
+wire_changes = ["Additive: the sampling-assumption-union artifact feature families (one per scheme) carry the request, seed, program identity and result fingerprint; no existing artifact changes."]
+compatibility = "Additive: the union adds no rule to the chain and changes no chain result; a consumer recompiles every chain and replays the whole schedule."
+search = false
+bounds = { cancellation = true, replicates = "100 to 4096", units = "20 to 1000000", work = "units times replicates at most 50000000", artifact_bytes = 83886080 }
+refusals = [{ detail = "sampling_assumption_union.invalid_declaration" }, { detail = "sampling_assumption_union.not_supported" }, { detail = "sampling_assumption_union.replay_mismatch" }]
+routes = [
+ { name = "antecedent.analysis.sampling_assumption_union.compile_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.sampling_assumption_union.compile_iid_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.sampling_assumption_union.compile_cluster_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.sampling_assumption_union.compile_moving_block_sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.sampling_assumption_union.consume_sampling_assumption_union", stage = "consume", status = "supported", claim = "none" },
+ { name = "antecedent.python.sampling_assumption_union.sampling_assumption_union", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.python.sampling_assumption_union.consume_sampling_assumption_union", stage = "consume", status = "supported", claim = "none" },
+]
+fixtures = [
+ { id = "composition.sampling_assumption_union.truth", role = "truth", intent = "On one hundred hand-built replicate chains with known endpoint means the bounds equal the basic bootstrap formula evaluated by hand (1.53475 and 3.47525); independent-unit resampling of 400 values of variance 1/4 gives a half-width near 1.96 times 0.025; complete clusters and blocks of a slow series widen it as their effective sample sizes require. Registered, owed.", evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs", evidence_assertion = "the_union_is_the_basic_bootstrap_endpoint_formula_over_the_replicate_endpoints" },
+ { id = "composition.sampling_assumption_union.positive", role = "positive", intent = "Independent-unit resampling reproduces the standard error of a mean of known variance; the compiled program reruns the whole chain and reports not_measured.", evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs", evidence_assertion = "iid_resampling_reproduces_the_standard_error_of_a_mean" },
+ { id = "composition.sampling_assumption_union.dependence.positive", role = "positive", shared_evidence = true, intent = "Complete-cluster and moving-block resampling widen the interval for dependent rows as the effective sample size requires.", evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs", evidence_assertion = "cluster_resampling_widens_the_interval_for_dependent_row_pairs" },
+ { id = "composition.sampling_assumption_union.negative", role = "negative", intent = "A schedule below the replicate floor or a replicate count that does not match its identities is refused before any chain runs.", evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs", evidence_assertion = "malformed_schedules_are_refused" },
+ { id = "composition.sampling_assumption_union.artifact", role = "artifact", intent = "The sealed declaration, seed and result recompile and replay under a separately retained program identity; any other identity is refused.", evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs", evidence_assertion = "whole_chain_bootstrap_union_replays_at_the_final_coordinate" },
+]
+
+
+[[record]]
+id = "composition.propagation_chain"
+capability = "composition.propagation_chain"
+status = "supported"
+consumer_question = "When a chain of three or more transformations (pool, mapping, transport, derived quantity, nonlinear utility, preposterior update) is declared over aligned draws, intervals and points, what value, spread or enclosure does the chain carry, and does an independent consumer reproduce it?"
+theorem = "The chain adds no estimator: it evaluates the declared stages exactly. Over an aligned draw table every stage runs row by row, so for X with mean m and variance s2 an affine stage a X + b has mean a m + b and variance a^2 s2, a stage on two aligned columns is evaluated on the pairs (the difference of X and 2X + 1 has variance s2, not 5 s2), E[g(X)] is the row mean of g (for g(x) = 1 - exp(-x) and X ~ N(m, s2) it is 1 - exp(-m + s2 / 2), not g(m)), and independent sources are joined by their product table (E[XY] = E[X] E[Y]). Declared intervals propagate by interval arithmetic into an enclosure that holds under every coupling (for 2 e - c with e in [0, 1] and c in [0.1, 0.4] it is [-0.4, 1.9]); an assumption envelope pairs sampling rows with interval assumptions into rowwise enclosures. A withdrawn source invalidates exactly its dependents and every other stage keeps its stored numbers bit for bit; the sealed record replays to identical bits under an independent consumer. The labels (point_only, uncalibrated_spread, posterior_propagation, propagation_enclosure, predictive_propagation) are not coverage statements, and an interval reading of a composed quantity is refused until coverage is measured at its coordinate."
+reference = "provenance/composition.propagation_chain.toml"
+guarantee = "exact_stagewise_evaluation_of_declared_chain_enclosure_under_every_coupling_no_coverage_claim"
+graph_class = "No graph is identified. The chain's dependence contract (shared rows, clusters, models, priors, disturbances, periods) is the identification of overlap; stages are the declared operations."
+population_semantics = "Each source declares its quantity, alignment, shared factors and meaning (posterior, predictive, sampling, interval, point); the chain does not convert populations or regimes."
+evidence_family = "Quantile-grid draws of a normal law with closed-form moments, aligned linear partners, two-point independent laws with the product enumerated by hand, declared interval boxes with hand interval arithmetic, and an envelope over three sampling rows."
+provider = "Native stagewise evaluation over the retained lowered program."
+estimand = "The row-wise composed quantity, its spread or its enclosure, as declared."
+inference_claim = "point_only"
+inference_notes = "A value is point_only and its spread uncalibrated; posterior and predictive draws keep their declared meaning. No interval or coverage claim is made and none is earned; independent coverage measurement of composed intervals is a separate record."
+owners = ["antecedent", "antecedent-contract", "antecedent-stats", "antecedent-io-core", "python/antecedent"]
+identity_inputs = ["sources, their alignment, meaning and shared factors", "stages, operations and decision references", "reading and table construction", "output quantity and joint outputs", "appended changes", "lowered program"]
+wire_changes = ["Additive: propagation_chain_v1, propagation_chain_law_v2, the draw-indexed assumption version and the joint-output law version are existing artifacts; this record changes none of them."]
+compatibility = "Existing chain results do not change; the record only states what the compiled route carries and how it is checked."
+search = false
+bounds = { cancellation = true, operation_limit = "chain row and stage limits of the execution context", memory_limit = "execution admission limits" }
+refusals = [{ detail = "propagation_chain.ancestry_bytes" }, { detail = "propagation_chain.assumption_envelope_needs_both_axes" }, { detail = "propagation_chain.assumption_envelope_needs_draws" }, { detail = "propagation_chain.assumption_envelope_operator" }, { detail = "propagation_chain.budget_exceeded" }, { detail = "propagation_chain.cancelled" }, { detail = "propagation_chain.denominator_not_bounded" }, { detail = "propagation_chain.draws_are_not_an_enclosure" }, { detail = "propagation_chain.enclosure_is_not_a_law" }, { detail = "propagation_chain.enclosure_unbounded" }, { detail = "propagation_chain.family_authority" }, { detail = "propagation_chain.family_covariance" }, { detail = "propagation_chain.family_dependence" }, { detail = "propagation_chain.family_estimate" }, { detail = "propagation_chain.family_meaning" }, { detail = "propagation_chain.family_shape" }, { detail = "propagation_chain.family_table_cancelled" }, { detail = "propagation_chain.family_table_refused" }, { detail = "propagation_chain.family_table_work_limit" }, { detail = "propagation_chain.interval_cannot_be_pooled" }, { detail = "propagation_chain.interval_is_not_a_posterior" }, { detail = "propagation_chain.interval_not_measured" }, { detail = "propagation_chain.invalid_request" }, { detail = "propagation_chain.law_meaning_mismatch" }, { detail = "propagation_chain.lowering" }, { detail = "propagation_chain.malformed" }, { detail = "propagation_chain.mixed_draws_and_interval" }, { detail = "propagation_chain.not_lowered" }, { detail = "propagation_chain.not_read_as_posterior" }, { detail = "propagation_chain.not_supported" }, { detail = "propagation_chain.operator_not_supported_for_stage" }, { detail = "propagation_chain.outcome_law_is_not_an_estimate_pool" }, { detail = "propagation_chain.overlap_unknown_in_independent_product" }, { detail = "propagation_chain.parameter_law_is_not_predictive" }, { detail = "propagation_chain.point_cannot_be_pooled" }, { detail = "propagation_chain.point_has_no_posterior" }, { detail = "propagation_chain.point_has_no_spread" }, { detail = "propagation_chain.pool_inputs_duplicated" }, { detail = "propagation_chain.pool_overlap_unknown" }, { detail = "propagation_chain.pool_refused" }, { detail = "propagation_chain.pool_shares_evidence" }, { detail = "propagation_chain.predictive_disturbance_required" }, { detail = "propagation_chain.predictive_reading_required" }, { detail = "propagation_chain.product_table_refused" }, { detail = "propagation_chain.program_mismatch" }, { detail = "propagation_chain.record_invalid" }, { detail = "propagation_chain.record_refused" }, { detail = "propagation_chain.reentry" }, { detail = "propagation_chain.reweight_needs_draws" }, { detail = "propagation_chain.sampling_is_not_predictive" }, { detail = "propagation_chain.sampling_law_is_not_a_posterior" }, { detail = "propagation_chain.shared_factor_in_independent_product" }, { detail = "propagation_chain.stage_invalidated" }, { detail = "propagation_chain.stage_left_domain" }, { detail = "propagation_chain.too_many_inputs" }, { detail = "propagation_chain.too_many_nodes" }, { detail = "propagation_chain.unaligned_draws" }, { detail = "propagation_chain.unknown_stage" }, { detail = "propagation_chain.unknown_value" }, { detail = "propagation_chain.update_effective_size" }]
+routes = [
+ { name = "antecedent.analysis.propagation_chain.compile_propagation_chain", stage = "representation", status = "supported", claim = "point_only" },
+ { name = "antecedent.analysis.propagation_chain.PropagationChainPlan.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+ { name = "antecedent.analysis.propagation_chain.PropagationChain.seal", stage = "evaluate", status = "supported", claim = "point_only" },
+ { name = "antecedent.analysis.propagation_chain.consume_propagation_chain", stage = "consume", status = "supported", claim = "point_only" },
+ { name = "antecedent.python.propagation_chain.propagate", stage = "evaluate", status = "supported", claim = "point_only" },
+ { name = "antecedent.python.propagation_chain.consume_propagation_chain", stage = "consume", status = "supported", claim = "point_only" },
+]
+fixtures = [
+ { id = "composition.propagation_chain.truth", role = "truth", intent = "A nonlinear utility of a normal quantile grid equals 1 - exp(-m + s2 / 2) and not the utility of the mean; aligned columns keep their joint law. Registered, owed.", evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs", evidence_assertion = "a_nonlinear_utility_is_the_normal_moment_generating_function_not_the_utility_of_the_mean" },
+ { id = "composition.propagation_chain.positive", role = "positive", intent = "Affine stages and an aligned difference match the normal moments, and a difference of linearly related columns keeps their dependence.", evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs", evidence_assertion = "affine_stages_and_aligned_differences_match_the_normal_moments" },
+ { id = "composition.propagation_chain.enclosure.positive", role = "positive", shared_evidence = true, intent = "Declared intervals propagate to the hand interval-arithmetic enclosure, and an assumption envelope's row enclosures average to the sampling mean shifted by the interval ends.", evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs", evidence_assertion = "declared_intervals_propagate_to_their_interval_arithmetic_enclosure" },
+ { id = "composition.propagation_chain.negative", role = "negative", intent = "A sampling law cannot be updated or read as a posterior, and a composed interval is refused with the measured-coverage next attempt.", evidence_test = "crates/antecedent/src/analysis/propagation_chain_tests.rs", evidence_assertion = "the_interval_reading_is_not_supported_and_names_the_measured_coverage_attempt" },
+ { id = "composition.propagation_chain.artifact", role = "artifact", intent = "A withdrawn source invalidates exactly its dependents, every other stage keeps its stored numbers, and the exported record is consumed independently to identical results.", evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs", evidence_assertion = "withdrawing_a_source_invalidates_exactly_its_dependents_and_replay_is_exact" },
+]
+
+
+[[record]]
+id = "design.experiment_planning"
+capability = "design.experiment_planning"
+status = "supported"
+consumer_question = "For a declared randomized design and declared planning assumptions, what sample size, power or minimum detectable effect does the compiled plan state, and does simulating the whole procedure agree?"
+theorem = "The plan solves the analytic operating characteristic of the declared design and analysis. For a two-sample comparison with variance 1, two-sided level 0.05 and power 0.80 the smallest total size is 128 for an effect of 0.5, 52 for 0.8 and 788 for 0.2 (noncentral t; Cohen 1988), and the power at 64 per arm and effect 0.5 is 0.8015; proportions 0.5 against 0.6 need 385 per arm under the unpooled Wald variance; a cluster design inflates the variance by the design effect 1 + ((1 + CV^2) m - 1) rho (1.95 and 2.2 for clusters of 20 at rho 0.05 with CV 0 and 0.5). The sample-size, evaluate and minimum-detectable-effect goals invert one another. When a simulation is declared, the whole procedure (data generation, the analysis estimator, the decision) is run under keyed streams and agrees with the analytic value within Monte Carlo error. Every assumption is declared by the caller and retained in the program identity; nothing here shows an assumption holds or that the characteristics are calibrated against realized trials."
+reference = "provenance/design.experiment_planning.toml"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+graph_class = "No graph is identified. A planned trial binds no data; its randomization identifies the assignment contrast when it is analysed."
+population_semantics = "The declared design's randomization units, arms, strata, clusters, periods and assumed outcome model; nothing about a realized population."
+evidence_family = "Published two-sample t and proportion sample-size values, closed-form design effects, internal inversion of the three goals, and whole-procedure simulation of each design family."
+provider = "Native analytic planner of antecedent-design and native simulation under keyed streams leased from the admission pool."
+estimand = "Sample size, power, assurance or minimum detectable effect of the declared design under its declared assumptions."
+inference_claim = "none"
+inference_notes = "The characteristics are statements about the declared assumptions (calibration not_measured); no coverage or realized-trial calibration is claimed."
+owners = ["antecedent-design", "antecedent", "antecedent-py", "python/antecedent"]
+identity_inputs = ["design family and its parameters", "every planning assumption", "criterion and target", "goal and size bound", "simulation replicates and seed", "lowered program"]
+wire_changes = ["Additive: none; the plan result and the planning program identity are existing surfaces."]
+compatibility = "Existing planning results do not change; the record states what the compiled route carries and how it is checked."
+search = false
+bounds = { cancellation = true, max_units = "declared by the goal", memory_limit = "execution admission limits (the simulation store is leased before it is allocated)" }
+refusals = [{ detail = "planning.adaptive" }, { detail = "planning.allocation" }, { detail = "planning.allocation_ratio" }, { detail = "planning.alpha" }, { detail = "planning.assurance" }, { detail = "planning.attrition" }, { detail = "planning.cluster" }, { detail = "planning.covariates" }, { detail = "planning.decision" }, { detail = "planning.effect" }, { detail = "planning.effect_unreachable" }, { detail = "planning.factorial" }, { detail = "planning.goal" }, { detail = "planning.group_sequential" }, { detail = "planning.interference" }, { detail = "planning.multi_arm" }, { detail = "planning.outcome" }, { detail = "planning.power" }, { detail = "planning.precision" }, { detail = "planning.prior" }, { detail = "planning.simulation" }, { detail = "planning.size" }, { detail = "planning.size_unreachable" }, { detail = "planning.stratified" }, { detail = "planning.study" }, { detail = "planning.success" }, { detail = "planning.switchback" }]
+routes = [
+ { name = "antecedent.analysis.planning.compile_planning", stage = "representation", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.planning.PlanningPlan.execute", stage = "evaluate", status = "supported", claim = "none" },
+ { name = "antecedent.analysis.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
+ { name = "antecedent.Study.compile_for_planning", stage = "prepare", status = "supported", claim = "none" },
+ { name = "antecedent.python.design.planning.plan_experiment", stage = "evaluate", status = "supported", claim = "none" },
+]
+fixtures = [
+ { id = "design.experiment_planning.truth", role = "truth", intent = "Sizes match Cohen's two-sample t table, the unpooled two-proportion formula and the closed-form design effects through the compiled route. Registered, owed.", evidence_test = "crates/antecedent/tests/planning_known_truth.rs", evidence_assertion = "sample_sizes_match_cohens_two_sample_t_table" },
+ { id = "design.experiment_planning.positive", role = "positive", intent = "Power at a given size matches the noncentral t value and the three goals invert one another.", evidence_test = "crates/antecedent/tests/planning_known_truth.rs", evidence_assertion = "the_three_goals_invert_one_another" },
+ { id = "design.experiment_planning.simulation.positive", role = "positive", shared_evidence = true, intent = "Whole-procedure simulation of each design family agrees with the analytic characteristic within Monte Carlo error.", evidence_test = "crates/antecedent/tests/experiment_planning.rs", evidence_assertion = "two_arm_designs_agree_with_simulation" },
+ { id = "design.experiment_planning.negative", role = "negative", intent = "Unplannable designs are refused through compile naming the next attempt.", evidence_test = "crates/antecedent/tests/experiment_planning.rs", evidence_assertion = "unplannable_designs_are_refused_through_compile" },
+ { id = "design.experiment_planning.artifact", role = "artifact", intent = "The compiled program carries every planning assumption in its identity; changing any assumption changes the identity and execution stamps it on the result.", evidence_test = "crates/antecedent/tests/experiment_planning.rs", evidence_assertion = "compiled_plan_carries_every_assumption_in_its_identity" },
 ]

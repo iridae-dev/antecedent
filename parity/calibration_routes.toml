@@ -135,9 +135,11 @@ record = "observation_query.finite_law_conditioning"
 routes = [
   "antecedent.observation_query.ObservationClaim.parameter_interval",
   "antecedent._native.observation_query_parameter_interval",
+  "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration",
 ]
 groups = [
   "count_fitted_posterior_calibration",
+  "fitted_dependent_measurement_calibration: fitted_dependent_measurement_joint_error_l95",
 ]
 
 [[route]]

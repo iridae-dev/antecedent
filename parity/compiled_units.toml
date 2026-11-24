@@ -208,134 +208,200 @@ unit_kind = "capability"
 unit = "cyclic.general_systems"
 entry = { rust = "crates/antecedent/src/analysis/cyclic.rs", python = "python/antecedent/cyclic.py" }
 
-[[unbound]]
+[[route]]
 lowering = "FittedDependentMeasuredObservation"
-reason = "observation_query.finite_law_conditioning owns declared dependent-error tables only; the Dirichlet fit of a labelled joint-error table has no record and fitted_joint_error_table_propagates_labelled_count_uncertainty is cited by no claim"
+unit_kind = "capability"
+unit = "observation_query.finite_law_conditioning"
+entry = { rust = "crates/antecedent/src/analysis/fitted_dependent_measurement.rs", python = "python/antecedent/observation_query.py" }
 
-[[unbound]]
+[[route]]
 lowering = "CyclicActionWorldDecision"
-reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not the paired action-world decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "cyclic.action_world_decisions"
+entry = { rust = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs", python = "python/antecedent/cyclic_decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "CyclicPosteriorActionDecision"
-reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not the posterior predictive action decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "cyclic.action_world_decisions"
+entry = { rust = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs", python = "python/antecedent/cyclic_decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "CyclicTargetFeedbackDecision"
-reason = "cyclic.general_systems owns solving and replaying a specified cyclic family, not target-frame standardization and its decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "cyclic.action_world_decisions"
+entry = { rust = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs", python = "python/antecedent/cyclic_decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "JointComponentPosteriorDecision"
-reason = "no record owns feedback composed across components (interface_contract.cyclic_composition is a closed record that refuses component cycles and has no unit status); its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "cyclic.component_posterior_decisions"
+entry = { rust = "crates/antecedent/src/analysis/cyclic_component_composition.rs", python = "python/antecedent/cyclic_decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "BoundedComponentPosteriorDecision"
-reason = "no record owns feedback composed across components (interface_contract.cyclic_composition is a closed record that refuses component cycles and has no unit status); its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "cyclic.component_posterior_decisions"
+entry = { rust = "crates/antecedent/src/analysis/cyclic_component_composition.rs", python = "python/antecedent/cyclic_decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "BridgeTransportDecision"
-reason = "scientific_bridge.distribution_bridges owns the bridge draws and transport.surrogate_bridge_premise the premise derivation; no record owns the compiled bridge-transport decision and no capability record cites its tests"
+unit_kind = "capability"
+unit = "transport.bridge_decision"
+entry = { rust = "crates/antecedent/src/analysis/bridge_transport_decision.rs", python = "python/antecedent/bridge_transport_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "BridgeTransportPremiseAssessment"
-reason = "transport.surrogate_bridge_premise owns the premise derivation, not the source-target discrepancy assessment; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.bridge_premise_assessment"
+entry = { rust = "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs", python = "python/antecedent/bridge_transport_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "AssessedBridgeTransportDecision"
-reason = "no record owns the matched bridge validation and conditional decision and no capability record cites its tests"
+unit_kind = "capability"
+unit = "transport.bridge_decision"
+entry = { rust = "crates/antecedent/src/analysis/bridge_transport_decision.rs", python = "python/antecedent/bridge_transport_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "JointTransportEffectDecision"
-reason = "transport.joint_bayesian owns the effect posterior kernel, not the compiled decision over it; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.joint_transport_decision"
+entry = { rust = "crates/antecedent/src/analysis/joint_transport_effect_decision.rs", python = "python/antecedent/transport/decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "JointTransportPredictiveDecision"
-reason = "transport.joint_bayesian owns the effect posterior, not the shared-baseline outcome prediction and decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.joint_transport_decision"
+entry = { rust = "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs", python = "python/antecedent/transport/decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "TrialIpwTransportDecision"
-reason = "no record owns the trial-to-target IPW Bayesian-bootstrap effect decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.trial_ipw_decision"
+entry = { rust = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs", python = "python/antecedent/transport/decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "TrialIpwPredictiveDecision"
-reason = "no record owns the trial-to-target IPW Bayesian-bootstrap predictive decision; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.trial_ipw_decision"
+entry = { rust = "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs", python = "python/antecedent/transport/decisions.py" }
 
-[[unbound]]
+[[route]]
 lowering = "TemporalPathTransport"
-reason = "counterfactual.transported_path_specific is closed and covers static paths only; no record owns the time-ordered path-specific transport and whose scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "transport.temporal_path_specific"
+entry = { rust = "crates/antecedent/src/analysis/temporal_path_transport.rs", python = "python/antecedent/transport/temporal_paths.py" }
 
-[[unbound]]
+[[route]]
 lowering = "SamplingAssumptionUnion"
-reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "composition.sampling_assumption_union"
+entry = { rust = "crates/antecedent/src/analysis/sampling_assumption_union.rs", python = "python/antecedent/sampling_assumption_union.py" }
 
-[[unbound]]
+[[route]]
 lowering = "IidSamplingAssumptionUnion"
-reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "composition.sampling_assumption_union"
+entry = { rust = "crates/antecedent/src/analysis/sampling_assumption_union.rs", python = "python/antecedent/sampling_assumption_union.py" }
 
-[[unbound]]
+[[route]]
 lowering = "ClusterSamplingAssumptionUnion"
-reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "composition.sampling_assumption_union"
+entry = { rust = "crates/antecedent/src/analysis/sampling_assumption_union.rs", python = "python/antecedent/sampling_assumption_union.py" }
 
-[[unbound]]
+[[route]]
 lowering = "MovingBlockSamplingAssumptionUnion"
-reason = "no record owns the whole-chain bootstrap union around an assumption envelope; its scientific assertions are listed in parity/scientific_tests.toml as cited by no claim"
+unit_kind = "capability"
+unit = "composition.sampling_assumption_union"
+entry = { rust = "crates/antecedent/src/analysis/sampling_assumption_union.rs", python = "python/antecedent/sampling_assumption_union.py" }
 
-[[unbound]]
+[[route]]
 lowering = "PropagationChain"
-reason = "no record owns compile_propagation_chain: the joint_law records own the joint_law_propagation module, and composition.bundle only replays an embedded chain"
+unit_kind = "capability"
+unit = "composition.propagation_chain"
+entry = { rust = "crates/antecedent/src/analysis/propagation_chain.rs", python = "python/antecedent/propagation_chain.py" }
 
-[[unbound]]
+[[route]]
 lowering = "ExperimentPlanning"
-reason = "no record owns compile_planning (antecedent_design::planning): design.study_planning owns identification-repair study planning, not power or assurance planning of a declared trial"
+unit_kind = "capability"
+unit = "design.experiment_planning"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_planning.rs", python = "python/antecedent/design/planning.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationEffectDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationBernoulliPredictiveWorldDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationGaussianTargetPredictiveWorldDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationGaussianPredictiveClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationTransportDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationTransportClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationConfoundedTransportDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationConfoundedTransportClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationKernelTransportDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationKernelTransportClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationConfoundedKernelTransportClusterBootstrapDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }
 
-[[unbound]]
+[[route]]
 lowering = "GraphImputationMarTransportDecision"
-reason = "graph_imputation.compiled_candidate owns the imputation point and interval and lists its decision route as closed; no record owns the compiled decision over it and its scientific assertions are cited by no claim"
+unit_kind = "capability"
+unit = "graph_imputation.compiled_decision"
+entry = { rust = "crates/antecedent/src/analysis/graph_imputation_mar_transport_decision.rs", python = "python/antecedent/graph_imputation_decision.py" }

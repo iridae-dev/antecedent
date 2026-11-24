@@ -2203,6 +2203,36 @@ class penalized_propensity:  # noqa: N801
     SELECTION_NOT_SUPPORTED: Final = "penalized_propensity.selection_not_supported"
 
 
+class planning:  # noqa: N801
+    ADAPTIVE: Final = "planning.adaptive"
+    ALLOCATION: Final = "planning.allocation"
+    ALLOCATION_RATIO: Final = "planning.allocation_ratio"
+    ALPHA: Final = "planning.alpha"
+    ASSURANCE: Final = "planning.assurance"
+    ATTRITION: Final = "planning.attrition"
+    CLUSTER: Final = "planning.cluster"
+    COVARIATES: Final = "planning.covariates"
+    DECISION: Final = "planning.decision"
+    EFFECT: Final = "planning.effect"
+    EFFECT_UNREACHABLE: Final = "planning.effect_unreachable"
+    FACTORIAL: Final = "planning.factorial"
+    GOAL: Final = "planning.goal"
+    GROUP_SEQUENTIAL: Final = "planning.group_sequential"
+    INTERFERENCE: Final = "planning.interference"
+    MULTI_ARM: Final = "planning.multi_arm"
+    OUTCOME: Final = "planning.outcome"
+    POWER: Final = "planning.power"
+    PRECISION: Final = "planning.precision"
+    PRIOR: Final = "planning.prior"
+    SIMULATION: Final = "planning.simulation"
+    SIZE: Final = "planning.size"
+    SIZE_UNREACHABLE: Final = "planning.size_unreachable"
+    STRATIFIED: Final = "planning.stratified"
+    STUDY: Final = "planning.study"
+    SUCCESS: Final = "planning.success"
+    SWITCHBACK: Final = "planning.switchback"
+
+
 class policy_value:  # noqa: N801
     ACTION_NOT_POPULATED: Final = "policy_value.action_not_populated"
     ACTION_OUTSIDE_SUPPORT: Final = "policy_value.action_outside_support"
@@ -2308,6 +2338,77 @@ class program_binding:  # noqa: N801
     POPULATION_MISMATCH: Final = "program_binding.population_mismatch"
     QUANTITIES_OVERRIDE_MISMATCH: Final = "program_binding.quantities_override_mismatch"
     TREATMENT_OUTCOME_SUBSTITUTION: Final = "program_binding.treatment_outcome_substitution"
+
+
+class propagation_chain:  # noqa: N801
+    ANCESTRY_BYTES: Final = "propagation_chain.ancestry_bytes"
+    ASSUMPTION_ENVELOPE_NEEDS_BOTH_AXES: Final = (
+        "propagation_chain.assumption_envelope_needs_both_axes"
+    )
+    ASSUMPTION_ENVELOPE_NEEDS_DRAWS: Final = "propagation_chain.assumption_envelope_needs_draws"
+    ASSUMPTION_ENVELOPE_OPERATOR: Final = "propagation_chain.assumption_envelope_operator"
+    BUDGET_EXCEEDED: Final = "propagation_chain.budget_exceeded"
+    CANCELLED: Final = "propagation_chain.cancelled"
+    DENOMINATOR_NOT_BOUNDED: Final = "propagation_chain.denominator_not_bounded"
+    DRAWS_ARE_NOT_AN_ENCLOSURE: Final = "propagation_chain.draws_are_not_an_enclosure"
+    ENCLOSURE_IS_NOT_A_LAW: Final = "propagation_chain.enclosure_is_not_a_law"
+    ENCLOSURE_UNBOUNDED: Final = "propagation_chain.enclosure_unbounded"
+    FAMILY_AUTHORITY: Final = "propagation_chain.family_authority"
+    FAMILY_COVARIANCE: Final = "propagation_chain.family_covariance"
+    FAMILY_DEPENDENCE: Final = "propagation_chain.family_dependence"
+    FAMILY_ESTIMATE: Final = "propagation_chain.family_estimate"
+    FAMILY_MEANING: Final = "propagation_chain.family_meaning"
+    FAMILY_SHAPE: Final = "propagation_chain.family_shape"
+    FAMILY_TABLE_CANCELLED: Final = "propagation_chain.family_table_cancelled"
+    FAMILY_TABLE_REFUSED: Final = "propagation_chain.family_table_refused"
+    FAMILY_TABLE_WORK_LIMIT: Final = "propagation_chain.family_table_work_limit"
+    INTERVAL_CANNOT_BE_POOLED: Final = "propagation_chain.interval_cannot_be_pooled"
+    INTERVAL_IS_NOT_A_POSTERIOR: Final = "propagation_chain.interval_is_not_a_posterior"
+    INTERVAL_NOT_MEASURED: Final = "propagation_chain.interval_not_measured"
+    INVALID_REQUEST: Final = "propagation_chain.invalid_request"
+    LAW_MEANING_MISMATCH: Final = "propagation_chain.law_meaning_mismatch"
+    LOWERING: Final = "propagation_chain.lowering"
+    MALFORMED: Final = "propagation_chain.malformed"
+    MIXED_DRAWS_AND_INTERVAL: Final = "propagation_chain.mixed_draws_and_interval"
+    NOT_LOWERED: Final = "propagation_chain.not_lowered"
+    NOT_READ_AS_POSTERIOR: Final = "propagation_chain.not_read_as_posterior"
+    NOT_SUPPORTED: Final = "propagation_chain.not_supported"
+    OPERATOR_NOT_SUPPORTED_FOR_STAGE: Final = "propagation_chain.operator_not_supported_for_stage"
+    OUTCOME_LAW_IS_NOT_AN_ESTIMATE_POOL: Final = (
+        "propagation_chain.outcome_law_is_not_an_estimate_pool"
+    )
+    OVERLAP_UNKNOWN_IN_INDEPENDENT_PRODUCT: Final = (
+        "propagation_chain.overlap_unknown_in_independent_product"
+    )
+    PARAMETER_LAW_IS_NOT_PREDICTIVE: Final = "propagation_chain.parameter_law_is_not_predictive"
+    POINT_CANNOT_BE_POOLED: Final = "propagation_chain.point_cannot_be_pooled"
+    POINT_HAS_NO_POSTERIOR: Final = "propagation_chain.point_has_no_posterior"
+    POINT_HAS_NO_SPREAD: Final = "propagation_chain.point_has_no_spread"
+    POOL_INPUTS_DUPLICATED: Final = "propagation_chain.pool_inputs_duplicated"
+    POOL_OVERLAP_UNKNOWN: Final = "propagation_chain.pool_overlap_unknown"
+    POOL_REFUSED: Final = "propagation_chain.pool_refused"
+    POOL_SHARES_EVIDENCE: Final = "propagation_chain.pool_shares_evidence"
+    PREDICTIVE_DISTURBANCE_REQUIRED: Final = "propagation_chain.predictive_disturbance_required"
+    PREDICTIVE_READING_REQUIRED: Final = "propagation_chain.predictive_reading_required"
+    PRODUCT_TABLE_REFUSED: Final = "propagation_chain.product_table_refused"
+    PROGRAM_MISMATCH: Final = "propagation_chain.program_mismatch"
+    RECORD_INVALID: Final = "propagation_chain.record_invalid"
+    RECORD_REFUSED: Final = "propagation_chain.record_refused"
+    REENTRY: Final = "propagation_chain.reentry"
+    REWEIGHT_NEEDS_DRAWS: Final = "propagation_chain.reweight_needs_draws"
+    SAMPLING_IS_NOT_PREDICTIVE: Final = "propagation_chain.sampling_is_not_predictive"
+    SAMPLING_LAW_IS_NOT_A_POSTERIOR: Final = "propagation_chain.sampling_law_is_not_a_posterior"
+    SHARED_FACTOR_IN_INDEPENDENT_PRODUCT: Final = (
+        "propagation_chain.shared_factor_in_independent_product"
+    )
+    STAGE_INVALIDATED: Final = "propagation_chain.stage_invalidated"
+    STAGE_LEFT_DOMAIN: Final = "propagation_chain.stage_left_domain"
+    TOO_MANY_INPUTS: Final = "propagation_chain.too_many_inputs"
+    TOO_MANY_NODES: Final = "propagation_chain.too_many_nodes"
+    UNALIGNED_DRAWS: Final = "propagation_chain.unaligned_draws"
+    UNKNOWN_STAGE: Final = "propagation_chain.unknown_stage"
+    UNKNOWN_VALUE: Final = "propagation_chain.unknown_value"
+    UPDATE_EFFECTIVE_SIZE: Final = "propagation_chain.update_effective_size"
 
 
 class proposal_arrival:  # noqa: N801
@@ -2663,6 +2764,12 @@ class sampled_recovery:  # noqa: N801
     RECEIPT_MISMATCH: Final = "sampled_recovery.receipt_mismatch"
     TOO_MANY_FAILED_REPLICATES: Final = "sampled_recovery.too_many_failed_replicates"
     UNRECOVERABLE_PATTERN: Final = "sampled_recovery.unrecoverable_pattern"
+
+
+class sampling_assumption_union:  # noqa: N801
+    INVALID_DECLARATION: Final = "sampling_assumption_union.invalid_declaration"
+    NOT_SUPPORTED: Final = "sampling_assumption_union.not_supported"
+    REPLAY_MISMATCH: Final = "sampling_assumption_union.replay_mismatch"
 
 
 class sampling_weights:  # noqa: N801
@@ -5191,6 +5298,33 @@ ALL: Final[tuple[str, ...]] = (
     "penalized_propensity.invalid_penalty",
     "penalized_propensity.scope",
     "penalized_propensity.selection_not_supported",
+    "planning.adaptive",
+    "planning.allocation",
+    "planning.allocation_ratio",
+    "planning.alpha",
+    "planning.assurance",
+    "planning.attrition",
+    "planning.cluster",
+    "planning.covariates",
+    "planning.decision",
+    "planning.effect",
+    "planning.effect_unreachable",
+    "planning.factorial",
+    "planning.goal",
+    "planning.group_sequential",
+    "planning.interference",
+    "planning.multi_arm",
+    "planning.outcome",
+    "planning.power",
+    "planning.precision",
+    "planning.prior",
+    "planning.simulation",
+    "planning.size",
+    "planning.size_unreachable",
+    "planning.stratified",
+    "planning.study",
+    "planning.success",
+    "planning.switchback",
     "policy_value.action_not_populated",
     "policy_value.action_outside_support",
     "policy_value.action_propensity_below_floor",
@@ -5284,6 +5418,66 @@ ALL: Final[tuple[str, ...]] = (
     "program_binding.population_mismatch",
     "program_binding.quantities_override_mismatch",
     "program_binding.treatment_outcome_substitution",
+    "propagation_chain.ancestry_bytes",
+    "propagation_chain.assumption_envelope_needs_both_axes",
+    "propagation_chain.assumption_envelope_needs_draws",
+    "propagation_chain.assumption_envelope_operator",
+    "propagation_chain.budget_exceeded",
+    "propagation_chain.cancelled",
+    "propagation_chain.denominator_not_bounded",
+    "propagation_chain.draws_are_not_an_enclosure",
+    "propagation_chain.enclosure_is_not_a_law",
+    "propagation_chain.enclosure_unbounded",
+    "propagation_chain.family_authority",
+    "propagation_chain.family_covariance",
+    "propagation_chain.family_dependence",
+    "propagation_chain.family_estimate",
+    "propagation_chain.family_meaning",
+    "propagation_chain.family_shape",
+    "propagation_chain.family_table_cancelled",
+    "propagation_chain.family_table_refused",
+    "propagation_chain.family_table_work_limit",
+    "propagation_chain.interval_cannot_be_pooled",
+    "propagation_chain.interval_is_not_a_posterior",
+    "propagation_chain.interval_not_measured",
+    "propagation_chain.invalid_request",
+    "propagation_chain.law_meaning_mismatch",
+    "propagation_chain.lowering",
+    "propagation_chain.malformed",
+    "propagation_chain.mixed_draws_and_interval",
+    "propagation_chain.not_lowered",
+    "propagation_chain.not_read_as_posterior",
+    "propagation_chain.not_supported",
+    "propagation_chain.operator_not_supported_for_stage",
+    "propagation_chain.outcome_law_is_not_an_estimate_pool",
+    "propagation_chain.overlap_unknown_in_independent_product",
+    "propagation_chain.parameter_law_is_not_predictive",
+    "propagation_chain.point_cannot_be_pooled",
+    "propagation_chain.point_has_no_posterior",
+    "propagation_chain.point_has_no_spread",
+    "propagation_chain.pool_inputs_duplicated",
+    "propagation_chain.pool_overlap_unknown",
+    "propagation_chain.pool_refused",
+    "propagation_chain.pool_shares_evidence",
+    "propagation_chain.predictive_disturbance_required",
+    "propagation_chain.predictive_reading_required",
+    "propagation_chain.product_table_refused",
+    "propagation_chain.program_mismatch",
+    "propagation_chain.record_invalid",
+    "propagation_chain.record_refused",
+    "propagation_chain.reentry",
+    "propagation_chain.reweight_needs_draws",
+    "propagation_chain.sampling_is_not_predictive",
+    "propagation_chain.sampling_law_is_not_a_posterior",
+    "propagation_chain.shared_factor_in_independent_product",
+    "propagation_chain.stage_invalidated",
+    "propagation_chain.stage_left_domain",
+    "propagation_chain.too_many_inputs",
+    "propagation_chain.too_many_nodes",
+    "propagation_chain.unaligned_draws",
+    "propagation_chain.unknown_stage",
+    "propagation_chain.unknown_value",
+    "propagation_chain.update_effective_size",
     "proposal_arrival.assignment_mismatch",
     "proposal_arrival.base_catalog_changed",
     "proposal_arrival.base_catalog_missing",
@@ -5591,6 +5785,9 @@ ALL: Final[tuple[str, ...]] = (
     "sampled_recovery.receipt_mismatch",
     "sampled_recovery.too_many_failed_replicates",
     "sampled_recovery.unrecoverable_pattern",
+    "sampling_assumption_union.invalid_declaration",
+    "sampling_assumption_union.not_supported",
+    "sampling_assumption_union.replay_mismatch",
     "sampling_weights.invalid",
     "sampling_weights.route_unsupported",
     "scenario_covariance.cancelled",
@@ -7991,6 +8188,33 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "penalized_propensity.invalid_penalty": ("invalid_argument",),
     "penalized_propensity.scope": ("route_not_supported",),
     "penalized_propensity.selection_not_supported": ("selection_inference_not_supported",),
+    "planning.adaptive": ("invalid_argument",),
+    "planning.allocation": ("invalid_argument",),
+    "planning.allocation_ratio": ("invalid_argument",),
+    "planning.alpha": ("invalid_argument",),
+    "planning.assurance": ("invalid_argument",),
+    "planning.attrition": ("invalid_argument",),
+    "planning.cluster": ("invalid_argument",),
+    "planning.covariates": ("invalid_argument",),
+    "planning.decision": ("invalid_argument",),
+    "planning.effect": ("invalid_argument",),
+    "planning.effect_unreachable": ("evidence_cannot_reach_level",),
+    "planning.factorial": ("invalid_argument",),
+    "planning.goal": ("invalid_argument",),
+    "planning.group_sequential": ("invalid_argument",),
+    "planning.interference": ("invalid_argument",),
+    "planning.multi_arm": ("invalid_argument",),
+    "planning.outcome": ("invalid_argument",),
+    "planning.power": ("invalid_argument",),
+    "planning.precision": ("invalid_argument",),
+    "planning.prior": ("invalid_argument",),
+    "planning.simulation": ("invalid_argument",),
+    "planning.size": ("invalid_argument",),
+    "planning.size_unreachable": ("evidence_cannot_reach_level",),
+    "planning.stratified": ("invalid_argument",),
+    "planning.study": ("route_not_supported",),
+    "planning.success": ("invalid_argument",),
+    "planning.switchback": ("invalid_argument",),
     "policy_value.action_not_populated": ("arm_not_populated",),
     "policy_value.action_outside_support": ("positivity_violated",),
     "policy_value.action_propensity_below_floor": ("positivity_violated",),
@@ -8086,6 +8310,76 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "program_binding.population_mismatch": ("quantity_semantics_mismatch",),
     "program_binding.quantities_override_mismatch": ("quantity_semantics_mismatch",),
     "program_binding.treatment_outcome_substitution": ("external_binding_mismatch",),
+    "propagation_chain.ancestry_bytes": ("invalid_argument",),
+    "propagation_chain.assumption_envelope_needs_both_axes": (
+        "uncertainty_representation_insufficient",
+    ),
+    "propagation_chain.assumption_envelope_needs_draws": (
+        "uncertainty_representation_insufficient",
+    ),
+    "propagation_chain.assumption_envelope_operator": ("route_not_supported",),
+    "propagation_chain.budget_exceeded": ("invalid_argument",),
+    "propagation_chain.cancelled": ("cancelled_no_claim",),
+    "propagation_chain.denominator_not_bounded": ("invalid_argument",),
+    "propagation_chain.draws_are_not_an_enclosure": ("uncertainty_representation_insufficient",),
+    "propagation_chain.enclosure_is_not_a_law": ("uncertainty_representation_insufficient",),
+    "propagation_chain.enclosure_unbounded": ("route_not_supported",),
+    "propagation_chain.family_authority": ("invalid_argument",),
+    "propagation_chain.family_covariance": ("invalid_argument",),
+    "propagation_chain.family_dependence": ("evidence_overlap_unknown",),
+    "propagation_chain.family_estimate": ("invalid_argument",),
+    "propagation_chain.family_meaning": ("invalid_argument",),
+    "propagation_chain.family_shape": ("invalid_argument",),
+    "propagation_chain.family_table_cancelled": ("execution_cancelled",),
+    "propagation_chain.family_table_refused": ("invalid_argument",),
+    "propagation_chain.family_table_work_limit": ("moment_matched_table_work_budget",),
+    "propagation_chain.interval_cannot_be_pooled": ("uncertainty_representation_insufficient",),
+    "propagation_chain.interval_is_not_a_posterior": ("uncertainty_representation_insufficient",),
+    "propagation_chain.interval_not_measured": ("uncertainty_representation_insufficient",),
+    "propagation_chain.invalid_request": ("invalid_argument",),
+    "propagation_chain.law_meaning_mismatch": ("distribution_meaning_mismatch",),
+    "propagation_chain.lowering": ("invalid_argument",),
+    "propagation_chain.malformed": ("invalid_argument",),
+    "propagation_chain.mixed_draws_and_interval": ("uncertainty_representation_insufficient",),
+    "propagation_chain.not_lowered": ("route_not_lowered",),
+    "propagation_chain.not_read_as_posterior": ("uncertainty_representation_insufficient",),
+    "propagation_chain.not_supported": ("not_supported",),
+    "propagation_chain.operator_not_supported_for_stage": ("route_not_supported",),
+    "propagation_chain.outcome_law_is_not_an_estimate_pool": ("distribution_meaning_mismatch",),
+    "propagation_chain.overlap_unknown_in_independent_product": ("evidence_overlap_unknown",),
+    "propagation_chain.parameter_law_is_not_predictive": (
+        "uncertainty_representation_insufficient",
+    ),
+    "propagation_chain.point_cannot_be_pooled": ("uncertainty_representation_insufficient",),
+    "propagation_chain.point_has_no_posterior": ("uncertainty_representation_insufficient",),
+    "propagation_chain.point_has_no_spread": ("uncertainty_representation_insufficient",),
+    "propagation_chain.pool_inputs_duplicated": ("evidence_double_counted",),
+    "propagation_chain.pool_overlap_unknown": ("evidence_overlap_unknown",),
+    "propagation_chain.pool_refused": ("invalid_argument",),
+    "propagation_chain.pool_shares_evidence": ("evidence_double_counted",),
+    "propagation_chain.predictive_disturbance_required": (
+        "uncertainty_representation_insufficient",
+    ),
+    "propagation_chain.predictive_reading_required": ("distribution_meaning_mismatch",),
+    "propagation_chain.product_table_refused": ("invalid_argument",),
+    "propagation_chain.program_mismatch": ("invalid_argument",),
+    "propagation_chain.record_invalid": ("invalid_argument",),
+    "propagation_chain.record_refused": ("invalid_argument",),
+    "propagation_chain.reentry": ("public_builder_reentry",),
+    "propagation_chain.reweight_needs_draws": ("uncertainty_representation_insufficient",),
+    "propagation_chain.sampling_is_not_predictive": ("distribution_meaning_mismatch",),
+    "propagation_chain.sampling_law_is_not_a_posterior": (
+        "uncertainty_representation_insufficient",
+    ),
+    "propagation_chain.shared_factor_in_independent_product": ("evidence_double_counted",),
+    "propagation_chain.stage_invalidated": ("invalid_argument",),
+    "propagation_chain.stage_left_domain": ("invalid_argument",),
+    "propagation_chain.too_many_inputs": ("invalid_argument",),
+    "propagation_chain.too_many_nodes": ("invalid_argument",),
+    "propagation_chain.unaligned_draws": ("joint_law_required",),
+    "propagation_chain.unknown_stage": ("invalid_argument",),
+    "propagation_chain.unknown_value": ("invalid_argument",),
+    "propagation_chain.update_effective_size": ("posterior_draws_below_supported",),
     "proposal_arrival.assignment_mismatch": ("invalid_argument",),
     "proposal_arrival.base_catalog_changed": ("invalid_argument",),
     "proposal_arrival.base_catalog_missing": ("invalid_argument",),
@@ -8393,6 +8687,9 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "sampled_recovery.receipt_mismatch": ("invalid_argument",),
     "sampled_recovery.too_many_failed_replicates": ("route_not_supported",),
     "sampled_recovery.unrecoverable_pattern": ("route_not_supported",),
+    "sampling_assumption_union.invalid_declaration": ("invalid_argument",),
+    "sampling_assumption_union.not_supported": ("not_supported",),
+    "sampling_assumption_union.replay_mismatch": ("external_binding_mismatch",),
     "sampling_weights.invalid": ("sampling_weights_invalid",),
     "sampling_weights.route_unsupported": ("option_not_applicable",),
     "scenario_covariance.cancelled": ("cancelled_no_claim",),

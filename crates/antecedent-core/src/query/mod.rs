@@ -24,6 +24,7 @@ mod iv_bounds;
 mod local_polynomial_ratio;
 mod longitudinal_regime;
 mod mediation;
+mod model_operations;
 mod nested_counterfactual;
 mod policy_value;
 mod population;
@@ -97,6 +98,10 @@ pub use local_polynomial_ratio::{
 };
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
+pub use model_operations::{
+    ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
+    ModelOperationFault, PopulationDoContrastTarget,
+};
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::{
     FixedCandidateRegretInputs, MultiActionPolicyInputs, PolicyValueQuery,

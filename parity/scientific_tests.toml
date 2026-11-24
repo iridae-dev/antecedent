@@ -9,18 +9,67 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "an_affine_bridge_decision_scores_the_known_map_of_the_source_draws"
+kind = "known_truth"
+fixtures = []
+why = "A 0.5 + 2x affine bridge maps 64 known source draws; the linear and squared utilities equal the mean and second moment of the known mapped column computed in the test, and the sealed decision replays."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "the_robust_bounds_shift_the_fitted_line_mean_by_the_hand_written_bands"
+kind = "reference"
+fixtures = []
+why = "A trial-level bridge's bridged mean equals the hand-written least-squares line at the draws, and the linear robust bounds equal that mean shifted by the widest hand-written Bonferroni Wald band."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
+evidence_assertion = "the_premise_assessment_bands_equal_the_hand_written_wald_construction"
+kind = "reference"
+fixtures = []
+why = "The source and target lines, standard errors, Bonferroni Wald bounds and equivalence screen equal a hand-written least-squares construction for planted target shifts 0.05 and 0.5."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "the_effect_posterior_and_its_decision_equal_the_hand_solved_conjugate_posterior"
+kind = "reference"
+fixtures = []
+why = "The effect posterior moments, 1024 target-effect draws and decision utilities equal the hand-solved two-parameter conjugate Gaussian posterior for planted effects 2 and 0.5."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/joint_transport_decision_reference.rs"
+evidence_assertion = "the_predictive_worlds_follow_the_hand_solved_posterior_predictive_law"
+kind = "reference"
+fixtures = []
+why = "Paired target outcome draws follow the hand-derived posterior predictive law and the paired-difference variance Var(tau) + 2 sigma^2 (1 - rho) for rho 1 and 0."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "the_effect_draws_follow_the_exact_dirichlet_moments_of_the_inverse_odds_scores"
+kind = "reference"
+fixtures = []
+why = "20,000 Bayesian-bootstrap effect draws have the exact Dirichlet mean and variance of hand-written inverse-odds scores and the decision follows."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
+evidence_assertion = "the_predictive_worlds_are_the_arm_empirical_laws_and_independent_given_the_declared_premise"
+kind = "reference"
+fixtures = []
+why = "20,000 predictive draws per arm sit on that arm's empirical support with frequency 1/2 per value, zero cross-arm covariance, and the nonlinear utility scores the rows."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_path_transport_reference.rs"
+evidence_assertion = "the_sampled_path_contrast_converges_to_the_enumerated_direct_effect"
+kind = "known_truth"
+fixtures = []
+why = "The sampled plug-in contrast on count tables proportional to the exact laws equals the finite-SCM oracle's enumerated direct effect to 1e-4 and replays."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
 evidence_assertion = "whole_chain_bootstrap_union_replays_at_the_final_coordinate"
 kind = "reference"
 fixtures = []
 why = "The original and one hundred source-declared whole-chain bootstrap reruns share fixed assumption bounds and the same terminal coordinate; a Bonferroni-split basic-bootstrap candidate is independently replayed. The source assertion is unearned and the interval remains not_measured."
-
-[[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
-evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay"
-kind = "reference"
-fixtures = []
-why = "A joint likelihood posterior over a cyclic feedback coefficient is paired with Gaussian disturbance draws, solved across two hard-clamp action worlds, evaluated by the multi-action decision compiler, and independently replayed. The source assertion is unearned."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs"
@@ -107,27 +156,6 @@ fixtures = []
 why = "A finite sequential policy-reliability rollout (128 rollouts), its aligned decision draws and its reliability diagnostic form three connected bundle nodes; the node-bundle compiler reruns the rollouts, reproduces the draws digest and replays the portable receipt, and changed draws are refused at the diagnostic node and at execution. This source assertion is unearned."
 
 [[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-evidence_assertion = "common_training_rows_refit_and_replay_the_connected_action_decision"
-kind = "posterior"
-fixtures = []
-why = "Two independently declared scalar feedback components share one joint posterior fit from 260 common training rows; the connected two-action decision replays independently, reordering the components changes the outer identity but not the posterior program, and changed outputs are refused. This source assertion is unearned."
-
-[[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-evidence_assertion = "vector_components_fit_joint_worlds_and_replay"
-kind = "posterior"
-fixtures = []
-why = "A vector feedback component with two internal outputs is fitted jointly, solved in two hard-clamp worlds and its action decision replays independently; a missing consumer output and an unsupported binary port are refused at compilation and on replay. This source assertion is unearned."
-
-[[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-evidence_assertion = "bounded_component_worlds_replay_after_joint_fit"
-kind = "posterior"
-fixtures = []
-why = "Bounded component outputs over the jointly fitted vector posterior stay within [0, 1], share one reliability scope across training replicates with distinct program identities, and the bounded decision replays independently; a changed transform and a changed posterior are refused. This source assertion is unearned."
-
-[[test]]
 evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
 evidence_assertion = "prospective_action_selection_grid_keeps_failures_and_design_scope"
 kind = "simulation"
@@ -135,18 +163,66 @@ fixtures = []
 why = "Four training replicates of a planted linear feedback system with a positive promotion effect are refitted under one fixed design scope; every selection of the true best action, tie or wrong choice, and refusal is counted and none is dropped. No selection record is earned."
 
 [[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
-evidence_assertion = "paired_target_worlds_refit_and_replay"
-kind = "known_truth"
-fixtures = []
-why = "Each paired target world's action effect equals the closed form 0.2 / (1 - 0.2 b) of its posterior feedback weight b within 1e-7, because the shared target baseline and disturbance cancel; the posterior, chain and decision replay independently. This source assertion is unearned."
-
-[[test]]
 evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs"
 evidence_assertion = "graph_imputation_effect_decision_replays_known_positive_effect"
 kind = "known_truth"
 fixtures = []
 why = "The whole graph-selection imputation schedule on rows with a planted treatment effect of 0.5 yields a posterior mean effect above the decision's 0.1 cost; the producer receipt and decision replay independently. This source assertion is unearned."
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "a_source_effect_decision_matches_the_true_effect_and_a_threshold_decides_it"
+kind = "known_truth"
+fixtures = []
+why = "A balanced source with zero-sum cell residuals has the generating effect 2.75; the compiled source effect decision reports it, its treat utility is that effect less the declared cost, and the chosen action follows the cost. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "source_treatment_worlds_have_the_true_mean_outcomes"
+kind = "known_truth"
+fixtures = []
+why = "Paired source treatment worlds have the generating mean outcomes 1.5 and 4.25 and the larger world is chosen. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "binary_transport_matches_the_effect_at_the_target_frame_and_changes_the_action"
+kind = "known_truth"
+fixtures = []
+why = "A binary-strata transport to a frame with 80% x = 1 reports the generating effect 3.2, a cost between 2.75 and 3.2 flips the action, and a whole-cluster resampling is centred on the same truth. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "confounded_transport_matches_the_effect_at_the_target_frame"
+kind = "known_truth"
+fixtures = []
+why = "A transport from a source with a binary confounder of treatment reports the generating effect 3.2 at the target frame. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "kernel_transport_matches_the_effect_at_the_continuous_target_frame"
+kind = "known_truth"
+fixtures = []
+why = "A Gaussian-kernel transport to a continuous frame with mean 0.8 reports the generating effect 3.2 from a source with modifier mean 0.5. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "missing_at_random_transport_matches_the_weighted_complete_case_target"
+kind = "known_truth"
+fixtures = []
+why = "A declared missing-at-random complete-case target with design weights reports the generating effect at the weighted complete-case covariate mean computed from the raw frame. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "gaussian_predictive_worlds_have_the_true_mean_and_the_declared_residual_spread"
+kind = "known_truth"
+fixtures = []
+why = "Gaussian predictive worlds have the generating mean outcomes 1.8 and 5.0 and a world difference with variance 2 * 0.4 * (1 - 0.3). This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_imputation_decision_known_truth.rs"
+evidence_assertion = "bernoulli_predictive_worlds_have_the_true_success_probabilities"
+kind = "known_truth"
+fixtures = []
+why = "Bernoulli predictive worlds have the success probabilities 0.36 and 0.72 implied by the declared cell rates and the target mix, and outcomes of zero or one. This source assertion is unearned."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs"
@@ -338,18 +414,17 @@ fixtures = []
 why = "The predictive bridge declaration, target-scope transport premise and nonlinear decision share one compiler identity and a portable replay artifact. This source assertion is unearned."
 
 [[test]]
-evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
-evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
-kind = "reference"
-fixtures = []
-why = "A checked cyclic SCM solves two distinct hard-clamp worlds on the same disturbance rows, derives the paired decision law, and independently replays the complete model-to-utility artifact. This source row is unearned."
-
-[[test]]
 evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
 evidence_assertion = "fitted_joint_error_table_propagates_labelled_count_uncertainty"
 kind = "reference"
 fixtures = []
 why = "The new fitted dependent-indicator compiler's posterior-mean plug-in probability is checked against a hand-computed binary construct calculation; the source test also binds posterior draws and independent artifact replay. This row is unearned until the scientific-record runner executes it."
+[[test]]
+evidence_test = "crates/antecedent/tests/observation_structural_support.rs"
+evidence_assertion = "fitted_joint_error_table_draws_match_the_dirichlet_posterior_quadrature"
+kind = "known_truth"
+fixtures = []
+why = "The posterior draws of P(Y=1 | both indicators positive) from a fitted joint-error table are checked against an independent two-dimensional Beta quadrature of the Dirichlet posterior: the answer depends only on the joint positive cell of each construct row, whose marginals are Beta(11, 93) and Beta(86, 18); draw mean within five Monte Carlo standard errors and variance within 12 percent at 1000 fixed-seed draws. This row is unearned until the scientific-record runner executes it."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
@@ -2915,3 +2990,115 @@ evidence_assertion = "observed_score_matches_six_variable_forest_quadrature"
 kind = "reference"
 fixtures = ["crates/antecedent-state/tests/oracle_data/gaussian_signed_uniform_six_observed.py"]
 why = "Independent enumeration of 16,807 forests and deterministic integration over two missing cells check all 30 directed probabilities and the graph normalizer."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
+evidence_assertion = "the_union_is_the_basic_bootstrap_endpoint_formula_over_the_replicate_endpoints"
+kind = "known_truth"
+fixtures = []
+why = "One hundred hand-built replicate chains with endpoint means 2 + s and 3 + s (s from -0.5 to 0.49 in steps of 0.01) give union bounds equal to the basic bootstrap formula with type-7 quantiles evaluated by hand, 1.53475 and 3.47525, to 1e-9; the sealed artifact replays. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
+evidence_assertion = "iid_resampling_reproduces_the_standard_error_of_a_mean"
+kind = "known_truth"
+fixtures = []
+why = "Independent-unit resampling of 400 values of mean 1/2 and variance 1/4 gives interval half-widths between 0.02 and 0.09 around the analytic 1.96 times 0.025, with original endpoints 0.5 and 1.5 exact. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
+evidence_assertion = "cluster_resampling_widens_the_interval_for_dependent_row_pairs"
+kind = "known_truth"
+fixtures = []
+why = "Complete-cluster resampling of 200 two-row clusters constant at 0 or 1 gives half-widths between 0.03 and 0.12 around the analytic 1.96 times 0.5 over the square root of 200 (0.069). This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
+evidence_assertion = "moving_blocks_carry_the_serial_dependence_that_independent_units_would_miss"
+kind = "known_truth"
+fixtures = []
+why = "Moving blocks of the run length of a slow 0/1 square wave of 400 rows give half-widths between 0.09 and 0.40 around the analytic value near 0.18, against 0.049 for independent units of the same marginal. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/sampling_assumption_union_known_truth.rs"
+evidence_assertion = "malformed_schedules_are_refused"
+kind = "known_truth"
+fixtures = []
+why = "A replicate count below the floor of one hundred is refused for the independent-unit and the declared schedules before any chain runs. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "affine_stages_and_aligned_differences_match_the_normal_moments"
+kind = "known_truth"
+fixtures = []
+why = "On a normal quantile grid an affine stage 0.8 x + 0.1 has mean 0.5 and variance 0.64 times 0.36 and the aligned difference of x and 2x + 1 has mean -1.5 and variance 0.36 (not 1.8 as an independent pairing would give), within three percent. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "a_nonlinear_utility_is_the_normal_moment_generating_function_not_the_utility_of_the_mean"
+kind = "known_truth"
+fixtures = []
+why = "The mean of 1 - exp(-x) over a normal quantile grid of mean 0.5 and variance 0.36 equals 1 - exp(-0.5 + 0.18) within 0.01 and differs from the utility of the mean by more than 0.03. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "independent_sources_join_by_product_and_expectations_multiply"
+kind = "known_truth"
+fixtures = []
+why = "Two independent two-point laws on {0, 2} joined by their product table give E[XY] = 1 to 1e-12, where pairing by index would give 2. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "declared_intervals_propagate_to_their_interval_arithmetic_enclosure"
+kind = "known_truth"
+fixtures = []
+why = "The chain 2 effect - cost over effect in [0, 1] and cost in [0.1, 0.4] has enclosure [-0.4, 1.9] to 1e-12 and the propagation_enclosure label. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "an_assumption_envelope_is_the_sampling_mean_shifted_by_the_interval_ends"
+kind = "known_truth"
+fixtures = []
+why = "Sampling draws 1, 2, 3 plus a bias in [0, 1] give row envelopes [1, 2], [2, 3], [3, 4] and endpoint means 2 and 3 exactly. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/propagation_chain_known_truth.rs"
+evidence_assertion = "withdrawing_a_source_invalidates_exactly_its_dependents_and_replay_is_exact"
+kind = "known_truth"
+fixtures = []
+why = "Withdrawing a source invalidates exactly the stage that depends on it, leaves the other stage bit for bit unchanged, the exported record is consumed to identical results and the linear total has mean 1.0. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "sample_sizes_match_cohens_two_sample_t_table"
+kind = "known_truth"
+fixtures = []
+why = "Through the compiled program the smallest total sizes for power 0.80 at effects 0.5, 0.8 and 0.2 are within a unit or four of Cohen's table (128, 52 and 788). This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "power_at_a_given_size_matches_the_noncentral_t_value"
+kind = "known_truth"
+fixtures = []
+why = "The power at 64 per arm and effect 0.5 lies between 0.795 and 0.81 around the exact noncentral t value 0.8015. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "proportions_follow_the_unpooled_formula"
+kind = "known_truth"
+fixtures = []
+why = "Proportions 0.5 against 0.6 at power 0.80 need 384 to 386 per arm around the closed-form 384.6. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "cluster_design_effect_is_the_closed_form"
+kind = "known_truth"
+fixtures = []
+why = "The design effect of clusters of 20 at intraclass correlation 0.05 is 1.95 for equal and 2.2 for coefficient of variation 0.5 to 1e-12. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "the_three_goals_invert_one_another"
+kind = "known_truth"
+fixtures = []
+why = "The smallest size reaching power 0.85 reaches it, one fewer unit does not, and the minimum detectable effect at that size is at most the planned effect with power 0.85 to 1e-6. This source assertion is unearned."

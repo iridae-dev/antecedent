@@ -33,6 +33,10 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
+/// The namespace of the plan name a union gives its program; a program name, not a refusal
+/// detail.
+const SAMPLING_ASSUMPTION_UNION_NAMESPACE: &str = "sampling_assumption_union";
+
 const FEATURE: &str = "sampling_assumption_union_v1";
 const IID_FEATURE: &str = "iid_sampling_assumption_union_v1";
 const STRATIFIED_MOVING_BLOCK_FEATURE: &str =
@@ -264,7 +268,7 @@ pub fn compile_sampling_assumption_union(
             outcome: None,
             query,
         },
-        plan_id: Arc::from("sampling_assumption_union.v1"),
+        plan_id: Arc::from(format!("{SAMPLING_ASSUMPTION_UNION_NAMESPACE}.v1")),
         data: DataClassification::Tabular,
         graph_class: "declared_whole_chain_bootstrap_assumption_set",
         query_variables: Arc::from([]),

@@ -98,7 +98,7 @@ from .objectives import (
     MeasurementColumn,
     ModelDistinction,
 )
-from .planning import PlanningResult, plan_experiment
+from .planning import PlanningResult, plan_experiment, planning_unit_support
 from .plans import (
     DesignPlan,
     Environment,

@@ -30,37 +30,37 @@ macro_rules! program_families {
             /// Dependent-error measurement of one finite construct.
             DependentMeasuredObservation => Structural, unit "observation_query.finite_law_conditioning";
             /// Fitted dependent-error measurement with posterior draws.
-            FittedDependentMeasuredObservation => Structural, unit "";
+            FittedDependentMeasuredObservation => Structural, unit "observation_query.finite_law_conditioning";
             /// Model-derived paired intervention worlds and a decision.
-            CyclicActionWorldDecision => Cyclic, unit "";
+            CyclicActionWorldDecision => Cyclic, unit "cyclic.action_world_decisions";
             /// Joint fitted-mechanism posterior predictive action worlds.
-            CyclicPosteriorActionDecision => Cyclic, unit "";
+            CyclicPosteriorActionDecision => Cyclic, unit "cyclic.action_world_decisions";
             /// Target-population feedback standardization over a cyclic fit and a decision.
-            CyclicTargetFeedbackDecision => Cyclic, unit "";
+            CyclicTargetFeedbackDecision => Cyclic, unit "cyclic.action_world_decisions";
             /// Checked bridge transport and predictive utility.
-            BridgeTransportDecision => Structural, unit "";
+            BridgeTransportDecision => Structural, unit "transport.bridge_decision";
             /// Premise assessment of a checked bridge transport.
-            BridgeTransportPremiseAssessment => Structural, unit "";
+            BridgeTransportPremiseAssessment => Structural, unit "transport.bridge_premise_assessment";
             /// Matched bridge validation and conditional predictive utility.
-            AssessedBridgeTransportDecision => Structural, unit "";
+            AssessedBridgeTransportDecision => Structural, unit "transport.bridge_decision";
             /// Fitted source-target effect posterior and utility.
-            JointTransportEffectDecision => Structural, unit "";
+            JointTransportEffectDecision => Structural, unit "transport.joint_transport_decision";
             /// Trial inverse-probability-weighted transport and a decision.
-            TrialIpwTransportDecision => Structural, unit "";
+            TrialIpwTransportDecision => Structural, unit "transport.trial_ipw_decision";
             /// Trial inverse-probability-weighted predictive transport and a decision.
-            TrialIpwPredictiveDecision => Structural, unit "";
+            TrialIpwPredictiveDecision => Structural, unit "transport.trial_ipw_decision";
             /// Joint source-target predictive transport and a decision.
-            JointTransportPredictiveDecision => Structural, unit "";
+            JointTransportPredictiveDecision => Structural, unit "transport.joint_transport_decision";
             /// Target-population time-ordered path-specific transport.
-            TemporalPathTransport => Temporal, unit "";
+            TemporalPathTransport => Temporal, unit "transport.temporal_path_specific";
             /// Whole-chain resampling union around an assumption envelope.
-            SamplingAssumptionUnion => PropagationChain, unit "";
+            SamplingAssumptionUnion => PropagationChain, unit "composition.sampling_assumption_union";
             /// Whole-chain resampling union with independent and identically distributed units.
-            IidSamplingAssumptionUnion => PropagationChain, unit "";
+            IidSamplingAssumptionUnion => PropagationChain, unit "composition.sampling_assumption_union";
             /// Compiler-generated whole-cluster bootstrap assumption union.
-            ClusterSamplingAssumptionUnion => PropagationChain, unit "";
+            ClusterSamplingAssumptionUnion => PropagationChain, unit "composition.sampling_assumption_union";
             /// Whole-chain resampling union with moving-block resampling.
-            MovingBlockSamplingAssumptionUnion => PropagationChain, unit "";
+            MovingBlockSamplingAssumptionUnion => PropagationChain, unit "composition.sampling_assumption_union";
             /// An observational policy value under m-out-of-n full-refit subsampling.
             PolicySubsampling => DesignBased, unit "estimate.observational_policy_value";
             /// Sequential policy evaluation with a reliability diagnostic.
@@ -95,39 +95,39 @@ macro_rules! program_families {
             /// Bundle replay with an embedded sequential policy reliability fit.
             SequentialPolicyReliabilityNodeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Checked connected components and a joint posterior decision.
-            JointComponentPosteriorDecision => PropagationChain, unit "";
+            JointComponentPosteriorDecision => PropagationChain, unit "cyclic.component_posterior_decisions";
             /// Checked connected components with a bounded-component posterior decision.
-            BoundedComponentPosteriorDecision => PropagationChain, unit "";
+            BoundedComponentPosteriorDecision => PropagationChain, unit "cyclic.component_posterior_decisions";
             /// Bundle replay with a parameter-posterior decision terminal.
             PosteriorDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// A graph-selection imputation composite.
             GraphImputation => GraphImputation, unit "graph_imputation.compiled_candidate";
             /// Graph-imputation effect posterior and downstream utility.
-            GraphImputationEffectDecision => GraphImputation, unit "";
+            GraphImputationEffectDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation Bernoulli predictive-world draws and a decision.
-            GraphImputationBernoulliPredictiveWorldDecision => GraphImputation, unit "";
+            GraphImputationBernoulliPredictiveWorldDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation Gaussian target predictive-world draws and a decision.
-            GraphImputationGaussianTargetPredictiveWorldDecision => GraphImputation, unit "";
+            GraphImputationGaussianTargetPredictiveWorldDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation Bernoulli predictive decision with a whole-cluster bootstrap.
-            GraphImputationBernoulliPredictiveClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationBernoulliPredictiveClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation Gaussian predictive decision with a whole-cluster bootstrap.
-            GraphImputationGaussianPredictiveClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationGaussianPredictiveClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation target standardization and downstream utility.
-            GraphImputationTransportDecision => GraphImputation, unit "";
+            GraphImputationTransportDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation transport with a whole-cluster bootstrap.
-            GraphImputationTransportClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationTransportClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation transport with a confounded target.
-            GraphImputationConfoundedTransportDecision => GraphImputation, unit "";
+            GraphImputationConfoundedTransportDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation confounded transport with a whole-cluster bootstrap.
-            GraphImputationConfoundedTransportClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationConfoundedTransportClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation transport over mixed target covariates.
-            GraphImputationKernelTransportDecision => GraphImputation, unit "";
+            GraphImputationKernelTransportDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation mixed-covariate kernel transport with a whole-cluster bootstrap.
-            GraphImputationKernelTransportClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationKernelTransportClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation confounded kernel transport with a whole-cluster bootstrap.
-            GraphImputationConfoundedKernelTransportClusterBootstrapDecision => GraphImputation, unit "";
+            GraphImputationConfoundedKernelTransportClusterBootstrapDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// Graph-imputation transport under a missing-at-random target.
-            GraphImputationMarTransportDecision => GraphImputation, unit "";
+            GraphImputationMarTransportDecision => GraphImputation, unit "graph_imputation.compiled_decision";
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate => CategoricalPosteriorCandidate, unit "categorical_treatment.compiled_candidate";
             /// A bounded fixed-shift MNAR operation.

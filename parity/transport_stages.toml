@@ -8010,6 +8010,75 @@ guarantee = "model_conditional_independent_checked_replay_no_calibrated_uncertai
 evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs"
 evidence_assertion = "the_specified_feedback_pair_replays_its_three_distinct_quantities"
 notes = "Replays the existing model-conditional family contract; no external mechanism or calibrated interval authority is implied."
+[[routes]]
+route = "antecedent.cyclic_decision.execute_action_world"
+graph = "specified_cyclic_system_with_paired_hard_clamp_worlds"
+evidence = "shared_disturbance_rows_and_decision_contract"
+functional = "cyclic.action_world_decisions"
+guarantee = "hand_solved_clamped_equilibria_paired_decision_replay"
+evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
+notes = "Specified model only; no posterior and no calibrated reliability."
+
+[[routes]]
+route = "antecedent.cyclic_decision.execute_posterior_action"
+graph = "specified_cyclic_system_with_fitted_feedback_weights"
+evidence = "intervention_labelled_training_rows_and_decision_contract"
+functional = "cyclic.action_world_decisions"
+guarantee = "jointly_fitted_paired_worlds_with_passing_diagnostics_and_unmeasured_reliability"
+evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
+evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay"
+notes = "Conditional on the declared equations, covariance, prior and sampler schedule."
+
+[[routes]]
+route = "antecedent.cyclic_decision.execute_target_feedback"
+graph = "specified_cyclic_system_with_fitted_feedback_weights_and_target_frame"
+evidence = "training_rows_target_baseline_rows_and_decision_contract"
+functional = "cyclic.action_world_decisions"
+guarantee = "target_frame_standardized_paired_worlds_inside_training_support"
+evidence_test = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
+evidence_assertion = "paired_target_worlds_refit_and_replay"
+notes = "Target rows outside the training support are refused; no transport beyond the frame."
+
+[[routes]]
+route = "antecedent.cyclic_decision.consume_artifact"
+graph = "retained_cyclic_decision_artifact_and_expected_program_identity"
+evidence = "combined_model_and_decision_artifact"
+functional = "cyclic.action_world_decisions"
+guarantee = "independent_model_and_decision_replay_under_a_held_program_identity"
+evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
+notes = "Replays the model solve and the derived decision from the artifact."
+
+[[routes]]
+route = "antecedent.cyclic_component.execute_joint_decision"
+graph = "connected_feedback_components_lowered_to_one_cyclic_system"
+evidence = "common_training_rows_and_decision_contract"
+functional = "cyclic.component_posterior_decisions"
+guarantee = "jointly_fitted_component_worlds_with_unmeasured_reliability"
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "common_training_rows_refit_and_replay_the_connected_action_decision"
+notes = "Scalar and vector components; coefficients declared, couplings fitted."
+
+[[routes]]
+route = "antecedent.cyclic_component.execute_bounded_decision"
+graph = "connected_feedback_components_with_logistic_bounded_outputs"
+evidence = "common_training_rows_and_bounded_decision_contract"
+functional = "cyclic.component_posterior_decisions"
+guarantee = "logistic_transform_of_each_real_valued_fitted_draw_unmeasured_reliability"
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "bounded_component_worlds_replay_after_joint_fit"
+notes = "Transform applied after fitting; the structural ports and disturbances stay real-valued."
+
+[[routes]]
+route = "antecedent.cyclic_component.consume_artifact"
+graph = "retained_component_decision_artifact_and_expected_program_identity"
+evidence = "combined_component_fit_and_decision_artifact"
+functional = "cyclic.component_posterior_decisions"
+guarantee = "independent_component_fit_and_decision_replay_under_a_held_program_identity"
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "bounded_component_worlds_replay_after_joint_fit"
+notes = "A changed transform, posterior, component order or port is refused."
 
 [[routes]]
 route = "antecedent.external_mechanism.export_artifact"
@@ -10614,6 +10683,73 @@ notes = "The Python facade reports the native interval with the calibration slot
 [[routes]]
 route = "antecedent.graph_imputation.decision"
 notes = "The unsupported graph-imputation realization offers no supported decision carrier."
+[[routes]]
+route = "antecedent.graph_imputation.decision.effect"
+notes = "A decision contract over the graph-imputation mixture's posterior effect draws at the source; expected utility is the draw mean of the declared utility."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.world"
+notes = "Paired control and active outcome-mean worlds of one shared coefficient draw at the source or a declared target frame, and a decision over them."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.bernoulli_predictive_world"
+notes = "Bernoulli-logit predictive outcome worlds of a target unit from the graph-imputation fit, and a decision over them."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.gaussian_predictive_world"
+notes = "Gaussian predictive outcome worlds under a declared residual variance and cross-world correlation, and a decision over them."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.bernoulli_predictive_cluster_bootstrap"
+notes = "Bernoulli predictive worlds with whole-cluster resampling of the target frame, one draw per replicate."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.gaussian_predictive_cluster_bootstrap"
+notes = "Gaussian predictive worlds with whole-cluster resampling of the target frame, one draw per replicate."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.transport"
+notes = "The graph-imputation effect standardized to a declared binary-strata target frame, and a decision over its draws."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.transport_cluster_bootstrap"
+notes = "Binary-strata transport with whole-cluster resampling of the target frame, one draw per replicate."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.confounded_transport"
+notes = "Binary-strata transport from a source whose treatment is confounded by pretreatment covariates; every target stratum needs both treatment arms."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.confounded_transport_cluster_bootstrap"
+notes = "Confounded binary-strata transport with whole-cluster resampling of the target frame."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.kernel_transport"
+notes = "The graph-imputation effect standardized to a continuous or mixed target frame by a Gaussian-kernel density ratio calibrated to the frame's covariate means."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.kernel_transport_cluster_bootstrap"
+notes = "Kernel transport with whole-cluster resampling of the target frame."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.confounded_kernel_transport_cluster_bootstrap"
+notes = "Confounded kernel transport with whole-cluster resampling of the target frame; kernel support is needed in both treatment arms."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.mar_transport"
+notes = "Transport to a raw target frame with declared missing-at-random observation probabilities and design weights, over its weighted complete rows."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision.consume"
+notes = "Replay of a combined decision artifact: the producer is recompiled and replayed under its retained identities and the decision recomputed."
+
+[[routes]]
+route = "antecedent.python.graph_imputation_decision.compile_graph_imputation_decision"
+notes = "The Python entry compiles a decision contract over a prepared graph-imputation handle into the route family its declaration selects."
+
+[[routes]]
+route = "antecedent.python.graph_imputation_decision.consume_graph_imputation_decision"
+notes = "The Python consumer replays a decision artifact under a retained program identity."
 
 [[routes]]
 route = "antecedent.categorical_posterior_candidate.interval"
@@ -10642,6 +10778,17 @@ notes = "The measured interval is the Wald interval of the replayed source, repo
 [[routes]]
 route = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval"
 notes = "The facade delegates to the source-bound measured adapter; the interval carries the calibration status of the matching coverage record."
+[[routes]]
+route = "antecedent.fitted_dependent_measurement.PreparedMechanismComposition.compile_fitted_dependent_measurement"
+notes = "Labelled joint validation counts with a symmetric Dirichlet prior per construct row give aligned posterior draws of the conditional answer; the spread is a posterior conditional on the composed model and the validation design and is reported as not measured."
+
+[[routes]]
+route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration"
+notes = "The equal-tail interval of the posterior draws is reported with the calibration status of the registry slot for its exact model, query, prior and validation size."
+
+[[routes]]
+route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.consume"
+notes = "The artifact replays the retained program and compares every posterior draw under an externally retained program identity."
 
 [[routes]]
 route = "antecedent_io.measured_inference.mnar_candidate.measure_source"
@@ -11187,3 +11334,53 @@ guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interv
 evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs"
 evidence_assertion = "repeat_codings_recover_the_planted_effect_of_the_latent_facet"
 notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."
+
+[[routes]]
+route = "antecedent.analysis.planning.compile_planning"
+graph = "none_no_graph_is_identified"
+evidence = "declared_design_and_planning_assumptions"
+functional = "sample_size_power_assurance_or_minimum_detectable_effect"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+evidence_test = "crates/antecedent/tests/experiment_planning.rs"
+evidence_assertion = "compiled_plan_carries_every_assumption_in_its_identity"
+notes = "The compiled program carries every planning assumption in its identity. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.planning.PlanningPlan.execute"
+graph = "none_no_graph_is_identified"
+evidence = "declared_design_and_planning_assumptions"
+functional = "sample_size_power_assurance_or_minimum_detectable_effect"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "sample_sizes_match_cohens_two_sample_t_table"
+notes = "Execution stamps the program identity on the plan result. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.planning.plan_experiment"
+graph = "none_no_graph_is_identified"
+evidence = "declared_design_and_planning_assumptions"
+functional = "sample_size_power_assurance_or_minimum_detectable_effect"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+evidence_test = "crates/antecedent/tests/planning_known_truth.rs"
+evidence_assertion = "the_three_goals_invert_one_another"
+notes = "The one-call form compiles and executes the same program. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.Study.compile_for_planning"
+graph = "none_no_graph_is_identified"
+evidence = "declared_design_and_planning_assumptions"
+functional = "sample_size_power_assurance_or_minimum_detectable_effect"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+evidence_test = "crates/antecedent/tests/experiment_planning.rs"
+evidence_assertion = "compiled_plan_carries_every_assumption_in_its_identity"
+notes = "Compiles a standalone plan; no data is bound. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.python.design.planning.plan_experiment"
+graph = "none_no_graph_is_identified"
+evidence = "declared_design_and_planning_assumptions"
+functional = "sample_size_power_assurance_or_minimum_detectable_effect"
+guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
+evidence_test = "python/tests/test_experiment_planning.py"
+evidence_assertion = "test_two_sample_sizes_match_the_published_table"
+notes = "The Python entry runs the compiled program. Statements about the declared assumptions only; calibration not_measured."

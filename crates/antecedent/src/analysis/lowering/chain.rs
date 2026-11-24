@@ -110,19 +110,23 @@ fn source_digest(source: &antecedent_io::propagation_chain_record::ChainSourceWi
     writer.finish()
 }
 
+/// The namespace of the names a chain gives its program, model families and plan. These are
+/// program names, not refusal details.
+const PROPAGATION_CHAIN_NAMESPACE: &str = "propagation_chain";
+
 fn statistical_program(
     draft: &PropagationChainRecordWire,
     plan: &ChainPlan,
     uncertainty: UncertaintyReading,
 ) -> Result<StatisticalProgram, ChainRefusal> {
-    let name = format!("propagation_chain.{}", plan.reading.as_str());
+    let name = format!("{PROPAGATION_CHAIN_NAMESPACE}.{}", plan.reading.as_str());
     let realization = match uncertainty {
         UncertaintyReading::Sampling => {
             Realization::Frequentist(ScoreFrequentist::new(ScoreModel::new(name).map_err(refuse)?))
         }
         UncertaintyReading::Posterior => Realization::Bayesian(OrdinaryBayesianLikelihood::new(
             LikelihoodModel::new(name).map_err(refuse)?,
-            Prior::new("propagation_chain.declared_posterior_sources".to_owned())
+            Prior::new(format!("{PROPAGATION_CHAIN_NAMESPACE}.declared_posterior_sources"))
                 .map_err(refuse)?,
         )),
         UncertaintyReading::Predictive => {
@@ -151,7 +155,7 @@ fn statistical_program(
             } else {
                 ModelRole::Mechanism
             },
-            family: Arc::from(format!("propagation_chain.{}.{}", stage.kind, stage.id)),
+            family: Arc::from(format!("{PROPAGATION_CHAIN_NAMESPACE}.{}.{}", stage.kind, stage.id)),
             inputs: Arc::from(Vec::new()),
             output: None,
         })
@@ -268,7 +272,7 @@ pub(crate) fn lower_chain_with_decision(
             outcome: None,
             query,
         },
-        plan_id: Arc::from(format!("propagation_chain.{reading}")),
+        plan_id: Arc::from(format!("{PROPAGATION_CHAIN_NAMESPACE}.{reading}")),
         data: DataClassification::Tabular,
         graph_class: "none",
         query_variables: Arc::from(Vec::new()),

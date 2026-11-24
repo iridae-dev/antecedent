@@ -497,6 +497,12 @@ pub(crate) fn run_attribute_with_fit(
                 ctx,
             )?)
         }
+        AttributeTarget::ArrowStrengths(_) => AttributionOutcome::ArrowStrengths(
+            super::model_operations::run_arrow_strengths(fitted)?,
+        ),
+        AttributeTarget::PopulationDoContrast(target) => AttributionOutcome::PopulationDoContrast(
+            super::model_operations::run_population_do_contrast(fitted, data, target, ctx)?,
+        ),
         AttributeTarget::MechanismChange { query: detection, test } => {
             let method = match test {
                 MechanismChangeTest::LikelihoodRatio => MechanismChangeMethod::LikelihoodRatio,
@@ -594,6 +600,12 @@ pub(crate) fn run_simulate(
                 ctx,
             )?)
         }
+        SimulationTarget::DoSample(target) => SimulationOutcome::DoSample(
+            super::model_operations::run_do_sampler(fitted, data, target, ctx)?,
+        ),
+        SimulationTarget::ModelEvaluation(target) => SimulationOutcome::ModelEvaluation(
+            super::model_operations::run_model_evaluation(fitted, data, target, ctx)?,
+        ),
         SimulationTarget::TemporalCounterfactual {
             schedule,
             n_rows,
