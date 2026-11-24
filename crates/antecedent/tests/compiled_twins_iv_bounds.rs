@@ -13,9 +13,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    deprecated,
     clippy::cast_precision_loss,
     clippy::float_cmp,
-    reason = "fixture counts convert exactly and the bits are compared exactly"
+    reason = "fixture counts convert exactly and the bits are compared exactly; the direct entry under comparison is deprecated"
 )]
 
 use antecedent::identify::{BinaryIvLaw, binary_iv_ate_bounds};

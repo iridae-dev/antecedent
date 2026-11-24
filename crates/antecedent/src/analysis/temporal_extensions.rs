@@ -447,6 +447,17 @@ fn interval_estimator(
 /// calibration evidence is resolved by the native consumer.
 /// # Errors
 /// Invalid source/design, a `not_measured` method/target or absent/stale evidence.
+///
+/// The whole-unit interval is computed and measured outside the causal compiler. The compiled
+/// `TemporalDependentInterval` program family runs the same candidate and measured consumer:
+/// [`Study::compile_temporal_dependent_interval`](crate::analysis::execute::Study::compile_temporal_dependent_interval)
+/// then `execute(ctx)`, whose run carries this measured inference unchanged. This entry runs
+/// under the production context of `config.seed`; the compiled route runs under the caller's
+/// context, and the resampling stream is seeded from `config.seed` in both.
+#[deprecated(
+    since = "3.1.0",
+    note = "computes the whole-unit interval outside the causal compiler; use Study::compile_temporal_dependent_interval(TemporalDependentIntervalRequest::new(snapshot_id, units, sequence, estimand, config))?.execute(ctx), which runs the same candidate and measured consumer and returns this measured inference in MeasuredIntervalRun::measured (under the caller's context; the resampling stream is seeded from config.seed in both)"
+)]
 pub fn temporal_dependent_interval(
     snapshot_id: &str,
     units: Option<Vec<UnitHistories>>,

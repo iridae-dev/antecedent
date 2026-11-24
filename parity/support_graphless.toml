@@ -514,6 +514,21 @@ known_truth_test = "crates/antecedent-estimate/tests/randomized_scores_enumerati
 independent_check = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs::three_action_contrast_selects_the_right_columns_and_stays_unbiased"
 retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering"
 limitations = "Independent known-probability assignment to at least three actions, 400 rows, at least 30 realized assignments to every action, probabilities at least 0.2 for every action on every row, and a published interval for every action-versus-reference contrast. The intervals are separate pointwise 95% claims; simultaneous coverage is not supported."
+[[support]]
+family = "randomized_effect"
+design = "factorial_2x2_bernoulli"
+method = "independent_factor_ht_young_bound_contrasts"
+inference_claim = "three_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_factorial_cell = 30
+min_action_rows = 30
+min_probability = 0.04
+min_reported_intervals = 3
+all_reported_intervals = true
+known_truth_test = "crates/antecedent/tests/factorial_ipw_known_truth.rs::factorial_route_matches_the_hand_computed_cells_and_contrasts"
+independent_check = "crates/antecedent/tests/factorial_ipw_known_truth.rs::factorial_contrasts_are_unbiased_over_the_full_independent_factor_law"
+retained_route_test = "crates/antecedent/tests/compiled_twins_factorial_ipw.rs::declared_factorial_artifact_round_trips_and_refuses_forgery"
+limitations = "Independent row-level assignment to the four 2x2 cells of a multi-arm design with known cell probabilities (two independent Bernoulli factors give the products qa*qb; factor probabilities from 0.2 through 0.8 keep every cell probability at least 0.04), read by the declared randomized.factorial_bernoulli_ht estimator: Horvitz-Thompson cell means, the factor-A and factor-B main effects and their interaction, each with the Young-inequality bound 4 sum w^2 V over the diagonal Horvitz-Thompson cell variances, and at least 30 rows in every cell with three published positive-bound pointwise 95% normal intervals. The bound is conservative in assignment expectation (the enumerated known-truth law checks it); the intervals' coverage is not measured, and each is a separate pointwise claim, never a joint or simultaneous one. Fixed-cell complete factorial randomization is the separate factorial_2x2 row."
 
 [[support]]
 family = "longitudinal_regime"

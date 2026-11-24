@@ -2325,6 +2325,10 @@ class predictive_assessment:  # noqa: N801
     WRONG_CONTRACT: Final = "predictive_assessment.wrong_contract"
 
 
+class prior_composition:  # noqa: N801
+    UNIT_NOT_SUPPORTED: Final = "prior_composition.unit_not_supported"
+
+
 class prior_signal:  # noqa: N801
     ADAPTED_PRIOR_NOT_DRAWS: Final = "prior_signal.adapted_prior_not_draws"
     ARTIFACT_NOT_IN_CATALOG: Final = "prior_signal.artifact_not_in_catalog"
@@ -3386,6 +3390,10 @@ class transport_identification:  # noqa: N801
     REENTRY: Final = "transport_identification.reentry"
 
 
+class transport_response_grid:  # noqa: N801
+    GRID_COLUMNS_MISMATCH: Final = "transport_response_grid.grid_columns_mismatch"
+
+
 class transport_revalidation:  # noqa: N801
     CLAIM_TARGET_MISMATCH: Final = "transport_revalidation.claim_target_mismatch"
     DUPLICATE_CLAIM: Final = "transport_revalidation.duplicate_claim"
@@ -3633,6 +3641,19 @@ class vector_treatment:  # noqa: N801
 
 class weighted_target:  # noqa: N801
     OVERLAP_FAILED: Final = "weighted_target.overlap_failed"
+
+
+class z_transport_estimate:  # noqa: N801
+    COMBINATION_ATOM_LIMIT: Final = "z_transport_estimate.combination_atom_limit"
+    COMPONENTS_NOT_INDEPENDENT: Final = "z_transport_estimate.components_not_independent"
+    CROSS_SOURCE_INTERVAL_NOT_SUPPORTED: Final = (
+        "z_transport_estimate.cross_source_interval_not_supported"
+    )
+    EMPIRICAL_COUNTS_REQUIRED: Final = "z_transport_estimate.empirical_counts_required"
+    INVALID_INDEPENDENT_COMPONENT_LAW: Final = (
+        "z_transport_estimate.invalid_independent_component_law"
+    )
+    PHYSICAL_PLAN_PROGRAM_MISMATCH: Final = "z_transport_estimate.physical_plan_program_mismatch"
 
 
 ALL: Final[tuple[str, ...]] = (
@@ -5433,6 +5454,7 @@ ALL: Final[tuple[str, ...]] = (
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "prior_composition.unit_not_supported",
     "prior_signal.adapted_prior_not_draws",
     "prior_signal.artifact_not_in_catalog",
     "prior_signal.coefficient_prior_not_signal",
@@ -6305,6 +6327,7 @@ ALL: Final[tuple[str, ...]] = (
     "tier_diagnostics.unknown_scenarios_no_evalue",
     "tier_diagnostics.unknown_scenarios_no_overlap",
     "transport_identification.reentry",
+    "transport_response_grid.grid_columns_mismatch",
     "transport_revalidation.claim_target_mismatch",
     "transport_revalidation.duplicate_claim",
     "transport_revalidation.identity_mismatch",
@@ -6493,6 +6516,12 @@ ALL: Final[tuple[str, ...]] = (
     "vector_treatment.weights_need_robust_covariance",
     "vector_treatment.wrong_contract",
     "weighted_target.overlap_failed",
+    "z_transport_estimate.combination_atom_limit",
+    "z_transport_estimate.components_not_independent",
+    "z_transport_estimate.cross_source_interval_not_supported",
+    "z_transport_estimate.empirical_counts_required",
+    "z_transport_estimate.invalid_independent_component_law",
+    "z_transport_estimate.physical_plan_program_mismatch",
 )
 
 CODES: Final[dict[str, tuple[str, ...]]] = {
@@ -8350,6 +8379,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "predictive_assessment.too_few_clusters": ("too_few_clusters",),
     "predictive_assessment.unknown_source": ("invalid_argument",),
     "predictive_assessment.wrong_contract": ("route_not_supported",),
+    "prior_composition.unit_not_supported": ("not_supported",),
     "prior_signal.adapted_prior_not_draws": ("invalid_argument",),
     "prior_signal.artifact_not_in_catalog": ("design_signal_invalid",),
     "prior_signal.coefficient_prior_not_signal": ("design_signal_invalid",),
@@ -9236,6 +9266,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "tier_diagnostics.unknown_scenarios_no_evalue": ("diagnostic_not_available",),
     "tier_diagnostics.unknown_scenarios_no_overlap": ("diagnostic_not_available",),
     "transport_identification.reentry": ("public_builder_reentry",),
+    "transport_response_grid.grid_columns_mismatch": ("invalid_argument",),
     "transport_revalidation.claim_target_mismatch": ("quantity_semantics_mismatch",),
     "transport_revalidation.duplicate_claim": ("invalid_argument",),
     "transport_revalidation.identity_mismatch": ("route_not_supported",),
@@ -9428,4 +9459,10 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "vector_treatment.weights_need_robust_covariance": ("option_not_applicable",),
     "vector_treatment.wrong_contract": ("route_not_supported",),
     "weighted_target.overlap_failed": ("transport_target_overlap_failed",),
+    "z_transport_estimate.combination_atom_limit": ("transport_budget_cancel",),
+    "z_transport_estimate.components_not_independent": ("transport_not_certified",),
+    "z_transport_estimate.cross_source_interval_not_supported": ("route_not_supported",),
+    "z_transport_estimate.empirical_counts_required": ("transport_missing_provider",),
+    "z_transport_estimate.invalid_independent_component_law": ("invalid_argument",),
+    "z_transport_estimate.physical_plan_program_mismatch": ("invalid_argument",),
 }

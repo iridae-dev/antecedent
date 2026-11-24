@@ -16,6 +16,90 @@
 
 schema = 1
 
+# direct_status: the support verdict a direct (uncompiled) Python result reports. A direct result
+# runs no support decision, so its verdict is a fixed label; this table owns every such label and
+# generates python/antecedent/_direct_status.py, so no Python module carries a verdict literal.
+# `status` is the reported string (unchanged for existing results), `meaning` what it states,
+# `results` the result classes that report it.
+
+[[direct_status]]
+status = "not_assessed"
+meaning = "A member of a batch retarget whose support was not decided: the default, and the verdict of a member that failed for a reason other than a support refusal (an ok member reports `supported`, a refused one `not_supported`)."
+results = ["python/antecedent/_batch.py::RetargetMember"]
+
+[[direct_status]]
+status = "unsupported_direct_estimator_utility"
+meaning = "A randomized-design estimate computed by a direct estimator outside the compiler; no support row licenses it and no interval or calibration claim is made."
+results = [
+  "python/antecedent/experiment.py::SwitchbackEstimate",
+  "python/antecedent/experiment.py::ComplierEffectEstimate",
+  "python/antecedent/experiment.py::CUPEDEstimate",
+  "python/antecedent/experiment.py::ANCOVAEstimate",
+]
+
+[[direct_status]]
+status = "unsupported_direct_inference_utility"
+meaning = "An exact randomization test computed directly outside the compiler; the p-value is exact under the declared design, but no support row licenses the direct call."
+results = ["python/antecedent/experiment.py::RandomizationTest"]
+
+[[direct_status]]
+status = "unsupported_point_utility"
+meaning = "A point estimate (with any reported standard error or variance bound) computed directly outside the compiler; no support row licenses it and no interval or calibration claim is made."
+results = [
+  "python/antecedent/interference.py::SaturationEffects",
+  "python/antecedent/interference.py::ObservationalNetworkExposureEstimate",
+  "python/antecedent/interference.py::InterferenceEstimate",
+  "python/antecedent/policy.py::DoublyRobustPolicyEvaluation",
+  "python/antecedent/policy.py::ConditionalDoseResponseEstimate",
+  "python/antecedent/quasi.py::DifferenceInDifferencesEstimate",
+  "python/antecedent/quasi.py::PanelDifferenceInDifferencesEstimate",
+  "python/antecedent/quasi.py::StaggeredAdoptionEstimate",
+  "python/antecedent/quasi.py::StaggeredEventStudyEstimate",
+  "python/antecedent/quasi.py::SyntheticControlEstimate",
+  "python/antecedent/quasi.py::SyntheticDifferenceInDifferencesEstimate",
+  "python/antecedent/quasi.py::AugmentedPanelDiDEstimate",
+  "python/antecedent/quasi.py::CategoricalDidEstimate",
+  "python/antecedent/regimes.py::LongitudinalRegimeEstimate",
+  "python/antecedent/regimes.py::MarginalStructuralModelResult",
+  "python/antecedent/survival.py::SurvivalEstimate",
+  "python/antecedent/survival.py::IPCWSurvivalEstimate",
+  "python/antecedent/survival.py::IPCWCumulativeIncidenceEstimate",
+  "python/antecedent/survival.py::CumulativeIncidenceEstimate",
+]
+
+[[direct_status]]
+status = "unsupported_uncalibrated"
+meaning = "A direct result whose interval is reported but whose coverage is not measured; `supported` and `calibration_measured` are false."
+results = [
+  "python/antecedent/quasi.py::PeriodHistoryMatchEstimate",
+  "python/antecedent/regimes.py::SequentialContrastEstimate",
+]
+
+[[direct_status]]
+status = "off_axis_interval_evidence"
+meaning = "A local polynomial ratio (fuzzy discontinuity or kink) interval reported off the support matrix: no support row licenses the direct call, so the interval is evidence, not a supported claim."
+results = ["python/antecedent/quasi.py::LocalPolynomialRatioEstimate"]
+
+[[direct_status]]
+status = "unsupported_simultaneous_band"
+meaning = "A simultaneous survival-difference band whose arm counts match no band row of the graphless support matrix; a matching band reports `supported` instead."
+results = ["python/antecedent/survival.py::SurvivalDifferenceBand"]
+
+[[direct_status]]
+status = "caller_supplied_sequential_probabilities"
+meaning = "A longitudinal regime value weighted by caller-supplied sequential treatment and censoring probabilities; the library fits no nuisance and makes no uncertainty claim."
+results = ["python/antecedent/regimes.py::RegimeValue"]
+
+[[direct_status]]
+status = "caller_supplied_conditional_outcome_predictions"
+meaning = "A plug-in g-formula regime value from caller-supplied sequential conditional outcome predictions; the library fits no nuisance and makes no uncertainty claim."
+results = ["python/antecedent/regimes.py::GFormulaValue"]
+
+[[direct_status]]
+status = "caller_supplied_sequential_Q_and_probabilities"
+meaning = "A sequentially augmented regime value from caller-supplied Q scores and sequential probabilities; the library fits no nuisance, does not verify the cross-fitting, and makes no uncertainty claim."
+results = ["python/antecedent/regimes.py::DoublyRobustRegimeValue"]
+
 [[route]]
 lowering = "PolicySubsampling"
 unit_kind = "capability"
@@ -147,6 +231,53 @@ lowering = "JointDesign"
 unit_kind = "capability"
 unit = "joint_response.interval_readings"
 entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
+
+[[route]]
+lowering = "DoseGridBiasAware"
+unit_kind = "capability"
+unit = "estimate.dose_grid_bias_aware"
+entry = { rust = "crates/antecedent/src/analysis/compiled_dose_grid_bias_aware.rs", python = "python/antecedent/dose_grid.py" }
+
+[[route]]
+lowering = "SmoothedDoseLearnerTransport"
+unit_kind = "capability"
+unit = "transport.smoothed_dose_caller_learners"
+entry = { rust = "crates/antecedent/src/analysis/compiled_smoothed_dose_learners.rs", python = "python/antecedent/transport/_smoothed_dose.py" }
+
+[[route]]
+lowering = "ExternalFeedbackFit"
+unit_kind = "capability"
+unit = "cyclic.external_mechanisms"
+entry = { rust = "crates/antecedent/src/analysis/compiled_external_feedback.rs", python = "python/antecedent/external_mechanisms.py" }
+[[route]]
+lowering = "AdaptiveResultInterval"
+unit_kind = "capability"
+unit = "adaptive_inference.unsupported_guarantees"
+entry = { rust = "crates/antecedent/src/analysis/compiled_adaptive_interval.rs", python = "python/antecedent/adaptive_inference.py" }
+
+[[route]]
+lowering = "ChoiceResultInterval"
+unit_kind = "capability"
+unit = "choice_inference.interval_candidates"
+entry = { rust = "crates/antecedent/src/analysis/compiled_choice_interval.rs", python = "python/antecedent/choice_inference.py" }
+
+[[route]]
+lowering = "CohortMeanInterval"
+unit_kind = "capability"
+unit = "cohort_decision.interval"
+entry = { rust = "crates/antecedent/src/analysis/compiled_cohort_interval.rs", python = "python/antecedent/cohort_decision.py" }
+
+[[route]]
+lowering = "CountFittedInterval"
+unit_kind = "capability"
+unit = "observation_query.calibrated_probability"
+entry = { rust = "crates/antecedent/src/analysis/compiled_count_fitted_interval.rs", python = "python/antecedent/observation_query.py" }
+
+[[route]]
+lowering = "TemporalDependentInterval"
+unit_kind = "capability"
+unit = "temporal.dependent_interval"
+entry = { rust = "crates/antecedent/src/analysis/compiled_temporal_interval.rs", python = "python/antecedent/transport/_temporal_extensions.py" }
 
 [[route]]
 lowering = "ExternalPriorComposition"
@@ -475,6 +606,36 @@ lowering = "TemporalPathTransport"
 unit_kind = "capability"
 unit = "transport.temporal_path_specific"
 entry = { rust = "crates/antecedent/src/analysis/temporal_path_transport.rs", python = "python/antecedent/transport/temporal_paths.py" }
+
+[[route]]
+lowering = "TransportResponseGrid"
+unit_kind = "capability"
+unit = "transport.augmented_response_grid"
+entry = { rust = "crates/antecedent/src/analysis/transport_response_grid.rs", python = "python/antecedent/transport/_augmented_grid.py" }
+
+[[route]]
+lowering = "TransportScenarioSet"
+unit_kind = "capability"
+unit = "transport.finite_scenario_envelope"
+entry = { rust = "crates/antecedent/src/analysis/compiled_transport_scenarios.rs", python = "python/antecedent/transport/_scenarios.py" }
+
+[[route]]
+lowering = "MeasurementModelTransport"
+unit_kind = "capability"
+unit = "transport.measurement_model"
+entry = { rust = "crates/antecedent/src/analysis/compiled_measurement_transport.rs", python = "python/antecedent/measurement_models.py" }
+
+[[route]]
+lowering = "PooledDifferentialTransport"
+unit_kind = "capability"
+unit = "measurement.model_contract"
+entry = { rust = "crates/antecedent/src/analysis/compiled_measurement_transport.rs", python = "python/antecedent/measurement_models.py" }
+
+[[route]]
+lowering = "TransportedCohortEffect"
+unit_kind = "capability"
+unit = "transport.covariate_shift_cohort_effect"
+entry = { rust = "crates/antecedent/src/analysis/compiled_transported_cohort.rs", python = "python/antecedent/cohort_decision.py" }
 
 [[route]]
 lowering = "ClassicalTransportIdentification"

@@ -407,7 +407,8 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, graph, selections, source_population, target_population,
         source_experiments, kind, treatments, outcomes, trial, selection_probability,
         treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
-        weighting="observed", accepted=false, seed=1, threads=None, options=None, catalog=None))]
+        weighting="observed", accepted=false, seed=1, threads=None, options=None, catalog=None,
+        outcome_regressions=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_transport(
         py: Python<'_>,
@@ -435,6 +436,7 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
         catalog: Option<&Bound<'_, PyAny>>,
+        outcome_regressions: Option<(String, String)>,
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
@@ -490,6 +492,15 @@ impl PyPreparedAnalysis {
                 .query(CausalQuery::Transport(query))
                 .selection_targets(schema_ids(&schema, &selections)?)
                 .transport_trial(trial_spec);
+                let builder = match outcome_regressions {
+                    Some((control, treated)) => builder.transport_outcome_regressions(
+                        antecedent::analysis::transport_supplied_nuisance::TransportOutcomeRegressions::new(
+                            column(&control)?,
+                            column(&treated)?,
+                        ),
+                    ),
+                    None => builder,
+                };
                 req.finish_applied(builder, false)
             })
         })

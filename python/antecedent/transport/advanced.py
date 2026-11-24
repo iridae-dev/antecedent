@@ -180,8 +180,10 @@ from ._recovery import (
 )
 from ._sampled_candidate import SampledRecoveryCandidate, SampledRecoveryIdentity
 from ._scenarios import (
+    CompiledTransportScenarios,
     TransportScenario,
     TransportScenarioSet,
+    compile_transport_scenarios,
     consume_transport_scenarios_artifact,
     prepare_transport_scenarios,
 )
@@ -199,6 +201,11 @@ from ._smoothed_dose import (
     consume_smoothed_dose_posterior,
     prepare_smoothed_dose,
     smoothed_dose_estimator_menu,
+)
+from ._smoothed_dose_learners import (
+    PORTABLE_PREDICTION_MAP,
+    SmoothedDoseLearnersEstimate,
+    analyze_smoothed_dose,
 )
 from ._status import (
     IDENTIFICATION_STATUSES,
@@ -305,6 +312,9 @@ __all__ = [
     "consume_smoothed_dose_posterior",
     "prepare_smoothed_dose",
     "smoothed_dose_estimator_menu",
+    "PORTABLE_PREDICTION_MAP",
+    "SmoothedDoseLearnersEstimate",
+    "analyze_smoothed_dose",
     "ClassicalTransportIdentification",
     "ConditionalTransportQuery",
     "DirectFormula",
@@ -344,6 +354,8 @@ __all__ = [
     "TemporalSequenceSpec",
     "TransportScenario",
     "TransportScenarioSet",
+    "CompiledTransportScenarios",
+    "compile_transport_scenarios",
     "TransportResponseGridQuery",
     "TrialAipwData",
     "TrialAipwQuery",

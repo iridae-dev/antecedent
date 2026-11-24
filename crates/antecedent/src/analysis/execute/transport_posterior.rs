@@ -148,6 +148,7 @@ impl super::Study {
         let trial_spec = self.transport_trial.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires transport_trial columns",
         })?;
+        self.refuse_supplied_regressions_without_one_diagram()?;
         if self.declared.weighted_transport.is_some() {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",

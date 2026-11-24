@@ -287,9 +287,15 @@ def interference_limitations(graph: str, structure: str, inference: str, validat
             "Evidence: the supported estimator is the Young-bound Horvitz-Thompson / Hajek "
             "contrast under Bernoulli assignment with the NeighborCount exposure mapping on a "
             "caller-supplied fixed network, checked against the full enumeration of the pinned "
-            "two-unit design (Horvitz-Thompson -6, Hajek -3, conservative variance 204). Other "
-            "assignment designs and exposure mappings run through separate estimators that are "
-            "not part of this cell's evidence."
+            "two-unit design (Horvitz-Thompson -6, Hajek -3, conservative variance 204). The "
+            "same estimator runs complete randomization and the other built-in exposure "
+            "mappings, checked against their enumerated assignment support in "
+            "crates/antecedent/tests/interference_design_known_truth.rs; their intervals carry "
+            "their own calibration key (a functional label naming the assignment and the "
+            "mapping) "
+            "and read no coverage record measured for Bernoulli/NeighborCount. Cluster, "
+            "saturation and observational designs run through separate estimators that are not "
+            "part of this cell's evidence."
         )
     else:
         parts.append(

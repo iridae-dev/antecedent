@@ -231,6 +231,7 @@ impl super::Study {
         };
         let dependence = self.transport_dependence_of(&columns)?;
         self.refuse_unread_transport_validation(&columns, &dependence)?;
+        let regressions = self.supplied_outcome_regressions(data, weights.is_some())?;
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(known_probability_assumption());
         if weights.is_some() {
@@ -239,14 +240,20 @@ impl super::Study {
         let weighted_target = self.weighted_transport_estimate(
             transport_id,
             &columns,
+            regressions.as_ref().map(super::transport_supplied::SuppliedRegressions::pair),
             (&dependence, inference),
             (&assumptions, identification.status),
             ctx,
         )?;
         let weighted_present = weighted_target.is_some();
+        let weighted_aipw_se = weighted_target.as_ref().and_then(|weighted| weighted.aipw_se);
         let mut transported = match &weighted_target {
             Some(weighted) => weighted.point,
-            None => transport_point(transport_id, &columns)?,
+            None => super::transport_supplied::supplied_transport_point(
+                transport_id,
+                &columns,
+                regressions.as_ref(),
+            )?,
         };
         let (estimate, posterior, estimator_id, diagnostic) =
             if let Some(weighted) = weighted_target {
@@ -317,7 +324,11 @@ impl super::Study {
             )
             .identify_cached(identify_cached)
             .refutations(refutations)
-            .extra_diagnostics(vec![diagnostic])
+            .extra_diagnostics(super::transport_supplied::with_supplied_augmentation(
+                diagnostic,
+                &transported,
+                weighted_aipw_se,
+            ))
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),
         );
@@ -734,6 +745,7 @@ impl super::Study {
         &self,
         transport: &TransportIdentification,
         columns: &TrialColumns<'_>,
+        regressions: Option<(&[f64], &[f64])>,
         (dependence, inference): (&TrialDependence, &InferenceMode),
         (assumptions, status): (&antecedent_core::AssumptionSet, IdentificationStatus),
         ctx: &ExecutionContext,
@@ -766,7 +778,7 @@ impl super::Study {
             columns.trial,
             columns.selection,
             columns.propensity,
-            None,
+            regressions,
             &target.weights,
             target.min_ess_fraction,
         )?;
@@ -800,6 +812,7 @@ impl super::Study {
             point.ipw = estimate.ate;
             return Ok(Some(WeightedTransport {
                 point,
+                aipw_se: None,
                 estimate,
                 posterior: Some(posterior),
                 estimator: EstimatorId::TransportTrialBayesianBootstrap,
@@ -824,6 +837,7 @@ impl super::Study {
         );
         Ok(Some(WeightedTransport {
             point: weighted.effect,
+            aipw_se: weighted.aipw_se,
             estimate,
             posterior: None,
             estimator: EstimatorId::TransportTrialIpw,
@@ -835,6 +849,8 @@ impl super::Study {
 /// The trial-to-target contrast for a weighted target, as the route publishes it.
 pub(super) struct WeightedTransport {
     pub(super) point: TransportEffectEstimate,
+    /// Delta-method standard error of the augmented contrast, when regressions were supplied.
+    pub(super) aipw_se: Option<f64>,
     pub(super) estimate: EffectEstimate,
     pub(super) posterior: Option<CausalPosterior>,
     pub(super) estimator: EstimatorId,

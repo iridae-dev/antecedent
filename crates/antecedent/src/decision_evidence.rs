@@ -22,9 +22,56 @@ pub use adaptive::{
     evidence_from_compiled_adaptive_regime,
 };
 pub use antecedent_design::decision_evidence::*;
-pub use antecedent_estimate::randomized_joint::{
-    JointClusterContrast, centered_fixed_cuped_totals, complete_cluster_joint_contrast,
-};
+pub use antecedent_estimate::randomized_joint::JointClusterContrast;
+
+/// Center fixed-coefficient pretreatment adjustment at the population pretreatment mean.
+///
+/// Each cluster receives `Y_c - coefficient * (X_c - n_c * X_bar)`, where `X_bar` is computed
+/// over all target rows. Deprecated: a centered [`FixedClusterAdjustment`] in the recipe given
+/// to [`compile_and_evidence_from_cluster`] runs this adjustment inside the compiled
+/// joint-design program.
+///
+/// [`FixedClusterAdjustment`]: antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+#[deprecated(
+    since = "3.1.0",
+    note = "adjusts cluster totals with no contract, claim or provenance; use the compiled route: a centered `FixedClusterAdjustment` in the `JointClusterRecipe` given to `compile_and_evidence_from_cluster`"
+)]
+#[must_use]
+pub fn centered_fixed_cuped_totals(
+    outcome_totals: &[f64],
+    pretreatment_totals: &[f64],
+    cluster_sizes: &[usize],
+    coefficient: f64,
+) -> Option<Vec<f64>> {
+    antecedent_estimate::randomized_joint::centered_fixed_cuped_totals(
+        outcome_totals,
+        pretreatment_totals,
+        cluster_sizes,
+        coefficient,
+    )
+}
+
+/// Estimate the joint per-row arm means and their covariance of a complete cluster-randomized
+/// experiment from cluster outcome totals.
+///
+/// Deprecated: [`compile_and_evidence_from_cluster`] runs this estimator inside the compiled
+/// joint-design program and retains the source.
+#[deprecated(
+    since = "3.1.0",
+    note = "estimates with no contract, claim or provenance; use the compiled route: `compile_and_evidence_from_cluster` with a `JointClusterRecipe`"
+)]
+#[must_use]
+pub fn complete_cluster_joint_contrast(
+    totals: &[&[f64]],
+    assigned: &[bool],
+    outcome_rows: usize,
+) -> Option<JointClusterContrast> {
+    antecedent_estimate::randomized_joint::complete_cluster_joint_contrast(
+        totals,
+        assigned,
+        outcome_rows,
+    )
+}
 pub use panel_bridge::{
     ExcursionPanelUpdate, JointContrastSampling, JointEvidenceComponent, RetainedExperiment,
     RetainedJointPanelUpdate, compiled_excursion_quantity,

@@ -24,6 +24,7 @@ use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
 
+mod compiled;
 fn refusal_value(refusal: &ChoiceInferenceRefusal) -> Json {
     crate::bridge::compact_refusal_value(
         refusal.code,
@@ -321,6 +322,7 @@ impl ChoiceInferenceHandle {
 
     /// The interval of one result of a measured choice cell.
     #[pyo3(signature = (request_json, cancel=None))]
+    #[allow(deprecated, reason = "the deprecated direct interval stays reachable until 4.0")]
     fn measured_interval(
         &self,
         py: Python<'_>,

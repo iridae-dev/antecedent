@@ -192,6 +192,8 @@ routes = [
   { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.aggregate_interval", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_supported", permanent_in_release = true, refusal_test = "python/tests/test_transport_scenarios.py", refusal_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
   { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transport_scenarios.rs", refusal_assertion = "inference_across_scenarios_is_refused" },
   { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "python/tests/test_transport_scenarios.py", refusal_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
+  { name = "antecedent.analysis.compiled_transport_scenarios.Study.compile_transport_scenarios", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.compiled_transport_scenarios.CompiledTransportScenarios.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.finite_scenario_envelope.conflicting_identified.positive", role = "positive", intent = "All scenarios identified with conflicting answers; envelope spans them.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "identified_scenarios_disagree_and_the_envelope_spans_them" },
@@ -241,6 +243,8 @@ fixtures = [
   { id = "transport.finite_scenario_envelope.conditional_old_version.artifact", role = "artifact", intent = "A classical question still writes and reads v1 with no conditional key encoded; a conditional artifact's version is what a v1-only reader refuses.", evidence_test = "crates/antecedent/tests/transport_scenarios_conditional.rs", evidence_assertion = "a_classical_question_still_writes_and_reads_the_version_one_artifact" },
   { id = "transport.finite_scenario_envelope.conditional_python.positive", role = "positive", intent = "Python surface: conditioned_on routes every scenario through the conditional route; statuses, identification_status, the truth inside the envelope and the artifact round trip.", evidence_test = "python/tests/test_transport_admg_conditional.py", evidence_assertion = "test_conditional_questions_enter_the_scenario_envelope" },
   { id = "transport.finite_scenario_envelope.conditional_python_request.negative", role = "negative", intent = "Python surface: a conditional scenario request must bind the conditioned variables (invalid_argument / admg_transport.invalid_request).", evidence_test = "python/tests/test_transport_admg_conditional.py", evidence_assertion = "test_conditional_scenario_requests_bind_the_conditioned_variables" },
+  { id = "transport.finite_scenario_envelope.compiled_python.positive", role = "positive", intent = "Python surface: compile_transport_scenarios executes the TransportScenarioSet program and reports exactly what the prepared stage's estimate() reports, including the hand-computed standardized (0.35) and direct (0.56) points.", evidence_test = "python/tests/test_compiled_transport_scenarios.py", evidence_assertion = "test_the_compiled_set_reports_what_the_prepared_stage_estimates" },
+  { id = "transport.finite_scenario_envelope.compiled_python_refresh.positive", role = "positive", intent = "Python surface: refreshing the compiled set compiles a new program whose report is the refreshed stage's, decisions kept.", evidence_test = "python/tests/test_compiled_transport_scenarios.py", evidence_assertion = "test_a_refresh_compiles_a_new_program_with_the_stages_refreshed_points" },
 ]
 
 
@@ -1026,7 +1030,7 @@ surface_internal = [{ name = "smoothed_dose_bootstrap_unit_rows", why = "Doc-hid
   { name = "smoothed_dose_memory_cap", why = "The memory cap in force (the mandatory cap lowered by a context hard limit), shared with the antecedent-io consumer; a pure read of the context." },
   { name = "smoothed_dose_replicate", why = "Builds one bootstrap replicate's rows and point-run fold labels for the calibration-internal bootstrap and its fold-reuse test; compiled only under the calibration-internal feature." },
   { name = "smoothed_dose_interval_internal", why = "Joint outer bootstrap behind the unsupported interval route; compiled only under the calibration-internal feature for the coverage harness and the thread-budget test, and no public route reaches it." },
-  { name = "SmoothedDoseIntervalRun", why = "Return type of the calibration-internal bootstrap; compiled only under the calibration-internal feature." }, { name = "estimate_smoothed_dose_with_factories", why = "Doc-hidden entry taking caller-supplied learner factories, whose learners the library cannot verify; the supported route is estimate_smoothed_dose with the library learners, which does not call it. Must stay pub: antecedent::estimate re-exports it for callers who supply their own learners." }]
+  { name = "SmoothedDoseIntervalRun", why = "Return type of the calibration-internal bootstrap; compiled only under the calibration-internal feature." }, { name = "estimate_smoothed_dose_with_factories", why = "Doc-hidden entry taking caller-supplied learner factories, whose learners the library cannot verify; the route of this record is estimate_smoothed_dose with the library learners, which does not call it, and the compiled SmoothedDoseLearnerTransport family of transport.smoothed_dose_caller_learners runs it. Must stay pub: the compiled family calls it and antecedent::estimate keeps a deprecated wrapper for callers who supply their own learners." }]
 bounds = { max_grid_points = 16, quadrature_nodes = "16 or 32 per window piece, doubling check at 32 or 64", max_folds = 20, min_bootstrap = 2, max_bootstrap = 2000, max_rows = 200000, max_features = 256, max_basis_degree = 3, max_knots = 8, max_workspace_bytes = 536870912, cancellation = true }
 refusals = [
   { detail = "dose_response.invalid_declared_rows", remedy = "Supply a matching supported row declaration and valid lag." },
@@ -2730,8 +2734,12 @@ refusals = [
   { detail = "temporal_interval.interval_not_supported" },
   { detail = "temporal_interval.studentized_zero_variance" },
 ]
-routes = [{ name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "supported", claim = "interval" }]
-fixtures = [{ id = "temporal.dependent_interval.studentized_balanced.positive", role = "positive", intent = "Exact unit variance and bootstrap pivots checked against independent two-point algebra; not_measured candidate only.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra", shared_evidence = true }, { id = "temporal.dependent_interval.studentized_interval_endpoints.construction", role = "construction", intent = "The studentized interval endpoints equal the point minus the type-7 interpolated pivot quantiles times the original standard error, recomputed from independent two-point algebra without the interval code.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra", shared_evidence = true }, { id = "temporal.dependent_interval.studentized_scope.negative", role = "negative", intent = "Unbalanced histories and uncertified estimator refuse the studentized construction.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_refuses_unbalanced_units_and_uncertified_estimator" }, { id = "temporal.dependent_interval.studentized_variance.negative", role = "negative", intent = "Zero original unit-score variance refuses instead of creating a degenerate t pivot.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_refuses_zero_original_unit_variance" }, { id = "temporal.dependent_interval.studentized_replay.artifact", role = "artifact", intent = "Original variance and aligned pivots replay; resealed pivot mutation refuses.", evidence_test = "crates/antecedent-io/tests/temporal_interval_artifact.rs", evidence_assertion = "studentized_artifact_replays_original_variance_and_rejects_resealed_pivot_mutation" }, { shared_evidence = true, id = "temporal.dependent_interval.dynamic_scm_interval.positive", role = "positive", intent = "Wiring only: the whole estimator's point equals the independently enumerated two-step dynamic-SCM truth (fixed-state responses 0.33 and 0.46, target-marginalized 0.421) on a repeated-unit panel. (The same file separately checks that unit resampling is wider than iid-row resampling and that calibration is reported not_measured.)", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "dynamic_scm_interval_point_equals_enumerated_truth" }, { id = "temporal.dependent_interval.unknown_unit_dependence.negative", role = "negative", intent = "An absent unit map and incompatible unit or time identities refuse with temporal_interval.unknown_units; no IID-row substitute exists.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units" }, { id = "temporal.dependent_interval.unit_replicate_replay.artifact", role = "artifact", intent = "A fresh consumer re-runs the whole resampling from the embedded panel and rejects a changed unit, time, value or snapshot even when the artifact is resealed (this artifact alone embeds the full panel).", evidence_test = "crates/antecedent-io/tests/temporal_interval_artifact.rs", evidence_assertion = "dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot" }, { id = "temporal.dependent_interval.dependent_sequence_grid.calibration", role = "calibration", intent = "Original whole-method measurement5c76724f and immutable main e4 collection remain unchanged. Actual clean main13705704 representative replay is bit-identical under reviewed source equivalence; recovery uses one independently verified native scientific-identity projection. Current attestation and final normal public/source-bound consumer gates apply. Historical source candidate bytes remain not_measured; only named scalar endpoints are supported, not parameters/covariance/draws/diagnostics/simultaneous intervals or arbitrary generating models. Direct response95: marginalized initial state,sequence00,target law(.3,.7),complete16 binary histories/unit,n75..200,B500 studentized,min_units20,maxfailedfraction.05. Original-source checked TemporalSession n64..256,horizon2,exact10edges,no bidirected,selection0,lag[0,1,2,2,2],complete unique16 cells/unit; response00 studentized OR paired effect11-versus00 studentized/percentile/basic, each own95 record. Existing normal source proof/control metadata retained; failed response/direct percentile/basic implementations retired.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer", shared_evidence = true }, { id = "temporal.dependent_interval.temporal_recalc.public_interval_closed.negative", role = "negative", intent = "Public retained temporal history state preserves actual argument validation and the exact frozen inference gate.", evidence_test = "python/tests/test_recalc_temporal.py", evidence_assertion = "test_temporal_not_measured_history_protocol_preserves_source_state" }, { id = "temporal.dependent_interval.measured_temporal_normal_measured.positive", role = "positive", intent = "Normal producer against independent original-method numerical oracle and fresh source-bound replay.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer", shared_evidence = true }, { id = "temporal.dependent_interval.measured_temporal_normal_protocol.negative", role = "negative", intent = "Adjacent methods, priors and scopes the grid did not measure are computed and annotated not calibrated; they never borrow the measured protocol's calibration.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence" }, { id = "temporal.dependent_interval.measured_temporal_normal_measured.artifact", role = "artifact", intent = "Independent measured consumer binds original retained source expectation and rejects replacement/mutation.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_temporal_measured_artifact_requires_original_source_expectations" }, { id = "temporal.dependent_interval.enumerated_state_truth.truth", role = "truth", shared_evidence = true, intent = "The marginalized-initial-state response point equals the hand-enumerated truth 0.3*0.33 + 0.7*0.46 = 0.421 and each fixed-state response equals the enumerated conditional truth (0.33, 0.46) to 1e-12.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "dynamic_scm_interval_point_equals_enumerated_truth" }]
+routes = [
+  { name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_temporal_interval.CompiledTemporalDependentInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.transport.TemporalUnitPanel.compiled_dependent_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [{ id = "temporal.dependent_interval.studentized_balanced.positive", role = "positive", intent = "Exact unit variance and bootstrap pivots checked against independent two-point algebra; not_measured candidate only.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra", shared_evidence = true }, { id = "temporal.dependent_interval.studentized_interval_endpoints.construction", role = "construction", intent = "The studentized interval endpoints equal the point minus the type-7 interpolated pivot quantiles times the original standard error, recomputed from independent two-point algebra without the interval code.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra", shared_evidence = true }, { id = "temporal.dependent_interval.studentized_scope.negative", role = "negative", intent = "Unbalanced histories and uncertified estimator refuse the studentized construction.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_refuses_unbalanced_units_and_uncertified_estimator" }, { id = "temporal.dependent_interval.studentized_variance.negative", role = "negative", intent = "Zero original unit-score variance refuses instead of creating a degenerate t pivot.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "studentized_refuses_zero_original_unit_variance" }, { id = "temporal.dependent_interval.studentized_replay.artifact", role = "artifact", intent = "Original variance and aligned pivots replay; resealed pivot mutation refuses.", evidence_test = "crates/antecedent-io/tests/temporal_interval_artifact.rs", evidence_assertion = "studentized_artifact_replays_original_variance_and_rejects_resealed_pivot_mutation" }, { shared_evidence = true, id = "temporal.dependent_interval.dynamic_scm_interval.positive", role = "positive", intent = "Wiring only: the whole estimator's point equals the independently enumerated two-step dynamic-SCM truth (fixed-state responses 0.33 and 0.46, target-marginalized 0.421) on a repeated-unit panel. (The same file separately checks that unit resampling is wider than iid-row resampling and that calibration is reported not_measured.)", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "dynamic_scm_interval_point_equals_enumerated_truth" }, { id = "temporal.dependent_interval.unknown_unit_dependence.negative", role = "negative", intent = "An absent unit map and incompatible unit or time identities refuse with temporal_interval.unknown_units; no IID-row substitute exists.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units" }, { id = "temporal.dependent_interval.unit_replicate_replay.artifact", role = "artifact", intent = "A fresh consumer re-runs the whole resampling from the embedded panel and rejects a changed unit, time, value or snapshot even when the artifact is resealed (this artifact alone embeds the full panel).", evidence_test = "crates/antecedent-io/tests/temporal_interval_artifact.rs", evidence_assertion = "dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot" }, { id = "temporal.dependent_interval.dependent_sequence_grid.calibration", role = "calibration", intent = "Original whole-method measurement5c76724f and immutable main e4 collection remain unchanged. Actual clean main13705704 representative replay is bit-identical under reviewed source equivalence; recovery uses one independently verified native scientific-identity projection. Current attestation and final normal public/source-bound consumer gates apply. Historical source candidate bytes remain not_measured; only named scalar endpoints are supported, not parameters/covariance/draws/diagnostics/simultaneous intervals or arbitrary generating models. Direct response95: marginalized initial state,sequence00,target law(.3,.7),complete16 binary histories/unit,n75..200,B500 studentized,min_units20,maxfailedfraction.05. Original-source checked TemporalSession n64..256,horizon2,exact10edges,no bidirected,selection0,lag[0,1,2,2,2],complete unique16 cells/unit; response00 studentized OR paired effect11-versus00 studentized/percentile/basic, each own95 record. Existing normal source proof/control metadata retained; failed response/direct percentile/basic implementations retired.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer", shared_evidence = true }, { id = "temporal.dependent_interval.temporal_recalc.public_interval_closed.negative", role = "negative", intent = "Public retained temporal history state preserves actual argument validation and the exact frozen inference gate.", evidence_test = "python/tests/test_recalc_temporal.py", evidence_assertion = "test_temporal_not_measured_history_protocol_preserves_source_state" }, { id = "temporal.dependent_interval.measured_temporal_normal_measured.positive", role = "positive", intent = "Normal producer against independent original-method numerical oracle and fresh source-bound replay.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer", shared_evidence = true }, { id = "temporal.dependent_interval.measured_temporal_normal_protocol.negative", role = "negative", intent = "Adjacent methods, priors and scopes the grid did not measure are computed and annotated not calibrated; they never borrow the measured protocol's calibration.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_checked_and_direct_neighboring_protocols_cannot_borrow_evidence" }, { id = "temporal.dependent_interval.measured_temporal_normal_measured.artifact", role = "artifact", intent = "Independent measured consumer binds original retained source expectation and rejects replacement/mutation.", evidence_test = "python/tests/test_measured_temporal_public.py", evidence_assertion = "test_normal_temporal_measured_artifact_requires_original_source_expectations" }, { id = "temporal.dependent_interval.enumerated_state_truth.truth", role = "truth", shared_evidence = true, intent = "The marginalized-initial-state response point equals the hand-enumerated truth 0.3*0.33 + 0.7*0.46 = 0.421 and each fixed-state response equals the enumerated conditional truth (0.33, 0.46) to 1e-12.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "dynamic_scm_interval_point_equals_enumerated_truth" }, { id = "temporal.dependent_interval.compiled_enumerated_response.truth", role = "truth", intent = "Compiled TemporalDependentInterval, known truth: on the exact-count dynamic SCM panel the reported marginalized response is the hand-enumerated 0.3 * 0.33 + 0.7 * 0.46 = 0.421 to 1e-12, inside the reported interval.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_temporal_interval_reports_the_enumerated_marginalized_response" }, { id = "temporal.dependent_interval.compiled_twin.positive", role = "positive", intent = "Compiled TemporalDependentInterval: under the production context of the design's seed and under another context the run carries the measured inference of temporal_dependent_interval bit for bit, names the route temporal_interval its coverage is recorded under, and refuses too few units identically.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_temporal_interval_equals_the_direct_interval" }, { id = "temporal.dependent_interval.compiled_identity.artifact", role = "artifact", intent = "Compiled TemporalDependentInterval emits the direct entry's measured envelope; its program identity is re-derived: the same request lowers to the same identity, and a changed seed or outcome bit changes it.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_temporal_program_identity_binds_the_units_and_the_design" }, { id = "temporal.dependent_interval.compiled_python_twin.positive", role = "positive", intent = "Python surface: antecedent.transport.temporal_dependent_interval warns as deprecated and equals TemporalUnitPanel.compiled_dependent_interval; the point is the panel's unit value 0.49.", evidence_test = "python/tests/test_compiled_twins_interval_families.py", evidence_assertion = "test_the_direct_temporal_interval_warns_and_equals_the_compiled_interval" }]
 historical_coverage_records = [{ id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_two_step_units_percentile_l95", harness = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs", test = "temporal_two_step_units_percentile_l95", status = "failed", measurement_commit = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5", failure = "n200:1861/2000;below three-MCSE band", disposition = "retired_superseded", replacement_coverage_id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95.v2_validation_not_applicable" }, { id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_two_step_units_basic_l95", harness = "crates/antecedent-estimate/tests/temporal_unit_calibration.rs", test = "temporal_two_step_units_basic_l95", status = "failed", measurement_commit = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5", failure = "n200:1857/2000;below three-MCSE band", disposition = "retired_superseded", replacement_coverage_id = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95.v2_validation_not_applicable" }]
 
 [[record.inference_outputs]]
@@ -4425,6 +4433,241 @@ routes = [{ name = "antecedent.dose.dose_grid_functional", stage = "evaluate", s
 fixtures = [{ shared_evidence = true, id = "estimate.dose_grid_functional.dose_level_truth.positive", role = "positive", intent = "With noise-free doses on a uniform design over [0, 4] and m(d) = 1 + d/2 + d^2/4, the level at 0.5, 1, 2 and 3.5 equals 1.3125, 1.75, 3 and 5.8125 within 1e-7, each Supported.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "level_recovers_closed_form_exactly_without_noise" }, { id = "estimate.dose_grid_functional.dose_derivative_truth.positive", role = "positive", intent = "The derivative at the same doses equals 0.75, 1, 1.5 and 2.25 within 1e-6.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "derivative_recovers_closed_form_exactly_without_noise" }, { id = "estimate.dose_grid_functional.dose_contrast_truth.positive", role = "positive", intent = "The contrast between the named doses 1 and 3 equals m(3) - m(1) = 3.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "contrast_between_named_doses_matches_closed_form" }, { id = "estimate.dose_grid_functional.dose_noise_tolerance.positive", role = "positive", intent = "Under an alternating perturbation of 0.1 the level stays within 0.02 and the derivative within 0.05 of the truth with finite positive standard errors.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "level_and_derivative_recover_truth_under_alternating_noise_within_tolerance" }, { id = "estimate.dose_grid_functional.dose_numerical_error.positive", role = "positive", intent = "The numerical residual of the local solves is measured and negligible.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "numerical_error_is_measured_and_negligible" }, { id = "estimate.dose_grid_functional.dose_python_level.positive", role = "positive", intent = "The Python surface recovers the closed-form level and reports calibration not_measured.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_level_recovers_closed_form_with_not_measured_calibration" }, { id = "estimate.dose_grid_functional.dose_python_derivative.positive", role = "positive", intent = "The Python surface recovers the closed-form derivative.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_derivative_recovers_closed_form" }, { id = "estimate.dose_grid_functional.dose_python_contrast.positive", role = "positive", intent = "The Python surface recovers the closed-form contrast.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_contrast_between_named_doses_matches_closed_form" }, { id = "estimate.dose_grid_functional.dose_python_noisy.positive", role = "positive", intent = "Noisy rows give finite pointwise intervals through Python without a coverage claim.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim" }, { id = "estimate.dose_grid_functional.dose_claims.negative", role = "negative", intent = "The level, derivative and band claims are separate typed fields and the simultaneous band is not supported.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "claims_are_separate_typed_fields_and_band_is_not_supported" }, { id = "estimate.dose_grid_functional.dose_derivative_claim.negative", role = "negative", intent = "A derivative without a derivative claim refuses with dose_grid.derivative_without_claim.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "derivative_without_derivative_claim_is_refused" }, { id = "estimate.dose_grid_functional.dose_unsupported.negative", role = "negative", intent = "A dose outside the observed support is labelled and refused with dose_grid.unsupported_dose.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "dose_outside_support_is_labelled_and_refused" }, { id = "estimate.dose_grid_functional.dose_weak_overlap.negative", role = "negative", intent = "A dose with insufficient local effective sample size is labelled and refused with dose_grid.insufficient_local_weight.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "insufficient_local_weight_is_labelled_and_refused" }, { id = "estimate.dose_grid_functional.dose_bandwidth.negative", role = "negative", intent = "A bandwidth outside the declared range refuses with dose_grid.bandwidth_outside_range.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "bandwidth_outside_declared_range_is_refused" }, { id = "estimate.dose_grid_functional.dose_observational.negative", role = "negative", intent = "An observational dose is not certified and refuses with dose_grid.graph_not_certified.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "observational_dose_is_not_certified" }, { id = "estimate.dose_grid_functional.dose_python_claims.negative", role = "negative", intent = "Through Python the claims are separate and the simultaneous band is refused.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_claims_are_separate_and_the_simultaneous_band_is_refused" }, { id = "estimate.dose_grid_functional.dose_python_unsupported.negative", role = "negative", intent = "Through Python unsupported doses refuse and the support table labels them.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_unsupported_doses_refuse_and_the_support_table_labels_them" }, { id = "estimate.dose_grid_functional.dose_python_inputs.negative", role = "negative", intent = "Through Python an observational design and bad inputs refuse.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_observational_design_and_bad_inputs_refuse" }, { id = "estimate.dose_grid_functional.dose_seal_refusals.negative", role = "negative", intent = "Sealing refuses a unsupported band, an unsupported dose and an uncertified design.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "seal_refuses_unsupported_and_uncertified_requests" }, { id = "estimate.dose_grid_functional.dose_artifact_level.artifact", role = "artifact", intent = "A level artifact round-trips and matches the closed form.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "artifact_level_round_trips_and_matches_closed_form" }, { id = "estimate.dose_grid_functional.dose_artifact_replay.artifact", role = "artifact", intent = "Derivative and contrast artifacts replay to the closed form.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "artifact_derivative_and_contrast_replay_to_closed_form" }, { id = "estimate.dose_grid_functional.dose_artifact_calibration.artifact", role = "artifact", intent = "The artifact records per-dose support, calibration not_measured and the unsupported band.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "artifact_records_support_not_measured_calibration_and_no_band" }, { id = "estimate.dose_grid_functional.dose_resealed_table.artifact", role = "artifact", intent = "A resealed change to the table is refused.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "resealed_table_change_is_refused" }, { id = "estimate.dose_grid_functional.dose_resealed_premises.artifact", role = "artifact", intent = "Resealed premise changes are refused.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "resealed_premise_changes_are_refused" }, { id = "estimate.dose_grid_functional.dose_resealed_values.artifact", role = "artifact", intent = "Resealed stored value changes are refused.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "resealed_stored_value_changes_are_refused" }, { id = "estimate.dose_grid_functional.dose_unresealed.artifact", role = "artifact", intent = "Unresealed changes hit the digests.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "unresealed_changes_hit_the_digests" }, { id = "estimate.dose_grid_functional.dose_artifact_version.artifact", role = "artifact", intent = "An unknown version, band marker or shape is refused.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "unknown_version_band_marker_and_shape_are_refused" }, { id = "estimate.dose_grid_functional.dose_consumer_limits.artifact", role = "artifact", intent = "Consumer limits bound the stored table and grid.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "consumer_limits_bound_the_stored_table_and_grid" }, { id = "estimate.dose_grid_functional.dose_support_table.artifact", role = "artifact", intent = "The support table labels every dose without refusing.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "support_table_labels_every_dose_without_refusing" }, { id = "estimate.dose_grid_functional.dose_python_replay.artifact", role = "artifact", intent = "The Python export and a fresh consume recompute the result.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_export_consume_round_trip_recomputes_the_result" }, { id = "estimate.dose_grid_functional.dose_python_limits.artifact", role = "artifact", intent = "Through Python consumer limits and corrupt artifacts refuse.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_consumer_limits_and_corrupt_artifacts_refuse" }, { id = "estimate.dose_grid_functional.closed_form_levels.truth", role = "truth", shared_evidence = true, intent = "With noise-free rows from m(d) = 1 + 0.5 d + 0.25 d^2 the local-quadratic level at doses 0.5, 1, 2 and 3.5 equals the closed-form 1.3125, 1.75, 3, 5.8125 to 1e-7.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "level_recovers_closed_form_exactly_without_noise" }]
 inference_outputs = [{ fields = ["levels.standard_error/interval", "derivatives.standard_error/interval", "contrast.standard_error/interval"], method = "local-quadratic residual sandwich, normal pointwise intervals and paired influence contrast", implementation_status = "implemented_not_measured", boundary = "Pointwise and derivative targets distinct; overlapping windows covariance retained. Smoothing bias absent only under declared exact quadratic model.", truth_design = "Known randomized IID quadratic and nonquadratic smooth mean functions, bandwidth/local ESS/support edge grid; truth is original level/derivative/contrast, not fitted smooth target unless declared.", method_source = "crates/antecedent-estimate/src/dose_grid_functional.rs", nominal_level = "per-output nominal_level", measurement_suite = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs", id = "dose_grid_functional.1", owner = "antecedent-estimate", operation_or_object = "dose_grid_functional", public_producers = ["antecedent.dose.dose_grid_functional"], closed_producers = [], independent_consumers = ["estimate.dose_grid_functional.dose_artifact_level.artifact"], truth_fixtures = ["crates/antecedent-estimate/tests/dose_grid_functional.rs::level_recovers_closed_form_exactly_without_noise", "crates/antecedent-estimate/tests/dose_grid_functional.rs::derivative_recovers_closed_form_exactly_without_noise", "crates/antecedent-estimate/tests/dose_grid_functional.rs::contrast_between_named_doses_matches_closed_form", "crates/antecedent-estimate/tests/dose_grid_functional.rs::level_and_derivative_recover_truth_under_alternating_noise_within_tolerance", "python/tests/test_dose_grid.py::test_level_recovers_closed_form_with_not_measured_calibration", "python/tests/test_dose_grid.py::test_derivative_recovers_closed_form", "python/tests/test_dose_grid.py::test_contrast_between_named_doses_matches_closed_form", "crates/antecedent-io/tests/dose_grid_artifact.rs::artifact_level_round_trips_and_matches_closed_form", "crates/antecedent-io/tests/dose_grid_artifact.rs::artifact_derivative_and_contrast_replay_to_closed_form"], acceptance_threshold = "Original exactly quadratic zero-bias candidate suite scores the same local-quadratic fit/sandwich/shared contrast at its exact-model scope only; nominal95% within3MCSE and supported failure cap1%. These candidate measurements cannot support unrestricted smoothing bias, public generic intervals, or simultaneous bands.", activation_disposition = "retain_generic_not_measured_standing_exact_candidate_has_separate_owner", allocation_status = "unchanged_exact_quadratic_numerical_method_inheritance_measurement_pending", role_allocation_note = "Registered consume/load/verify routes distinguished from producers; fixtures identify independent consumer execution. Nonregistered internal candidate producer stays in method_source rather than claiming a public route.", measurement_design_status = "same_original_local_quadratic_numerical_fit_exact_model_scope_only", truth_grid_allocation = "Unchanged numerical engine at the exact quadratic randomized design: D~Uniform[0,4], Y=1+.5D+.25D\u00b2+N(0,1), fixed bandwidth.6, localESS>=30, n grid250/500/1000; actual level2, derivative2 and paired contrast1\u21923. Generic producer stays not_measured and includes no bias-control method beyond the separately declared exact-model scope.", allocated_coverage_records = [], inherited_coverage_records = ["cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_level_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_derivative_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_contrast_l95.v2_validation_not_applicable"], inherited_from_records = ["estimate.quadratic_dose"] }, { fields = ["simultaneous_band"], method = "deliberately refused; no band estimator", implementation_status = "unimplemented_closed", boundary = "Do not confuse pointwise intervals with simultaneous grid guarantee.", truth_design = "Requires new band construction/theorem before calibration.", method_source = "crates/antecedent-estimate/src/dose_grid_functional.rs", nominal_level = "not_applicable", measurement_suite = "unallocated", id = "dose_grid_functional.2", owner = "antecedent-estimate", operation_or_object = "dose_grid_functional", public_producers = ["antecedent.dose.dose_grid_functional"], closed_producers = [], independent_consumers = ["estimate.dose_grid_functional.dose_artifact_level.artifact"], truth_fixtures = ["crates/antecedent-estimate/tests/dose_grid_functional.rs::level_recovers_closed_form_exactly_without_noise", "crates/antecedent-estimate/tests/dose_grid_functional.rs::derivative_recovers_closed_form_exactly_without_noise", "crates/antecedent-estimate/tests/dose_grid_functional.rs::contrast_between_named_doses_matches_closed_form", "crates/antecedent-estimate/tests/dose_grid_functional.rs::level_and_derivative_recover_truth_under_alternating_noise_within_tolerance", "python/tests/test_dose_grid.py::test_level_recovers_closed_form_with_not_measured_calibration", "python/tests/test_dose_grid.py::test_derivative_recovers_closed_form", "python/tests/test_dose_grid.py::test_contrast_between_named_doses_matches_closed_form", "crates/antecedent-io/tests/dose_grid_artifact.rs::artifact_level_round_trips_and_matches_closed_form", "crates/antecedent-io/tests/dose_grid_artifact.rs::artifact_derivative_and_contrast_replay_to_closed_form"], acceptance_threshold = "No acceptance threshold until the missing inference method and theorem are implemented; keep typed refusal.", activation_disposition = "retain_closed_requires_method_implementation", allocation_status = "method_prerequisite_missing_calibration_cannot_close", role_allocation_note = "Registered consume/load/verify routes distinguished from producers; fixtures identify independent consumer execution. Nonregistered internal candidate producer stays in method_source rather than claiming a public route.", measurement_design_status = "method_missing_no_measurement_suite", truth_grid_allocation = "Requires new band construction/theorem before calibration.", allocated_coverage_records = [], inherited_coverage_records = [] }]
 
+
+[[record]]
+id = "estimate.dose_grid_bias_aware"
+capability = "estimate.dose_grid_bias_aware"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "Under a declared bound on the absolute third derivative of a randomized-dose response, what are the level, derivative or contrast of the response at named doses, with pointwise intervals and a simultaneous band over the grid that both account for the worst-case smoothing bias?"
+theorem = "For a randomized continuous dose (E[Y(d)] = E[Y | D = d]), the Gaussian-kernel local quadratic at a fixed declared bandwidth is a linear smoother with weights l_i; its error at d is the sum of l_i times the third-order Taylor remainder at the rows, bounded in absolute value by M/6 times the sum of |l_i| |D_i - d|^3 when |m^(3)| <= M (for a contrast, the sum of the two doses' bounds). Each pointwise interval is the bias-aware interval of Armstrong and Kolesar at that worst-case bias (folded-normal critical value at bias/se), and the band adds the bias to a Gaussian multiplier sup-t half-width. On a noise-free cubic (M = 6) every coordinate's error is within the bound, so every interval and the band contain the truth; a quadratic (M = 0) is reproduced exactly."
+reference = "provenance/estimate.dose_grid_bias_aware.toml"
+guarantee = "worst_case_bias_bound_under_a_declared_third_derivative_bound_pointwise_and_simultaneous_coverage_annotated"
+graph_class = "A randomized dose, attested by the caller; an observational dose is refused (dose_grid.graph_not_certified). No graph is re-derived."
+population_semantics = "One population and one snapshot of (dose, outcome) rows, independent or with declared sampling weights, one-way clusters or a serial lag."
+evidence_family = "Aligned finite (dose, outcome) rows with optional sampling weights, cluster ids or a Newey-West lag; a declared bandwidth inside a declared range, a minimum local effective sample size, a curvature bound and the band's multiplier replicate count."
+provider = "antecedent::analysis::compiled_dose_grid_bias_aware over antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware_declared (the kernel estimate_dose_grid_bias_aware runs with plain rows)"
+estimand = "The dose response m(d), its derivative m'(d) at each grid dose, or m(to) - m(from), with the worst-case smoothing bias of each coordinate under the declared bound."
+inference_claim = "interval"
+inference_notes = "Bias-aware pointwise intervals and a Gaussian multiplier sup-t band, both widened by the worst-case smoothing bias; nominal level 0.95. Coverage is measured for the estimator dose_grid_bias_aware (the coverage records listed here) and annotates the intervals; it never withholds them."
+coverage_records = [
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_contrast_interval.v2_validation_not_applicable.contrast_1_3",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.derivative_1",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.derivative_1_5",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.derivative_2",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.derivative_2_5",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.derivative_3",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.level_1",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.level_1_5",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.level_2",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.level_2_5",
+  "cov.dose_response.dag.frequentist.analytic_se.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.level_3",
+  "cov.dose_response.dag.frequentist.simultaneous_band.l95.dose_grid_bias_aware_derivative_intervals_and_band.v2_validation_not_applicable.band",
+  "cov.dose_response.dag.frequentist.simultaneous_band.l95.dose_grid_bias_aware_level_intervals_and_band.v2_validation_not_applicable.band",
+]
+owners = [
+    "antecedent",
+    "antecedent-estimate",
+]
+identity_inputs = [
+    "design attestation, named functional, claim flags, grid or contrast doses",
+    "bandwidth, bandwidth range and minimum local effective sample size",
+    "curvature bound and band replicate count",
+    "declared clusters or serial lag",
+    "the dose, outcome and sampling-weight columns bit for bit",
+]
+wire_changes = [
+    "None: the route emits no artifact.",
+]
+compatibility = "Additive. The direct estimate_dose_grid_bias_aware entry is unchanged and deprecated in favour of this route; the sealed dose_grid_functional artifact is unchanged."
+search = false
+refusals = [
+    { detail = "dose_grid.invalid_request", remedy = "Declare a finite, non-negative curvature bound and at least two band replicates for a grid." },
+    { detail = "dose_grid.graph_not_certified", remedy = "Attest a randomized dose; this row does not adjust." },
+    { detail = "dose_grid.no_simultaneous_band_method", remedy = "Request a grid of two or more doses, or drop the band claim." },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.compiled_dose_grid_bias_aware.Study.compile_dose_grid_bias_aware"
+stage = "prepare"
+status = "supported"
+claim = "interval"
+
+[[record.routes]]
+name = "antecedent.analysis.compiled_dose_grid_bias_aware.CompiledDoseGridBiasAware.execute"
+stage = "evaluate"
+status = "supported"
+claim = "interval"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.cubic_truth.truth"
+role = "truth"
+shared_evidence = true
+intent = "On a noise-free cubic response (|m^(3)| = 6, bound 6) the error of every level, derivative and contrast is within its worst-case bias bound and the truth lies inside every interval and the band; a noise-free quadratic contrast under bound 0 is the exact 7.2 with zero bias."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_bias_aware_intervals_contain_the_analytic_cubic_truth"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.cubic_containment.construction"
+role = "construction"
+shared_evidence = true
+intent = "Independent construction check of the interval and band: by the term-by-term domination of the Taylor remainder, the bias-aware half-width exceeds the worst-case bias, so the analytic cubic truth is inside every interval and the band."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_bias_aware_intervals_contain_the_analytic_cubic_truth"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.direct_entry.positive"
+role = "positive"
+intent = "The compiled row equals estimate_dose_grid_bias_aware under the same context bit for bit (estimates, standard errors, interval bounds, worst-case biases, band, critical value) for a level grid, a derivative grid and a contrast."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_bias_aware_grid_equals_the_direct_entry"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.declared_rows.positive"
+role = "positive"
+intent = "With declared sampling weights and clusters the compiled row equals estimate_dose_grid_bias_aware_declared bit for bit."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_bias_aware_grid_equals_the_declared_rows_entry"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.invalid_bound.negative"
+role = "negative"
+intent = "A negative curvature bound refuses through the compiled route with the direct entry's refusal, and an observational dose is refused."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "a_negative_curvature_bound_refuses_through_the_compiled_route"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.identity_binds_inputs.artifact"
+role = "artifact"
+intent = "No wire artifact is emitted, so this is the identity re-derivation: the same request lowers to the same program identity, and a changed bound, replicate count, outcome bit, dependence or functional changes it."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_dose_grid_program_identity_binds_every_premise_and_row"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.python_compiled_twin.positive"
+role = "positive"
+intent = "Python surface: dose_functional with a curvature bound runs the DoseGridBiasAware program; for a level band, a derivative band, a contrast and declared weights and clusters its report, artifact bytes and bias-aware numbers equal the direct sealed row's bit for bit, and it names the route, the program identity and the calibration estimator dose_grid_bias_aware."
+evidence_test = "python/tests/test_compiled_dose_grid_bias_aware.py"
+evidence_assertion = "test_a_bias_aware_row_runs_through_its_compiled_program_with_the_direct_numbers"
+
+[[record.fixtures]]
+id = "estimate.dose_grid_bias_aware.python_refusals.negative"
+role = "negative"
+intent = "Python surface: a negative bound, a bandwidth outside its range, an unsupported dose and too few band replicates refuse through the compiled entry with the direct row's refusal."
+evidence_test = "python/tests/test_compiled_dose_grid_bias_aware.py"
+evidence_assertion = "test_refusals_are_the_direct_rows_refusals"
+
+[[record]]
+id = "transport.smoothed_dose_caller_learners"
+capability = "transport.smoothed_dose_caller_learners"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "What is the kernel-smoothed transported mean response of a randomized continuous dose at a few declared doses when the outcome curve and source membership are fitted by the caller's own learners?"
+theorem = "The cross-fitted smoothed transport score of transport.smoothed_dose_response, psi_h(a) = E_target[ integral K_h(a - t) mu(t, X) dt ] augmented by the odds-weighted kernel residual with the known dose density, evaluated with caller-fitted out-of-fold outcome and membership models in place of the library learners. With the library learners handed over as caller factories the route reproduces the 50-digit reference of the library route; with other learners it evaluates the same score on their predictions, which the library does not verify."
+reference = "provenance/transport.smoothed_dose_caller_learners.toml"
+guarantee = "cross_fitted_smoothed_transport_score_on_unverified_caller_learners_point_only"
+graph_class = "Certified direct or baseline-standardization transport derivation with one continuous dose variable as the single source experiment (as transport.smoothed_dose_response)."
+population_semantics = "Nested-cohort or independent-samples trial and target rows, as transport.smoothed_dose_response; time-ordered rows are refused for caller learners."
+evidence_family = "Randomized continuous source dose with a known conditional density, baseline covariates equal to the certified standardizers, a continuous source outcome, and caller learner factories for the outcome regression and the source-membership probability."
+provider = "antecedent::analysis::compiled_smoothed_dose_learners over antecedent_estimate::estimate_smoothed_dose_with_factories"
+estimand = "psi_h(a) at each declared grid dose, for the declared bandwidth and kernel, with the plug-in, augmentation, influence standard error diagnostic, local support and membership overlap of each point."
+inference_claim = "point_only"
+inference_notes = "Point-only: caller learners run no bootstrap; the influence standard error is a diagnostic, and calibration is reported as not_measured."
+owners = [
+    "antecedent",
+    "antecedent-estimate",
+    "python/antecedent/transport",
+]
+identity_inputs = [
+    "transport certificate and smoothed-dose query",
+    "options: learner specifications, dose basis, folds, quadrature and support floors",
+    "the caller's identity for the learner pair",
+    "every column of the rows bit for bit, with the sampling design, weights, clusters and lag",
+]
+wire_changes = [
+    "None: the route emits no artifact.",
+]
+compatibility = "Additive. The direct estimate_smoothed_dose_with_factories entry is unchanged and deprecated in favour of this route."
+search = false
+refusals = [
+    { detail = "dose_response.grid_outside_dose_support", remedy = "Declare grid doses whose kernel window lies inside the dose support." },
+    { detail = "dose_response.local_dose_ess", remedy = "Use a wider bandwidth or a grid dose with more source rows nearby." },
+    { detail = "dose_response.membership_overlap", remedy = "Restrict the target to the overlap-supported population." },
+    { detail = "dose_response.learner_not_portable", remedy = "Declare artifact_codec=PORTABLE_PREDICTION_MAP on each provider and return the fitted model as a portable prediction map." },
+]
+inference_outputs = []
+surface = ["python/antecedent/transport/_smoothed_dose_learners.py"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["PORTABLE_PREDICTION_MAP", "SmoothedDoseLearnersEstimate", "analyze_smoothed_dose"]
+surface_values = ["SmoothedDoseLearnersEstimate"]
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.transport.advanced.analyze_smoothed_dose"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+covers = ["PORTABLE_PREDICTION_MAP"]
+
+[[record.routes]]
+name = "antecedent.analysis.compiled_smoothed_dose_learners.Study.compile_smoothed_dose_learners"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.compiled_smoothed_dose_learners.CompiledSmoothedDoseLearners.execute"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.multiprecision_reference.truth"
+role = "truth"
+intent = "With the library learners handed over as caller factories, the compiled grid's fold assignment, plug-in, augmentation, estimate and influence standard error match the 50-digit reference of every non-serial case of oracle_data/smoothed_dose_declared_reference.json."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_smoothed_dose_with_caller_learners_matches_the_multiprecision_reference"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.factory_kernel.positive"
+role = "positive"
+intent = "The compiled grid equals estimate_smoothed_dose_with_factories with the same factories and context bit for bit, on the same transport certificate, and records the learners as unverified."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_smoothed_dose_with_caller_learners_equals_the_factory_kernel"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.time_ordered.negative"
+role = "negative"
+intent = "Caller learners on time-ordered rows refuse through the compiled route (route_not_supported)."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "caller_learners_on_time_ordered_rows_refuse_through_the_compiled_route"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.identity_binds_inputs.artifact"
+role = "artifact"
+intent = "No wire artifact is emitted, so this is the identity re-derivation: the same request lowers to the same identity, and a changed learner identity or outcome bit changes it."
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_smoothed_dose_program_identity_binds_the_rows_and_the_learners"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.python_known_truth.positive"
+role = "positive"
+intent = "Python surface: analyze_smoothed_dose with a caller least-squares outcome learner and a caller logistic membership learner (portable prediction maps) runs the SmoothedDoseLearnerTransport program and recovers psi_h(a) = a^2 + h^2/5 + m_T (1 + a/2) within 0.1 at every grid dose, point-only, with every fold's provider receipt."
+evidence_test = "python/tests/test_compiled_smoothed_dose_learners.py"
+evidence_assertion = "test_caller_learners_fit_the_known_truth_through_the_compiled_program"
+
+[[record.fixtures]]
+id = "transport.smoothed_dose_caller_learners.python_not_portable.negative"
+role = "negative"
+intent = "Python surface: a provider that does not return portable prediction maps is refused (dose_response.learner_not_portable)."
+evidence_test = "python/tests/test_compiled_smoothed_dose_learners.py"
+evidence_assertion = "test_a_provider_without_a_portable_map_is_refused"
 
 [[record]]
 id = "recovery.chain_observation"
@@ -12462,6 +12705,8 @@ routes = [{ name = "antecedent.measurement_models.transport_pooled_differential"
   { name = "antecedent.measurement_models.MeasurementEstimate.export", stage = "representation", status = "supported", claim = "point_only" },
   { name = "antecedent.measurement_models.consume_measurement_model_artifact", stage = "consume", status = "supported", claim = "point_only", covers = ["measurement_model_consume"] },
   { name = "antecedent.measurement_models.MeasurementEstimate.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_measurement_transport.CompiledPooledDifferentialTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measurement_models.compile_pooled_differential_transport", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [{ id = "measurement.model_contract.pooled_differential.positive", role = "positive", intent = "Pooled differential validation rates yield a target prevalence; the simulation interval is explicitly not_measured.", evidence_test = "python/tests/test_pooled_differential_transport.py", evidence_assertion = "test_heterogeneity_widens_and_a_target_sample_narrows_the_interval", shared_evidence = true }, { id = "measurement.model_contract.pooled_differential.negative", role = "negative", intent = "A single validated source is refused with a next attempt.", evidence_test = "python/tests/test_pooled_differential_transport.py", evidence_assertion = "test_heterogeneity_widens_and_a_target_sample_narrows_the_interval", shared_evidence = true },
   { id = "measurement.model_contract.matching_request.positive", role = "positive", intent = "A request matching the model's construct, population, regime, arm, representation and structure is accepted and each route card lists assumptions, allowed and refused operations.", evidence_test = "crates/antecedent-contract/src/measurement.rs", evidence_assertion = "matching_request_is_accepted" },
@@ -13541,6 +13786,8 @@ refusals = [
 ]
 routes = [
   { name = "antecedent.cohort_decision.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_cohort_interval.CompiledCohortInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.cohort_decision.CohortDecisionSource.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 fixtures = [
   { id = "cohort_decision.interval.student_t_band.construction", role = "construction", intent = "The cohort-mean interval is a symmetric band of the independent student_t_ppf(0.975, n-p=116) critical value times the recomputed standard error, with the width ordering across levels.", evidence_test = "crates/antecedent-estimate/tests/cohort_linear_effect.rs", evidence_assertion = "the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standard_error", shared_evidence = true },
@@ -13549,6 +13796,10 @@ fixtures = [
   { id = "cohort_decision.interval.shifted_cohort.negative", role = "negative", intent = "A cohort evaluated under a declared covariate shift is point-only and refuses cohort_decision.interval_not_supported.", evidence_test = "crates/antecedent-estimate/tests/cohort_linear_effect.rs", evidence_assertion = "a_shifted_cohort_stays_point_only" },
   { id = "cohort_decision.interval.tampered_model.artifact", role = "artifact", intent = "A tampered embedded compact export is refused by the consumer; the interval replays from the stored export and decision source under their retained identities.", evidence_test = "crates/antecedent-io/tests/cohort_interval_artifact.rs", evidence_assertion = "a_tampered_source_or_a_changed_identity_is_refused" },
   { id = "cohort_decision.interval.symmetric_t_band.truth", role = "truth", intent = "The issued interval is point +/- t_(n-p) times the recomputed model-based standard error, with n and p read from the retained marker.", evidence_test = "crates/antecedent-estimate/tests/cohort_linear_effect.rs", evidence_assertion = "the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standard_error", shared_evidence = true },
+  { id = "cohort_decision.interval.compiled_exact_recovery.truth", role = "truth", intent = "Compiled CohortMeanInterval, known truth: every design point is observed twice with opposite noise, so least squares recovers the generating coefficients exactly; the reported point equals the cohort's mean of the true effect 1 + 0.5 x to 1e-9, inside a symmetric Student-t band.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_cohort_interval_is_centred_on_the_true_cohort_mean_effect" },
+  { id = "cohort_decision.interval.compiled_twin.positive", role = "positive", intent = "Compiled CohortMeanInterval: the run carries the measured inference of measured_cohort_interval bit for bit at levels 0.95 and 0.90, names the route cohort_interval its coverage is recorded under, and refuses an invalid level identically.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_cohort_interval_equals_the_direct_interval" },
+  { id = "cohort_decision.interval.compiled_identity.artifact", role = "artifact", intent = "Compiled CohortMeanInterval emits the direct entry's measured envelope; its program identity is re-derived: the same fit, cohort and level lower to the same identity, and a changed level or cohort changes it.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_cohort_program_identity_binds_the_fit_the_cohort_and_the_level" },
+  { id = "cohort_decision.interval.compiled_python_twin.positive", role = "positive", intent = "Python surface: CohortDecisionSource.interval warns as deprecated and equals CohortDecisionSource.compiled_interval, centred on the cohort's mean of the true effect.", evidence_test = "python/tests/test_compiled_twins_interval_families.py", evidence_assertion = "test_the_direct_cohort_interval_warns_and_equals_the_compiled_interval" },
   { id = "cohort_decision.interval.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the whole route (native OLS fit, HC3 covariance, export, cohort binding, interval) for randomized and observed-confounded treatment, two to four modifiers, heteroskedastic noise, cohorts of 50 to 200 rows, over the sample-size grid around 400 at levels 0.90 and 0.95; misspecified-effect and high-leverage-cohort probes are recorded as named boundaries.", evidence_test = "crates/antecedent-io/tests/cohort_interval_artifact.rs", evidence_assertion = "a_native_fit_reports_its_interval_with_calibration_status", shared_evidence = true },
 ]
 inference_inventory_disposition = "outputs_listed"
@@ -14853,6 +15104,8 @@ routes = [
   { name = "antecedent.python.observation_query.ObservationClaim.calibrated_probability", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", permanent_in_release = true, refusal_test = "python/tests/test_observation_query.py", refusal_assertion = "test_interval_and_calibrated_probability_are_not_supported" },
   { name = "antecedent.analysis.count_fitted_observation.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.python.observation_query.CountFittedObservation.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_count_fitted_interval.CompiledCountFittedInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.observation_query.CountFittedObservation.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 fixtures = [
   { id = "observation_query.calibrated_probability.count_fitted_beta_quantiles.construction", role = "construction", intent = "The count-fitted posterior interval endpoints sit inside the exact Beta quantile brackets of the closed-form posterior (frozen scipy reference).", evidence_test = "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs", evidence_assertion = "interval_endpoints_sit_inside_the_exact_beta_quantile_brackets" },
@@ -14863,6 +15116,10 @@ fixtures = [
   { id = "observation_query.calibrated_probability.count_fitted_point.truth", role = "truth", intent = "The count-fitted point value is the posterior-mean conditional, (30 + 1) / (40 + 2) for the hand-built Z to Y counts.", evidence_test = "crates/antecedent/tests/count_fitted_observation_facade.rs", evidence_assertion = "the_point_value_is_the_posterior_mean_of_the_fitted_conditional" },
   { id = "observation_query.calibrated_probability.count_fitted_interval.positive", role = "positive", intent = "A count-fitted construction reports its interval with the calibration status of its coverage record (or not_measured when none governs it); a fresh consumer replays the draws from the retained counts.", evidence_test = "crates/antecedent/tests/count_fitted_observation_facade.rs", evidence_assertion = "the_interval_is_reported_with_its_calibration_annotation", shared_evidence = true },
   { id = "observation_query.calibrated_probability.count_fitted_python.positive", role = "positive", intent = "Python surface: the count-fitted point value, the interval reported with its calibration status (a not_measured level is annotated), and the declared-model interval refusal.", evidence_test = "python/tests/test_observation_query.py", evidence_assertion = "test_count_fitted_interval_is_reported_with_its_calibration_status" },
+  { id = "observation_query.calibrated_probability.compiled_beta_posterior.truth", role = "truth", intent = "Compiled CountFittedInterval, independent closed form: one fitted node counted 0 and 39 has the posterior Beta(40, 1) for P(Y = 1); the reported point is 40/41 to 1e-12 and the 20000-draw endpoints are within a few Monte Carlo standard errors of the closed-form quantiles 0.025^(1/40) and 0.975^(1/40).", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_count_fitted_interval_recovers_the_closed_form_beta_posterior" },
+  { id = "observation_query.calibrated_probability.compiled_twin.positive", role = "positive", intent = "Compiled CountFittedInterval: the run carries the measured inference of CountFittedObservation::interval and calibrated_probability bit for bit (point, bounds and level by to_bits, calibration slot, report, envelope) at three levels and a changed draw count, names the route count_fitted_interval its coverage is recorded under, and refuses an invalid level identically.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_count_fitted_interval_equals_the_direct_interval" },
+  { id = "observation_query.calibrated_probability.compiled_identity.artifact", role = "artifact", intent = "Compiled CountFittedInterval emits the direct entry's measured envelope; its program identity is re-derived: the same observation and level lower to the same identity, and a changed level or draw count changes it.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_count_fitted_program_identity_binds_the_counts_and_the_level" },
+  { id = "observation_query.calibrated_probability.compiled_python_twin.positive", role = "positive", intent = "Python surface: CountFittedObservation.interval and calibrated_probability warn as deprecated and equal CountFittedObservation.compiled_interval; the point is (30 + 1) / (40 + 2).", evidence_test = "python/tests/test_compiled_twins_interval_families.py", evidence_assertion = "test_the_direct_count_fitted_interval_warns_and_equals_the_compiled_interval" },
   { id = "observation_query.calibrated_probability.count_fitted_posterior.calibration", role = "calibration", intent = "Repeated-sampling coverage of the whole method (fit tables from counts, Dirichlet posterior, condition, report P(Y | S = s)) on a confounded common-cause model, and its measured-signal variant with known sensitivity and specificity, around 300 rows; sparse parent configurations and rare evidence are recorded boundaries.", evidence_test = "crates/antecedent/tests/count_fitted_observation_facade.rs", evidence_assertion = "the_interval_is_reported_with_its_calibration_annotation", shared_evidence = true },
 ]
 [[record.inference_outputs]]
@@ -16279,6 +16536,8 @@ routes = [
   { name = "antecedent.adaptive_inference.interval", stage = "uncertainty", status = "closed", reason_code = "quantity_semantics_mismatch", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs" },
   { name = "antecedent.adaptive_inference.fixed_sample", stage = "evaluate", status = "closed", reason_code = "adaptive_design_ignored", permanent_in_release = true, refusal_test = "crates/antecedent/tests/adaptive_inference_facade.rs", refusal_assertion = "fixed_sample_inference_of_adaptive_data_is_refused_while_the_posterior_runs" },
   { name = "antecedent.adaptive_inference.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_adaptive_interval.CompiledAdaptiveInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.adaptive_inference.AdaptiveInferenceSession.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 shared_refusal_namespaces = [{ namespace = "measured_interval", owner_record = "inference.measured_scalar", sources = ["crates/antecedent-io/src/measured_inference/adaptive_interval.rs", "crates/antecedent-io/src/measured_inference/choice_interval.rs", "crates/antecedent-io/src/measured_inference/count_fitted_interval.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "crates/antecedent-io/src/sampled_counterfactual_transport_artifact.rs"] }]
 fixtures = [
@@ -16292,6 +16551,10 @@ fixtures = [
   { id = "adaptive_inference.unsupported_guarantees.weighted_contrast_and_sequence.calibration", role = "calibration", intent = "Coverage of the epsilon-greedy repeated-measures weighted contrast (300 to 1,200 subjects) and floor coverage of the confidence sequence of the arm mean and the contrast at every look (200 to 800 units); the public intervals and their binding to the attesting records are executed in the cited facade test.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records" },
   { id = "adaptive_inference.unsupported_guarantees.measured_interval.positive", role = "positive", intent = "Inside a measured cell the interval is reported bound to its attesting coverage record.", evidence_test = "crates/antecedent/tests/adaptive_inference_facade.rs", evidence_assertion = "a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record", shared_evidence = true },
   { id = "adaptive_inference.unsupported_guarantees.uniform_posterior_tails.construction", role = "construction", intent = "The equal-tailed Beta(1,1) credible interval of the Thompson cell equals the tail probabilities (0.025, 0.975) and (0.05, 0.95) at levels 0.95 and 0.90, computed in the test without a numerical inverse.", evidence_test = "crates/antecedent-estimate/tests/adaptive_interval_exact.rs", evidence_assertion = "the_uniform_posterior_interval_is_the_tail_probabilities" },
+  { id = "adaptive_inference.unsupported_guarantees.compiled_recounted_beta.truth", role = "truth", intent = "Compiled AdaptiveResultInterval, independent check: the Thompson credible interval of the second arm is the Beta(1 + successes, 1 + failures) posterior recounted from the retained history; its mean and its equal-tailed quantiles, computed by Simpson integration of the Beta density and bisection in the test, match the reported point and bounds to 1e-7.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_thompson_interval_is_the_recounted_beta_posterior" },
+  { id = "adaptive_inference.unsupported_guarantees.compiled_twin.positive", role = "positive", intent = "Compiled AdaptiveResultInterval: the run carries the measured inference of AdaptiveInferenceSession::measured_interval bit for bit for the measured prior and another prior, names the route adaptive_interval its coverage is recorded under, and refuses an unsupported paradigm identically.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_adaptive_interval_equals_the_direct_interval" },
+  { id = "adaptive_inference.unsupported_guarantees.compiled_identity.artifact", role = "artifact", intent = "Compiled AdaptiveResultInterval emits the direct entry's measured envelope; its program identity is re-derived: the same session, request and artifact id lower to the same identity, and a changed artifact id or contract changes it.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_adaptive_program_identity_binds_the_request_and_the_contract" },
+  { id = "adaptive_inference.unsupported_guarantees.compiled_python_twin.positive", role = "positive", intent = "Python surface: AdaptiveInferenceSession.measured_interval warns as deprecated and equals AdaptiveInferenceSession.compiled_interval; the point is the recounted posterior mean, and an unsupported paradigm refuses alike.", evidence_test = "python/tests/test_compiled_twins_interval_families.py", evidence_assertion = "test_the_direct_adaptive_interval_warns_and_equals_the_compiled_interval" },
   { id = "adaptive_inference.unsupported_guarantees.explicit_beta_quantiles.truth", role = "truth", intent = "The equal-tailed Beta credible interval of the Thompson cell equals the explicit quantiles of Beta(1,1) (0.025, 0.975), Beta(2,1) (sqrt p) and Beta(1,2) (1 - sqrt(1-p)).", evidence_test = "crates/antecedent-estimate/tests/adaptive_interval_exact.rs", evidence_assertion = "a_one_shape_posterior_interval_is_the_explicit_quantile", shared_evidence = true },
 ]
 
@@ -17794,6 +18057,9 @@ routes = [
   { name = "antecedent.external_mechanism.export_artifact", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.external_mechanism.consume_artifact", stage = "consume", status = "supported", claim = "none" },
   { name = "antecedent.python.external_mechanisms.consume_artifact", stage = "consume", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.compiled_external_feedback.Study.compile_external_feedback_fit", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.compiled_external_feedback.CompiledExternalFeedbackFit.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.python.external_mechanisms.ExternalFeedbackModel.compiled_fit", stage = "evaluate", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "cyclic.external_mechanisms.round_trip.artifact", role = "artifact", intent = "A fitted system exports and an independent reload with a fresh resolver reproduces every result.", evidence_test = "crates/antecedent-io/src/external_cyclic_artifact.rs", evidence_assertion = "fit_export_and_independent_replay_with_a_fresh_resolver_reproduce_the_results" },
@@ -17803,6 +18069,11 @@ fixtures = [
   { id = "cyclic.external_mechanisms.python_resolver_failure.negative", role = "negative", intent = "Python surface: a raising resolver is a resolver failure, distinct from an absent implementation.", evidence_test = "python/tests/test_external_cyclic_mechanisms.py", evidence_assertion = "test_a_resolver_that_raises_is_a_resolver_failure_not_an_absent_implementation" },
   { shared_evidence = true, id = "cyclic.external_mechanisms.analytic_determinant.positive", role = "positive", intent = "The analytic determinant score equals a central difference in a feedback loop.", evidence_test = "crates/antecedent-estimate/src/external_cyclic_fit.rs", evidence_assertion = "analytic_determinant_score_matches_a_central_difference_in_a_loop" },
   { id = "cyclic.external_mechanisms.central_difference_score.truth", role = "truth", shared_evidence = true, intent = "The analytic determinant score of an external mechanism in a feedback loop equals an independent central-difference derivative of the log-likelihood to 1e-7 where the difference exceeds 1e-3.", evidence_test = "crates/antecedent-estimate/src/external_cyclic_fit.rs", evidence_assertion = "analytic_determinant_score_matches_a_central_difference_in_a_loop" },
+  { id = "cyclic.external_mechanisms.compiled_fit_least_squares.truth", role = "truth", intent = "Compiled ExternalFeedbackFit: with the regressor hard-clamped in every row, the fitted gain of p0 * tanh(x1) is the closed-form least-squares slope within 1e-6, for analytic and finite-difference declarations.", evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs", evidence_assertion = "the_compiled_external_fit_recovers_the_least_squares_gain" },
+  { id = "cyclic.external_mechanisms.compiled_fit_twin.positive", role = "positive", intent = "Compiled ExternalFeedbackFit: the fit equals fit_external_feedback with the same resolver and context in every field, for analytic and finite-difference declarations.", evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs", evidence_assertion = "the_compiled_external_fit_equals_the_direct_fit" },
+  { id = "cyclic.external_mechanisms.compiled_fit_resolver_missing.negative", role = "negative", intent = "Compiled ExternalFeedbackFit: fitting without a resolver is refused with mechanism_resolver_missing.", evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs", evidence_assertion = "a_compiled_external_fit_without_a_resolver_is_refused" },
+  { id = "cyclic.external_mechanisms.compiled_fit_identity.artifact", role = "artifact", intent = "Compiled ExternalFeedbackFit: the program identity binds the system, mechanism declarations and rows, and not the resolver.", evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs", evidence_assertion = "the_external_fit_program_identity_binds_the_system_and_rows_but_not_the_resolver" },
+  { id = "cyclic.external_mechanisms.compiled_fit_python_twin.positive", role = "positive", intent = "Python surface: ExternalFeedbackModel.fit warns as deprecated and equals ExternalFeedbackModel.compiled_fit.", evidence_test = "python/tests/test_compiled_twins_external_feedback.py", evidence_assertion = "test_the_direct_fit_warns_and_equals_the_compiled_fit" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -18299,6 +18570,8 @@ routes = [
   { name = "antecedent.python.cohort_decision.transport_cohort_effect", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.python.cohort_decision.TransportedCohortEffect.verify", stage = "consume", status = "supported", claim = "point_only" },
   { name = "antecedent.transported_cohort.interval_or_law", stage = "uncertainty", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transported_cohort_facade.rs", refusal_assertion = "interval_and_law_requests_are_refused_with_the_support_evidence" },
+  { name = "antecedent.analysis.compiled_transported_cohort.Study.compile_transported_cohort", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.compiled_transported_cohort.CompiledTransportedCohort.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.covariate_shift_cohort_effect.hand_cohort_mean.positive", role = "positive", intent = "Over tau = 1 + 2z - w on the box z in [0,1], w in [0,2], rows (0.5,1), (1,0), (0,2) have contrasts (1,3,-1) and the weighted mean under weights (0.5,0.25,0.25) is 1.0.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "weighted_mean_matches_the_hand_calculation" },
@@ -18315,6 +18588,8 @@ fixtures = [
   { id = "transport.covariate_shift_cohort_effect.requests_beyond_point.negative", role = "negative", intent = "An interval and a law request are refused with their typed details.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "requests_beyond_the_point_are_refused" },
   { id = "transport.covariate_shift_cohort_effect.identity_follows_inputs.artifact", role = "artifact", intent = "The identity is a canonical digest of model, cohort, declaration and issued values: a changed row at unchanged shape changes it. No wire artifact is emitted by this module, so this is the identity re-derivation, not a fresh-consumer artifact.", evidence_test = "crates/antecedent-learn/src/transported_effect.rs", evidence_assertion = "identity_changes_with_a_changed_row_at_unchanged_shape" },
   { id = "transport.covariate_shift_cohort_effect.facade_premises_named.negative", role = "negative", intent = "Facade: every unmet premise is named (missing declaration, selection arrow into the outcome, modifier set, populations, overlap, schema, categorical, claim).", evidence_test = "crates/antecedent/tests/transported_cohort_facade.rs", evidence_assertion = "every_unmet_premise_is_named" },
+  { id = "transport.covariate_shift_cohort_effect.compiled_python.positive", role = "positive", intent = "Python surface: transport_cohort_effect runs the TransportedCohortEffect program; its summary, decision source and artifact bytes equal the direct native entry's, and the mean is the weighted sum of the model's CATE points.", evidence_test = "python/tests/test_compiled_transported_cohort.py", evidence_assertion = "test_the_compiled_transport_returns_the_direct_entrys_summary_source_and_artifact" },
+  { id = "transport.covariate_shift_cohort_effect.compiled_python_refusals.negative", role = "negative", intent = "Python surface: a missing declaration, a wrong source population and a selection arrow into the outcome refuse through the compiled entry with the direct entry's refusal.", evidence_test = "python/tests/test_compiled_transported_cohort.py", evidence_assertion = "test_refusals_are_the_direct_entrys_refusals" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -18365,6 +18640,8 @@ routes = [
   { name = "antecedent.transported_measurement.verify_measurement_transport", stage = "consume", status = "supported", claim = "point_only" },
   { name = "antecedent.python.measurement_models.transport_measurement_model", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.python.measurement_models.verify_measurement_transport", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.compiled_measurement_transport.Study.compile_measurement_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.compiled_measurement_transport.CompiledMeasurementTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.measurement_model.carried_rates.positive", role = "positive", intent = "With sensitivity 0.9, specificity 0.8 and 520 of 1000 observed positive, the carried rates correct the target prevalence to 0.32/0.7 and the receipt records the carried parameters with no interval.", evidence_test = "crates/antecedent-estimate/src/measurement_transport.rs", evidence_assertion = "carried_rates_correct_the_target_prevalence" },
@@ -21813,13 +22090,20 @@ shared_refusal_namespaces = [{ namespace = "measured_interval", owner_record = "
 refusals = [
   { detail = "measured_interval.no_interval_of_this_kind" },
 ]
-routes = [{ name = "antecedent.choice_inference.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" }]
+routes = [
+  { name = "antecedent.choice_inference.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.analysis.compiled_choice_interval.CompiledChoiceInterval.execute", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.choice_inference.ChoiceInferenceSession.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
 fixtures = [
   { id = "choice_inference.interval_candidates.dirichlet_share_beta_quantiles.construction", role = "construction", intent = "The pooled-share credible interval equals the explicit Beta marginal quantiles of Dirichlet(2,1), (1,3) and (1,1,1) (p^(1/a), 1-sqrt(1-p)), computed in the test.", evidence_test = "crates/antecedent-estimate/tests/choice_interval_construction.rs", evidence_assertion = "the_dirichlet_share_interval_equals_the_explicit_beta_quantiles", shared_evidence = true },
   { id = "choice_inference.interval_candidates.dirichlet_share_beta_quantiles.truth", role = "truth", intent = "The pooled-share interval equals the closed-form Beta marginal quantiles of Dirichlet(2,1), (1,3) and (1,1,1).", evidence_test = "crates/antecedent-estimate/tests/choice_interval_construction.rs", evidence_assertion = "the_dirichlet_share_interval_equals_the_explicit_beta_quantiles", shared_evidence = true },
   { id = "choice_inference.interval_candidates.no_record.calibration", role = "calibration", intent = "An interval request with no matching coverage record reports the interval with calibration `not_measured`.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "a_measured_interval_is_reported_with_a_not_measured_calibration_slot" },
   { id = "choice_inference.interval_candidates.unsupported_route.negative", role = "negative", intent = "A route requested for the wrong outcome structure or an unsupported paradigm is refused.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "a_route_is_refused_for_the_wrong_outcome_or_an_unsupported_paradigm" },
   { id = "choice_inference.interval_candidates.posterior.positive", role = "positive", intent = "The pooled posterior agrees with its qualified conjugate prior and counts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior" },
+  { id = "choice_inference.interval_candidates.compiled_beta_marginal.truth", role = "truth", intent = "Compiled ChoiceResultInterval, independent check: a uniform Dirichlet(1, 1, 1) prior and choice counts (4, 1, 1) give the first share Beta(5, 4); the reported point is 5/9 and the bounds equal its equal-tailed quantiles, computed by Simpson integration and bisection in the test, to 1e-7.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_choice_interval_is_the_beta_marginal_of_the_dirichlet_posterior" },
+  { id = "choice_inference.interval_candidates.compiled_twin.positive", role = "positive", intent = "Compiled ChoiceResultInterval: the run carries the measured inference of ChoiceInferenceSession::measured_interval bit for bit, names the route choice_interval its coverage is recorded under, and refuses an undeclared look identically.", evidence_test = "crates/antecedent/tests/compiled_twins_interval_families.rs", evidence_assertion = "the_compiled_choice_interval_equals_the_direct_interval" },
+  { id = "choice_inference.interval_candidates.compiled_python_twin.positive", role = "positive", intent = "Python surface: ChoiceInferenceSession.measured_interval warns as deprecated and equals ChoiceInferenceSession.compiled_interval; the point is 5/9.", evidence_test = "python/tests/test_compiled_twins_interval_families.py", evidence_assertion = "test_the_direct_choice_interval_warns_and_equals_the_compiled_interval" },
   { id = "choice_inference.interval_candidates.replay.artifact", role = "artifact", intent = "The consumer refuses semantically altered resealed artifacts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "resealed_semantic_edits_are_refused" },
 ]
 
@@ -24716,6 +25000,98 @@ role = "lifecycle"
 intent = "Each compiled program reports the support decision of its unit, and a run records what a release build would refuse only while the unit is unsupported."
 evidence_test = "crates/antecedent/tests/trial_ipw_decision_reference.rs"
 evidence_assertion = "both_trial_ipw_routes_report_and_consult_their_support_unit"
+
+[[record]]
+id = "transport.augmented_response_grid"
+capability = "transport.augmented_response_grid"
+inference_inventory_disposition = "no_new_inference_outputs"
+status = "supported"
+consumer_question = "Given trial and target rows with supplied selection probabilities, caller-supplied outcome regressions at each treatment grid point and at the observed treatment, and caller-supplied local response weights, what is the transported mean response of the target population at each grid point under a certified direct or standardizing transport formula?"
+theorem = "With selection odds (1 - s_i) / s_i on the trial rows, the mean at grid point g is (1 / n_target) (sum over target rows of m_g(x_i) + sum over trial rows of (1 - s_i) / s_i * w_g(i) * (y_i - m(x_i, a_i))): the trial-generalization augmented formula of Dahabreh et al. (DR1) with a grid-local source correction. The route evaluates this equation on the supplied values exactly; the composition inherits neither component's double robustness nor an inference theorem."
+reference = "provenance/transport.augmented_response_grid.toml"
+guarantee = "exact_evaluation_of_the_supplied_augmented_equation_under_a_certified_transport_formula_point_only"
+graph_class = "A selection diagram whose sID certificate is a direct or standardizing formula; a recursive factorization is refused."
+population_semantics = "Source-trial rows and target (nonparticipant) rows of one table; target outcomes are read only to check that they are finite."
+evidence_family = "Trial and target rows with outcome, trial membership and selection probability columns, one observed-treatment regression column, and one regression and one response-weight column per grid point."
+provider = "antecedent::analysis::transport_response_grid over antecedent_estimate::transport_augmented_response_grid_with_context"
+estimand = "The transported target-population mean response at each treatment grid point, with the source effective sample size of the correction weights per point and the selection overlap."
+inference_claim = "point_only"
+inference_notes = "Point-only: the route fits no nuisance, chooses no bandwidth and forms no interval; calibration is reported as not_measured."
+owners = [
+    "antecedent",
+    "antecedent-estimate",
+]
+identity_inputs = [
+    "selection diagram and transport query",
+    "trial membership and selection probability columns",
+    "observed-treatment regression, per-point regression and response-weight columns",
+    "every value the kernel reads",
+]
+wire_changes = [
+    "None: the route emits no artifact.",
+]
+compatibility = "Additive. The direct estimate entries are unchanged and deprecated in favour of this route."
+search = false
+refusals = [
+    { detail = "transport_response_grid.grid_columns_mismatch", remedy = "Name one regression and one response-weight column per grid point, in grid order." },
+]
+inference_outputs = []
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.analysis.transport_response_grid.Study.compile_transport_response_grid"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.transport_response_grid.CompiledTransportResponseGrid.execute"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.transport.advanced.compile_augmented_response_grid"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.fixtures]]
+id = "transport.augmented_response_grid.hand_worked_means.truth"
+role = "truth"
+intent = "A four-row, two-point grid with selection odds 1 and 3 and residuals 0.5 and 1 evaluates to the hand-worked means 2.5 and 7.0625, bit for bit."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_compiled_response_grid_equals_the_hand_worked_augmented_means"
+
+[[record.fixtures]]
+id = "transport.augmented_response_grid.direct_equation.positive"
+role = "positive"
+intent = "The compiled grid equals the supplied-equation entries with and without an execution policy: means, effective sample sizes and selection overlap."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_compiled_response_grid_equals_the_direct_supplied_equation"
+
+[[record.fixtures]]
+id = "transport.augmented_response_grid.column_count.negative"
+role = "negative"
+intent = "A regression or weight column count that is not one per grid point refuses at compile."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "a_response_grid_with_a_column_count_off_the_grid_refuses_at_compile"
+
+[[record.fixtures]]
+id = "transport.augmented_response_grid.identity_binds_inputs.artifact"
+role = "artifact"
+intent = "No wire artifact is emitted, so this is the identity re-derivation: the same request lowers to the same program identity, and a changed response weight or swapped grid regressions change it."
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_grid_program_identity_binds_every_input_the_kernel_reads"
+
+[[record.fixtures]]
+id = "transport.augmented_response_grid.python.positive"
+role = "positive"
+intent = "Python surface: the compiled grid reproduces the hand-worked means and the deprecated direct call."
+evidence_test = "python/tests/test_compiled_transport_supplied.py"
+evidence_assertion = "test_the_compiled_grid_equals_the_hand_worked_means"
 
 [[record]]
 id = "transport.temporal_path_specific"

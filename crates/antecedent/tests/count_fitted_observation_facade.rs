@@ -4,6 +4,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "the deprecated direct count-fitted interval is under test")]
+
 use antecedent::analysis::count_fitted_observation::{
     CountFittedNodeWire, CountFittedObservation, MeasuredInference,
 };

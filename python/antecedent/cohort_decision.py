@@ -71,7 +71,7 @@ from ._native import consume_cohort_decision_source as _consume
 from ._native import fit_native_cohort_effect as _fit_native
 from ._native import normalize_cohort_weights as _normalize
 from ._native import transport_cohort_composition_node as _transport_node
-from ._native import transport_cohort_effect as _transport
+from ._native import transport_cohort_effect_compiled as _transport
 from ._native import transport_cohort_effect_verify as _transport_verify
 from ._native import transported_cohort_refusal as _transported_refusal
 from ._native import validate_cohort_binding as _validate
@@ -980,6 +980,8 @@ class TransportedCohortEffect(ScientificResult):
     row_contrasts: tuple[float, ...]
     receipt: CohortTransportReceipt
     native_target_data: bool = False
+    #: Identity of the lowered ``TransportedCohortEffect`` program the value was issued by.
+    program_identity: str | None = field(default=None, compare=False)
     _decision: CohortDecisionSource | None = field(default=None, repr=False, compare=False)
     _retained: Any = field(default=None, repr=False, compare=False)
 
@@ -1078,6 +1080,8 @@ def transport_cohort_effect(
     The value is issued only when the declaration names the model's population as source and the
     cohort's as target, the selection node points only into the declared effect modifiers, those
     are exactly the model's features, and every cohort row lies inside the model's fitted support.
+    The transport runs as the compiled ``TransportedCohortEffect`` program;
+    :attr:`TransportedCohortEffect.program_identity` is the identity of its lowered program.
 
     Raises:
         CohortDecisionRefusal: the unmet premise, with a registered ``reason_code``, a
@@ -1113,6 +1117,7 @@ def transport_cohort_effect(
         mean_contrast=float(wire["mean_contrast"]),
         row_contrasts=tuple(float(v) for v in wire["row_contrasts"]),
         receipt=CohortTransportReceipt._from_wire(wire),
+        program_identity=str(wire["program"]["lowered_program_identity"]),
         _decision=_source_of(decision, artifact),
         _retained=(model_bytes, claim, source_population, cohort, shift),
     )

@@ -533,17 +533,21 @@ def test_bootstrap_refuses_on_the_design_cells():
 
 def test_constructions_outside_the_supported_cells_refuse():
     assignment, data = _interference_design()
-    complete = ant.InterferenceQuery(
-        interference.CompleteRandomization(UNITS // 2),
+    # Bernoulli and complete randomization run under every built-in mapping; a cluster
+    # assignment outside its total-effect construction is still refused.
+    clusters = [unit // 2 for unit in range(UNITS)]
+    cluster_count = ant.InterferenceQuery(
+        interference.ClusterRandomization(clusters, treated_clusters=UNITS // 4),
         interference.NeighborCount(),
         interference.ExposureContrast(
             "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
         ),
-        network=_ring(),
-        realized_assignment=assignment,
+        network=[],
+        realized_assignment=[cluster < UNITS // 4 for cluster in clusters],
+        partial_interference=interference.PartialInterference(clusters),
     )
     with pytest.raises(CausalUnsupportedError) as raised:
-        require_success(ant.analyze(data, graph=[], query=complete))
+        require_success(ant.analyze(data, graph=[], query=cluster_count))
     assert raised.value.reason_code == "construction_not_supported"
 
     derivative = TransportQuery(

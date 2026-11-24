@@ -72,6 +72,7 @@ mod cohort_decision_api;
 mod cohort_pushdown_api;
 mod compact_export_api;
 mod compiled_route_api;
+mod compiled_transport_api;
 mod composition_api;
 mod composition_bundle_api;
 mod composition_effects_api;

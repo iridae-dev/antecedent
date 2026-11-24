@@ -8,9 +8,13 @@ keeps the provider's receipt on every result.
 
 | Task | Entry point |
 | --- | --- |
-| Average effect of a binary treatment with external nuisance models | `antecedent.external_learners.dml_ate` and its `aipw_ate`, `dr_learner_ate`, `causal_forest_ate` variants |
-| Held-out nuisance predictions only, no effect | `antecedent.external_learners.cross_fit_aipw` |
+| Average effect of a binary treatment with external nuisance models | `antecedent.external_learners.analyze_ate(..., learners=Learners(outcome, treatment), estimator=...)`, which declares the learners on a compiled study (Rust: `StudyBuilder::learner_factories`) |
+| Held-out nuisance propensities on the study's fold plan | `propensity` and `fold_ids` of the `analyze_ate` result |
 | Rolling-origin forecasts to assess | `antecedent.forecasting.rolling`, then [`predictive_assessment.assess`](../predictive-assessment.md) |
+
+`dml_ate`, `aipw_ate`, `dr_learner_ate`, `causal_forest_ate` and `cross_fit_aipw` run the same
+fits without the compiler. They warn with `AntecedentDeprecationWarning`, return the same
+numbers as `analyze_ate`, and are removed in 4.0.
 
 ## What a provider result establishes
 
@@ -49,7 +53,7 @@ import numpy as np
 from antecedent.extensibility import (
     CausalProviderSpec, ProviderCapability, ProviderExecution, ProviderRegistry,
 )
-from antecedent.external_learners import ExternalLearner, dml_ate
+from antecedent.external_learners import ExternalLearner, Learners, analyze_ate
 
 class MeanProvider:
     spec = CausalProviderSpec(
@@ -77,9 +81,9 @@ registry.register("mean", MeanProvider())
 outcome = ExternalLearner(registry, "mean", "regression", supports_weights=True)
 treatment = ExternalLearner(registry, "mean", "binary_probability", supports_weights=True)
 t = [float(i % 2) for i in range(40)]
-result = dml_ate(
+result = analyze_ate(
     {"t": t, "y": [1 + 2 * value for value in t]}, [("t", "y")], "t", "y",
-    outcome=outcome, treatment=treatment, folds=2,
+    learners=Learners(outcome, treatment), folds=2,
 )
 assert abs(result.estimate - 2.0) < 1e-10
 # One (id, fit receipt, predict receipt) entry per fold and nuisance model:
@@ -92,7 +96,8 @@ rounding. The provider here fits a constant; it only shows the interface.
 
 ### Estimand and assumptions
 
-`dml_ate` identifies the supplied static DAG before fitting and estimates the average
+`analyze_ate` compiles a study over the supplied static DAG, identifies it before fitting
+and fits the configured estimator with the declared learners. It estimates the average
 treatment effect `E[Y(1) - Y(0)]` of the binary treatment over the supplied rows, adjusting
 for the identified set reported in `result.adjustment_set`. The graph is your causal
 assumption; the route does not test it. The point also assumes overlap and that the provider's
@@ -114,14 +119,15 @@ calibration status.
 
 ### Estimators and settings
 
-`dml_ate` supports AIPW and partially linear DML scores (`score="aipw"`, the default, or
-`score="partially_linear"`), with `folds=5` by default. `aipw_ate` provides the five-fold, untrimmed all-observed AIPW route with
-IID analytic inference and no bootstrap. `dr_learner_ate` uses the external first-stage models
-with a built-in linear CATE final stage. `causal_forest_ate` uses them for the forest's marginal
-ATE; its CATE trees remain native. A score other than `"aipw"` is accepted only with
+`analyze_ate` supports AIPW and partially linear DML scores (`score="aipw"`, the default, or
+`score="partially_linear"`), with `folds=5` by default. `estimator="aipw"` is the five-fold,
+untrimmed all-observed AIPW route with IID analytic inference and no bootstrap.
+`estimator="dr_learner"` uses the external first-stage models with a built-in linear CATE final
+stage. `estimator="causal_forest"` uses them for the forest's marginal ATE; its CATE trees
+remain native. A score other than `"aipw"` is accepted only with
 `estimator="dml"`. Unsupported settings are refused rather than silently substituted. Sampling weights require both nuisance providers to declare weight support; the
-forest route does not support weights. `cross_fit_aipw` exposes held-out nuisance predictions
-without making a causal estimate.
+forest route does not support weights. The result's `propensity` holds the held-out
+propensities of an AIPW score fit on the fold plan in `fold_ids`.
 
 The Rust learner interface also supports caller factories for the certified trial-to-target
 AIPW point through `estimate_trial_aipw_with_factories`; that route requires zero

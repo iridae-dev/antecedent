@@ -224,6 +224,9 @@ pub(crate) struct StudyDeclarations {
     /// The weights of a weighted target of a trial-to-target transport study.
     pub(crate) weighted_transport:
         Option<Arc<crate::analysis::weighted_target::WeightedTransportWeights>>,
+    /// Caller-supplied trial outcome regressions of a trial-to-target transport study.
+    pub(crate) transport_outcome_regressions:
+        Option<crate::analysis::transport_supplied_nuisance::TransportOutcomeRegressions>,
     /// Digests of the participant labels bound to the rows of the data.
     pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values, when the caller declared one.
@@ -233,6 +236,13 @@ pub(crate) struct StudyDeclarations {
     /// Declared cluster labels or serial kernel, read by the joint-cell response's variance.
     pub(crate) score_dependence: Option<antecedent_estimate::ScoreDependence>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    /// Caller-supplied nuisance learners the compiled static route fits the configured
+    /// cross-fitted estimator with (see [`crate::analysis::declared_learners`]).
+    pub(crate) learner_factories: Option<crate::analysis::declared_learners::LearnerFactories>,
+    /// Declared capacity, budget and availability limits of a fixed binary policy, checked by
+    /// the net-value policy route (see [`crate::analysis::binary_policy_constraints`]).
+    pub(crate) binary_policy_constraints:
+        Option<crate::analysis::binary_policy_constraints::BinaryPolicyConstraints>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
 }
@@ -469,6 +479,7 @@ mod temporal_path;
 mod temporal_point_uncertainty;
 mod temporal_posterior_response;
 mod transport_interference_path;
+mod transport_supplied;
 mod tuple_bootstrap;
 pub(crate) use checked_cell_aipw_response::CellAipwStructure;
 pub(crate) use checked_graph_posterior_response::{

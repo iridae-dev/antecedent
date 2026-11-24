@@ -426,6 +426,20 @@ impl DesignLowering for TransportRoute<'_> {
                 Some(trial.treatment_probability),
             ));
         }
+        if let Some(regressions) = env.study.declared.transport_outcome_regressions.as_ref() {
+            models.push(slot(
+                ModelRole::Nuisance,
+                "supplied_outcome_regression_control",
+                &[treatment],
+                Some(regressions.control),
+            ));
+            models.push(slot(
+                ModelRole::Nuisance,
+                "supplied_outcome_regression_treated",
+                &[treatment],
+                Some(regressions.treated),
+            ));
+        }
         Ok(DesignCell::new(
             ProblemTarget::Target(target),
             identification,
@@ -490,6 +504,15 @@ impl DesignLowering for RandomizedEffectQuery {
         let query = self;
         let (identification, _) = randomized_identification(query);
         let (_, _, method, assignment_unit, _) = query.graphless_coordinate();
+        // A declared independent-factor 2x2 reading of a four-cell multi-arm design fits its
+        // own method; every other study keeps the query's.
+        let method = if env.study.declared.estimator
+            == Some(crate::EstimatorId::RandomizedFactorialBernoulliHt)
+        {
+            antecedent_io::graphless_support::FACTORIAL_BERNOULLI_KEY.method
+        } else {
+            method
+        };
         let mut covariates: Vec<VariableId> = query.ancova_covariates.to_vec();
         covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
         let ancova = !query.ancova_covariates.is_empty();
@@ -543,6 +566,12 @@ impl DesignLowering for PolicyValueQuery {
                 &[],
                 Some(query.outcome),
             ));
+        }
+        if let Some(constraints) = env.study.declared.binary_policy_constraints.as_ref() {
+            // Declared policy limits are checked by the point-only kernel. The program names
+            // them by the digest of every limit, so its identity changes only when they are
+            // declared and differs whenever a limit differs.
+            models.push(slot(ModelRole::Nuisance, &constraints.program_family(), &[], None));
         }
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::PolicyValue, query.outcome),

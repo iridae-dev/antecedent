@@ -773,6 +773,9 @@ fn apply_design_contract(
                     | EstimatorId::BayesianSyntheticControl
                     | EstimatorId::BayesianLocalRatio
                     | EstimatorId::BayesianBinaryPolicyValue
+                    | EstimatorId::RandomizedIpwPolicyNet
+                    | EstimatorId::RandomizedMultiActionIpwPolicyNet
+                    | EstimatorId::RandomizedFactorialBernoulliHt
                     | EstimatorId::BayesianSequentialRegimeValue
                     | EstimatorId::SequentialCrossfitContrastWald
                     | EstimatorId::BayesianSequentialCrossfitContrast
@@ -1861,6 +1864,15 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
     let ClassifiedSupport { settled, support_status } = settled;
     let spine = &settled.0.classified.spine;
     let carry = &spine.carry;
+    if carry.declared.transport_outcome_regressions.is_some()
+        && !matches!(spine.query, CausalQuery::Transport(_))
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "transport_outcome_regressions are read by a TransportQuery with transport_trial \
+             columns; this query reads none"
+        ));
+    }
     let (selection_diagram, transport_trial, interference) = match &spine.query {
         CausalQuery::Transport(transport) => {
             if !carry.inspect_only {
@@ -1908,7 +1920,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
         }
         CausalQuery::Interference(design) => {
             if !carry.inspect_only {
-                refuse_unsupported_interference(design)?;
+                refuse_unsupported_interference(design, &carry.settings.inference)?;
             }
             if carry.exposure.transport_trial.is_some()
                 || carry.exposure.selection_targets.is_some()
@@ -1978,10 +1990,12 @@ fn into_study(exposure: BoundExposure) -> Study {
             data_diagnostics: Some(crate::DataDiagnostics::default()),
             refute_default_downgrade,
             latency_bootstrap_not_applied,
-            estimator_spec_identity: declared
-                .estimator_spec
-                .as_ref()
-                .map(super::super::contract_identity::estimator_spec_identity),
+            estimator_spec_identity: declared.estimator_spec.as_ref().map(|spec| {
+                super::super::declared_learners::spec_identity(
+                    spec,
+                    declared.learner_factories.as_ref(),
+                )
+            }),
             response_options: declared.response_options,
             observation_options: declared.observation_options,
             draw_controls: declared.draw_controls,
@@ -2014,11 +2028,14 @@ fn into_study(exposure: BoundExposure) -> Study {
             population_registry: declared.population_registry,
             weighted_target: declared.weighted_target,
             weighted_transport: declared.weighted_transport,
+            transport_outcome_regressions: declared.transport_outcome_regressions,
             participants: declared.participants,
             missing: declared.missing,
             sampling_design: declared.sampling_design,
             score_dependence: declared.score_dependence,
             custom_validators: declared.custom_validators,
+            learner_factories: declared.learner_factories,
+            binary_policy_constraints: declared.binary_policy_constraints,
             tiered: declared.tiered,
         },
         settings: StudyInference {

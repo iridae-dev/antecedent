@@ -1137,6 +1137,13 @@ python = "antecedent.design.planning.plan_experiment"
 reason = "compile and execute through plan_experiment_py; tested in python/tests/test_experiment_planning.py"
 
 [[entry]]
+rust = "antecedent::analysis::portable_learner_fit::portable_fit"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._smoothed_dose_learners.analyze_smoothed_dose"
+reason = "each provider fit of analyze_smoothed_dose is decoded through it (native smoothed_dose_learner_transport); tested in python/tests/test_compiled_smoothed_dose_learners.py"
+
+[[entry]]
 rust = "antecedent::analysis::predictive_law_source"
 kind = "fn"
 status = "bound"

@@ -634,7 +634,7 @@ impl Study {
 /// Frozen, held-out policy scoring operation. Prediction vectors and ownership
 /// declarations are part of the retained query identity.
 pub(crate) type CheckedPolicyValueOperation =
-    RandomizedTrialOperation<antecedent_core::PolicyValueQuery, Option<super::BayesianConfig>>;
+    RandomizedTrialOperation<antecedent_core::PolicyValueQuery, policy_net::PolicyValueSettings>;
 
 mod bayesian_policy;
 
@@ -746,7 +746,8 @@ impl CheckedPolicyValueOperation {
             policy_net::admit(query, net)?;
         }
         let (identification, estimand) = Self::design_identification(query)?;
-        Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
+        let settings = policy_net::PolicyValueSettings::of(study, bayesian);
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, settings))
     }
 
     /// The identification a fixed policy value carries: the known randomized action
@@ -837,7 +838,7 @@ impl CheckedPolicyValueOperation {
             evaluation.reference_matches,
             evaluation.independent_policy_rows,
         );
-        if let Some(config) = self.extra.as_ref() {
+        if let Some(config) = self.extra.bayesian.as_ref() {
             // The posterior route reports no frequentist interval and no matrix support; a fit
             // that meets its support row states it in the design-posterior diagnostic.
             let posterior = self.bayesian_policy_posterior(y, config, ctx)?;

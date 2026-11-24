@@ -13,6 +13,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 type PythonReceipt = (u64, Py<PyAny>, Py<PyAny>);
+mod declared;
+mod smoothed_dose;
 
 struct CallbackState {
     error: Mutex<Option<PyErr>>,
@@ -283,6 +285,9 @@ fn external_aipw_crossfit(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(external_aipw_crossfit, module)?)?;
+    module.add_function(wrap_pyfunction!(declared::declared_learner_ate, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(smoothed_dose::smoothed_dose_learner_transport, module)?)?;
     module.add_function(wrap_pyfunction!(external_dml_ate, module)?)
 }
 

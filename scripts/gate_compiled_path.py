@@ -306,12 +306,19 @@ _ROUTE_ROW = re.compile(r"^\s*(\w+)\s*=>\s*\w+\s+as\s+\w+\s*,", re.M)
 _FAMILY_ROW = re.compile(r"^\s*([A-Z]\w*)\s*=>\s*\w+\s*,\s*unit\s", re.M)
 
 
+# A string-carrying plan route (`Self::CyclicFamily(_) => "CyclicFamily"`): the cyclic families,
+# the standalone experiment plans and the propagation chains each lower under one stable name.
+_STRING_ROUTE = re.compile(r'Self::\w+\(_\)\s*=>\s*"(\w+)"')
+
+
 def route_names(registry: str) -> set[str]:
-    """The route names of the `route_lowerings!` table and the program-family table."""
+    """The route names of the `route_lowerings!` table, the program-family table and the
+    string-carrying plan routes (`CyclicFamily`, `ExperimentPlanning`, `PropagationChain`)."""
     names: set[str] = set()
     for table in _ROUTE_TABLE.findall(registry):
         names |= set(_ROUTE_ROW.findall(table))
     names |= set(_FAMILY_ROW.findall(registry))
+    names |= set(_STRING_ROUTE.findall(registry))
     return names
 
 

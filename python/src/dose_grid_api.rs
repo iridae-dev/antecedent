@@ -22,6 +22,8 @@ use pyo3::types::PyBytes;
 
 use crate::{detach_catch, value_err};
 
+mod compiled;
+
 /// Largest request JSON accepted (the table travels separately).
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
@@ -332,6 +334,7 @@ fn consume_dose_grid_posterior_artifact(
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_dose_grid_functional, m)?)?;
+    m.add_function(wrap_pyfunction!(compiled::evaluate_dose_grid_bias_aware_compiled, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_dose_grid_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(consume_dose_grid_posterior_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(consume_dose_grid_artifact, m)?)?;

@@ -2,6 +2,10 @@
 //! limited number of independent clusters, three related outcomes, a nonlinear margin, and the
 //! decision classified as robust, assumption-dependent or unresolved.
 #![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
+#![allow(
+    deprecated,
+    reason = "compares the deprecated direct joint cluster kernels with the compiled source"
+)]
 
 use antecedent::decision_evidence::*;
 

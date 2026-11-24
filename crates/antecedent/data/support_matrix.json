@@ -2655,8 +2655,10 @@
         "interference.bayesian_gaussian",
         "interference.cluster_bayesian_bootstrap"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AverageEffect",
@@ -6572,8 +6574,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6585,8 +6589,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6598,8 +6604,10 @@
       "estimators": [
         "gcm.fit.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6611,8 +6619,10 @@
       "estimators": [
         "gcm.attribution.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6624,8 +6634,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6637,8 +6649,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6650,8 +6664,10 @@
       "estimators": [
         "gcm.fit.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6663,8 +6679,10 @@
       "estimators": [
         "gcm.attribution.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6676,8 +6694,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6689,8 +6709,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6702,8 +6724,10 @@
       "estimators": [
         "gcm.fit.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6715,8 +6739,10 @@
       "estimators": [
         "gcm.attribution.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6728,8 +6754,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6741,8 +6769,10 @@
       "estimators": [
         "gcm.fit"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -6754,8 +6784,10 @@
       "estimators": [
         "gcm.fit.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "ChangeAttribution",
@@ -6767,8 +6799,10 @@
       "estimators": [
         "gcm.attribution.bayesian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "AnomalyAttribution",
@@ -9068,8 +9102,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -11856,8 +11892,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26379,8 +26417,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26392,8 +26432,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26405,8 +26447,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26414,19 +26458,6 @@
       "structure": "explicit",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "transport.trial_bayesian_bootstrap",
-      "estimators": [
-        "transport.trial_bayesian_bootstrap"
-      ],
-      "status": "supported",
-      "missing_evidence": []
-    },
-    {
-      "query": "TransportQuery",
-      "graph_class": "Dag",
-      "structure": "explicit",
-      "inference": "Bayesian",
-      "validation": "cheap",
       "route_estimator": "transport.trial_bayesian_bootstrap",
       "estimators": [
         "transport.trial_bayesian_bootstrap"
@@ -26439,6 +26470,19 @@
       "graph_class": "Dag",
       "structure": "explicit",
       "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "transport.trial_bayesian_bootstrap",
+      "estimators": [
+        "transport.trial_bayesian_bootstrap"
+      ],
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "query": "TransportQuery",
+      "graph_class": "Dag",
+      "structure": "explicit",
+      "inference": "Bayesian",
       "validation": "full",
       "route_estimator": "transport.trial_bayesian_bootstrap",
       "estimators": [
@@ -26457,8 +26501,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26470,8 +26516,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26483,8 +26531,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26492,19 +26542,6 @@
       "structure": "accepted",
       "inference": "Bayesian",
       "validation": "none",
-      "route_estimator": "transport.trial_bayesian_bootstrap",
-      "estimators": [
-        "transport.trial_bayesian_bootstrap"
-      ],
-      "status": "supported",
-      "missing_evidence": []
-    },
-    {
-      "query": "TransportQuery",
-      "graph_class": "Dag",
-      "structure": "accepted",
-      "inference": "Bayesian",
-      "validation": "cheap",
       "route_estimator": "transport.trial_bayesian_bootstrap",
       "estimators": [
         "transport.trial_bayesian_bootstrap"
@@ -26517,6 +26554,19 @@
       "graph_class": "Dag",
       "structure": "accepted",
       "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "transport.trial_bayesian_bootstrap",
+      "estimators": [
+        "transport.trial_bayesian_bootstrap"
+      ],
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "query": "TransportQuery",
+      "graph_class": "Dag",
+      "structure": "accepted",
+      "inference": "Bayesian",
       "validation": "full",
       "route_estimator": "transport.trial_bayesian_bootstrap",
       "estimators": [
@@ -26535,8 +26585,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26548,8 +26600,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26561,8 +26615,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26613,8 +26669,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26626,8 +26684,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26639,8 +26699,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26691,8 +26753,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26704,8 +26768,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26717,8 +26783,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26769,8 +26837,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26782,8 +26852,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26795,8 +26867,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26847,8 +26921,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26860,8 +26936,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26873,8 +26951,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26925,8 +27005,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26938,8 +27020,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -26951,8 +27035,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27003,8 +27089,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27016,8 +27104,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27029,8 +27119,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27081,8 +27173,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27094,8 +27188,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27107,8 +27203,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27159,8 +27257,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27172,8 +27272,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27185,8 +27287,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27237,8 +27341,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27250,8 +27356,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27263,8 +27371,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27315,8 +27425,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27328,8 +27440,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27341,8 +27455,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27393,8 +27509,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27406,8 +27524,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27445,8 +27565,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27458,8 +27580,10 @@
       "estimators": [
         "transport.trial_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "TransportQuery",
@@ -27495,10 +27619,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27511,10 +27632,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27527,10 +27645,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27543,11 +27658,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27557,11 +27673,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27571,11 +27688,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27585,10 +27703,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27601,10 +27716,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27617,10 +27729,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27633,11 +27742,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27647,11 +27757,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27661,11 +27772,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27675,10 +27787,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27691,10 +27800,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27707,10 +27813,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27723,11 +27826,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27737,11 +27841,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27751,11 +27856,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27765,10 +27871,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27781,10 +27884,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27797,10 +27897,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27813,11 +27910,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27827,11 +27925,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27841,11 +27940,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27855,10 +27955,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27871,10 +27968,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27887,10 +27981,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27903,11 +27994,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27917,11 +28009,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27931,11 +28024,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27945,10 +28039,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27961,10 +28052,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27977,10 +28065,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -27993,11 +28078,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28007,11 +28093,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28021,11 +28108,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28035,10 +28123,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28051,10 +28136,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28067,10 +28149,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28083,11 +28162,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28097,11 +28177,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28111,11 +28192,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28125,10 +28207,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28141,10 +28220,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28157,10 +28233,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28173,11 +28246,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28187,11 +28261,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28201,11 +28276,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28215,10 +28291,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28231,10 +28304,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28247,10 +28317,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28263,11 +28330,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28277,11 +28345,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28291,11 +28360,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28305,10 +28375,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28321,10 +28388,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28337,11 +28401,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28351,11 +28416,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28365,10 +28431,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28381,10 +28444,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28397,10 +28457,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28413,11 +28470,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28427,11 +28485,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28441,11 +28500,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28455,10 +28515,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28471,10 +28528,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28487,10 +28541,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28503,11 +28554,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28517,11 +28569,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28531,11 +28584,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28545,10 +28599,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28561,10 +28612,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28577,10 +28625,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28593,11 +28638,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28607,11 +28653,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28621,11 +28668,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28635,10 +28683,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28651,10 +28696,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28667,10 +28709,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28683,11 +28722,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28697,11 +28737,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28711,11 +28752,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28725,10 +28767,7 @@
       "validation": "none",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28741,10 +28780,7 @@
       "validation": "cheap",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28757,10 +28793,7 @@
       "validation": "full",
       "route_estimator": "interference.ht_hajek",
       "estimators": [
-        "interference.ht_hajek",
-        "interference.cluster_neyman",
-        "interference.saturation_exact",
-        "interference.observational_ipw"
+        "interference.ht_hajek"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -28773,11 +28806,12 @@
       "validation": "none",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28787,11 +28821,12 @@
       "validation": "cheap",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28801,11 +28836,12 @@
       "validation": "full",
       "route_estimator": "interference.bayesian_gaussian",
       "estimators": [
-        "interference.bayesian_gaussian",
-        "interference.cluster_bayesian_bootstrap"
+        "interference.bayesian_gaussian"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent/tests/staged_attribution_transport_interference.rs"
+      ]
     },
     {
       "query": "InterventionalDistribution",

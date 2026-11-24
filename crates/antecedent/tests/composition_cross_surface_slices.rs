@@ -23,6 +23,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "the deprecated direct temporal dependent interval is under test")]
+
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
 mod recovery_scm;
 

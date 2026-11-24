@@ -25,7 +25,10 @@ fn value_error(e: impl std::fmt::Display) -> PyErr {
 
 /// Parse the rows; the sampling design is checked first so clustered or undeclared
 /// designs refuse by name (`dose_response.non_iid_design`).
-fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<SmoothedDoseInput> {
+pub(crate) fn parse_input(
+    data: &Bound<'_, PyAny>,
+    names: &[String],
+) -> PyResult<SmoothedDoseInput> {
     if data.hasattr("_buffers")? {
         return crate::transport_buffers::smoothed(data, names);
     }
@@ -63,7 +66,7 @@ struct QuerySpec {
     density_provenance: String,
 }
 
-fn build(
+pub(crate) fn build(
     graph: &crate::graphs::Admg,
     selections: &[String],
     spec: &str,

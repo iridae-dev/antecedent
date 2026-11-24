@@ -15882,6 +15882,12 @@ codes = ["public_builder_reentry"]
 meaning = "A compiled transport identification is compiled or run inside the lowered dispatch of another program."
 
 [[detail]]
+id = "transport_response_grid.grid_columns_mismatch"
+family = "transport_response_grid"
+codes = ["invalid_argument"]
+meaning = "The supplied regression or response-weight columns are not one per grid point of the transported mean curve."
+
+[[detail]]
 id = "transport_revalidation.claim_target_mismatch"
 family = "transport_revalidation"
 codes = ["quantity_semantics_mismatch"]

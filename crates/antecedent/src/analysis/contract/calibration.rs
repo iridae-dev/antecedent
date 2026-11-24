@@ -392,8 +392,37 @@ pub(super) fn functional_label(query: &CausalQuery) -> String {
         CausalQuery::TemporalDesign(q) => format!("temporal_design.{}", q.design_name()),
         CausalQuery::IvBounds(_) => "iv_bounds.binary_instrument".into(),
         CausalQuery::Association(q) => format!("association.{}", q.functional.as_str()),
+        CausalQuery::Interference(q) => interference_design_label(q),
         _ => String::new(),
     }
+}
+
+/// Calibration label of an interference design.
+///
+/// The design-based Horvitz–Thompson / Hájek route (`interference.ht_hajek`) runs Bernoulli and
+/// complete randomization under every built-in exposure mapping, and its coverage records were
+/// measured under Bernoulli assignment with `NeighborCount` exposure. Every other assignment and
+/// mapping pair of that route is its own construction, labelled
+/// `interference.<assignment>.<mapping>`, so it binds only to records measured under that pair
+/// and reports coverage not measured until one is earned. Bernoulli with `NeighborCount` keeps the
+/// empty label its records carry (its key and program identity are unchanged); the cluster,
+/// saturation and observational designs run their own estimators and keep the empty label too.
+fn interference_design_label(query: &antecedent_core::InterferenceQuery) -> String {
+    use antecedent_core::{AssignmentDesign, ExposureMapping};
+    let assignment = match &query.assignment {
+        AssignmentDesign::Bernoulli { .. } => "bernoulli",
+        AssignmentDesign::CompleteRandomization { .. } => "complete_randomization",
+        _ => return String::new(),
+    };
+    let mapping = match &query.exposure {
+        ExposureMapping::NeighborCount if assignment == "bernoulli" => return String::new(),
+        ExposureMapping::OwnTreatment => "own_treatment",
+        ExposureMapping::NeighborCount => "neighbor_count",
+        ExposureMapping::NeighborFraction => "neighbor_fraction",
+        ExposureMapping::WeightedNeighborExposure => "weighted_neighbor_exposure",
+        ExposureMapping::Custom(_) => "custom",
+    };
+    format!("interference.{assignment}.{mapping}")
 }
 
 /// Calibration label of a non-default propensity overlap policy.

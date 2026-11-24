@@ -79,6 +79,13 @@ rows. The likelihood needs `log |det(I - J)|`:
 Local convergence is not a global optimum, and the fit is conditional on the specified graph,
 covariance and mechanism family.
 
+`ExternalFeedbackModel.compiled_fit(targets, rows, resolver=...)` (Rust:
+`Study::compile_external_feedback_fit(...)` then `execute(resolver, ctx)`) runs this fit as the
+compiled `ExternalFeedbackFit` program and returns it under `"fit"` with the program identity.
+The resolver is a trust declaration of the execution and does not enter the identity.
+`ExternalFeedbackModel.fit` returns the same fit without the compiler; it warns with
+`AntecedentDeprecationWarning` and is removed in 4.0.
+
 ## Solvers
 
 * **Equilibrium.** `ResolvedFeedbackSystem::solve` takes the same `SolvePolicy` as the built-in

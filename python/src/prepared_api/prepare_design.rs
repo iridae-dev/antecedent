@@ -813,7 +813,8 @@ impl PyPreparedAnalysis {
         crossfit_fold_ownership_valid, *, uplift_bins=vec![], uplift_bin_count=0,
         uplift_training_subject_ids=vec![], global_constraints_present=false,
         regret_candidates=vec![], regret_selected_index=None, regret_training_subject_ids=vec![],
-        accepted=false, seed=1, threads=None, options=None))]
+        capacity=None, budget=None, reference_capacity=None, reference_budget=None,
+        available=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_policy_value(
         py: Python<'_>,
@@ -838,6 +839,11 @@ impl PyPreparedAnalysis {
         regret_candidates: Vec<Vec<bool>>,
         regret_selected_index: Option<usize>,
         regret_training_subject_ids: Vec<String>,
+        capacity: Option<usize>,
+        budget: Option<f64>,
+        reference_capacity: Option<usize>,
+        reference_budget: Option<f64>,
+        available: Option<Vec<bool>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -902,7 +908,34 @@ impl PyPreparedAnalysis {
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             refuse_unused_accepted(accepted)?;
-            let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
+            let mut builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
+            if capacity.is_some()
+                || budget.is_some()
+                || reference_capacity.is_some()
+                || reference_budget.is_some()
+                || available.is_some()
+            {
+                // Declared only when the caller states a limit, so a study without limits keeps
+                // its program identity.
+                let mut constraints =
+                    antecedent::analysis::binary_policy_constraints::BinaryPolicyConstraints::new();
+                if let Some(limit) = capacity {
+                    constraints = constraints.with_capacity(limit);
+                }
+                if let Some(limit) = budget {
+                    constraints = constraints.with_budget(limit);
+                }
+                if let Some(limit) = reference_capacity {
+                    constraints = constraints.with_reference_capacity(limit);
+                }
+                if let Some(limit) = reference_budget {
+                    constraints = constraints.with_reference_budget(limit);
+                }
+                if let Some(rows) = available {
+                    constraints = constraints.with_available(rows);
+                }
+                builder = builder.binary_policy_constraints(constraints);
+            }
             req.finish_applied(builder, false)
         })
         })

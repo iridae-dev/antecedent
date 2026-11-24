@@ -10778,6 +10778,45 @@ evidence_assertion = "selector_uses_exact_at_the_cap_and_seeded_bootstrap_below_
 [[routes]]
 route = "antecedent.choice_inference.measured_interval"
 notes = "The pooled and hierarchical choice-share intervals are reported with their calibration status (calibrated, outside_measured_scope, measured_below_nominal or not_measured); calibration annotates the interval and never withholds it."
+[[routes]]
+route = "antecedent.analysis.compiled_choice_interval.CompiledChoiceInterval.execute"
+notes = "The compiled ChoiceResultInterval program seals, replays and measures the named result with the consumer of ChoiceInferenceSession::measured_interval; calibration annotates the interval and never withholds it."
+
+[[routes]]
+route = "antecedent.python.choice_inference.ChoiceInferenceSession.compiled_interval"
+notes = "The Python entry executes the compiled ChoiceResultInterval program."
+
+[[routes]]
+route = "antecedent.analysis.compiled_adaptive_interval.CompiledAdaptiveInterval.execute"
+notes = "The compiled AdaptiveResultInterval program seals, replays and measures the named result with the consumer of AdaptiveInferenceSession::measured_interval; a procedure outside the measured cells is annotated, never refused for calibration."
+
+[[routes]]
+route = "antecedent.python.adaptive_inference.AdaptiveInferenceSession.compiled_interval"
+notes = "The Python entry executes the compiled AdaptiveResultInterval program."
+
+[[routes]]
+route = "antecedent.analysis.compiled_cohort_interval.CompiledCohortInterval.execute"
+notes = "The compiled CohortMeanInterval program replays the native fit and cohort source with the consumer of measured_cohort_interval; a declared export or shifted cohort refuses as on the direct entry."
+
+[[routes]]
+route = "antecedent.python.cohort_decision.CohortDecisionSource.compiled_interval"
+notes = "The Python entry executes the compiled CohortMeanInterval program."
+
+[[routes]]
+route = "antecedent.analysis.compiled_count_fitted_interval.CompiledCountFittedInterval.execute"
+notes = "The compiled CountFittedInterval program replays the retained counts with the consumer of CountFittedObservation::interval; calibration annotates the interval and never withholds it."
+
+[[routes]]
+route = "antecedent.python.observation_query.CountFittedObservation.compiled_interval"
+notes = "The Python entry executes the compiled CountFittedInterval program."
+
+[[routes]]
+route = "antecedent.analysis.compiled_temporal_interval.CompiledTemporalDependentInterval.execute"
+notes = "The compiled TemporalDependentInterval program builds the whole-unit candidate and replays it with the consumer of temporal_dependent_interval; the resampling stream is seeded from the design's seed."
+
+[[routes]]
+route = "antecedent.python.transport.TemporalUnitPanel.compiled_dependent_interval"
+notes = "The Python entry executes the compiled TemporalDependentInterval program."
 
 [[routes]]
 route = "antecedent.graph_imputation.compiled_point"
@@ -11537,3 +11576,185 @@ guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design
 evidence_test = "python/tests/test_experiment_planning.py"
 evidence_assertion = "test_two_sample_sizes_match_the_published_table"
 notes = "The Python entry runs the compiled program. Statements about the declared assumptions only; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.compiled_dose_grid_bias_aware.Study.compile_dose_grid_bias_aware"
+graph = "caller_attested_randomized_dose"
+evidence = "aligned_dose_outcome_rows_with_optional_weights_clusters_or_lag"
+functional = "dose_response_level_derivative_or_contrast_under_a_declared_third_derivative_bound"
+guarantee = "worst_case_bias_bound_under_a_declared_third_derivative_bound"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_dose_grid_program_identity_binds_every_premise_and_row"
+notes = "Binds the request, bound, replicate count and declared rows into a lowered program; coverage annotated from the dose_grid_bias_aware coverage records."
+
+[[routes]]
+route = "antecedent.analysis.compiled_dose_grid_bias_aware.CompiledDoseGridBiasAware.execute"
+graph = "caller_attested_randomized_dose"
+evidence = "aligned_dose_outcome_rows_with_optional_weights_clusters_or_lag"
+functional = "dose_response_level_derivative_or_contrast_under_a_declared_third_derivative_bound"
+guarantee = "worst_case_bias_bound_under_a_declared_third_derivative_bound"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_bias_aware_intervals_contain_the_analytic_cubic_truth"
+notes = "Evaluates the bias-aware intervals and band of the bound request; calibration annotates them and never withholds them."
+
+[[routes]]
+route = "antecedent.analysis.compiled_smoothed_dose_learners.Study.compile_smoothed_dose_learners"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "trial_and_target_rows_with_a_known_dose_density_and_caller_learner_factories"
+functional = "transported_kernel_smoothed_dose_response_on_a_declared_grid"
+guarantee = "cross_fitted_smoothed_transport_score_on_unverified_caller_learners_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_smoothed_dose_program_identity_binds_the_rows_and_the_learners"
+notes = "Decides the transport by sID and validates the request before any learner is fitted; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.compiled_smoothed_dose_learners.CompiledSmoothedDoseLearners.execute"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "trial_and_target_rows_with_a_known_dose_density_and_caller_learner_factories"
+functional = "transported_kernel_smoothed_dose_response_on_a_declared_grid"
+guarantee = "cross_fitted_smoothed_transport_score_on_unverified_caller_learners_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_smoothed_dose_with_caller_learners_matches_the_multiprecision_reference"
+notes = "Cross-fits the caller learners and evaluates the grid; point_only, calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.compiled_external_feedback.Study.compile_external_feedback_fit"
+graph = "specified_feedback_system_with_registered_external_mechanisms"
+evidence = "known_hard_clamp_regime_rows"
+functional = "model_conditional_fitted_mechanism_parameters"
+guarantee = "local_likelihood_fit_with_a_verified_external_implementation"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_external_fit_program_identity_binds_the_system_and_rows_but_not_the_resolver"
+notes = "Binds the system, targets, rows and policy; the trusted resolver is passed at execution and never enters the identity."
+
+[[routes]]
+route = "antecedent.analysis.compiled_external_feedback.CompiledExternalFeedbackFit.execute"
+graph = "specified_feedback_system_with_registered_external_mechanisms"
+evidence = "known_hard_clamp_regime_rows"
+functional = "model_conditional_fitted_mechanism_parameters"
+guarantee = "local_likelihood_fit_with_a_verified_external_implementation"
+evidence_test = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+evidence_assertion = "the_compiled_external_fit_recovers_the_least_squares_gain"
+notes = "Fits with the caller's trusted resolver; local convergence, no uncertainty."
+
+[[routes]]
+route = "antecedent.python.external_mechanisms.ExternalFeedbackModel.compiled_fit"
+graph = "specified_feedback_system_with_registered_external_mechanisms"
+evidence = "known_hard_clamp_regime_rows"
+functional = "model_conditional_fitted_mechanism_parameters"
+guarantee = "local_likelihood_fit_with_a_verified_external_implementation"
+evidence_test = "python/tests/test_compiled_twins_external_feedback.py"
+evidence_assertion = "test_the_compiled_fit_recovers_the_least_squares_gain"
+notes = "The Python entry compiles and executes the ExternalFeedbackFit program with the caller's resolver."
+
+[[routes]]
+route = "antecedent.analysis.transport_response_grid.Study.compile_transport_response_grid"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "trial_and_target_rows_with_supplied_selection_probabilities_regressions_and_response_weights"
+functional = "transported_target_mean_response_on_the_treatment_grid"
+guarantee = "exact_evaluation_of_the_supplied_augmented_equation_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_grid_program_identity_binds_every_input_the_kernel_reads"
+notes = "Decides the transport by sID once and binds the columns; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.transport_response_grid.CompiledTransportResponseGrid.execute"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "trial_and_target_rows_with_supplied_selection_probabilities_regressions_and_response_weights"
+functional = "transported_target_mean_response_on_the_treatment_grid"
+guarantee = "exact_evaluation_of_the_supplied_augmented_equation_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_compiled_response_grid_equals_the_hand_worked_augmented_means"
+notes = "Evaluates the supplied equation on the bound columns; fits no nuisance, forms no interval."
+
+[[routes]]
+route = "antecedent.transport.advanced.compile_augmented_response_grid"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "trial_and_target_rows_with_supplied_selection_probabilities_regressions_and_response_weights"
+functional = "transported_target_mean_response_on_the_treatment_grid"
+guarantee = "exact_evaluation_of_the_supplied_augmented_equation_point_only"
+evidence_test = "python/tests/test_compiled_transport_supplied.py"
+evidence_assertion = "test_the_compiled_grid_equals_the_hand_worked_means"
+notes = "The Python entry compiles the same program; execute returns the grid, point_only."
+
+[[routes]]
+route = "antecedent.analysis.compiled_transport_scenarios.Study.compile_transport_scenarios"
+graph = "finite_supplied_fixed_selection_admg_scenarios_over_shared_coordinates"
+evidence = "one_catalog_bound_independently_per_scenario"
+functional = "per_scenario_target_interventional_distribution"
+observation = "exact_or_empirical_plugin_laws"
+guarantee = "each_scenario_decided_once_by_the_supported_classical_catalog_route_and_compiled_once"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_scenarios_report_what_the_prepared_set_evaluates"
+notes = "Binds the decided set into a lowered program; per-scenario points, no inference across scenarios."
+
+[[routes]]
+route = "antecedent.analysis.compiled_transport_scenarios.CompiledTransportScenarios.execute"
+graph = "finite_supplied_fixed_selection_admg_scenarios_over_shared_coordinates"
+evidence = "one_catalog_bound_independently_per_scenario"
+functional = "per_scenario_target_interventional_distribution"
+observation = "exact_or_empirical_plugin_laws"
+guarantee = "each_scenario_decided_once_by_the_supported_classical_catalog_route_and_compiled_once"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_scenarios_report_what_the_prepared_set_evaluates"
+notes = "Runs PreparedScenarioSet::evaluate on the retained plans; refresh keeps the decisions and lowers again."
+
+[[routes]]
+route = "antecedent.analysis.compiled_measurement_transport.Study.compile_measurement_transport"
+graph = "not_applicable_declared_error_parameter_invariance"
+evidence = "source_measurement_model_invariance_declaration_and_target_bound_indicator_data"
+functional = "error_corrected_prevalence_or_mean_in_the_target_population"
+guarantee = "declared_invariance_point_only_uncalibrated_delta_method_standard_error"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_measurement_transport_carries_the_kernel_receipt_and_correction"
+notes = "Decides the transport once (transport_measurement_model) and binds the receipt; refuses naming the unmet premise."
+
+[[routes]]
+route = "antecedent.analysis.compiled_measurement_transport.CompiledMeasurementTransport.execute"
+graph = "not_applicable_declared_error_parameter_invariance"
+evidence = "source_measurement_model_invariance_declaration_and_target_bound_indicator_data"
+functional = "error_corrected_prevalence_or_mean_in_the_target_population"
+guarantee = "declared_invariance_point_only_uncalibrated_delta_method_standard_error"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_measurement_transport_carries_the_kernel_receipt_and_correction"
+notes = "Forms the corrected functional on the re-bound model through every prepare check of the measurement route."
+
+[[routes]]
+route = "antecedent.analysis.compiled_measurement_transport.CompiledPooledDifferentialTransport.execute"
+graph = "declared_population_validation_samples"
+evidence = "fixed_seeded_source_and_target_validation_fixture"
+functional = "pooled_differential_error_corrected_target_prevalence"
+guarantee = "existing_point_output_simulation_interval_not_measured_no_coverage_support"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_pooled_differential_transport_equals_the_kernel_under_the_same_seed"
+notes = "Runs transport_pooled_differential_prevalence under the context seed; the simulation interval stays not_measured."
+
+[[routes]]
+route = "antecedent.measurement_models.compile_pooled_differential_transport"
+graph = "declared_population_validation_samples"
+evidence = "fixed_seeded_source_and_target_validation_fixture"
+functional = "pooled_differential_error_corrected_target_prevalence"
+guarantee = "existing_point_output_simulation_interval_not_measured_no_coverage_support"
+evidence_test = "python/tests/test_compiled_pooled_differential_transport.py"
+evidence_assertion = "test_the_compiled_route_returns_the_direct_correction_bit_for_bit"
+notes = "The Python entry compiles the same program; execute returns the correction under the execution seed."
+
+[[routes]]
+route = "antecedent.analysis.compiled_transported_cohort.Study.compile_transported_cohort"
+graph = "declared_selection_diagram_selection_node_into_effect_modifiers_only"
+evidence = "retained_fitted_effect_with_support_contract_and_declared_target_cohort"
+functional = "weighted_cohort_mean_of_conditional_contrast_in_the_target_population"
+guarantee = "declared_invariance_point_only_extrapolative_label_box_overlap_checked"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_cohort_transport_equals_the_direct_route_and_the_hand_mean"
+notes = "Binds the retained result, cohort and declaration; premises are checked at execute in the route's order."
+
+[[routes]]
+route = "antecedent.analysis.compiled_transported_cohort.CompiledTransportedCohort.execute"
+graph = "declared_selection_diagram_selection_node_into_effect_modifiers_only"
+evidence = "retained_fitted_effect_with_support_contract_and_declared_target_cohort"
+functional = "weighted_cohort_mean_of_conditional_contrast_in_the_target_population"
+guarantee = "declared_invariance_point_only_extrapolative_label_box_overlap_checked"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_cohort_transport_refuses_without_a_declaration"
+notes = "Runs transport_cohort_effect_from_result over transport_cohort_effect; point-only, extrapolative."

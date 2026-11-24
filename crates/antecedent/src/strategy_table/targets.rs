@@ -640,6 +640,11 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::Switchback]))
         }
         EstimatorId::RandomizedNeyman => frequentist(RANDOMIZED, DesignTarget::Randomized(NEYMAN)),
+        // The independent-factor 2x2 reading of a multi-arm design; the checked operation
+        // refuses any multi-arm design but the four 2x2 cells.
+        EstimatorId::RandomizedFactorialBernoulliHt => {
+            frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::MultiArm]))
+        }
         EstimatorId::BayesianRandomizedFinitePopulation
         | EstimatorId::BayesianRandomizedSuperpopulation
         | EstimatorId::BayesianComplierEffect => {
@@ -657,6 +662,12 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
             frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::DoublyRobust]))
         }
         EstimatorId::RandomizedMultiActionIpwPolicy => {
+            frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::MultiAction]))
+        }
+        EstimatorId::RandomizedIpwPolicyNet => {
+            frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::Ipw]))
+        }
+        EstimatorId::RandomizedMultiActionIpwPolicyNet => {
             frequentist(POLICY, DesignTarget::Policy(&[PolicyShape::MultiAction]))
         }
         EstimatorId::BayesianBinaryPolicyValue => bayesian(

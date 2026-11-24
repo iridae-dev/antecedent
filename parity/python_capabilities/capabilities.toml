@@ -15309,6 +15309,16 @@ test = "python/tests/test_augmented_transport_grid.py::test_certificate_for_anot
 assertion_scopes = ["test_certificate_for_another_equation_is_refused"]
 dimensions = ["refusal"]
 assertion_contract = "A certificate for another formula refuses."
+[[capability.evidence]]
+test = "python/tests/test_compiled_transport_supplied.py::test_the_compiled_grid_equals_the_hand_worked_means"
+assertion_scopes = ["test_the_compiled_grid_equals_the_hand_worked_means"]
+dimensions = ["success", "inspection"]
+assertion_contract = "The compiled TransportResponseGrid route evaluates the hand-worked means (2.5, 7.0625) on the bound columns, point_only."
+[[capability.evidence]]
+test = "python/tests/test_compiled_transport_supplied.py::test_the_deprecated_grid_warns_and_equals_the_compiled_grid"
+assertion_scopes = ["test_the_deprecated_grid_warns_and_equals_the_compiled_grid"]
+dimensions = ["success"]
+assertion_contract = "The deprecated direct grid warns and equals the compiled grid."
 
 [[capability]]
 id = "transport.study_planning.plan_and_replay"

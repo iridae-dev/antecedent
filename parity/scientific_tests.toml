@@ -9,6 +9,48 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+evidence_assertion = "the_compiled_augmented_contrast_recovers_the_planted_transported_effect"
+kind = "known_truth"
+fixtures = []
+why = "Trial rows z ~ N(0, 1), target rows z ~ N(1, 1), randomized treatment, planted effect 1 + z and the true regressions z and 1 + 2z: the compiled study's augmented contrast on the supplied regressions recovers the transported effect 2, and toward a Gaussian kernel target the closed form 1 + (1 + c / h^2) / (1 + 1 / h^2)."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "compiled_scenarios_report_what_the_prepared_set_evaluates"
+kind = "reference"
+fixtures = []
+why = "The compiled scenario set reports the standardized and direct transport formulas worked by hand from the supplied laws (0.35 and 0.56), equal to the prepared set's evaluation before and after a refresh."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/interference_design_known_truth.rs"
+evidence_assertion = "complete_randomization_contrasts_are_unbiased_and_the_route_reproduces_them"
+kind = "known_truth"
+fixtures = []
+why = "Complete randomization of 3 of 8 ring units under OwnTreatment, NeighborCount, NeighborFraction and WeightedNeighborExposure: over the enumerated support the Horvitz-Thompson contrast averages to the known linear potential-outcome contrast and the mean Young bound dominates its design variance; the compiled InterferenceDag route equals the textbook Horvitz-Thompson, Hajek and Young-bound values on every realization and refuses exactly the realizations that leave a level unobserved."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/interference_design_known_truth.rs"
+evidence_assertion = "bernoulli_contrasts_under_the_other_mappings_are_unbiased_and_the_route_reproduces_them"
+kind = "known_truth"
+fixtures = []
+why = "Unit-specific Bernoulli assignment on 8 ring units under OwnTreatment, NeighborFraction and WeightedNeighborExposure: the same unbiasedness, Young-bound dominance and route-equals-formula checks over all 256 assignments."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/factorial_ipw_known_truth.rs"
+evidence_assertion = "binary_net_value_route_is_unbiased_over_every_bernoulli_assignment"
+kind = "known_truth"
+fixtures = []
+why = "Four units with fixed potential outcomes, known probability one half, a fixed policy and reference and a cost of one quarter: over all 16 assignments the compiled PolicyValue route under randomized.ipw_policy_net averages to the true net policy, reference and incremental values (1e-12)."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/factorial_ipw_known_truth.rs"
+evidence_assertion = "multi_action_net_value_route_is_unbiased_over_every_assignment"
+kind = "known_truth"
+fixtures = []
+why = "Three units, three actions with known probabilities (1/2, 1/4, 1/4) and per-action costs: over all 27 assignments, weighted by their probabilities, the compiled PolicyValue route under randomized.multi_action_ipw_policy_net averages to the true net policy, reference and incremental values (1e-12)."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/bridge_transport_decision.rs"
 evidence_assertion = "an_affine_bridge_decision_scores_the_known_map_of_the_source_draws"
 kind = "known_truth"

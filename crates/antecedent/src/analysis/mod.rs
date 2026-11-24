@@ -107,6 +107,7 @@ mod batch;
 mod batch_export;
 mod batch_retarget;
 pub mod bayesian_posterior_row;
+pub mod binary_policy_constraints;
 mod builder;
 mod candidate_screen_units;
 /// Scientifically closed categorical posterior compiler candidate.
@@ -132,7 +133,20 @@ pub mod choice_ranking;
 pub mod claim_decision_programs;
 pub mod cohort_decision;
 pub mod compact_export;
+pub mod compiled_adaptive_interval;
+pub mod compiled_choice_interval;
+pub mod compiled_cohort_interval;
+pub mod compiled_count_fitted_interval;
+pub mod compiled_dose_grid_bias_aware;
+pub mod compiled_external_feedback;
 pub mod compiled_linear;
+pub mod compiled_measured_interval;
+pub mod compiled_measurement_transport;
+mod compiled_point_program;
+pub mod compiled_smoothed_dose_learners;
+pub mod compiled_temporal_interval;
+pub mod compiled_transport_scenarios;
+pub mod compiled_transported_cohort;
 pub mod composition;
 pub mod composition_decision_terminal;
 pub mod composition_verification;
@@ -150,6 +164,7 @@ pub mod cross_world_interval;
 pub mod decision_claims;
 mod decision_contract_facade;
 pub mod decision_reliability;
+pub mod declared_learners;
 mod derived_treatment;
 pub mod descriptive_programs;
 mod design_exports;
@@ -174,10 +189,13 @@ pub mod fallback;
 pub mod file_table;
 mod finite_discrete;
 pub mod input_decision_programs;
+pub mod portable_learner_fit;
 pub mod scope_refusals;
 mod supplied_identity;
 mod supplied_terminal;
 mod targeted_refit;
+pub mod transport_response_grid;
+pub mod transport_supplied_nuisance;
 mod weighted_target;
 pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;
@@ -513,10 +531,11 @@ pub use statistical::{
     DeferredStatisticalTransport, StatisticalBindingView, StatisticalContrast,
     StatisticalPreparedState, StatisticalStudyInspection, StatisticalStudyResult,
 };
+#[allow(deprecated, reason = "the deprecated direct entry stays reachable at its 3.0.0 path")]
+pub use temporal_extensions::temporal_dependent_interval;
 pub use temporal_extensions::{
     IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
-    temporal_dependent_interval,
 };
 pub use temporal_transport::{
     PreparedTemporalTransport, SequenceEndpoints, consume_temporal_transport_artifact,

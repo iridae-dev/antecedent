@@ -572,9 +572,9 @@ fn refused_with(error: &antecedent::CausalError) -> Option<String> {
     error.reason_code().map(str::to_string)
 }
 
-/// The supported interference cell is `NeighborCount` under Bernoulli assignment;
-/// another design on the same coordinate is refused, not executed under the
-/// cell's support.
+/// The supported interference cell runs Bernoulli and complete randomization under every
+/// built-in exposure mapping; a cluster assignment outside its total-effect construction
+/// (any mapping but `NeighborFraction`) is refused, not executed under the cell's support.
 #[test]
 fn interference_outside_the_supported_construction_is_refused() {
     let units = TabularData::from_f64_columns([("y", &[1.0, 4.0, 2.0, 3.0][..])]).unwrap();
@@ -584,17 +584,14 @@ fn interference_outside_the_supported_construction_is_refused() {
         from: ExposureLevel { own: 0.0, neighbors: 0.0 },
         to: ExposureLevel { own: 1.0, neighbors: 0.0 },
     };
+    // Clusters {0, 2} and {1, 3}: the realized assignment is constant within each.
+    let clusters = || AssignmentDesign::ClusterRandomization {
+        clusters: Arc::from([0_u32, 1, 0, 1]),
+        treated_clusters: 1,
+    };
     for query in [
-        InterferenceQuery::new(
-            AssignmentDesign::CompleteRandomization { treated: 2 },
-            ExposureMapping::NeighborCount,
-            contrast.clone(),
-        ),
-        InterferenceQuery::new(
-            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
-            ExposureMapping::NeighborFraction,
-            contrast,
-        ),
+        InterferenceQuery::new(clusters(), ExposureMapping::NeighborCount, contrast.clone()),
+        InterferenceQuery::new(clusters(), ExposureMapping::OwnTreatment, contrast),
     ] {
         let error = Study::tabular(units.clone())
             .graph(Dag::with_variables(1))

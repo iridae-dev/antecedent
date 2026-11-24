@@ -24,6 +24,8 @@ use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+mod compiled;
+
 const SCENARIO_PREFIX: &[u8] = b"ANTECEDENT-TRANSPORT-SCENARIOS\x01";
 const SCOPE: &str = "finite_transport_scenarios_structural_envelope";
 
@@ -486,6 +488,8 @@ fn consume_transport_scenarios_artifact(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedTransportScenariosStage>()?;
     module.add_function(wrap_pyfunction!(prepare_transport_scenarios_stage, module)?)?;
+    module.add_class::<compiled::NativeCompiledTransportScenarios>()?;
+    module.add_function(wrap_pyfunction!(compiled::compile_transport_scenarios_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_transport_scenarios_artifact, module)?)?;
     Ok(())
 }

@@ -924,8 +924,19 @@ fn frequentist_interference_procedure(
     query: &antecedent_core::InterferenceQuery,
     design: &crate::InterferenceSpec,
 ) -> Result<(InterferenceProcedure, EstimatorId), CausalError> {
-    let bernoulli = matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-        && query.exposure == antecedent_core::ExposureMapping::NeighborCount;
+    // Bernoulli and complete randomization run the design-based Horvitz-Thompson / Hajek
+    // contrast with its Young bound under every built-in exposure mapping.
+    let bernoulli = matches!(
+        query.assignment,
+        antecedent_core::AssignmentDesign::Bernoulli { .. }
+            | antecedent_core::AssignmentDesign::CompleteRandomization { .. }
+    ) && matches!(
+        query.exposure,
+        antecedent_core::ExposureMapping::OwnTreatment
+            | antecedent_core::ExposureMapping::NeighborCount
+            | antecedent_core::ExposureMapping::NeighborFraction
+            | antecedent_core::ExposureMapping::WeightedNeighborExposure
+    );
     let cluster =
         matches!(query.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. })
             && query.exposure == antecedent_core::ExposureMapping::NeighborFraction;
@@ -947,7 +958,7 @@ fn frequentist_interference_procedure(
             );
     if !bernoulli && !cluster && !saturation && !observed {
         return Err(CausalError::Unsupported {
-            message: "interference requires Bernoulli/NeighborCount, cluster total, exact two-stage saturation, or supplied-propensity observational exposure",
+            message: "interference requires Bernoulli or complete randomization with a built-in exposure mapping, cluster total, exact two-stage saturation, or supplied-propensity observational exposure",
         });
     }
     if cluster {
@@ -1007,13 +1018,22 @@ fn interference_identification(
     procedure: &InterferenceProcedure,
     cluster: bool,
 ) -> (IdentificationResult, IdentifiedEstimand) {
+    // The Bernoulli/NeighborCount note is part of existing programs' identity and is kept.
+    let bernoulli_count = matches!(
+        &query,
+        CausalQuery::Interference(design)
+            if matches!(design.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+                && design.exposure == antecedent_core::ExposureMapping::NeighborCount
+    );
     let (rule, note, assumptions) = match procedure {
         InterferenceProcedure::DesignBasedYoung => (
             "interference.design",
             if cluster {
                 "Identification is complete randomization of clusters and partial interference within disjoint clusters; the (0,0) to (1,1) contrast is the total effect of assigning an entire cluster."
-            } else {
+            } else if bernoulli_count {
                 "Identification is the known Bernoulli assignment and NeighborCount exposure mapping (Horvitz–Thompson/Hájek); the DAG binds the outcome schema only."
+            } else {
+                "Identification is the known assignment design and the declared exposure mapping (Horvitz–Thompson/Hájek); the DAG binds the outcome schema only."
             },
             design_identification_assumptions(cluster),
         ),

@@ -409,8 +409,31 @@ impl<'a> StaticAteExecution<'a> {
         let prepared_aipw = execution.aipw_operation();
         let prepared_frontdoor = execution.frontdoor_linear();
         let prepared_iv = execution.iv();
-        let streamed_nuisance = self.fit_streamed_nuisance(checked)?;
-        let mut point = if let Some(operation) = prepared_iv {
+        // Declared learner factories fit the configured estimator once, below; no streamed
+        // reduction of the built-in learners runs.
+        let streamed_nuisance = if self.study.declared.learner_factories.is_some() {
+            None
+        } else {
+            self.fit_streamed_nuisance(checked)?
+        };
+        let mut point = if let Some(factories) = self.study.declared.learner_factories.as_ref() {
+            crate::analysis::declared_learners::fit_static_effect(
+                self.study.declared.estimator_spec.as_deref(),
+                factories,
+                StaticEstimateInput {
+                    data: &self.data_est,
+                    estimand: &self.estimand_est,
+                    query: &self.query_est,
+                    // Point stage: no bootstrap.
+                    bootstrap_replicates: 0,
+                    overlap_policy: self.study.declared.overlap_policy,
+                    population_registry: self.study.declared.population_registry.as_ref(),
+                    sampling_design: self.study.declared.sampling_design,
+                },
+                self.identification.required_assumptions.clone(),
+                ctx,
+            )?
+        } else if let Some(operation) = prepared_iv {
             self.fit_prepared_iv(operation, &mut ws.iv)?
         } else if let Some((fitter, receipt)) = &checked.linear {
             if prepared_linear.is_some_and(|operation| operation.default_id)

@@ -56,6 +56,9 @@ pub(super) struct Declarations {
     /// The weights of a weighted target of a trial-to-target transport study.
     pub(super) weighted_transport:
         Option<Arc<super::super::weighted_target::WeightedTransportWeights>>,
+    /// Caller-supplied trial outcome regressions of a trial-to-target transport study.
+    pub(super) transport_outcome_regressions:
+        Option<crate::analysis::transport_supplied_nuisance::TransportOutcomeRegressions>,
     /// Participant labels bound to the rows of the data (digests only).
     pub(super) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values; `None` leaves each route on its own default.
@@ -68,6 +71,11 @@ pub(super) struct Declarations {
     pub(super) score_dependence: Option<antecedent_estimate::ScoreDependence>,
     /// Custom slow-path validators appended after the built-in refute suite.
     pub(super) custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
+    /// Caller-supplied nuisance learners the configured cross-fitted estimator is fitted with.
+    pub(super) learner_factories: Option<crate::analysis::declared_learners::LearnerFactories>,
+    /// Declared capacity, budget and availability limits of a fixed binary policy.
+    pub(super) binary_policy_constraints:
+        Option<crate::analysis::binary_policy_constraints::BinaryPolicyConstraints>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     pub(super) tiered: Option<TieredBackground>,
     /// Refused at build: coarsened continuous coordinate is not a point CDE.

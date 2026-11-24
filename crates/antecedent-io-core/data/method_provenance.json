@@ -480,6 +480,9 @@
   "estimate.dml_score_covariance": [
    "estimate.dml_score_covariance"
   ],
+  "estimate.dose_grid_bias_aware": [
+   "estimate.dose_grid_bias_aware"
+  ],
   "estimate.dose_grid_functional": [
    "estimate.dose_grid_functional"
   ],
@@ -984,6 +987,9 @@
   "prior.composed_named_coordinates": [
    "prior.composed_named_coordinates"
   ],
+  "prior.external_composition": [
+   "prior.external_composition"
+  ],
   "provider_callback.consumers": [
    "provider_callback.consumers"
   ],
@@ -1176,6 +1182,9 @@
   "transport.assumption_range": [
    "transport.assumption_range"
   ],
+  "transport.augmented_response_grid": [
+   "transport.augmented_response_grid"
+  ],
   "transport.bridge_decision": [
    "transport.bridge_decision"
   ],
@@ -1241,6 +1250,12 @@
   ],
   "transport.shared_scenario_covariance.bayesian": [
    "transport.shared_scenario_covariance.bayesian"
+  ],
+  "transport.single_source_z_transport": [
+   "transport.single_source_z_transport"
+  ],
+  "transport.smoothed_dose_caller_learners": [
+   "transport.smoothed_dose_caller_learners"
   ],
   "transport.smoothed_dose_response.bayesian": [
    "transport.smoothed_dose_response.bayesian"
@@ -1424,10 +1439,16 @@
   "randomized.estimated_cuped_ht_itt": [
    "estimate.randomized.estimated_cuped_ht_itt"
   ],
+  "randomized.factorial_bernoulli_ht": [
+   "estimate.randomized.factorial_bernoulli"
+  ],
   "randomized.ht_itt": [
    "estimate.randomized.ht_itt"
   ],
   "randomized.ipw_policy": [
+   "estimate.policy_value.ipw"
+  ],
+  "randomized.ipw_policy_net": [
    "estimate.policy_value.ipw"
   ],
   "randomized.neyman_itt": [
@@ -6087,6 +6108,40 @@
   },
   {
    "deviations": [
+    "The worst-case bias bound M/6 times the sum of |l_i| |D_i - d|^3 treats the Taylor remainders at the rows as independent and so is conservative; a contrast adds the two doses' bounds.",
+    "The simultaneous band adds the worst-case bias to a Gaussian multiplier sup-t half-width over the grid; its multipliers are drawn from the execution context's seed, per row, per declared cluster, or per block of lag + 1 rows.",
+    "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused.",
+    "The bandwidth is declared by the caller inside a declared range and never data-selected; the claim is about the dose response under the declared curvature bound."
+   ],
+   "digest": "1c448830a3791048f4b8482ca3dd1fe14d1ea713c8a5b186b7ee39724eb21555",
+   "id": "estimate.dose_grid_bias_aware",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Timothy B. Armstrong",
+      "Michal Kolesár"
+     ],
+     "doi": "10.3982/QE1199",
+     "doi_verified": true,
+     "sections": [
+      "worst-case bias of a linear smoother over a class with a bounded derivative",
+      "the folded-normal critical value of the bias-aware fixed-length interval"
+     ],
+     "title": "Simple and Honest Confidence Intervals in Nonparametric Regression",
+     "year": 2020
+    },
+    {
+     "sections": [
+      "local polynomial fitting by kernel-weighted least squares, with the fitted coefficients giving the regression function and its derivatives (construction only; chapter and section numbers not re-verified for this record)"
+     ],
+     "title": "Local Polynomial Modelling and Its Applications (Fan and Gijbels, Chapman and Hall, 1996)"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The fitted object is the Gaussian-kernel local quadratic smoother at a caller-declared fixed bandwidth that must lie in a caller-declared range; it is never data-selected here, so the claim is about the smoother's m_h, and the smoothing bias m_h - m is neither estimated nor included in any interval. Fan and Gijbels' bias and variance asymptotics are not applied.",
     "The pointwise normal interval uses a sandwich standard error with calibration not_measured: the nominal level 0.95 is not a coverage claim. Coverage is allocated (cov.dose_response.randomized_dose.frequentist.l95.pointwise_local_quadratic_level, _derivative, _contrast) and not collected. The simultaneous band is a different claim and is closed (dose_grid.simultaneous_band_closed).",
     "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused. Rows are treated as independent; clustered, serial or linked rows are outside the row.",
@@ -7967,6 +8022,33 @@
      ],
      "title": "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data",
      "year": 2013
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The implementing module is crates/antecedent-estimate/src/factorial_bernoulli.rs. Each cell mean is (1/n) sum over the rows realized in the cell of y/q, where q is the known probability of that cell for the row (qa * qb for two independent Bernoulli factors); the factor-A and factor-B main effects and the interaction are the fixed contrasts (-1/2,-1/2,1/2,1/2), (-1/2,1/2,-1/2,1/2) and (1,-1,-1,1) of the cell means.",
+    "The variance of each contrast is bounded, not estimated: the diagonal Horvitz-Thompson variance estimate of each cell mean, (1/n^2) sum 1{cell} (1-q) (y/q)^2, is combined by Young's inequality Var(sum w_j X_j) <= 4 sum w_j^2 Var(X_j), which needs no covariance between cell means. The bound is conservative in assignment expectation; it is not an unbiased variance.",
+    "A cell with no observed row is refused rather than estimated as zero, so the estimator is the unconditional Horvitz-Thompson contrast only over the full assignment law; given that every cell is observed it is not exactly unbiased.",
+    "The compiled RandomizedEffect route reads a four-cell multi-arm design (selected by the randomized.factorial_bernoulli_ht estimator) and publishes three pointwise 95% normal intervals effect -/+ z sqrt(bound) once every cell holds 30 rows; their coverage is not measured."
+   ],
+   "digest": "4b59193f4893be58708827c07a59bcf00d71853268066ee857b3fb9ccf5a9424",
+   "id": "estimate.randomized.factorial_bernoulli",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "D. G. Horvitz",
+      "D. J. Thompson"
+     ],
+     "doi": "10.1080/01621459.1952.10483446",
+     "doi_verified": true,
+     "sections": [
+      "inverse-probability estimator of a population total, applied here to the mean of each 2x2 cell under known per-row cell probabilities"
+     ],
+     "title": "A Generalization of Sampling Without Replacement from a Finite Universe",
+     "year": 1952
     }
    ]
   },
@@ -10269,7 +10351,7 @@
     "Observational interference (unknown assignment, network-confounded exposure) is outside scope.",
     "Does not implement the paper's joint-exposure-probability variance estimator; estimation is stats.randomized_interference (Horvitz–Thompson / Hájek)."
    ],
-   "digest": "0f99df79203c0c0ce6968faa07679873796f64d179a488273b4df5f7f30c32bd",
+   "digest": "e12a33662b207e7cbcc178de1dd754425a43c04ae18977ab9dec147d6396a675",
    "id": "identify.interference.design",
    "review": "none",
    "scope_limits": [],
@@ -11915,6 +11997,49 @@
   },
   {
    "deviations": [
+    "Gaussian sources are already Gaussian coefficient priors, not historical data: the power path is the tempered product N(m0, V0) * prod_k N(m_k, V_k)^alpha_k (precision sum), which equals the power prior of the cited papers only when each source is the Gaussian posterior of its historical data under a flat initial prior; the composition does not form that posterior from data.",
+    "The mixture path moment-matches sum_k w_k N(m_k, V_k / alpha_k) + (1 - sum w) N(m0, V0) to one Gaussian, discarding multimodality; mixture power priors in the cited review are not collapsed.",
+    "Several sources take one discount each (the cited review's multiple-historical-studies form); the discounts are declared, never estimated here (a data-chosen discount belongs to the power-prior selection families).",
+    "Prior-strength ESS is alpha times a caller-declared ESS per source; it is metadata, not a quantity of the cited papers.",
+    "Population-tag transport, the invariance policies (invariant conditional outcome, invariant effect modifiers, invariant propensity), the forced-zero discount without weights or below a Kish ESS of 20, and the unit reweighting (weighted mean of unit effects, variance widened by the sampling variance of that mean divided by the source's residual variance) are declared reweightings of this repository, not a published estimator; they carry no guarantee from the cited papers.",
+    "A weighted target is a declared row weighting or a declared kernel (Gaussian exp(-u^2/2), Epanechnikov 1 - u^2, tricube (1 - u^3)^3 with u = d / h) over caller-supplied distances; the bandwidth is declared, never selected, and the bandwidth sensitivity reports the transported mean at each declared bandwidth without choosing one."
+   ],
+   "digest": "f02fa01dd33be53071c7884c42d888850ad3fe7509ef31cbe810a6bb5657dcf7",
+   "id": "prior.external_composition",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Ming-Hui Chen",
+      "Joseph G. Ibrahim"
+     ],
+     "doi": "10.1214/ss/1009212673",
+     "doi_verified": true,
+     "sections": [
+      "Definition of the power prior with a fixed discount a0 in [0, 1]; the conjugate Beta-Binomial and Poisson-Gamma special cases"
+     ],
+     "title": "Power prior distributions for regression models",
+     "year": 2000
+    },
+    {
+     "doi": "10.1002/sim.6728",
+     "doi_verified": false,
+     "sections": [
+      "Power prior with fixed a0 and multiple historical studies (one discount per study); conjugate closed forms"
+     ],
+     "title": "The power prior: theory and applications"
+    },
+    {
+     "sections": [
+      "Effective sample size of a weighted sample, (sum w)^2 / sum w^2"
+     ],
+     "title": "Survey Sampling"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Coefficient covariance uses the conjugate scale convention beta|sigma2 ~ N(m0, sigma2 V0), including dense correlated V0 priors; the supplied coefficient variances are V0, not unconditional beta variances.",
     "Nonnegative weights enter the Gaussian log likelihood as powers: the NIG shape increment is sum(weights)/2. This is not automatically a calibrated sampling-variance treatment for arbitrary survey or precision weights.",
     "An absolute coefficient-scale marker is converted to V0 using known residual variance when supplied, otherwise a target-data weighted least-squares residual-variance plug-in with positive-row-count minus coefficient-count degrees of freedom. The latter makes the prior data-dependent; ordinary conjugate formulas conditional on the plug-in do not account for its uncertainty.",
@@ -13269,6 +13394,52 @@
   },
   {
    "deviations": [
+    "The route evaluates an algebraic composition of the DR1 transport score with caller-supplied grid-local response weights; neither cited paper derives this transported continuous-dose curve estimator, so no double-robustness or inference theorem is inherited.",
+    "Every nuisance (selection probability, observed-treatment and grid-point outcome regressions, local response weights) is supplied by the caller and held fixed; the route fits none and chooses no bandwidth.",
+    "Point-only: no standard error or interval is formed and calibration is reported as not_measured.",
+    "The transport is decided by sID on the declared selection diagram; only a direct or standardizing certificate is evaluated, and a recursive factorization is refused."
+   ],
+   "digest": "e1eb75f6924b15b5e3aef145ac6b70954703e89746a0e935e71a1ce137ae8bf9",
+   "id": "transport.augmented_response_grid",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Issa J. Dahabreh",
+      "Sarah E. Robertson",
+      "Jon A. Steingrimsson",
+      "Elizabeth A. Stuart",
+      "Miguel A. Hernán"
+     ],
+     "doi": "10.1002/sim.8426",
+     "doi_verified": true,
+     "sections": [
+      "Section 4.1: identification conditions for the nonparticipant target",
+      "Section 5.3, equation (4): doubly robust estimator DR1"
+     ],
+     "title": "Extending inferences from a randomized trial to a new target population",
+     "year": 2020
+    },
+    {
+     "authors": [
+      "Edward H. Kennedy",
+      "Zongming Ma",
+      "Matthew D. McHugh",
+      "Dylan S. Small"
+     ],
+     "doi": "10.1111/rssb.12212",
+     "doi_verified": true,
+     "sections": [
+      "Section 3.2, equations (4)-(5): local-linear smoothing of a supplied pseudo-outcome, including signed equivalent weights"
+     ],
+     "title": "Non-parametric Methods for Doubly Robust Estimation of Continuous Treatment Effects",
+     "year": 2016
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The decision is conditional on the declared transport premise: the premise is stated, bound to the program identity and reported, never estimated or discharged by this route, and no population outcome risk or decision reliability is measured (calibration is reported as not_measured).",
     "The transported law is the source draws with the bridged column replaced row for row by the declared mapping; a trial-level line adds the Student-t coefficient draws of its least-squares fit and an affine map adds only the spread it declares, so the spread of the result is an uncalibrated spread, never an interval.",
     "The assessed variant requires the premise assessment to match the bridge's own trial mapping and premise exactly; a failed equivalence screen stays visible and does not change the premise the decision uses.",
@@ -13742,6 +13913,63 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "Sound and incomplete: the derivation is a bounded search under the z-transport contract's observed-variable and controllable bounds (at most 4 controllable finite discrete variables, a search budget), not an unbounded decision procedure, so a failure to derive is never a proof of non-transportability except for a replayed line-11 obstruction.",
+    "Single source: one source population's experiments, or two separately prepared formulas combined only when their outcome and treatment sets lie in disconnected graph components or their outcomes m-separate given the union of their treatments; a joint law over two sources' interventions is never fabricated.",
+    "Finite discrete laws only: the target law is computed exactly from the cited source joints (exact laws are point-only). For counted tables the point is the empirical plug-in, and the attached equal-tail percentile bootstrap (each cited law resampled as its own multinomial table) or finite-discrete posterior interval is nominal: its coverage is not measured and no interval support is claimed.",
+    "The functional is checked against the selection diagram and catalog when it is bound; the prepared route rechecks only its input identity and that the compiled physical plan executes the checked program."
+   ],
+   "digest": "597d12572cacdfebf2b242b7004e192e26daaff58abfe384412b91d648a755f5",
+   "id": "transport.single_source_z_transport",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "Definition of z-transportability",
+      "Algorithm TRz (single source, limited experiments)"
+     ],
+     "title": "Causal Transportability with Limited Experiments",
+     "url": "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The outcome curve and source membership are fitted by caller factories the library does not verify; the estimate records them as unverified (external_nuisances_unverified) and keeps each fold model's provenance.",
+    "Caller learners run without bootstrap replicates and refuse time-ordered rows, whose folds would train on the complement of each held-out fold: the route is point-only and calibration is reported as not_measured.",
+    "The certificate, bounds, known-density, dose-support and local-support refusals are those of the library-learner route and are decided before any learner is fitted."
+   ],
+   "digest": "ad28ac7403c606283ab20969f6f5e450ec6c1d503cf3f7dd30dfb6ab3a24a853",
+   "id": "transport.smoothed_dose_caller_learners",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "kernel-smoothed dose-response estimation with a known or estimated generalized propensity"
+     ],
+     "title": "Non-parametric methods for doubly robust estimation of continuous treatment effects (Kennedy, Ma, McHugh and Small, J. R. Stat. Soc. B 79:1229-1245)"
+    },
+    {
+     "authors": [
+      "Issa J. Dahabreh",
+      "Sarah E. Robertson",
+      "Jon A. Steingrimsson",
+      "Elizabeth A. Stuart",
+      "Miguel A. Hernán"
+     ],
+     "doi": "10.1002/sim.8426",
+     "doi_verified": true,
+     "sections": [
+      "Section 4.1: identification conditions for the nonparticipant target"
+     ],
+     "title": "Extending inferences from a randomized trial to a new target population",
+     "year": 2020
+    }
+   ]
   },
   {
    "deviations": [

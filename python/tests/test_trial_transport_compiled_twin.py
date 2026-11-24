@@ -1,8 +1,9 @@
 """The IPW trial-to-target estimate is one computation, reached directly or through the study.
 
-``transport.estimate_trial_effect`` without caller-supplied outcome regressions warns that the
-compiled study replaces it and returns the same point estimate the study reports. The AIPW call
-with ``mu0``/``mu1`` has no compiled query form and stays silent.
+``transport.estimate_trial_effect`` warns that the compiled study replaces it and returns the same
+point estimate the study reports. The AIPW call with ``mu0``/``mu1`` warns too: the study with
+``outcome_regressions=`` states the same augmented contrast
+(python/tests/test_compiled_transport_supplied.py).
 """
 
 from __future__ import annotations
@@ -92,10 +93,12 @@ def test_the_deprecated_call_is_deterministic_across_calls() -> None:
     assert first.ipw == second.ipw
 
 
-def test_the_aipw_call_with_supplied_regressions_does_not_warn() -> None:
+def test_the_aipw_call_with_supplied_regressions_warns_and_names_the_regressions() -> None:
     data = _data()
     mu = np.zeros(len(data["y"]))
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", AntecedentDeprecationWarning)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", AntecedentDeprecationWarning)
         result = _direct(data, mu0=mu, mu1=mu)
     assert result.aipw is not None
+    messages = [str(w.message) for w in caught if w.category is AntecedentDeprecationWarning]
+    assert messages and "outcome_regressions" in messages[0]

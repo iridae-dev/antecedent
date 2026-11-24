@@ -468,6 +468,17 @@ pub enum EstimatorId {
     RandomizedIpwPolicy,
     /// Fixed multi-action policy IPW value under known randomized action probabilities.
     RandomizedMultiActionIpwPolicy,
+    /// Fixed binary policy value read as the point-only evaluator reads it: the
+    /// inverse-probability value minus the mean assigned cost, with the IPW row-score standard
+    /// errors and pointwise intervals around it.
+    RandomizedIpwPolicyNet,
+    /// Fixed multi-action policy value read as the point-only evaluator reads it: the
+    /// inverse-probability value minus the mean assigned cost, with the multi-action IPW
+    /// row-score standard errors and pointwise intervals around it.
+    RandomizedMultiActionIpwPolicyNet,
+    /// Horvitz-Thompson 2x2 main effects and interaction over a four-cell multi-arm design
+    /// assigned independently by row, with Young-inequality variance bounds.
+    RandomizedFactorialBernoulliHt,
     /// Randomized product-limit survival/RMST or competing-risk incidence.
     RandomizedSurvivalProductLimit,
     /// Prespecified sequential inverse-probability regime value.
@@ -1197,6 +1208,30 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.policy_value.multi_action_ipw",
             ),
         },
+        EstimatorId::RandomizedIpwPolicyNet => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.ipw_policy_net",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.ipw_policy_net",
+            provenance: same_step("estimate.policy_value.ipw"),
+        },
+        EstimatorId::RandomizedMultiActionIpwPolicyNet => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.multi_action_ipw_policy_net",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.multi_action_ipw_policy_net",
+            provenance: (
+                "estimate.policy_value.multi_action_ipw",
+                "estimate.policy_value.multi_action_ipw",
+            ),
+        },
+        EstimatorId::RandomizedFactorialBernoulliHt => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.factorial_bernoulli_ht",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.factorial_bernoulli_ht",
+            provenance: same_step("estimate.randomized.factorial_bernoulli"),
+        },
         EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
             compatible: RANDOMIZED,
             name: "randomized.survival_product_limit",
@@ -1783,13 +1818,16 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::BayesianRandomizedSuperpopulation
         | EstimatorId::BayesianComplierEffect
         | EstimatorId::BayesianSwitchback
-        | EstimatorId::RandomizedNeyman => {
+        | EstimatorId::RandomizedNeyman
+        | EstimatorId::RandomizedFactorialBernoulliHt => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy
         | EstimatorId::BayesianBinaryPolicyValue
         | EstimatorId::RandomizedIpwPolicy
-        | EstimatorId::RandomizedMultiActionIpwPolicy => {
+        | EstimatorId::RandomizedMultiActionIpwPolicy
+        | EstimatorId::RandomizedIpwPolicyNet
+        | EstimatorId::RandomizedMultiActionIpwPolicyNet => {
             matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
     }

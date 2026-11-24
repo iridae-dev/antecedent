@@ -1803,6 +1803,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "prior_composition.unit_not_supported",
     "prior_signal.adapted_prior_not_draws",
     "prior_signal.artifact_not_in_catalog",
     "prior_signal.coefficient_prior_not_signal",
@@ -2675,6 +2676,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "tier_diagnostics.unknown_scenarios_no_evalue",
     "tier_diagnostics.unknown_scenarios_no_overlap",
     "transport_identification.reentry",
+    "transport_response_grid.grid_columns_mismatch",
     "transport_revalidation.claim_target_mismatch",
     "transport_revalidation.duplicate_claim",
     "transport_revalidation.identity_mismatch",
@@ -2863,6 +2865,12 @@ pub const REASON_DETAILS: &[&str] = &[
     "vector_treatment.weights_need_robust_covariance",
     "vector_treatment.wrong_contract",
     "weighted_target.overlap_failed",
+    "z_transport_estimate.combination_atom_limit",
+    "z_transport_estimate.components_not_independent",
+    "z_transport_estimate.cross_source_interval_not_supported",
+    "z_transport_estimate.empirical_counts_required",
+    "z_transport_estimate.invalid_independent_component_law",
+    "z_transport_estimate.physical_plan_program_mismatch",
 ];
 
 /// Detail id and the reason codes it is refused under, sorted by id.
@@ -4664,6 +4672,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("predictive_assessment.too_few_clusters", &["too_few_clusters"]),
     ("predictive_assessment.unknown_source", &["invalid_argument"]),
     ("predictive_assessment.wrong_contract", &["route_not_supported"]),
+    ("prior_composition.unit_not_supported", &["not_supported"]),
     ("prior_signal.adapted_prior_not_draws", &["invalid_argument"]),
     ("prior_signal.artifact_not_in_catalog", &["design_signal_invalid"]),
     ("prior_signal.coefficient_prior_not_signal", &["design_signal_invalid"]),
@@ -5536,6 +5545,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("tier_diagnostics.unknown_scenarios_no_evalue", &["diagnostic_not_available"]),
     ("tier_diagnostics.unknown_scenarios_no_overlap", &["diagnostic_not_available"]),
     ("transport_identification.reentry", &["public_builder_reentry"]),
+    ("transport_response_grid.grid_columns_mismatch", &["invalid_argument"]),
     ("transport_revalidation.claim_target_mismatch", &["quantity_semantics_mismatch"]),
     ("transport_revalidation.duplicate_claim", &["invalid_argument"]),
     ("transport_revalidation.identity_mismatch", &["route_not_supported"]),
@@ -5724,6 +5734,12 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("vector_treatment.weights_need_robust_covariance", &["option_not_applicable"]),
     ("vector_treatment.wrong_contract", &["route_not_supported"]),
     ("weighted_target.overlap_failed", &["transport_target_overlap_failed"]),
+    ("z_transport_estimate.combination_atom_limit", &["transport_budget_cancel"]),
+    ("z_transport_estimate.components_not_independent", &["transport_not_certified"]),
+    ("z_transport_estimate.cross_source_interval_not_supported", &["route_not_supported"]),
+    ("z_transport_estimate.empirical_counts_required", &["transport_missing_provider"]),
+    ("z_transport_estimate.invalid_independent_component_law", &["invalid_argument"]),
+    ("z_transport_estimate.physical_plan_program_mismatch", &["invalid_argument"]),
 ];
 
 /// The reason codes `detail` is refused under, or `None` for an unregistered id.
@@ -9865,6 +9881,12 @@ pub mod predictive_assessment {
     pub const WRONG_CONTRACT: &str = "predictive_assessment.wrong_contract";
 }
 
+/// Details in the `prior_composition` family.
+pub mod prior_composition {
+    /// Detail `prior_composition.unit_not_supported`.
+    pub const UNIT_NOT_SUPPORTED: &str = "prior_composition.unit_not_supported";
+}
+
 /// Details in the `prior_signal` family.
 pub mod prior_signal {
     /// Detail `prior_signal.adapted_prior_not_draws`.
@@ -11813,6 +11835,12 @@ pub mod transport_identification {
     pub const REENTRY: &str = "transport_identification.reentry";
 }
 
+/// Details in the `transport_response_grid` family.
+pub mod transport_response_grid {
+    /// Detail `transport_response_grid.grid_columns_mismatch`.
+    pub const GRID_COLUMNS_MISMATCH: &str = "transport_response_grid.grid_columns_mismatch";
+}
+
 /// Details in the `transport_revalidation` family.
 pub mod transport_revalidation {
     /// Detail `transport_revalidation.claim_target_mismatch`.
@@ -12247,4 +12275,20 @@ pub mod vector_treatment {
 pub mod weighted_target {
     /// Detail `weighted_target.overlap_failed`.
     pub const OVERLAP_FAILED: &str = "weighted_target.overlap_failed";
+}
+
+/// Details in the `z_transport_estimate` family.
+pub mod z_transport_estimate {
+    /// Detail `z_transport_estimate.combination_atom_limit`.
+    pub const COMBINATION_ATOM_LIMIT: &str = "z_transport_estimate.combination_atom_limit";
+    /// Detail `z_transport_estimate.components_not_independent`.
+    pub const COMPONENTS_NOT_INDEPENDENT: &str = "z_transport_estimate.components_not_independent";
+    /// Detail `z_transport_estimate.cross_source_interval_not_supported`.
+    pub const CROSS_SOURCE_INTERVAL_NOT_SUPPORTED: &str = "z_transport_estimate.cross_source_interval_not_supported";
+    /// Detail `z_transport_estimate.empirical_counts_required`.
+    pub const EMPIRICAL_COUNTS_REQUIRED: &str = "z_transport_estimate.empirical_counts_required";
+    /// Detail `z_transport_estimate.invalid_independent_component_law`.
+    pub const INVALID_INDEPENDENT_COMPONENT_LAW: &str = "z_transport_estimate.invalid_independent_component_law";
+    /// Detail `z_transport_estimate.physical_plan_program_mismatch`.
+    pub const PHYSICAL_PLAN_PROGRAM_MISMATCH: &str = "z_transport_estimate.physical_plan_program_mismatch";
 }

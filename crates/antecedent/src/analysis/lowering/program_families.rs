@@ -151,56 +151,6 @@ macro_rules! program_families {
             JointPanelExperiment => JointPanel, unit "joint_response.interval_readings";
             /// A design-native joint functional with its retained design proof.
             JointDesign => JointPanel, unit "joint_response.interval_readings";
-            /// Declared external prior sources composed with a baseline at their discounts.
-            ExternalPriorComposition => Associational, unit "prior.external_composition";
-            /// Declared external prior sources moved toward a target population.
-            ExternalPriorTransport => Associational, unit "prior.external_composition";
-            /// Power-prior discount of a Beta-Binomial source chosen from the target trials.
-            PowerPriorBetaSelection => Associational, unit "association.conjugate_count_posterior";
-            /// Power-prior discount of a Gamma-Poisson source chosen from the target counts.
-            PowerPriorGammaSelection => Associational, unit "association.conjugate_count_posterior";
-            /// Power-prior discount of external Gaussian sources chosen from a linear target.
-            PowerPriorLinearSelection => Associational, unit "prior.composed_named_coordinates";
-            /// Exact or empirical evaluation of a checked single-source z-transport formula.
-            ZTransportEstimate => DesignBased, unit "transport.single_source_z_transport";
-            /// Sampled observation recovery with its whole-row bootstrap.
-            SampledObservationRecovery => Structural, unit "recovery.sampled_observation";
-            /// Measured replay of a sampled observation-recovery source.
-            MeasuredSampledObservationRecovery => Structural, unit "recovery.sampled_observation";
-            /// Ordered-response observation recovery on an exact observed law.
-            ChainObservationRecovery => Structural, unit "recovery.chain_observation";
-            /// Misclassification-corrected exposure association from case-control counts.
-            ExposureMisclassificationCorrection => Associational, unit "measurement.exposure_misclassification";
-            /// Linear outcome model on per-unit exposure probabilities.
-            SoftExposureCorrection => Associational, unit "measurement.soft_exposure";
-            /// Prevalence under a declared covariate-dependent detection function.
-            DetectionDependentPrevalenceCorrection => Associational, unit "measurement.detection_dependent_prevalence";
-            /// Latent-class fit of repeat codings of one latent facet.
-            RepeatCodingsLatentClass => Associational, unit "measurement.repeat_codings_latent_class";
-            /// Imputation of a measured exposure from its declaration.
-            MeasuredExposureImputation => PropagationChain, unit "measurement.measured_exposure_effect";
-            /// Rubin pooling of per-draw measured-exposure estimates.
-            MeasuredExposurePooling => PropagationChain, unit "measurement.measured_exposure_effect";
-            /// A binary nested-Markov Fisher interval over declared regime counts.
-            NestedMarkovFisherInterval => Structural, unit "identify.binary_nested_markov_fisher";
-            /// A binary nested-Markov posterior over declared regime counts.
-            NestedMarkovPosterior => Structural, unit "identify.binary_nested_markov";
-            /// A learned polynomial-basis joint source-target transport posterior.
-            LearnedJointTransport => Structural, unit "transport.learned_joint";
-            /// A Gaussian joint source-target transport posterior and its measured target effect.
-            JointBayesianTransport => Structural, unit "transport.joint_bayesian";
-            /// The shared-row covariance of declared scenario estimates.
-            SharedScenarioCovariance => Structural, unit "transport.shared_scenario_covariance";
-            /// Equilibria of a feedback system with registered external mechanisms.
-            ExternalFeedbackEquilibrium => Cyclic, unit "cyclic.external_mechanisms";
-            /// A sampled counterfactual transport estimate from count tables.
-            SampledCounterfactualTransport => Structural, unit "counterfactual.transport_sampled";
-            /// The measured interval of a sealed sampled counterfactual transport estimate.
-            SampledCounterfactualTransportInterval => Structural, unit "counterfactual.transport_sampled_interval";
-            /// The measured sample-split effect replayed from its canonical source.
-            SampleSplitEffect => Structural, unit "discovery.sample_split_effect";
-            /// The measured sample-split parent-set effect replayed from its canonical source.
-            SampleSplitParentSetEffect => Structural, unit "discovery.sample_split_parent_set_effect";
             /// A validation check of a compiled temporal structure search on the study's own data.
             DiscoveryValidation => Discovery, unit "validate.discovery_stability";
             /// Permutation falsification of a study's declared DAG against its retained table.
@@ -276,6 +226,82 @@ macro_rules! program_families {
             MatchedCaseControl => DesignBased, unit "estimate.matched_case_control_odds_ratio";
             /// A conditional prediction from a lagged linear regression of one series.
             TemporalLinearPrediction => Associational, unit "estimate.temporal_linear_prediction";
+            /// The measured sample-split effect replayed from its canonical source.
+            SampleSplitEffect => Structural, unit "discovery.sample_split_effect";
+            /// The measured sample-split parent-set effect replayed from its canonical source.
+            SampleSplitParentSetEffect => Structural, unit "discovery.sample_split_parent_set_effect";
+            /// A binary nested-Markov Fisher interval over declared regime counts.
+            NestedMarkovFisherInterval => Structural, unit "identify.binary_nested_markov_fisher";
+            /// A binary nested-Markov posterior over declared regime counts.
+            NestedMarkovPosterior => Structural, unit "identify.binary_nested_markov";
+            /// A learned polynomial-basis joint source-target transport posterior.
+            LearnedJointTransport => Structural, unit "transport.learned_joint";
+            /// A Gaussian joint source-target transport posterior and its measured target effect.
+            JointBayesianTransport => Structural, unit "transport.joint_bayesian";
+            /// The shared-row covariance of declared scenario estimates.
+            SharedScenarioCovariance => Structural, unit "transport.shared_scenario_covariance";
+            /// Equilibria of a feedback system with registered external mechanisms.
+            ExternalFeedbackEquilibrium => Cyclic, unit "cyclic.external_mechanisms";
+            /// A sampled counterfactual transport estimate from count tables.
+            SampledCounterfactualTransport => Structural, unit "counterfactual.transport_sampled";
+            /// The measured interval of a sealed sampled counterfactual transport estimate.
+            SampledCounterfactualTransportInterval => Structural, unit "counterfactual.transport_sampled_interval";
+            /// Sampled observation recovery with its whole-row bootstrap.
+            SampledObservationRecovery => Structural, unit "recovery.sampled_observation";
+            /// Measured replay of a sampled observation-recovery source.
+            MeasuredSampledObservationRecovery => Structural, unit "recovery.sampled_observation";
+            /// Ordered-response observation recovery on an exact observed law.
+            ChainObservationRecovery => Structural, unit "recovery.chain_observation";
+            /// Misclassification-corrected exposure association from case-control counts.
+            ExposureMisclassificationCorrection => Associational, unit "measurement.exposure_misclassification";
+            /// Linear outcome model on per-unit exposure probabilities.
+            SoftExposureCorrection => Associational, unit "measurement.soft_exposure";
+            /// Prevalence under a declared covariate-dependent detection function.
+            DetectionDependentPrevalenceCorrection => Associational, unit "measurement.detection_dependent_prevalence";
+            /// Latent-class fit of repeat codings of one latent facet.
+            RepeatCodingsLatentClass => Associational, unit "measurement.repeat_codings_latent_class";
+            /// Imputation of a measured exposure from its declaration.
+            MeasuredExposureImputation => PropagationChain, unit "measurement.measured_exposure_effect";
+            /// Rubin pooling of per-draw measured-exposure estimates.
+            MeasuredExposurePooling => PropagationChain, unit "measurement.measured_exposure_effect";
+            /// Power-prior discount of a Beta-Binomial source chosen from the target trials.
+            PowerPriorBetaSelection => Associational, unit "association.conjugate_count_posterior";
+            /// Power-prior discount of a Gamma-Poisson source chosen from the target counts.
+            PowerPriorGammaSelection => Associational, unit "association.conjugate_count_posterior";
+            /// Power-prior discount of external Gaussian sources chosen from a linear target.
+            PowerPriorLinearSelection => Associational, unit "prior.composed_named_coordinates";
+            /// Exact or empirical evaluation of a checked single-source z-transport formula.
+            ZTransportEstimate => DesignBased, unit "transport.single_source_z_transport";
+            /// Declared external prior sources composed with a baseline at their discounts.
+            ExternalPriorComposition => Associational, unit "prior.external_composition";
+            /// Declared external prior sources moved toward a target population.
+            ExternalPriorTransport => Associational, unit "prior.external_composition";
+            /// Augmented transported response grid on caller-supplied nuisances.
+            TransportResponseGrid => Structural, unit "transport.augmented_response_grid";
+            /// Finite graph/selection transport scenario set.
+            TransportScenarioSet => Structural, unit "transport.finite_scenario_envelope";
+            /// Measurement-error model carried to another population under a declared premise.
+            MeasurementModelTransport => Structural, unit "transport.measurement_model";
+            /// Differential measurement error pooled across validated populations.
+            PooledDifferentialTransport => Structural, unit "measurement.model_contract";
+            /// Retained fitted effect transported to a cohort of another population.
+            TransportedCohortEffect => Structural, unit "transport.covariate_shift_cohort_effect";
+            /// Bias-aware intervals and band of a randomized-dose response grid.
+            DoseGridBiasAware => DesignBased, unit "estimate.dose_grid_bias_aware";
+            /// Smoothed dose-response transport fitted with caller-supplied learners.
+            SmoothedDoseLearnerTransport => DesignBased, unit "transport.smoothed_dose_caller_learners";
+            /// Likelihood fit of a feedback system with registered external mechanisms.
+            ExternalFeedbackFit => Cyclic, unit "cyclic.external_mechanisms";
+            /// Measured interval of one named result of an adaptive experiment.
+            AdaptiveResultInterval => DesignBased, unit "adaptive_inference.unsupported_guarantees";
+            /// Measured credible interval of one named result of a choice study.
+            ChoiceResultInterval => DesignBased, unit "choice_inference.interval_candidates";
+            /// Measured interval of a declared cohort's mean conditional effect.
+            CohortMeanInterval => Structural, unit "cohort_decision.interval";
+            /// Measured posterior interval of a count-fitted observation probability.
+            CountFittedInterval => Structural, unit "observation_query.calibrated_probability";
+            /// Measured whole-unit interval of a finite two-step temporal response.
+            TemporalDependentInterval => Temporal, unit "temporal.dependent_interval";
         }
     };
 }

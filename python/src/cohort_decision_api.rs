@@ -33,6 +33,9 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 type BuildPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
+mod compiled;
+mod transported;
+
 fn invalid_argument(message: String) -> PyErr {
     value_err_code(antecedent::reason::reason_code!("invalid_argument"), message)
 }
@@ -749,6 +752,7 @@ fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPay
 /// `(measured inference, refusal json)`.
 #[pyfunction]
 #[pyo3(signature = (artifact, expectation_json, fit_json, level))]
+#[allow(deprecated, reason = "the deprecated direct interval stays reachable until 4.0")]
 fn cohort_decision_interval(
     py: Python<'_>,
     artifact: &[u8],
@@ -808,6 +812,7 @@ fn cohort_decision_interval(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(fit_native_cohort_effect, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_interval, m)?)?;
+    m.add_function(wrap_pyfunction!(compiled::cohort_decision_compiled_interval, m)?)?;
     m.add_function(wrap_pyfunction!(build_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cohort_decision_source, m)?)?;
     m.add_function(wrap_pyfunction!(validate_cohort_binding, m)?)?;
@@ -816,6 +821,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cohort_decision_forward_claim, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect, m)?)?;
+    m.add_function(wrap_pyfunction!(transported::transport_cohort_effect_compiled, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_effect_verify, m)?)?;
     m.add_function(wrap_pyfunction!(transport_cohort_composition_node, m)?)?;
     m.add_function(wrap_pyfunction!(transported_cohort_refusal, m)?)

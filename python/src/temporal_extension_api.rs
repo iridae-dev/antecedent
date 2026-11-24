@@ -24,6 +24,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
 
+mod compiled;
 const INITIAL_STATE_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-INITIAL-STATE\x01";
 const REFRESH_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-REFRESH\x01";
 
@@ -635,6 +636,8 @@ fn consume_temporal_interval_candidate(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(temporal_dependent_interval_measured, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(compiled::temporal_dependent_interval_compiled, module)?)?;
     {
         module.add_class::<NativeTemporalIntervalCandidate>()?;
         module.add_function(wrap_pyfunction!(temporal_dependent_interval_candidate, module)?)?;

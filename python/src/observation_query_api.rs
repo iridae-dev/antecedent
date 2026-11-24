@@ -33,6 +33,7 @@ use crate::measurement_model_api::{
 use crate::mechanism_composition_api::PreparedCompositionHandle;
 use crate::transport_common::execution_context;
 
+mod compiled;
 type Refused<T> = (Option<T>, Option<String>);
 type Claimed = (String, Py<PyBytes>);
 
@@ -911,6 +912,7 @@ fn count_fitted_observation_point(bytes: &[u8]) -> PyResult<Refused<f64>> {
 /// `(measured inference, refusal json)`.
 #[pyfunction]
 #[pyo3(signature = (bytes, level, *, cancel=None))]
+#[allow(deprecated, reason = "the deprecated direct interval stays reachable until 4.0")]
 fn count_fitted_observation_interval(
     py: Python<'_>,
     bytes: &[u8],
@@ -937,6 +939,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(count_fitted_observation_build, module)?)?;
     module.add_function(wrap_pyfunction!(count_fitted_observation_point, module)?)?;
     module.add_function(wrap_pyfunction!(count_fitted_observation_interval, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        compiled::count_fitted_observation_compiled_interval,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(observation_query_observe, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_observe_with_uncertainty, module)?)?;
     module.add_function(wrap_pyfunction!(observation_query_parameter_interval, module)?)?;

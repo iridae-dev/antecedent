@@ -28,13 +28,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent::AdaptiveInferenceSession::measured_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:AdaptiveResultInterval"
 
 [[row]]
 path = "antecedent::ChoiceInferenceSession::measured_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:ChoiceResultInterval"
 
 [[row]]
 path = "antecedent::EvidenceLedgerSession::pooled_interval_candidate"
@@ -192,13 +192,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent::analysis::api::temporal_dependent_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:TemporalDependentInterval"
 
 [[row]]
 path = "antecedent::analysis::api::transport_trial_to_weighted_target"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:TransportMixed"
 
 [[row]]
 path = "antecedent::analysis::categorical_posterior_candidate::PreparedCategoricalPosteriorCandidate::interval"
@@ -212,18 +212,43 @@ route = "CategoricalPosteriorCandidate"
 
 [[row]]
 path = "antecedent::analysis::cohort_decision::measured_cohort_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:CohortMeanInterval"
+
+[[row]]
+path = "antecedent::analysis::compiled_adaptive_interval::CompiledAdaptiveInterval::execute"
+disposition = "compiled"
+route = "AdaptiveResultInterval"
+
+[[row]]
+path = "antecedent::analysis::compiled_choice_interval::CompiledChoiceInterval::execute"
+disposition = "compiled"
+route = "ChoiceResultInterval"
+
+[[row]]
+path = "antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval::execute"
+disposition = "compiled"
+route = "CohortMeanInterval"
+
+[[row]]
+path = "antecedent::analysis::compiled_count_fitted_interval::CompiledCountFittedInterval::execute"
+disposition = "compiled"
+route = "CountFittedInterval"
+
+[[row]]
+path = "antecedent::analysis::compiled_temporal_interval::CompiledTemporalDependentInterval::execute"
+disposition = "compiled"
+route = "TemporalDependentInterval"
 
 [[row]]
 path = "antecedent::analysis::count_fitted_observation::CountFittedObservation::calibrated_probability"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:CountFittedInterval"
 
 [[row]]
 path = "antecedent::analysis::count_fitted_observation::CountFittedObservation::interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:CountFittedInterval"
 
 [[row]]
 path = "antecedent::analysis::discovered_transport::discover_and_transport"
@@ -237,8 +262,8 @@ route = "GraphImputation"
 
 [[row]]
 path = "antecedent::analysis::mnar_fixed_shift::PreparedMnarFixedShift::measured_interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "compiled"
+route = "MnarFixedShift"
 
 [[row]]
 path = "antecedent::analysis::sample_split_analysis::SplitDiscovery::outcome"
@@ -1551,8 +1576,8 @@ reason = "kernel API; the type configures the compiled static estimator (Estimat
 
 [[row]]
 path = "antecedent_estimate::AipwAte::fit_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec), and the compiled StaticAteDag route runs this method when the study declares learner factories (StudyBuilder::learner_factories)"
 
 [[row]]
 path = "antecedent_estimate::AipwAte::population_linear_atc_interval"
@@ -1586,8 +1611,8 @@ reason = "kernel API; the type configures the compiled static estimator (Estimat
 
 [[row]]
 path = "antecedent_estimate::CausalForest::fit_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec), and the compiled StaticAteDag route runs this method when the study declares learner factories (StudyBuilder::learner_factories)"
 
 [[row]]
 path = "antecedent_estimate::CausalForest::prepare"
@@ -1661,8 +1686,8 @@ reason = "kernel API; the type configures the compiled static estimator (Estimat
 
 [[row]]
 path = "antecedent_estimate::DmlAte::fit_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec), and the compiled StaticAteDag route runs this method when the study declares learner factories (StudyBuilder::learner_factories)"
 
 [[row]]
 path = "antecedent_estimate::DmlAte::population_linear_interval"
@@ -1691,8 +1716,8 @@ reason = "kernel API; the type configures the compiled static estimator (Estimat
 
 [[row]]
 path = "antecedent_estimate::DrLearner::fit_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled static estimator (EstimatorSpec), and the compiled StaticAteDag route runs this method when the study declares learner factories (StudyBuilder::learner_factories)"
 
 [[row]]
 path = "antecedent_estimate::DrLearner::population_linear_interval"
@@ -2005,9 +2030,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::ancova::fit_ancova"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect with ancova_covariates (graphless row randomized_effect:bernoulli:ancova_hc0:pointwise_95_normal_interval)"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::cohort_linear_effect::declared_export_refusal"
@@ -2026,8 +2050,8 @@ replacement = "route:MatchedCaseControl"
 
 [[row]]
 path = "antecedent_estimate::cyclic_likelihood::sample_cyclic_posterior"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:CyclicFamily"
 
 [[row]]
 path = "antecedent_estimate::declared_joint_nuisance"
@@ -2036,20 +2060,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::dose_grid_functional::estimate_dose_grid_bias_aware"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:DoseGridBiasAware"
 
 [[row]]
 path = "antecedent_estimate::estimate_interference_with_context"
-disposition = "pending"
-owner = "interference estimators"
-replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
+disposition = "deprecated"
+replacement = "route:InterferenceDag"
 
 [[row]]
 path = "antecedent_estimate::estimate_observational_exposure"
-disposition = "pending"
-owner = "interference estimators"
-replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
+disposition = "deprecated"
+replacement = "route:InterferenceDag"
 
 [[row]]
 path = "antecedent_estimate::estimate_sampled_recovery"
@@ -2058,14 +2080,13 @@ replacement = "route:SampledObservationRecovery"
 
 [[row]]
 path = "antecedent_estimate::estimate_saturation_interference"
-disposition = "pending"
-owner = "interference estimators"
-replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
+disposition = "deprecated"
+replacement = "route:InterferenceDag"
 
 [[row]]
 path = "antecedent_estimate::estimate_smoothed_dose_with_factories"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:SmoothedDoseLearnerTransport"
 
 [[row]]
 path = "antecedent_estimate::estimate_trial_aipw_with_factories"
@@ -2079,14 +2100,13 @@ replacement = "route:ChainObservationRecovery"
 
 [[row]]
 path = "antecedent_estimate::external_cyclic_fit::fit_external_feedback"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:ExternalFeedbackFit"
 
 [[row]]
 path = "antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect over the four product cells as a multi-arm design (graphless row randomized_effect:multi_arm:independent_action_ht_scores:all_action_pointwise_95_normal_intervals); agrees to rounding, not to the bit"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
@@ -2285,13 +2305,13 @@ replacement = "route:MeasuredExposurePooling"
 
 [[row]]
 path = "antecedent_estimate::measurement_transport::transport_measurement_model"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:MeasurementModelTransport"
 
 [[row]]
 path = "antecedent_estimate::measurement_transport_pooled::transport_pooled_differential_prevalence"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:PooledDifferentialTransport"
 
 [[row]]
 path = "antecedent_estimate::orderings_for"
@@ -2310,55 +2330,48 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::policy_value::evaluate_binary_ipw_policy"
-disposition = "pending"
-owner = "observational policy value"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:PolicyValue"
 
 [[row]]
 path = "antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy"
-disposition = "pending"
-owner = "observational policy value"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:PolicyValue"
 
 [[row]]
 path = "antecedent_estimate::policy_value::evaluate_policy_value_scores"
-disposition = "pending"
-owner = "observational policy value"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:PolicyValue"
 
 [[row]]
 path = "antecedent_estimate::policy_value::uplift_by_score_bin"
-disposition = "pending"
-owner = "observational policy value"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:PolicyValue"
 
 [[row]]
-path = "antecedent_estimate::randomized_joint::centered_fixed_cuped_totals"
-disposition = "pending"
-owner = "randomized-design kernels"
+path = "antecedent::decision_evidence::centered_fixed_cuped_totals"
+disposition = "deprecated"
+replacement = "route:JointDesign"
 
 [[row]]
-path = "antecedent_estimate::randomized_joint::complete_cluster_joint_contrast"
-disposition = "pending"
-owner = "randomized-design kernels"
+path = "antecedent::decision_evidence::complete_cluster_joint_contrast"
+disposition = "deprecated"
+replacement = "route:JointDesign"
 
 [[row]]
 path = "antecedent_estimate::randomized_neyman::stratified_neyman_effect"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect with a StratifiedRandomization design (graphless row randomized_effect:stratified:blocked_neyman_difference_in_means:pointwise_95_normal_interval)"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect on a Bernoulli design of at most twenty rows with exact_randomization_test (graphless row randomized_effect:bernoulli:independent_action_ht_score:pointwise_95_normal_interval)"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::randomized_scores::cuped_ht_effect"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect with estimated_cuped (graphless row randomized_effect:bernoulli:estimated_cuped_ht_score:pointwise_95_normal_interval)"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::raw_contrast"
@@ -2376,15 +2389,13 @@ replacement = "route:PanelDid"
 
 [[row]]
 path = "antecedent_estimate::survival::randomized_survival_ipcw_summary"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "antecedent::Study::run"
+disposition = "deprecated"
+replacement = "route:Survival"
 
 [[row]]
 path = "antecedent_estimate::switchback::switchback_itt"
-disposition = "pending"
-owner = "randomized-design kernels"
-replacement = "RandomizedEffect with a Switchback design (graphless row randomized_effect:switchback:independent_sequence_ht_score:pointwise_95_student_interval)"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::transform_mean_pair"
@@ -2393,34 +2404,33 @@ replacement = "route:DescriptiveComparison"
 
 [[row]]
 path = "antecedent_estimate::transport::transport_augmented_response_grid"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:TransportResponseGrid"
 
 [[row]]
 path = "antecedent_estimate::transport::transport_augmented_response_grid_with_context"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:TransportResponseGrid"
 
 [[row]]
 path = "antecedent_estimate::transport::trial_to_target_effect_with_context"
-disposition = "pending"
-owner = "transport trial estimators"
-replacement = "the compiled row of the TransportQuery x Admg/Dag explicit x Frequentist cell (Study::run, Python analyze with TransportQuery(trial=, selection_probability=, treatment_probability=))"
+disposition = "deprecated"
+replacement = "route:TransportMixed"
 
 [[row]]
 path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::evaluate"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled scenario-set route (Study::compile_transport_scenarios, TransportScenarioSet), whose CompiledTransportScenarios::execute runs this method"
 
 [[row]]
 path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::refresh"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled scenario-set route (Study::compile_transport_scenarios, TransportScenarioSet), whose CompiledTransportScenarios::refresh runs this method"
 
 [[row]]
 path = "antecedent_estimate::transport_scenarios::PreparedScenarioSet::refresh_empirical"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "kernel"
+reason = "kernel API; the type configures the compiled scenario-set route (Study::compile_transport_scenarios, TransportScenarioSet), whose CompiledTransportScenarios::refresh_empirical runs this method"
 
 [[row]]
 path = "antecedent_graph::CompletionSampler::with_budget"
@@ -2509,8 +2519,8 @@ reason = "kernel API; the compiled temporal mediation route identifies each hori
 
 [[row]]
 path = "antecedent_identify::TransportIdentifier::identify_with_context"
-disposition = "pending"
-owner = "transport routes"
+disposition = "kernel"
+reason = "kernel API; the type is the sID identifier the compiled TransportQuery route (TransportMixed, through live_transport_identification), the graph-posterior transport atoms and the TransportResponseGrid family run"
 
 [[row]]
 path = "antecedent_identify::ZTransportDerivation::from_record_checked"
@@ -2526,9 +2536,8 @@ disposition = "internal"
 
 [[row]]
 path = "antecedent_identify::binary_iv_ate_bounds"
-disposition = "pending"
-owner = "iv bounds"
-replacement = "the compiled row of route IvBounds (CausalQuery::IvBounds, Python antecedent.analyze with quasi.IvBounds)"
+disposition = "deprecated"
+replacement = "route:IvBounds"
 
 [[row]]
 path = "antecedent_identify::bind_mixed_source_catalog"
@@ -3586,13 +3595,12 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_learn::FittedEffect::predict"
-disposition = "pending"
-owner = "learner-backed estimators"
+disposition = "consume"
 
 [[row]]
 path = "antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories"
-disposition = "pending"
-owner = "learner-backed estimators"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_learn::fit_counts::count_resolved_fits"
@@ -3601,13 +3609,13 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_learn::transported_effect::assess_overlap"
-disposition = "pending"
-owner = "learner-backed estimators"
+disposition = "not_scientific"
+reason = "support diagnostic: compares each target feature's range and rows with the retained model's fitted box; computes no estimate, identification or ranking (the compiled TransportedCohortEffect route reports the same assessment in its receipt)"
 
 [[row]]
 path = "antecedent_learn::transported_effect::transport_cohort_effect"
-disposition = "pending"
-owner = "learner-backed estimators"
+disposition = "deprecated"
+replacement = "route:TransportedCohortEffect"
 
 [[row]]
 path = "antecedent_model::KdeDoSampler::sample"
@@ -4111,13 +4119,13 @@ replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"
-disposition = "pending"
-owner = "interval candidates"
+disposition = "deprecated"
+replacement = "route:CohortMeanInterval"
 
 [[python]]
 path = "python/antecedent/cyclic.py::PreparedCyclicSystem.posterior"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:CyclicFamily"
 
 [[python]]
 path = "python/antecedent/decision_evidence.py::evaluate"
@@ -4136,8 +4144,8 @@ replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::RandomizedEffect.estimate"
-disposition = "pending"
-owner = "randomized-design kernels"
+disposition = "deprecated"
+replacement = "route:RandomizedEffect"
 
 [[python]]
 path = "python/antecedent/experiment.py::estimate_cuped_effect"
@@ -4155,19 +4163,14 @@ disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[python]]
-path = "python/antecedent/external_learners.py::dml_ate"
-disposition = "pending"
-owner = "caller-supplied learner factories"
-
-[[python]]
 path = "python/antecedent/external_learners.py::cross_fit_aipw"
-disposition = "pending"
-owner = "learner-backed estimators"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[python]]
 path = "python/antecedent/external_mechanisms.py::ExternalFeedbackModel.fit"
-disposition = "pending"
-owner = "dose-grid and cyclic fits"
+disposition = "deprecated"
+replacement = "route:ExternalFeedbackFit"
 
 [[python]]
 path = "python/antecedent/interference.py::estimate"
@@ -4176,8 +4179,8 @@ replacement = "route:InterferenceDag"
 
 [[python]]
 path = "python/antecedent/measurement_models.py::transport_pooled_differential"
-disposition = "pending"
-owner = "transport trial estimators"
+disposition = "deprecated"
+replacement = "route:PooledDifferentialTransport"
 
 [[python]]
 path = "python/antecedent/policy.py::uplift_by_score"
@@ -4353,77 +4356,3 @@ path = "python/antecedent/validation.py::posterior_predictive_target"
 disposition = "deprecated"
 replacement = "antecedent.PreparedAnalysis.refute_target(checks=TargetRefutationSpec(...))"
 
-[[verdict]]
-path = "python/antecedent/_batch.py::not_assessed"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/experiment.py::unsupported_direct_estimator_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/experiment.py::unsupported_direct_inference_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/interference.py::unsupported_point_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/policy.py::unsupported_point_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/quasi.py::off_axis_interval_evidence"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/quasi.py::unsupported_point_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/quasi.py::unsupported_uncalibrated"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/regimes.py::caller_supplied_conditional_outcome_predictions"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/regimes.py::caller_supplied_sequential_Q_and_probabilities"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/regimes.py::caller_supplied_sequential_probabilities"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/regimes.py::unsupported_point_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/regimes.py::unsupported_uncalibrated"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/survival.py::unsupported_point_utility"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"
-
-[[verdict]]
-path = "python/antecedent/survival.py::unsupported_simultaneous_band"
-disposition = "pending"
-owner = "verdict literals move into the generated support table (units_generated.rs and _direct_status.py)"

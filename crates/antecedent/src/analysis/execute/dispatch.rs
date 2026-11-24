@@ -730,14 +730,25 @@ impl super::Study {
         // stay here: they choose which sealed operation to commit to, and a match
         // that does not retain that operation is still a compile error.
         let route = self.route_input_classified();
-        // Bind one-shot Bernoulli interference to the actual checked operation,
-        // as prepared execution does, so its result carries that execution's contract.
+        // Bind one-shot Bernoulli and complete-randomization interference to the actual
+        // checked operation, as prepared execution does, so its result carries that
+        // execution's contract.
         if self.plain_fixed_route()
             && self.declared.split.is_none()
             && self.settings.inference.is_frequentist()
             && let Some(RouteInput::InterferenceDag { data, query, .. }) = route
-            && matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-            && query.exposure == antecedent_core::ExposureMapping::NeighborCount
+            && matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::Bernoulli { .. }
+                    | antecedent_core::AssignmentDesign::CompleteRandomization { .. }
+            )
+            && matches!(
+                query.exposure,
+                antecedent_core::ExposureMapping::OwnTreatment
+                    | antecedent_core::ExposureMapping::NeighborCount
+                    | antecedent_core::ExposureMapping::NeighborFraction
+                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
+            )
             && let Some(result) = self.admit_sealed_tabular(
                 data,
                 ctx,

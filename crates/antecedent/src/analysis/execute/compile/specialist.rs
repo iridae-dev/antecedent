@@ -30,6 +30,10 @@ impl super::super::Study {
                     q,
                 )
                 .as_str()
+            } else if self.declared.estimator == Some(EstimatorId::RandomizedFactorialBernoulliHt) {
+                // The declared independent-factor 2x2 reading of a four-cell multi-arm design;
+                // the checked operation refuses it on any other design.
+                EstimatorId::RandomizedFactorialBernoulliHt.as_str()
             } else {
                 match &q.design {
                     antecedent_core::RandomizationDesign::Bernoulli => {
@@ -100,12 +104,15 @@ impl super::super::Study {
                 PlanId::RandomizedPolicyValueDr.as_str()
             },
             "randomized.design",
-            if q.multi_action.is_some() {
-                "randomized.multi_action_ipw_policy"
-            } else if q.mu0.is_empty() {
-                "randomized.ipw_policy"
-            } else {
-                "randomized.dr_policy"
+            match self.declared.estimator {
+                // A declared net-value reading of the point-only evaluators.
+                Some(
+                    selected @ (EstimatorId::RandomizedIpwPolicyNet
+                    | EstimatorId::RandomizedMultiActionIpwPolicyNet),
+                ) => selected.as_str(),
+                _ if q.multi_action.is_some() => "randomized.multi_action_ipw_policy",
+                _ if q.mu0.is_empty() => "randomized.ipw_policy",
+                _ => "randomized.dr_policy",
             },
             Arc::from([q.outcome]),
         ))

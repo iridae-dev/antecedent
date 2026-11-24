@@ -62,6 +62,7 @@ from .policy import (
     PolicyValue,
     _evaluate_multi_action_policy_direct,
     _evaluate_policy_direct,
+    _net_policy_constraint_options,
 )
 from .quasi import (
     AugmentedPanelDiD,
@@ -1325,7 +1326,17 @@ class _PrepareRoute:
                 "PolicyValue carries its randomized design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("PolicyValue", "bayesian.binary_policy_value")
+        selected = getattr(self.estimator, "value", self.estimator)
+        if (
+            selected in ("randomized.ipw_policy_net", "randomized.multi_action_ipw_policy_net")
+            and self.identifier is None
+            and not isinstance(self.inference, Bayesian)
+        ):
+            # The net-value reading of the point-only evaluators; the compiler refuses it on a
+            # query it does not answer.
+            self._select_ids()
+        else:
+            self._refuse_ids("PolicyValue", "bayesian.binary_policy_value")
         self._refuse_estimator_config("PolicyValue")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
@@ -1445,6 +1456,9 @@ class _PrepareRoute:
                 or reference.capacity is not None
                 or reference.budget is not None
             ),
+            # The net-value reading checks the limits in the compiled route itself; every other
+            # estimator, and a query that declares no limit, passes none.
+            **_net_policy_constraint_options(query, self.estimator),
             accepted=self.accepted,
             **self._common(),
         )
@@ -2457,6 +2471,7 @@ class _PrepareRoute:
             columns[1],
             columns[2],
             catalog=query.catalog,
+            outcome_regressions=query.outcome_regressions,
             grid=response["grid"],
             at=response["at"],
             direction=response["direction"],

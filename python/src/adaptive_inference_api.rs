@@ -27,6 +27,7 @@ use serde_json::{Value as Json, json};
 use crate::measurement_model_api::{object, opt_flag, parse, present, real, small, text};
 use crate::transport_common::execution_context;
 
+mod compiled;
 pub(crate) type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
@@ -248,6 +249,7 @@ impl AdaptiveInferenceHandle {
     /// The interval of one result of a measured procedure cell, bound to
     /// currently attesting whole-procedure coverage.
     #[pyo3(signature = (request_json, cancel=None))]
+    #[allow(deprecated, reason = "the deprecated direct interval stays reachable until 4.0")]
     fn measured_interval(
         &self,
         py: Python<'_>,

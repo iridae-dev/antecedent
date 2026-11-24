@@ -22,6 +22,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyBytesMethods};
 use std::sync::Arc;
 
+mod compiled;
+
 fn execution_context(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
@@ -408,6 +410,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(external_consume, m)?)?;
     m.add_function(wrap_pyfunction!(external_inspect, m)?)?;
     m.add_function(wrap_pyfunction!(external_fit, m)?)?;
+    m.add_function(wrap_pyfunction!(compiled::external_compiled_fit, m)?)?;
     m.add_function(wrap_pyfunction!(external_ode, m)?)?;
     Ok(())
 }

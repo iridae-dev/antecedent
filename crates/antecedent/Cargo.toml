@@ -1136,6 +1136,14 @@ name = "compiled_twins_interference"
 path = "tests/compiled_twins_interference.rs"
 
 [[test]]
+name = "compiled_twins_interference_designs"
+path = "tests/compiled_twins_interference_designs.rs"
+
+[[test]]
+name = "interference_design_known_truth"
+path = "tests/interference_design_known_truth.rs"
+
+[[test]]
 name = "static_adjustment_known_truth"
 path = "tests/static_adjustment_known_truth.rs"
 
@@ -1200,6 +1208,28 @@ path = "tests/compiled_twins_design_planning.rs"
 [[test]]
 name = "compiled_twins_sensitivity"
 path = "tests/compiled_twins_sensitivity.rs"
+
+[[test]]
+name = "compiled_twins_dose_feedback"
+path = "tests/compiled_twins_dose_feedback.rs"
+[[test]]
+name = "compiled_twins_interval_families"
+path = "tests/compiled_twins_interval_families.rs"
+
+[[test]]
+name = "compiled_twins_transport_supplied"
+path = "tests/compiled_twins_transport_supplied.rs"
+
+[[test]]
+name = "compiled_twins_transport_families"
+path = "tests/compiled_twins_transport_families.rs"
+[[test]]
+name = "compiled_twins_learner_factories"
+path = "tests/compiled_twins_learner_factories.rs"
+
+[[test]]
+name = "compiled_twins_cyclic_posterior"
+path = "tests/compiled_twins_cyclic_posterior.rs"
 
 [[test]]
 name = "compiled_twins_prior_composition"
@@ -1572,3 +1602,13 @@ path = "tests/suite_13.rs"
 [[test]]
 name = "compiled_units"
 path = "tests/compiled_units.rs"
+[[test]]
+name = "compiled_twins_factorial_ipw"
+path = "tests/compiled_twins_factorial_ipw.rs"
+
+[[test]]
+name = "factorial_ipw_known_truth"
+path = "tests/factorial_ipw_known_truth.rs"
+[[test]]
+name = "compiled_twins_net_ipw_constraints"
+path = "tests/compiled_twins_net_ipw_constraints.rs"

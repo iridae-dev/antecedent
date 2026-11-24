@@ -257,6 +257,14 @@
       "missing_evidence": []
     },
     {
+      "family": "randomized_effect",
+      "design": "factorial_2x2_bernoulli",
+      "method": "independent_factor_ht_young_bound_contrasts",
+      "inference_claim": "three_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "family": "longitudinal_regime",
       "design": "known_sequential_randomized_two_period",
       "method": "subject_excluded_q_sequential_dr_scores",
@@ -1141,6 +1149,16 @@
     },
     {
       "id": "estimate.dose_grid_functional",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.dose_grid_bias_aware",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.smoothed_dose_caller_learners",
       "status": "supported",
       "missing_evidence": []
     },
@@ -2335,6 +2353,11 @@
       "missing_evidence": []
     },
     {
+      "id": "prior.external_composition",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "association.conjugate_count_posterior",
       "status": "supported",
       "missing_evidence": []
@@ -2360,12 +2383,22 @@
       "missing_evidence": []
     },
     {
+      "id": "transport.single_source_z_transport",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
       "id": "transport.joint_transport_decision",
       "status": "supported",
       "missing_evidence": []
     },
     {
       "id": "transport.trial_ipw_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.augmented_response_grid",
       "status": "supported",
       "missing_evidence": []
     },

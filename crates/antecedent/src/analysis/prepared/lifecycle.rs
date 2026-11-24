@@ -260,7 +260,10 @@ impl PreparedStudy {
     /// projection synchronized instead of adding a second overlap declaration.
     fn install_numerical_spec(&mut self, spec: crate::estimator_spec::EstimatorSpec) {
         Arc::make_mut(&mut self.analysis.config).estimator_spec_identity =
-            Some(crate::analysis::contract_identity::estimator_spec_identity(&spec));
+            Some(crate::analysis::declared_learners::spec_identity(
+                &spec,
+                self.analysis.declared.learner_factories.as_ref(),
+            ));
         if let Some(replicates) = spec.bootstrap_replicates() {
             self.analysis.settings.bootstrap_replicates = replicates;
         }

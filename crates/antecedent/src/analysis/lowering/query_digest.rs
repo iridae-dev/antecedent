@@ -249,6 +249,11 @@ fn audit_identification_inputs(study: &Study) {
         // Refutation, validation and presentation choices run after identification.
         split: _,
         custom_validators: _,
+        // Caller learner factories enter the estimator identity, not the query's.
+        learner_factories: _,
+        // Declared policy limits are checked at estimation; they enter the lowered program
+        // through a model slot of the policy-value cell, never identification.
+        binary_policy_constraints: _,
         // Estimation-stage declarations: overlap, population, row binding, missing values and
         // sampling design.
         overlap_policy: _,
@@ -256,6 +261,7 @@ fn audit_identification_inputs(study: &Study) {
         // Reported beside the result; its weights are in the registry the query is digested with.
         weighted_target: _,
         weighted_transport: _,
+        transport_outcome_regressions: _,
         participants: _,
         missing: _,
         sampling_design: _,

@@ -11,6 +11,8 @@ mod compiled_twins_joint_panel;
 mod compiled_twins_longitudinal_regime;
 #[path = "compiled_twins_policy_value.rs"]
 mod compiled_twins_policy_value;
+#[path = "compiled_twins_randomized_policy.rs"]
+mod compiled_twins_randomized_policy;
 #[path = "compiled_twins_staggered_did.rs"]
 mod compiled_twins_staggered_did;
 #[path = "compiled_twins_survival_ipcw.rs"]

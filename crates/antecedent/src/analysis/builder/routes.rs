@@ -39,40 +39,49 @@ pub(in crate::analysis) fn refuse_unsupported_transport(
 }
 
 /// Refuse interference designs without a checked execution path.
+///
+/// Bernoulli and complete randomization run the design-based Horvitz-Thompson / Hajek contrast
+/// with its Young bound under every built-in exposure mapping. The Bayesian route models only
+/// Bernoulli assignment with `NeighborCount` exposure, so the other designs refuse at build
+/// under Bayesian inference, as before.
 pub(in crate::analysis) fn refuse_unsupported_interference(
     query: &antecedent_core::InterferenceQuery,
+    inference: &InferenceMode,
 ) -> Result<(), CausalError> {
-    let supported =
-        (matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-            && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-            ) && matches!(
-                query.exposure,
-                antecedent_core::ExposureMapping::NeighborCount
-                    | antecedent_core::ExposureMapping::NeighborFraction
-                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
-            ))
-            || (matches!(
-                query.assignment,
-                antecedent_core::AssignmentDesign::ObservedExposure { .. }
-            ) && matches!(
-                query.exposure,
-                antecedent_core::ExposureMapping::NeighborCount
-                    | antecedent_core::ExposureMapping::NeighborFraction
-                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
-            ));
+    use antecedent_core::{AssignmentDesign, ExposureMapping};
+    let built_in_mapping = matches!(
+        query.exposure,
+        ExposureMapping::OwnTreatment
+            | ExposureMapping::NeighborCount
+            | ExposureMapping::NeighborFraction
+            | ExposureMapping::WeightedNeighborExposure
+    );
+    let bernoulli_count = matches!(query.assignment, AssignmentDesign::Bernoulli { .. })
+        && matches!(query.exposure, ExposureMapping::NeighborCount);
+    let design_based = matches!(
+        query.assignment,
+        AssignmentDesign::Bernoulli { .. } | AssignmentDesign::CompleteRandomization { .. }
+    ) && built_in_mapping
+        && (bernoulli_count || inference.is_frequentist());
+    let neighbor_mapping = matches!(
+        query.exposure,
+        ExposureMapping::NeighborCount
+            | ExposureMapping::NeighborFraction
+            | ExposureMapping::WeightedNeighborExposure
+    );
+    let supported = design_based
+        || (matches!(query.assignment, AssignmentDesign::ClusterRandomization { .. })
+            && matches!(query.exposure, ExposureMapping::NeighborFraction))
+        || (matches!(query.assignment, AssignmentDesign::TwoStageSaturation { .. })
+            && neighbor_mapping)
+        || (matches!(query.assignment, AssignmentDesign::ObservedExposure { .. })
+            && neighbor_mapping);
     if supported {
         Ok(())
     } else {
         Err(crate::unsupported_reason!(
             "construction_not_supported",
-            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
+            "InterferenceQuery supports Bernoulli or complete randomization with a built-in exposure mapping (Bayesian: Bernoulli/NeighborCount), cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
         ))
     }
 }

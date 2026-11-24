@@ -9,7 +9,11 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, reason = "assertions index per-arm columns by arm")]
+#![allow(
+    deprecated,
+    clippy::needless_range_loop,
+    reason = "assertions index per-arm columns by arm; the deprecated direct measured interval is under test"
+)]
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveDesignDeclaration, AdaptiveInferenceRefusal, AdaptiveInferenceSession, AdaptiveRequest,

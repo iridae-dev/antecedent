@@ -14,6 +14,8 @@ pub use super::structure_route::{
     DiscoveredStructure, DiscoveryPayload, DiscoverySpec, MechanismProgram, SimulationOutcome,
     SimulationPayload, accept_discovered, accept_discovered_posterior, panel_of_units,
 };
+#[allow(deprecated, reason = "the deprecated direct entry stays reachable at its 3.0.0 path")]
+pub use super::temporal_dependent_interval;
 pub use super::weighted_target::{
     ResolvedWeightedTarget, WeightedTargetDeclaration, WeightedTargetReport, WeightedTargetSpec,
     WeightedTrialTransport, transport_trial_to_weighted_target,
@@ -123,7 +125,6 @@ pub use super::{GraphSelectionPerImputation, estimate_with_graph_selection_per_i
 pub use super::{
     IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
-    temporal_dependent_interval,
 };
 pub use super::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,

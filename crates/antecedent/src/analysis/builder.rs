@@ -32,9 +32,11 @@ use super::latency::{ComputeBudget, LatencyMode};
 
 mod admission;
 mod finish;
+mod policy_constraints;
 mod routes;
 mod settings;
 mod stub_graph;
+mod transport_nuisance;
 
 pub(super) use stub_graph::{discovery_stub_class, discovery_stub_graph, stub_accepted_graph_for};
 
@@ -1321,6 +1323,21 @@ impl StudyBuilder {
         self.declared.custom_validators = validators;
         self
     }
+    /// Declare the caller's outcome-regression and propensity learners.
+    ///
+    /// The compiled static average-effect route over a declared DAG fits the configured
+    /// `DmlAte`, `AipwAte`, `DrLearner` or `CausalForest` with these factories in place of its
+    /// built-in nuisance learners, through the estimator's `fit_with_factories` (see
+    /// [`crate::analysis::declared_learners`]). [`Self::build`] refuses the declaration on any
+    /// other route, estimator or validation plan.
+    #[must_use]
+    pub fn learner_factories(
+        mut self,
+        factories: crate::analysis::declared_learners::LearnerFactories,
+    ) -> Self {
+        self.declared.learner_factories = Some(factories);
+        self
+    }
 
     /// Configure the running variable / cutoff / bandwidth required by the `rd.sharp`
     /// estimator. `compile` refuses `rd.sharp` without this.
@@ -1604,6 +1621,8 @@ impl StudyBuilder {
             settings: self.settings,
             execution: self.execution,
         })?;
+        super::declared_learners::admit(&study)?;
+        super::binary_policy_constraints::admit(&study)?;
         super::structure_route::attach_specifications(
             &mut study,
             discovery,

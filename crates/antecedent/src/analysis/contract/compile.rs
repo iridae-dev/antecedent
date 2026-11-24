@@ -697,6 +697,14 @@ pub(super) fn contract_functional_label(study: &Study, resolved_estimator: Optio
         // An estimator requested by id runs its default configuration.
         functional = format!("{functional}+{label}");
     }
+    // Caller-supplied nuisance learners are a different construction from the built-in learners
+    // every coverage record of the cross-fitted estimators measured: the interval binds only to
+    // records measured under the same declared learners.
+    if let Some(label) = crate::analysis::declared_learners::calibration_label(
+        study.declared.learner_factories.as_ref(),
+    ) {
+        functional = format!("{functional}+{label}");
+    }
     // Sampling weights change the estimand and the variance: an interval measured on unweighted
     // rows must not bind to a weighted-population estimate. A series' weights reach a result
     // only through a route that fits them (`execute::series_weights::admit_series_weights`

@@ -1761,7 +1761,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/mediation_mixed_graph.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 
 [[test]]
 id = "class-attribution-route"
@@ -1769,7 +1769,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/class_attribution_route.rs"
 gates = ["inventory", "named"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 
 [[test]]
 id = "latent-block-witness-and-block-games"
@@ -5625,7 +5625,7 @@ id = "counterfactual-class-route"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/counterfactual_class_route.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6676,7 +6676,7 @@ crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/predictive_score_interval_facade.rs"
 calibration_acceptance_assertions = ["an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record", "the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"]
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6962,7 +6962,7 @@ id = "released-surface"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/released_surface.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -6978,7 +6978,7 @@ id = "resampling-accuracy"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/resampling_accuracy.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7015,7 +7015,7 @@ id = "route-diagnostics"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/route_diagnostics.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7092,7 +7092,7 @@ id = "sampling-design-declaration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/sampling_design_declaration.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7846,7 +7846,7 @@ id = "z-transport-repair"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_repair.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -7854,7 +7854,7 @@ id = "z-transport-surrogate-calibration"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/z_transport_surrogate_calibration.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory"]
 
 [[test]]
@@ -8436,6 +8436,19 @@ id = "cyclic-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_cyclic.py"
+gates = ["inventory"]
+[[test]]
+id = "compiled-twins-cyclic-posterior"
+crate = "antecedent"
+cargo_target = "compiled_twins_cyclic_posterior"
+path = "crates/antecedent/tests/compiled_twins_cyclic_posterior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-cyclic-posterior-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_cyclic_posterior.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10424,7 +10437,7 @@ id = "compiled-twins-longitudinal-regime"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_longitudinal_regime.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10432,7 +10445,7 @@ id = "compiled-twins-policy-value"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_policy_value.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10440,7 +10453,7 @@ id = "compiled-twins-joint-panel"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_joint_panel.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10448,7 +10461,7 @@ id = "compiled-twins-staggered-did"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_staggered_did.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10456,7 +10469,7 @@ id = "compiled-twins-survival-ipcw"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/compiled_twins_survival_ipcw.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -10471,6 +10484,20 @@ id = "compiled-twins-policy-value-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_compiled_twins_policy_value.py"
+gates = ["inventory"]
+[[test]]
+id = "compiled-twins-randomized-policy"
+crate = "antecedent"
+cargo_target = "suite_09"
+path = "crates/antecedent/tests/compiled_twins_randomized_policy.rs"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-randomized-policy-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_randomized_policy.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10905,7 +10932,7 @@ id = "typed-transported-mechanism-facade"
 crate = "antecedent"
 cargo_target = "suite_09"
 path = "crates/antecedent/tests/typed_transported_mechanism_facade.rs"
-suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
+suite_map_line = "suite_09: class_attribution_route, compiled_twins_joint_panel, counterfactual_class_route, mediation_mixed_graph, z_transport_repair, z_transport_surrogate_calibration, predictive_score_interval_facade, released_surface, route_diagnostics, sampling_design_declaration, resampling_accuracy, typed_transported_mechanism_facade, compiled_twins_longitudinal_regime, compiled_twins_policy_value, compiled_twins_randomized_policy, compiled_twins_staggered_did, compiled_twins_survival_ipcw"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -18160,6 +18187,61 @@ path = "python/tests/test_external_cyclic_mechanisms.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-twins-dose-feedback"
+crate = "antecedent"
+cargo_target = "compiled_twins_dose_feedback"
+path = "crates/antecedent/tests/compiled_twins_dose_feedback.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-external-feedback-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_external_feedback.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-dose-grid-bias-aware-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_dose_grid_bias_aware.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-smoothed-dose-learners-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_smoothed_dose_learners.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-transport-scenarios-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_transport_scenarios.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-transported-cohort-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_transported_cohort.py"
+gates = ["inventory"]
+[[test]]
+id = "compiled-twins-interval-families"
+crate = "antecedent"
+cargo_target = "compiled_twins_interval_families"
+path = "crates/antecedent/tests/compiled_twins_interval_families.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-interval-families-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_interval_families.py"
+gates = ["inventory"]
+
+[[test]]
 id = "external-prior-quadrature"
 crate = "antecedent-prob"
 cargo_target = "external_prior_quadrature"
@@ -22556,6 +22638,34 @@ path = "python/tests/test_compiled_twins_gcm.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-twins-transport-supplied"
+crate = "antecedent"
+cargo_target = "compiled_twins_transport_supplied"
+path = "crates/antecedent/tests/compiled_twins_transport_supplied.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-transport-families"
+crate = "antecedent"
+cargo_target = "compiled_twins_transport_families"
+path = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-transport-supplied-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_transport_supplied.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-pooled-differential-transport-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_pooled_differential_transport.py"
+gates = ["inventory"]
+
+[[test]]
 id = "compiled-twins-gcm-attribution"
 crate = "antecedent"
 cargo_target = "compiled_twins_gcm_attribution"
@@ -22622,6 +22732,27 @@ id = "compiled-twins-interference-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_compiled_twins_interference.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-twins-interference-designs"
+crate = "antecedent"
+cargo_target = "compiled_twins_interference_designs"
+path = "crates/antecedent/tests/compiled_twins_interference_designs.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "interference-design-known-truth"
+crate = "antecedent"
+cargo_target = "interference_design_known_truth"
+path = "crates/antecedent/tests/interference_design_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-interference-designs-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_interference_designs.py"
 gates = ["inventory"]
 
 [[test]]
@@ -23517,6 +23648,39 @@ crate = "antecedent"
 cargo_target = "compiled_twins_sensitivity"
 path = "crates/antecedent/tests/compiled_twins_sensitivity.rs"
 gates = ["inventory", "named"]
+[[test]]
+id = "compiled-twins-factorial-ipw"
+crate = "antecedent"
+cargo_target = "compiled_twins_factorial_ipw"
+path = "crates/antecedent/tests/compiled_twins_factorial_ipw.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "factorial-ipw-known-truth"
+crate = "antecedent"
+cargo_target = "factorial_ipw_known_truth"
+path = "crates/antecedent/tests/factorial_ipw_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-factorial-ipw-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_factorial_ipw.py"
+gates = ["inventory"]
+[[test]]
+id = "compiled-twins-net-ipw-constraints"
+crate = "antecedent"
+cargo_target = "compiled_twins_net_ipw_constraints"
+path = "crates/antecedent/tests/compiled_twins_net_ipw_constraints.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-net-ipw-constraints-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_net_ipw_constraints.py"
+gates = ["inventory"]
 
 [[test]]
 id = "compiled-twins-prior-composition"
@@ -23911,6 +24075,19 @@ id = "external-learners-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_external_learners.py"
+gates = ["inventory"]
+[[test]]
+id = "compiled-twins-learner-factories"
+crate = "antecedent"
+cargo_target = "compiled_twins_learner_factories"
+path = "crates/antecedent/tests/compiled_twins_learner_factories.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-learner-factories-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_learner_factories.py"
 gates = ["inventory"]
 
 [[test]]
@@ -25501,4 +25678,32 @@ id = "engineering-python-src-model-operation-api-rs"
 crate = "python"
 cargo_target = "lib"
 path = "python/src/model_operation_api.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-binary-policy-constraints-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/binary_policy_constraints.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-kernel-programs-prior-composition-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/prior_composition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-analysis-portable-learner-fit-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/portable_learner_fit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-python-src-prior-bank-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/prior_bank.rs"
 gates = ["inventory", "named"]

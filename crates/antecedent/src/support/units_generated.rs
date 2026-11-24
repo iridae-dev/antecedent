@@ -10,8 +10,15 @@
 
 use super::unit::UnitId;
 
+pub(crate) const ADAPTIVE_INFERENCE_UNSUPPORTED_GUARANTEES: UnitId =
+    UnitId::new("adaptive_inference.unsupported_guarantees");
+pub(crate) const ASSOCIATION_CONJUGATE_COUNT_POSTERIOR: UnitId =
+    UnitId::new("association.conjugate_count_posterior");
 pub(crate) const CATEGORICAL_TREATMENT_COMPILED_CANDIDATE: UnitId =
     UnitId::new("categorical_treatment.compiled_candidate");
+pub(crate) const CHOICE_INFERENCE_INTERVAL_CANDIDATES: UnitId =
+    UnitId::new("choice_inference.interval_candidates");
+pub(crate) const COHORT_DECISION_INTERVAL: UnitId = UnitId::new("cohort_decision.interval");
 pub(crate) const COMPOSITION_BOUNDARY: UnitId = UnitId::new("composition.boundary");
 pub(crate) const COMPOSITION_BUNDLE: UnitId = UnitId::new("composition.bundle");
 pub(crate) const COMPOSITION_PROPAGATION_CHAIN: UnitId =
@@ -20,12 +27,17 @@ pub(crate) const COMPOSITION_SAMPLING_ASSUMPTION_UNION: UnitId =
     UnitId::new("composition.sampling_assumption_union");
 pub(crate) const COUNTERFACTUAL_TRANSPORT_GENERAL: UnitId =
     UnitId::new("counterfactual.transport_general");
+pub(crate) const COUNTERFACTUAL_TRANSPORT_SAMPLED: UnitId =
+    UnitId::new("counterfactual.transport_sampled");
+pub(crate) const COUNTERFACTUAL_TRANSPORT_SAMPLED_INTERVAL: UnitId =
+    UnitId::new("counterfactual.transport_sampled_interval");
 pub(crate) const COUNTERFACTUAL_TRANSPORTED_ADDITIVE: UnitId =
     UnitId::new("counterfactual.transported_additive");
 pub(crate) const CYCLIC_ACTION_WORLD_DECISIONS: UnitId =
     UnitId::new("cyclic.action_world_decisions");
 pub(crate) const CYCLIC_COMPONENT_POSTERIOR_DECISIONS: UnitId =
     UnitId::new("cyclic.component_posterior_decisions");
+pub(crate) const CYCLIC_EXTERNAL_MECHANISMS: UnitId = UnitId::new("cyclic.external_mechanisms");
 pub(crate) const CYCLIC_GENERAL_SYSTEMS: UnitId = UnitId::new("cyclic.general_systems");
 pub(crate) const DECISION_CONTRACT: UnitId = UnitId::new("decision.contract");
 pub(crate) const DECISION_FUNCTIONAL_INVERSE: UnitId = UnitId::new("decision.functional_inverse");
@@ -48,8 +60,14 @@ pub(crate) const DESIGN_IDENTIFICATION_REPAIR: UnitId = UnitId::new("design.iden
 pub(crate) const DESIGN_PRIOR_SIGNAL_PLANNING: UnitId = UnitId::new("design.prior_signal_planning");
 pub(crate) const DESIGN_RANKING_ARTIFACT: UnitId = UnitId::new("design.ranking_artifact");
 pub(crate) const DESIGN_STUDY_PLANNING: UnitId = UnitId::new("design.study_planning");
+pub(crate) const DISCOVERY_SAMPLE_SPLIT_EFFECT: UnitId =
+    UnitId::new("discovery.sample_split_effect");
+pub(crate) const DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT: UnitId =
+    UnitId::new("discovery.sample_split_parent_set_effect");
 pub(crate) const ESTIMATE_DESCRIPTIVE_COMPARISON: UnitId =
     UnitId::new("estimate.descriptive_comparison");
+pub(crate) const ESTIMATE_DOSE_GRID_BIAS_AWARE: UnitId =
+    UnitId::new("estimate.dose_grid_bias_aware");
 pub(crate) const ESTIMATE_LATENT_SOFT_INTERVENTION: UnitId =
     UnitId::new("estimate.latent_soft_intervention");
 pub(crate) const ESTIMATE_MATCHED_CASE_CONTROL_ODDS_RATIO: UnitId =
@@ -68,26 +86,62 @@ pub(crate) const GRAPH_IMPUTATION_COMPILED_CANDIDATE: UnitId =
     UnitId::new("graph_imputation.compiled_candidate");
 pub(crate) const GRAPH_IMPUTATION_COMPILED_DECISION: UnitId =
     UnitId::new("graph_imputation.compiled_decision");
+pub(crate) const IDENTIFY_BINARY_NESTED_MARKOV: UnitId =
+    UnitId::new("identify.binary_nested_markov");
+pub(crate) const IDENTIFY_BINARY_NESTED_MARKOV_FISHER: UnitId =
+    UnitId::new("identify.binary_nested_markov_fisher");
 pub(crate) const IDENTIFY_MIXED_SOURCE_PROOF_SEARCH: UnitId =
     UnitId::new("identify.mixed_source_proof_search");
 pub(crate) const JOINT_RESPONSE_INTERVAL_READINGS: UnitId =
     UnitId::new("joint_response.interval_readings");
+pub(crate) const MEASUREMENT_DETECTION_DEPENDENT_PREVALENCE: UnitId =
+    UnitId::new("measurement.detection_dependent_prevalence");
+pub(crate) const MEASUREMENT_EXPOSURE_MISCLASSIFICATION: UnitId =
+    UnitId::new("measurement.exposure_misclassification");
+pub(crate) const MEASUREMENT_MEASURED_EXPOSURE_EFFECT: UnitId =
+    UnitId::new("measurement.measured_exposure_effect");
+pub(crate) const MEASUREMENT_MODEL_CONTRACT: UnitId = UnitId::new("measurement.model_contract");
+pub(crate) const MEASUREMENT_REPEAT_CODINGS_LATENT_CLASS: UnitId =
+    UnitId::new("measurement.repeat_codings_latent_class");
+pub(crate) const MEASUREMENT_SOFT_EXPOSURE: UnitId = UnitId::new("measurement.soft_exposure");
 pub(crate) const MNAR_FIXED_SHIFT_COMPILED_CANDIDATE: UnitId =
     UnitId::new("mnar_fixed_shift.compiled_candidate");
+pub(crate) const OBSERVATION_QUERY_CALIBRATED_PROBABILITY: UnitId =
+    UnitId::new("observation_query.calibrated_probability");
 pub(crate) const OBSERVATION_QUERY_FINITE_LAW_CONDITIONING: UnitId =
     UnitId::new("observation_query.finite_law_conditioning");
+pub(crate) const PRIOR_COMPOSED_NAMED_COORDINATES: UnitId =
+    UnitId::new("prior.composed_named_coordinates");
+pub(crate) const PRIOR_EXTERNAL_COMPOSITION: UnitId = UnitId::new("prior.external_composition");
 pub(crate) const RECOVERY_BINARY_OBSERVATION: UnitId = UnitId::new("recovery.binary_observation");
 pub(crate) const RECOVERY_CHAIN_OBSERVATION: UnitId = UnitId::new("recovery.chain_observation");
+pub(crate) const RECOVERY_SAMPLED_OBSERVATION: UnitId = UnitId::new("recovery.sampled_observation");
+pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: UnitId = UnitId::new("temporal.dependent_interval");
 pub(crate) const TRANSPORT_ADMG_CONDITIONAL: UnitId = UnitId::new("transport.admg_conditional");
+pub(crate) const TRANSPORT_AUGMENTED_RESPONSE_GRID: UnitId =
+    UnitId::new("transport.augmented_response_grid");
 pub(crate) const TRANSPORT_BRIDGE_DECISION: UnitId = UnitId::new("transport.bridge_decision");
 pub(crate) const TRANSPORT_BRIDGE_PREMISE_ASSESSMENT: UnitId =
     UnitId::new("transport.bridge_premise_assessment");
 pub(crate) const TRANSPORT_CLASSICAL_IDENTIFICATION: UnitId =
     UnitId::new("transport.classical_identification");
+pub(crate) const TRANSPORT_COVARIATE_SHIFT_COHORT_EFFECT: UnitId =
+    UnitId::new("transport.covariate_shift_cohort_effect");
+pub(crate) const TRANSPORT_FINITE_SCENARIO_ENVELOPE: UnitId =
+    UnitId::new("transport.finite_scenario_envelope");
+pub(crate) const TRANSPORT_JOINT_BAYESIAN: UnitId = UnitId::new("transport.joint_bayesian");
 pub(crate) const TRANSPORT_JOINT_TRANSPORT_DECISION: UnitId =
     UnitId::new("transport.joint_transport_decision");
+pub(crate) const TRANSPORT_LEARNED_JOINT: UnitId = UnitId::new("transport.learned_joint");
+pub(crate) const TRANSPORT_MEASUREMENT_MODEL: UnitId = UnitId::new("transport.measurement_model");
 pub(crate) const TRANSPORT_MULTI_SOURCE_LIMITED_EXPERIMENT: UnitId =
     UnitId::new("transport.multi_source_limited_experiment");
+pub(crate) const TRANSPORT_SHARED_SCENARIO_COVARIANCE: UnitId =
+    UnitId::new("transport.shared_scenario_covariance");
+pub(crate) const TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT: UnitId =
+    UnitId::new("transport.single_source_z_transport");
+pub(crate) const TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS: UnitId =
+    UnitId::new("transport.smoothed_dose_caller_learners");
 pub(crate) const TRANSPORT_TEMPORAL_PATH_SPECIFIC: UnitId =
     UnitId::new("transport.temporal_path_specific");
 pub(crate) const TRANSPORT_TRIAL_IPW_DECISION: UnitId = UnitId::new("transport.trial_ipw_decision");
@@ -100,7 +154,13 @@ pub(crate) const VALIDATE_DISCOVERY_STABILITY: UnitId = UnitId::new("validate.di
 #[allow(clippy::too_many_lines, reason = "one arm per bound compiled route, generated")]
 pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
     match route {
+        "AdaptiveResultInterval" => Some(ADAPTIVE_INFERENCE_UNSUPPORTED_GUARANTEES),
+        "PowerPriorBetaSelection" | "PowerPriorGammaSelection" => {
+            Some(ASSOCIATION_CONJUGATE_COUNT_POSTERIOR)
+        }
         "CategoricalPosteriorCandidate" => Some(CATEGORICAL_TREATMENT_COMPILED_CANDIDATE),
+        "ChoiceResultInterval" => Some(CHOICE_INFERENCE_INTERVAL_CANDIDATES),
+        "CohortMeanInterval" => Some(COHORT_DECISION_INTERVAL),
         "SupportedInputDecision" => Some(COMPOSITION_BOUNDARY),
         "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
         | "BridgeBundleRecomputation"
@@ -122,6 +182,8 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "MovingBlockSamplingAssumptionUnion"
         | "SamplingAssumptionUnion" => Some(COMPOSITION_SAMPLING_ASSUMPTION_UNION),
         "CounterfactualTransportIdentification" => Some(COUNTERFACTUAL_TRANSPORT_GENERAL),
+        "SampledCounterfactualTransport" => Some(COUNTERFACTUAL_TRANSPORT_SAMPLED),
+        "SampledCounterfactualTransportInterval" => Some(COUNTERFACTUAL_TRANSPORT_SAMPLED_INTERVAL),
         "TransportedPathSpecific" => Some(COUNTERFACTUAL_TRANSPORTED_ADDITIVE),
         "CyclicActionWorldDecision"
         | "CyclicPosteriorActionDecision"
@@ -129,6 +191,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "BoundedComponentPosteriorDecision" | "JointComponentPosteriorDecision" => {
             Some(CYCLIC_COMPONENT_POSTERIOR_DECISIONS)
         }
+        "ExternalFeedbackEquilibrium" | "ExternalFeedbackFit" => Some(CYCLIC_EXTERNAL_MECHANISMS),
         "CyclicFamily" | "LocalCyclicCallback" => Some(CYCLIC_GENERAL_SYSTEMS),
         "ContractLawDecision" => Some(DECISION_CONTRACT),
         "InverseQueryDecision" => Some(DECISION_FUNCTIONAL_INVERSE),
@@ -146,7 +209,10 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "PriorSignalAdaptation" => Some(DESIGN_PRIOR_SIGNAL_PLANNING),
         "DesignRanking" => Some(DESIGN_RANKING_ARTIFACT),
         "StudyAdditionPlanning" => Some(DESIGN_STUDY_PLANNING),
+        "SampleSplitEffect" => Some(DISCOVERY_SAMPLE_SPLIT_EFFECT),
+        "SampleSplitParentSetEffect" => Some(DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT),
         "DescriptiveComparison" => Some(ESTIMATE_DESCRIPTIVE_COMPARISON),
+        "DoseGridBiasAware" => Some(ESTIMATE_DOSE_GRID_BIAS_AWARE),
         "LatentSoftIntervention" => Some(ESTIMATE_LATENT_SOFT_INTERVENTION),
         "MatchedCaseControl" => Some(ESTIMATE_MATCHED_CASE_CONTROL_ODDS_RATIO),
         "ObservationalPolicy" | "PolicySubsampling" => Some(ESTIMATE_OBSERVATIONAL_POLICY_VALUE),
@@ -169,6 +235,8 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "GraphImputationMarTransportDecision"
         | "GraphImputationTransportClusterBootstrapDecision"
         | "GraphImputationTransportDecision" => Some(GRAPH_IMPUTATION_COMPILED_DECISION),
+        "NestedMarkovPosterior" => Some(IDENTIFY_BINARY_NESTED_MARKOV),
+        "NestedMarkovFisherInterval" => Some(IDENTIFY_BINARY_NESTED_MARKOV_FISHER),
         "MixedSourceIdentification" => Some(IDENTIFY_MIXED_SOURCE_PROOF_SEARCH),
         "JointDesign"
         | "JointPanelExperiment"
@@ -177,22 +245,50 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "JointPanelProgramSelection"
         | "JointPanelResponse"
         | "JointPanelTimeVarying" => Some(JOINT_RESPONSE_INTERVAL_READINGS),
+        "DetectionDependentPrevalenceCorrection" => {
+            Some(MEASUREMENT_DETECTION_DEPENDENT_PREVALENCE)
+        }
+        "ExposureMisclassificationCorrection" => Some(MEASUREMENT_EXPOSURE_MISCLASSIFICATION),
+        "MeasuredExposureImputation" | "MeasuredExposurePooling" => {
+            Some(MEASUREMENT_MEASURED_EXPOSURE_EFFECT)
+        }
+        "PooledDifferentialTransport" => Some(MEASUREMENT_MODEL_CONTRACT),
+        "RepeatCodingsLatentClass" => Some(MEASUREMENT_REPEAT_CODINGS_LATENT_CLASS),
+        "SoftExposureCorrection" => Some(MEASUREMENT_SOFT_EXPOSURE),
         "MnarFixedShift" => Some(MNAR_FIXED_SHIFT_COMPILED_CANDIDATE),
+        "CountFittedInterval" => Some(OBSERVATION_QUERY_CALIBRATED_PROBABILITY),
         "DependentMeasuredObservation"
         | "FittedDependentMeasuredObservation"
         | "JointMeasuredObservation" => Some(OBSERVATION_QUERY_FINITE_LAW_CONDITIONING),
+        "PowerPriorLinearSelection" => Some(PRIOR_COMPOSED_NAMED_COORDINATES),
+        "ExternalPriorComposition" | "ExternalPriorTransport" => Some(PRIOR_EXTERNAL_COMPOSITION),
         "ObservationRecoveryIdentification" => Some(RECOVERY_BINARY_OBSERVATION),
-        "ChainRecoveryIdentification" => Some(RECOVERY_CHAIN_OBSERVATION),
+        "ChainObservationRecovery" | "ChainRecoveryIdentification" => {
+            Some(RECOVERY_CHAIN_OBSERVATION)
+        }
+        "MeasuredSampledObservationRecovery" | "SampledObservationRecovery" => {
+            Some(RECOVERY_SAMPLED_OBSERVATION)
+        }
+        "TemporalDependentInterval" => Some(TEMPORAL_DEPENDENT_INTERVAL),
         "AdmgConditionalTransportIdentification" => Some(TRANSPORT_ADMG_CONDITIONAL),
+        "TransportResponseGrid" => Some(TRANSPORT_AUGMENTED_RESPONSE_GRID),
         "AssessedBridgeTransportDecision" | "BridgeTransportDecision" => {
             Some(TRANSPORT_BRIDGE_DECISION)
         }
         "BridgeTransportPremiseAssessment" => Some(TRANSPORT_BRIDGE_PREMISE_ASSESSMENT),
         "ClassicalTransportIdentification" => Some(TRANSPORT_CLASSICAL_IDENTIFICATION),
+        "TransportedCohortEffect" => Some(TRANSPORT_COVARIATE_SHIFT_COHORT_EFFECT),
+        "TransportScenarioSet" => Some(TRANSPORT_FINITE_SCENARIO_ENVELOPE),
+        "JointBayesianTransport" => Some(TRANSPORT_JOINT_BAYESIAN),
         "JointTransportEffectDecision" | "JointTransportPredictiveDecision" => {
             Some(TRANSPORT_JOINT_TRANSPORT_DECISION)
         }
+        "LearnedJointTransport" => Some(TRANSPORT_LEARNED_JOINT),
+        "MeasurementModelTransport" => Some(TRANSPORT_MEASUREMENT_MODEL),
         "MzTransportIdentification" => Some(TRANSPORT_MULTI_SOURCE_LIMITED_EXPERIMENT),
+        "SharedScenarioCovariance" => Some(TRANSPORT_SHARED_SCENARIO_COVARIANCE),
+        "ZTransportEstimate" => Some(TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT),
+        "SmoothedDoseLearnerTransport" => Some(TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS),
         "TemporalPathTransport" => Some(TRANSPORT_TEMPORAL_PATH_SPECIFIC),
         "TrialIpwPredictiveDecision" | "TrialIpwTransportDecision" => {
             Some(TRANSPORT_TRIAL_IPW_DECISION)

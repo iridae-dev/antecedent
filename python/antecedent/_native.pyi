@@ -68,6 +68,50 @@ def external_dml_ate(
     list[float] | None,
     list[tuple[int, Any, Any]],
 ]: ...
+def smoothed_dose_learner_transport(
+    graph: Admg,
+    selections: list[str],
+    query: str,
+    data: Any,
+    options: str,
+    outcome: Any,
+    membership: Any,
+    *,
+    identity: str,
+    seed: int = 1,
+    cancel: CancellationToken | None = None,
+    memory_limit_bytes: int | None = None,
+) -> tuple[str, list[tuple[int, Any, Any]]]: ...
+def declared_learner_ate(
+    names: Sequence[str],
+    columns: Sequence[Sequence[float]],
+    edges: Sequence[tuple[str, str]],
+    treatment_name: str,
+    outcome_name: str,
+    outcome: Any,
+    treatment: Any,
+    *,
+    identity: str,
+    folds: int = 5,
+    weights: Sequence[float] | None = None,
+    seed: int = 1,
+    cancel: Any | None = None,
+    method: str = "dml",
+    score: str = "aipw",
+    memory_limit_bytes: int | None = None,
+) -> tuple[
+    float,
+    float,
+    list[int],
+    list[int],
+    list[int],
+    list[list[str]],
+    str,
+    list[float] | None,
+    list[float] | None,
+    list[tuple[int, Any, Any]],
+    list[float] | None,
+]: ...
 def temporal_response_spec() -> dict[str, Any]:
     """Supported temporal-response query policy from Rust ``TemporalResponseSpec::support``."""
 
@@ -2019,6 +2063,7 @@ class PreparedAnalysis:
         threads: int | None = None,
         options: dict[str, Any] | None = None,
         catalog: object | None = None,
+        outcome_regressions: tuple[str, str] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_interference(
@@ -2421,6 +2466,11 @@ class PreparedAnalysis:
         regret_candidates: list[list[bool]] = ...,
         regret_selected_index: int | None = None,
         regret_training_subject_ids: list[str] = ...,
+        capacity: int | None = None,
+        budget: float | None = None,
+        reference_capacity: int | None = None,
+        reference_budget: float | None = None,
+        available: list[bool] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -5739,6 +5789,28 @@ class PreparedTransportScenariosStage:
     def plan_summary(self) -> list[tuple[str, str]]: ...
     def export(self) -> bytes: ...
 
+class NativeCompiledTransportScenarios:
+    @property
+    def route(self) -> str: ...
+    @property
+    def program_identity(self) -> str: ...
+    def execute(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> NativeCompiledTransportScenarios: ...
+    def plan_summary(self) -> list[tuple[str, str]]: ...
+    def aggregate_interval(self) -> None: ...
+    def export(self) -> bytes: ...
+
+def compile_transport_scenarios_stage(
+    stage: PreparedTransportScenariosStage,
+) -> NativeCompiledTransportScenarios: ...
 def prepare_transport_scenarios_stage(
     scenarios: list[
         tuple[
@@ -8160,6 +8232,18 @@ def consume_array_fit_artifact(
     max_columns: int = 1_024,
     threads: int | None = None,
 ) -> _ArrayFit: ...
+def evaluate_dose_grid_bias_aware_compiled(
+    request_json: str,
+    dose: list[float],
+    outcome: list[float],
+    *,
+    sampling_weights: list[float] | None = None,
+    cluster: list[int] | None = None,
+    serial_lag: int | None = None,
+    threads: int | None = None,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
 def evaluate_dose_grid_functional(
     request_json: str,
     dose: list[float],
@@ -8327,10 +8411,19 @@ def count_fitted_observation_point(bytes: bytes) -> tuple[float | None, str | No
 def count_fitted_observation_interval(
     bytes: bytes, level: float, *, cancel: Any = None
 ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+def count_fitted_observation_compiled_interval(
+    bytes: bytes, level: float, *, cancel: Any = None
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
 def fit_native_cohort_effect(
     fit_json: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def cohort_decision_interval(
+    artifact: bytes,
+    expectation_json: str,
+    fit_json: str | None,
+    level: float,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
+def cohort_decision_compiled_interval(
     artifact: bytes,
     expectation_json: str,
     fit_json: str | None,
@@ -8347,6 +8440,15 @@ def cohort_decision_evaluate(
     weakest_support: str,
 ) -> tuple[str | None, str | None]: ...
 def transport_cohort_effect(
+    model_bytes: bytes,
+    expected_claim: str | None,
+    source_population: str,
+    cohort_json: str,
+    outcome_units: str,
+    shift_json: str | None,
+    artifact_id: str,
+) -> tuple[str | None, str | None, bytes | None, str | None]: ...
+def transport_cohort_effect_compiled(
     model_bytes: bytes,
     expected_claim: str | None,
     source_population: str,
@@ -9191,7 +9293,24 @@ def nested_markov_posterior_measured(
     memory_limit_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> NativeMeasuredInference: ...
-def temporal_dependent_interval_measured(
+def temporal_dependent_interval_compiled(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: Literal["studentized"],
+    min_units: int,
+    max_failed_fraction: float,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...def temporal_dependent_interval_measured(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
     sequence: tuple[int, int],
@@ -9319,6 +9438,55 @@ def measurement_pooled_differential_transport(
     seed: int = 1,
     threads: int | None = None,
 ) -> PooledDifferentialSection: ...
+
+class NativeCompiledPooledDifferentialTransport:
+    @property
+    def route(self) -> str: ...
+    @property
+    def program_identity(self) -> str: ...
+    def execute(self, *, seed: int = 1, threads: int | None = None) -> PooledDifferentialSection: ...
+
+def compile_pooled_differential_transport(
+    sources: list[tuple[str, int, int, int, int]],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: tuple[int, int, int, int] | None = None,
+    draws: int = 4000,
+) -> NativeCompiledPooledDifferentialTransport: ...
+
+class NativeCompiledTransportResponseGrid:
+    @property
+    def route(self) -> str: ...
+    @property
+    def program_identity(self) -> str: ...
+    def execute(self, *, seed: int = 0, cancel: CancellationToken | None = None) -> str: ...
+
+def compile_transport_response_grid(
+    graph: Admg,
+    selections: list[str],
+    source_population: str,
+    target_population: str,
+    source_experiments: list[str],
+    kind: str,
+    treatments: list[str],
+    outcomes: list[str],
+    columns: list[list[float]],
+    trial: str,
+    selection_probability: str,
+    observed_regression: str,
+    grid_regressions: list[str],
+    response_weights: list[str],
+    *,
+    grid: list[float] | None = None,
+    at: list[float] | None = None,
+    direction: list[float] | None = None,
+    order: int = 1,
+    scale: str = "identity",
+    weighting: str = "observed",
+    seed: int = 0,
+) -> NativeCompiledTransportResponseGrid: ...
 
 class PreparedBridgeHandle:
     def contract_json(self) -> str: ...
@@ -9903,6 +10071,9 @@ class AdaptiveInferenceHandle:
     def measured_interval(
         self, request_json: str, cancel: CancellationToken | None = None
     ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+    def compiled_interval(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
     def interim_evidence(self) -> tuple[str | None, str | None]: ...
     def export_contract(
         self, paradigm: str, artifact_id: str
@@ -9954,6 +10125,9 @@ class ChoiceInferenceHandle:
     ) -> tuple[str | None, str | None]: ...
     def interval(self) -> str | None: ...
     def measured_interval(
+        self, request_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+    def compiled_interval(
         self, request_json: str, cancel: CancellationToken | None = None
     ) -> tuple[NativeMeasuredInference | None, str | None]: ...
     def export_result(
@@ -11680,6 +11854,13 @@ def external_fit(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+def external_compiled_fit(
+    request_json: str,
+    resolver: Any = None,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def external_ode(
     request_json: str,
     resolver: Any = None,
@@ -12890,7 +13071,8 @@ def events_provider_request_id(request: str) -> str: ...
 # Decisions on a compiled graph-imputation mixture, at the source or transported to a target.
 class GraphImputationDecisionHandle:
     def program(self) -> str: ...
-    def route(self) -> str: ...    def unit_support(self) -> str | None: ...
+    def route(self) -> str: ...
+    def unit_support(self) -> str | None: ...
     def execute(self) -> tuple[str | None, str | None]: ...
     def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
     def chain_artifact(self) -> tuple[bytes | None, str | None]: ...
