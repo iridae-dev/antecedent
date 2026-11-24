@@ -59,6 +59,10 @@ use crate::decision_structural::{AtomEvidence, StructuralAtom};
 use crate::preference_contract::{PreferenceContract, PreferenceContractError, PreferencePolicy};
 use crate::preference_model::{PreferenceSet, RelationOrigin};
 use crate::preference_refusal::{CERTIFIED_ROUTE, EVALUATE, STRUCTURAL, refusal};
+pub use crate::preference_sampled::{
+    SampledClass, SampledMargin, SampledStructure, part_expectations, preference_set_vertices,
+    sampled_margins,
+};
 use crate::signal::at_stage;
 use crate::structure_aggregator::{
     INVARIANCE_UNCHECKED, NO_EVALUATED_POSITIVE_PROBABILITY, NO_STRUCTURE_EVALUATED,

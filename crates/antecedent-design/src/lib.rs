@@ -58,6 +58,7 @@ mod preference_enclosure;
 pub mod preference_model;
 pub mod preference_refusal;
 mod preference_route_choice;
+mod preference_sampled;
 pub mod preference_set_learning;
 
 /// One entry point over the exact and the certified verdict across a preference set.

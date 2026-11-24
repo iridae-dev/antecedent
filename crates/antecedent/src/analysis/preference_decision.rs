@@ -79,6 +79,9 @@ use antecedent_design::decision_eval::{
 use antecedent_design::decision_evidence::{Exposure, JointExperimentEvidence};
 use antecedent_design::decision_robustness::AtomSupport;
 use antecedent_design::decision_structural::AtomEvidence;
+use antecedent_design::preference_decision::{
+    SampledClass, SampledStructure, part_expectations, sampled_margins,
+};
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
@@ -123,7 +126,7 @@ pub use antecedent_design::preference_decision::{
     AtomChoice, CertifiedRouteReason, MeasureOrigin, PreferenceActionOutcome, PreferenceAtomStatus,
     PreferenceAtomSummary, PreferenceDecisionError, PreferenceDecisionOptions,
     PreferenceDecisionResult, PreferenceMeasure, PreferenceSwitch, PreferenceVerdict,
-    StructuralPreferenceResult, StructuralPreferenceVerdict, SwitchThreshold,
+    SampledMargin, StructuralPreferenceResult, StructuralPreferenceVerdict, SwitchThreshold,
 };
 pub use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, PreferenceRoute,
@@ -147,6 +150,9 @@ pub use antecedent_design::preference_set_learning::{
     learn_compatible_set_with_context,
 };
 pub use antecedent_stats::ShapeSearchOptions;
+/// Exact Clopper–Pearson intervals of a binomial proportion, used for the sampled mass of an
+/// equivalence class.
+pub use antecedent_stats::binomial_interval::{clopper_pearson, clopper_pearson_upper};
 
 pub use super::execute::{
     BoundPreferenceContract, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
@@ -644,27 +650,6 @@ pub struct SampledClassMass {
     pub unevaluated: MassEstimate,
 }
 
-/// The Monte Carlo estimate of the expected-value margin of one action over another at one
-/// vertex of the preference set, under the declared measure over structures, with its Monte
-/// Carlo standard error. Margins are affine in the trade-off parameters, so the vertices
-/// bound them over the whole set.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SampledMargin {
-    /// The earlier action in declaration order.
-    pub first: String,
-    /// The later action in declaration order.
-    pub second: String,
-    /// The vertex of the preference set, in parameter order.
-    pub vertex: Vec<f64>,
-    /// Mass-weighted expected value of `first` minus that of `second` over the evaluated
-    /// structures, in the value model's utility units (for a loss criterion smaller values
-    /// are better).
-    pub margin: f64,
-    /// Monte Carlo standard error from the sampled classes; `None` when a sampled class drew
-    /// a single member.
-    pub standard_error: Option<f64>,
-}
-
 /// A one-sided Clopper–Pearson bound on the declared mass of one sampled class on which an
 /// action other than the reported one is best.
 #[derive(Clone, Debug, PartialEq)]
@@ -776,56 +761,6 @@ impl SampledStructuralEvaluation {
             }
         }
     }
-}
-
-/// The exact two-sided Clopper–Pearson interval for a binomial proportion with `successes`
-/// of `trials` at `level`: each end is a beta quantile. `None` for no trials, more successes
-/// than trials, or a level outside `(0, 1)`.
-#[must_use]
-pub fn clopper_pearson(successes: u64, trials: u64, level: f64) -> Option<(f64, f64)> {
-    if trials == 0 || successes > trials || !proper_level(level) {
-        return None;
-    }
-    let tail = (1.0 - level) / 2.0;
-    let (x, n) = (successes as f64, trials as f64);
-    let lower = if successes == 0 { 0.0 } else { beta_quantile(tail, x, n - x + 1.0) };
-    let upper = if successes == trials { 1.0 } else { beta_quantile(1.0 - tail, x + 1.0, n - x) };
-    Some((lower, upper))
-}
-
-/// The exact one-sided Clopper–Pearson upper bound for a binomial proportion with
-/// `successes` of `trials` at `level`; with no successes it is `1 - (1 - level)^(1/trials)`.
-/// `None` as for [`clopper_pearson`].
-#[must_use]
-pub fn clopper_pearson_upper(successes: u64, trials: u64, level: f64) -> Option<f64> {
-    if trials == 0 || successes > trials || !proper_level(level) {
-        return None;
-    }
-    if successes == trials {
-        return Some(1.0);
-    }
-    let (x, n) = (successes as f64, trials as f64);
-    Some(beta_quantile(level, x + 1.0, n - x))
-}
-
-/// Whether `level` is a probability strictly between zero and one.
-fn proper_level(level: f64) -> bool {
-    level.is_finite() && level > 0.0 && level < 1.0
-}
-
-/// The `p` quantile of a Beta(`a`, `b`) law, by bisection on the regularized incomplete beta
-/// function, which increases in its argument.
-fn beta_quantile(p: f64, a: f64, b: f64) -> f64 {
-    let (mut low, mut high) = (0.0_f64, 1.0_f64);
-    for _ in 0..200 {
-        let mid = 0.5 * (low + high);
-        if antecedent_stats::special::regularized_incomplete_beta(mid, a, b) < p {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-    0.5 * (low + high)
 }
 
 /// The action a per-structure exact verdict chooses, if it chooses one.
@@ -1048,11 +983,10 @@ fn other_best_bounds(
 }
 
 /// The expectation of every part of the linear form for every action under one structure's
-/// response: `[action][part]`, part zero the fixed part. `None` when the response does not
-/// convert to an aligned joint law the term contract reads.
-fn part_expectations(
-    terms: &antecedent_design::decision_contract::DecisionContract,
-    (actions, parts): (usize, usize),
+/// response (see [`part_expectations`]). `None` when the response does not convert to an
+/// aligned joint law the term contract reads.
+fn response_part_expectations(
+    contract: &PreferenceContract,
     response: &CausalResponse,
     (schema, context): (&CausalSchema, &NativeResponseContext),
 ) -> Option<Vec<Vec<f64>>> {
@@ -1061,134 +995,43 @@ fn part_expectations(
     let NativeDecisionSource::JointLaw(law) = input.source else {
         return None;
     };
-    let draws = utility_draws(terms, &law).ok()?;
-    let mean = |column: &[f64]| -> f64 {
-        column.iter().zip(&draws.weights).map(|(value, weight)| value * weight).sum()
-    };
-    (0..actions)
-        .map(|action| {
-            (0..parts)
-                .map(|part| draws.utilities.get(action * parts + part).map(|c| mean(c.as_slice())))
-                .collect::<Option<Vec<f64>>>()
-        })
-        .collect()
-}
-
-/// The vertices of the contract's preference set; `None` when they cannot be enumerated.
-fn preference_vertices(
-    contract: &PreferenceContract,
-    options: PreferenceEvaluationOptions,
-) -> Option<Vec<Vec<f64>>> {
-    let set = &contract.model.preferences;
-    if set.dimension() == 0 {
-        return Some(vec![Vec::new()]);
-    }
-    let rows = set.inequality_rows();
-    let constraints: Vec<antecedent_stats::linear_program::LinearConstraint> = rows
-        .coefficients
-        .into_iter()
-        .zip(rows.rhs)
-        .map(|(coefficients, rhs)| antecedent_stats::linear_program::LinearConstraint {
-            coefficients,
-            sense: antecedent_stats::linear_program::ConstraintSense::AtMost,
-            rhs,
-        })
-        .collect();
-    let (lower, upper): (Vec<f64>, Vec<f64>) = set.bounds().into_iter().unzip();
-    antecedent_stats::linear_program::vertices(
-        &constraints,
-        &lower,
-        &upper,
-        options.exact.vertex_cap,
-        options.exact.lp,
-    )
-    .ok()
+    part_expectations(contract, &law)
 }
 
 /// Every pairwise margin at every vertex, with the Monte Carlo standard error of the sampled
-/// classes; empty when the model has no linear form, a vertex enumeration fails, or an
-/// evaluated structure's response cannot be read.
-fn sampled_margins(
+/// classes ([`sampled_margins`]); empty when the model has no linear form, a vertex enumeration
+/// fails, or an evaluated structure's response cannot be read.
+fn margins_on_sampled_structures(
     contract: &PreferenceContract,
     (mixture, members): (&StructuralResponseMixture, &[Option<ClassMember>]),
     (schema, context): (&CausalSchema, &NativeResponseContext),
     options: PreferenceEvaluationOptions,
 ) -> Vec<SampledMargin> {
-    let Ok(Some(terms)) = contract.term_contract() else {
+    if !matches!(contract.term_contract(), Ok(Some(_))) {
         return Vec::new();
-    };
-    let Some(vertices) = preference_vertices(contract, options) else {
-        return Vec::new();
-    };
-    let actions = contract.actions.len();
-    let parts = contract.model.preferences.dimension() + 1;
+    }
     // Expectations of every evaluated structure; an unread response leaves no margins.
-    let mut expectations: Vec<Option<Vec<Vec<f64>>>> = Vec::with_capacity(mixture.atoms.len());
+    let mut structures = Vec::with_capacity(mixture.atoms.len());
     for atom in &mixture.atoms {
-        if !evaluated_atom(atom) {
-            expectations.push(None);
-            continue;
-        }
-        let Some(response) = atom.response.as_ref() else {
-            return Vec::new();
+        let expectations = if evaluated_atom(atom) {
+            let Some(response) = atom.response.as_ref() else {
+                return Vec::new();
+            };
+            let Some(read) = response_part_expectations(contract, response, (schema, context))
+            else {
+                return Vec::new();
+            };
+            Some(read)
+        } else {
+            None
         };
-        let Some(read) = part_expectations(&terms, (actions, parts), response, (schema, context))
-        else {
-            return Vec::new();
-        };
-        expectations.push(Some(read));
+        structures.push(SampledStructure { weight: atom.weight, expectations });
     }
-    let classes = sampled_classes(mixture, members);
-    let margin_at = |index: usize, (first, second): (usize, usize), vertex: &[f64]| -> f64 {
-        expectations.get(index).and_then(Option::as_ref).map_or(0.0, |e| {
-            let difference = |part: usize| e[first][part] - e[second][part];
-            difference(0)
-                + vertex.iter().enumerate().map(|(j, theta)| theta * difference(j + 1)).sum::<f64>()
-        })
-    };
-    let mut out = Vec::new();
-    for vertex in &vertices {
-        for first in 0..actions {
-            for second in (first + 1)..actions {
-                let margin: f64 = mixture
-                    .atoms
-                    .iter()
-                    .enumerate()
-                    .map(|(index, atom)| atom.weight * margin_at(index, (first, second), vertex))
-                    .sum();
-                let mut variance = 0.0;
-                let mut defined = true;
-                for (mass, sampling, atoms) in classes.values() {
-                    let drawn = sampling.drawn;
-                    if drawn < 2 {
-                        defined = false;
-                        continue;
-                    }
-                    let values: Vec<(f64, usize)> = atoms
-                        .iter()
-                        .map(|&(index, k)| (margin_at(index, (first, second), vertex), k))
-                        .collect();
-                    let n = drawn as f64;
-                    let mean = values.iter().map(|(v, k)| v * *k as f64).sum::<f64>() / n;
-                    let squares: f64 =
-                        values.iter().map(|(v, k)| (v - mean).powi(2) * *k as f64).sum();
-                    // Draws not among the listed members (none, when every draw compiled)
-                    // contribute zero.
-                    let listed: usize = values.iter().map(|(_, k)| *k).sum();
-                    let rest = drawn.saturating_sub(listed) as f64 * mean.powi(2);
-                    variance += mass * mass * (squares + rest) / (n - 1.0) / n;
-                }
-                out.push(SampledMargin {
-                    first: contract.actions[first].id.clone(),
-                    second: contract.actions[second].id.clone(),
-                    vertex: vertex.clone(),
-                    margin,
-                    standard_error: defined.then(|| variance.sqrt()),
-                });
-            }
-        }
-    }
-    out
+    let classes: Vec<SampledClass> = sampled_classes(mixture, members)
+        .into_values()
+        .map(|(mass, sampling, members)| SampledClass { mass, drawn: sampling.drawn, members })
+        .collect();
+    sampled_margins(contract, &structures, &classes, options.exact)
 }
 
 /// Decide `contract` across structures some of whose equivalence classes were sampled.
@@ -1233,7 +1076,12 @@ pub fn decide_on_sampled_structures(
         StructuralPolicy::BayesOverStructures => (
             on_sampled_measure(&evaluation),
             if evaluation.route() == PreferenceRoute::Exact {
-                sampled_margins(contract, (mixture, members), (schema, context), options)
+                margins_on_sampled_structures(
+                    contract,
+                    (mixture, members),
+                    (schema, context),
+                    options,
+                )
             } else {
                 Vec::new()
             },

@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod adaptive_inference;
+pub mod binomial_interval;
 pub mod ci;
 pub mod cluster;
 pub mod continuous_error;
