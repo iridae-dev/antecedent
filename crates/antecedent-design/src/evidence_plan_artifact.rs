@@ -542,7 +542,7 @@ impl EvidencePlanArtifact {
                 format!("stored `{}`, replayed `{}`", self.outcome, plan.outcome.as_str()),
             ));
         }
-        if plan.identity() != self.plan_identity {
+        if !plan.accepts_identity(&self.plan_identity) {
             return Err(EvidencePlanArtifactError::mismatch(
                 "identity",
                 "the replayed plan has another identity than the stored one",

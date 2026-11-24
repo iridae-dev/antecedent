@@ -517,8 +517,8 @@ impl StructuralResultArtifact {
         contract: &DecisionContract,
         atoms: &[StructuralAtom],
     ) -> Result<(), IoError> {
-        let identity = contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
-        if identity != self.result.contract_identity {
+        contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
+        if !contract.accepts_identity(&self.result.contract_identity) {
             return Err(refused("replay_contract", "contract differs from the stored result's"));
         }
         let digests = digests_of(atoms);

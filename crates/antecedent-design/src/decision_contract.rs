@@ -820,11 +820,29 @@ impl DecisionContract {
         Ok(self.validated_identity())
     }
 
+    /// Whether `stored` is this contract's identity, as this release writes it or as earlier
+    /// releases wrote it: before a constraint's `applies_to` was read as a set, a repeated
+    /// action id there changed the identity. The two agree for every contract without such a
+    /// repeat.
+    #[must_use]
+    pub fn accepts_identity(&self, stored: &str) -> bool {
+        self.declaration_identity() == stored || self.identity_with(false) == stored
+    }
+
     fn validated_identity(&self) -> String {
+        self.identity_with(true)
+    }
+
+    /// The identity; `applies_as_set` selects the current reading of each constraint's
+    /// `applies_to` (a set: each action id once) over the multiset of earlier releases.
+    fn identity_with(&self, applies_as_set: bool) -> String {
         let mut actions: Vec<[u8; 32]> = self.actions.iter().map(encode_action).collect();
         actions.sort_unstable();
-        let mut constraints: Vec<[u8; 32]> =
-            self.constraints.iter().map(encode_constraint).collect();
+        let mut constraints: Vec<[u8; 32]> = self
+            .constraints
+            .iter()
+            .map(|constraint| encode_constraint(constraint, applies_as_set))
+            .collect();
         constraints.sort_unstable();
         let mut out = CanonicalWriter::new("antecedent.decision_contract.v1");
         out.text(&self.utility_units).text(&self.target_population).word(u64::from(self.horizon));
@@ -854,13 +872,19 @@ fn encode_action(action: &DecisionAction) -> [u8; 32] {
     out.finish()
 }
 
-fn encode_constraint(constraint: &HardConstraint) -> [u8; 32] {
+/// One constraint's digest. `applies_to` names the actions the constraint binds and is read
+/// with `contains`, so it is a set: sorted, each id once (`applies_as_set`). Earlier releases
+/// kept repeats; `applies_as_set = false` reproduces them for verification.
+fn encode_constraint(constraint: &HardConstraint, applies_as_set: bool) -> [u8; 32] {
     let mut out = CanonicalWriter::new("antecedent.decision_contract.constraint.v1");
     out.text(&constraint.id);
     constraint.expr.encode(&mut out);
     out.real(constraint.bound).real(constraint.min_probability).text(&constraint.units);
     let mut applies: Vec<&String> = constraint.applies_to.iter().collect();
     applies.sort();
+    if applies_as_set {
+        applies.dedup();
+    }
     out.texts(&applies);
     out.finish()
 }
@@ -953,6 +977,46 @@ mod tests {
             horizon: 0,
             structural_policy: StructuralPolicy::ReportOnly,
         }
+    }
+
+    /// Identity-site check: actions and constraints are sets of digests (every order of
+    /// them gives one identity), a constraint's `applies_to` is a set of action ids (order
+    /// and repeats do not matter, dropping an id does), and an identity stored by an earlier
+    /// release for a contract with a repeated id still verifies.
+    #[test]
+    fn identity_site_contract_sets_and_applies_to() {
+        let mut base = contract();
+        base.constraints.push(HardConstraint {
+            id: "second-cap".into(),
+            expr: UtilityExpr::Input(0),
+            bound: 5.0,
+            min_probability: 1.0,
+            units: "usd".into(),
+            applies_to: vec!["wait".into(), "treat".into()],
+        });
+        let id = base.identity().unwrap();
+        for order in [[0usize, 1], [1, 0]] {
+            let mut permuted = base.clone();
+            permuted.actions = order.iter().map(|&i| base.actions[i].clone()).collect();
+            permuted.constraints = order.iter().map(|&i| base.constraints[i].clone()).collect();
+            for constraint in &mut permuted.constraints {
+                constraint.applies_to.reverse();
+            }
+            assert_eq!(permuted.identity().unwrap(), id);
+        }
+        let mut repeated = base.clone();
+        repeated.constraints[1].applies_to.push("wait".into());
+        assert_eq!(repeated.identity().unwrap(), id);
+        assert_ne!(repeated.identity_with(false), id);
+        assert!(repeated.accepts_identity(&repeated.identity_with(false)));
+        assert!(repeated.accepts_identity(&id));
+        let mut narrowed = base.clone();
+        narrowed.constraints[1].applies_to.pop();
+        assert_ne!(narrowed.identity().unwrap(), id);
+        assert!(!narrowed.accepts_identity(&id));
+        let mut dropped = base;
+        dropped.constraints.pop();
+        assert_ne!(dropped.identity().unwrap(), id);
     }
 
     #[test]

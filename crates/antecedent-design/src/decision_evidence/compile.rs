@@ -118,10 +118,20 @@ pub fn compile_joint_experiment(
     if names.len() != spec.outcomes.len() {
         return Err(EvidenceRefusal::Invalid("outcome names must be unique".into()));
     }
+    // One adjustment per outcome, as `JointExperimentEvidence::new` requires: the identity
+    // sorts adjustments by component, so two for one component would leave their order to the
+    // caller.
+    let mut adjusted = std::collections::BTreeSet::new();
     for adjustment in &spec.adjustments {
         if !names.contains(adjustment.component.as_str()) {
             return Err(EvidenceRefusal::Invalid(format!(
                 "adjustment names unknown outcome `{}`",
+                adjustment.component
+            )));
+        }
+        if !adjusted.insert(adjustment.component.as_str()) {
+            return Err(EvidenceRefusal::Invalid(format!(
+                "outcome `{}` is adjusted more than once",
                 adjustment.component
             )));
         }
