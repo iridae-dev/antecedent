@@ -1,0 +1,23 @@
+feature_id = "forecast.marked_event_process"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "Spectra of some self-exciting and mutually exciting point processes", doi = "10.1093/biomet/58.1.83", sections = ["Mutually exciting processes"] },
+  { title = "A cluster process representation of a self-exciting process", doi = "10.2307/3212693", sections = ["Cluster process representation"] },
+  { title = "On Lewis' simulation method for point processes", doi = "10.1109/TIT.1981.1056305", sections = ["Thinning algorithm for multivariate processes"] },
+]
+implementation_deviations = [
+  "The mark space is replaced by declared prototypes, each with nonnegative source features, target features and a reference mass. The kernel is finite-rank on those features with one fixed exponential decay per rank component. This parameterization is repository-defined; it is a quadrature or atom representation of a marked kernel, not the general marked Hawkes process of the cited papers.",
+  "With the decays and features fixed, the ground intensity is linear in the baseline and excitation coefficients, so the conditional log likelihood is concave in them. The fit is projected gradient ascent onto a half-space: no declared prototype may have more than a reproduction cap of lifetime direct children. That is a convex sufficient condition for spectral radius below one and is generally stricter than it, the same role the source-column cap plays for the catalog model.",
+  "Declared coefficients are checked with a positive subinvariance witness of the prototype branching matrix, not with the reproduction cap.",
+  "Rank and target basis are capped by the dense catalog allowance and the prototype count by the cost of the spectral witness, each derived from the per-invocation operation budget.",
+  "Draws condition on the observed arrivals strictly before the draw window and use Ogata thinning with the ground intensity as the bound after each accepted arrival. Paths are model-conditional draws, not a predictive law with parameter uncertainty.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/hawkes_marks.rs",
+  "crates/antecedent/src/analysis/events/marked.rs",
+]

@@ -1,0 +1,20 @@
+feature_id = "forecast.hawkes_parameter_bridge"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Repository-defined. An agreed horizon direct mass may cross the parameter-intervention bridge only when both functionals are direct_offspring, the map is an identity or affine map, the fitted regime is observational and the response names a different regime. The structural evidence is the provenance digest of an accepted discovery that orients the exposure into the outcome; a reverse, symmetric, confounded or unoriented discovery edge refuses. A singular excitation Gram, a lead or symmetric kernel edge, or an active stability cap refuses before the bridge is asked. Descendants are reported beside the bridged mean and are never carried as a mean, since the resolvent is nonlinear in the kernel.",
+  "An intervened continuation adds one event of the accepted source type now, later, or of a different mark, and draws the continuation conditional on the observed history and that event with the accepted kernel by Ogata thinning. A marked history is read as a catalog with one name per prototype. The paths are a conditional scenario under the kernel the bridge kept, not by themselves the utility of releasing.",
+  "A release question compiles the immigrant challenge, the bridge and one release action as one program: a withheld reading returns the reading alone with no claim and no law.",
+  "A shock that moves the exposure and is excluded from the outcome leaves the Hawkes model as a lag-count query naming the exposure, the outcome, the lag and the instrument; it returns no excitation coefficient.",
+  "The release study is the existing future-study value of information composed on the accepted excitation's program, accepted only when every hypothesis of the belief is the catalog kernel the bridge kept; a marked kernel is not priced that way.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/src/analysis/events/question.rs",
+  "crates/antecedent/tests/hawkes_marks.rs",
+  "python/tests/test_events.py",
+]

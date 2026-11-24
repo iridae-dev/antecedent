@@ -1,0 +1,21 @@
+feature_id = "forecast.hawkes_excitation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "A cluster process representation of a self-exciting process", doi = "10.2307/3212693", sections = ["Cluster process representation"] },
+]
+implementation_deviations = [
+  "Finite-horizon direct offspring is α(1 - exp(-β H)). Lifetime descendants are the column of (I - A)^{-1} - I, which removes the initiating event counted by the resolvent. Horizon descendants integrate the linear filter ODE with a fixed-step fourth-order Runge-Kutta scheme of at most 200000 steps and are not the resolvent of the horizon-discounted branching matrix. The same functionals of a marked kernel use the prototype branching matrix.",
+  "The immigrant challenge is repository-defined. It fits the constant-baseline model and a second model whose immigrant intensity adds a declared nonnegative piecewise-constant feature with its own coefficient, both by the fixed-decay projected-gradient likelihood fit. The diagnostic agrees only when the horizon-specific direct masses differ by at most a caller-supplied tolerance and neither fit is weakly identified or on its stability cap. Agreement is a robustness check on two conditional intensities, not an identification result, and the tolerance is declared rather than derived from an uncertainty test.",
+  "A release comparison scores one added event at each of two times over the remaining horizon of the publisher's window under the constant-baseline kernel, only when the challenge agreed and the kernel reproduces the reading's direct mass. It is a conditional scenario under that kernel, not an identified response to releasing.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/hawkes_marks.rs",
+  "crates/antecedent/src/analysis/events/hawkes.rs",
+  "crates/antecedent/src/analysis/events/challenge.rs",
+  "python/tests/test_events.py",
+]

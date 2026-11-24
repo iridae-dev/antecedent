@@ -1371,6 +1371,28 @@ routes = [
 ]
 
 [[record]]
+id = "transport.trial_aipw_caller_learners"
+status = "supported"
+refusals = [
+  { code = "route_not_supported", detail = "trial_aipw_caller_learners.bootstrap_not_supported" },
+]
+routes = [
+  { route = "antecedent.analysis.compiled_trial_aipw_learners.Study.compile_trial_aipw_learners", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.compiled_trial_aipw_learners.CompiledTrialAipwLearners.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "estimate.joint_cells_caller_learners"
+status = "supported"
+refusals = [
+  { code = "option_not_applicable", detail = "joint_cells_caller_learners.built_in_learner_declared" },
+]
+routes = [
+  { route = "antecedent.analysis.compiled_joint_cells_learners.Study.compile_joint_cells_learners", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.compiled_joint_cells_learners.CompiledJointCellsLearners.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
 id = "recovery.chain_observation"
 status = "supported"
 refusals = [
@@ -6747,6 +6769,13 @@ routes = [
   { route = "antecedent.analysis.discovered_transport_trial.verify_trial_compatible_transport_estimate", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.analysis.discovered_transport_trial.estimate_trial_compatible_transport_confidence_set", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.analysis.discovered_transport_trial.verify_trial_compatible_transport_confidence_set_against", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.compiled_discovered_transport.Study.compile_discovered_class_transport", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.compiled_discovered_transport.CompiledDiscoveredClassTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.transport.discovered.analyze_discovered_transport", stage = "identify", status = "supported", claim = "none" },
+  { route = "antecedent.python.transport.discovered.analyze_discovered_transport_estimate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_discovered_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_transport_confidence_set", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.python.transport.trial_compatible.replay_trial_compatible_transport_confidence_set", stage = "consume", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -6768,6 +6797,9 @@ routes = [
   { route = "antecedent.per_population_discovery.add_per_population_claims", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.python.selective_discovery.discover_per_population", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.per_population_discovery.request_selection_targets_from_differences", stage = "evaluate", status = "closed", reason_code = "discovered_structure_unresolved", claim = "none" },
+  { route = "antecedent.analysis.compiled_per_population_discovery.Study.compile_per_population_discovery", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.compiled_per_population_discovery.CompiledPerPopulationDiscovery.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.python.selective_discovery.PerPopulationDiscovery.compiled_run", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.python.selective_discovery.request_selection_targets_from_differences", stage = "evaluate", status = "closed", reason_code = "discovered_structure_unresolved", claim = "none" },
 ]
 
@@ -8313,6 +8345,60 @@ id = "forecast.event_count_interval"
 status = "not_supported"
 routes = [
   { route = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "interval" },
+]
+
+[[record]]
+id = "forecast.marked_event_process"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "events.invalid_request" },
+  { code = "invalid_argument", detail = "events.unstable" },
+  { code = "dynamics_not_identified", detail = "events.fit_failed" },
+  { code = "execution_resource_limit", detail = "events.budget" },
+  { code = "invalid_argument", detail = "events.numerical" },
+]
+routes = [
+  { route = "antecedent.Study.prepare_marked_likelihood", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_marked_fit", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_marked_draw", stage = "prepare", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "forecast.hawkes_excitation"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "events.invalid_request" },
+  { code = "invalid_argument", detail = "events.unstable" },
+  { code = "dynamics_not_identified", detail = "events.fit_failed" },
+  { code = "execution_resource_limit", detail = "events.budget" },
+  { code = "invalid_argument", detail = "events.numerical" },
+]
+routes = [
+  { route = "antecedent.Study.prepare_excitation_offspring", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_marked_offspring", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_excitation_challenge", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_marked_challenge", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_release_comparison", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_marked_release_comparison", stage = "prepare", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "forecast.hawkes_parameter_bridge"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "events.invalid_request" },
+  { code = "invalid_argument", detail = "events.unstable" },
+  { code = "dynamics_not_identified", detail = "events.fit_failed" },
+  { code = "execution_resource_limit", detail = "events.budget" },
+  { code = "invalid_argument", detail = "events.numerical" },
+]
+routes = [
+  { route = "antecedent.Study.prepare_excitation_question", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_release_law", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_intervened_law", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_release_question", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_shock_query", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_release_study", stage = "prepare", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
