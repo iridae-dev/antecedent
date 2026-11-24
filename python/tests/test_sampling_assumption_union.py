@@ -9,10 +9,10 @@ consumed independently under the retained program identity and the producing see
 from __future__ import annotations
 
 import pytest
-from antecedent import Execution
+from antecedent import CancellationToken, Execution
 from antecedent import propagation_chain as pc
 from antecedent import sampling_assumption_union as sau
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalCancelledError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
 
@@ -210,4 +210,35 @@ def test_a_scheme_takes_exactly_its_own_keywords() -> None:
                 unit_ids=_ids("unit", 40),
                 replicates=100,
             )
+        )
+
+
+def _cancelled(seed: int) -> Execution:
+    token = CancellationToken()
+    token.cancel()
+    return Execution(seed=seed, cancel=token)
+
+
+@pytest.mark.parametrize("scheme", ["declared", "iid", "cluster"])
+def test_a_cancelled_union_raises_the_cancellation_not_a_refusal(scheme: str) -> None:
+    # A cancelled run is an operational stop, never an invalid declaration: it raises the
+    # cancellation, on compile, on export and on replay, and no refusal outcome is returned.
+    seed, values, design, _ = SCHEMES[scheme]
+    with pytest.raises(CausalCancelledError):
+        sau.sampling_assumption_union(
+            _sources(values),
+            STAGES,
+            output="answer",
+            output_quantity=QUANTITY,
+            scheme=scheme,  # type: ignore[arg-type]
+            execution=_cancelled(seed),
+            **design,  # type: ignore[arg-type]
+        )
+    union = _union(scheme)
+    with pytest.raises(CausalCancelledError):
+        union.export(execution=_cancelled(seed))
+    artifact = union.export()
+    with pytest.raises(CausalCancelledError):
+        sau.consume_sampling_assumption_union(
+            artifact, expected_identity=union.program_identity, execution=_cancelled(seed)
         )

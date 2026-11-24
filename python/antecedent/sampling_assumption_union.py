@@ -119,7 +119,8 @@ class SamplingAssumptionUnionRefusal(PropagationChainRefusal):
     ``sampling_assumption_union.invalid_declaration``; bytes that do not replay to the retained
     program identity, seed or result are ``external_binding_mismatch`` with detail
     ``sampling_assumption_union.replay_mismatch``; a chain refusal keeps its own detail and
-    ``next_attempt``.
+    ``next_attempt``. A run stopped by ``execution.cancel`` is no refusal: it raises
+    :class:`~antecedent.errors.CausalCancelledError`.
     """
 
 

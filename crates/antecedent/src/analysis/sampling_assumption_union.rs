@@ -133,6 +133,19 @@ pub enum SamplingAssumptionUnionError {
     Io(#[from] IoError),
 }
 
+/// A run stopped by the caller's cancellation: `cancelled_no_claim`, the class every chain
+/// gives its own cancellation, never an invalid declaration. Cancellation is no verdict on the
+/// union.
+fn cancelled(message: &'static str) -> SamplingAssumptionUnionError {
+    SamplingAssumptionUnionError::Chain(ChainRefusal::new(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        antecedent_core::reason_details::propagation_chain::CANCELLED,
+        message,
+        None,
+        antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+    ))
+}
+
 /// One compiler program covering the original and all declared resampling
 /// chains at the same terminal coordinate.
 #[derive(Clone, Debug)]
@@ -424,9 +437,7 @@ impl CompiledSamplingAssumptionUnion {
         let mut chain_identities = vec![original.identity().to_owned()];
         for plan in &self.bootstrap {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "whole-chain resampling was cancelled",
-                ));
+                return Err(cancelled("whole-chain resampling was cancelled"));
             }
             let chain = plan.execute_within_program(ctx)?;
             let (lower, upper) = endpoint_means(&chain)?;
@@ -808,9 +819,7 @@ impl CompiledIidSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x1144_4253_5452_4150);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "IID whole-chain bootstrap was cancelled",
-                ));
+                return Err(cancelled("IID whole-chain bootstrap was cancelled"));
             }
             let indices: Vec<usize> = (0..n).map(|_| uniform_row(&mut rng, n)).collect();
             let mut draft = self.request.original.clone();
@@ -1206,9 +1215,7 @@ impl CompiledClusterSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x434C_5553_5445_5253);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "cluster bootstrap was cancelled",
-                ));
+                return Err(cancelled("cluster bootstrap was cancelled"));
             }
             let mut indices = Vec::new();
             for _ in 0..self.groups.len() {
@@ -1643,9 +1650,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x5354_5241_5443_4C55);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "cluster bootstrap was cancelled",
-                ));
+                return Err(cancelled("cluster bootstrap was cancelled"));
             }
             let indices = stratified_cluster_indices(&self.strata, &mut rng);
             let mut draft = self.request.original.clone();
@@ -2021,9 +2026,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x4D4F_5649_4E47_424C);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "moving-block bootstrap was cancelled",
-                ));
+                return Err(cancelled("moving-block bootstrap was cancelled"));
             }
             let n = self.request.unit_ids.len();
             let mut indices = Vec::with_capacity(n);
@@ -2457,9 +2460,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x5354_524D_4F56_424C);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "moving-block bootstrap was cancelled",
-                ));
+                return Err(cancelled("moving-block bootstrap was cancelled"));
             }
             let indices =
                 stratified_moving_block_indices(&self.strata, self.request.block_length, &mut rng);
@@ -2889,9 +2890,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
         let mut rng = scoped.rng.stream(0x5041_4E45_4C42_4C4B);
         for replicate in 0..self.request.bootstrap_replicates {
             if scoped.cancellation.is_cancelled() {
-                return Err(SamplingAssumptionUnionError::Invalid(
-                    "moving-block bootstrap was cancelled",
-                ));
+                return Err(cancelled("moving-block bootstrap was cancelled"));
             }
             let indices = panel_block_indices(&self.panels, self.request.block_length, &mut rng);
             let mut draft = self.request.original.clone();
