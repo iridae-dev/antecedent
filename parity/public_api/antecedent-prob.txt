@@ -1172,10 +1172,12 @@ pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsam
 pub fn <antecedent_prob::WeightedGraphSamples>::fn total_weight(&self) -> f64
 pub fn <antecedent_prob::WeightedGraphSamples>::fn unidentified_mass(&self) -> f64
 pub fn <antecedent_prob::WeightedTarget>::const fn kernel(&self) -> core::option::Option<antecedent_prob::TransportKernel>
+pub fn <antecedent_prob::WeightedTarget>::const fn min_ess_fraction(&self) -> f64
 pub fn <antecedent_prob::WeightedTarget>::fn check_overlap(&self) -> core::result::Result<antecedent_prob::TargetOverlap, antecedent_prob::ProbError>
 pub fn <antecedent_prob::WeightedTarget>::fn from_kernel(unit_effects: impl core::convert::Into<alloc::sync::Arc<[f64]>>, distances: &[f64], kernel: antecedent_prob::TransportKernel) -> core::result::Result<Self, antecedent_prob::ProbError>
 pub fn <antecedent_prob::WeightedTarget>::fn from_row_weights(unit_effects: impl core::convert::Into<alloc::sync::Arc<[f64]>>, row_weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_prob::TransportError>
 pub fn <antecedent_prob::WeightedTarget>::fn overlap(&self) -> antecedent_prob::TargetOverlap
+pub fn <antecedent_prob::WeightedTarget>::fn unit_effects(&self) -> &[f64]
 pub fn <antecedent_prob::WeightedTarget>::fn weights(&self) -> &[f64]
 pub fn <antecedent_prob::WeightedTarget>::fn with_min_ess_fraction(self, fraction: f64) -> core::result::Result<Self, antecedent_prob::TransportError>
 pub fn <antecedent_prob::finite_belief::AffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
