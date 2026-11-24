@@ -561,4 +561,28 @@ mod tests {
             }
         }
     }
+
+    /// `AdaptivePolicyFamily::identity`: features are an ordered list (rules name them by
+    /// index), so swapping two features changes the identity, and a changed bound does too.
+    #[test]
+    fn identity_site_family_features_are_ordered() {
+        let make = |features: Vec<PolicyFeature>, range: (f64, f64)| {
+            AdaptivePolicyFamily::new(
+                "f",
+                features,
+                &[range, (-5.0, 5.0)],
+                PolicyRule::Threshold { feature: 0 },
+                (0.0, 3.0),
+                (-2.0, 2.0),
+            )
+            .unwrap()
+            .identity()
+        };
+        let first = PolicyFeature::Lag { variable: v(1), lag: 1 };
+        let second = PolicyFeature::Lag { variable: v(1), lag: 2 };
+        let base = make(vec![first, second], (-5.0, 5.0));
+        assert_eq!(base, make(vec![first, second], (-5.0, 5.0)));
+        assert_ne!(base, make(vec![second, first], (-5.0, 5.0)));
+        assert_ne!(base, make(vec![first, second], (-4.0, 5.0)));
+    }
 }

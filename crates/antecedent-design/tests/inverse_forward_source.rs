@@ -972,3 +972,25 @@ fn one_shifted_cohort_is_refused_in_one_shape_by_every_consumer_that_does_not_ac
     };
     assert_eq!(decision.code(), inverse.code());
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `ForwardOrigin::canonical_identity`: the assumed mechanisms are a set (sort + dedup), so
+/// reordering or repeating one keeps the origin identity and dropping or adding one
+/// changes it.
+#[test]
+fn identity_site_forward_origin_assumed_mechanisms_are_a_set() {
+    let source = composed_forward_source(&gaussian_response([1.0, 2.5, 4.0])).unwrap();
+    let with = |mechanisms: &[&str]| {
+        let mut origin = source.origin().clone();
+        origin.assumed_mechanisms = mechanisms.iter().map(|m| (*m).to_owned()).collect();
+        origin.canonical_identity()
+    };
+    let base = with(&["u", "v"]);
+    assert_eq!(base, with(&["v", "u"]));
+    assert_eq!(base, with(&["v", "u", "v"]));
+    assert_ne!(base, with(&["u"]));
+    assert_ne!(base, with(&["u", "v", "w"]));
+}

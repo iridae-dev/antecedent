@@ -954,3 +954,58 @@ fn an_exported_transported_decision_replays_and_refuses_resealed_edits() {
         "reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted: reason=decision_contract_unsatisfied: transported_decision.transported_not_accepted"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `finalize` and `TransportReceipt::canonical_identity`: source populations, transport
+/// identities and assumptions are sets. Reordering or repeating an entry keeps the receipt
+/// identity; dropping one changes it.
+#[test]
+fn identity_site_receipt_lists_are_sets() {
+    let identity = |declaration: &TransportDeclaration| {
+        TransportedResponse::declared_point(vec![effect("clinic_b")], vec![2.0], declaration)
+            .unwrap()
+            .receipt()
+            .canonical_identity()
+    };
+    let mut listed = declaration();
+    listed.source_populations = vec!["trial".into(), "registry".into()];
+    listed.assumptions = vec!["selection acts on age only".into(), "no interference".into()];
+    let base = identity(&listed);
+    let mut reordered = listed.clone();
+    reordered.source_populations.reverse();
+    reordered.assumptions.reverse();
+    assert_eq!(base, identity(&reordered));
+    let mut repeated = listed.clone();
+    repeated.transport_identities.push("diagram-1".into());
+    repeated.assumptions.push("no interference".into());
+    assert_eq!(base, identity(&repeated));
+    let mut dropped = listed;
+    dropped.assumptions.pop();
+    assert_ne!(base, identity(&dropped));
+}
+
+/// `TransportedResponse::merge_points` (identity v2): the merged source identity does not
+/// depend on the order the members are passed, and binds each member's values, so the same
+/// members carrying different means do not share it.
+#[test]
+fn identity_site_merged_points_bind_member_values() {
+    let member = |regime: &str, value: f64| {
+        TransportedResponse::declared_point(
+            vec![ScientificQuantity { regime_id: regime.into(), ..effect("clinic_b") }],
+            vec![value],
+            &declaration(),
+        )
+        .unwrap()
+    };
+    let merged = |members: &[TransportedResponse]| {
+        TransportedResponse::merge_points(members).unwrap().receipt().source_identity.clone()
+    };
+    let (first, second) = (member("r1", 2.0), member("r2", 1.0));
+    let base = merged(&[first.clone(), second.clone()]);
+    assert_eq!(base, merged(&[second.clone(), first.clone()]));
+    assert_ne!(base, merged(&[first, member("r2", 1.5)]));
+    assert_ne!(base, merged(&[member("r1", -0.0), second]));
+}

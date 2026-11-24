@@ -1904,3 +1904,85 @@ fn paired_bootstrap_replays_and_rejects_low_support() {
         .is_err()
     );
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// A stopping boundary's monitored states are a set: listing them in another
+/// order keeps the model identity (the v1 identity did not), dropping one
+/// changes it, and a repeated state is refused. Actions are positional: swapping
+/// two changes the identity.
+#[test]
+fn identity_site_model_boundary_states_are_a_set() {
+    let spec = base_spec(true);
+    let with_states = |states: Vec<usize>| {
+        let mut model = build(&spec);
+        model.stopping[0].states = states;
+        model
+    };
+    let ascending = with_states(vec![0, 1]);
+    let descending = with_states(vec![1, 0]);
+    assert_eq!(ascending.identity_hex(), descending.identity_hex());
+    assert_eq!(ascending.identity_hex(), ascending.identity_hex_v1());
+    assert_ne!(descending.identity_hex(), descending.identity_hex_v1());
+    assert_ne!(ascending.identity_hex(), with_states(vec![1]).identity_hex());
+    assert!(with_states(vec![1, 1]).validate().is_err());
+
+    let model = build(&spec);
+    let mut swapped = model.clone();
+    swapped.actions.swap(WAIT, INSPECT);
+    assert_ne!(model.identity_hex(), swapped.identity_hex());
+}
+
+/// The bootstrap reads the log as a set of trajectories keyed by id: reversing
+/// the log keeps every replicate and the log identity; a repeated trajectory is
+/// refused.
+#[test]
+fn identity_site_bootstrap_reads_the_log_as_a_set() {
+    use antecedent_design::sequential_evaluation::bootstrap_off_policy;
+    let spec = base_spec(true);
+    let model = build(&spec);
+    let log = log_under(&spec);
+    let target = policy_of("fixed", &inspect_then_act());
+    let targets = vec![target.clone(), target];
+    let run = |log: &[LoggedTrajectory]| {
+        bootstrap_off_policy(
+            &model,
+            &targets,
+            &behaviour_policy(),
+            log,
+            &mut EvidenceLedger::new(),
+            EvaluationLimits::default(),
+            17,
+            8,
+            2.0,
+            &ctx(),
+        )
+    };
+    let listed = run(&log).unwrap();
+    let mut reversed = log.clone();
+    reversed.reverse();
+    let reordered = run(&reversed).unwrap();
+    assert_eq!(listed.replicates, reordered.replicates);
+    assert_eq!(listed.log_identity, reordered.log_identity);
+    let mut repeated = log.clone();
+    repeated.push(log[0].clone());
+    assert!(run(&repeated).is_err());
+}
+
+/// A stochastic decision is a set of (action, probability) entries: the order
+/// they are listed in does not reach the policy identity, a different
+/// probability does, and an action named twice is refused.
+#[test]
+fn identity_site_policy_distribution_is_a_set() {
+    let decide = |distribution: Vec<(usize, f64)>| {
+        ContingentPolicy::new("stochastic").decide_stochastic(key(&[]), distribution)
+    };
+    let listed = decide(vec![(WAIT, 0.25), (INSPECT, 0.75)]).unwrap();
+    let reversed = decide(vec![(INSPECT, 0.75), (WAIT, 0.25)]).unwrap();
+    assert_eq!(listed.identity_hex(), reversed.identity_hex());
+    let changed = decide(vec![(WAIT, 0.5), (INSPECT, 0.5)]).unwrap();
+    assert_ne!(listed.identity_hex(), changed.identity_hex());
+    assert!(decide(vec![(WAIT, 0.25), (WAIT, 0.75)]).is_err());
+}

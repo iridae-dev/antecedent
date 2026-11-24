@@ -276,7 +276,22 @@ impl DecisionDraws {
     #[must_use]
     pub fn canonical_order(&self) -> Vec<usize> {
         let mut order: Vec<usize> = (0..self.candidates.len()).collect();
-        order.sort_by(|&a, &b| self.candidates[a].id.cmp(&self.candidates[b].id));
+        // Ids are unique in a valid carrier, so the id decides the order. A carrier that has not
+        // been validated may repeat one; the full content then breaks the tie, so the digests
+        // never depend on the order candidates were listed in.
+        order.sort_by(|&a, &b| {
+            let (left, right) = (&self.candidates[a], &self.candidates[b]);
+            left.id.cmp(&right.id).then_with(|| {
+                (
+                    left.segment.digest_hex(),
+                    left.utilities.iter().map(|u| u.to_bits()).collect::<Vec<_>>(),
+                )
+                    .cmp(&(
+                        right.segment.digest_hex(),
+                        right.utilities.iter().map(|u| u.to_bits()).collect::<Vec<_>>(),
+                    ))
+            })
+        });
         order
     }
 

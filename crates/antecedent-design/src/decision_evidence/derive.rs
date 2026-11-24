@@ -1395,4 +1395,39 @@ pub(super) mod tests {
         let b = decide(&evidence(1.0, no_interference()), &request(), &q, &other).unwrap();
         assert_eq!(a.derived.quantity_identity, b.derived.quantity_identity);
     }
+
+    /// `derive_uncalibrated`: the assumptions an assumption range rests on are a set, written
+    /// sorted and once however many inputs cite them.
+    #[test]
+    fn identity_site_assumption_ids_are_a_set() {
+        let assumed = |id: &str, lower: f64, upper: f64| InputBinding::Assumed {
+            lower,
+            upper,
+            assumption_id: id.into(),
+            shared_across_arms: true,
+        };
+        let ids = |value: InputBinding, cost: InputBinding| {
+            let quantity = DerivedQuantity {
+                inputs: vec![InputBinding::Measured("frequency".into()), value, cost],
+                ..margin(InputBinding::Measured("cost".into()))
+            };
+            derive(&evidence(1.0, no_interference()), &request(), &quantity)
+                .unwrap()
+                .assumption_range
+                .unwrap()
+                .assumption_ids
+        };
+        assert_eq!(
+            ids(assumed("a.shared", 4.0, 11.0), assumed("a.shared", 1.0, 2.0)),
+            vec!["a.shared".to_owned()]
+        );
+        assert_eq!(
+            ids(assumed("b.value", 4.0, 11.0), assumed("a.cost", 1.0, 2.0)),
+            ids(assumed("a.cost", 4.0, 11.0), assumed("b.value", 1.0, 2.0))
+        );
+        assert_eq!(
+            ids(assumed("b.value", 4.0, 11.0), assumed("a.cost", 1.0, 2.0)),
+            vec!["a.cost".to_owned(), "b.value".to_owned()]
+        );
+    }
 }

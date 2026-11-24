@@ -324,9 +324,25 @@ impl FiniteSequentialModel {
 
     /// Canonical identity of the model: laws, bounds, boundaries, support and
     /// the identities of the bound measurement models. The display label is
-    /// not part of it.
+    /// not part of it. A stopping boundary's monitored states are a set and are
+    /// written in ascending order, so listing them in another order keeps the
+    /// identity.
     #[must_use]
     pub fn identity_hex(&self) -> String {
+        self.write_identity(true)
+    }
+
+    /// The identity of earlier releases, which wrote each stopping boundary's
+    /// monitored states in the order they were listed. It equals
+    /// [`Self::identity_hex`] whenever every boundary lists its states in
+    /// ascending order; it is computed only to verify identities stored under it.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn identity_hex_v1(&self) -> String {
+        self.write_identity(false)
+    }
+
+    fn write_identity(&self, sorted_boundary_states: bool) -> String {
         let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.model");
         writer
             .word(SEQUENTIAL_EVALUATION_IDENTITY_VERSION)
@@ -368,8 +384,12 @@ impl FiniteSequentialModel {
         }
         writer.word(self.stopping.len() as u64);
         for boundary in &self.stopping {
-            writer.text(&boundary.label).word(boundary.states.len() as u64);
-            for state in &boundary.states {
+            let mut states = boundary.states.clone();
+            if sorted_boundary_states {
+                states.sort_unstable();
+            }
+            writer.text(&boundary.label).word(states.len() as u64);
+            for state in &states {
                 writer.word(*state as u64);
             }
             writer
