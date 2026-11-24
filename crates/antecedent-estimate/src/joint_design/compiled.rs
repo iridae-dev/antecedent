@@ -134,22 +134,6 @@ pub enum JointDesignInference {
         /// Deterministic resampling seed.
         seed: u64,
     },
-    /// Independent-unit bootstrap of a cluster-randomized, matched-pair or switchback
-    /// design's arm means: clusters resampled within each arm, whole pairs or whole
-    /// sequences, every refit rerunning the complete estimator.
-    ///
-    /// Randomization alone does not identify the dependence of the arm-mean estimators
-    /// across arms; the law is read only under the declared premise that the independent
-    /// units were sampled independently from a larger population.
-    IndependentUnitBootstrap {
-        /// Number of complete refits, at least 99.
-        replicates: usize,
-        /// Deterministic resampling seed.
-        seed: u64,
-        /// Assumption identity of the premise that the independent units were sampled
-        /// independently from a larger population.
-        sampling: String,
-    },
     /// Native design point functional and complete-unit uncertainty.
     ///
     /// For Gaussian longitudinal designs the version-one compatibility recipe
@@ -224,6 +208,22 @@ pub enum JointDesignInference {
     LongitudinalDirichlet {
         /// Fully declared finite-state prior.
         prior: LongitudinalDirichletPrior,
+    },
+    /// Independent-unit bootstrap of a cluster-randomized, matched-pair or switchback
+    /// design's arm means: clusters resampled within each arm, whole pairs or whole
+    /// sequences, every refit rerunning the complete estimator.
+    ///
+    /// Randomization alone does not identify the dependence of the arm-mean estimators
+    /// across arms; the law is read only under the declared premise that the independent
+    /// units were sampled independently from a larger population.
+    IndependentUnitBootstrap {
+        /// Number of complete refits, at least 99.
+        replicates: usize,
+        /// Deterministic resampling seed.
+        seed: u64,
+        /// Assumption identity of the premise that the independent units were sampled
+        /// independently from a larger population.
+        sampling: String,
     },
 }
 /// Executed design law without changing the scientific target when inference mode changes.
