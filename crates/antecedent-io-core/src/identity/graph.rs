@@ -47,6 +47,10 @@ pub enum GraphIdentityWire {
     LabeledDag(LabeledStaticGraphIdentityWire),
     /// Static ADMG whose nodes are not schema-aligned; see [`Self::LabeledDag`].
     LabeledAdmg(LabeledStaticGraphIdentityWire),
+    /// Static CPDAG whose nodes are not schema-aligned; see [`Self::LabeledDag`].
+    LabeledCpdag(LabeledMarkedGraphIdentityWire),
+    /// Static PAG whose nodes are not schema-aligned; see [`Self::LabeledDag`].
+    LabeledPag(LabeledMarkedGraphIdentityWire),
     /// Temporal DAG (nodes sorted by `(variable, lag)`).
     TemporalDag(TemporalGraphWire),
     /// Temporal ADMG (nodes sorted by `(variable, lag)`; edges re-indexed).
@@ -80,6 +84,7 @@ impl GraphIdentityWire {
             Self::Pag(wire) => pag_wire_is_canonical(wire),
             Self::LabeledDag(wire) => wire.is_canonical() && wire.bidirected.is_empty(),
             Self::LabeledAdmg(wire) => wire.is_canonical(),
+            Self::LabeledCpdag(wire) | Self::LabeledPag(wire) => wire.is_canonical(),
             Self::TemporalDag(wire) => temporal_dag_wire_is_canonical(wire),
             Self::TemporalAdmg(wire) => wire.is_canonical(),
             Self::TemporalClass(wire) => wire.is_canonical(),
@@ -262,6 +267,61 @@ impl LabeledStaticGraphIdentityWire {
         edges.sort_unstable();
         Some(DagWire { node_count, edges })
     }
+}
+
+/// Static CPDAG or PAG identity that carries every node's label: nodes sorted by label (dense
+/// order among equal labels), and one marked edge per adjacent pair, its endpoints indexes into
+/// that order with `a < b` (marks swapped with the endpoints), strictly ascending by `(a, b)`.
+/// A CPDAG's directed edge is `tail -> arrow`, its undirected edge `tail - tail`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LabeledMarkedGraphIdentityWire {
+    /// Node labels, ascending.
+    pub nodes: Vec<IdentityNodeWire>,
+    /// Marked edges, one per adjacent pair.
+    pub edges: Vec<crate::wire::MarkedEdgeWire>,
+}
+
+impl LabeledMarkedGraphIdentityWire {
+    /// Whether this is the form [`cpdag_identity`] and [`pag_identity`] build: nodes ascending
+    /// and not the schema-aligned `Static(0..n)`, every edge in range with `a < b`, strictly
+    /// ascending by `(a, b)`.
+    #[must_use]
+    pub fn is_canonical(&self) -> bool {
+        self.nodes.windows(2).all(|pair| pair[0] <= pair[1])
+            && !schema_aligned(&self.nodes)
+            && self.edges.iter().all(|edge| edge.a < edge.b && (edge.b as usize) < self.nodes.len())
+            && self.edges.windows(2).all(|pair| (pair[0].a, pair[0].b) < (pair[1].a, pair[1].b))
+    }
+}
+
+/// Marked edges remapped into label order, oriented to `a < b` and sorted by `(a, b)`.
+fn remap_marked(
+    order: &LabelOrder,
+    edges: &[crate::wire::MarkedEdgeWire],
+) -> Result<Vec<crate::wire::MarkedEdgeWire>, IoError> {
+    let pairs: Vec<(u32, u32)> = edges.iter().map(|edge| (edge.a, edge.b)).collect();
+    let mut out: Vec<crate::wire::MarkedEdgeWire> = order
+        .remap(&pairs)?
+        .into_iter()
+        .zip(edges)
+        .map(|((a, b), edge)| {
+            if a <= b {
+                crate::wire::MarkedEdgeWire { a, b, at_a: edge.at_a, at_b: edge.at_b }
+            } else {
+                crate::wire::MarkedEdgeWire { a: b, b: a, at_a: edge.at_b, at_b: edge.at_a }
+            }
+        })
+        .collect();
+    out.sort_by_key(|edge| (edge.a, edge.b));
+    Ok(out)
+}
+
+/// Whether the graph's dense nodes are exactly `Static(0), Static(1), ...` in that order, so
+/// an unlabelled wire names every node.
+fn dense_schema_aligned(nodes: &[NodeRef]) -> bool {
+    nodes.iter().enumerate().all(|(index, node)| {
+        matches!(node, NodeRef::Static(variable) if variable.raw() as usize == index)
+    })
 }
 
 /// Whether sorted node labels are exactly `Static(0), Static(1), ...`.
@@ -505,6 +565,59 @@ pub fn admg_identity(admg: &Admg) -> Result<GraphIdentityWire, IoError> {
     }))
 }
 
+/// The ADMG wire of a transport selection graph, in variable space.
+///
+/// [`TransportIdentityWire`](super::TransportIdentityWire) holds an unlabelled [`AdmgWire`], whose
+/// dense index must therefore be the variable. A schema-aligned graph (nodes `Static(0..n)` in
+/// any dense order) is its aligned wire, unchanged from earlier releases. Any other graph of
+/// static nodes is written in variable space: node `v` is variable `v`, and variables the
+/// graph does not name are isolated nodes, so the same edges over different variables, or one
+/// graph in another dense order, no longer share a wire. A graph with a node that is not a
+/// static variable has no variable-space wire and is refused.
+///
+/// # Errors
+///
+/// A node that is not a static variable, or capacity overflow.
+pub(super) fn selection_graph_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
+    if dense_schema_aligned(admg.nodes()) {
+        return canonical_admg_wire(admg);
+    }
+    let variables = admg
+        .nodes()
+        .iter()
+        .map(|node| match node {
+            NodeRef::Static(variable) => Ok(variable.raw()),
+            other => Err(IoError::Convert(format!(
+                "a transport selection graph names static variables only, got {other:?}"
+            ))),
+        })
+        .collect::<Result<Vec<u32>, IoError>>()?;
+    let node_count = match variables.iter().max() {
+        Some(max) => max.checked_add(1).ok_or(IoError::TooLarge)?,
+        None => 0,
+    };
+    let wire = admg_to_wire(admg)?;
+    let label = |(a, b): (u32, u32)| -> Result<(u32, u32), IoError> {
+        let at = |index: u32| {
+            variables.get(index as usize).copied().ok_or_else(|| {
+                IoError::Convert("graph edge references a node outside the graph".into())
+            })
+        };
+        Ok((at(a)?, at(b)?))
+    };
+    let mut directed =
+        wire.directed.iter().map(|&pair| label(pair)).collect::<Result<Vec<_>, _>>()?;
+    directed.sort_unstable();
+    let mut bidirected = wire
+        .bidirected
+        .iter()
+        .map(|&pair| label(pair).map(|(a, b)| (a.min(b), a.max(b))))
+        .collect::<Result<Vec<_>, _>>()?;
+    bidirected.sort_unstable();
+    bidirected.dedup();
+    Ok(AdmgWire { node_count, directed, bidirected })
+}
+
 pub(super) fn canonical_admg_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
     let mut wire = admg_to_wire(admg)?;
     wire.directed.sort_unstable();
@@ -523,11 +636,45 @@ pub(super) fn canonical_admg_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
 /// # Errors
 ///
 /// Unexpected marks.
+///
+/// Labels as for [`dag_identity`]: a schema-aligned CPDAG (nodes `Static(0..n)` in any dense
+/// order) is [`GraphIdentityWire::Cpdag`] in variable order, so one built in the aligned order
+/// keeps its identity; any other is [`GraphIdentityWire::LabeledCpdag`].
 pub fn cpdag_identity(cpdag: &Cpdag) -> Result<GraphIdentityWire, IoError> {
-    let mut wire = cpdag_to_wire(cpdag)?;
-    wire.directed.sort_unstable();
-    wire.undirected.sort_unstable();
-    Ok(GraphIdentityWire::Cpdag(wire))
+    let wire = cpdag_to_wire(cpdag)?;
+    let order = LabelOrder::of(cpdag.nodes())?;
+    if schema_aligned(&order.nodes) {
+        let mut directed = order.remap(&wire.directed)?;
+        directed.sort_unstable();
+        let mut undirected = order.remap(&wire.undirected)?;
+        for pair in &mut undirected {
+            if pair.0 > pair.1 {
+                *pair = (pair.1, pair.0);
+            }
+        }
+        undirected.sort_unstable();
+        return Ok(GraphIdentityWire::Cpdag(CpdagWire {
+            node_count: wire.node_count,
+            directed,
+            undirected,
+        }));
+    }
+    let marked = |(a, b): (u32, u32), at_b| crate::wire::MarkedEdgeWire {
+        a,
+        b,
+        at_a: EndpointWire::Tail,
+        at_b,
+    };
+    let edges: Vec<crate::wire::MarkedEdgeWire> = wire
+        .directed
+        .iter()
+        .map(|&pair| marked(pair, EndpointWire::Arrow))
+        .chain(wire.undirected.iter().map(|&pair| marked(pair, EndpointWire::Tail)))
+        .collect();
+    Ok(GraphIdentityWire::LabeledCpdag(LabeledMarkedGraphIdentityWire {
+        edges: remap_marked(&order, &edges)?,
+        nodes: order.nodes,
+    }))
 }
 
 /// Encode a PAG for identification identity (edges sorted by endpoints).
@@ -535,10 +682,18 @@ pub fn cpdag_identity(cpdag: &Cpdag) -> Result<GraphIdentityWire, IoError> {
 /// # Errors
 ///
 /// Non-static nodes.
+///
+/// Labels as for [`dag_identity`]: a schema-aligned PAG is [`GraphIdentityWire::Pag`] in
+/// variable order (one built in the aligned order keeps its identity); any other is
+/// [`GraphIdentityWire::LabeledPag`].
 pub fn pag_identity(pag: &Pag) -> Result<GraphIdentityWire, IoError> {
-    let mut wire = pag_to_wire(pag)?;
-    wire.edges.sort_by_key(|edge| (edge.a, edge.b));
-    Ok(GraphIdentityWire::Pag(wire))
+    let wire = pag_to_wire(pag)?;
+    let order = LabelOrder::of(pag.nodes())?;
+    let edges = remap_marked(&order, &wire.edges)?;
+    if schema_aligned(&order.nodes) {
+        return Ok(GraphIdentityWire::Pag(PagWire { node_count: wire.node_count, edges }));
+    }
+    Ok(GraphIdentityWire::LabeledPag(LabeledMarkedGraphIdentityWire { nodes: order.nodes, edges }))
 }
 
 /// Encode a temporal DAG for identification identity.
@@ -832,7 +987,12 @@ fn posterior_atom_graph_wire(
             let Ok(admg) = admg_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
-            Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
+            let GraphIdentityWire::Admg(wire) = admg_identity(&admg)? else {
+                return Err(IoError::Convert(
+                    "ADMG posterior atom must be over the schema variables".into(),
+                ));
+            };
+            Ok(PosteriorAtomGraphWire::Admg(wire))
         }
         GraphPosteriorAtomKind::TemporalAdmg => {
             let Ok(admg) = admg_from_adjacency_mask(adjacency, n_vars) else {
@@ -853,7 +1013,9 @@ fn posterior_atom_graph_wire(
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             let GraphIdentityWire::Cpdag(wire) = cpdag_identity(&cpdag)? else {
-                return Err(IoError::Convert("CPDAG posterior atom must encode as Cpdag".into()));
+                return Err(IoError::Convert(
+                    "CPDAG posterior atom must be over the schema variables".into(),
+                ));
             };
             Ok(PosteriorAtomGraphWire::Cpdag(wire))
         }
@@ -863,7 +1025,9 @@ fn posterior_atom_graph_wire(
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
-                return Err(IoError::Convert("PAG posterior atom must encode as Pag".into()));
+                return Err(IoError::Convert(
+                    "PAG posterior atom must be over the schema variables".into(),
+                ));
             };
             Ok(PosteriorAtomGraphWire::Pag(wire))
         }
@@ -872,7 +1036,12 @@ fn posterior_atom_graph_wire(
             let Ok(dag) = dag_from_adjacency_mask(adjacency, n_vars) else {
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
-            Ok(PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?))
+            let GraphIdentityWire::Dag(wire) = dag_identity(&dag)? else {
+                return Err(IoError::Convert(
+                    "DAG posterior atom must be over the schema variables".into(),
+                ));
+            };
+            Ok(PosteriorAtomGraphWire::Static(wire))
         }
     }
 }
