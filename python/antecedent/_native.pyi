@@ -1579,6 +1579,22 @@ class TrialIdentificationView:
 
 class PreparedAnalysis:
     def data_diagnostics_json(self) -> str | None: ...
+    def falsify_graph(
+        self,
+        *,
+        ci_test: str = "parcorr",
+        alpha: float = 0.05,
+        significance: float = 0.05,
+        n_permutations: int = 200,
+        min_permutations: int = 20,
+        max_equivalent_share: float | None = None,
+        max_ci_tests: int | None = None,
+        ci_replicates: int = 199,
+        permutation_seed: int | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def data_diagnostics_summary(self) -> tuple[int, int, int] | None: ...
     def diagnose_data_json(
         self, policy_json: str, *, seed: int = 1, threads: int | None = None
@@ -3114,6 +3130,8 @@ class ModelOperationAnswer:
     kind: str
     value: Any
     route: CompiledRoute | None
+    program_route: str
+    program_identity: str | None
 
 def model_operation_arrow_strengths(
     names: list[str],
