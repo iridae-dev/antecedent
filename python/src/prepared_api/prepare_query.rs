@@ -731,6 +731,15 @@ impl PyPreparedAnalysis {
                 outcome_units.into_iter().map(Arc::<str>::from).collect::<Vec<_>>(),
                 (Arc::<str>::from(treatment_arms.0), Arc::<str>::from(treatment_arms.1)),
             );
+            // The two CUPED declarations share one slot of the query; declaring both is refused
+            // here, as the query's own validation refuses an estimated slope combined with any
+            // other adjustment.
+            if fixed_cuped.is_some() && estimated_cuped.is_some() {
+                return Err(py_msg(
+                    "estimated-slope CUPED requires independent Bernoulli assignment, a distinct \
+                     pre-assignment covariate, and no other adjustment or exact test",
+                ));
+            }
             if let Some((covariate, coefficient)) = fixed_cuped {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);

@@ -116,13 +116,18 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
 #[test]
 fn estimated_and_fixed_cuped_are_distinct_declarations() {
     let n = 400;
-    let x = (0..n).map(|i| (0.17 * i as f64).sin() + 0.01 * i as f64).collect::<Vec<_>>();
     let assigned = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
     let base = bernoulli(n, assigned, vec![0.5; n]);
     let estimated = base.clone().with_estimated_cuped(VariableId::from_raw(1));
     let fixed = base.with_fixed_cuped(VariableId::from_raw(1), 1.3);
     assert_ne!(estimated.graphless_coordinate().2, fixed.graphless_coordinate().2);
-    assert!(estimated.clone().with_fixed_cuped(VariableId::from_raw(1), 1.3).validate().is_err());
+    assert_eq!(estimated.estimated_cuped(), Some(VariableId::from_raw(1)));
+    assert_eq!(estimated.fixed_cuped_coefficient(), None);
+    assert_eq!(fixed.estimated_cuped(), None);
+    assert_eq!(fixed.fixed_cuped_coefficient(), Some((VariableId::from_raw(1), 1.3)));
+    // The two declarations share one slot: a later one replaces the earlier one.
+    let replaced = estimated.clone().with_fixed_cuped(VariableId::from_raw(1), 1.3);
+    assert_eq!(replaced, fixed);
     assert!(estimated.with_ancova(vec![VariableId::from_raw(2)]).validate().is_err());
 }
 

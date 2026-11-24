@@ -149,9 +149,6 @@ impl CheckedRandomizedOperation {
         if let Some((covariate, _)) = query.fixed_cuped {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
-        if let Some(covariate) = query.estimated_cuped {
-            data.schema().get(covariate).map_err(CausalError::rejected)?;
-        }
         for &covariate in query.ancova_covariates.iter() {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
@@ -438,7 +435,7 @@ impl CheckedRandomizedOperation {
         data: &TabularData,
         outcomes: &[f64],
     ) -> Result<Option<Vec<f64>>, CausalError> {
-        let Some((covariate, coefficient)) = self.query.fixed_cuped else {
+        let Some((covariate, coefficient)) = self.query.fixed_cuped_coefficient() else {
             return Ok(None);
         };
         let n = outcomes.len();
@@ -1364,7 +1361,7 @@ fn push_randomized_covariate_assumptions(
     query: &antecedent_core::RandomizedEffectQuery,
     assumptions: &mut antecedent_core::AssumptionSet,
 ) {
-    if query.estimated_cuped.is_some() {
+    if query.estimated_cuped().is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("estimated_pre_assignment_cuped"),
@@ -1375,7 +1372,7 @@ fn push_randomized_covariate_assumptions(
             status: AssumptionStatus::Declared,
         });
     }
-    if query.fixed_cuped.is_some() {
+    if query.fixed_cuped_coefficient().is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("fixed_pre_assignment_cuped"),

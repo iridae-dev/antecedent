@@ -492,7 +492,6 @@ impl DesignLowering for RandomizedEffectQuery {
         let (_, _, method, assignment_unit, _) = query.graphless_coordinate();
         let mut covariates: Vec<VariableId> = query.ancova_covariates.to_vec();
         covariates.extend(query.fixed_cuped.map(|(covariate, _)| covariate));
-        covariates.extend(query.estimated_cuped);
         let ancova = !query.ancova_covariates.is_empty();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::AssignmentContrast, query.outcome),

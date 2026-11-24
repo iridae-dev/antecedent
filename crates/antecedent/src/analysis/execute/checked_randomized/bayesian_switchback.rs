@@ -48,7 +48,6 @@ pub(super) fn admit(
     require_built_in_model(config, ROUTE)?;
     if query.received_treatment.is_some()
         || query.fixed_cuped.is_some()
-        || query.estimated_cuped.is_some()
         || !query.ancova_covariates.is_empty()
         || query.estimand != antecedent_core::RandomizedEstimand::IntentionToTreat
         || query.exact_randomization_test

@@ -187,9 +187,6 @@ fn randomized_effect_from_wire(w: &RandomizedEffectQueryWire) -> Result<CausalQu
     if let Some((id, coefficient)) = w.fixed_cuped {
         query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
     }
-    if let Some(id) = w.estimated_cuped {
-        query = query.with_estimated_cuped(VariableId::from_raw(id));
-    }
     if !w.ancova_covariates.is_empty() {
         query = query.with_ancova(
             w.ancova_covariates.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),

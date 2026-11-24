@@ -261,9 +261,6 @@ pub(crate) fn validate_query_ids(
             if let Some((covariate, _)) = wire.fixed_cuped {
                 validate_id(covariate, variable_count)?;
             }
-            if let Some(covariate) = wire.estimated_cuped {
-                validate_id(covariate, variable_count)?;
-            }
             for &covariate in &wire.ancova_covariates {
                 validate_id(covariate, variable_count)?;
             }
@@ -351,10 +348,6 @@ pub(crate) fn validate_query_ids(
                     antecedent_core::VariableId::from_raw(covariate),
                     coefficient,
                 );
-            }
-            if let Some(covariate) = wire.estimated_cuped {
-                query =
-                    query.with_estimated_cuped(antecedent_core::VariableId::from_raw(covariate));
             }
             if !wire.ancova_covariates.is_empty() {
                 query = query.with_ancova(

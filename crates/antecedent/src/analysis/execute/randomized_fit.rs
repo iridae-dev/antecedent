@@ -40,7 +40,7 @@ impl RandomizedMethod {
     pub(super) fn of(query: &RandomizedEffectQuery) -> Self {
         if !query.ancova_covariates.is_empty() {
             Self::Ancova
-        } else if query.estimated_cuped.is_some()
+        } else if query.estimated_cuped().is_some()
             && matches!(query.design, RandomizationDesign::Bernoulli)
         {
             Self::EstimatedCuped
@@ -52,10 +52,14 @@ impl RandomizedMethod {
             }
         } else {
             match &query.design {
-                RandomizationDesign::Bernoulli if query.fixed_cuped.is_some() => Self::FixedCuped,
+                RandomizationDesign::Bernoulli if query.fixed_cuped_coefficient().is_some() => {
+                    Self::FixedCuped
+                }
                 RandomizationDesign::Bernoulli => Self::Bernoulli,
                 RandomizationDesign::Complete { .. } => Self::Complete,
-                RandomizationDesign::Cluster { .. } if query.fixed_cuped.is_some() => {
+                RandomizationDesign::Cluster { .. }
+                    if query.fixed_cuped_coefficient().is_some() =>
+                {
                     Self::ClusterFixedCuped
                 }
                 RandomizationDesign::Cluster { .. } => Self::Cluster,
@@ -589,7 +593,7 @@ fn fit_estimated_cuped(
     data: &TabularData,
     outcomes: &[f64],
 ) -> Result<TrialFit, CausalError> {
-    let covariate = query.estimated_cuped.ok_or(CausalError::Unsupported {
+    let covariate = query.estimated_cuped().ok_or(CausalError::Unsupported {
         message: "estimated-slope CUPED requires a declared pre-assignment covariate",
     })?;
     let values = match data.column(covariate).map_err(CausalError::from)? {

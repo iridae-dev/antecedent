@@ -125,12 +125,12 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 Some("bernoulli_one_sided_tot_influence_normal_interval"),
             )
         }
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => (
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped_coefficient().is_some() => (
             "bernoulli",
             "bernoulli_fixed_cuped_ht_conservative_variance_no_interval",
             Some("bernoulli_fixed_cuped_ht_score_normal_interval"),
         ),
-        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped.is_some() => (
+        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped().is_some() => (
             "bernoulli",
             "bernoulli_estimated_cuped_ht_standard_error_no_interval",
             Some("bernoulli_estimated_cuped_ht_score_normal_interval"),
@@ -150,11 +150,15 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "complete_neyman_variance_upper_bound_no_interval",
             Some("complete_neyman_normal_interval"),
         ),
-        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => (
-            "cluster",
-            "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
-            Some("cluster_fixed_cuped_neyman_normal_interval"),
-        ),
+        crate::RandomizationDesignWire::Cluster { .. }
+            if query.fixed_cuped_coefficient().is_some() =>
+        {
+            (
+                "cluster",
+                "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
+                Some("cluster_fixed_cuped_neyman_normal_interval"),
+            )
+        }
         crate::RandomizationDesignWire::Cluster { .. } => (
             "cluster",
             "cluster_neyman_variance_upper_bound_no_interval",
@@ -290,14 +294,16 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 "pointwise_95_normal_interval",
             ))
         }
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => Some((
-            "randomized_effect",
-            "bernoulli",
-            "fixed_cuped_ht_score",
-            "unit",
-            "pointwise_95_normal_interval",
-        )),
-        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped.is_some() => Some((
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped_coefficient().is_some() => {
+            Some((
+                "randomized_effect",
+                "bernoulli",
+                "fixed_cuped_ht_score",
+                "unit",
+                "pointwise_95_normal_interval",
+            ))
+        }
+        crate::RandomizationDesignWire::Bernoulli if query.estimated_cuped().is_some() => Some((
             "randomized_effect",
             "bernoulli",
             "estimated_cuped_ht_score",
@@ -325,13 +331,17 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "unit",
             "pointwise_95_normal_interval",
         )),
-        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => Some((
-            "randomized_effect",
-            "cluster",
-            "fixed_cuped_cluster_totals",
-            "cluster",
-            "pointwise_95_normal_interval",
-        )),
+        crate::RandomizationDesignWire::Cluster { .. }
+            if query.fixed_cuped_coefficient().is_some() =>
+        {
+            Some((
+                "randomized_effect",
+                "cluster",
+                "fixed_cuped_cluster_totals",
+                "cluster",
+                "pointwise_95_normal_interval",
+            ))
+        }
         crate::RandomizationDesignWire::Cluster { .. } => Some((
             "randomized_effect",
             "cluster",

@@ -35,9 +35,9 @@ impl super::super::Study {
                     antecedent_core::RandomizationDesign::Bernoulli => {
                         if q.received_treatment.is_some() {
                             "randomized.wald_cace_late"
-                        } else if q.fixed_cuped.is_some() {
+                        } else if q.fixed_cuped_coefficient().is_some() {
                             "randomized.fixed_cuped_ht_itt"
-                        } else if q.estimated_cuped.is_some() {
+                        } else if q.estimated_cuped().is_some() {
                             "randomized.estimated_cuped_ht_itt"
                         } else if !q.ancova_covariates.is_empty() {
                             "randomized.ancova_itt"
@@ -46,7 +46,7 @@ impl super::super::Study {
                         }
                     }
                     antecedent_core::RandomizationDesign::Cluster { .. }
-                        if q.fixed_cuped.is_some() =>
+                        if q.fixed_cuped_coefficient().is_some() =>
                     {
                         "randomized.cluster_fixed_cuped_itt"
                     }

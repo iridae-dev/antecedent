@@ -1016,9 +1016,9 @@ fn randomized_shape(query: &antecedent_core::RandomizedEffectQuery) -> Randomize
         RandomizationDesign::Bernoulli => {
             if query.received_treatment.is_some() {
                 R::BernoulliCace
-            } else if query.fixed_cuped.is_some() {
+            } else if query.fixed_cuped_coefficient().is_some() {
                 R::BernoulliCuped
-            } else if query.estimated_cuped.is_some() {
+            } else if query.estimated_cuped().is_some() {
                 R::BernoulliEstimatedCuped
             } else if !query.ancova_covariates.is_empty() {
                 R::BernoulliAncova
@@ -1026,7 +1026,9 @@ fn randomized_shape(query: &antecedent_core::RandomizedEffectQuery) -> Randomize
                 R::Bernoulli
             }
         }
-        RandomizationDesign::Cluster { .. } if query.fixed_cuped.is_some() => R::ClusterCuped,
+        RandomizationDesign::Cluster { .. } if query.fixed_cuped_coefficient().is_some() => {
+            R::ClusterCuped
+        }
         RandomizationDesign::Cluster { .. } => R::Cluster,
         RandomizationDesign::Complete { .. } => R::Complete,
         RandomizationDesign::Stratified { .. } => R::Stratified,
