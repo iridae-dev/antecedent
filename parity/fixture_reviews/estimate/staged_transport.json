@@ -1,0 +1,47 @@
+{
+  "scope": "Arithmetic evaluation of the stated direct-trial IPW sum on a two-row trial and two-row target table.",
+  "independence_basis": "The generator evaluates the inverse-odds weighted sum stated in the fixture notes on the four-row table in exact rationals; it imports no Antecedent code and no statistics package. The shared object is the weighting formula stated in the fixture notes: this reference does not derive that formula from transport theory and would not detect a wrong formula.",
+  "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+  "limitations": "A hand-sized arithmetic identity, not evidence that the weighting is the correct transport estimator or that it is consistent in samples. The target rows carry no outcomes. No uncertainty or calibration claim.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/estimate/staged_transport/reference.py",
+      "sha256": "333aaf7dff7c35460a33168f677f87fea5a21c7d1cefb279506732c268944667"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/estimate/staged_transport/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent/tests/staged_attribution_transport_interference.rs",
+      "items": [
+        "fn accepted_dag_attribution_known_truth",
+        "fn anomaly_attribution_known_truth",
+        "fn bayesian_attribution_shared_row_weight_known_truth",
+        "fn bayesian_interference_fixed_network_posterior_matches_known_truth",
+        "fn change_attribution_known_truth",
+        "fn ctx",
+        "fn design_cells_bind_calibration_under_the_harness_key",
+        "fn interference_bernoulli_neighbor_count_known_truth",
+        "fn interference_click_executes_on_the_clicked_outcomes",
+        "fn interference_is_stated_under_every_static_structure_class_with_the_design_identification",
+        "fn interference_outside_the_supported_construction_is_refused",
+        "fn interference_validation_checks_the_assignment_the_overlap_and_the_randomization",
+        "fn outlier_chain",
+        "fn rebind_estimate",
+        "fn refused_with",
+        "fn transport_direct_trial_ipw_known_truth",
+        "fn transport_outside_the_supported_construction_is_refused",
+        "fn two_period_chain",
+        "fn two_unit_interference"
+      ],
+      "sha256": "1e4206a954591d7fb506c70467298b484e67e67db5242ddfe1d238a9b2c89efe"
+    }
+  ],
+  "fixture_payload_sha256": "2222f728dadd67a3c662d0e6b3a470fecf342db1d4df86bdbcd2f90fc7803548"
+}
