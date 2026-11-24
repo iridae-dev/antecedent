@@ -540,8 +540,19 @@ fn scenario_shared_covariance_stage(
     };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        let compiled = antecedent::Study::compile_scenario_covariance(spec.clone(), &ctx)
-            .map_err(crate::py_err)?;
+        let compiled = match antecedent::Study::compile_scenario_covariance(spec.clone(), &ctx) {
+            Ok(compiled) => compiled,
+            // Cancellation observed before the program compiles refuses as the computation
+            // itself does when it observes it: no covariance is claimed.
+            Err(antecedent::CausalError::Cancelled { .. }) => {
+                return Ok(Err(argument_refusal(
+                    reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_details::scenario_covariance::CANCELLED,
+                    "cancellation was observed; no covariance is claimed",
+                )));
+            }
+            Err(e) => return Err(crate::py_err(e)),
+        };
         match compiled.covariance(&ctx) {
             Ok(covariance) => Ok(Ok((spec, covariance))),
             Err(e) => refusal_or_error(e).map(Err),
