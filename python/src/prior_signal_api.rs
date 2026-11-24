@@ -7,10 +7,13 @@ use crate::value_err;
 use antecedent::analysis::design_ranking::{
     DesignRankingRequestWire, PriorDeclWire, ProviderDeclWire,
 };
+use antecedent::analysis::input_decision_programs::{
+    TerminalError, compile_prior_signal_adaptation,
+};
 use antecedent::design::DecisionPrior;
 use antecedent::design::prior_signal::{
     CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalRequest,
-    PriorSourceInput, SourceToTarget, TransportPolicyDecl, adapt_prior_to_signal,
+    PriorSourceInput, SourceToTarget, TransportPolicyDecl,
 };
 use antecedent::io::{
     EncodedArtifact, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog, PriorSourceRef,
@@ -314,13 +317,21 @@ pub(crate) fn adapt_prior_signal(
             candidate_observation_ids: wire.candidate_observation_ids,
             resolution: wire.resolution,
         };
-        let adapted =
-            match adapt_prior_to_signal(&PriorCatalog::from_sources(refs), &target, &request) {
-                Ok(adapted) => adapted,
-                Err(error) => {
-                    return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
-                }
-            };
+        let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+        let program = compile_prior_signal_adaptation(
+            PriorCatalog::from_sources(refs),
+            target,
+            request,
+            &ctx,
+        )
+        .map_err(crate::py_err)?;
+        let adapted = match program.execute(&ctx) {
+            Ok(adapted) => adapted,
+            Err(TerminalError::Kernel(error)) => {
+                return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
+            }
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        };
         let DecisionPrior::Draws(rows) = &adapted.prior else {
             return Ok((
                 None,

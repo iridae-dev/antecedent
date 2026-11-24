@@ -5,9 +5,10 @@ use crate::transport_common::{
 };
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
+use antecedent::analysis::design_planning_programs::{TerminalError, compile_study_addition_plan};
 use antecedent::design::{
     StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanArtifactWire, StudyPlanConsumeLimits,
-    StudyPlanError, StudyPlanResult, plan_studies,
+    StudyPlanError, StudyPlanResult,
 };
 use antecedent::execution::SearchLimits;
 use antecedent::identify::{
@@ -410,7 +411,13 @@ fn plan_studies_stage(
     };
     let result = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        plan_studies(&shared, &route, &base, &declared, limits, &ctx).map_err(plan_error)
+        compile_study_addition_plan(shared, route, base, declared, limits, &ctx)
+            .map_err(crate::py_err)?
+            .execute(&ctx)
+            .map_err(|failure| match failure {
+                TerminalError::Kernel(failure) => plan_error(failure),
+                TerminalError::Refused(failure) => crate::py_err(failure),
+            })
     })?;
     Ok(StudyPlanStage { result, names, graph: named })
 }

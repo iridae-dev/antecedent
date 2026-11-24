@@ -8,6 +8,7 @@
 //! and never a sampling interval; composing the two is refused natively.
 
 use crate::bridge::{RefusalJson, check_declared_size, serialization};
+use antecedent::analysis::input_decision_programs::{TerminalError, compile_sensitivity_decision};
 use antecedent::analysis::inverse_query::StructuralPolicy;
 use antecedent::analysis::sensitivity_decision::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
@@ -15,7 +16,7 @@ use antecedent::analysis::sensitivity_decision::{
     SamplingReport, SamplingStatus, ScenarioCoverage, SensitivityArtifact,
     SensitivityDecisionError, SensitivityDecisionResult, SensitivityDecisionSpec,
     SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
-    UncertaintyRelationship, contract_from_artifact, decide,
+    UncertaintyRelationship, contract_from_artifact,
 };
 use antecedent::design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent::design::decision_eval::Verdict;
@@ -586,9 +587,26 @@ fn sensitivity_decide(
         weights: spec.weights,
         sampling_composition: spec.sampling_composition,
     };
-    match decide(&contract, &artifact.artifact, &spec) {
+    match compiled_decide(contract, &artifact.artifact, spec)? {
         Ok(result) => Ok((Some(decision_json(&result).to_string()), None)),
         Err(error) => Ok((None, Some(decision_refusal(&error)))),
+    }
+}
+
+/// Decide over the surface through the compiled sensitivity-decision program; the outer error
+/// is the compiler's refusal, the inner one the decision's own.
+fn compiled_decide(
+    contract: antecedent::analysis::inverse_query::DecisionContract,
+    artifact: &SensitivityArtifact,
+    spec: SensitivityDecisionSpec,
+) -> PyResult<Result<SensitivityDecisionResult, SensitivityDecisionError>> {
+    let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+    let program = compile_sensitivity_decision(contract, artifact.clone(), spec, &ctx)
+        .map_err(crate::py_err)?;
+    match program.execute(&ctx) {
+        Ok(result) => Ok(Ok(result)),
+        Err(TerminalError::Kernel(error)) => Ok(Err(error)),
+        Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
     }
 }
 
@@ -618,10 +636,11 @@ fn sensitivity_confounder_value(
         Ok(contract) => contract,
         Err(error) => return Ok((None, Some(decision_refusal(&error)))),
     };
-    let result = match decide(&contract, &artifact.artifact, &SensitivityDecisionSpec::default()) {
-        Ok(result) => result,
-        Err(error) => return Ok((None, Some(decision_refusal(&error)))),
-    };
+    let result =
+        match compiled_decide(contract, &artifact.artifact, SensitivityDecisionSpec::default())? {
+            Ok(result) => result,
+            Err(error) => return Ok((None, Some(decision_refusal(&error)))),
+        };
     let declaration = antecedent::design::ConfounderPriorDeclaration {
         declared_by: prior.declared_by.into(),
         basis: prior.basis.into(),

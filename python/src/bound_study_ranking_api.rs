@@ -8,8 +8,11 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::design_planning_programs::{
+    TerminalError, compile_identification_repair,
+};
 use antecedent::analysis::repair::{RepairLimits, RepairObjective};
-use antecedent::design::{rank_studies_bound as rank_bound, repair};
+use antecedent::design::rank_studies_bound as rank_bound;
 use antecedent::execution::SearchLimits;
 use antecedent::prelude::VariableId;
 use antecedent::schema::QueryId;
@@ -152,8 +155,19 @@ fn rank_studies_bound(
 
     let (ranked, record) = detach_catch(py, move || {
         let repair_ctx = execution_context(0, memory_bytes, cancel);
-        let report = repair(failure_route.family(), &candidates, objective, limits, &repair_ctx)
-            .map_err(|error| repair_error(&error))?;
+        let report = compile_identification_repair(
+            failure_route,
+            candidates.clone(),
+            objective,
+            limits,
+            &repair_ctx,
+        )
+        .map_err(py_err)?
+        .execute(&repair_ctx)
+        .map_err(|failure| match failure {
+            TerminalError::Kernel(error) => repair_error(&error),
+            TerminalError::Refused(error) => py_err(error),
+        })?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let contract = study.contract().map_err(py_err)?;
         let eval = inputs.context::<(), ()>(None);

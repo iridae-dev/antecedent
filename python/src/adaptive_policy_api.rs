@@ -4,6 +4,9 @@
 //! source is a Python object that simulates decision paths under the shared draws it owns. The
 //! native layer holds the search, constraints, standing label, held-out refusal and replayable
 //! record; the Python object only supplies paths.
+use antecedent::analysis::input_decision_programs::{
+    TerminalError, compile_adaptive_policy_search,
+};
 use antecedent::design::{
     AdaptivePolicyFamily, AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign,
     HeldOutRequirement, PolicyConstraints, PolicyFeature, PolicyObjective, PolicyPath,
@@ -485,9 +488,15 @@ fn run_config(
     let mut ctx = antecedent::prelude::ExecutionContext::production_default(options.seed);
     crate::apply_cancel(&mut ctx, cancel);
     crate::execution_api::apply(&mut ctx);
+    let program = compile_adaptive_policy_search(prepared, &ctx).map_err(crate::py_err)?;
     // Release the GIL for the search; a Python source reattaches for each callback.
     let result =
-        Python::attach(|py| py.detach(|| prepared.execute(source, &ctx))).map_err(translate)?;
+        Python::attach(|py| py.detach(|| program.execute(source, &ctx))).map_err(|error| {
+            match error {
+                TerminalError::Kernel(error) => translate(error),
+                TerminalError::Refused(error) => crate::py_err(error),
+            }
+        })?;
 
     let standing = match &result.standing {
         PolicyStanding::FittedModelOptimization { note } => {

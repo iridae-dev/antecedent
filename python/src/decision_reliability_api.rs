@@ -17,9 +17,10 @@ use antecedent::analysis::decision_reliability::{
     decision_reliability_coverage_design, derive_decision_uncertainty, derive_producer_uncertainty,
     publish_derived_route, reach_decision_carrier,
 };
-use antecedent::design::decision_reliability::{
-    RankingRequest, ReliabilityError, rank, support_route,
+use antecedent::analysis::input_decision_programs::{
+    TerminalError, compile_decision_draws_ranking,
 };
+use antecedent::design::decision_reliability::{RankingRequest, ReliabilityError, support_route};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
@@ -221,7 +222,9 @@ fn decision_reliability_rank(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    run_worker(py, ctx, move |ctx| {
+    // A compiler refusal is raised as the Python error it is, after the worker returns.
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
         let draws: DecisionDraws = match parse(draws_json, "draws") {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
@@ -230,14 +233,25 @@ fn decision_reliability_rank(
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
         };
-        match rank(&draws, &request, ctx) {
+        let executed = compile_decision_draws_ranking(draws, request, ctx)
+            .map_err(TerminalError::Refused)
+            .and_then(|program| program.execute(ctx));
+        match executed {
             Ok(report) => match serde_json::to_string(&report) {
                 Ok(text) => (Some(text), None),
                 Err(error) => (None, Some(invalid_json(error.to_string()))),
             },
-            Err(error) => (None, Some(error_json(&error))),
+            Err(TerminalError::Kernel(error)) => (None, Some(error_json(&error))),
+            Err(TerminalError::Refused(error)) => {
+                *refused.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error);
+                (None, None)
+            }
         }
-    })
+    })?;
+    match refused.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok(outcome),
+    }
 }
 
 /// Digests of a carrier (draws and candidate set), after validating its declarations.

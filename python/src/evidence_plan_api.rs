@@ -12,6 +12,9 @@ use crate::repair_api::{obligation_json, parse_candidates};
 use crate::transport_common::{
     execution_context, frame_named_artifact, resolve, unframe_named_artifact,
 };
+use antecedent::analysis::design_planning_programs::{
+    TerminalError, compile_graph_identification, compile_structure_identification,
+};
 use antecedent::analysis::evidence_plan::{
     EvidencePlanFacadeError, EvidencePlanRequest, EvidenceValueRequest, plan_over_routes,
     variable_names,
@@ -23,8 +26,8 @@ use antecedent::analysis::repair::{
 use antecedent::design::structure_identification::GraphIdentFlag;
 use antecedent::design::{
     CandidateGeneration, CandidateTemplate, EvidencePlan, EvidencePlanArtifact,
-    EvidencePlanArtifactError, FailureRoutes, GraphPosteriorSample, PlanOption, failure_routes,
-    generate_candidates, identified_under_intervention, structure_posterior,
+    EvidencePlanArtifactError, FailureRoutes, GraphPosteriorSample, PlanOption,
+    StructureIdentificationError, failure_routes, generate_candidates,
 };
 use antecedent::execution::SearchLimits;
 use antecedent::graph::Admg as CoreAdmg;
@@ -412,7 +415,11 @@ fn failure_stage(
     let overturned = finding.as_ref().is_some_and(|found| !found.robust);
     if !overturned {
         let identification_graph = from_observed.as_ref().unwrap_or(&graph);
-        match antecedent::design::structure_identification::identifies(identification_graph, t, y) {
+        let ctx = execution_context(0, None, None);
+        let flag = compile_graph_identification(identification_graph.clone(), t, y, &ctx)
+            .map_err(crate::py_err)?
+            .execute(&ctx);
+        match flag {
             Ok(GraphIdentFlag::Unidentified) => {}
             Ok(GraphIdentFlag::Identified) => {
                 return Err(crate::refusal(
@@ -421,12 +428,7 @@ fn failure_stage(
                      there is no gap to plan for",
                 ));
             }
-            Err(error) => {
-                return Err(crate::refusal(
-                    error.code,
-                    format!("{}: {}", error.detail, error.message),
-                ));
-            }
+            Err(error) => return Err(structure_refusal(error)),
         }
     }
     let result = IdentificationResult::not_identified(
@@ -614,24 +616,40 @@ fn identify_structure_posterior(
             graph: graph.aligned_to_names(&names)?,
         });
     }
-    let refuse = |e: antecedent::design::StructureIdentificationError| {
-        crate::refusal(e.code, format!("{}: {}", e.detail, e.message))
+    let targets = interventions.map(|targets| {
+        targets.iter().map(|name| resolve(&names, name)).collect::<PyResult<Vec<_>>>()
+    });
+    let ctx = execution_context(0, None, None);
+    let identify = |samples: Vec<GraphPosteriorSample>, targets: Option<Vec<_>>| -> PyResult<_> {
+        compile_structure_identification(samples, t, y, targets, &ctx)
+            .map_err(crate::py_err)?
+            .execute(&ctx)
+            .map_err(structure_refusal)
     };
-    let posterior = structure_posterior(&samples, t, y).map_err(refuse)?;
-    let identified =
-        posterior.identified.iter().map(|flag| *flag == GraphIdentFlag::Identified).collect();
-    let under = interventions
-        .map(|targets| {
-            let targets =
-                targets.iter().map(|name| resolve(&names, name)).collect::<PyResult<Vec<_>>>()?;
-            identified_under_intervention(&samples, t, y, &targets)
-                .map(|flags| {
-                    flags.iter().map(|flag| *flag == GraphIdentFlag::Identified).collect::<Vec<_>>()
-                })
-                .map_err(refuse)
-        })
-        .transpose()?;
-    Ok((identified, under))
+    // The posterior is identified before an intervention name is read, so a refused posterior
+    // is reported ahead of an unknown target, as the direct path did.
+    let targets = match targets {
+        Some(Err(unknown)) => {
+            identify(samples, None)?;
+            return Err(unknown);
+        }
+        Some(Ok(targets)) => Some(targets),
+        None => None,
+    };
+    let readout = identify(samples, targets)?;
+    let flags = |flags: &[GraphIdentFlag]| {
+        flags.iter().map(|flag| *flag == GraphIdentFlag::Identified).collect::<Vec<_>>()
+    };
+    Ok((flags(&readout.posterior.identified[..]), readout.under_intervention.as_deref().map(flags)))
+}
+
+/// The Python exception of a refused structure identification: the identifier's registered
+/// reason code and `structure_identification.*` detail, or the compiler's refusal.
+fn structure_refusal(error: TerminalError<StructureIdentificationError>) -> PyErr {
+    match error {
+        TerminalError::Kernel(e) => crate::refusal(e.code, format!("{}: {}", e.detail, e.message)),
+        TerminalError::Refused(e) => crate::py_err(e),
+    }
 }
 
 /// Reason codes of the identification-class refusals the opt-in descriptive fallback converts.
