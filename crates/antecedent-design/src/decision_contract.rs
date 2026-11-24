@@ -45,7 +45,8 @@ pub enum ActionKind {
 }
 
 impl ActionKind {
-    const fn tag(self) -> u8 {
+    /// Canonical identity tag of the kind.
+    pub(crate) const fn tag(self) -> u8 {
         match self {
             Self::Intervention => 1,
             Self::Policy => 2,
@@ -166,7 +167,8 @@ impl UtilityExpr {
         }
     }
 
-    fn all_finite(&self) -> bool {
+    /// Whether every constant is finite.
+    pub(crate) fn all_finite(&self) -> bool {
         match self {
             Self::Const(value) => value.is_finite(),
             Self::Input(_) => true,
@@ -196,7 +198,8 @@ impl UtilityExpr {
         })
     }
 
-    fn encode(&self, out: &mut CanonicalWriter) {
+    /// Canonical identity encoding of the expression.
+    pub(crate) fn encode(&self, out: &mut CanonicalWriter) {
         match self {
             Self::Const(value) => {
                 out.word(1).real(*value);
@@ -470,7 +473,8 @@ impl DecisionCriterion {
         }
     }
 
-    fn encode(&self, out: &mut CanonicalWriter) {
+    /// Canonical identity encoding of the criterion.
+    pub(crate) fn encode(&self, out: &mut CanonicalWriter) {
         match self {
             Self::PosteriorExpectedUtility => {
                 out.word(1);
@@ -515,7 +519,8 @@ pub enum StructuralPolicy {
 }
 
 impl StructuralPolicy {
-    const fn tag(self) -> u8 {
+    /// Canonical identity tag of the policy.
+    pub(crate) const fn tag(self) -> u8 {
         match self {
             Self::RequireInvariantBestAction => 1,
             Self::Maximin => 2,
@@ -846,7 +851,13 @@ fn encode_action(action: &DecisionAction) -> [u8; 32] {
 }
 
 fn encode_constraint(constraint: &HardConstraint) -> [u8; 32] {
-    let mut out = CanonicalWriter::new("antecedent.decision_contract.constraint.v1");
+    constraint_digest("antecedent.decision_contract.constraint.v1", constraint)
+}
+
+/// Canonical digest of a hard constraint under the identity domain `domain`: its id,
+/// expression, bound, probability, units and the actions it applies to, in sorted order.
+pub(crate) fn constraint_digest(domain: &str, constraint: &HardConstraint) -> [u8; 32] {
+    let mut out = CanonicalWriter::new(domain);
     out.text(&constraint.id);
     constraint.expr.encode(&mut out);
     out.real(constraint.bound).real(constraint.min_probability).text(&constraint.units);

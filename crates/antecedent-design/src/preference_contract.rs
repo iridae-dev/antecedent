@@ -20,7 +20,7 @@ use antecedent_core::{CanonicalWriter, is_blank};
 
 use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
-    HardConstraint, StructuralPolicy, UtilityExpr,
+    HardConstraint, StructuralPolicy, UtilityExpr, constraint_digest,
 };
 use crate::decision_eval::ConstraintExclusion;
 use crate::preference_model::{PreferenceExpr, PreferenceModelError, ValueModel};
@@ -162,7 +162,7 @@ impl PreferenceContract {
             if is_blank(&constraint.units) {
                 return Err(E::BlankConstraintUnits { constraint: named() });
             }
-            if !constraint.bound.is_finite() || !utility_constants_finite(&constraint.expr) {
+            if !constraint.bound.is_finite() || !constraint.expr.all_finite() {
                 return Err(E::ConstraintNonFinite { constraint: named() });
             }
             if !(constraint.min_probability > 0.0 && constraint.min_probability <= 1.0) {
@@ -252,8 +252,8 @@ impl PreferenceContract {
         constraints.sort_unstable();
         let mut out = CanonicalWriter::new("antecedent.preference_contract.v1");
         out.text(&model).text(&self.target_population).word(u64::from(self.horizon));
-        encode_criterion(self.criterion, &mut out);
-        out.word(structural_tag(self.structural_policy)).word(self.preference_policy.tag());
+        self.criterion.encode(&mut out);
+        out.word(u64::from(self.structural_policy.tag())).word(self.preference_policy.tag());
         for list in [&actions, &constraints] {
             out.word(list.len() as u64);
             for item in list {
@@ -566,96 +566,9 @@ fn rewrite_constraint(
     })
 }
 
-fn utility_constants_finite(expr: &UtilityExpr) -> bool {
-    use UtilityExpr as U;
-    match expr {
-        U::Const(value) => value.is_finite(),
-        U::Input(_) => true,
-        U::Neg(a) => utility_constants_finite(a),
-        U::Add(a, b) | U::Sub(a, b) | U::Mul(a, b) | U::Min(a, b) | U::Max(a, b) => {
-            utility_constants_finite(a) && utility_constants_finite(b)
-        }
-    }
-}
-
-fn encode_utility(expr: &UtilityExpr, out: &mut CanonicalWriter) {
-    use UtilityExpr as U;
-    fn pair(tag: u64, a: &UtilityExpr, b: &UtilityExpr, out: &mut CanonicalWriter) {
-        out.word(tag);
-        encode_utility(a, out);
-        encode_utility(b, out);
-    }
-    match expr {
-        U::Const(value) => {
-            out.word(1).real(*value);
-        }
-        U::Input(k) => {
-            out.word(2).word(*k as u64);
-        }
-        U::Neg(a) => {
-            out.word(3);
-            encode_utility(a, out);
-        }
-        U::Add(a, b) => pair(4, a, b, out),
-        U::Sub(a, b) => pair(5, a, b, out),
-        U::Mul(a, b) => pair(6, a, b, out),
-        U::Min(a, b) => pair(7, a, b, out),
-        U::Max(a, b) => pair(8, a, b, out),
-    }
-}
-
-const fn kind_tag(kind: ActionKind) -> u64 {
-    match kind {
-        ActionKind::Intervention => 1,
-        ActionKind::Policy => 2,
-        ActionKind::Regime => 3,
-        ActionKind::Study => 4,
-        ActionKind::External => 5,
-    }
-}
-
-const fn structural_tag(policy: StructuralPolicy) -> u64 {
-    match policy {
-        StructuralPolicy::RequireInvariantBestAction => 1,
-        StructuralPolicy::Maximin => 2,
-        StructuralPolicy::BayesOverStructures => 3,
-        StructuralPolicy::ReportOnly => 4,
-    }
-}
-
-fn encode_criterion(criterion: DecisionCriterion, out: &mut CanonicalWriter) {
-    use DecisionCriterion as C;
-    match criterion {
-        C::PosteriorExpectedUtility => {
-            out.word(1);
-        }
-        C::PosteriorExpectedLoss => {
-            out.word(2);
-        }
-        C::ThresholdProbability { threshold } => {
-            out.word(3).real(threshold);
-        }
-        C::Quantile { p } => {
-            out.word(4).real(p);
-        }
-        C::MinimaxOverIdentifiedSet => {
-            out.word(5);
-        }
-        C::MaximinOverStructures => {
-            out.word(6);
-        }
-        C::Regret => {
-            out.word(7);
-        }
-        C::ExpectedRegret => {
-            out.word(8);
-        }
-    }
-}
-
 fn encode_action(action: &PreferenceAction) -> [u8; 32] {
     let mut out = CanonicalWriter::new("antecedent.preference_contract.action.v1");
-    out.text(&action.id).word(kind_tag(action.kind)).word(action.inputs.len() as u64);
+    out.text(&action.id).word(u64::from(action.kind.tag())).word(action.inputs.len() as u64);
     for input in &action.inputs {
         match input {
             ActionInput::Quantity(quantity) => {
@@ -671,14 +584,7 @@ fn encode_action(action: &PreferenceAction) -> [u8; 32] {
 }
 
 fn encode_constraint(constraint: &HardConstraint) -> [u8; 32] {
-    let mut out = CanonicalWriter::new("antecedent.preference_contract.constraint.v1");
-    out.text(&constraint.id);
-    encode_utility(&constraint.expr, &mut out);
-    out.real(constraint.bound).real(constraint.min_probability).text(&constraint.units);
-    let mut applies: Vec<&String> = constraint.applies_to.iter().collect();
-    applies.sort();
-    out.texts(&applies);
-    out.finish()
+    constraint_digest("antecedent.preference_contract.constraint.v1", constraint)
 }
 
 /// Why a preference contract, or a contract derived from it, is refused.
@@ -1048,7 +954,7 @@ mod tests {
     fn utility_encoding_separates_operators() {
         let digest = |e: &UtilityExpr| {
             let mut out = CanonicalWriter::new("t");
-            encode_utility(e, &mut out);
+            e.encode(&mut out);
             out.finish_hex()
         };
         let a = UtilityExpr::sum(UtilityExpr::Input(0), UtilityExpr::Input(1));
