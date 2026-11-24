@@ -14,7 +14,10 @@
 //! `antecedent_estimate::randomized_scores::estimated_cuped_contrast`. The study's lowered
 //! program names that method and covariate in the randomized cell's outcome slot, so a study
 //! that declares the adjustment has a program identity of its own and a study that declares
-//! none keeps the one it had; the contract's resolved estimator names the method.
+//! none keeps the one it had; the contract's resolved estimator names the method, and the
+//! result's `estimated_pre_assignment_cuped` assumption names the covariate (see
+//! `antecedent_io::graphless_support::estimated_cuped_premise`), which the result verifier
+//! requires.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

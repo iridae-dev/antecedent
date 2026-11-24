@@ -133,6 +133,30 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         && query.ancova_covariates.is_empty()
         && !query.exact_randomization_test
         && ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
+    // The covariate is a scientific premise (it must be pre-assignment), so the result must name
+    // it: exactly one estimated-slope CUPED assumption, naming a covariate other than the outcome.
+    if estimated_cuped {
+        let mut named = result.assumptions.iter().filter_map(|record| match &record.assumption {
+            crate::AssumptionTagWire::Custom { id, description }
+                if id == crate::graphless_support::ESTIMATED_CUPED_ASSUMPTION =>
+            {
+                Some(
+                    description
+                        .as_deref()
+                        .and_then(crate::graphless_support::estimated_cuped_covariate),
+                )
+            }
+            _ => None,
+        });
+        let covariate = named.next().flatten();
+        if named.next().is_some() || covariate.is_none_or(|covariate| covariate == query.outcome) {
+            return Err(IoError::Convert(
+                "estimated-slope CUPED result names no pre-assignment covariate other than the \
+                 outcome in its assumptions"
+                    .into(),
+            ));
+        }
+    }
     let (design, point_uncertainty, interval_uncertainty) = match &query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::CaceLate =>

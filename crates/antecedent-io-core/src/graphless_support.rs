@@ -214,6 +214,34 @@ pub const FACTORIAL_BERNOULLI_INTERVAL_UNCERTAINTY: &str =
 pub const FACTORIAL_BERNOULLI_POINT_UNCERTAINTY: &str =
     "factorial_bernoulli_ht_young_variance_bound_no_interval";
 
+/// Id of the custom assumption by which a same-sample (estimated-slope) CUPED result states its
+/// pre-assignment covariate. Execution writes it and artifact verification requires it.
+pub const ESTIMATED_CUPED_ASSUMPTION: &str = "estimated_pre_assignment_cuped";
+
+/// Lead of the [`ESTIMATED_CUPED_ASSUMPTION`] description, followed by the covariate's
+/// variable id and a comma.
+const ESTIMATED_CUPED_PREMISE_LEAD: &str = "the CUPED covariate, variable ";
+
+/// Description of the [`ESTIMATED_CUPED_ASSUMPTION`] for the covariate with variable id
+/// `covariate`: it names the covariate the pre-assignment premise is about.
+#[must_use]
+pub fn estimated_cuped_premise(covariate: u32) -> String {
+    format!(
+        "{ESTIMATED_CUPED_PREMISE_LEAD}{covariate}, was measured before randomization; its \
+         pooled slope is estimated from these outcomes and the independent-row score variance \
+         does not propagate that estimation"
+    )
+}
+
+/// The covariate an [`ESTIMATED_CUPED_ASSUMPTION`] description names, or `None` when it names
+/// none (the inverse of [`estimated_cuped_premise`]).
+#[must_use]
+pub fn estimated_cuped_covariate(description: &str) -> Option<u32> {
+    let (id, _) = description.strip_prefix(ESTIMATED_CUPED_PREMISE_LEAD)?.split_once(',')?;
+    let covariate = id.parse::<u32>().ok()?;
+    (estimated_cuped_premise(covariate) == description).then_some(covariate)
+}
+
 /// Code of the diagnostic by which a Bayesian design posterior states the support row it ran
 /// under. Such a result has no design section of its own, so the row key and the observed
 /// support ride in the diagnostic's fields.
@@ -435,5 +463,30 @@ mod status_tests {
         let owed = owed_keys(&json);
         assert!(owed.contains(&("f".into(), "d".into(), "owed".into(), "c".into())));
         assert!(!owed.contains(&("f".into(), "d".into(), "current".into(), "c".into())));
+    }
+}
+
+#[cfg(test)]
+mod estimated_cuped_premise_tests {
+    use super::{estimated_cuped_covariate, estimated_cuped_premise};
+
+    /// The premise names its covariate, and only a description written by it names one.
+    #[test]
+    fn the_premise_round_trips_its_covariate_and_nothing_else_names_one() {
+        for covariate in [0, 1, 17, u32::MAX] {
+            assert_eq!(
+                estimated_cuped_covariate(&estimated_cuped_premise(covariate)),
+                Some(covariate)
+            );
+        }
+        for description in [
+            "",
+            "the CUPED covariate was measured before randomization",
+            "the CUPED covariate, variable , was measured before randomization",
+            "the CUPED covariate, variable 01, was measured before randomization",
+            "the CUPED covariate, variable 1, was chosen after the outcomes were seen",
+        ] {
+            assert_eq!(estimated_cuped_covariate(description), None, "{description}");
+        }
     }
 }

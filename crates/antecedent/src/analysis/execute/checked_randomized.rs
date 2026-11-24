@@ -1417,11 +1417,15 @@ fn push_randomized_covariate_assumptions(
     adjustment: Option<&RandomizedAdjustment>,
     assumptions: &mut antecedent_core::AssumptionSet,
 ) {
-    if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCuped { .. })) {
+    if let Some(RandomizedAdjustment::EstimatedCuped { covariate }) = adjustment {
+        // The description names the covariate, so a portable result states which column the
+        // pre-assignment premise is about and the result verifier can require it.
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
-                id: Arc::from("estimated_pre_assignment_cuped"),
-                description: Arc::from("the CUPED covariate was measured before randomization; its pooled slope is estimated from these outcomes and the independent-row score variance does not propagate that estimation"),
+                id: Arc::from(antecedent_io::graphless_support::ESTIMATED_CUPED_ASSUMPTION),
+                description: Arc::from(antecedent_io::graphless_support::estimated_cuped_premise(
+                    covariate.raw(),
+                )),
             },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Estimation,

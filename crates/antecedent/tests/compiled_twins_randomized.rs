@@ -112,6 +112,16 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
         ),
         other => panic!("unavailable support: {other:?}"),
     }
+    // The pre-assignment premise names its covariate, and the portable result carrying it
+    // passes the artifact verifier.
+    let premise = antecedent_io::graphless_support::estimated_cuped_premise(1);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption,
+        antecedent_core::Assumption::Custom { id, description }
+            if id.as_ref() == antecedent_io::graphless_support::ESTIMATED_CUPED_ASSUMPTION
+                && description.as_ref() == premise
+    )));
+    prepared.encode_contracted_result(&result, "estimated-slope-cuped", &ctx).unwrap();
     let fit = result.into_randomized_effect().unwrap();
     assert_eq!(&*fit.uncertainty, "bernoulli_estimated_cuped_ht_score_normal_interval");
     assert_eq!(fit.effect.to_bits(), direct.effect.to_bits());
