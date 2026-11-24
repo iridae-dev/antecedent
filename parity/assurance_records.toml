@@ -49,7 +49,7 @@ implementation = [
     "antecedent_contract::claim::identification_status_kept_or_lowered",
     "antecedent_core::identification::IdentificationStatus::strength_rank",
 ]
-obligations = ["The listed sites of formal/standing_sites.toml each owe a check on production code."]
+obligations = []
 limitations = ["Identified-mass monotonicity is checked in floating point in the same function and is not covered."]
 
 [[records.checks]]

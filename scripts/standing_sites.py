@@ -172,7 +172,6 @@ def self_test(root: Path = REPO_ROOT) -> int:
         print("standing_sites self-test: the inventory itself does not pass", file=sys.stderr)
         return 1
     checked = next(i for i, s in enumerate(inventory["sites"]) if s["status"] == "checked")
-    listed = next(i for i, s in enumerate(inventory["sites"]) if s["status"] == "listed")
 
     def broken(edit, index: int = checked) -> dict:
         data = copy.deepcopy(inventory)
@@ -195,7 +194,8 @@ def self_test(root: Path = REPO_ROOT) -> int:
         ("unknown check kind", broken(lambda s: s["checks"].append("lean:Antecedent.Standing.relay_le"))),
         ("checked without checks", broken(lambda s: s.update(checks=[]))),
         ("listed with checks", broken(lambda s: s.update(status="listed"))),
-        ("listed without a reason", broken(lambda s: s.pop("reason"), listed)),
+        ("listed without a reason", broken(lambda s: (s.update(status="listed", checks=[]), s.pop("reason", None)))),
+        ("listed with a reason and checks", broken(lambda s: s.update(status="listed", reason="none possible"))),
         ("unknown facet", broken(lambda s: s["facets"].append("prestige"))),
         ("unknown action", broken(lambda s: s.update(action="raise"))),
         ("one item listed twice", duplicate()),

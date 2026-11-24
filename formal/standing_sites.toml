@@ -18,8 +18,9 @@
 # evidence, or one rule is restated differently elsewhere; `note` records a fix.
 #
 # Compiled routes state the claim kind their program demands (a ClaimDemand); those sites
-# (`facade.demand.*`) are found by their construction and listed together: the published
-# claim's kind is re-derived at seal, never read from the demand.
+# (`facade.demand.*`) are found by their construction and checked together by
+# crates/antecedent/tests/standing_demand.rs, which scans every construction and fails on a
+# route whose demand is not the kind it publishes, or that it does not cover.
 
 [[sites]]
 id = "contract.claim.ClaimEnvelope.new"
@@ -279,9 +280,8 @@ item = "impl:CheckedWorldPoint#0/fn:limitations#0"
 facets = ["identification", "calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Returns a constant list (identification not established, uncertainty not propagated, calibration not transferred); no test reads it, and it has no input to generate over."
+status = "checked"
+checks = ["unit:crates/antecedent-contract/tests/checked_world_composition.rs::checked_world_points_compute_the_declared_target_and_refuse_forgery"]
 
 [[sites]]
 id = "contract.world_point.composition_claim_premises_identity"
@@ -411,8 +411,8 @@ facets = ["obligations"]
 action = "carry"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/evidence_obligation.rs::unresolved_assumption_records_become_assumption_obligations"]
-concern = "Skips an unresolved record whose id holds the reserved separator instead of refusing; documented, and try_unresolved_assumption_obligations refuses. The design adapter assumption_obligations still calls the skipping form."
+checks = ["unit:crates/antecedent-contract/src/evidence_obligation.rs::unresolved_record_with_a_separator_is_refused_not_dropped", "unit:crates/antecedent-contract/tests/evidence_obligation.rs::unresolved_assumption_records_become_assumption_obligations"]
+note = "Fixed: an unresolved record that cannot name an obligation under its own id is owed under the digest of its id (unrepresentable_assumption_obligation) instead of being dropped; the API is unchanged and the design adapter inherits the fix."
 
 [[sites]]
 id = "contract.evidence_obligation.try_unresolved_assumption_obligations"
@@ -483,7 +483,7 @@ action = "set"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent-contract/src/reasoning.rs::singleton_not_identified_does_not_report_unit_identified_mass", "unit:crates/antecedent-contract/src/reasoning.rs::singleton_graph_dependent_does_not_claim_full_identified_mass"]
-concern = "A partially identified singleton keeps identified mass 1 (documented: the set is identified); the domain rule refuses a partial status, but a mass-only gate would see full mass."
+note = "Deliberate: identified mass counts the structural mass whose estimand is identified, as a set for a partial status; every standing rule reads the status with the mass (the domain rule never identifies a partial status, the kind rule makes it bounds), so the mass alone raises nothing. Changing it would change released claim identities."
 
 [[sites]]
 id = "contract.composition_graph.TrustStanding.of_provider"
@@ -513,8 +513,8 @@ facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/composition_verification.rs::a_standing_is_stated_as_one_value_and_unstated_standing_is_refused"]
-concern = "Support defaults to supported; the undeclared trust withdraws the node, so the claim never stands, but the support facet alone reads as stated."
+checks = ["adversarial:standing.graph_support_and_undeclared_trust_only_lower", "unit:crates/antecedent-contract/tests/composition_verification.rs::a_standing_is_stated_as_one_value_and_unstated_standing_is_refused"]
+note = "Deliberate: the undeclared trust withdraws the node before its support is read, so it is never still valid and never keeps authority (generated law)."
 
 [[sites]]
 id = "contract.composition_graph.ClaimStanding.provider"
@@ -534,8 +534,8 @@ facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/composition_verification.rs::a_standing_is_stated_as_one_value_and_unstated_standing_is_refused"]
-concern = "A node built without a standing reads as a native supported point (support supported, trust not applicable); source and diagram nodes of a transport scene take this default."
+checks = ["adversarial:standing.graph_support_and_undeclared_trust_only_lower", "unit:crates/antecedent-contract/tests/composition_verification.rs::a_standing_is_stated_as_one_value_and_unstated_standing_is_refused"]
+note = "Deliberate: a node's support facet is a list of coordinates outside support, read only to withdraw; revalidation never raises a node above its earlier standing (claim_standing / revalidation records), so the default grants nothing: the generated law shows stating any node unsupported only lowers every class. Input nodes (data, population, diagram, source) carry no support claim; producers state claim standing explicitly."
 
 [[sites]]
 id = "contract.composition_graph.CompositionNode.with_standing"
@@ -626,7 +626,8 @@ facets = ["revalidation"]
 action = "carry"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/composition_verification.rs::ledger_standings_drive_the_graph_classification"]
+checks = ["unit:crates/antecedent-contract/tests/composition_verification.rs::ledger_standings_drive_the_graph_classification", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk"]
+note = "Reads each result's status after any reclassification the ledger has pending (EvidenceLedger::effective_status)."
 
 [[sites]]
 id = "contract.revalidate.own_causes"
@@ -706,8 +707,8 @@ facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/transport_revalidation.rs::unchanged_scene_keeps_every_claim_and_its_earlier_authority"]
-concern = "Defaults to a supported native point, as CompositionNode::new."
+checks = ["adversarial:standing.graph_support_and_undeclared_trust_only_lower", "unit:crates/antecedent-contract/tests/transport_revalidation.rs::unchanged_scene_keeps_every_claim_and_its_earlier_authority"]
+note = "Deliberate, as CompositionNode::new: the scene's support facet only withdraws, and the facade states support, trust and calibration on every transported claim it builds."
 
 [[sites]]
 id = "contract.transport_revalidation.TransportScene.graph"
@@ -787,8 +788,8 @@ facets = ["revalidation"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/evidence_ledger.rs::update_replace_and_supersede_have_distinct_rules", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::updating_a_source_marks_dependents_for_recompute"]
-concern = "A combine that replaces a result marks standings stale but reclassifies nothing until revalidate_downstream runs; a reuse of the replaced result reads valid in between."
+checks = ["adversarial:standing.ledger_replace_never_leaves_a_dependent_valid", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::update_replace_and_supersede_have_distinct_rules"]
+note = "Fixed without changing the operation log: between a combination that replaces a result and the downstream walk, standing, require_valid, classification and ledger_effects read the class the pending walk gives (EvidenceLedger::effective_class), so a reuse of a replaced result never reads valid. Stored effects and ledger artifacts are unchanged. A new citation of a stale result is still admitted as before (replay-compatible) and reads as needing recomputation."
 
 [[sites]]
 id = "contract.ledger.EvidenceLedger.require_valid"
@@ -798,7 +799,7 @@ facets = ["revalidation"]
 action = "check"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_stale_result_is_refused"]
+checks = ["adversarial:standing.ledger_replace_never_leaves_a_dependent_valid", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_stale_result_is_refused", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk"]
 
 [[sites]]
 id = "contract.bridge.obligation"
@@ -818,8 +819,8 @@ facets = ["kind", "identification", "domains", "calibration", "obligations"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::an_associational_claim_is_never_a_bridge_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::surrogate_bridge_matches_the_hand_computed_trial_level_regression"]
-concern = "The bridged claim's identification and support domains are unknown and its obligations are the bridge's assumptions; the source's own assumption obligations are not carried (the receipt states identification and support omitted), and the evaluated domain is the source's."
+checks = ["adversarial:standing.bridged_claim_never_asserts_more_than_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_keeps_every_unresolved_obligation_of_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::surrogate_bridge_matches_the_hand_computed_trial_level_regression", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::an_associational_claim_is_never_a_bridge_source"]
+note = "Fixed: the bridged claim no longer restates the source's evaluated status (all three domains are unknown for the target quantity), and it carries every obligation the source left unresolved, or one standing for them (bridge_source_assumptions_unavailable) when the source's assumption slot is unavailable; the receipt lists them as source_assumption:<id>. The claim identity binds the contract and the source only, so no released identity changes."
 
 [[sites]]
 id = "contract.bridge.bridge_receipt"
@@ -829,7 +830,7 @@ facets = ["obligations", "domains"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_shares_its_sources_evidence_and_is_not_poolable_with_it"]
+checks = ["adversarial:standing.bridged_claim_never_asserts_more_than_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_keeps_every_unresolved_obligation_of_its_source"]
 
 [[sites]]
 id = "contract.bridge.BridgedClaim.freshness"
@@ -861,6 +862,7 @@ action = "set"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent-contract/src/bridge/draws_tests.rs::the_derived_claim_is_one_realization_of_the_bridge"]
+note = "Fixed: a bridge of draws no longer restates the source's evaluated status, and since draws carry no assumption slot the bridged claim owes the obligation bridge_source_assumptions_unavailable. The claim identity does not bind domains or obligations."
 
 [[sites]]
 id = "contract.bridge.BridgedDistributionClaim.freshness"
@@ -902,7 +904,7 @@ action = "carry"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent-contract/src/external_binding.rs::declared_point_support_is_kept_per_coordinate", "unit:crates/antecedent-contract/src/external_binding.rs::verification_of_another_contract_does_not_bind"]
-concern = "Carries the contract's declared identification and the provider's declared point support at attested trust; nothing re-identifies an external result (it stays external, never native)."
+note = "Deliberate: the identification is the host's own checked contract (CheckedCausalContract, 'an already identified causal contract'), gated to an identified status and never upgraded; the provider supplies values only, the bound claim stays external at attested or verified trust and never native, and absent declared support every coordinate is missing evidence."
 
 [[sites]]
 id = "contract.provider_transport.ProviderTransportSource.admit"
@@ -1012,7 +1014,7 @@ facets = ["revalidation"]
 action = "compose"
 released = true
 status = "checked"
-checks = ["assurance:revalidation.raised_only_by_recomputation", "adversarial:recalc.reuse_only_without_a_change", "adversarial:recalc.unchanged_workflow_keeps_standing", "adversarial:standing.recalc_dependents_never_outrank_their_dependencies"]
+checks = ["assurance:revalidation.raised_only_by_recomputation", "adversarial:recalc.reuse_only_without_a_change", "adversarial:recalc.unchanged_workflow_keeps_standing", "adversarial:standing.recalc_dependents_never_outrank_their_dependencies", "adversarial:standing.recalc.removal_first_never_raises_over_first_change"]
 
 [[sites]]
 id = "core.recalc.Planner.decide"
@@ -1032,8 +1034,8 @@ facets = ["revalidation"]
 action = "set"
 released = true
 status = "checked"
-checks = ["adversarial:standing.recalc_dependents_never_outrank_their_dependencies", "unit:crates/antecedent-core/tests/recalc_plan.rs::a_removed_input_withdraws_its_dependents_beside_an_earlier_numerical_change"]
-note = "Fixed: the first changed dependency decided the status, so a numerical change listed before a removed input hid the removal and the stage was recomputed instead of withdrawn. A removal anywhere among the stage's own change and its dependencies now decides it; plans without a removal are unchanged."
+checks = ["adversarial:standing.recalc_dependents_never_outrank_their_dependencies", "adversarial:standing.recalc.removal_first_never_raises_over_first_change", "unit:crates/antecedent-core/tests/recalc_plan.rs::a_removed_input_withdraws_its_dependents_beside_an_earlier_numerical_change", "unit:crates/antecedent-core/tests/recalc_plan.rs::the_first_change_rule_replays_recorded_plans_and_agrees_without_a_removal"]
+note = "Fixed: the first changed dependency decided the status, so a numerical change listed before a removed input hid the removal and the stage was recomputed instead of withdrawn. Under PlannerRule::RemovalFirst (the default, used by RecalcPlan::plan) a removal anywhere among the stage's own change and its dependencies decides it; PlannerRule::FirstChange keeps the old rule only to replay receipts recorded under it. The rules agree on every plan without a removal."
 
 [[sites]]
 id = "core.recalc.Planner.fresh_status"
@@ -1053,8 +1055,8 @@ facets = ["kind", "identification"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-io-core/src/contract_section/tests.rs::claim_kind_is_never_point_short_of_full_identified_mass_or_for_unknown_status", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::partially_identified_single_atom_is_bounds"]
-concern = "A body with no identification slot (and not stated not_claimed) reads as a point; the domains stay unknown, so the kind alone is not an identification claim. Changing it would change released claim identities."
+checks = ["unit:crates/antecedent-io-core/src/contract_section/tests.rs::claim_kind_is_never_point_short_of_full_identified_mass_or_for_unknown_status", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::partially_identified_single_atom_is_bounds", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::identification_not_claimed_implies_an_associational_claim_with_its_own_domains", "adversarial:standing.claim_kind_is_never_a_point_without_a_slot"]
+note = "Fixed: a body with no identification slot (and not stated not_claimed) read as a point; it is now incomplete. No released producer seals a claim without the slot (an executed result always carries one, an association states not_claimed, external estimates and transport certificates carry one), so no released claim id or stored artifact changes kind; the proptest checks every claim that carries a slot classifies exactly as the released rule did. Only a hand-assembled section of that shape is now refused (claim_kind)."
 
 [[sites]]
 id = "io_core.consume.claim_kind_of_section"
@@ -1064,7 +1066,7 @@ facets = ["kind"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-io-core/src/contract_section/tests.rs::identification_not_claimed_implies_an_associational_claim_with_its_own_domains"]
+checks = ["unit:crates/antecedent-io-core/src/contract_section/tests.rs::identification_not_claimed_implies_an_associational_claim_with_its_own_domains", "adversarial:standing.claim_kind_is_never_a_point_without_a_slot"]
 
 [[sites]]
 id = "io_core.consume.claim_domain_statuses"
@@ -1074,7 +1076,8 @@ facets = ["domains", "identification", "support"]
 action = "set"
 released = true
 status = "checked"
-checks = ["adversarial:standing.claim_domains_never_raise_without_evidence"]
+checks = ["adversarial:standing.claim_domains_never_raise_without_evidence", "adversarial:standing.one_point_identified_rule_decides_kind_and_domain", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::site_one_point_identified_rule_reads_every_status"]
+note = "Reads the shared rule status_name_identifies_a_point (unchanged meaning)."
 
 [[sites]]
 id = "io_core.consume.claim_domain_statuses_of_section"
@@ -1235,7 +1238,7 @@ action = "restore"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent-io-core/tests/scientific_bridge_artifact.rs::a_fresh_consumer_replays_the_bridge_and_recomputes_its_values"]
-concern = "Restores the source as a point with unknown identification and support and the stored evaluated status: the replay recomputes values, not the source's standing."
+note = "Deliberate: the restored source is the source claim as recorded, with identification and support unknown and its own recorded evaluated status; it is the source's record, and the bridged claim derived from it no longer reads that status (contract.bridge.derive_bridged_claim_propagating)."
 
 [[sites]]
 id = "io_core.bridge_distribution.bridge_draws"
@@ -1245,7 +1248,8 @@ facets = ["kind", "domains", "calibration", "trust"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-io-core/src/bridge_distribution_tests.rs::only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged"]
+checks = ["unit:crates/antecedent-io-core/src/bridge_distribution_tests.rs::only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged", "unit:crates/antecedent-io-core/src/bridge_distribution_tests.rs::draws_in_draws_out_keep_the_alignment_and_every_other_column"]
+note = "Fixed: a draw table is passed as stating no evaluated domain of its own."
 
 [[sites]]
 id = "io_core.bridge_distribution.BridgedDistribution.source_envelope"
@@ -1254,10 +1258,9 @@ item = "impl:BridgedDistribution#0/fn:source_envelope#0"
 facets = ["kind", "domains"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Rebuilds the source envelope for display (mixture, unknown identification and support); it asserts no domain beyond evaluated and no test reads it."
-concern = "Evaluated is asserted for the source without the source's own record."
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/bridge_distribution_tests.rs::draws_in_draws_out_keep_the_alignment_and_every_other_column", "unit:crates/antecedent-io-core/src/bridge_artifact_tests.rs::a_draws_source_recorded_as_evaluated_under_the_earlier_rule_still_replays"]
+note = "Fixed and versioned: the source table's envelope states no evaluated domain (all unknown). Bridge-of-draws artifacts sealed earlier recorded the source as evaluated; they still replay under that rule (io_core.bridge_artifact.source_summary_replays), and the consumer always receives the rebuilt source."
 
 [[sites]]
 id = "io_core.transport_handoff.parse_provider_trust"
@@ -1276,10 +1279,9 @@ item = "fn:core_contract#0"
 facets = ["identification"]
 action = "restore"
 released = true
-status = "listed"
-checks = []
-reason = "Decodes the declared identification status of an external contract verbatim; it is an external declaration, bound at attested trust and never native, and no generated check covers the decode."
-concern = "The status is taken from the wire with no re-identification."
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/external_binding_wire.rs::site_a_declared_identification_is_carried_never_strengthened"]
+note = "Deliberate: decodes the caller's declaration of its own contract 'without performing new identification' (no graph is carried to re-identify); the status is carried exactly, an unknown spelling is refused, and binding refuses a status that is not identified."
 
 [[sites]]
 id = "io_core.provider_envelope.decode_provider_envelope"
@@ -1289,8 +1291,8 @@ facets = ["trust"]
 action = "restore"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-io-core/tests/provider_envelope.rs::verified_external_result_requires_host_receipt_and_preserves_provenance"]
-concern = "With a declared expectation the trust label is accepted after a digest-shape check only."
+checks = ["unit:crates/antecedent-io-core/src/provider_envelope.rs::inspection_decodes_a_verified_claim_without_crediting_it"]
+note = "Deliberate: the declared expectation is inspection only (inspect_provider_envelope), documented as never crediting trust; a verified label is believed only by open_verified_provider_envelope against host-held spec, request and evidence digests, which the test shows refusing other evidence."
 
 [[sites]]
 id = "design.composition_boundary.resolve_trust"
@@ -1310,8 +1312,8 @@ facets = ["calibration", "trust"]
 action = "transform"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused"]
-concern = "Only an exact law from an attested provider is lowered; a measured label from an attested provider is kept."
+checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_an_unstated_mask_is_supported_only_for_a_native_law", "unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused", "unit:crates/antecedent-design/tests/native_authority_exact.rs::only_a_matching_nonblank_record_grants_native_standing_and_keeps_the_exact_claim", "adversarial:standing.design.missing_mask_is_never_supported"]
+note = "Fixed: a measured label from a provider that only attests (or proves nothing) was kept as measured; it is not measured, and the stored law's label is lowered with it, as an unbacked exact label already was. Native and exact-request-verified providers keep their label."
 
 [[sites]]
 id = "design.composition_boundary.DecisionInput.from_distribution_artifact"
@@ -1321,8 +1323,8 @@ facets = ["support", "calibration", "trust"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_metadata_only_native_label_is_refused_as_native", "unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_missing_coordinate_beside_supported_action_joint_source"]
-concern = "An artifact without a support mask reads every coordinate as supported."
+checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_an_unstated_mask_is_supported_only_for_a_native_law", "unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_metadata_only_native_label_is_refused_as_native", "unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_missing_coordinate_beside_supported_action_joint_source", "unit:crates/antecedent-design/tests/native_authority_exact.rs::only_a_matching_nonblank_record_grants_native_standing_and_keeps_the_exact_claim", "adversarial:standing.design.missing_mask_is_never_supported", "unit:crates/antecedent/tests/multi_source_acceptance.rs::acceptance_the_joint_law_decision_matches_the_hand_derived_values"]
+note = "Fixed: an artifact without a support mask read every coordinate as supported whoever produced it. The io-core absent-mask convention is the producer's statement, evidence only when a matching native execution record backs the law; from any other provider an unstated coordinate is missing evidence. A caller holding evidence for the unstated coordinates (a transport receipt) states it with from_distribution_artifact_with_unstated_support. The lineage digest of a mask-less non-native input changes with its labels; no stored artifact is replayed through this constructor."
 
 [[sites]]
 id = "design.composition_boundary.DecisionInput.with_support_floor"
@@ -1332,7 +1334,7 @@ facets = ["support"]
 action = "transform"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/tests/decision_transported_source.rs::a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them"]
+checks = ["unit:crates/antecedent-design/tests/decision_transported_source.rs::a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them", "adversarial:standing.design.support_floor_never_strengthens"]
 
 [[sites]]
 id = "design.transported_bridge.TransportedSurrogateBridge.derive"
@@ -1362,8 +1364,8 @@ facets = ["support", "obligations"]
 action = "carry"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/tests/repair_facade.rs::transport_factors_support_and_planner_deltas_become_obligations"]
-concern = "A report with no per-point labels and an extrapolative or outside summary yields no obligation; only missing evidence is synthesised."
+checks = ["unit:crates/antecedent-design/tests/repair_facade.rs::transport_factors_support_and_planner_deltas_become_obligations", "adversarial:standing.design.unsupported_input_always_owes_an_obligation"]
+note = "Fixed: a report with no per-point labels owed an obligation only for a missing-evidence summary; an extrapolative, outside or weak-overlap summary owed nothing. The summary is now read as the label of the whole surface: only a supported summary owes nothing."
 
 [[sites]]
 id = "design.obligation_adapters.assumption_obligations"
@@ -1432,10 +1434,9 @@ item = "fn:scenario_law#0"
 facets = ["calibration", "support", "trust"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Builds a caller-declared scenario law (exact, unverified trust, no support mask); the scenarios are the caller's assumptions, and no generated check covers the labels it attaches."
-concern = "No support mask, so every coordinate reads as supported."
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/sensitivity_decision.rs::site_scenario_law_states_the_point_support_and_never_claims_more"]
+note = "Fixed: the scenario law left its mask absent, so every coordinate read as supported by convention. It now states the surface's own point label on every coordinate (supported only at a supported point). Evaluation at the supported points it is reached for is unchanged."
 
 [[sites]]
 id = "state.CausalState.changed_input"
@@ -1455,8 +1456,8 @@ facets = ["revalidation"]
 action = "restore"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-state/src/state.rs::a_bare_refresh_cannot_republish_a_lineage_bound_result", "unit:crates/antecedent-state/src/state.rs::a_constraint_event_is_not_answered_by_an_identical_identification_layer"]
-concern = "A query never published with a lineage is republished on the caller's word (refresh_results_at): the caller asserts the recomputation, which clears pending inputs including a removed one."
+checks = ["unit:crates/antecedent-state/src/state.rs::a_bare_refresh_cannot_republish_a_lineage_bound_result", "unit:crates/antecedent-state/src/state.rs::a_constraint_event_is_not_answered_by_an_identical_identification_layer", "unit:crates/antecedent-state/src/state.rs::a_bare_refresh_cannot_clear_a_removed_input"]
+note = "Fixed: a query never published with a lineage could be refreshed with a bare fingerprint after a premise it rested on was removed, clearing the withdrawal on the caller's word. A pending removed input now refuses a bare refresh; only a publication that states its lineage returns the result to valid. A bare refresh of a recompute-class result keeps the released caller-driven path: it is pinned to the state version the computation started at (require_version), so it is a recomputation started after every pending change."
 
 [[sites]]
 id = "state.invalidation.InvalidationLog.revalidation_since"
@@ -1495,9 +1496,9 @@ item = "impl:AutoIdentifier#0/fn:finish#0"
 facets = ["identification"]
 action = "compose"
 released = true
-status = "listed"
-checks = []
-reason = "Lists the estimands of every strategy that identified the query, each keeping its own status; only nonparametric and parametric results are admitted, so the listing status is one of those. No generated check covers the listing status."
+status = "checked"
+checks = ["unit:crates/antecedent-identify/src/auto.rs::site_the_listing_status_is_an_admitted_strategy_status"]
+note = "The listing status is the strongest status an admitted strategy established (each listed estimand identifies the query alone), computed by listing_status; it was 'nonparametric unless every claim is parametric', which named nonparametric for a listing with no claims or with only weaker claims. Only nonparametric and parametric strategies are admitted, so released listings are unchanged."
 
 [[sites]]
 id = "identify.compiled_product.CompiledIdentificationProduct.retain"
@@ -1507,8 +1508,8 @@ facets = ["identification", "obligations"]
 action = "carry"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-identify/src/compiled_product/tests.rs::retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounded_search", "unit:crates/antecedent-identify/src/compiled_product/tests.rs::numerically_feasible_value_beside_unidentified_is_not_an_identified_claim"]
-concern = "The caller's claim class is checked against the outcome but not reconciled with a parametric or prior-restricted status."
+checks = ["unit:crates/antecedent-identify/src/compiled_product/tests.rs::retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounded_search", "unit:crates/antecedent-identify/src/compiled_product/tests.rs::numerically_feasible_value_beside_unidentified_is_not_an_identified_claim", "unit:crates/antecedent-identify/src/compiled_product/tests.rs::site_a_restricted_result_is_retained_only_as_model_conditional"]
+note = "Fixed: the caller's claim class was not reconciled with the result's status, so a result identified only under parametric or prior restrictions could be retained as an identified claim. retain now refuses the identified-claim class (product, world or assembled functional) for such a result with ProductRefusal::IdentifiedClaimUnderRestrictions (a new variant of a non_exhaustive error enum); it is retained as model-conditional, as the design-based lowering already does."
 
 [[sites]]
 id = "estimate.envelope.aggregate_effect_envelope"
@@ -1517,10 +1518,9 @@ item = "fn:aggregate_effect_envelope#0"
 facets = ["identification"]
 action = "compose"
 released = true
-status = "listed"
-checks = []
-reason = "Estimator-internal aggregation over the identification envelope the identify crate already classified (identify.envelope.IdentificationEnvelope.from_cases); no generated check covers its own status."
-concern = "Reports nonparametric identification whenever identified mass is positive and the rest within tolerance, without reading whether the identified atoms were restricted."
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/envelope.rs::site_envelope_status_is_never_stronger_than_its_atoms", "unit:crates/antecedent-estimate/src/envelope.rs::preserves_unidentified_mass_by_default"]
+note = "The flag-only form reads GraphIdentFlag::Identified as its documentation states it, nonparametric identification under the graph. aggregate_effect_envelope_with_atom_status takes the weakest status of the atoms a caller flagged identified and never reports more. Callers that flag parametric or partially identified atoms identified (the facade's identification_status_ok_for_case admits both) owe the switch to the new form; that is facade work."
 
 [[sites]]
 id = "estimate.temporal_support.summarize_surface_support"
@@ -1531,7 +1531,7 @@ action = "compose"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent-estimate/src/temporal_response/tests.rs::surface_support_uses_per_horizon_ranges_not_union", "unit:crates/antecedent-estimate/src/temporal_response/tests.rs::surface_support_all_outside_and_all_supported"]
-concern = "A surface mixing supported and outside cells is summarized extrapolative, milder than its worst cell; documented temporal semantics, unlike the static worst-label rule."
+note = "Deliberate, documented semantics that raises no standing (no code change): the temporal summary is the three-way split documented on SupportStatus and re-derived by the io-core consumer (causal_artifact support check), and every temporal report carries one label per cell in point_status, which every per-coordinate consumer reads (decision boundary, inverse outcome). No consumer admits a cell by the summary. Changing it would change released temporal response artifacts and their consumer rule."
 
 [[sites]]
 id = "validate.predictive_assessment.expected_score_interval"
@@ -1561,9 +1561,8 @@ item = "fn:attested_evidence#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Projects caller-attested validator results onto the claim, always non-reverifiable; it raises no standing facet and no test isolates it."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_claim_attested.rs::site_attested_validator_evidence_is_never_reverifiable_and_raises_nothing"]
 
 [[sites]]
 id = "facade.contract.reasoning_view"
@@ -1602,9 +1601,8 @@ item = "fn:obligations_from_set#0"
 facets = ["obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Maps each assumption's status to an obligation kind one to one; reached only through prepared inspection, and no test asserts the mapping."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/contract/reasoning.rs::site_assumptions_become_obligations_that_keep_their_status"]
 
 [[sites]]
 id = "facade.contract.operation_report"
@@ -1633,9 +1631,8 @@ item = "fn:reports_calibrated_effect_interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Gates whether a calibration basis is computed at all; a false gate leaves the slot not_measured (never raises), and no test isolates it."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/contract/wire.rs::site_a_closed_calibration_gate_never_calibrates"]
 
 [[sites]]
 id = "facade.contract.preview_obligation"
@@ -1664,10 +1661,9 @@ item = "fn:identification_label#0"
 facets = ["identification", "calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Keys the calibration match (point or partial) the coverage records were measured under; the slot is calibrated only by an attesting record (io_core.calibration.calibration_slot), and no test isolates the key."
-concern = "Counts prior-restricted identification as point, unlike the domain rule; consistent with how records are keyed, but one of several restatements of 'point identified'."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/contract/calibration.rs::site_identification_key_is_point_only_with_all_mass_identified"]
+note = "Deliberate, not a standing: the key is the match key coverage records were measured under, and prior-restricted routes' records are keyed point. A slot reads calibrated only from an attesting record measured under the same key and construction, so the key raises nothing; changing it would orphan the measured records and change released claim ids."
 
 [[sites]]
 id = "facade.contract.calibration_view"
@@ -1706,10 +1702,9 @@ item = "fn:claim_kind#0"
 facets = ["kind", "identification"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
-concern = "A second kind rule: graph-dependent maps to mixture and prior restrictions to point without reading mass; it feeds the program's demand, not the published claim."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/lowering/static_effect.rs::site_static_effect_demand_is_the_claim_readers_kind", "unit:crates/antecedent/src/analysis/lowering/static_effect.rs::site_a_graph_dependent_demand_is_the_kind_its_claim_seals", "adversarial:standing.one_point_identified_rule_decides_kind_and_domain"]
+note = "Reads the claim reader's own slot rule (slot_claim_kind); the kinds are unchanged, so no program identity moves. A graph-dependent demand is a mixture, the kind the consumer reads from every slot a graph-dependent result seals (weighted mixture slot, or the singleton slot with no identified mass); only an executed identified set refines it to bounds, which the executed check admits."
 
 [[sites]]
 id = "facade.host.HostStatus.of_claim_parts"
@@ -1730,6 +1725,7 @@ action = "compose"
 released = true
 status = "checked"
 checks = ["assurance:claim_standing.derivations_never_raised", "unit:crates/antecedent/tests/checked_claim_synthesis.rs::prepared_claims_synthesize_checked_contrast_and_weighted_aggregate", "unit:crates/antecedent/tests/checked_claim_synthesis.rs::mismatched_program_target_coefficients_and_support_are_refused"]
+note = "Its parent gate reads the shared rule status_identifies_a_point (unchanged meaning)."
 
 [[sites]]
 id = "facade.checked_claim_composition.admit_checked_claim_composition"
@@ -1779,8 +1775,8 @@ facets = ["kind", "domains"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/flagship_mixed.rs::withdrawn_source_cannot_authorize_access_export_recompute_or_consumption"]
-concern = "A fixture-like source envelope asserts identified, supported and evaluated domains with constant identities; used only by the flagship workflow."
+checks = ["unit:crates/antecedent/src/analysis/flagship_mixed.rs::site_the_cluster_source_asserts_no_domain_it_has_no_slot_for", "unit:crates/antecedent/src/analysis/flagship_mixed.rs::withdrawn_source_cannot_authorize_access_export_recompute_or_consumption"]
+note = "Fixed: the cluster-trial source asserted identified and supported domains with every slot unavailable; it now states unknown identification and support and an evaluated value. Only the bridged value is read and nothing about the source is exported, so no artifact changes."
 
 [[sites]]
 id = "facade.native_claims.NativeResponseClaim.from_response"
@@ -1800,7 +1796,8 @@ facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/tests/transport_standing_facade.rs::a_response_node_states_its_support_trust_and_calibration"]
+checks = ["unit:crates/antecedent/tests/standing_support_transport.rs::a_weaker_label_is_supported_only_under_its_stated_premise", "unit:crates/antecedent/tests/standing_support_transport.rs::a_library_transported_node_states_its_support_premise_once", "unit:crates/antecedent/tests/transport_standing_facade.rs::a_response_node_states_its_support_trust_and_calibration"]
+note = "The graph's support facet has no state between supported and outside support; a carried claim inside the support its transport premise establishes (weak_overlap, extrapolative) is not withdrawn, and every node built for it states support_label:<label> as an assumption, so the graph never presents it as supported outright. Marking extrapolative coordinates unsupported would withdraw every transported claim (a transport receipt refuses the supported label), removing transport revalidation."
 
 [[sites]]
 id = "facade.composition_verification.stage_node_with_standing"
@@ -1861,6 +1858,7 @@ action = "set"
 released = true
 status = "checked"
 checks = ["unit:crates/antecedent/tests/transport_standing_facade.rs::a_response_node_states_its_support_trust_and_calibration", "unit:crates/antecedent/tests/transport_revalidation_facade.rs::a_calibration_record_is_never_inherited_by_another_target"]
+note = "Support is supported under the transport premise for an extrapolative receipt; the node built from it states support_label:<label>, and a scene claim's structure (selection diagrams) and sources carry the premise, so it never keeps authority when the premise moves."
 
 [[sites]]
 id = "facade.support.unit.decide"
@@ -1960,7 +1958,7 @@ facets = ["kind", "support"]
 action = "set"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/attached_decision_tests.rs::the_decision_states_its_own_unit_and_each_child_keeps_its_own", "unit:crates/antecedent/src/analysis/attached_decision_tests.rs::a_supported_child_under_an_unsupported_decision_unit_is_refused_or_recorded"]
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::a_terminal_program_demands_the_kind_its_functional_publishes", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/src/analysis/attached_decision_tests.rs::the_decision_states_its_own_unit_and_each_child_keeps_its_own", "unit:crates/antecedent/src/analysis/attached_decision_tests.rs::a_supported_child_under_an_unsupported_decision_unit_is_refused_or_recorded"]
 note = "Decision parent programs: the parent's claim demand and its own support unit; each child keeps its own unit."
 
 [[sites]]
@@ -1980,9 +1978,8 @@ item = "fn:lower_over#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry. Supplied-terminal outcomes take the kind of their terminal spec."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::a_terminal_program_demands_the_kind_its_functional_publishes", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.compile_decision_program.parent_over"
@@ -1992,7 +1989,7 @@ facets = ["kind"]
 action = "set"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/tests/compile_from_decision.rs::the_decision_program_twins_the_released_entry_under_its_own_unit"]
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/compile_from_decision.rs::the_decision_program_twins_the_released_entry_under_its_own_unit"]
 
 [[sites]]
 id = "facade.compile_preference.parent_of"
@@ -2001,9 +1998,8 @@ item = "fn:parent_of#0"
 facets = ["kind", "support"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry. Preference decisions: the parent states a policy-value demand."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.compile_preference.structures.compile_structure"
@@ -2014,7 +2010,7 @@ action = "set"
 released = false
 status = "checked"
 checks = ["unit:crates/antecedent/tests/preference_decision_compiled_structures.rs::structures_are_compiled_and_their_unidentified_mass_is_known_before_fitting"]
-concern = "Restates 'point identified' locally (point_identified) without prior restrictions."
+note = "point_identified reads the shared rule status_identifies_a_point (unchanged meaning)."
 
 [[sites]]
 id = "facade.compile_preference.structures.structural_atom"
@@ -2033,9 +2029,8 @@ item = "impl:BoundStudy#0/fn:context#0"
 facets = ["calibration"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Sets every bound study's law to not_measured calibration (never raises); a constant with no input to generate over, and no test reads it."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference/bind.rs::site_a_bound_study_law_claims_no_calibration"]
 
 [[sites]]
 id = "facade.preference_decision.claims_of_structures"
@@ -2046,6 +2041,7 @@ action = "compose"
 released = false
 status = "checked"
 checks = ["unit:crates/antecedent/tests/preference_decision_compiled_structures.rs::structures_are_compiled_and_their_unidentified_mass_is_known_before_fitting", "unit:crates/antecedent/tests/preference_decision_compiled_structures.rs::bayes_over_compiled_structures_keeps_the_unidentified_mass"]
+note = "Its identified filter reads the shared rule status_identifies_a_point (unchanged meaning)."
 
 [[sites]]
 id = "facade.structure_members.identify_member"
@@ -2066,7 +2062,8 @@ facets = ["identification"]
 action = "set"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/structure_members_tests.rs::a_weighted_candidate_set_keeps_an_unidentified_bow_out_of_the_mixture"]
+checks = ["unit:crates/antecedent/src/analysis/structure_members_tests.rs::a_weighted_candidate_set_keeps_an_unidentified_bow_out_of_the_mixture", "unit:crates/antecedent/src/analysis/structure_members_tests.rs::site_a_member_is_identified_only_under_the_shared_point_rule"]
+note = "Fixed: a partially identified member read as an identified member (identification_status_ok_for_case); it now reads the shared rule, so a member giving a set is not identified. New surface, no released identity."
 
 [[sites]]
 id = "facade.structure_members.identify_cyclic_member"
@@ -2085,10 +2082,9 @@ item = "fn:point_claim#0"
 facets = ["kind", "domains", "identification"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Hawkes and marked-event surfaces are still moving on their feature branch; their standing checks are owed with the final surface (proof-breadth scope excludes analysis/events/**)."
-concern = "Hawkes bridge source: a point claim with identification not claimed through an unavailable slot named not_identified, not the not_claimed reason the consumer rule reads."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/events/question.rs::site_the_kernel_reading_claims_no_identification"]
+note = "Fixed: the identification slot is unavailable as not_claimed, the spelling the consumer's domain rule reads, matching its not_claimed domain (it was unavailable as not_identified). The kind stays point: the fitted coefficient is a point of the declared model and the bridge refuses an associational source. New surface, no released identity."
 
 [[sites]]
 id = "facade.events.question.bridged"
@@ -2097,9 +2093,8 @@ item = "fn:bridged#0"
 facets = ["kind", "domains", "obligations"]
 action = "carry"
 released = false
-status = "listed"
-checks = []
-reason = "Hawkes and marked-event surfaces are still moving on their feature branch; their standing checks are owed with the final surface (proof-breadth scope excludes analysis/events/**)."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/events/question.rs::site_the_bridged_reading_keeps_the_kernel_premise_unresolved"]
 
 [[sites]]
 id = "facade.events.question.parameter_bridge"
@@ -2108,9 +2103,8 @@ item = "fn:parameter_bridge#0"
 facets = ["obligations"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Hawkes and marked-event surfaces are still moving on their feature branch; their standing checks are owed with the final surface (proof-breadth scope excludes analysis/events/**)."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/events/question.rs::site_the_parameter_bridge_states_its_premise_and_refuses_a_partial_map"]
 
 [[sites]]
 id = "facade.cross_world_interval.measured_interval"
@@ -2119,9 +2113,8 @@ item = "impl:CrossWorldExecution#0/fn:measured_interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/cross_world_interval.rs::site_whole_path_slot_is_keyed_by_the_route_and_set_only_by_records", "unit:crates/antecedent/src/analysis/cross_world_interval.rs::site_an_unmeasured_model_class_never_borrows_a_record", "unit:crates/antecedent/tests/whole_path_account_facade.rs::the_measured_interval_endpoints_equal_the_hand_closed_form"]
 
 [[sites]]
 id = "facade.fitted_dependent_measurement.nominal_interval_with_calibration"
@@ -2130,9 +2123,8 @@ item = "impl:CompiledFittedDependentMeasurement#0/fn:nominal_interval_with_calib
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_route_calibration.rs::fitted_dependent_measurement_slot_is_its_basis_read_against_the_records"]
 
 [[sites]]
 id = "facade.joint_law_composed_basis.slot"
@@ -2161,9 +2153,8 @@ item = "impl:PreparedLearnedContinuous#0/fn:bootstrap_interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/learned_continuous.rs::site_bootstrap_slot_is_keyed_by_the_route_and_set_only_by_records"]
 
 [[sites]]
 id = "facade.mechanism_composition.PreparedMechanismComposition.interval"
@@ -2172,9 +2163,8 @@ item = "impl:PreparedMechanismComposition#0/fn:interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/mechanism_composition.rs::site_the_first_order_interval_is_never_calibrated"]
 
 [[sites]]
 id = "facade.multi_level_treatment.publish_interval"
@@ -2183,9 +2173,9 @@ item = "fn:publish_interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_an_estimate_without_an_interval_is_never_calibrated", "unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_a_published_interval_carries_its_slot_and_nothing_more", "unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_the_interval_basis_names_the_route_and_rederives", "unit:crates/antecedent/tests/multilevel_interval_calibration.rs::a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withheld", "unit:crates/antecedent/tests/multilevel_interval_calibration.rs::the_pairwise_target_reports_its_interval_as_not_measured"]
+note = "Fixed: an estimate with no positive standard error published no interval but reported the slot's status, so a matching record made the report read calibrated; with no interval the status is not_measured."
 
 [[sites]]
 id = "facade.mz_transport.interval_calibration"
@@ -2194,9 +2184,8 @@ item = "fn:interval_calibration#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/mz_transport.rs::site_mz_slot_is_keyed_by_the_route_and_set_only_by_records"]
 
 [[sites]]
 id = "facade.smoothed_dose.interval"
@@ -2205,9 +2194,8 @@ item = "impl:PreparedSmoothedDose#0/fn:interval#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/smoothed_dose.rs::site_smoothed_dose_slot_is_keyed_by_the_route_and_set_only_by_records"]
 
 [[sites]]
 id = "facade.observational_policy.held_out_value_candidate"
@@ -2216,9 +2204,8 @@ item = "impl:CompiledObservationalPolicy#0/fn:held_out_value_candidate#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_route_calibration.rs::held_out_policy_slot_is_its_basis_read_against_the_records"]
 
 [[sites]]
 id = "facade.observational_policy.cross_fitted_value_candidate"
@@ -2227,9 +2214,8 @@ item = "impl:CompiledObservationalPolicy#0/fn:cross_fitted_value_candidate#0"
 facets = ["calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of a calibration basis: the status comes from the attesting-record rule (io_core.calibration.calibration_slot, checked), so the route never sets calibrated itself, and the consumer re-derives the slot from the basis (io_core.calibration.rederive_calibration). No test isolates this route's basis."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_route_calibration.rs::cross_fitted_policy_slot_is_its_basis_read_against_the_records"]
 
 [[sites]]
 id = "io.measured_inference.slot_for"
@@ -2268,10 +2254,9 @@ item = "fn:bridged_distribution_interval#0"
 facets = ["kind", "domains", "calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Rebuilds the bridged source envelope (unknown identification and support) to key the interval's calibration; the slot comes from the attesting-record rule, and no test isolates the envelope."
-concern = "Evaluated is asserted for the source without the source's own record."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs::a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently", "unit:crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs::an_exact_map_publishes_its_interval_as_an_exact_transform_and_a_line_of_few_trials_does_not"]
+note = "Fixed: the mean twin's source takes the table's own domains (all unknown) instead of asserting evaluated; the interval's calibration comes from the measured-coverage gate."
 
 [[sites]]
 id = "facade.compile_preference.design.DesignSource.refit_law"
@@ -2280,9 +2265,9 @@ item = "impl:DesignSource#0/fn:refit_law#0"
 facets = ["calibration"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Sets a refitted design law's calibration to not_measured (never raises); a constant with no input to generate over."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference/design.rs::site_a_refitted_design_law_claims_no_calibration_or_verified_trust", "unit:crates/antecedent/src/analysis/execute/compile_preference/design.rs::site_a_refitted_design_law_states_support_from_its_refits"]
+note = "Fixed: the refit law stated no support mask, so its support was a default. It now states each arm supported only when every refit of the study's own data produced a finite estimate for it (failed refits are refused); with every arm estimated the decisions are unchanged. Unreleased surface: no versioning."
 
 [[sites]]
 id = "facade.curve_refutation.support_report"
@@ -2291,9 +2276,8 @@ item = "fn:support_report#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/curve_refutation.rs::site_the_support_refutation_passes_only_a_supported_grid"]
 
 [[sites]]
 id = "facade.temporal_path.derivative_support_report"
@@ -2302,9 +2286,8 @@ item = "fn:derivative_support_report#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/temporal_path/derivative_math.rs::site_a_derivative_is_supported_only_inside_the_observed_series"]
 
 [[sites]]
 id = "facade.temporal_path.sequence_overlay_support"
@@ -2313,9 +2296,8 @@ item = "fn:sequence_overlay_support#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/temporal_path/response.rs::site_a_sequence_overlay_is_never_read_as_supported"]
 
 [[sites]]
 id = "facade.temporal_class_point.mix_derivative_responses"
@@ -2324,9 +2306,9 @@ item = "fn:mix_derivative_responses#0"
 facets = ["support"]
 action = "compose"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/temporal_class_point.rs::site_a_derivative_mixture_is_no_better_supported_than_its_worst_completion"]
+note = "Fixed: a completion with missing evidence was summarized as outside empirical support, hiding the missing evidence; the mixture now takes missing evidence when any completion has it (outside empirical support otherwise, as before)."
 
 [[sites]]
 id = "facade.response_path.cell_aipw_response"
@@ -2335,9 +2317,9 @@ item = "fn:cell_aipw_response#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/response_path.rs::site_a_joint_arm_labels_exactly_its_own_coordinates"]
+note = "The arm label is earned before the response exists: cell_aipw refuses a joint cell with no complete-case rows and one missing from any cross-fit training fold (positivity_violated), so the requested arm is an observed cell of every fold; a binding propensity clip is the overlap diagnostic that makes the claim's empirical support limited."
 
 [[sites]]
 id = "facade.admg_response.evaluate_members"
@@ -2376,9 +2358,8 @@ item = "fn:support_label#0"
 facets = ["support"]
 action = "carry"
 released = true
-status = "listed"
-checks = []
-reason = "Spells the graphless support status on the wire one to one; the consumer re-derives the support domain (io_core.consume.claim_domain_statuses), and no test isolates the spelling."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/contract/result_wire.rs::site_support_label_spells_the_cell_status_and_nothing_stronger"]
 
 [[sites]]
 id = "io_core.graphless_support.classify_graphless"
@@ -2397,9 +2378,8 @@ item = "fn:support_report#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/response/support.rs::site_support_report_summary_is_the_worst_point_label"]
 
 [[sites]]
 id = "estimate.dose_grid_functional.build_report"
@@ -2408,9 +2388,8 @@ item = "fn:build_report#0"
 facets = ["support"]
 action = "compose"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/dose_grid_functional.rs::site_dose_grid_report_is_the_worst_label_and_never_supported_without_points"]
 
 [[sites]]
 id = "estimate.response.bayesian_response_support"
@@ -2419,9 +2398,9 @@ item = "fn:bayesian_response_support#0"
 facets = ["support"]
 action = "transform"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/response/bayes.rs::site_bayesian_support_is_weakened_never_raised"]
+note = "Fixed: for several treatments or a stochastic policy the summary and every point label were overwritten with extrapolative, which raised a coordinate outside the observed range (and the summary) to extrapolative. A label is now weakened to at least extrapolative and never raised."
 
 [[sites]]
 id = "estimate.frontdoor_derivative.front_door_response"
@@ -2430,10 +2409,9 @@ item = "impl:ContinuousResponseEstimator#0/fn:front_door_response#0"
 facets = ["support"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Route producer of per-point support labels. A static grid's summary is held to the worst label by check_static_point_labels (contract.support_labels, checked) where the route publishes through it; no generated check covers this route's own labelling."
-concern = "Non-point functionals are labelled supported over the observed range."
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/response/frontdoor_derivative.rs::site_front_door_support_labels_only_what_the_observed_range_covers"]
+note = "Justified and made explicit: the estimator serves only a point derivative and an observed-law average derivative; the average is evaluated at observed treatment values only, so it is supported over the observed range by construction. front_door_support now names that functional, and any other one is missing evidence, never supported by default."
 
 [[sites]]
 id = "facade.transported_measurement.claim_standing"
@@ -2472,9 +2450,8 @@ item = "impl:TypedTransportedComposition#0/fn:claim_standing#0"
 facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "States the standing of a typed transported composition the same way as TransportedMechanismComposition::claim_standing; no test reads this one."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/typed_transported_mechanism.rs::site_a_typed_transport_states_no_trust_no_record_and_its_own_label"]
 
 [[sites]]
 id = "facade.selective_discovery.add_discovery_claims"
@@ -2483,9 +2460,8 @@ item = "fn:add_discovery_claims#0"
 facets = ["support", "trust", "calibration"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Discovery nodes enter a composition graph as native points with no interval guarantee; no test reads their standing."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/selective_discovery_facade.rs::an_exhausted_search_bound_withdraws_every_downstream_claim", "unit:crates/antecedent/tests/selective_discovery_facade.rs::unchanged_discovery_leaves_every_downstream_claim_valid"]
 
 [[sites]]
 id = "facade.decision_claims.scenario_claims"
@@ -2564,9 +2540,8 @@ item = "fn:preview_transform_report#0"
 facets = ["obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Preview of a transformation report for one prepared family: it names obligations and layer effects but executes nothing, and composing it keeps unresolved obligations (contract.transform.TransformationReport.compose, checked). No test isolates this family's preview."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply"]
 
 [[sites]]
 id = "facade.statistical.retarget.preview_transform"
@@ -2575,9 +2550,8 @@ item = "impl:PreparedStudy<StatisticalPreparedState>#0/fn:preview_transform#0"
 facets = ["obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Preview of a transformation report for one prepared family: it names obligations and layer effects but executes nothing, and composing it keeps unresolved obligations (contract.transform.TransformationReport.compose, checked). No test isolates this family's preview."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply", "unit:crates/antecedent/src/analysis/statistical.rs::site_statistical_reasoning_claims_no_more_than_the_route_establishes"]
 
 [[sites]]
 id = "facade.learned_trial.preview_transform"
@@ -2586,9 +2560,9 @@ item = "impl:PreparedStudy<LearnedTrialState>#0/fn:preview_transform#0"
 facets = ["obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Preview of a transformation report for one prepared family: it names obligations and layer effects but executes nothing, and composing it keeps unresolved obligations (contract.transform.TransformationReport.compose, checked). No test isolates this family's preview."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply"]
+note = "Builds its report through exact::handle_preview, the one checked preview rule."
 
 [[sites]]
 id = "facade.transport_grid.preview_transform"
@@ -2597,9 +2571,9 @@ item = "impl:PreparedStudy<TransportGridState>#1/fn:preview_transform#0"
 facets = ["obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Preview of a transformation report for one prepared family: it names obligations and layer effects but executes nothing, and composing it keeps unresolved obligations (contract.transform.TransformationReport.compose, checked). No test isolates this family's preview."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply"]
+note = "Builds its report through exact::handle_preview, the one checked preview rule."
 
 [[sites]]
 id = "facade.exact.reasoning"
@@ -2608,9 +2582,8 @@ item = "impl:PreparedStudy<ExactPreparedState>#0/fn:reasoning#0"
 facets = ["identification", "support", "obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Reasoning slots of the exact family; the claim's identification and support domains are re-derived from these slots by the consumer rule (io_core.consume.claim_domain_statuses), and no test isolates this family's slots."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_exact_reasoning_claims_no_more_than_the_route_establishes"]
 
 [[sites]]
 id = "facade.statistical.reasoning"
@@ -2619,9 +2592,8 @@ item = "impl:PreparedStudy<StatisticalPreparedState>#0/fn:reasoning#0"
 facets = ["identification", "support", "obligations"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Reasoning slots of the statistical family; re-derived by the consumer rule as for the exact family, and no test isolates them."
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/statistical.rs::site_statistical_reasoning_claims_no_more_than_the_route_establishes"]
 
 [[sites]]
 id = "facade.fallback.failure_capability_parts"
@@ -2721,8 +2693,8 @@ facets = ["support", "trust"]
 action = "set"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_composition_with_carried_mechanisms_is_not_native_target_data", "unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_carried_composition_with_a_wrong_or_inflated_receipt_is_refused"]
-concern = "Support defaults to supported when the composition carries no transport."
+checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_cohort_contrast_is_a_point_source_with_its_own_law_refusal", "unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_composition_with_carried_mechanisms_is_not_native_target_data", "unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_carried_composition_with_a_wrong_or_inflated_receipt_is_refused"]
+note = "Fixed and versioned: a composition of native mechanisms was labelled supported although the composition assesses no support at the queried actions. Its origin is now version 2 (FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION) with support missing_evidence; version-1 origins still validate and keep their identity (the version is part of it), and version 2 refuses a native composition that says supported."
 
 [[sites]]
 id = "design.decision_transported_source.TransportReceipt.validate"
@@ -2742,8 +2714,8 @@ facets = ["identification", "obligations"]
 action = "carry"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/src/identification_repair/tests.rs::a_confounded_graph_owes_the_back_door_set_with_its_proof_step", "unit:crates/antecedent-design/src/identification_repair/tests.rs::a_base_law_that_already_identifies_refuses"]
-concern = "Returns no obligation for a query other than an average effect that is not identified."
+checks = ["unit:crates/antecedent-design/src/identification_repair/tests.rs::a_confounded_graph_owes_the_back_door_set_with_its_proof_step", "unit:crates/antecedent-design/src/identification_repair/tests.rs::a_base_law_that_already_identifies_refuses", "unit:crates/antecedent-design/src/identification_repair/tests.rs::an_unidentified_query_other_than_an_average_effect_is_refused_not_owed_nothing"]
+note = "Fixed: an unidentified query other than an average effect returned no obligation, which read as owing no evidence; it is refused (identification_repair.invalid_request) because the repair routes are defined for an average effect only. failure_routes refuses the same way."
 
 [[sites]]
 id = "design.preference_choice_model.interval_calibration"
@@ -2752,9 +2724,8 @@ item = "fn:interval_calibration#0"
 facets = ["calibration"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Maps a calibration slot to the law's calibration (measured only for a calibrated slot); no test isolates the mapping."
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/preference_choice_model.rs::site_interval_calibration_is_measured_only_for_a_calibrated_slot"]
 
 [[sites]]
 id = "state.CausalState.invalidate_all_results"
@@ -2793,10 +2764,9 @@ item = "fn:workflow#0"
 facets = ["revalidation"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Builds the synthetic workflow a staleness assessment plans over; no test isolates which stages it declares."
-concern = "Omits the calibration, representation, provider and coupling stages that dependency_class maps, no assessment emits such a key today, but one that did would invalidate nothing."
+status = "checked"
+checks = ["unit:crates/antecedent-validate/src/staleness/report.rs::site_every_classified_key_invalidates_what_rests_on_it"]
+note = "Fixed: a changed key the workflow did not declare (a calibration record, representation, provider request, coupling) invalidated nothing. Every changed key is now declared in the workflow; no released assessment emits such a key, so released reports are unchanged."
 
 [[sites]]
 id = "identify.result.IdentificationResult.identified"
@@ -2815,9 +2785,8 @@ item = "fn:identify_tiered_unknown#0"
 facets = ["identification"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Overrides a tiered result of unknown tier order to graph-dependent (never stronger); no test isolates the override."
+status = "checked"
+checks = ["unit:crates/antecedent-identify/src/tiered.rs::site_unknown_tiers_are_graph_dependent_never_identified"]
 
 [[sites]]
 id = "core.graph_imputation_contract.status_from_tag"
@@ -2846,9 +2815,8 @@ item = "fn:compile_bridge_transport_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.bridge_transport_decision.compile_assessed_bridge_transport_decision"
@@ -2857,9 +2825,8 @@ item = "fn:compile_assessed_bridge_transport_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.bridge_transport_decision.compile_assessed_bridge_robust_decision"
@@ -2868,9 +2835,8 @@ item = "fn:compile_assessed_bridge_robust_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.bridge_transport_decision.compile_assessed_bridge_posterior_decision"
@@ -2879,9 +2845,8 @@ item = "fn:compile_assessed_bridge_posterior_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.bridge_transport_premise_assessment.compile_bridge_transport_premise_assessment"
@@ -2890,9 +2855,8 @@ item = "fn:compile_bridge_transport_premise_assessment#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_discovered_transport.lower"
@@ -2901,9 +2865,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_dose_grid_bias_aware.lower"
@@ -2912,9 +2875,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_joint_cells_learners.lower"
@@ -2923,9 +2885,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_measured_interval.lower"
@@ -2934,9 +2895,8 @@ item = "impl:MeasuredIntervalProgram#0/fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_per_population_discovery.lower"
@@ -2945,9 +2905,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.compiled_point_program.lower"
@@ -2956,9 +2915,8 @@ item = "impl:PointProgram#0/fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.composition.compile_bridge_bundle_recomputation"
@@ -2967,9 +2925,8 @@ item = "fn:compile_bridge_bundle_recomputation#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.composition_decision_terminal.compile_decision_bundle"
@@ -2978,9 +2935,8 @@ item = "fn:compile_decision_bundle#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.composition_sequential_bundle.compile_sequential_reliability_node_bundle"
@@ -2989,9 +2945,8 @@ item = "fn:compile_sequential_reliability_node_bundle#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.cyclic_action_world_decision.compile_cyclic_action_world_decision"
@@ -3000,9 +2955,8 @@ item = "fn:compile_cyclic_action_world_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.cyclic_posterior_action_decision.compile_cyclic_posterior_action_decision_checked"
@@ -3011,9 +2965,8 @@ item = "fn:compile_cyclic_posterior_action_decision_checked#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.cyclic_target_feedback_decision.compile_cyclic_target_feedback_decision"
@@ -3022,9 +2975,8 @@ item = "fn:compile_cyclic_target_feedback_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.descriptive_programs.lower"
@@ -3033,9 +2985,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.execute.compile_planning.lower_planning"
@@ -3044,9 +2995,8 @@ item = "fn:lower_planning#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.fitted_dependent_measurement.compile_fitted_dependent_measurement"
@@ -3055,9 +3005,8 @@ item = "impl:PreparedMechanismComposition#0/fn:compile_fitted_dependent_measurem
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.graph_imputation_effect_decision.lower_outer"
@@ -3066,9 +3015,8 @@ item = "fn:lower_outer#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.graph_imputation_effect_decision.lower_paired_outer"
@@ -3077,9 +3025,8 @@ item = "fn:lower_paired_outer#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.graph_imputation_kernel_transport_decision.lower_outer"
@@ -3088,9 +3035,8 @@ item = "fn:lower_outer#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.graph_imputation_mar_transport_decision.compile_graph_imputation_mar_transport_with_cluster"
@@ -3099,9 +3045,8 @@ item = "fn:compile_graph_imputation_mar_transport_with_cluster#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.graph_imputation_transport_decision.lower_outer"
@@ -3110,9 +3055,8 @@ item = "fn:lower_outer#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.joint_transport_effect_decision.compile_joint_transport_effect_decision"
@@ -3121,9 +3065,8 @@ item = "fn:compile_joint_transport_effect_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.joint_transport_predictive_decision.compile_joint_transport_predictive_decision"
@@ -3132,9 +3075,8 @@ item = "fn:compile_joint_transport_predictive_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.kernel_programs.mod.lower"
@@ -3143,9 +3085,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.associational.lower_selected"
@@ -3154,9 +3095,8 @@ item = "fn:lower_selected#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.categorical_posterior_candidate.lower"
@@ -3165,9 +3105,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.chain.lower_chain_with_decision"
@@ -3176,9 +3115,8 @@ item = "fn:lower_chain_with_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.cyclic.lower_cyclic_family_payloads"
@@ -3187,9 +3125,8 @@ item = "fn:lower_cyclic_family_payloads#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.design_based.lower"
@@ -3198,9 +3135,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.discovery.lower_search"
@@ -3209,9 +3145,8 @@ item = "fn:lower_search#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.discovery_validation.lower"
@@ -3220,9 +3155,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.events.lower"
@@ -3231,9 +3165,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.graph_falsification.lower"
@@ -3242,9 +3175,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.graph_imputation.lower"
@@ -3253,9 +3185,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.graph_posterior.lower"
@@ -3264,9 +3195,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.joint_panel.design.lower"
@@ -3275,9 +3205,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.joint_panel.experiment.claim"
@@ -3286,9 +3215,8 @@ item = "impl:ExperimentOperation#0/fn:claim#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.joint_panel.imputation.lower"
@@ -3297,9 +3225,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.joint_panel.response.lower"
@@ -3308,9 +3235,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.joint_panel.search.lower"
@@ -3319,9 +3245,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.latent_soft_intervention.lower"
@@ -3330,9 +3255,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.local_cyclic_callback.lower"
@@ -3341,9 +3265,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.mnar_fixed_shift.lower"
@@ -3352,9 +3275,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.model_operation.lower"
@@ -3363,9 +3285,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.static_effect.lower"
@@ -3374,9 +3295,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.static_response.lower"
@@ -3385,9 +3305,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.structural.lower_mediation"
@@ -3396,9 +3315,8 @@ item = "fn:lower_mediation#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.structural.lower_structural"
@@ -3407,9 +3325,8 @@ item = "fn:lower_structural#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.temporal.assemble"
@@ -3418,9 +3335,8 @@ item = "fn:assemble#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form", "unit:crates/antecedent/tests/family_contract_conformance.rs::a_saved_result_is_re_derived_by_an_independent_consumer"]
 
 [[sites]]
 id = "facade.demand.analysis.lowering.transported_path_specific.lower"
@@ -3429,9 +3345,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.observation_query.compile_joint_measured_observation"
@@ -3440,9 +3355,8 @@ item = "impl:PreparedMechanismComposition#0/fn:compile_joint_measured_observatio
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.observation_query.compile_dependent_measured_observation"
@@ -3451,9 +3365,8 @@ item = "impl:PreparedMechanismComposition#0/fn:compile_dependent_measured_observ
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.observational_policy.compile_observational_policy"
@@ -3462,9 +3375,8 @@ item = "fn:compile_observational_policy#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.observational_policy.compile_policy_subsampling"
@@ -3473,9 +3385,8 @@ item = "fn:compile_policy_subsampling#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_sampling_assumption_union"
@@ -3484,9 +3395,8 @@ item = "fn:compile_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_iid_sampling_assumption_union"
@@ -3495,9 +3405,8 @@ item = "fn:compile_iid_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_cluster_sampling_assumption_union"
@@ -3506,9 +3415,8 @@ item = "fn:compile_cluster_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_stratified_cluster_sampling_assumption_union"
@@ -3517,9 +3425,8 @@ item = "fn:compile_stratified_cluster_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_moving_block_sampling_assumption_union"
@@ -3528,9 +3435,8 @@ item = "fn:compile_moving_block_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_stratified_moving_block_sampling_assumption_union"
@@ -3539,9 +3445,8 @@ item = "fn:compile_stratified_moving_block_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sampling_assumption_union.compile_panel_block_sampling_assumption_union"
@@ -3550,9 +3455,8 @@ item = "fn:compile_panel_block_sampling_assumption_union#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.sequential_policy_reliability.compile_sequential_policy_reliability"
@@ -3561,9 +3465,8 @@ item = "fn:compile_sequential_policy_reliability#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.temporal_linear_prediction.lower"
@@ -3572,9 +3475,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.temporal_path_transport.lower"
@@ -3583,9 +3485,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.temporal_path_transport.lower_sampled"
@@ -3594,9 +3495,8 @@ item = "fn:lower_sampled#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.temporal_path_transport.compile_continuous_chain_transport"
@@ -3605,9 +3505,8 @@ item = "fn:compile_continuous_chain_transport#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.transport_identification.lower"
@@ -3616,9 +3515,8 @@ item = "fn:lower#0"
 facets = ["kind"]
 action = "set"
 released = false
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.trial_ipw_predictive_decision.compile_trial_ipw_predictive_decision"
@@ -3627,9 +3525,8 @@ item = "fn:compile_trial_ipw_predictive_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
 id = "facade.demand.analysis.trial_ipw_transport_decision.compile_trial_ipw_transport_decision"
@@ -3638,17 +3535,474 @@ item = "fn:compile_trial_ipw_transport_decision#0"
 facets = ["kind"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim", "unit:crates/antecedent/tests/standing_demand.rs::the_demand_scan_reads_every_construction_form"]
 
 [[sites]]
-id = "facade.demand.planner.plan_view.claim"
-file = "crates/antecedent/src/planner/plan_view.rs"
-item = "impl:PlanView#0/fn:claim#0"
-facets = ["kind"]
+id = "core.recalc.RecalcPlan.plan_with_rule"
+file = "crates/antecedent-core/src/recalc.rs"
+item = "impl:RecalcPlan#0/fn:plan_with_rule#0"
+facets = ["revalidation"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["adversarial:standing.recalc.removal_first_never_raises_over_first_change", "adversarial:standing.recalc.a_receipt_replays_under_the_rule_it_records", "unit:crates/antecedent-core/tests/recalc_plan.rs::the_first_change_rule_replays_recorded_plans_and_agrees_without_a_removal"]
+note = "Plans under an explicit PlannerRule, so a recorded receipt replays under the rule it was sealed with."
+
+[[sites]]
+id = "io_core.recalc_receipt.planner_rule_of_version"
+file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
+item = "fn:planner_rule_of_version#0"
+facets = ["revalidation"]
+action = "restore"
+released = false
+status = "checked"
+checks = ["adversarial:standing.recalc.a_receipt_replays_under_the_rule_it_records", "unit:crates/antecedent-io/tests/recalc_receipt_artifact.rs::artifact_planner_rule_is_named_by_the_version_and_legacy_receipts_still_replay"]
+note = "Version 1 replays under the first-change rule (every receipt sealed before the removal-first rule), version 2 under the removal-first rule."
+
+[[sites]]
+id = "io_core.recalc_receipt.check"
+file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
+item = "fn:check#0"
+facets = ["revalidation"]
+action = "restore"
+released = true
+status = "checked"
+checks = ["adversarial:standing.recalc.a_receipt_replays_under_the_rule_it_records", "unit:crates/antecedent-io/tests/recalc_receipt_artifact.rs::artifact_planner_rule_is_named_by_the_version_and_legacy_receipts_still_replay", "unit:crates/antecedent-io/tests/recalc_receipt_artifact.rs::artifact_resealed_mutation_is_refused"]
+
+[[sites]]
+id = "io_core.recalc_receipt.RecalcReceiptArtifact.seal"
+file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
+item = "impl:RecalcReceiptArtifact#0/fn:seal#0"
+facets = ["revalidation"]
 action = "set"
 released = true
-status = "listed"
-checks = []
-reason = "Declares the claim kind the compiled program demands (plan view and program identity only). The published claim's kind is never read from it: claim_with_body re-derives the kind from the result body at seal (site io_core.consume.claim_kind_of_section), so a wrong demand cannot raise a published claim. No generated check compares each route's demand with the kind its claims carry."
+status = "checked"
+checks = ["adversarial:standing.recalc.a_receipt_replays_under_the_rule_it_records", "unit:crates/antecedent-io/tests/recalc_receipt_artifact.rs::artifact_planner_rule_is_named_by_the_version_and_legacy_receipts_still_replay"]
+note = "Seals version 1, byte for byte as before, whenever both planner rules give the table, and version 2 only when the removal-first rule changes it."
+
+[[sites]]
+id = "state.CausalState.refresh_results_at"
+file = "crates/antecedent-state/src/state.rs"
+item = "impl:CausalState#0/fn:refresh_results_at#0"
+facets = ["revalidation"]
+action = "restore"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent-state/src/state.rs::a_bare_refresh_cannot_clear_a_removed_input", "unit:crates/antecedent-state/src/state.rs::a_bare_refresh_cannot_republish_a_lineage_bound_result"]
+
+[[sites]]
+id = "contract.bridge.bridged_domains"
+file = "crates/antecedent-contract/src/bridge/claim.rs"
+item = "fn:bridged_domains#0"
+facets = ["domains"]
+action = "set"
+released = false
+status = "checked"
+checks = ["adversarial:standing.bridged_claim_never_asserts_more_than_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::surrogate_bridge_matches_the_hand_computed_trial_level_regression"]
+
+[[sites]]
+id = "contract.bridge.source_obligations"
+file = "crates/antecedent-contract/src/bridge/claim.rs"
+item = "fn:source_obligations#0"
+facets = ["obligations"]
+action = "carry"
+released = false
+status = "checked"
+checks = ["adversarial:standing.bridged_claim_never_asserts_more_than_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_keeps_every_unresolved_obligation_of_its_source"]
+
+[[sites]]
+id = "contract.bridge.with_source_assumptions"
+file = "crates/antecedent-contract/src/bridge/claim.rs"
+item = "fn:with_source_assumptions#0"
+facets = ["obligations"]
+action = "carry"
+released = false
+status = "checked"
+checks = ["adversarial:standing.bridged_claim_never_asserts_more_than_its_source", "unit:crates/antecedent-contract/tests/scientific_bridge.rs::a_bridged_claim_keeps_every_unresolved_obligation_of_its_source"]
+
+[[sites]]
+id = "io_core.bridge_artifact.source_summary_replays"
+file = "crates/antecedent-io-core/src/bridge_artifact.rs"
+item = "fn:source_summary_replays#0"
+facets = ["domains"]
+action = "restore"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/bridge_artifact_tests.rs::a_draws_source_recorded_as_evaluated_under_the_earlier_rule_still_replays"]
+note = "Versioned replay: a bridge-of-draws artifact sealed before the source table stated no evaluated domain records it as evaluated and still replays; no other stored status does."
+
+[[sites]]
+id = "contract.ledger.EvidenceLedger.effective_class"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+item = "impl:EvidenceLedger#0/fn:effective_class#0"
+facets = ["revalidation"]
+action = "transform"
+released = false
+status = "checked"
+checks = ["adversarial:standing.ledger_replace_never_leaves_a_dependent_valid", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk"]
+
+[[sites]]
+id = "contract.ledger.EvidenceLedger.effective_status"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+item = "impl:EvidenceLedger#0/fn:effective_status#0"
+facets = ["revalidation"]
+action = "transform"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk"]
+
+[[sites]]
+id = "contract.ledger.EvidenceLedger.standing"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+item = "impl:EvidenceLedger#0/fn:standing#0"
+facets = ["revalidation"]
+action = "carry"
+released = true
+status = "checked"
+checks = ["adversarial:standing.ledger_replace_never_leaves_a_dependent_valid", "unit:crates/antecedent-contract/tests/evidence_ledger.rs::a_reuse_of_a_stale_result_is_refused"]
+
+[[sites]]
+id = "contract.evidence_obligation.unrepresentable_assumption_obligation"
+file = "crates/antecedent-contract/src/evidence_obligation.rs"
+item = "fn:unrepresentable_assumption_obligation#0"
+facets = ["obligations"]
+action = "carry"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-contract/src/evidence_obligation.rs::unresolved_record_with_a_separator_is_refused_not_dropped"]
+
+[[sites]]
+id = "io_core.consume.slot_claim_kind"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+item = "fn:slot_claim_kind#0"
+facets = ["kind", "identification"]
+action = "set"
+released = false
+status = "checked"
+checks = ["adversarial:standing.one_point_identified_rule_decides_kind_and_domain", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::site_slot_claim_kind_is_a_point_only_for_a_full_unweighted_identifying_slot"]
+note = "The one kind rule over an identification slot: claim_kind and the static-effect claim demand both read it."
+
+[[sites]]
+id = "io_core.consume.status_identifies_a_point"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+item = "fn:status_identifies_a_point#0"
+facets = ["identification", "domains"]
+action = "check"
+released = false
+status = "checked"
+checks = ["adversarial:standing.one_point_identified_rule_decides_kind_and_domain", "unit:crates/antecedent-io-core/src/contract_section/tests.rs::site_one_point_identified_rule_reads_every_status"]
+note = "The one 'point identified' rule: the consumer's domain rule, checked composition, compiled preference structures, preference-decision structure claims and structure members read it."
+
+[[sites]]
+id = "design.composition_boundary.unstated_support"
+file = "crates/antecedent-design/src/composition_boundary.rs"
+item = "fn:unstated_support#0"
+facets = ["support"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_an_unstated_mask_is_supported_only_for_a_native_law", "adversarial:standing.design.missing_mask_is_never_supported"]
+
+[[sites]]
+id = "design.composition_boundary.DecisionInput.from_distribution_artifact_with_unstated_support"
+file = "crates/antecedent-design/src/composition_boundary.rs"
+item = "impl:DecisionInput#0/fn:from_distribution_artifact_with_unstated_support#0"
+facets = ["support", "trust", "calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/composition_boundary.rs::boundary_an_unstated_mask_is_supported_only_for_a_native_law", "unit:crates/antecedent-design/tests/decision_transported_source.rs::a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them"]
+
+[[sites]]
+id = "design.failure_routes.failure_routes"
+file = "crates/antecedent-design/src/failure_routes.rs"
+item = "fn:failure_routes#0"
+facets = ["identification", "obligations"]
+action = "carry"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/failure_routes.rs::the_routes_cover_exactly_the_obligations_of_the_adapter", "unit:crates/antecedent-design/src/identification_repair/tests.rs::an_unidentified_query_other_than_an_average_effect_is_refused_not_owed_nothing"]
+
+[[sites]]
+id = "design.obligation_adapters.not_an_average_effect"
+file = "crates/antecedent-design/src/obligation_adapters.rs"
+item = "fn:not_an_average_effect#0"
+facets = ["obligations"]
+action = "check"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/src/identification_repair/tests.rs::an_unidentified_query_other_than_an_average_effect_is_refused_not_owed_nothing"]
+
+[[sites]]
+id = "design.inverse_forward_source.ForwardOrigin.validate"
+file = "crates/antecedent-design/src/inverse_forward_source.rs"
+item = "impl:ForwardOrigin#0/fn:validate#0"
+facets = ["support"]
+action = "check"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/inverse_forward_source.rs::a_cohort_contrast_is_a_point_source_with_its_own_law_refusal"]
+
+[[sites]]
+id = "identify.auto.listing_status"
+file = "crates/antecedent-identify/src/auto.rs"
+item = "fn:listing_status#0"
+facets = ["identification"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-identify/src/auto.rs::site_the_listing_status_is_an_admitted_strategy_status"]
+
+[[sites]]
+id = "estimate.envelope.aggregate_effect_envelope_with_atom_status"
+file = "crates/antecedent-estimate/src/envelope.rs"
+item = "fn:aggregate_effect_envelope_with_atom_status#0"
+facets = ["identification"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/envelope.rs::site_envelope_status_is_never_stronger_than_its_atoms"]
+
+[[sites]]
+id = "estimate.envelope.envelope_status"
+file = "crates/antecedent-estimate/src/envelope.rs"
+item = "fn:envelope_status#0"
+facets = ["identification"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/envelope.rs::site_envelope_status_is_never_stronger_than_its_atoms"]
+
+[[sites]]
+id = "estimate.frontdoor_derivative.front_door_support"
+file = "crates/antecedent-estimate/src/response/frontdoor_derivative.rs"
+item = "fn:front_door_support#0"
+facets = ["support"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/response/frontdoor_derivative.rs::site_front_door_support_labels_only_what_the_observed_range_covers"]
+
+[[sites]]
+id = "estimate.response.weaken_to_extrapolative"
+file = "crates/antecedent-estimate/src/response/bayes.rs"
+item = "fn:weaken_to_extrapolative#0"
+facets = ["support"]
+action = "transform"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-estimate/src/response/bayes.rs::site_bayesian_support_is_weakened_never_raised"]
+
+[[sites]]
+id = "facade.multi_level_treatment.published_interval"
+file = "crates/antecedent/src/analysis/multi_level_treatment.rs"
+item = "fn:published_interval#0"
+facets = ["calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_an_estimate_without_an_interval_is_never_calibrated", "unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_a_published_interval_carries_its_slot_and_nothing_more"]
+
+[[sites]]
+id = "facade.multi_level_treatment.multi_level_interval_basis"
+file = "crates/antecedent/src/analysis/multi_level_treatment.rs"
+item = "fn:multi_level_interval_basis#0"
+facets = ["calibration"]
+action = "set"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/multi_level_treatment.rs::site_the_interval_basis_names_the_route_and_rederives"]
+
+[[sites]]
+id = "facade.learned_continuous.bootstrap_interval_slot"
+file = "crates/antecedent/src/analysis/learned_continuous.rs"
+item = "fn:bootstrap_interval_slot#0"
+facets = ["calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/learned_continuous.rs::site_bootstrap_slot_is_keyed_by_the_route_and_set_only_by_records"]
+
+[[sites]]
+id = "facade.smoothed_dose.smoothed_dose_interval_slot"
+file = "crates/antecedent/src/analysis/smoothed_dose.rs"
+item = "fn:smoothed_dose_interval_slot#0"
+facets = ["calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/smoothed_dose.rs::site_smoothed_dose_slot_is_keyed_by_the_route_and_set_only_by_records"]
+
+[[sites]]
+id = "facade.mz_transport.mz_interval_basis"
+file = "crates/antecedent/src/analysis/mz_transport.rs"
+item = "fn:mz_interval_basis#0"
+facets = ["calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/mz_transport.rs::site_mz_slot_is_keyed_by_the_route_and_set_only_by_records"]
+
+[[sites]]
+id = "facade.cross_world_interval.whole_path_interval_basis"
+file = "crates/antecedent/src/analysis/cross_world_interval.rs"
+item = "fn:whole_path_interval_basis#0"
+facets = ["calibration"]
+action = "set"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/cross_world_interval.rs::site_whole_path_slot_is_keyed_by_the_route_and_set_only_by_records", "unit:crates/antecedent/src/analysis/cross_world_interval.rs::site_an_unmeasured_model_class_never_borrows_a_record"]
+
+[[sites]]
+id = "facade.mechanism_composition.FirstOrderInterval.wald"
+file = "crates/antecedent/src/analysis/mechanism_composition.rs"
+item = "impl:FirstOrderInterval#0/fn:wald#0"
+facets = ["calibration"]
+action = "set"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/mechanism_composition.rs::site_the_first_order_interval_is_never_calibrated"]
+
+[[sites]]
+id = "facade.curve_refutation.support_report_of"
+file = "crates/antecedent/src/analysis/execute/curve_refutation.rs"
+item = "fn:support_report_of#0"
+facets = ["support"]
+action = "check"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/curve_refutation.rs::site_the_support_refutation_passes_only_a_supported_grid"]
+
+[[sites]]
+id = "facade.temporal_class_point.mixed_support_status"
+file = "crates/antecedent/src/analysis/execute/temporal_class_point.rs"
+item = "fn:mixed_support_status#0"
+facets = ["support"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/temporal_class_point.rs::site_a_derivative_mixture_is_no_better_supported_than_its_worst_completion"]
+
+[[sites]]
+id = "facade.response_path.cell_arm_support"
+file = "crates/antecedent/src/analysis/execute/response_path.rs"
+item = "fn:cell_arm_support#0"
+facets = ["support"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/response_path.rs::site_a_joint_arm_labels_exactly_its_own_coordinates"]
+
+[[sites]]
+id = "facade.exact.handle_preview"
+file = "crates/antecedent/src/analysis/exact.rs"
+item = "fn:handle_preview#0"
+facets = ["obligations", "revalidation"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/exact.rs::site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply"]
+
+[[sites]]
+id = "facade.typed_transported_mechanism.typed_transport_standing"
+file = "crates/antecedent/src/analysis/typed_transported_mechanism.rs"
+item = "fn:typed_transport_standing#0"
+facets = ["support", "trust", "calibration"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/typed_transported_mechanism.rs::site_a_typed_transport_states_no_trust_no_record_and_its_own_label"]
+
+[[sites]]
+id = "facade.preference_learning.compile_choice_model"
+file = "crates/antecedent/src/analysis/preference_learning_programs.rs"
+item = "fn:compile_model#0"
+facets = ["kind"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_states_the_kind_its_route_publishes", "unit:crates/antecedent/tests/standing_demand.rs::a_terminal_program_demands_the_kind_its_functional_publishes", "unit:crates/antecedent/tests/standing_demand.rs::an_associational_program_never_demands_a_causal_claim"]
+note = "Fixed: the choice model's program demanded a point claim although its functional is an association (a regression of recorded choices on option attributes) and its family is associational; it now demands an associational claim. Unreleased route: only its program identity changes, no versioning owed."
+
+[[sites]]
+id = "facade.compiled_linear.identification_claim"
+file = "crates/antecedent/src/analysis/compiled_linear.rs"
+item = "fn:identification_claim#0"
+facets = ["identification"]
+action = "set"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/compiled_linear.rs::site_only_graph_identification_is_an_identified_linear_claim"]
+note = "Fixed: a parametric or prior-restricted linear result was retained as an identified claim, which CompiledIdentificationProduct::retain now refuses; it is model-conditional, as in the design-based lowering. The retained linear operation is reached only through a back-door estimand the identifier lists as nonparametric, so no released program identity changes."
+
+[[sites]]
+id = "facade.execute.identified_atom_status"
+file = "crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs"
+item = "fn:identified_atom_status#0"
+facets = ["identification"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs::site_an_envelope_never_states_more_than_its_identified_atoms"]
+
+[[sites]]
+id = "facade.execute.cap_envelope_status"
+file = "crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs"
+item = "fn:cap_envelope_status#0"
+facets = ["identification"]
+action = "transform"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs::site_an_envelope_never_states_more_than_its_identified_atoms"]
+note = "Every Bayesian envelope over graph or class atoms (static class, graph posterior, DBN effect and mediation, temporal and panel class, transport graph posterior) now states no stronger identification than its identified atoms. Changes a published posterior label only when every identified atom was restricted or partial and no unidentified mass was retained (formerly nonparametric). The label is recorded in the posterior artifact and read, never re-derived, by the consumer, so stored claims verify as stored; a re-run of such a study seals a new claim id."
+
+[[sites]]
+id = "facade.execute.identified_case_status"
+file = "crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs"
+item = "fn:identified_case_status#0"
+facets = ["identification"]
+action = "compose"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs::site_an_envelope_never_states_more_than_its_identified_atoms"]
+
+[[sites]]
+id = "facade.composition_verification.support_label_premise"
+file = "crates/antecedent/src/analysis/composition_verification.rs"
+item = "fn:support_label_premise#0"
+facets = ["support"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_support_transport.rs::a_weaker_label_is_supported_only_under_its_stated_premise", "unit:crates/antecedent/tests/standing_support_transport.rs::a_library_transported_node_states_its_support_premise_once"]
+
+[[sites]]
+id = "facade.composition_verification.with_support_premise"
+file = "crates/antecedent/src/analysis/composition_verification.rs"
+item = "fn:with_support_premise#0"
+facets = ["support"]
+action = "carry"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/standing_support_transport.rs::a_weaker_label_is_supported_only_under_its_stated_premise", "unit:crates/antecedent/tests/standing_support_transport.rs::a_library_transported_node_states_its_support_premise_once"]
+
+[[sites]]
+id = "facade.compile_preference.design.refit_support"
+file = "crates/antecedent/src/analysis/execute/compile_preference/design.rs"
+item = "fn:refit_support#0"
+facets = ["support"]
+action = "set"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference/design.rs::site_a_refitted_design_law_states_support_from_its_refits"]
+
+[[sites]]
+id = "facade.transport_revalidation.transported_claim_node"
+file = "crates/antecedent/src/analysis/transport_revalidation.rs"
+item = "fn:transported_claim_node#0"
+facets = ["support", "trust", "calibration"]
+action = "set"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/tests/transport_standing_facade.rs::a_response_node_states_its_support_trust_and_calibration"]

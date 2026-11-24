@@ -19,6 +19,14 @@
 directory = "formal/adversarial"
 command = ["cargo", "test", "--no-fail-fast"]
 
+# Facade (antecedent crate) tests: its lib unit tests and the standing integration tests, one
+# case per invocation, filtered by test name.
+[runners.facade]
+directory = "."
+command = ["cargo", "test", "-p", "antecedent", "--lib", "--test", "standing_demand", "--test", "standing_support_transport", "--no-fail-fast"]
+case_args = ["--", "{test}"]
+timeout = 3600
+
 [runners.python]
 directory = "python"
 command = ["uv", "run", "--project", ".", "--python", "3.12.13", "python", "-m", "pytest", "-rA", "-p", "no:cacheprovider", "tests/test_adversarial_ledger_identity.py"]
@@ -756,6 +764,138 @@ kind = "changing"
 runner = "rust"
 test = "handoff_chain_of_any_length_never_restores_a_loss"
 
+[[cases]]
+id = "standing.recalc.removal_first_never_raises_over_first_change"
+kind = "changing"
+runner = "rust"
+test = "removal_first_never_raises_over_first_change"
+
+[[cases]]
+id = "standing.recalc.a_receipt_replays_under_the_rule_it_records"
+kind = "preserving"
+runner = "rust"
+test = "a_receipt_replays_under_the_rule_it_records"
+
+[[cases]]
+id = "standing.bridged_claim_never_asserts_more_than_its_source"
+kind = "invalid"
+runner = "rust"
+test = "bridged_claim_never_asserts_more_than_its_source"
+
+[[cases]]
+id = "standing.graph_support_and_undeclared_trust_only_lower"
+kind = "changing"
+runner = "rust"
+test = "graph_support_and_undeclared_trust_only_lower"
+
+[[cases]]
+id = "standing.ledger_replace_never_leaves_a_dependent_valid"
+kind = "changing"
+runner = "rust"
+test = "ledger_replace_never_leaves_a_dependent_valid"
+
+[[cases]]
+id = "standing.claim_kind_is_never_a_point_without_a_slot"
+kind = "invalid"
+runner = "rust"
+test = "claim_kind_is_never_a_point_without_a_slot"
+
+[[cases]]
+id = "standing.one_point_identified_rule_decides_kind_and_domain"
+kind = "changing"
+runner = "rust"
+test = "one_point_identified_rule_decides_kind_and_domain"
+
+[[cases]]
+id = "standing.design.support_floor_never_strengthens"
+kind = "changing"
+runner = "rust"
+test = "support_floor_never_strengthens"
+
+[[cases]]
+id = "standing.design.missing_mask_is_never_supported"
+kind = "invalid"
+runner = "rust"
+test = "missing_mask_is_never_supported"
+
+[[cases]]
+id = "standing.design.unsupported_input_always_owes_an_obligation"
+kind = "invalid"
+runner = "rust"
+test = "unsupported_input_always_owes_an_obligation"
+
+[[cases]]
+id = "standing.facade.multi_level_no_interval_never_calibrated"
+kind = "invalid"
+runner = "facade"
+test = "site_an_estimate_without_an_interval_is_never_calibrated"
+
+[[cases]]
+id = "standing.facade.derivative_mixture_keeps_missing_evidence"
+kind = "invalid"
+runner = "facade"
+test = "site_a_derivative_mixture_is_no_better_supported_than_its_worst_completion"
+
+[[cases]]
+id = "standing.facade.curve_support_passes_only_supported"
+kind = "invalid"
+runner = "facade"
+test = "site_the_support_refutation_passes_only_a_supported_grid"
+
+[[cases]]
+id = "standing.facade.handle_preview_keeps_obligations"
+kind = "changing"
+runner = "facade"
+test = "site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply"
+
+[[cases]]
+id = "standing.facade.bootstrap_slot_only_from_records"
+kind = "invalid"
+runner = "facade"
+test = "site_bootstrap_slot_is_keyed_by_the_route_and_set_only_by_records"
+
+[[cases]]
+id = "standing.claim_demand_states_its_publication"
+kind = "invalid"
+runner = "facade"
+test = "every_claim_demand_states_the_kind_its_route_publishes"
+
+[[cases]]
+id = "standing.terminal_demand_follows_its_functional"
+kind = "invalid"
+runner = "facade"
+test = "a_terminal_program_demands_the_kind_its_functional_publishes"
+
+[[cases]]
+id = "standing.associational_program_demands_no_causal_claim"
+kind = "invalid"
+runner = "facade"
+test = "an_associational_program_never_demands_a_causal_claim"
+
+[[cases]]
+id = "standing.linear_identification_class"
+kind = "invalid"
+runner = "facade"
+test = "site_only_graph_identification_is_an_identified_linear_claim"
+
+[[cases]]
+id = "standing.envelope_never_states_more_than_its_atoms"
+kind = "invalid"
+runner = "facade"
+test = "site_an_envelope_never_states_more_than_its_identified_atoms"
+
+[[cases]]
+id = "standing.support.weaker_label_is_premised"
+kind = "invalid"
+runner = "facade"
+test = "a_weaker_label_is_supported_only_under_its_stated_premise"
+
+[[cases]]
+id = "standing.support.library_node_states_its_premise"
+kind = "invalid"
+runner = "facade"
+test = "a_library_transported_node_states_its_support_premise_once"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -1180,3 +1320,185 @@ file = "crates/antecedent-io-core/src/contract_section/consume.rs"
 old = 'Some(slot) if slot.matrix_status == "supported" && slot.empirical == "supported" => {'
 new = 'Some(slot) if slot.matrix_status == "supported" => {'
 caught_by = ["standing.claim_domains_never_raise_without_evidence"]
+
+[[mutations]]
+id = "planner_rules_swapped"
+file = "crates/antecedent-core/src/recalc.rs"
+old = "            if removal_first\n"
+new = "            if !removal_first\n"
+caught_by = ["standing.recalc.removal_first_never_raises_over_first_change", "standing.recalc_dependents_never_outrank_their_dependencies"]
+
+[[mutations]]
+id = "receipt_always_sealed_under_the_legacy_version"
+file = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
+old = "        } else {\n            RECALC_RECEIPT_REMOVAL_FIRST_VERSION\n        };"
+new = "        } else {\n            RECALC_RECEIPT_ARTIFACT_VERSION\n        };"
+caught_by = ["standing.recalc.a_receipt_replays_under_the_rule_it_records"]
+
+[[mutations]]
+id = "bridged_claim_restates_source_evaluation"
+file = "crates/antecedent-contract/src/bridge/claim.rs"
+old = "    ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Unknown)"
+new = "    ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Evaluated)"
+caught_by = ["standing.bridged_claim_never_asserts_more_than_its_source"]
+
+[[mutations]]
+id = "bridged_claim_drops_source_obligations"
+file = "crates/antecedent-contract/src/bridge/claim.rs"
+old = "    obligations.extend(source_obligations(source));"
+new = "    let _ = source_obligations(source);"
+caught_by = ["standing.bridged_claim_never_asserts_more_than_its_source"]
+
+[[mutations]]
+id = "ledger_reads_stale_standings_before_the_walk"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+old = "        if !self.standings_stale\n"
+new = "        if true || !self.standings_stale\n"
+caught_by = ["standing.ledger_replace_never_leaves_a_dependent_valid"]
+
+[[mutations]]
+id = "ledger_require_valid_reads_the_stored_status"
+file = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
+old = "        if record.status == ResultStatus::Valid && class == Revalidation::StillValid {"
+new = "        if record.status == ResultStatus::Valid {"
+caught_by = ["standing.ledger_replace_never_leaves_a_dependent_valid"]
+
+[[mutations]]
+id = "graph_ignores_unsupported_coordinates"
+file = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+old = "if let SupportStanding::Unsupported { coordinates } = &node.support {"
+new = "if let SupportStanding::Unsupported { coordinates } = &SupportStanding::Supported {"
+caught_by = ["standing.graph_support_and_undeclared_trust_only_lower"]
+
+[[mutations]]
+id = "absent_identification_slot_reads_as_a_point"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+old = "    let Some(slot) = identification else {\n        return ClaimKind::Incomplete;\n    };"
+new = "    let Some(slot) = identification else {\n        return ClaimKind::Point;\n    };"
+caught_by = ["standing.claim_kind_is_never_a_point_without_a_slot"]
+
+[[mutations]]
+id = "prior_restrictions_identify_a_point"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+old = "        IdentificationStatus::NonparametricallyIdentified\n            | IdentificationStatus::IdentifiedUnderParametricRestrictions\n    )\n}"
+new = "        IdentificationStatus::NonparametricallyIdentified\n            | IdentificationStatus::IdentifiedUnderParametricRestrictions\n            | IdentificationStatus::IdentifiedUnderPriorRestrictions\n    )\n}"
+caught_by = ["standing.one_point_identified_rule_decides_kind_and_domain", "standing.claim_domains_never_raise_without_evidence"]
+
+[[mutations]]
+id = "weighted_slot_reads_as_a_point"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+old = "if identified_mass < 1.0 || weighted { ClaimKind::Mixture } else { ClaimKind::Point }"
+new = "if identified_mass < 1.0 { ClaimKind::Mixture } else { ClaimKind::Point }"
+caught_by = ["standing.one_point_identified_rule_decides_kind_and_domain", "standing.claim_kind_is_never_a_point_without_a_slot"]
+
+[[mutations]]
+id = "attested_measured_calibration_kept"
+file = "crates/antecedent-design/src/composition_boundary.rs"
+old = "        DistributionCalibration::Measured if unproven => CalibrationStatus::NotMeasured,\n"
+new = ""
+caught_by = ["standing.design.missing_mask_is_never_supported"]
+
+[[mutations]]
+id = "unstated_mask_read_as_supported"
+file = "crates/antecedent-design/src/composition_boundary.rs"
+old = "None => unstated,"
+new = "None => SupportStatus::Supported,"
+caught_by = ["standing.design.missing_mask_is_never_supported"]
+
+[[mutations]]
+id = "support_floor_strengthens"
+file = "crates/antecedent-design/src/composition_boundary.rs"
+old = "if status.severity() < floor.severity() {"
+new = "if status.severity() > floor.severity() {"
+caught_by = ["standing.design.support_floor_never_strengthens"]
+
+[[mutations]]
+id = "summary_only_report_owes_nothing"
+file = "crates/antecedent-design/src/obligation_adapters.rs"
+old = "        None if report.status == SupportStatus::Supported => Vec::new(),\n        None => vec![(0, report.status)],"
+new = "        None if report.status == SupportStatus::MissingEvidence => vec![(0, report.status)],\n        None => Vec::new(),"
+caught_by = ["standing.design.unsupported_input_always_owes_an_obligation"]
+
+[[mutations]]
+id = "multi_level_no_interval_reads_the_slot"
+file = "crates/antecedent/src/analysis/multi_level_treatment.rs"
+old = "            (None, MULTI_LEVEL_INTERVAL_NOT_MEASURED, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))"
+new = "            (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))"
+caught_by = ["standing.facade.multi_level_no_interval_never_calibrated"]
+
+[[mutations]]
+id = "derivative_mixture_hides_missing_evidence"
+file = "crates/antecedent/src/analysis/execute/temporal_class_point.rs"
+old = "            if status.severity() > SupportStatus::OutsideEmpiricalSupport.severity() {"
+new = "            if false {"
+caught_by = ["standing.facade.derivative_mixture_keeps_missing_evidence"]
+
+[[mutations]]
+id = "curve_support_passes_any_assessed_grid"
+file = "crates/antecedent/src/analysis/execute/curve_refutation.rs"
+old = "    let supported = matches!(status, antecedent_core::SupportStatus::Supported);"
+new = "    let supported = !matches!(status, antecedent_core::SupportStatus::MissingEvidence);"
+caught_by = ["standing.facade.curve_support_passes_only_supported"]
+
+[[mutations]]
+id = "handle_preview_applies_every_intent"
+file = "crates/antecedent/src/analysis/exact.rs"
+old = "        report.refused_on_handle(refusal)"
+new = "        let _ = refusal;\n        report"
+caught_by = ["standing.facade.handle_preview_keeps_obligations"]
+
+[[mutations]]
+id = "bootstrap_slot_calibrates_a_missing_interval"
+file = "crates/antecedent/src/analysis/learned_continuous.rs"
+old = "    if reported {"
+new = "    if true {"
+caught_by = ["standing.facade.bootstrap_slot_only_from_records"]
+
+[[mutations]]
+id = "association_route_demands_a_point"
+file = "crates/antecedent/src/analysis/temporal_linear_prediction.rs"
+old = "kind: Some(ClaimKind::Associational)"
+new = "kind: Some(ClaimKind::Point)"
+caught_by = ["standing.claim_demand_states_its_publication", "standing.associational_program_demands_no_causal_claim"]
+
+[[mutations]]
+id = "identified_set_decision_demands_a_point"
+file = "crates/antecedent/src/analysis/claim_decision_programs.rs"
+old = "claim: Some(antecedent_contract::ClaimKind::Bounds)"
+new = "claim: Some(antecedent_contract::ClaimKind::Point)"
+caught_by = ["standing.claim_demand_states_its_publication", "standing.terminal_demand_follows_its_functional"]
+
+[[mutations]]
+id = "choice_model_demands_a_point"
+file = "crates/antecedent/src/analysis/preference_learning_programs.rs"
+old = "claim: Some(antecedent_contract::ClaimKind::Associational),"
+new = "claim: Some(antecedent_contract::ClaimKind::Point),"
+caught_by = ["standing.claim_demand_states_its_publication", "standing.terminal_demand_follows_its_functional", "standing.associational_program_demands_no_causal_claim"]
+
+[[mutations]]
+id = "restricted_linear_claim_reads_as_identified"
+file = "crates/antecedent/src/analysis/compiled_linear.rs"
+old = "IdentifiedUnderPriorRestrictions => {\n            (IdentificationOutcome::Identified, IdentificationClaimClass::ModelConditional)"
+new = "IdentifiedUnderPriorRestrictions => {\n            (IdentificationOutcome::Identified, IdentificationClaimClass::IdentifiedClaim)"
+caught_by = ["standing.linear_identification_class"]
+
+[[mutations]]
+id = "envelope_ignores_its_atoms_status"
+file = "crates/antecedent/src/analysis/execute/execute_helpers_envelope.rs"
+old = "    if atom_status.strength_rank() < posterior.identification.strength_rank() {"
+new = "    if false && atom_status.strength_rank() < posterior.identification.strength_rank() {"
+caught_by = ["standing.envelope_never_states_more_than_its_atoms"]
+
+[[mutations]]
+id = "transported_node_drops_its_support_premise"
+file = "crates/antecedent/src/analysis/composition_verification.rs"
+old = "    .with_assumptions(with_support_premise(assumptions, support_label))"
+new = "    .with_assumptions(assumptions)"
+caught_by = ["standing.support.library_node_states_its_premise"]
+
+[[mutations]]
+id = "extrapolative_label_needs_no_premise"
+file = "crates/antecedent/src/analysis/composition_verification.rs"
+old = "            if status != SupportStatus::Supported\n"
+new = "            if status != SupportStatus::Supported && status != SupportStatus::Extrapolative\n"
+caught_by = ["standing.support.weaker_label_is_premised", "standing.support.library_node_states_its_premise"]
