@@ -56,7 +56,9 @@ use antecedent_io_core::transport_query_wire::{
 use antecedent_prob::WeightedGraphSamples;
 use antecedent_stats::adaptive_inference::HierarchicalChoicePrior;
 
-use crate::analysis::supplied_identity::{Canonical, Declaration, Wire, variant};
+use crate::analysis::supplied_identity::{
+    Canonical, Declaration, Wire, unencoded_variant, variant,
+};
 pub use crate::analysis::supplied_terminal::TerminalError;
 use crate::analysis::supplied_terminal::{
     Reading, TerminalSpec, admit_compile, compiled_terminal, lower,
@@ -170,6 +172,7 @@ pub fn compile_identification_repair(
 ) -> Result<CompiledIdentificationRepair, CausalError> {
     admit_compile(ctx)?;
     let contract = contract.into();
+    encodable(&contract)?;
     let question = Declaration::new("antecedent.identification_repair.v2")
         .field("contract", &contract)
         // The search reads the candidates in semantic-id order (a stable sort; a repeated id
@@ -878,6 +881,26 @@ fn failed_contract(out: &mut CanonicalWriter, contract: &dyn FailedContract) {
     variables(out, &contract.base_law());
 }
 
+/// Refuse a contract whose failure route the identity encoding below has no arm for.
+/// `FailureRoute` is non-exhaustive; a route added later is refused until it gains an arm,
+/// rather than taking a fallback identity it could share with another route.
+fn encodable(contract: &RepairContract) -> Result<(), CausalError> {
+    match contract {
+        RepairContract::Route(
+            FailureRoute::Backdoor(_)
+            | FailureRoute::FrontDoor(_)
+            | FailureRoute::Instrument(_)
+            | FailureRoute::Hedge(_)
+            | FailureRoute::Sensitivity(_),
+        )
+        | RepairContract::Transport(_)
+        | RepairContract::ZTransport(_) => Ok(()),
+        RepairContract::Route(_) => {
+            Err(unencoded_variant("supplied.identification_repair.v1", "failure route"))
+        }
+    }
+}
+
 impl Canonical for RepairContract {
     /// The family's stable name and contract label, every unresolved obligation (in the family's
     /// order, each by its own canonical text, [`EvidenceObligation::canonical`]), then the frozen
@@ -919,9 +942,10 @@ impl Canonical for RepairContract {
                     dag_field(out, family.dag());
                     failed_contract(out, &**family);
                 }
-                // A route added later is written by its family's name, label and obligations.
+                // A route added later never reaches here: `encodable` refuses it at compile, so
+                // it cannot share an identity with another route.
                 _ => {
-                    variant(out, "other_route");
+                    variant(out, "unencoded_route");
                 }
             },
             Self::Transport(family) => {

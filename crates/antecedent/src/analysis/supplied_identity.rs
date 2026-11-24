@@ -123,6 +123,18 @@ impl<T: serde::Serialize> Canonical for Wire<'_, T> {
     }
 }
 
+/// The refusal of a declaration whose identity cannot be encoded because a non-exhaustive enum
+/// from another crate gained a variant the encoding has no arm for. Writing such a variant
+/// under a shared fallback tag would let two different declarations share an identity, so the
+/// compile refuses until the encoding gains the arm.
+pub(crate) fn unencoded_variant(plan: &str, what: &str) -> crate::CausalError {
+    crate::compile_reason!(
+        "route_not_supported",
+        "{plan}.identity: the identity encoding has no arm for this {what} variant, so the \
+         compiled route cannot bind it"
+    )
+}
+
 /// An enum variant: its tag, then its fields.
 pub(crate) fn variant<'w>(out: &'w mut CanonicalWriter, tag: &str) -> &'w mut CanonicalWriter {
     out.text(tag)
@@ -444,6 +456,18 @@ mod tests {
         assert_eq!(base, graph(&[0, 1, 2], &[(1, 2), (0, 1)]), "edge insertion order");
         assert_ne!(base, graph(&[0, 1, 2], &[(0, 1), (0, 2)]), "a changed edge");
         assert_ne!(base, graph(&[0, 1, 5], &[(0, 1), (1, 2)]), "a changed node label");
+    }
+
+    #[test]
+    fn a_variant_with_no_encoding_arm_refuses_the_compile() {
+        match unencoded_variant("some.plan.v1", "request") {
+            crate::CausalError::Compile { message } => {
+                assert!(message.contains("route_not_supported"), "{message}");
+                assert!(message.contains("some.plan.v1.identity"), "{message}");
+                assert!(message.contains("no arm for this request variant"), "{message}");
+            }
+            other => panic!("expected a compile refusal, got {other:?}"),
+        }
     }
 
     #[test]

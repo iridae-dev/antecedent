@@ -47,7 +47,7 @@ use super::measurement_model::{
     CategoricalTarget, MeasurementAnalysisBinding, MeasurementInput, MeasurementModelRefusal,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::variant;
+use super::supplied_identity::{unencoded_variant, variant};
 use super::transported_measurement::{
     TransportedMeasurementEstimate, transport_measurement, transport_measurement_estimate,
 };
@@ -109,6 +109,9 @@ pub struct CompiledMeasurementTransport {
     lowered: Arc<LoweredProgram>,
 }
 
+/// Plan id of the measurement-model transport program.
+const PLAN_ID: &str = "measurement_model_transport.v1";
+
 fn lowering_refusal(error: &CausalError) -> MeasurementModelRefusal {
     MeasurementModelRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
@@ -122,7 +125,10 @@ fn write_representation(writer: &mut CanonicalWriter, representation: &Represent
     writer.text(&representation.coordinate_system_id).word(u64::from(representation.version));
 }
 
-fn write_error_structure(writer: &mut CanonicalWriter, structure: ErrorStructure) {
+fn write_error_structure(
+    writer: &mut CanonicalWriter,
+    structure: ErrorStructure,
+) -> Result<(), CausalError> {
     match structure {
         ErrorStructure::NonDifferential => {
             variant(writer, "non_differential");
@@ -130,16 +136,18 @@ fn write_error_structure(writer: &mut CanonicalWriter, structure: ErrorStructure
         ErrorStructure::Differential(axis) => {
             variant(writer, "differential").text(axis.as_str());
         }
-        // The structure enum is non-exhaustive; a variant added later is written under its own
-        // tag until it gains its own arm here.
-        _ => {
-            variant(writer, "unrecognized_variant");
-        }
+        // The structure enum is non-exhaustive: a variant added later refuses to compile until
+        // it gains its own arm here, rather than sharing a fallback identity with another.
+        _ => return Err(unencoded_variant(PLAN_ID, "measurement error structure")),
     }
+    Ok(())
 }
 
 /// The analysis binding: every field in declaration order.
-fn write_binding(writer: &mut CanonicalWriter, binding: &MeasurementAnalysisBinding) {
+fn write_binding(
+    writer: &mut CanonicalWriter,
+    binding: &MeasurementAnalysisBinding,
+) -> Result<(), CausalError> {
     writer
         .text(&binding.construct_id)
         .text(&binding.population_id)
@@ -159,10 +167,9 @@ fn write_binding(writer: &mut CanonicalWriter, binding: &MeasurementAnalysisBind
                 MappingSemantics::InterventionPreserving { evidence_id } => {
                     variant(writer, "intervention_preserving").text(evidence_id);
                 }
-                // Non-exhaustive: a later variant is written under its own tag until it gains
-                // its own arm here.
+                // Non-exhaustive: a later variant refuses to compile until it gains its own arm.
                 _ => {
-                    variant(writer, "unrecognized_variant");
+                    return Err(unencoded_variant(PLAN_ID, "representation mapping semantics"));
                 }
             }
         }
@@ -170,7 +177,7 @@ fn write_binding(writer: &mut CanonicalWriter, binding: &MeasurementAnalysisBind
             writer.word(0);
         }
     }
-    write_error_structure(writer, binding.assumed_structure);
+    write_error_structure(writer, binding.assumed_structure)
 }
 
 /// The declared population error structure. The invariant parameters are a set (the transport
@@ -225,10 +232,14 @@ fn write_provider(
 
 /// The declared inputs of a transport request the question binds besides the decision's
 /// receipt and the re-bound model: the binding, the population structure and the provider.
-fn write_declaration(writer: &mut CanonicalWriter, request: &MeasurementTransportRequest) {
-    write_binding(writer, &request.binding);
+fn write_declaration(
+    writer: &mut CanonicalWriter,
+    request: &MeasurementTransportRequest,
+) -> Result<(), CausalError> {
+    write_binding(writer, &request.binding)?;
     write_population_structure(writer, request.structure.as_ref());
     write_provider(writer, request.provider.as_ref());
+    Ok(())
 }
 
 /// Digest of the outcome-side data: the variant tag, then every field in declaration order,
@@ -346,12 +357,12 @@ impl Study {
         question
             .bytes(receipt.identity.as_bytes())
             .bytes(transported.model().identities().model.as_bytes());
-        write_declaration(&mut question, &request);
+        write_declaration(&mut question, &request).map_err(|error| lowering_refusal(&error))?;
         let question = question.finish();
         let source = input_digest(&request.input);
         let lowered = PointProgram {
             cell: ProgramCell::MeasurementModelTransport,
-            plan_id: "measurement_model_transport.v1",
+            plan_id: PLAN_ID,
             kind: FunctionalKind::PropagatedChain,
             outcome: None,
             graph_class: "declared_population_error_structure",
@@ -633,7 +644,7 @@ mod identity_tests {
 
     fn binding_digest(binding: &MeasurementAnalysisBinding) -> [u8; 32] {
         let mut writer = CanonicalWriter::new("test");
-        write_binding(&mut writer, binding);
+        write_binding(&mut writer, binding).unwrap();
         writer.finish()
     }
 

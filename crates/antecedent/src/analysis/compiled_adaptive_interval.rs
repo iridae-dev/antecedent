@@ -31,7 +31,7 @@ use super::compiled_measured_interval::{
     MeasuredIntervalProgram, MeasuredIntervalRun, bayesian, frequentist,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::variant;
+use super::supplied_identity::{unencoded_variant, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -59,7 +59,10 @@ pub struct CompiledAdaptiveInterval<'s> {
 /// The request's canonical encoding: its variant tag, then every field in declaration order,
 /// reals by their bits. The arms of a contrast are ordered (plus then minus), so swapping them
 /// changes the identity.
-fn write_request(writer: &mut CanonicalWriter, request: &AdaptiveRequest) {
+fn write_request(
+    writer: &mut CanonicalWriter,
+    request: &AdaptiveRequest,
+) -> Result<(), CausalError> {
     match request {
         AdaptiveRequest::BayesianPosterior { look, prior_alpha, prior_beta } => {
             variant(writer, "bayesian_posterior")
@@ -111,21 +114,18 @@ fn write_request(writer: &mut CanonicalWriter, request: &AdaptiveRequest) {
                 .word(u64::from(*control_arm))
                 .word(u64::from(*treatment_arm));
         }
-        // The request enum is non-exhaustive; a variant added later is written under its own
-        // tag with the fields every variant exposes until it gains its own arm here.
-        other => {
-            variant(writer, "unrecognized_variant")
-                .word(u64::from(other.look()))
-                .text(other.paradigm().as_str());
-        }
+        // The request enum is non-exhaustive: a variant added later refuses to compile until
+        // it gains its own arm here, rather than sharing a fallback identity with another.
+        _ => return Err(unencoded_variant(PLAN_ID, "adaptive result request")),
     }
+    Ok(())
 }
 
-fn question_digest(request: &AdaptiveRequest, artifact_id: &str) -> [u8; 32] {
+fn question_digest(request: &AdaptiveRequest, artifact_id: &str) -> Result<[u8; 32], CausalError> {
     let mut writer = CanonicalWriter::new("antecedent.adaptive_result_interval.question.v2");
-    write_request(&mut writer, request);
+    write_request(&mut writer, request)?;
     writer.text(artifact_id);
-    writer.finish()
+    Ok(writer.finish())
 }
 
 fn source_digest(session: &AdaptiveInferenceSession) -> [u8; 32] {
@@ -164,7 +164,7 @@ fn lower(
         plan_id: PLAN_ID,
         kind: FunctionalKind::AssignmentContrast,
         graph_class: "caller_attested_adaptive_assignment",
-        question: question_digest(request, artifact_id),
+        question: question_digest(request, artifact_id)?,
         source: source_digest(session),
         source_role: EvidenceRole::Trial,
         realization,
@@ -285,41 +285,44 @@ mod identity_tests {
     #[test]
     fn the_same_request_has_the_same_identity() {
         assert_eq!(
-            question_digest(&weighting(1, Some(0), 0.5), "a"),
-            question_digest(&weighting(1, Some(0), 0.5), "a")
+            question_digest(&weighting(1, Some(0), 0.5), "a").unwrap(),
+            question_digest(&weighting(1, Some(0), 0.5), "a").unwrap()
         );
     }
 
     #[test]
     fn a_changed_field_or_artifact_id_changes_the_identity() {
-        let base = question_digest(&weighting(1, Some(0), 0.5), "a");
-        assert_ne!(base, question_digest(&weighting(1, None, 0.5), "a"));
-        assert_ne!(base, question_digest(&weighting(1, Some(0), 0.25), "a"));
-        assert_ne!(base, question_digest(&weighting(1, Some(0), 0.5), "b"));
+        let base = question_digest(&weighting(1, Some(0), 0.5), "a").unwrap();
+        assert_ne!(base, question_digest(&weighting(1, None, 0.5), "a").unwrap());
+        assert_ne!(base, question_digest(&weighting(1, Some(0), 0.25), "a").unwrap());
+        assert_ne!(base, question_digest(&weighting(1, Some(0), 0.5), "b").unwrap());
         let posterior =
             AdaptiveRequest::BayesianPosterior { look: 2, prior_alpha: 1.0, prior_beta: 1.0 };
         let stopping =
             AdaptiveRequest::PosteriorStopping { look: 2, prior_alpha: 1.0, prior_beta: 1.0 };
-        assert_ne!(question_digest(&posterior, "a"), question_digest(&stopping, "a"));
+        assert_ne!(
+            question_digest(&posterior, "a").unwrap(),
+            question_digest(&stopping, "a").unwrap()
+        );
     }
 
     #[test]
     fn swapping_the_contrast_arms_changes_the_identity() {
         assert_ne!(
-            question_digest(&sequence(Some((1, 0))), "a"),
-            question_digest(&sequence(Some((0, 1))), "a")
+            question_digest(&sequence(Some((1, 0))), "a").unwrap(),
+            question_digest(&sequence(Some((0, 1))), "a").unwrap()
         );
         assert_ne!(
-            question_digest(&weighting(1, Some(0), 0.5), "a"),
-            question_digest(&weighting(0, Some(1), 0.5), "a")
+            question_digest(&weighting(1, Some(0), 0.5), "a").unwrap(),
+            question_digest(&weighting(0, Some(1), 0.5), "a").unwrap()
         );
     }
 
     #[test]
     fn negative_zero_is_not_zero() {
         assert_ne!(
-            question_digest(&weighting(1, Some(0), 0.0), "a"),
-            question_digest(&weighting(1, Some(0), -0.0), "a")
+            question_digest(&weighting(1, Some(0), 0.0), "a").unwrap(),
+            question_digest(&weighting(1, Some(0), -0.0), "a").unwrap()
         );
     }
 }

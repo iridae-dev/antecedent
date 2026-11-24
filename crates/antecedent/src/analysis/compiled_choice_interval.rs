@@ -25,7 +25,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 use super::choice_inference::{ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceRequest};
 use super::compiled_measured_interval::{MeasuredIntervalProgram, MeasuredIntervalRun, bayesian};
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::variant;
+use super::supplied_identity::{unencoded_variant, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -53,7 +53,7 @@ pub struct CompiledChoiceInterval<'s> {
 /// The request's canonical encoding: its variant tag, then every field in declaration order,
 /// reals by their bits. The Dirichlet shapes are ordered by category, so reordering them
 /// changes the identity.
-fn write_request(writer: &mut CanonicalWriter, request: &ChoiceRequest) {
+fn write_request(writer: &mut CanonicalWriter, request: &ChoiceRequest) -> Result<(), CausalError> {
     match request {
         ChoiceRequest::Posterior { look } => {
             variant(writer, "posterior").word(u64::from(*look));
@@ -85,21 +85,18 @@ fn write_request(writer: &mut CanonicalWriter, request: &ChoiceRequest) {
                 .real(*log_concentration_mean)
                 .real(*log_concentration_sd);
         }
-        // The request enum is non-exhaustive; a variant added later is written under its own
-        // tag with the fields every variant exposes until it gains its own arm here.
-        other => {
-            variant(writer, "unrecognized_variant")
-                .word(u64::from(other.look()))
-                .text(other.paradigm().as_str());
-        }
+        // The request enum is non-exhaustive: a variant added later refuses to compile until
+        // it gains its own arm here, rather than sharing a fallback identity with another.
+        _ => return Err(unencoded_variant(PLAN_ID, "choice result request")),
     }
+    Ok(())
 }
 
-fn question_digest(request: &ChoiceRequest, artifact_id: &str) -> [u8; 32] {
+fn question_digest(request: &ChoiceRequest, artifact_id: &str) -> Result<[u8; 32], CausalError> {
     let mut writer = CanonicalWriter::new("antecedent.choice_result_interval.question.v2");
-    write_request(&mut writer, request);
+    write_request(&mut writer, request)?;
     writer.text(artifact_id);
-    writer.finish()
+    Ok(writer.finish())
 }
 
 fn source_digest(session: &ChoiceInferenceSession) -> [u8; 32] {
@@ -119,7 +116,7 @@ fn lower(
         plan_id: PLAN_ID,
         kind: FunctionalKind::Association,
         graph_class: "not_applicable_descriptive_choice_shares",
-        question: question_digest(request, artifact_id),
+        question: question_digest(request, artifact_id)?,
         source: source_digest(session),
         source_role: EvidenceRole::Observations,
         realization: bayesian(
@@ -232,43 +229,43 @@ mod identity_tests {
     #[test]
     fn the_same_request_has_the_same_identity() {
         assert_eq!(
-            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a"),
-            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a")
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap(),
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap()
         );
     }
 
     #[test]
     fn a_changed_field_or_variant_changes_the_identity() {
-        let base = question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a");
-        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0, 3.0], 0.5), "a"));
-        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.25), "a"));
-        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "b"));
+        let base = question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap();
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0, 3.0], 0.5), "a").unwrap());
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.25), "a").unwrap());
+        assert_ne!(base, question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "b").unwrap());
         let stopping = ChoiceRequest::HierarchicalStopping {
             look: 3,
             shapes: vec![1.0, 2.0],
             log_concentration_mean: 0.5,
             log_concentration_sd: 1.0,
         };
-        assert_ne!(base, question_digest(&stopping, "a"));
+        assert_ne!(base, question_digest(&stopping, "a").unwrap());
         assert_ne!(
-            question_digest(&ChoiceRequest::Posterior { look: 1 }, "a"),
-            question_digest(&ChoiceRequest::Stopping { look: 1 }, "a")
+            question_digest(&ChoiceRequest::Posterior { look: 1 }, "a").unwrap(),
+            question_digest(&ChoiceRequest::Stopping { look: 1 }, "a").unwrap()
         );
     }
 
     #[test]
     fn reordering_the_shapes_changes_the_identity() {
         assert_ne!(
-            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a"),
-            question_digest(&hierarchical(vec![2.0, 1.0], 0.5), "a")
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").unwrap(),
+            question_digest(&hierarchical(vec![2.0, 1.0], 0.5), "a").unwrap()
         );
     }
 
     #[test]
     fn negative_zero_is_not_zero() {
         assert_ne!(
-            question_digest(&hierarchical(vec![1.0, 2.0], 0.0), "a"),
-            question_digest(&hierarchical(vec![1.0, 2.0], -0.0), "a")
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.0), "a").unwrap(),
+            question_digest(&hierarchical(vec![1.0, 2.0], -0.0), "a").unwrap()
         );
     }
 }
