@@ -16,10 +16,16 @@ route on the same shared budget and enters the same envelope. A scenario it does
 not certify is ``not_certified`` (its detail names an inspection-only candidate,
 never a proof); it is ``structurally_unidentified`` only when the route's witness
 stage proves it with an exactly verified two-model witness.
+
+:func:`compile_transport_scenarios` decides the set the same way and binds it into the
+compiled ``TransportScenarioSet`` program: :meth:`CompiledTransportScenarios.execute` evaluates
+the retained plans through the program and reports them exactly as the prepared stage's
+``estimate()`` does, with the program's route and identity.
 """
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -27,6 +33,7 @@ from typing import Any
 
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
+from .._native import compile_transport_scenarios_stage as _compile_transport_scenarios_stage
 from .._native import (
     consume_transport_scenarios_artifact as _consume_transport_scenarios_artifact,
 )
@@ -239,6 +246,117 @@ def prepare_transport_scenarios(
     )
 
 
+class CompiledTransportScenarios:
+    """A decided scenario set compiled into its program family.
+
+    ``route`` is the plan route (``TransportScenarioSet``) and ``program_identity`` the identity
+    of the lowered program; nothing is evaluated until :meth:`execute` runs. The report is
+    per-scenario points: no inferential statement across scenarios is made
+    (:meth:`aggregate_interval` always refuses).
+    """
+
+    __slots__ = ("_execution", "_native")
+
+    def __init__(self, native: Any, execution: Execution | None) -> None:
+        self._native = native
+        self._execution = execution
+
+    def __repr__(self) -> str:
+        return (
+            f"CompiledTransportScenarios(route={self.route!r}, "
+            f"identity={self.program_identity[:12]!r})"
+        )
+
+    @property
+    def route(self) -> str:
+        """The plan route of the compiled program."""
+        route: str = self._native.route
+        return route
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the lowered program, as lowercase hex."""
+        identity: str = self._native.program_identity
+        return identity
+
+    def execute(self) -> dict[str, Any]:
+        """Evaluate every retained plan and report every scenario.
+
+        The report is the one ``prepare_transport_scenarios(...).estimate()`` returns for the
+        same decided set and laws: every scenario with its status, the counts and masses per
+        status, the structural envelope over the identified scenarios and, for declared
+        weights, the report that never renormalizes.
+        """
+        payload = call_native(
+            self._execution, self._native.execute, cancel="cancel", memory="memory_bytes"
+        )
+        report: dict[str, Any] = json.loads(payload)
+        return report
+
+    def refresh(self, laws: Any) -> CompiledTransportScenarios:
+        """Compile the program again over new laws or samples; the decisions are kept."""
+        native = call_native(
+            self._execution, self._native.refresh, laws, cancel="cancel", memory="memory_bytes"
+        )
+        return CompiledTransportScenarios(native, self._execution)
+
+    def plan_summary(self) -> list[tuple[str, str]]:
+        """Each scenario's retained plan: ``compiled``, a refusal, or ``not_identified:<status>``."""
+        return [(str(name), str(plan)) for name, plan in self._native.plan_summary()]
+
+    def aggregate_interval(self) -> None:
+        """Inference across scenarios sharing data is not supported; always refuses."""
+        self._native.aggregate_interval()
+
+    def export(self) -> bytes:
+        """The last executed report as a framed artifact for ``consume_transport_scenarios_artifact``."""
+        return bytes(self._native.export())
+
+
+def compile_transport_scenarios(
+    scenarios: TransportScenarioSet,
+    *,
+    outcomes: Sequence[str],
+    treatments: Sequence[str],
+    source: str,
+    target: str,
+    catalog: EvidenceCatalog,
+    laws: Any,
+    at: Mapping[str, float],
+    conditioned_on: Sequence[str] = (),
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    execution: Execution | None = None,
+) -> CompiledTransportScenarios:
+    """Decide every scenario once and compile the decided set into its program.
+
+    The arguments, the decisions, the shared budget and every refusal are those of
+    :func:`prepare_transport_scenarios`; the decided set, its retained plans and the laws'
+    identities are then bound into the ``TransportScenarioSet`` program.
+    """
+    stage = prepare_transport_scenarios(
+        scenarios,
+        outcomes=outcomes,
+        treatments=treatments,
+        source=source,
+        target=target,
+        catalog=catalog,
+        laws=laws,
+        at=at,
+        conditioned_on=conditioned_on,
+        max_steps=max_steps,
+        max_depth=max_depth,
+        max_operations=max_operations,
+        max_evaluation_depth=max_evaluation_depth,
+        max_support_rows=max_support_rows,
+        execution=execution,
+    )
+    return CompiledTransportScenarios(_compile_transport_scenarios_stage(stage), execution)
+
+
 @artifact_consumer(
     proof="TransportScenarioArtifactWire::consume_with_limits: redecides every scenario and compares the complete retained report",
     replayable=True,
@@ -287,8 +405,10 @@ def consume_transport_scenarios_artifact(
 
 
 __all__ = [
+    "CompiledTransportScenarios",
     "TransportScenario",
     "TransportScenarioSet",
+    "compile_transport_scenarios",
     "consume_transport_scenarios_artifact",
     "prepare_transport_scenarios",
 ]
