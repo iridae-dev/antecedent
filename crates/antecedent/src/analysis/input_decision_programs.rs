@@ -505,11 +505,11 @@ pub fn compile_supported_input_decision(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SupportedInputDecision,
-        plan_id: "supported_input_decision.v1",
+        plan_id: "supplied.supported_input_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_decision_inputs",
         question,
-        evaluator: "composition_boundary.evaluate_with_support",
+        evaluator: "composition_boundary::evaluate_with_support",
         reading: Reading::Predictive,
         role: EvidenceRole::ChainSource,
         composition: Composition::Pooled { sources: inputs.len() },
@@ -569,11 +569,11 @@ pub fn compile_input_functional(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SupportedInputDecision,
-        plan_id: "input_functional.v1",
+        plan_id: "supplied.input_functional.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_decision_inputs",
         question,
-        evaluator: "composition_boundary.evaluate_functional_on_input",
+        evaluator: "composition_boundary::evaluate_functional_on_input",
         reading: Reading::Predictive,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -644,11 +644,11 @@ pub fn compile_sensitivity_decision(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SensitivityDecision,
-        plan_id: "sensitivity_decision.v1",
+        plan_id: "supplied.sensitivity_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_assumption_surface",
         question,
-        evaluator: "sensitivity_decision.evaluate_sensitivity_decision",
+        evaluator: "sensitivity_decision::evaluate_sensitivity_decision",
         reading: Reading::Envelope,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -704,11 +704,11 @@ pub fn compile_inverse_query(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::InverseQueryDecision,
-        plan_id: "inverse_query.v1",
+        plan_id: "supplied.inverse_query.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_forward_evidence",
         question,
-        evaluator: "inverse_query.evaluate_inverse_query",
+        evaluator: "inverse_query::evaluate_inverse_query",
         reading: Reading::Predictive,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -765,11 +765,11 @@ pub fn compile_finite_enumeration_baseline(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::InverseQueryDecision,
-        plan_id: "finite_enumeration_baseline.v1",
+        plan_id: "supplied.finite_enumeration_baseline.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_forward_means",
         question,
-        evaluator: "inverse_query.finite_enumeration_baseline",
+        evaluator: "inverse_query::finite_enumeration_baseline",
         reading: Reading::Exact,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -835,11 +835,11 @@ pub fn compile_decision_draws_ranking(
     };
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DecisionDrawsRanking,
-        plan_id: "decision_draws_ranking.v1",
+        plan_id: "supplied.decision_draws_ranking.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_decision_draws",
         question,
-        evaluator: "decision_reliability.rank",
+        evaluator: "decision_reliability::rank",
         reading: Reading::MonteCarlo,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -945,11 +945,11 @@ pub fn compile_prior_signal_adaptation(
     let question = prior_signal_digest(&catalog, &target, &request);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::PriorSignalAdaptation,
-        plan_id: "prior_signal_adaptation.v1",
+        plan_id: "supplied.prior_signal_adaptation.v1",
         functional: FunctionalKind::PropagatedChain,
         graph_class: "catalogued_posterior_sources",
         question,
-        evaluator: "prior_signal.adapt_prior_to_signal",
+        evaluator: "prior_signal::adapt_prior_to_signal",
         reading: Reading::Posterior,
         role: EvidenceRole::PriorArtifact,
         composition: Composition::Pooled { sources: request.sources.len() },
@@ -1022,11 +1022,11 @@ pub fn compile_evidence_obligations(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::EvidenceObligations,
-        plan_id: "evidence_obligations.v1",
+        plan_id: "supplied.evidence_obligations.v1",
         functional: FunctionalKind::InterventionalDistribution,
         graph_class: "admg_identification_failure",
         question,
-        evaluator: "obligation_adapters.identification_failure_obligations",
+        evaluator: "obligation_adapters::identification_failure_obligations",
         reading: Reading::Exact,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -1131,11 +1131,11 @@ pub fn compile_finite_action_decision<A, O>(
     };
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::FiniteActionDecision,
-        plan_id: "finite_action_decision.v1",
+        plan_id: "supplied.finite_action_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_state_draws",
         question: declaration.finish(),
-        evaluator: "decision.evaluate_decision",
+        evaluator: "decision::evaluate_decision",
         reading: Reading::Posterior,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -1225,11 +1225,11 @@ pub fn compile_adaptive_policy_search(
         .callback("response_source", None);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::AdaptivePolicySearch,
-        plan_id: "adaptive_policy_search.v1",
+        plan_id: "supplied.adaptive_policy_search.v1",
         functional: FunctionalKind::RegimeValue,
         graph_class: "declared_policy_families",
         question: declaration.finish(),
-        evaluator: "adaptive_policy_search.execute",
+        evaluator: "adaptive_policy_search::execute",
         reading: Reading::MonteCarlo,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,

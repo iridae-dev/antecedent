@@ -165,11 +165,11 @@ pub fn compile_supplied_claim_decision(
     );
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SuppliedClaimDecision,
-        plan_id: "supplied_claim_decision.v1",
+        plan_id: "supplied.supplied_claim_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_structural_claims",
         question,
-        evaluator: "decision_adapters.evaluate_adapted",
+        evaluator: "decision_adapters::evaluate_adapted",
         reading: Reading::Envelope,
         role: EvidenceRole::JointScenarios,
         composition: Composition::ScenarioSet { scenarios: claims.len() },
@@ -310,11 +310,11 @@ pub fn compile_identified_set_decision(
     );
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::IdentifiedSetDecision,
-        plan_id: "identified_set_decision.v1",
+        plan_id: "supplied.identified_set_decision.v1",
         functional: FunctionalKind::IdentifiedSet,
         graph_class: "supplied_identified_sets",
         question,
-        evaluator: "decision_adapters.evaluate_identified_sets",
+        evaluator: "decision_adapters::evaluate_identified_sets",
         reading: Reading::Envelope,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,
@@ -444,13 +444,13 @@ pub fn compile_contract_decision(
     let decision = decision_program(&contract, contract.identity().ok(), source.carrier(), None);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ContractLawDecision,
-        plan_id: "contract_law_decision.v1",
+        plan_id: "supplied.contract_law_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_decision_law",
         question,
         evaluator: match &source {
-            ContractSource::Law(_) => "decision_eval.evaluate_contract",
-            ContractSource::Means(_) => "decision_eval.evaluate_contract_on_means",
+            ContractSource::Law(_) => "decision_eval::evaluate_contract",
+            ContractSource::Means(_) => "decision_eval::evaluate_contract_on_means",
         },
         reading: source.reading(),
         role: EvidenceRole::ChainSource,
@@ -526,11 +526,11 @@ pub fn compile_decision_functional(
         decision_program(&contract, contract.identity().ok(), CarrierDemand::PredictiveLaw, None);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DecisionFunctionalValue,
-        plan_id: "decision_functional_value.v1",
+        plan_id: "supplied.decision_functional_value.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_decision_law",
         question,
-        evaluator: "decision_eval.evaluate_functional",
+        evaluator: "decision_eval::evaluate_functional",
         reading: Reading::Predictive,
         role: EvidenceRole::ChainSource,
         composition: Composition::Single,

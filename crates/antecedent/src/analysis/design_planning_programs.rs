@@ -179,11 +179,11 @@ pub fn compile_identification_repair(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::IdentificationRepair,
-        plan_id: "identification_repair.v1",
+        plan_id: "supplied.identification_repair.v1",
         functional: FunctionalKind::StructureSearch,
         graph_class: "failed_identification_contract",
         question,
-        evaluator: "repair.theorem_checker_search",
+        evaluator: "repair::theorem_checker_search",
         reading: Reading::Exact,
         role: EvidenceRole::Trial,
         composition: Composition::Single,
@@ -273,11 +273,11 @@ pub fn compile_study_addition_plan(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::StudyAdditionPlanning,
-        plan_id: "study_addition_planning.v1",
+        plan_id: "supplied.study_addition_planning.v1",
         functional: FunctionalKind::StructureSearch,
         graph_class: "admg",
         question,
-        evaluator: "study_planner.plan_studies",
+        evaluator: "study_planner::plan_studies",
         reading: Reading::Exact,
         role: EvidenceRole::TransportSource,
         composition: Composition::Pooled { sources: candidates.len() },
@@ -342,11 +342,11 @@ pub fn compile_z_transport_failure_snapshot(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
-        plan_id: "z_transport_failure_snapshot.v1",
+        plan_id: "supplied.z_transport_failure_snapshot.v1",
         functional: FunctionalKind::StructureSearch,
         graph_class: "selection_diagram",
         question,
-        evaluator: "z_transport_planner.snapshot_failure",
+        evaluator: "z_transport_planner::snapshot_failure",
         reading: Reading::Exact,
         role: EvidenceRole::TransportSource,
         composition: Composition::Transported,
@@ -404,11 +404,11 @@ pub fn compile_z_transport_evidence_plan(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
-        plan_id: "z_transport_evidence_plan.v1",
+        plan_id: "supplied.z_transport_evidence_plan.v1",
         functional: FunctionalKind::StructureSearch,
         graph_class: "selection_diagram",
         question,
-        evaluator: "z_transport_planner.plan_evidence",
+        evaluator: "z_transport_planner::plan_evidence",
         reading: Reading::Exact,
         role: EvidenceRole::TransportSource,
         composition: Composition::Pooled { sources: spec.candidates.len() },
@@ -502,11 +502,11 @@ pub fn compile_design_ranking<A, O>(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DesignRanking,
-        plan_id: "design_ranking.v1",
+        plan_id: "supplied.design_ranking.v1",
         functional: FunctionalKind::StructureSearch,
         graph_class: "weighted_graph_posterior",
         question,
-        evaluator: "ranker.rank",
+        evaluator: "ranker::rank",
         reading: Reading::MonteCarlo,
         role: EvidenceRole::DiscoveredStructure,
         composition: Composition::AtomMixture { atoms: eval.graphs.n_samples },
@@ -605,13 +605,13 @@ pub fn compile_choice_study_ranking(
         .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ChoiceStudyRanking,
-        plan_id: "choice_study_ranking.v1",
+        plan_id: "supplied.choice_study_ranking.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "categorical_choice",
         question,
         evaluator: match &posterior {
-            ChoicePosterior::Pooled { .. } => "choice_evsi.rank_studies",
-            ChoicePosterior::Hierarchical { .. } => "choice_evsi.rank_hierarchical_studies",
+            ChoicePosterior::Pooled { .. } => "choice_evsi::rank_studies",
+            ChoicePosterior::Hierarchical { .. } => "choice_evsi::rank_hierarchical_studies",
         },
         reading: Reading::Posterior,
         role: EvidenceRole::PriorArtifact,
@@ -677,7 +677,7 @@ fn structure_spec(question: [u8; 32], plan_id: &'static str, atoms: usize) -> Te
         functional: FunctionalKind::StructureSearch,
         graph_class: "admg",
         question,
-        evaluator: "structure_identification.id_algorithm",
+        evaluator: "structure_identification::id_algorithm",
         reading: Reading::Exact,
         role: EvidenceRole::DiscoveredStructure,
         composition: if atoms > 1 {
@@ -707,7 +707,7 @@ pub fn compile_graph_identification(
         .field("treatment", &treatment)
         .field("outcome", &outcome)
         .finish();
-    let lowered = lower(structure_spec(question, "graph_identification.v1", 1))?;
+    let lowered = lower(structure_spec(question, "supplied.graph_identification.v1", 1))?;
     Ok(CompiledGraphIdentification { lowered, graph, treatment, outcome })
 }
 
@@ -759,7 +759,8 @@ pub fn compile_structure_identification(
         // Ordered: an unknown target is reported by the first one met.
         .field("interventions", &interventions)
         .finish();
-    let lowered = lower(structure_spec(question, "structure_identification.v1", samples.len()))?;
+    let lowered =
+        lower(structure_spec(question, "supplied.structure_identification.v1", samples.len()))?;
     Ok(CompiledStructureIdentification { lowered, samples, treatment, outcome, interventions })
 }
 
