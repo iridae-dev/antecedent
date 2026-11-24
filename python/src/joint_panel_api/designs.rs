@@ -340,7 +340,8 @@ impl PyPreparedNativeJointDesign {
             crate::detach_catch(py, || self.inner.execute(inference, &ctx).map_err(panel_error))?;
         Ok(PyNativeJointDesignResult { inner })
     }
-    /// Compile a decision across preferences whose quantities are this design's arm means,
+    /// Compile a decision across preferences (or an ordinary decision contract sent as
+    /// `{"ordinary": ...}`) whose quantities are this design's arm means,
     /// with the decision attached to layer four of the design's program. `bootstrap_json`
     /// (`{replicates, seed, sampling}`) declares the refits a design draws when the decision
     /// needs a joint law: a static-regime design's whole-subject refits, or, with `sampling`
@@ -360,7 +361,10 @@ impl PyPreparedNativeJointDesign {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::preferences_api::CompiledReply> {
         bounded_json(contract_json, "preference contract")?;
-        let contract = crate::preferences_api::preference_contract_from(contract_json)?;
+        let contract = match crate::preferences_api::compile_contract_from(contract_json)? {
+            Ok(contract) => contract,
+            Err(refused) => return Ok((None, Some(refused))),
+        };
         let bootstrap = match bootstrap_json {
             Some(json) => {
                 bounded_json(json, "design bootstrap")?;
@@ -376,7 +380,15 @@ impl PyPreparedNativeJointDesign {
         };
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let outcome = crate::detach_catch(py, || {
-            Ok(self.inner.compile_for_preference_decision(&contract, bootstrap, &ctx))
+            use crate::preferences_api::CompileContract;
+            Ok(match &contract {
+                CompileContract::Tradeoff(contract) => {
+                    self.inner.compile_for_preference_decision(contract, bootstrap, &ctx)
+                }
+                CompileContract::Ordinary(contract) => {
+                    self.inner.compile_for_contract_decision(contract, bootstrap, &ctx)
+                }
+            })
         })?;
         crate::preferences_api::compiled_reply(outcome)
     }

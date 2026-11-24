@@ -28,16 +28,20 @@ use antecedent::analysis::preference_decision::{
 };
 use antecedent::analysis::preference_decision::{
     ClassSampling, ClassSize, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
-    CompiledStructure, CrossStudyCovariance, MassEstimate, OutcomeDependence,
-    PreferenceDecisionExecution, PreferenceJointLaw, PreferenceRouteError,
+    CompiledStructure, CrossStudyCovariance, DecisionContract, DecisionOutcome, MassEstimate,
+    OutcomeDependence, PreferenceDecisionExecution, PreferenceJointLaw, PreferenceRouteError,
     SampledStructuralEvaluation, SampledStructuralVerdict, StructureIdentification,
+    compile_contract_decision_across_prepared_studies,
     compile_preference_decision_across_prepared_studies,
 };
 use antecedent::analysis::propagation_chain::{PropagationChain, PropagationChainRecordWire};
 use antecedent::contract::ExternalRefusal;
-use antecedent::design::decision_artifact::source_digest;
+use antecedent::design::decision_artifact::{
+    contract_from_json_refusal, contract_to_json, mean_result_to_json, result_to_json,
+    source_digest,
+};
 use antecedent::design::decision_contract::SourceRepresentation;
-use antecedent::design::decision_eval::MeanEstimate;
+use antecedent::design::decision_eval::{DecisionResult, MeanEstimate};
 use antecedent::design::decision_wire::{
     ConstraintWire, CriterionWire, kind_named, structural_name, structural_named,
 };
@@ -805,6 +809,7 @@ fn evaluation_json(evaluation: &PreferenceEvaluation, contract: &PreferenceContr
     };
     value["route_reason"] = route_reason(contract, evaluation.route());
     value["statement"] = json!(evaluation.statement());
+    value["standing"] = json!(evaluation.standing().as_str());
     value
 }
 
@@ -927,6 +932,8 @@ fn structural_json(
         StructuralPreferenceEvaluation::Certified(r) => structural_certified_json(r),
     };
     value["route_reason"] = route_reason(contract, evaluation.route());
+    value["statement"] = json!(DecisionOutcome::statement(evaluation));
+    value["standing"] = json!(evaluation.standing().as_str());
     value
 }
 
@@ -970,8 +977,26 @@ fn preference_model_describe(model_json: &str) -> PyResult<Reply> {
     })
 }
 
-/// Validate a preference contract; returns `{identity, route, route_reason, needs}` (`needs`
-/// is `means` or `joint_draws`) or a refusal.
+/// The ordinary contract that states `contract`, in the declaration JSON of an ordinary
+/// contract, or `null` with the refusal that says why none does.
+fn ordinary_form(contract: &PreferenceContract) -> (Value, Value) {
+    match contract.ordinary_contract() {
+        Ok(ordinary) => match contract_to_json(&ordinary) {
+            Ok(text) => (serde_json::from_str(&text).unwrap_or(Value::Null), Value::Null),
+            Err(error) => (
+                Value::Null,
+                serde_json::from_str(&crate::decision_api::io_refusal(&error, "describe"))
+                    .unwrap_or(Value::Null),
+            ),
+        },
+        Err(error) => (Value::Null, refusal_value(&error.to_refusal())),
+    }
+}
+
+/// Validate a preference contract; returns `{identity, route, route_reason, needs, ordinary,
+/// ordinary_refusal}` (`needs` is `means` or `joint_draws`; `ordinary` is the ordinary
+/// contract that states the decision when its value names no trade-off, else `null` with
+/// `ordinary_refusal` saying why) or a refusal.
 #[pyfunction]
 fn preference_contract_describe(contract_json: &str) -> PyResult<Reply> {
     crate::catch_ffi(|| {
@@ -981,7 +1006,10 @@ fn preference_contract_describe(contract_json: &str) -> PyResult<Reply> {
             let choice = preference_route(&contract).map_err(|e| refusal(&e.to_refusal()))?;
             let requirement = source_requirement(&contract).map_err(|e| refusal(&e))?;
             let means = requirement.any_of.contains(&SourceRepresentation::Mean);
+            let (ordinary, ordinary_refusal) = ordinary_form(&contract);
             Ok(json!({
+                "ordinary": ordinary,
+                "ordinary_refusal": ordinary_refusal,
                 "identity": identity,
                 "route": match choice.route {
                     PreferenceRoute::Exact => "exact",
@@ -1343,12 +1371,31 @@ pub(crate) type CompiledReply = (Option<PyCompiledPreferenceDecision>, Option<St
 /// `(result JSON, refusal JSON, aligned law the decision read)`.
 type ExecutedReply = (Option<String>, Option<String>, Option<PyJointDistributionArtifact>);
 
-/// A preference contract from its declaration JSON, for the bridges that compile it.
+/// The contract a compile reads: a decision across preferences, or an ordinary decision
+/// contract sent as `{"ordinary": <ordinary contract declaration>}`.
+pub(crate) enum CompileContract {
+    /// An ordinary decision contract.
+    Ordinary(DecisionContract),
+    /// A decision across a range of preferences.
+    Tradeoff(PreferenceContract),
+}
+
+/// The contract of a compile from its JSON; the refusal JSON of an invalid ordinary contract.
 ///
 /// # Errors
 /// A malformed declaration.
-pub(crate) fn preference_contract_from(json: &str) -> PyResult<PreferenceContract> {
-    contract_from(json)
+pub(crate) fn compile_contract_from(json: &str) -> PyResult<Result<CompileContract, String>> {
+    let value: Value = parse(json, "decision contract")?;
+    let ordinary = value
+        .as_object()
+        .filter(|object| object.len() == 1)
+        .and_then(|object| object.get("ordinary"));
+    let Some(ordinary) = ordinary else {
+        return contract_from(json).map(|contract| Ok(CompileContract::Tradeoff(contract)));
+    };
+    Ok(contract_from_json_refusal(&ordinary.to_string())
+        .map(CompileContract::Ordinary)
+        .map_err(|refused| refusal(&refused)))
 }
 
 /// A compile outcome as the handle or the refusal JSON (see [`route_error`]).
@@ -1594,6 +1641,7 @@ fn sampled_json(evaluation: &SampledStructuralEvaluation, contract: &PreferenceC
     }
     body["structural_verdict"] = verdict;
     body["statement"] = json!(evaluation.statement());
+    body["standing"] = json!(evaluation.standing().as_str());
     body["sampled"] = json!({
         "level": evaluation.level,
         "sampling": evaluation.sampling.iter().map(class_sampling_json).collect::<Vec<_>>(),
@@ -1627,13 +1675,13 @@ fn sampled_json(evaluation: &SampledStructuralEvaluation, contract: &PreferenceC
 /// What the compile states, before anything is fitted.
 fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
     let demand = compiled.demand();
-    let route = match demand.route.route {
+    let route = demand.route.as_ref().map(|choice| match choice.route {
         PreferenceRoute::Exact => "exact",
         PreferenceRoute::Certified => "certified",
-    };
+    });
     json!({
         "bound_identity": compiled.bound_identity(),
-        "contract_identity": compiled.contract().identity().ok(),
+        "contract_identity": compiled.contract_identity(),
         "causal": compiled.causal_bindings(),
         "dependence": dependence_json(compiled.dependence()),
         "cross_study_covariance": compiled
@@ -1647,7 +1695,7 @@ fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
             .collect::<Vec<_>>(),
         "demand": {
             "route": route,
-            "route_reason": json!(demand.route.reason),
+            "route_reason": demand.route.as_ref().map(|choice| choice.reason),
             "representation": representation_name(demand.representation),
             "accepted": demand
                 .requirement
@@ -1679,17 +1727,47 @@ fn describe_json(compiled: &CompiledPreferenceDecision) -> Value {
     })
 }
 
+/// An ordinary contract's result in the reply of an ordinary decision, bound to the source
+/// the compiled execution read, with `"form": "ordinary"`.
+fn ordinary_json(
+    result: &DecisionResult,
+    source: Option<&NativeDecisionSource>,
+) -> PyResult<Value> {
+    let text = match source {
+        Some(NativeDecisionSource::JointLaw(law)) => result_to_json(result, law),
+        Some(NativeDecisionSource::Mean(means)) => mean_result_to_json(result, means),
+        None => {
+            return Err(crate::value_err("an executed ordinary decision carries its source"));
+        }
+    }
+    .map_err(crate::bridge::serialization)?;
+    let mut body: Value = serde_json::from_str(&text).map_err(crate::bridge::serialization)?;
+    body["standing"] = json!(result.standing().as_str());
+    body["statement"] = json!(result.statement());
+    body["form"] = json!("ordinary");
+    Ok(body)
+}
+
 fn executed_json(
     compiled: &CompiledPreferenceDecision,
     executed: &PreferenceDecisionExecution,
-) -> Value {
-    let contract = compiled.contract();
+) -> PyResult<Value> {
+    let tradeoff = || {
+        compiled
+            .contract()
+            .ok_or_else(|| crate::value_err("a decision across preferences carries its contract"))
+    };
     let mut body = match &executed.evaluation {
-        CompiledPreferenceEvaluation::Single(evaluation) => evaluation_json(evaluation, contract),
-        CompiledPreferenceEvaluation::Structures(evaluation) => {
-            structural_json(evaluation, contract)
+        CompiledPreferenceEvaluation::Single(evaluation) => {
+            evaluation_json(evaluation, tradeoff()?)
         }
-        CompiledPreferenceEvaluation::Sampled(evaluation) => sampled_json(evaluation, contract),
+        CompiledPreferenceEvaluation::Structures(evaluation) => {
+            structural_json(evaluation, tradeoff()?)
+        }
+        CompiledPreferenceEvaluation::Sampled(evaluation) => sampled_json(evaluation, tradeoff()?),
+        CompiledPreferenceEvaluation::Ordinary(result) => {
+            ordinary_json(result, executed.source.as_ref())?
+        }
     };
     let receipt = &executed.receipt;
     body["compiled"] = json!({
@@ -1712,7 +1790,7 @@ fn executed_json(
             "unevaluable_mass": m.unevaluable_mass,
         })),
     });
-    body
+    Ok(body)
 }
 
 #[pymethods]
@@ -1756,7 +1834,7 @@ impl PyCompiledPreferenceDecision {
                     }
                     _ => None,
                 };
-                Ok((Some(executed_json(&compiled, &executed).to_string()), None, law))
+                Ok((Some(executed_json(&compiled, &executed)?.to_string()), None, law))
             }
             Err(error) => route_error(error, "execute").map(|refused| (None, Some(refused), None)),
         })
@@ -1811,9 +1889,10 @@ fn dependence_from(json: &str) -> PyResult<(OutcomeDependence, Vec<CrossStudyCov
     Ok((dependence, cross))
 }
 
-/// Compile a decision across preferences with one prepared study: bind the contract to the
-/// study's query, lower the decision into the study's plan and check identification under
-/// every structure it carries. Nothing is fitted.
+/// Compile a decision across preferences, or an ordinary decision contract sent as
+/// `{"ordinary": ...}`, with one prepared study: bind the contract to the study's query, lower
+/// the decision into the study's plan and check identification under every structure it
+/// carries. Nothing is fitted.
 #[pyfunction]
 #[pyo3(signature = (study, contract_json, *, seed=0, memory_bytes=None, cancel=None))]
 fn preference_compile_for_study(
@@ -1824,19 +1903,29 @@ fn preference_compile_for_study(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<CompiledReply> {
-    let contract = contract_from(contract_json)?;
+    let contract = match compile_contract_from(contract_json)? {
+        Ok(contract) => contract,
+        Err(refused) => return Ok((None, Some(refused))),
+    };
     let ctx = crate::transport_common::execution_context(seed, memory_bytes, cancel);
     let prepared = Arc::clone(&study.inner);
     drop(study);
     let outcome = crate::detach_catch(py, move || {
-        Ok(prepared.compile_for_preference_decision(&contract, &ctx))
+        Ok(match &contract {
+            CompileContract::Tradeoff(contract) => {
+                prepared.compile_for_preference_decision(contract, &ctx)
+            }
+            CompileContract::Ordinary(contract) => {
+                prepared.compile_for_contract_decision(contract, &ctx)
+            }
+        })
     })?;
     compiled_reply(outcome)
 }
 
-/// Compile a decision across preferences whose quantities are the outcomes of several
-/// prepared studies, one outcome per study, under the declared dependence (`{kind, draws,
-/// seed, cross}`).
+/// Compile a decision across preferences, or an ordinary decision contract sent as
+/// `{"ordinary": ...}`, whose quantities are the outcomes of several prepared studies, one
+/// outcome per study, under the declared dependence (`{kind, draws, seed, cross}`).
 #[pyfunction]
 #[pyo3(signature = (studies, contract_json, dependence_json, *, seed=0, memory_bytes=None, cancel=None))]
 fn preference_compile_across_studies(
@@ -1848,19 +1937,34 @@ fn preference_compile_across_studies(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<CompiledReply> {
-    let contract = contract_from(contract_json)?;
+    let contract = match compile_contract_from(contract_json)? {
+        Ok(contract) => contract,
+        Err(refused) => return Ok((None, Some(refused))),
+    };
     let (dependence, cross) = dependence_from(dependence_json)?;
     let ctx = crate::transport_common::execution_context(seed, memory_bytes, cancel);
     let prepared: Vec<_> = studies.iter().map(|study| Arc::clone(&study.inner)).collect();
     drop(studies);
     let outcome = crate::detach_catch(py, move || {
         let handles: Vec<&antecedent::PreparedStudy> = prepared.iter().map(AsRef::as_ref).collect();
-        Ok(compile_preference_decision_across_prepared_studies(
-            &handles,
-            &contract,
-            (dependence, &cross),
-            &ctx,
-        ))
+        Ok(match &contract {
+            CompileContract::Tradeoff(contract) => {
+                compile_preference_decision_across_prepared_studies(
+                    &handles,
+                    contract,
+                    (dependence, &cross),
+                    &ctx,
+                )
+            }
+            CompileContract::Ordinary(contract) => {
+                compile_contract_decision_across_prepared_studies(
+                    &handles,
+                    contract,
+                    (dependence, &cross),
+                    &ctx,
+                )
+            }
+        })
     })?;
     compiled_reply(outcome)
 }

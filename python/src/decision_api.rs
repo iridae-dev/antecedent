@@ -6,6 +6,7 @@
 
 use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::inverse_query::MeanSource;
+use antecedent::analysis::preference_decision::DecisionOutcome;
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, IdentifiedSetDecision, IdentifiedUtility, IdentifiedVerdict,
@@ -42,7 +43,7 @@ fn check_size(json: &str) -> PyResult<()> {
     check_declared_size(json, MAX_DECISION_ARTIFACT_BYTES, "decision")
 }
 
-fn io_refusal(error: &IoError, stage: &'static str) -> String {
+pub(crate) fn io_refusal(error: &IoError, stage: &'static str) -> String {
     let (code, detail, offending) = match error {
         IoError::Refused { code, message } => {
             (*code, message.split(':').next().unwrap_or("decision_artifact").to_owned(), None)
@@ -67,6 +68,14 @@ fn io_refusal(error: &IoError, stage: &'static str) -> String {
 
 fn eval_refusal(error: &DecisionEvalError) -> String {
     external_refusal_json(&error.to_refusal())
+}
+
+/// A decision reply with the result's standing and statement added at the top level.
+fn with_outcome(json: &str, outcome: &impl DecisionOutcome) -> PyResult<String> {
+    let mut value: serde_json::Value = serde_json::from_str(json).map_err(serialization)?;
+    value["standing"] = outcome.standing().as_str().into();
+    value["statement"] = outcome.statement().into();
+    Ok(value.to_string())
 }
 
 /// Validate a contract declaration; returns its normalized JSON (with the
@@ -96,7 +105,8 @@ fn evaluate_decision(
         };
         match evaluate_contract(&contract, source.inner()) {
             Ok(result) => {
-                Ok((Some(result_to_json(&result, source.inner()).map_err(serialization)?), None))
+                let json = result_to_json(&result, source.inner()).map_err(serialization)?;
+                Ok((Some(with_outcome(&json, &result)?), None))
             }
             Err(error) => Ok((None, Some(eval_refusal(&error)))),
         }
@@ -141,7 +151,8 @@ fn evaluate_decision_means(
         };
         match evaluate_contract_on_means(&contract, &source) {
             Ok(result) => {
-                Ok((Some(mean_result_to_json(&result, &source).map_err(serialization)?), None))
+                let json = mean_result_to_json(&result, &source).map_err(serialization)?;
+                Ok((Some(with_outcome(&json, &result)?), None))
             }
             Err(error) => Ok((None, Some(eval_refusal(&error)))),
         }
@@ -213,10 +224,11 @@ fn replay_decision_result(
             DecisionResultArtifact::from_bytes(data, &identity, &source_digest(source.inner()))
                 .and_then(|artifact| artifact.replay(&contract, source.inner()).map(|()| artifact));
         match outcome {
-            Ok(artifact) => Ok((
-                Some(result_to_json(artifact.result(), source.inner()).map_err(serialization)?),
-                None,
-            )),
+            Ok(artifact) => {
+                let json =
+                    result_to_json(artifact.result(), source.inner()).map_err(serialization)?;
+                Ok((Some(with_outcome(&json, artifact.result())?), None))
+            }
             Err(error) => Ok((None, Some(io_refusal(&error, "replay")))),
         }
     })
@@ -502,6 +514,8 @@ fn evaluate_robust_decision(
                 "structural": structural_json(&decision.structural),
                 "robust": robust_value(&artifact)?,
                 "completion_counts": decision.completion_counts,
+                "standing": decision.robust.standing().as_str(),
+                "statement": decision.robust.statement(),
             })
             .to_string())
         };
@@ -569,6 +583,8 @@ fn replay_robust_decision(
                 .map_err(|e| io_refusal(&e, "replay"))?;
             Ok(serde_json::json!({
                 "robust": robust_value(&artifact)?,
+                "standing": artifact.result().standing().as_str(),
+                "statement": artifact.result().statement(),
                 "replay": {
                     "recomputed": receipt.recomputed,
                     "native_verified": receipt.native_verified,
