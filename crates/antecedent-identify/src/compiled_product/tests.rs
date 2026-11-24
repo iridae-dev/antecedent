@@ -753,6 +753,63 @@ fn identified_result_with_declared_positivity() -> IdentificationResult {
 }
 
 #[test]
+fn site_a_restricted_result_is_retained_only_as_model_conditional() {
+    let identified = identified_result_with_declared_positivity();
+    let restricted_results = [
+        {
+            let mut parametric = identified.clone();
+            parametric.status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+            parametric
+        },
+        {
+            let mut prior = identified.clone();
+            prior.status = IdentificationStatus::IdentifiedUnderPriorRestrictions;
+            prior
+        },
+    ];
+    for result in &restricted_results {
+        // The identified-claim class is refused on the product, on a world and on the
+        // assembled functional.
+        let whole = CompiledProductParts::new(
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::IdentifiedClaim,
+        );
+        assert_eq!(
+            CompiledIdentificationProduct::retain(result, whole).unwrap_err(),
+            ProductRefusal::IdentifiedClaimUnderRestrictions { status: result.status }
+        );
+        let mut world = CompiledProductParts::new(
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::ModelConditional,
+        );
+        world.world_obligations = vec![IdentificationObligation::for_world(
+            ScientificWorldId::from_raw(0),
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::IdentifiedClaim,
+            Vec::new(),
+            None,
+        )];
+        assert_eq!(
+            CompiledIdentificationProduct::retain(result, world).unwrap_err(),
+            ProductRefusal::IdentifiedClaimUnderRestrictions { status: result.status }
+        );
+        // Evaluated inside its model, it is retained.
+        let conditional = CompiledProductParts::new(
+            IdentificationOutcome::Identified,
+            IdentificationClaimClass::ModelConditional,
+        );
+        let product = CompiledIdentificationProduct::retain(result, conditional).unwrap();
+        assert!(!product.is_identified_claim());
+    }
+    // A nonparametric result keeps the identified-claim class.
+    let parts = CompiledProductParts::new(
+        IdentificationOutcome::Identified,
+        IdentificationClaimClass::IdentifiedClaim,
+    );
+    assert!(CompiledIdentificationProduct::retain(&identified, parts).is_ok());
+}
+
+#[test]
 fn retain_keeps_functional_derivation_assumptions_factors_obligations_and_bounded_search() {
     let mut result = identified_result_with_declared_positivity();
     result

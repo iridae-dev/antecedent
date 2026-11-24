@@ -324,7 +324,7 @@ pub use empirical_table::{
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
-    aggregate_mixture_functional_envelope,
+    aggregate_effect_envelope_with_atom_status, aggregate_mixture_functional_envelope,
 };
 pub use error::{
     CapacityFault, CapacityFaultKind, EstimationError, ExactF64, HistoryOperatorFault,

@@ -849,14 +849,25 @@ fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() 
 fn a_support_floor_weakens_a_laws_coordinates_and_never_strengthens_them() {
     use antecedent_design::composition_boundary::{DecisionInput, TrustEvidence, TrustRequirement};
     let law = transported_law(DistributionCalibration::PointOnly, DistributionTrust::Unverified);
-    let input = DecisionInput::from_distribution_artifact(
+    // The law states no mask and no native record backs it: its coordinates are missing
+    // evidence, never supported by default.
+    let unstated = DecisionInput::from_distribution_artifact(
         "law",
         &law,
         &TrustEvidence::None,
         TrustRequirement::Unrestricted,
     )
     .unwrap();
-    // The artifact's own mask says supported.
+    assert!(unstated.support().entries().iter().all(|(_, s)| *s == SupportStatus::MissingEvidence));
+    // A caller holding evidence for the unstated coordinates says what it is.
+    let input = DecisionInput::from_distribution_artifact_with_unstated_support(
+        "law",
+        &law,
+        &TrustEvidence::None,
+        TrustRequirement::Unrestricted,
+        SupportStatus::Supported,
+    )
+    .unwrap();
     assert!(input.support().entries().iter().all(|(_, s)| *s == SupportStatus::Supported));
     let floored = input.clone().with_support_floor(SupportStatus::Extrapolative);
     assert!(floored.support().entries().iter().all(|(_, s)| *s == SupportStatus::Extrapolative));

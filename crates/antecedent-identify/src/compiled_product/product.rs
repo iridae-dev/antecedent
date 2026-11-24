@@ -129,6 +129,23 @@ impl CompiledIdentificationProduct {
         {
             return Err(ProductRefusal::IdentifiedFromUnidentifiedResult { status: result.status });
         }
+        // The identified-claim class is observational identification: a result identified
+        // only under parametric or prior restrictions is evaluated inside its model, and no
+        // class the caller states (whole product, world or assembled functional) may say more.
+        let restricted = matches!(
+            result.status,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+                | IdentificationStatus::IdentifiedUnderPriorRestrictions
+        );
+        let states_identified_claim = parts.claim_class.is_identified_claim()
+            || parts.world_obligations.iter().any(|world| world.claim_class.is_identified_claim())
+            || parts
+                .assembled
+                .as_ref()
+                .is_some_and(|assembled| assembled.claim_class.is_identified_claim());
+        if restricted && states_identified_claim {
+            return Err(ProductRefusal::IdentifiedClaimUnderRestrictions { status: result.status });
+        }
         let bounded_search = result
             .diagnostics
             .iter()

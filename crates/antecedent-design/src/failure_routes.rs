@@ -129,12 +129,13 @@ fn absent_when_identified<T>(attempt: Result<T, RepairError>) -> Result<Option<T
 /// `graph` is the structure the identification ran on and `observed` the
 /// variables measured jointly with the treatment and the outcome in `population`.
 /// A non-robust `sensitivity` finding adds the route that measures the confounder
-/// it names. Queries other than an average effect owe no route here.
+/// it names. The routes are defined for an average effect only: an unidentified
+/// query of any other kind is refused rather than answered with no route.
 ///
 /// # Errors
 /// `identification_repair.not_a_failure` when `result` is identified, and
-/// `identification_repair.invalid_request` for a graph or variables the
-/// identifiers cannot read.
+/// `identification_repair.invalid_request` for a query other than an average
+/// effect, or a graph or variables the identifiers cannot read.
 pub fn failure_routes(
     result: &IdentificationResult,
     graph: &Admg,
@@ -151,7 +152,7 @@ pub fn failure_routes(
         return Err(RepairError::not_a_failure("the identification already succeeded"));
     }
     let CausalQuery::AverageEffect(query) = &result.query else {
-        return Ok(FailureRoutes { routes: Vec::new(), panel: Vec::new(), confounder: None });
+        return Err(crate::obligation_adapters::not_an_average_effect(&result.query));
     };
     let (treatment, outcome) = (query.treatment, query.outcome);
     let (dag, _latents) = latent_expansion(graph)?;

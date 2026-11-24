@@ -2080,6 +2080,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn site_interval_calibration_is_measured_only_for_a_calibrated_slot() {
+        // A key no shipped record measures (an unusual level) is not measured.
+        let unmeasured = calibration_basis(CovarianceKind::Model, 2, 50, 0.123);
+        assert_eq!(interval_calibration(&unmeasured), DistributionCalibration::NotMeasured);
+        // Whatever the key, measured exactly when the attesting-record rule calibrates it.
+        for kind in [CovarianceKind::Model, CovarianceKind::ClusteredByDecider] {
+            for (learnable, records, level) in [(1, 40, 0.95), (2, 400, 0.95), (3, 4_000, 0.9)] {
+                let basis = calibration_basis(kind, learnable, records, level);
+                let calibrated = calibration_slot(&CalibrationBasisWire::from(&basis)).status
+                    == CalibrationStatus::Calibrated;
+                assert_eq!(
+                    interval_calibration(&basis) == DistributionCalibration::Measured,
+                    calibrated
+                );
+                assert_ne!(interval_calibration(&basis), DistributionCalibration::Exact);
+            }
+        }
+    }
+
+    #[test]
     fn ratio_variance_matches_a_finite_difference_gradient() {
         let beta = [1.7, -0.6, 2.3];
         let covariance = [0.30, 0.05, -0.02, 0.05, 0.20, 0.04, -0.02, 0.04, 0.50];

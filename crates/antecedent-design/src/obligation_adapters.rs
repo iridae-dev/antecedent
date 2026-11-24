@@ -177,9 +177,10 @@ pub(crate) fn z_transport_obligations(
 /// `MissingEvidence`, `OutsideEmpiricalSupport` and `Extrapolative` coordinates
 /// become one `EstablishSupport` obligation (a slot per coordinate), and
 /// `WeakOverlap` coordinates become one `IncreaseSample` obligation. A report
-/// with no per-coordinate labels and a `MissingEvidence` summary yields one
-/// `EstablishSupport` obligation for the whole surface. Supported coordinates
-/// owe nothing.
+/// with no per-coordinate labels reads its summary as the label of the whole
+/// surface: any summary short of `Supported` owes the obligation of that label,
+/// so a summary-only report that is extrapolative, outside support or weakly
+/// overlapping is never read as owing nothing. Supported coordinates owe nothing.
 ///
 /// # Errors
 /// No treatment variable to name.
@@ -191,10 +192,8 @@ pub fn support_obligations(
 ) -> Result<Vec<EvidenceObligation>, EvidenceObligationError> {
     let labels: Vec<(usize, SupportStatus)> = match &report.point_status {
         Some(points) => points.iter().copied().enumerate().collect(),
-        None if report.status == SupportStatus::MissingEvidence => {
-            vec![(0, SupportStatus::MissingEvidence)]
-        }
-        None => Vec::new(),
+        None if report.status == SupportStatus::Supported => Vec::new(),
+        None => vec![(0, report.status)],
     };
     let slots = |wanted: &dyn Fn(SupportStatus) -> bool| -> Vec<(usize, SupportStatus)> {
         labels.iter().copied().filter(|(_, status)| wanted(*status)).collect()
@@ -320,6 +319,16 @@ pub fn try_assumption_obligations(
         .map_err(|e| RepairError::invalid_request(e.to_string()))
 }
 
+/// The refusal of a failure that is not an average effect: the repair routes are defined
+/// for one, and an empty list would read as owing no evidence.
+pub(crate) fn not_an_average_effect(query: &CausalQuery) -> RepairError {
+    RepairError::invalid_request(format!(
+        "identification repair routes are defined for an average effect; a {:?} query that \
+         is not identified still owes evidence no route here names",
+        query.kind()
+    ))
+}
+
 /// A route that already identifies from the observed law is not a failure; its
 /// obligations are simply absent from the failure's evidence.
 fn absent_when_identified<T>(attempt: Result<T, RepairError>) -> Result<Option<T>, RepairError> {
@@ -360,12 +369,14 @@ fn absent_when_identified<T>(attempt: Result<T, RepairError>) -> Result<Option<T
 ///   are not observed.
 ///
 /// A route whose observed law already identifies the effect contributes nothing.
-/// The query must be an average effect; other queries owe nothing here.
+/// The routes are defined for an average effect only: an unidentified query of any
+/// other kind is refused, never answered with an empty list that would read as
+/// owing no evidence.
 ///
 /// # Errors
 /// `identification_repair.not_a_failure` when `result` is identified, and
-/// `identification_repair.invalid_request` for a graph or variables the
-/// identifiers cannot read.
+/// `identification_repair.invalid_request` for a query other than an average
+/// effect, or a graph or variables the identifiers cannot read.
 pub fn identification_failure_obligations(
     result: &IdentificationResult,
     graph: &Admg,
@@ -382,7 +393,7 @@ pub fn identification_failure_obligations(
         return Err(RepairError::not_a_failure("the identification already succeeded"));
     }
     let CausalQuery::AverageEffect(query) = &result.query else {
-        return Ok(Vec::new());
+        return Err(not_an_average_effect(&result.query));
     };
     let (treatment, outcome) = (query.treatment, query.outcome);
     let (dag, _latents) = latent_expansion(graph)?;

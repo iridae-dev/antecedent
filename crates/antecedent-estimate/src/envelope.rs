@@ -47,6 +47,26 @@ pub struct EnvelopeOptions {
     pub renormalize_identified_only: bool,
 }
 
+/// The identification an envelope reports: graph dependence when unidentified mass is
+/// retained beside identified mass, the atoms' own status when all mass is identified, and
+/// never stronger than `atom_status`, the weakest status of the atoms flagged identified.
+fn envelope_status(
+    identified_mass: f64,
+    retained_unidentified: f64,
+    atom_status: IdentificationStatus,
+) -> IdentificationStatus {
+    let mixture = if identified_mass > 0.0
+        && retained_unidentified > antecedent_core::POSTERIOR_MASS_TOLERANCE
+    {
+        IdentificationStatus::GraphDependent
+    } else if identified_mass > 0.0 {
+        IdentificationStatus::NonparametricallyIdentified
+    } else {
+        IdentificationStatus::NotIdentified
+    };
+    if atom_status.strength_rank() < mixture.strength_rank() { atom_status } else { mixture }
+}
+
 /// One graph's scalar effect posterior (columnar draws of a single effect).
 #[derive(Clone, Debug)]
 pub struct GraphEffectDraws {
@@ -58,10 +78,40 @@ pub struct GraphEffectDraws {
 
 /// Aggregate per-graph effect posteriors into a mixture envelope.
 ///
+/// Every atom flagged [`GraphIdentFlag::Identified`] is read as the flag documents it:
+/// nonparametrically identified under its graph. A caller whose identified atoms were
+/// identified only under parametric or prior restrictions, or only partially, states that
+/// with [`aggregate_effect_envelope_with_atom_status`], so the envelope never reports a
+/// stronger identification than its atoms established.
+///
 /// # Errors
 ///
 /// Invalid weights, missing/duplicate draws, non-finite or empty draws,
 /// incompatible shapes, or unrepresentable moments.
+pub fn aggregate_effect_envelope(
+    graphs: &WeightedGraphSamples,
+    per_graph: &[GraphEffectDraws],
+    diagnostics: InferenceDiagnostics,
+    options: EnvelopeOptions,
+) -> Result<CausalPosterior, EstimationError> {
+    aggregate_effect_envelope_with_atom_status(
+        graphs,
+        per_graph,
+        diagnostics,
+        options,
+        IdentificationStatus::NonparametricallyIdentified,
+    )
+}
+
+/// [`aggregate_effect_envelope`] when the caller's identified atoms carry a weaker status
+/// than the flag's nonparametric identification: `atom_status` is the weakest status of the
+/// atoms it flagged identified. The envelope's status is never stronger than it: a fully
+/// identified envelope reports `atom_status`, and an envelope with unidentified mass
+/// reports the weaker of graph dependence and `atom_status`.
+///
+/// # Errors
+///
+/// As [`aggregate_effect_envelope`].
 ///
 /// Moments are exact for the supplied empirical component posteriors (up to
 /// floating-point error). Quantiles use reproducible finite Monte Carlo draws;
@@ -78,11 +128,12 @@ pub struct GraphEffectDraws {
     clippy::too_many_lines,
     reason = "one aggregation: canonicalize atoms by graph key, build the mixture draws and exact moments, then assemble the envelope; the stages share the combined atoms"
 )]
-pub fn aggregate_effect_envelope(
+pub fn aggregate_effect_envelope_with_atom_status(
     graphs: &WeightedGraphSamples,
     per_graph: &[GraphEffectDraws],
     diagnostics: InferenceDiagnostics,
     options: EnvelopeOptions,
+    atom_status: IdentificationStatus,
 ) -> Result<CausalPosterior, EstimationError> {
     if graphs.n_samples == 0 {
         return Err(EstimationError::stats_msg("empty graph ensemble"));
@@ -230,15 +281,7 @@ pub fn aggregate_effect_envelope(
     // a reader recomputing them from the draws gets the same numbers.
     let (draws, summaries) = moment_matched(&draws, exact_mean, Some(exact_sd))?;
 
-    let identification = if identified_mass > 0.0
-        && retained_unidentified > antecedent_core::POSTERIOR_MASS_TOLERANCE
-    {
-        IdentificationStatus::GraphDependent
-    } else if identified_mass > 0.0 {
-        IdentificationStatus::NonparametricallyIdentified
-    } else {
-        IdentificationStatus::NotIdentified
-    };
+    let identification = envelope_status(identified_mass, retained_unidentified, atom_status);
 
     let mut assumptions = AssumptionSet::new();
     assumptions.push(AssumptionRecord {
@@ -625,6 +668,68 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn site_envelope_status_is_never_stronger_than_its_atoms() {
+        let graphs = WeightedGraphSamples::new(
+            vec![0.5, 0.5],
+            vec![GraphIdentFlag::Identified, GraphIdentFlag::Identified],
+            vec![1, 2],
+        )
+        .unwrap();
+        let per = vec![
+            GraphEffectDraws { graph_key: 1, effect_draws: Arc::from(vec![1.0; 64]) },
+            GraphEffectDraws { graph_key: 2, effect_draws: Arc::from(vec![3.0; 64]) },
+        ];
+        let at = |status| {
+            aggregate_effect_envelope_with_atom_status(
+                &graphs,
+                &per,
+                InferenceDiagnostics::analytic("status"),
+                EnvelopeOptions::default(),
+                status,
+            )
+            .unwrap()
+            .identification
+        };
+        // Atoms identified only under restrictions, or only partially, keep that status.
+        for status in [
+            IdentificationStatus::NonparametricallyIdentified,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions,
+            IdentificationStatus::PartiallyIdentified,
+        ] {
+            assert_eq!(at(status), status);
+        }
+        // The flag-only form reads the flag as nonparametric identification.
+        let flagged = aggregate_effect_envelope(
+            &graphs,
+            &per,
+            InferenceDiagnostics::analytic("status"),
+            EnvelopeOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(flagged.identification, IdentificationStatus::NonparametricallyIdentified);
+        // Retained unidentified mass is graph dependence, or weaker when the atoms are.
+        for (atoms, mass, expected) in [
+            (
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                0.3,
+                IdentificationStatus::GraphDependent,
+            ),
+            (IdentificationStatus::NotIdentified, 0.3, IdentificationStatus::NotIdentified),
+            (IdentificationStatus::NotIdentified, 0.0, IdentificationStatus::NotIdentified),
+            (
+                IdentificationStatus::PartiallyIdentified,
+                0.0,
+                IdentificationStatus::PartiallyIdentified,
+            ),
+        ] {
+            let status = envelope_status(0.7, mass, atoms);
+            assert_eq!(status, expected);
+            assert!(status.strength_rank() <= atoms.strength_rank());
+        }
     }
 
     #[test]

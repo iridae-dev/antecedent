@@ -217,6 +217,24 @@ fn transport_factors_support_and_planner_deltas_become_obligations() {
     assert_eq!(support[1].kind, EvidenceObligationKind::IncreaseSample);
     assert_eq!(support[1].required_slots.as_ref(), [Arc::<str>::from("coordinate:2")]);
 
+    // A report with only a summary owes the obligation of its summary label: only a
+    // supported summary owes nothing.
+    for (summary, owed) in [
+        (SupportStatus::Supported, None),
+        (SupportStatus::WeakOverlap, Some(EvidenceObligationKind::IncreaseSample)),
+        (SupportStatus::Extrapolative, Some(EvidenceObligationKind::EstablishSupport)),
+        (SupportStatus::OutsideEmpiricalSupport, Some(EvidenceObligationKind::EstablishSupport)),
+        (SupportStatus::MissingEvidence, Some(EvidenceObligationKind::EstablishSupport)),
+    ] {
+        let summary_only = SupportReport { status: summary, point_status: None, ..report.clone() };
+        let owes =
+            support_obligations(&summary_only, "target", &[v(T)], "support:summary").unwrap();
+        assert_eq!(
+            owes.iter().map(|o| o.kind).collect::<Vec<_>>(),
+            owed.into_iter().collect::<Vec<_>>()
+        );
+    }
+
     // A planner delta restated as obligations keeps each regime id as proof step.
     let candidate = study("exp", StudyKind::Experiment, "source", &[X], &[TY], true, 3);
     let delta = EvidenceCatalogDelta::try_new(

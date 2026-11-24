@@ -109,6 +109,28 @@ fn a_confounded_graph_owes_the_back_door_set_with_its_proof_step() {
     assert!(obligations.iter().any(|o| o.provenance.family.as_ref() == "panel"));
 }
 
+/// An unidentified query the repair routes are not defined for is refused, never answered
+/// with an empty list that would read as owing no evidence.
+#[test]
+fn an_unidentified_query_other_than_an_average_effect_is_refused_not_owed_nothing() {
+    let graph = Admg::from_dag(&dag(3, &[(0, 1), (2, 0), (2, 1)])).unwrap();
+    let other = IdentificationResult::not_identified(
+        CausalQuery::association(antecedent_core::AssociationQuery::new(v(1), vec![v(0)])),
+        DerivationTrace::default(),
+        AssumptionSet::new(),
+        IdentificationPerformanceRecord::default(),
+    );
+    let refused =
+        identification_failure_obligations(&other, &graph, &[v(0), v(1)], "pop", None).unwrap_err();
+    assert_eq!(
+        refused.detail,
+        antecedent_core::reason_details::identification_repair::INVALID_REQUEST
+    );
+    let routes = crate::failure_routes::failure_routes(&other, &graph, &[v(0), v(1)], "pop", None)
+        .unwrap_err();
+    assert_eq!(routes.detail, refused.detail);
+}
+
 /// T=0 -> M=1 -> Y=2 with U=3 confounding T and Y; only T and Y are observed.
 #[test]
 fn an_unmeasured_front_door_mediator_is_owed_as_a_joint_law() {
