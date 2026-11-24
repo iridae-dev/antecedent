@@ -21,10 +21,10 @@ use antecedent::analysis::preference_decision::{
     PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict, RegionStatus,
     RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
     StructuralPreferenceEvaluation, StructuralPreferenceResult, StructuralPreferenceVerdict,
-    ValueModel, ValueRelation, analysis_options, chain_joint_law,
-    decide_across_structures_with_context, decide_preferences_on_means_with_context,
-    decide_preferences_with_context, experiment_arm_quantity, experiment_mean_source, joint_law_of,
-    preference_route, source_requirement,
+    ValueModel, ValueRelation, chain_joint_law, decide_across_structures_with_context,
+    decide_preferences_on_means_with_context, decide_preferences_with_context,
+    experiment_arm_quantity, experiment_mean_source, joint_law_of, preference_route,
+    source_requirement,
 };
 use antecedent::analysis::preference_decision::{
     ClassSampling, ClassSize, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
@@ -57,7 +57,6 @@ use std::sync::Arc;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
 use crate::distribution_api::PyJointDistributionArtifact;
-use learning::belief_to;
 
 /// Largest JSON declaration accepted (records may carry joint draws of every option).
 const MAX_PREFERENCE_JSON_BYTES: usize = 64 * 1024 * 1024;
@@ -647,6 +646,17 @@ fn options_from(json: &str) -> PyResult<PreferenceEvaluationOptions> {
         options.certified.min_width_fraction = fraction;
     }
     Ok(options)
+}
+
+/// The options in the wire [`options_from`] reads, every field set: reading it back gives the
+/// same options (the linear-program tolerances, which the wire does not carry, stay default).
+fn options_value(options: PreferenceEvaluationOptions) -> Value {
+    json!({
+        "tie_tolerance": options.exact.tie_tolerance,
+        "vertex_cap": options.exact.vertex_cap,
+        "max_boxes": options.certified.max_boxes,
+        "min_width_fraction": options.certified.min_width_fraction,
+    })
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1335,38 +1345,6 @@ fn decide_preferences_structures(
     })
 }
 
-/// What was expected of each action of a contract, read from a source, as the options of a
-/// recorded choice: `{options: [{id, belief}]}`. Exactly one of `source` and
-/// `mean_source_json` is given.
-#[pyfunction]
-#[pyo3(signature = (contract_json, source, mean_source_json))]
-fn preference_analysis_options(
-    contract_json: &str,
-    source: Option<&PyJointDistributionArtifact>,
-    mean_source_json: Option<&str>,
-) -> PyResult<Reply> {
-    crate::catch_ffi(|| {
-        let contract = contract_from(contract_json)?;
-        let native = match (source, mean_source_json) {
-            (Some(joint), None) => NativeDecisionSource::JointLaw(Box::new(joint.inner().clone())),
-            (None, Some(json)) => NativeDecisionSource::Mean(mean_source_from(json)?),
-            _ => return Err(crate::value_err("pass joint draws or a mean source, not both")),
-        };
-        Ok(reply(
-            analysis_options(&contract, &native)
-                .map(|options| {
-                    json!({
-                        "options": options
-                            .iter()
-                            .map(|o| json!({"id": o.id, "belief": belief_to(&o.belief)}))
-                            .collect::<Vec<_>>(),
-                    })
-                })
-                .map_err(|e| refusal(&e)),
-        ))
-    })
-}
-
 /// Decide on aligned joint draws and export the bound decision record; returns the bytes or
 /// a refusal. The decision reads `cancel` at its work boundaries.
 #[pyfunction]
@@ -1428,6 +1406,7 @@ fn replay_preference_decision(
                 .map_err(|e| refusal(&e.to_refusal()))?;
             let mut value = evaluation_json(artifact.evaluation(), artifact.contract());
             value["measure"] = artifact.measure().map_or(Value::Null, measure_value);
+            value["options"] = options_value(artifact.options());
             Ok(value)
         };
         Ok(reply(run()))
@@ -1586,10 +1565,10 @@ pub(crate) fn preference_contract_from(json: &str) -> PyResult<PreferenceContrac
     contract_from(json)
 }
 
-/// A compile outcome as the handle or the refusal JSON; a compiler or design error raises.
+/// A compile outcome as the handle or the refusal JSON (see [`route_error`]).
 ///
 /// # Errors
-/// The compiler's or the design's error, raised as its Python exception.
+/// A compiler or design error that is not a refusal, raised as its Python exception.
 pub(crate) fn compiled_reply(
     outcome: Result<CompiledPreferenceDecision, PreferenceRouteError>,
 ) -> PyResult<CompiledReply> {
@@ -1597,17 +1576,86 @@ pub(crate) fn compiled_reply(
         Ok(compiled) => {
             Ok((Some(PyCompiledPreferenceDecision { inner: Arc::new(compiled) }), None))
         }
-        Err(error) => route_error(error).map(|refused| (None, Some(refused))),
+        Err(error) => route_error(error, "compile").map(|refused| (None, Some(refused))),
     }
 }
 
-fn route_error(error: PreferenceRouteError) -> PyResult<String> {
+/// Stage of a compiled decision's cancellation and analysis refusals.
+type RouteStage = &'static str;
+
+/// The refusal JSON of a route error, so every refusal of the compiled route reaches Python
+/// as one structured refusal with its code and detail: a binding, source or decision refusal
+/// as it is; a cancellation as `preference_compile.cancelled`; a compiler or design error
+/// that carries a registered reason code as `preference_compile.analysis_refused` with that
+/// code and the error's text.
+///
+/// # Errors
+/// An error with no registered reason code (an exhausted memory limit, an internal fault)
+/// raises its own Python exception, as every other route does.
+fn route_error(error: PreferenceRouteError, stage: RouteStage) -> PyResult<String> {
+    let code = error.code().map(str::to_owned);
     match error {
         PreferenceRouteError::Refused(refused) => Ok(refusal(&refused)),
-        PreferenceRouteError::Compiler(error) => Err(crate::py_err(*error)),
-        PreferenceRouteError::Design(error) => {
-            Err(crate::joint_panel_api::joint_panel_error(*error))
+        PreferenceRouteError::Compiler(error) => compiler_refusal(*error, stage),
+        PreferenceRouteError::Design(error) => design_refusal(*error, code, stage),
+    }
+}
+
+fn cancelled_refusal(stage: RouteStage, message: &str) -> String {
+    crate::bridge::RefusalJson::new(
+        antecedent::reason::reason_code!("cancelled_no_claim"),
+        stage,
+        antecedent::reason::reason_details::preference_compile::CANCELLED,
+        message,
+    )
+    .remedy(Some("rerun without cancellation; the stop is not a verdict on the analysis"))
+    .json()
+}
+
+fn analysis_refusal(code: &str, stage: RouteStage, message: &str, remedy: Option<&str>) -> String {
+    crate::bridge::RefusalJson::new(
+        code,
+        stage,
+        antecedent::reason::reason_details::preference_compile::ANALYSIS_REFUSED,
+        message,
+    )
+    .remedy(remedy)
+    .json()
+}
+
+fn compiler_refusal(error: antecedent::CausalError, stage: RouteStage) -> PyResult<String> {
+    if matches!(error.peeled(), antecedent::CausalError::Cancelled { .. }) {
+        return Ok(cancelled_refusal(stage, &error.to_string()));
+    }
+    match crate::reason_code_of(&error) {
+        Some(code) => {
+            let remedy = error.remedy().map(str::to_owned);
+            Ok(analysis_refusal(&code, stage, &error.to_string(), remedy.as_deref()))
         }
+        None => Err(crate::py_err(error)),
+    }
+}
+
+/// A compiled design's refusal: the compiler's own refusal as the compiler route reads it, a
+/// cancellation as `preference_compile.cancelled`, and every other error that carries a
+/// registered reason code (`code`, as the route reports it) as
+/// `preference_compile.analysis_refused` under that code.
+fn design_refusal(
+    error: antecedent::analysis::joint_panel::JointPanelError,
+    code: Option<String>,
+    stage: RouteStage,
+) -> PyResult<String> {
+    use antecedent::analysis::joint_panel::JointPanelError;
+    use antecedent::estimate::joint_panel::PanelError;
+    match error {
+        JointPanelError::Compiler(error) => compiler_refusal(error, stage),
+        JointPanelError::Engine(PanelError::Cancelled) => {
+            Ok(cancelled_refusal(stage, &error.to_string()))
+        }
+        other => match code {
+            Some(code) => Ok(analysis_refusal(&code, stage, &other.to_string(), None)),
+            None => Err(crate::joint_panel_api::joint_panel_error(other)),
+        },
     }
 }
 
@@ -1644,6 +1692,13 @@ fn joint_law_json(joint: &PreferenceJointLaw) -> Value {
         "label": fact.label(),
         "declaration": fact.declaration(),
         "cross_blocks": fact.cross_blocks(),
+        "pairs": fact
+            .pairs()
+            .iter()
+            .map(|(first, second, basis)| {
+                json!({"first": first, "second": second, "basis": &**basis})
+            })
+            .collect::<Vec<_>>(),
         "inputs": fact
             .inputs()
             .iter()
@@ -1874,6 +1929,9 @@ fn executed_json(
         "contract_identity": receipt.contract_identity,
         "causal": receipt.causal,
         "programs": receipt.programs.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
+        "executed": receipt.executed.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
+        "measure": receipt.measure,
+        "options": receipt.options,
         "mixture": executed.mixture.as_ref().map(|m| json!({
             "weight_basis": m.weight_basis.as_str(),
             "identified_mass": m.identified_mass,
@@ -1927,7 +1985,7 @@ impl PyCompiledPreferenceDecision {
                 };
                 Ok((Some(executed_json(&compiled, &executed).to_string()), None, law))
             }
-            Err(error) => route_error(error).map(|refused| (None, Some(refused), None)),
+            Err(error) => route_error(error, "execute").map(|refused| (None, Some(refused), None)),
         })
     }
 }
@@ -2048,7 +2106,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decide_preferences_joint, m)?)?;
     m.add_function(wrap_pyfunction!(decide_preferences_means, m)?)?;
     m.add_function(wrap_pyfunction!(decide_preferences_structures, m)?)?;
-    m.add_function(wrap_pyfunction!(preference_analysis_options, m)?)?;
     m.add_function(wrap_pyfunction!(export_preference_decision, m)?)?;
     m.add_function(wrap_pyfunction!(replay_preference_decision, m)?)?;
     m.add_function(wrap_pyfunction!(table_content_identity, m)?)

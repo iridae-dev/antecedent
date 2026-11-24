@@ -7,13 +7,15 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
     AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource, ChoiceModelEstimate,
     ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord, ChoiceRecordSet,
     ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet, LearningOptions,
     OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions, SetLearningResult,
-    SetOutcome, estimate_accepted_with_context, estimate_choice_model_with_context,
-    learn_compatible_set_accepted_with_context, learn_compatible_set_with_context,
+    SetOutcome, analysis_options, estimate_accepted_with_context,
+    estimate_choice_model_with_context, learn_compatible_set_accepted_with_context,
+    learn_compatible_set_with_context,
 };
 use antecedent::contract::ExternalRefusal;
 use pyo3::prelude::*;
@@ -22,9 +24,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{
-    AttributeWire, Reply, attribute_from, debug_kind, measure_value, model_from, model_value,
-    parameter_to, parse, refusal, refusal_value, relation_to, reply,
+    AttributeWire, Reply, attribute_from, contract_from, debug_kind, mean_source_from,
+    measure_value, model_from, model_value, parameter_to, parse, refusal, refusal_value,
+    relation_to, reply,
 };
+use crate::distribution_api::PyJointDistributionArtifact;
 
 /// An accepted-preferences handle or the refusal JSON.
 type HandleReply = (Option<PyAcceptedPreferences>, Option<String>);
@@ -748,6 +752,38 @@ fn accept_preferences_choice_model(
     })
 }
 
+/// What was expected of each action of a contract, read from a source, as the options of a
+/// recorded choice: `{options: [{id, belief}]}`. Exactly one of `source` and
+/// `mean_source_json` is given.
+#[pyfunction]
+#[pyo3(signature = (contract_json, source, mean_source_json))]
+fn preference_analysis_options(
+    contract_json: &str,
+    source: Option<&PyJointDistributionArtifact>,
+    mean_source_json: Option<&str>,
+) -> PyResult<Reply> {
+    crate::catch_ffi(|| {
+        let contract = contract_from(contract_json)?;
+        let native = match (source, mean_source_json) {
+            (Some(joint), None) => NativeDecisionSource::JointLaw(Box::new(joint.inner().clone())),
+            (None, Some(json)) => NativeDecisionSource::Mean(mean_source_from(json)?),
+            _ => return Err(crate::value_err("pass joint draws or a mean source, not both")),
+        };
+        Ok(reply(
+            analysis_options(&contract, &native)
+                .map(|options| {
+                    json!({
+                        "options": options
+                            .iter()
+                            .map(|o| json!({"id": o.id, "belief": belief_to(&o.belief)}))
+                            .collect::<Vec<_>>(),
+                    })
+                })
+                .map_err(|e| refusal(&e)),
+        ))
+    })
+}
+
 /// Load accepted preferences under an identity the consumer retained; with records, a
 /// learned basis is relearned from them and must be reproduced, reading `cancel` as the
 /// learner or the estimator does.
@@ -780,5 +816,6 @@ pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(accept_preferences_declared, m)?)?;
     m.add_function(wrap_pyfunction!(accept_preferences_compatible_set, m)?)?;
     m.add_function(wrap_pyfunction!(accept_preferences_choice_model, m)?)?;
+    m.add_function(wrap_pyfunction!(preference_analysis_options, m)?)?;
     m.add_function(wrap_pyfunction!(consume_accepted_preferences, m)?)
 }
