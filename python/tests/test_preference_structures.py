@@ -9,6 +9,8 @@ oriented ``w -> z -> t -> y`` at weight 0.4. Actions ``low`` and ``high`` read t
 
 from __future__ import annotations
 
+import dataclasses
+
 import antecedent as ant
 import numpy as np
 import pytest
@@ -26,22 +28,48 @@ DOSES = [0.5, 1.5]
 # --------------------------------------------------------------------------- declarations
 
 
+def test_the_public_fields_stay_ordered_and_pairs():
+    # The member-measure declarations are private; ClassPrior constructs and validates by
+    # ordered or pairs exactly as it always has.
+    public = [f.name for f in dataclasses.fields(ClassPrior) if not f.name.startswith("_")]
+    assert public == ["ordered", "pairs"]
+    assert ClassPrior((0.25, 0.75)) == ClassPrior(ordered=(0.25, 0.75))
+    assert repr(ClassPrior(pairs=((1, 1.0),))) == "ClassPrior(ordered=None, pairs=((1, 1.0),))"
+    with pytest.raises(ValueError, match="^ClassPrior requires exactly one of ordered or pairs$"):
+        ClassPrior()
+    with pytest.raises(ValueError, match="^ClassPrior requires exactly one of ordered or pairs$"):
+        ClassPrior(ordered=(1.0,), pairs=((1, 1.0),))
+    with pytest.raises(ValueError, match="^ClassPrior masses must be finite and nonnegative$"):
+        ClassPrior(ordered=(-1.0,))
+    with pytest.raises(ValueError, match="^ClassPrior keys must be unique"):
+        ClassPrior(pairs=((1, 1.0), (1, 2.0)))
+    with pytest.raises(ValueError, match="^ClassPrior total mass must be strictly positive$"):
+        ClassPrior(ordered=(0.0,))
+
+
 def test_a_uniform_measure_names_its_assumption():
     prior = ClassPrior.uniform(UNIFORM)
-    assert prior.uniform_measure
-    assert prior.assumption == UNIFORM
+    assert prior._uniform
+    assert prior._assumption == UNIFORM
+    assert (prior.ordered, prior.pairs) == (None, None)
+    assert repr(prior) == f"ClassPrior.uniform({UNIFORM!r})"
+    assert prior != ClassPrior.uniform("assumption.other")
     with pytest.raises(ValueError, match="assumption must name"):
         ClassPrior.uniform("  ")
     with pytest.raises(ValueError, match="names its assumption"):
-        ClassPrior(uniform_measure=True)
-    with pytest.raises(ValueError, match="exactly one of"):
-        ClassPrior(pairs=((1, 1.0),), uniform_measure=True, assumption=UNIFORM)
+        ClassPrior(_uniform=True)
+    with pytest.raises(ValueError, match="takes no ordered or pairs"):
+        ClassPrior(pairs=((1, 1.0),), _uniform=True, _assumption=UNIFORM)
+    keyed = ClassPrior.from_pairs([(1, 1.0)]).with_assumption(UNIFORM)
+    assert keyed._assumption == UNIFORM
+    assert keyed.pairs == ((1, 1.0),)
 
 
 def test_exact_limit_and_sample_are_validated():
     prior = ClassPrior.uniform(UNIFORM).exact_limit(4).sample(25, seed=7)
-    assert prior.completion_limit == 4
-    assert prior.sampling == (25, 7)
+    assert prior._exact_limit == 4
+    assert prior._sampling == (25, 7)
+    assert repr(prior) == f"ClassPrior.uniform({UNIFORM!r}).exact_limit(4).sample(25, seed=7)"
     with pytest.raises(ValueError, match="exact limit"):
         ClassPrior.uniform(UNIFORM).exact_limit(0)
     with pytest.raises(ValueError, match="at least one member"):

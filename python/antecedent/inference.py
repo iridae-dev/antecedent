@@ -8,7 +8,7 @@ means ``Frequentist()``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -254,7 +254,11 @@ class ClassPrior:
     * ``ordered`` -- masses aligned with the order of ``identify(...).completion_keys``
       (temporal classes only);
     * ``pairs`` -- ``(key, mass)`` pairs with unique unsigned 64-bit integer keys;
-    * ``uniform_measure=True`` with an ``assumption`` -- equal mass on every member.
+
+    or build a uniform measure with :meth:`uniform`, which puts equal mass on every member under
+    a named assumption. :meth:`with_assumption`, :meth:`exact_limit` and :meth:`sample` return a
+    copy carrying that declaration; it is held privately, so the public fields stay ``ordered``
+    and ``pairs``.
 
     A class atom with at most :meth:`exact_limit` members (32 unless declared) is enumerated
     exactly; a larger one is refused unless a uniform measure declares :meth:`sample`, which
@@ -263,46 +267,49 @@ class ClassPrior:
     :meth:`uniform` to build one.
 
     Raises:
-        ValueError: when not exactly one of ``ordered``, ``pairs`` and ``uniform_measure`` is
-            given, a mass is negative or not finite, the total mass is not positive, keys repeat
-            or are not unsigned 64-bit integers, an assumption is blank (or missing for a
-            uniform measure), the exact limit or the number of sampled members is below one,
-            the seed is not an unsigned 64-bit integer, or a measure that is not uniform
-            declares a sample.
+        ValueError: when both or neither of ``ordered`` and ``pairs`` are given (or either is
+            given to a uniform measure), a mass is negative or not finite, the total mass is not
+            positive, keys repeat or are not unsigned 64-bit integers, an assumption is blank,
+            the exact limit or the number of sampled members is below one, the seed is not an
+            unsigned 64-bit integer, or a measure that is not uniform declares a sample.
     """
 
     ordered: tuple[float, ...] | None = None
     pairs: tuple[tuple[int, float], ...] | None = None
-    uniform_measure: bool = False
-    assumption: str | None = None
-    completion_limit: int | None = None
-    sampling: tuple[int, int] | None = None
+    # Declarations reached only through uniform(), with_assumption(), exact_limit() and
+    # sample(); private so the released public fields stay exactly ordered and pairs.
+    _uniform: bool = field(default=False, repr=False, kw_only=True)
+    _assumption: str | None = field(default=None, repr=False, kw_only=True)
+    _exact_limit: int | None = field(default=None, repr=False, kw_only=True)
+    _sampling: tuple[int, int] | None = field(default=None, repr=False, kw_only=True)
 
     def __post_init__(self) -> None:
-        given = (self.ordered is not None) + (self.pairs is not None) + bool(self.uniform_measure)
-        if given != 1:
-            raise ValueError("ClassPrior requires exactly one of ordered, pairs or uniform_measure")
-        if self.assumption is not None and (
-            not isinstance(self.assumption, str) or not self.assumption.strip()
+        if self._uniform:
+            if self.ordered is not None or self.pairs is not None:
+                raise ValueError("a uniform ClassPrior takes no ordered or pairs masses")
+        elif (self.ordered is None) == (self.pairs is None):
+            raise ValueError("ClassPrior requires exactly one of ordered or pairs")
+        if self._assumption is not None and (
+            not isinstance(self._assumption, str) or not self._assumption.strip()
         ):
             raise ValueError("ClassPrior assumption must name the declaration it stands on")
-        if self.uniform_measure and self.assumption is None:
+        if self._uniform and self._assumption is None:
             raise ValueError("a uniform ClassPrior names its assumption")
-        if self.completion_limit is not None and (
-            type(self.completion_limit) is not int or self.completion_limit < 1
+        if self._exact_limit is not None and (
+            type(self._exact_limit) is not int or self._exact_limit < 1
         ):
             raise ValueError("ClassPrior exact limit must be at least one member")
-        if self.sampling is not None:
-            members, seed = self.sampling
+        if self._sampling is not None:
+            members, seed = self._sampling
             if type(members) is not int or members < 1:
                 raise ValueError("ClassPrior sample must draw at least one member")
             if type(seed) is not int or not 0 <= seed < 2**64:
                 raise ValueError("ClassPrior sample seed must be an unsigned 64-bit integer")
-            if not self.uniform_measure:
+            if not self._uniform:
                 raise ValueError(
                     "only a uniform ClassPrior can be sampled: keyed masses need every member's key"
                 )
-        if self.uniform_measure:
+        if self._uniform:
             return
         masses = (
             self.ordered
@@ -319,6 +326,20 @@ class ClassPrior:
                 raise ValueError("ClassPrior keys must be unique unsigned 64-bit integers")
         if not isfinite(sum(masses)) or sum(masses) <= 0.0:
             raise ValueError("ClassPrior total mass must be strictly positive")
+
+    def __repr__(self) -> str:
+        if self._uniform:
+            text = f"ClassPrior.uniform({self._assumption!r})"
+        else:
+            text = f"ClassPrior(ordered={self.ordered!r}, pairs={self.pairs!r})"
+            if self._assumption is not None:
+                text += f".with_assumption({self._assumption!r})"
+        if self._exact_limit is not None:
+            text += f".exact_limit({self._exact_limit!r})"
+        if self._sampling is not None:
+            members, seed = self._sampling
+            text += f".sample({members!r}, seed={seed!r})"
+        return text
 
     @classmethod
     def from_ordered(cls, masses: list[float] | tuple[float, ...]) -> ClassPrior:
@@ -337,15 +358,15 @@ class ClassPrior:
     def uniform(cls, assumption: str) -> ClassPrior:
         """Equal mass on every member of every class, declared under ``assumption`` (for
         example ``"assumption.uniform_within_class"``)."""
-        return cls(uniform_measure=True, assumption=assumption)
+        return cls(_uniform=True, _assumption=assumption)
 
     def with_assumption(self, assumption: str) -> ClassPrior:
         """The same masses, naming the assumption they stand on."""
-        return replace(self, assumption=assumption)
+        return replace(self, _assumption=assumption)
 
     def exact_limit(self, limit: int) -> ClassPrior:
         """Enumerate a class atom exactly when it has at most ``limit`` members."""
-        return replace(self, completion_limit=limit)
+        return replace(self, _exact_limit=limit)
 
     def sample(self, members: int, *, seed: int) -> ClassPrior:
         """Above the exact limit, draw ``members`` members of each class atom uniformly with
@@ -357,16 +378,16 @@ class ClassPrior:
         sampled member's own verdict is reported with a bound on the mass where another action
         is best, and no combined verdict is given.
         """
-        return replace(self, sampling=(members, seed))
+        return replace(self, _sampling=(members, seed))
 
 
 def _class_prior_kwargs(prior: ClassPrior | None) -> dict[str, Any]:
     if prior is None:
         return {}
-    if prior.uniform_measure or (
-        prior.assumption is not None
-        or prior.completion_limit is not None
-        or prior.sampling is not None
+    if prior._uniform or (
+        prior._assumption is not None
+        or prior._exact_limit is not None
+        or prior._sampling is not None
     ):
         raise ValueError(
             "a uniform ClassPrior, an assumption, an exact limit or a sample weighs the members "
@@ -388,11 +409,11 @@ def _graph_posterior_class_prior_kwargs(prior: ClassPrior | None) -> dict[str, A
         )
     return {
         "class_prior": {
-            "kind": "uniform" if prior.uniform_measure else "pairs",
+            "kind": "uniform" if prior._uniform else "pairs",
             "pairs": [(int(key), float(mass)) for key, mass in prior.pairs or ()],
-            "assumption": prior.assumption,
-            "exact_limit": prior.completion_limit,
-            "sample": None if prior.sampling is None else tuple(prior.sampling),
+            "assumption": prior._assumption,
+            "exact_limit": prior._exact_limit,
+            "sample": None if prior._sampling is None else tuple(prior._sampling),
         }
     }
 
