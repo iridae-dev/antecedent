@@ -7,6 +7,8 @@ chooses ``(0, 0)`` over ``(3, 1)`` implies ``w >= 3``. Every expected answer fol
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
@@ -275,3 +277,200 @@ def test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices():
     with pytest.raises(pf.PreferenceRefusal) as mixed:
         require_success(pl.ChoiceModel().learn(MODEL, records))
     assert mixed.value.detail == reason_details.preference_choice_model.STATED_AND_RECORDED_MIXED
+
+
+# --------------------------------------------------------------------------- shape parameters
+
+X = pf.attribute("x", units="usd")
+HARM_X = pf.attribute("harm", units="events")
+RISK = pf.strength("risk", units="1/usd", lower=0.1, upper=3.0, assumption="panel")
+RISK_MODEL = pf.ValueModel(-pf.exp(-(RISK * X)), utility_units="u")
+# A sure 1 chosen over an even lottery on 0 and 3 under v = -exp(-risk x) holds exactly for
+# risk >= -ln((sqrt(5) - 1) / 2).
+RISK_THRESHOLD = -math.log((math.sqrt(5.0) - 1.0) / 2.0)
+
+
+def _lottery(id: str, sure: float, chosen: str) -> pl.Record:
+    return pl.Record(
+        id,
+        decider="panel",
+        options=(
+            pl.Option("sure", draws={"x": [sure]}),
+            pl.Option("lottery", draws={"x": [0.0, 3.0]}, weights=[0.5, 0.5]),
+        ),
+        chosen=chosen,
+        source=pl.Forecast(f"forecast-{id}"),
+        observation_rows=(f"ledger:{id}",),
+    )
+
+
+def test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes():
+    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    learned = require_success(pl.CompatibleSet().learn(RISK_MODEL, records))
+    assert isinstance(learned.pooled, pl.LearnedSet)
+    (risk,) = learned.pooled.ranges
+    assert risk.basis == "enclosure"
+    assert RISK_THRESHOLD - 1e-2 <= risk.learned[0] <= RISK_THRESHOLD
+    assert risk.learned[1] == pytest.approx(3.0)
+    assert risk.narrowed
+    region = learned.pooled.region
+    assert region is not None
+    assert region.shape_parameters == ("risk",)
+    assert region.linear_parameters == ()
+    inside = [cell for cell in region.cells if cell.status == "inside"]
+    assert inside
+    assert all(cell.shape["risk"][0] >= RISK_THRESHOLD - 1e-9 for cell in inside)
+
+    accepted = pl.CompatibleSet().accept(RISK_MODEL, records)
+    assert accepted.basis == "compatible_set"
+    assert accepted.ranges["risk"][0] == pytest.approx(risk.learned[0])
+
+
+def test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts():
+    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    tight = pl.CompatibleSet(max_boxes=1)
+    undetermined = require_success(tight.learn(RISK_MODEL, records))
+    assert isinstance(undetermined.pooled, pl.Undetermined)
+    assert undetermined.pooled.region is not None
+    assert undetermined.pooled.region.budget_exhausted
+    assert all(cell.status == "boundary" for cell in undetermined.pooled.region.cells)
+    assert undetermined.pooled in undetermined.undetermined
+    with pytest.raises(pf.PreferenceRefusal) as refused:
+        tight.accept(RISK_MODEL, records)
+    assert refused.value.detail == reason_details.accepted_preferences.SET_UNDETERMINED
+
+    # The second record holds only for risk below about 0.275: the two are proven to conflict.
+    both = pl.Records(
+        (_lottery("r1", 1.0, "sure"), _lottery("r2", 1.2, "lottery")), "target", POOLED
+    )
+    conflict = require_success(pl.CompatibleSet().learn(RISK_MODEL, both)).pooled
+    assert isinstance(conflict, pl.Conflict)
+    assert set(conflict.records) == {"r1", "r2"}
+    assert conflict.kind == "smallest"
+    assert 0.0 < conflict.tolerance_needed < math.inf
+
+
+SHAPED = pf.strength("risk", units="1/usd", lower=0.05, upper=3.0, assumption="panel")
+HARM_WEIGHT = pf.strength("harm_weight", units="u/event", lower=0.0, upper=3.0, assumption="panel")
+RISK_AND_HARM = pf.ValueModel(-pf.exp(-(SHAPED * X)) - HARM_WEIGHT * HARM_X, utility_units="u")
+
+
+def _noisy_risk_records(
+    n: int, *, risk: float, harm_weight: float, consistency: float, x_upper: float = 4.0
+) -> pl.Records:
+    """Choices between two sure bundles simulated from the logit model."""
+    rng = np.random.default_rng(20261124)
+    records = []
+    for i in range(n):
+        x = rng.uniform(0.0, x_upper, size=2)
+        harm = rng.uniform(0.0, 2.0, size=2)
+        value = -np.exp(-risk * x) - harm_weight * harm
+        p_first = 1.0 / (1.0 + np.exp(-consistency * (value[0] - value[1])))
+        records.append(
+            pl.Record(
+                f"n{i}",
+                decider="panel",
+                options=(
+                    pl.Option("a", draws={"x": [x[0]], "harm": [harm[0]]}),
+                    pl.Option("b", draws={"x": [x[1]], "harm": [harm[1]]}),
+                ),
+                chosen="a" if rng.uniform() < p_first else "b",
+                source=pl.Forecast("forecast-batch"),
+                observation_rows=(f"ledger:n{i}",),
+            )
+        )
+    return pl.Records(tuple(records), "target", POOLED)
+
+
+def test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval():
+    records = _noisy_risk_records(500, risk=0.8, harm_weight=0.6, consistency=5.0)
+    fit = require_success(pl.ChoiceModel(draws=300, seed=3).learn(RISK_AND_HARM, records))
+    estimate = fit.pooled
+    assert estimate is not None
+    assert estimate.shape_parameters == ("risk",)
+    by_name = {p.parameter: p for p in estimate.parameters}
+    assert by_name["risk"].interval_method == "profile_likelihood"
+    assert by_name["harm_weight"].interval_method == "wald"
+    assert by_name["risk"].estimate == pytest.approx(0.8, abs=0.3)
+    assert by_name["harm_weight"].estimate == pytest.approx(0.6, abs=0.25)
+    low, high = by_name["risk"].interval
+    assert low < by_name["risk"].estimate < high
+    assert estimate.interval_calibration == "not_measured"
+
+    # The search controls travel with the options; too small a limit is refused by name.
+    narrow = pl.ChoiceModel(draws=300, shape_search=pl.ShapeSearch(max_dimensions=0))
+    with pytest.raises(pf.PreferenceRefusal) as refused:
+        require_success(narrow.learn(RISK_AND_HARM, records))
+    assert refused.value.detail == reason_details.preference_choice_model.SHAPE_SEARCH_BUDGET
+
+
+def test_a_risk_attitude_estimated_on_its_declared_bound_is_refused():
+    bounded = pf.strength("risk", units="1/usd", lower=0.3, upper=2.0, assumption="panel")
+    model = pf.ValueModel(-pf.exp(-(bounded * X)), utility_units="u")
+    rng = np.random.default_rng(20261125)
+    records = []
+    for i in range(800):
+        x = rng.uniform(0.0, 5.0, size=2)
+        p_first = 1.0 / (1.0 + np.exp(-2.0 * (x[0] - x[1])))
+        records.append(
+            pl.Record(
+                f"m{i}",
+                decider="panel",
+                options=(pl.Option("a", draws={"x": [x[0]]}), pl.Option("b", draws={"x": [x[1]]})),
+                chosen="a" if rng.uniform() < p_first else "b",
+                source=pl.Forecast("forecast-batch"),
+                observation_rows=(f"ledger:m{i}",),
+            )
+        )
+    with pytest.raises(pf.PreferenceRefusal) as refused:
+        require_success(
+            pl.ChoiceModel(draws=200).learn(model, pl.Records(tuple(records), "target", POOLED))
+        )
+    assert refused.value.detail == reason_details.preference_choice_model.SHAPE_ESTIMATE_AT_BOUND
+
+
+def _lottery_source() -> JointDistributionArtifact:
+    # Two equally weighted rows: the sure option pays 1.2 on both, the lottery 0 or 3.
+    columns = (_quantity("x", "usd", "do(a=1)"), _quantity("x", "usd", "do(a=0)"))
+    identity = DistributionIdentity(
+        semantic="interventional_predictive",
+        quantities=columns,
+        alignment="joint",
+        source_id="enumerated",
+        provider_id="exact-law",
+        rng_id="deterministic_exact",
+        snapshot_id="lottery-1",
+        causal_contract_id="checked-contract",
+    )
+    rows = np.array([[1.2, 0.0], [1.2, 3.0]], dtype=np.float64)
+    return JointDistributionArtifact(identity, rows, calibration="exact")
+
+
+def test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_declared_box():
+    # Sure 1.2 beats the even 0/3 lottery exactly for risk above about 0.275; the declared box
+    # [0.1, 3] holds both sides. Choosing a sure 1 over the same lottery holds only for risk
+    # above about 0.481, so the learned set (the declared box cut by that value relation)
+    # leaves the sure 1.2 best everywhere.
+    columns = (_quantity("x", "usd", "do(a=1)"), _quantity("x", "usd", "do(a=0)"))
+
+    def contract(preferences: object) -> pf.Contract:
+        return pf.Contract(
+            preferences=preferences,
+            actions=(
+                pf.Action("sure", inputs={"x": columns[0]}),
+                pf.Action("lottery", inputs={"x": columns[1]}),
+            ),
+            target_population="target",
+        )
+
+    declared = require_success(contract(RISK_MODEL).evaluate(_lottery_source()))
+    assert declared.kind != "necessarily_best"
+
+    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    accepted = pl.CompatibleSet().accept(RISK_MODEL, records)
+    reviewed = accepted.acknowledge(*accepted.pending) if accepted.pending else accepted
+    # The accepted set keeps the declared box; the value relation is what narrows it.
+    assert reviewed.ranges["risk"][0] > 0.4
+    decided = require_success(contract(reviewed).evaluate(_lottery_source()))
+    assert decided.kind == "necessarily_best"
+    assert decided.selected == "sure"

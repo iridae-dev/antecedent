@@ -11,6 +11,7 @@ below ``w = 2`` and wait above it, so every answer below is known in closed form
 
 from __future__ import annotations
 
+import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
@@ -533,3 +534,346 @@ def test_one_experiment_cannot_answer_a_kinked_term_from_its_means():
     kinked = pf.ValueModel(BENEFIT - _weight() * pf.excess(HARM, 1.0), utility_units="qaly")
     with pytest.raises(pf.PreferenceRefusal):
         require_success(_experiment_contract(experiment, kinked).evaluate(experiment))
+
+
+# --------------------------------------------------------------------------- the compiled route
+#
+# Fixture: dose tables ``y = intercept + slope * t + noise`` on ``t`` in [0, 2] with the graph
+# ``t -> y``, and a mean response curve of ``y`` under ``do(t = 0.5)`` and ``do(t = 1.5)``.
+# The actions ``low`` and ``high`` read one dose's mean benefit each and carry a known cost of
+# 0.5 and 1.5, valued ``benefit - price * cost``, so ``high`` leads exactly when the price is
+# below the gain ``m(1.5) - m(0.5)``.
+
+
+DOSES = [0.5, 1.5]
+PRICE_UNITS = "points/usd"
+
+
+def _dose_table(name: str = "y", rows: int = 240, slope: float = 1.5, rate: float = 1.7):
+    t = np.array([2.0 * i / (rows - 1) for i in range(rows)])
+    noise = np.array([np.sin(i * rate) for i in range(rows)])
+    return {"t": t, name: 0.5 + slope * t + 0.8 * noise}
+
+
+def _prepared(data, outcome: str = "y", *, bayes: bool = False, discovery=None):
+    inference = (
+        ant.Bayesian(backend="conjugate", n_draws=64) if bayes else ant.Frequentist(bootstrap=0)
+    )
+    return ant.prepare(
+        data,
+        graph=None if discovery is not None else [("t", outcome)],
+        discovery=discovery,
+        query=ant.ResponseCurve("t", outcome, grid=DOSES),
+        refute="none",
+        inference=inference,
+        execution=ant.Execution(seed=11),
+    )
+
+
+def _dose(outcome: str, dose: float, units: str = "points") -> ScientificQuantity:
+    return ScientificQuantity(
+        variable_id=outcome,
+        variable_name=outcome,
+        role="outcome",
+        units=units,
+        population_id="target",
+        regime_id=f"do(t={dose})",
+        horizon=0,
+        functional_id="mean",
+    )
+
+
+def _priced(lower: float, upper: float, *, kink: float | None = None) -> pf.ValueModel:
+    benefit = pf.attribute("benefit", units="points")
+    cost = pf.attribute("cost", units="usd")
+    price = pf.strength("price", units=PRICE_UNITS, lower=lower, upper=upper, assumption="price")
+    value = benefit - price * cost
+    if kink is not None:
+        weight = pf.strength(
+            "shortfall_weight", units="points/points", lower=0.0, upper=2.0, assumption="floor"
+        )
+        value = value - weight * pf.shortfall(benefit, kink)
+    return pf.ValueModel(value, utility_units="points")
+
+
+def _dose_contract(model: pf.ValueModel, **kwargs: object) -> pf.Contract:
+    return pf.Contract(
+        model=model,
+        actions=(
+            pf.Action("low", inputs={"benefit": _dose("y", 0.5), "cost": 0.5}),
+            pf.Action("high", inputs={"benefit": _dose("y", 1.5), "cost": 1.5}),
+        ),
+        target_population="target",
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def test_compile_shows_the_plan_before_anything_is_fitted():
+    prepared = _prepared(_dose_table())
+    compiled = require_success(_dose_contract(_priced(0.2, 1.0)).compile(prepared))
+    described = compiled.inspect()
+    assert described["demand"]["representation"] == "mean"
+    assert described["demand"]["carrier"] == "mean"
+    assert [q["quantity"]["regime_id"] for q in described["demand"]["quantities"]] == [
+        "do(t=0.5)",
+        "do(t=1.5)",
+    ]
+    assert described["unidentified_mass"] == 0.0
+    (plan,) = compiled.plans
+    preference = plan["evidence"]["decision"]["preference"]
+    assert preference["bound_contract_identity"] == compiled.bound_identity
+    assert preference["representation"] == "mean"
+    assert [q["regime"] for q in preference["quantities"]] == ["do(t=0.5)", "do(t=1.5)"]
+    assert preference["parameters"] == [
+        {
+            "id": "price",
+            "units": PRICE_UNITS,
+            "lower": 0.2,
+            "upper": 1.0,
+            "assumption": "price",
+        }
+    ]
+
+    # The gain is about 1.5, so a price range below it leaves `high` best everywhere.
+    decided = require_success(compiled.execute())
+    assert decided.kind == "necessarily_best"
+    assert decided.selected == "high"
+
+
+def _edge(names: list[str], source: str, target: str) -> int:
+    """The adjacency bit of ``source -> target`` over ``names``."""
+    n, i, j = len(names), names.index(source), names.index(target)
+    return 1 << (i * (n - 1) + (j if j < i else j - 1))
+
+
+NAMES = ["t", "y", "z"]
+# A directed cycle t -> y -> z -> t: no acyclic mixed graph, so it identifies nothing.
+CYCLE = _edge(NAMES, "t", "y") | _edge(NAMES, "y", "z") | _edge(NAMES, "z", "t")
+
+
+def _coded_table(rows: int = 240):
+    """Coded columns for the mixed-graph route's discrete plug-in: a binary ``z``, ``t`` at the
+    two doses (more often high when ``z`` is one) and the noise on three levels."""
+    z = np.array([float(i % 2) for i in range(rows)])
+    t = np.array([1.5 if (i // 2) % 5 < 2 + 2 * z[i] else 0.5 for i in range(rows)])
+    noise = np.array([0.3 * ((i // 10) % 3 - 1) for i in range(rows)])
+    return {"t": t, "y": 0.5 + 1.5 * t + z + noise, "z": z}
+
+
+def test_compile_refuses_a_quantity_no_structure_identifies():
+    # The only structure is a directed cycle: no structure identifies the curve. A DAG
+    # posterior holds only DAG atoms, so the cycle is a mixed-graph atom.
+    posterior = ant.discovery.GraphPosterior.from_atoms(NAMES, [1.0], [CYCLE], atom_kind="Admg")
+    table = _dose_table()
+    table["z"] = np.array([np.sin(i * 0.91) for i in range(len(table["t"]))])
+    prepared = _prepared(table, bayes=True, discovery=posterior)
+    with pytest.raises(pf.PreferenceRefusal) as refused:
+        require_success(_dose_contract(_priced(0.2, 1.0)).compile(prepared))
+    assert refused.value.reason_code == "effect_not_identified"
+    assert refused.value.detail == reason_details.native_claims.RESPONSE_NOT_POINT_IDENTIFIED
+
+
+def test_the_compiled_decision_agrees_with_evaluate_on_the_same_draws():
+    prepared = _prepared(_dose_table(), bayes=True)
+    contract = _dose_contract(_priced(0.2, 1.0, kink=2.0))
+    compiled = require_success(contract.compile(prepared))
+    assert compiled.inspect()["demand"]["representation"] == "joint_draws"
+    decided = require_success(compiled.execute())
+    assert isinstance(decided.source, JointDistributionArtifact)
+    again = require_success(contract.evaluate(decided.source))
+    assert again.kind == decided.kind
+    assert again.selected == decided.selected
+    assert [a.value_range for a in again.actions] == [a.value_range for a in decided.actions]
+
+
+def test_compile_over_a_graph_posterior_keeps_the_unidentified_mass():
+    # Mixed-graph atoms: `t -> y`, compiled as an ADMG study on the coded table, and the cycle.
+    direct = _edge(NAMES, "t", "y")
+    posterior = ant.discovery.GraphPosterior.from_atoms(
+        NAMES, [0.7, 0.3], [direct, CYCLE], atom_kind="Admg"
+    )
+    prepared = _prepared(_coded_table(), bayes=True, discovery=posterior)
+    contract = _dose_contract(_priced(0.2, 1.0), structural_policy="require_invariant_best_action")
+    compiled = require_success(contract.compile(prepared))
+    described = compiled.inspect()
+    assert len(described["structures"]) == 2
+    assert described["unidentified_mass"] == pytest.approx(0.3)
+    assert described["structures"][1]["identification"]["kind"] == "not_identified"
+    decided = require_success(compiled.execute())
+    assert decided.unidentified_mass == pytest.approx(0.3)
+    assert decided.kind == "insufficient_science"
+
+
+def test_compile_across_several_studies():
+    benefit = _prepared(_dose_table("b", 220, 1.2, 1.7), "b", bayes=True)
+    harm = _prepared(_dose_table("h", 260, 0.5, 2.9), "h", bayes=True)
+    rate = pf.strength("harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h")
+    weight = pf.strength("excess", units="points/events", lower=0.0, upper=2.0, assumption="x")
+    b = pf.attribute("benefit", units="points")
+    h = pf.attribute("harm", units="events")
+    affine = pf.ValueModel(b - rate * h, utility_units="points")
+    kinked = pf.ValueModel(b - rate * h - weight * pf.excess(h, 1.2), utility_units="points")
+
+    def contract(model: pf.ValueModel) -> pf.Contract:
+        return pf.Contract(
+            model=model,
+            actions=(
+                pf.Action(
+                    "high",
+                    inputs={"benefit": _dose("b", 1.5), "harm": _dose("h", 1.5, "events")},
+                ),
+                pf.Action(
+                    "low", inputs={"benefit": _dose("b", 0.5), "harm": _dose("h", 0.5, "events")}
+                ),
+            ),
+            target_population="target",
+        )
+
+    means = require_success(contract(affine).compile([benefit, harm]))
+    assert means.inspect()["joint_law"] is None
+    assert require_success(means.execute()).selected == "high"
+
+    with pytest.raises(pf.PreferenceRefusal) as undeclared:
+        require_success(contract(kinked).compile([benefit, harm]))
+    assert undeclared.value.reason_code == "joint_law_required"
+
+    joined = require_success(contract(kinked).compile([benefit, harm], draws=2000, seed=7))
+    joint = joined.inspect()["joint_law"]
+    assert joint["dependence"] == "distinct_evidence"
+    assert len(joint["inputs"]) == 4
+    decided = require_success(joined.execute())
+    assert isinstance(decided.source, JointDistributionArtifact)
+
+    # Two outcomes of one table share every row: not distinct evidence.
+    table = _dose_table("b", 200, 1.2, 1.7)
+    table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
+    first = _prepared(table, "b", bayes=True)
+    second = _prepared(table, "h", bayes=True)
+    with pytest.raises(pf.PreferenceRefusal) as shared:
+        require_success(contract(kinked).compile([first, second], draws=2000))
+    assert shared.value.reason_code == "evidence_double_counted"
+    assert shared.value.detail == reason_details.preference_compile.STUDIES_SHARE_EVIDENCE
+
+
+# Studies of different tables observe the same patients only through a declared unit key.
+
+
+def _keyed(outcome: str, rows: int, slope: float, rate: float, patients: list[str], **kwargs):
+    table = _dose_table(outcome, rows, slope, rate)
+    table["patient"] = np.array(patients, dtype=object)
+    return ant.prepare(
+        table,
+        graph=[("t", outcome)],
+        query=ant.ResponseCurve("t", outcome, grid=DOSES),
+        refute="none",
+        inference=ant.Bayesian(backend="conjugate", n_draws=64),
+        execution=ant.Execution(seed=11),
+        **kwargs,
+    )
+
+
+def _joined_contract() -> pf.Contract:
+    rate = pf.strength("harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h")
+    weight = pf.strength("excess", units="points/events", lower=0.0, upper=2.0, assumption="x")
+    b = pf.attribute("benefit", units="points")
+    h = pf.attribute("harm", units="events")
+    return pf.Contract(
+        model=pf.ValueModel(b - rate * h - weight * pf.excess(h, 1.2), utility_units="points"),
+        actions=(
+            pf.Action(
+                "high", inputs={"benefit": _dose("b", 1.5), "harm": _dose("h", 1.5, "events")}
+            ),
+            pf.Action(
+                "low", inputs={"benefit": _dose("b", 0.5), "harm": _dose("h", 0.5, "events")}
+            ),
+        ),
+        target_population="target",
+    )
+
+
+def test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share():
+    key = ant.UnitKey("patient", namespace="hospital_mrn")
+    benefit = _keyed("b", 200, 1.2, 1.7, [f"p{i}" for i in range(200)], unit_key=key)
+    # Patients 100-199 are in both tables.
+    harm = _keyed("h", 200, 0.5, 2.9, [f"p{i}" for i in range(100, 300)], unit_key=key)
+    with pytest.raises(pf.PreferenceRefusal) as shared:
+        require_success(_joined_contract().compile([benefit, harm], draws=2000, seed=7))
+    assert shared.value.reason_code == "evidence_double_counted"
+    assert shared.value.detail == reason_details.preference_compile.STUDIES_SHARE_EVIDENCE
+
+    # No patient in both tables: distinct evidence.
+    elsewhere = _keyed("h", 200, 0.5, 2.9, [f"q{i}" for i in range(200)], unit_key=key)
+    joined = require_success(_joined_contract().compile([benefit, elsewhere], draws=2000, seed=7))
+    assert joined.inspect()["joint_law"]["dependence"] == "distinct_evidence"
+
+    # Keys of another identifier space, or no key at all, leave the overlap unknown.
+    insurer = ant.UnitKey("patient", namespace="insurer_id")
+    for other in (
+        _keyed("h", 200, 0.5, 2.9, [f"q{i}" for i in range(200)], unit_key=insurer),
+        _keyed("h", 200, 0.5, 2.9, [f"q{i}" for i in range(200)]),
+    ):
+        with pytest.raises(pf.PreferenceRefusal) as unknown:
+            require_success(_joined_contract().compile([benefit, other], draws=2000, seed=7))
+        assert unknown.value.reason_code == "evidence_overlap_unknown"
+
+
+def test_a_unit_key_is_checked_where_it_is_declared():
+    from antecedent.errors import CausalUnsupportedError
+
+    with pytest.raises(CausalValueError):
+        ant.UnitKey("patient", namespace=" ")
+    with pytest.raises(CausalValueError):
+        _keyed("b", 200, 1.2, 1.7, [f"p{i}" for i in range(200)], unit_key=ant.UnitKey("mrn", "h"))
+    missing = [f"p{i}" for i in range(199)] + [None]
+    with pytest.raises(CausalValueError):
+        _keyed("b", 200, 1.2, 1.7, missing, unit_key=ant.UnitKey("patient", "h"))
+    table = _dose_table("y")
+    table["patient"] = np.array([f"p{i}" for i in range(len(table["t"]))], dtype=object)
+    with pytest.raises(CausalUnsupportedError) as refused:
+        ant.prepare(
+            table,
+            graph=[("t", "y")],
+            query=ant.AverageEffect("t", "y", control_level=0.5, active_level=1.5),
+            unit_key=ant.UnitKey("patient", namespace="hospital_mrn"),
+        )
+    assert refused.value.reason_code == "option_not_applicable"
+
+
+def test_projections_of_one_table_keep_their_source_rows():
+    # Each study keeps only its graph columns of one table: the rows are still the table's.
+    table = _dose_table("b", 200, 1.2, 1.7)
+    table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
+    first = _prepared(table, "b", bayes=True)
+    second = _prepared(table, "h", bayes=True)
+    with pytest.raises(pf.PreferenceRefusal) as shared:
+        require_success(_joined_contract().compile([first, second], draws=2000, seed=7))
+    assert shared.value.reason_code == "evidence_double_counted"
+    # A copy of the table with other values is another source.
+    other = {name: np.array(values, copy=True) for name, values in table.items()}
+    other["h"] = other["h"] + 1.0
+    third = _prepared(other, "h", bayes=True)
+    joined = require_success(_joined_contract().compile([first, third], draws=2000, seed=7))
+    assert joined.inspect()["joint_law"]["dependence"] == "distinct_evidence"
+
+
+def test_a_projection_and_a_study_of_the_whole_table_share_its_rows():
+    # One study reads every column of the table; the other drops a column. Both name the
+    # same source table, so they are judged as sharing its rows.
+    table = _dose_table("b", 200, 1.2, 1.7)
+    table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
+    whole = ant.prepare(
+        table,
+        graph=[("t", "b"), ("t", "h")],
+        query=ant.ResponseCurve("t", "b", grid=DOSES),
+        refute="none",
+        inference=ant.Bayesian(backend="conjugate", n_draws=64),
+        execution=ant.Execution(seed=11),
+    )
+    projected = _prepared(table, "h", bayes=True)
+    with pytest.raises(pf.PreferenceRefusal) as shared:
+        require_success(_joined_contract().compile([whole, projected], draws=2000, seed=7))
+    assert shared.value.reason_code == "evidence_double_counted"
+    # Either order names the one table.
+    with pytest.raises(pf.PreferenceRefusal) as reversed_order:
+        require_success(_joined_contract().compile([projected, whole], draws=2000, seed=7))
+    assert reversed_order.value.reason_code == "evidence_double_counted"
