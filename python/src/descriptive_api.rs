@@ -1,9 +1,16 @@
 //! Python binding for the descriptive raw-versus-adjusted comparison and the declared
 //! reporting-scale transform.
+//!
+//! Each computation runs through its compiled program (`DescriptiveComparison` family,
+//! `antecedent::analysis::descriptive_programs`), which calls the same kernel with the same
+//! inputs and returns its result unchanged; the kernel's refusals reach Python as before.
 use crate::transport_common::execution_context;
+use antecedent::analysis::descriptive_programs::{
+    DescriptiveOutcome, DescriptiveProgramError, DescriptiveRequest, compile_descriptive,
+};
 use antecedent::estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,
-    ReportingTransform, compare_raw_adjusted, raw_contrast,
+    ReportingTransform,
 };
 use pyo3::prelude::*;
 
@@ -12,6 +19,26 @@ fn estimation_err(error: EstimationError) -> PyErr {
         EstimationError::Refused { code, message } => crate::refusal(code, message),
         other => crate::value_err(other.to_string()),
     }
+}
+
+fn program_err(error: DescriptiveProgramError) -> PyErr {
+    match error {
+        DescriptiveProgramError::Estimation(error) => estimation_err(error),
+        DescriptiveProgramError::NotSupported(refusal) => crate::not_supported_err(&refusal),
+        other => crate::refusal("public_builder_reentry", other.to_string()),
+    }
+}
+
+/// Compile `request` and evaluate it with `ctx`.
+fn evaluate(
+    request: DescriptiveRequest,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<DescriptiveOutcome> {
+    compile_descriptive(request, ctx).and_then(|program| program.evaluate(ctx)).map_err(program_err)
+}
+
+fn unexpected() -> PyErr {
+    crate::value_err("the compiled descriptive program returned another result kind")
 }
 
 /// `(count, mean, sum of squared deviations)` of one arm.
@@ -57,8 +84,13 @@ fn raw_vs_adjusted(
     };
     let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
-        let comparison =
-            compare_raw_adjusted(&outcome, &treatment, adjusted, &ctx).map_err(estimation_err)?;
+        let DescriptiveOutcome::Comparison(comparison) = evaluate(
+            DescriptiveRequest::CompareRawAdjusted { outcome, treatment, adjusted },
+            &ctx,
+        )?
+        else {
+            return Err(unexpected());
+        };
         let raw = &comparison.raw;
         Ok((arm(&raw.active), arm(&raw.control), raw.difference, raw_se(raw), comparison.gap))
     })
@@ -130,8 +162,13 @@ fn transform_mean_pair(
 ) -> PyResult<Transformed> {
     check_level(level)?;
     let pair = MeanPair::new(mean_active, mean_control, covariance.map(|(a, c, b)| [a, c, b]));
-    let transform = antecedent::estimate::transform_mean_pair(&pair, &parse_scales(&scales)?)
-        .map_err(estimation_err)?;
+    let scales = parse_scales(&scales)?;
+    let ctx = execution_context(0, None, None);
+    let DescriptiveOutcome::Transform(transform) =
+        evaluate(DescriptiveRequest::TransformMeanPair { pair, scales }, &ctx)?
+    else {
+        return Err(unexpected());
+    };
     Ok(transformed(&transform, level))
 }
 
@@ -153,9 +190,11 @@ fn transform_raw_arms(
     let scales = parse_scales(&scales)?;
     let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
-        let raw = raw_contrast(&outcome, &treatment, &ctx).map_err(estimation_err)?;
-        let transform = antecedent::estimate::transform_mean_pair(&raw.mean_pair(), &scales)
-            .map_err(estimation_err)?;
+        let DescriptiveOutcome::RawArmsTransform(raw, transform) =
+            evaluate(DescriptiveRequest::RawArmsTransform { outcome, treatment, scales }, &ctx)?
+        else {
+            return Err(unexpected());
+        };
         Ok((arm(&raw.active), arm(&raw.control), transformed(&transform, level)))
     })
 }
