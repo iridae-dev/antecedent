@@ -3606,34 +3606,6 @@ disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
 
 [[row]]
-path = "antecedent_io_core::policy_program_artifact::encode_policy_program"
-disposition = "not_scientific"
-reason = "serialization or identity helper; computes no estimate"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::interventions_from_named_json"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::named_json_from_interventions"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::policy_program_callback_records"
-disposition = "not_scientific"
-reason = "serialization or identity helper; computes no estimate"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::policy_program_identity"
-disposition = "not_scientific"
-reason = "serialization or identity helper; computes no estimate"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::value_expression_identity"
-disposition = "not_scientific"
-reason = "serialization or identity helper; computes no estimate"
-
-[[row]]
 path = "antecedent_io_core::posterior::validate_posterior_meta"
 disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
@@ -4432,14 +4404,6 @@ path = "antecedent_io_core::decode_prior_source_meta_expecting"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_io_core::policy_program_artifact::decode_policy_program_expecting"
-disposition = "consume"
-
-[[row]]
-path = "antecedent_io_core::policy_program_artifact::decode_policy_program_with_expecting"
-disposition = "consume"
-
-[[row]]
 path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted_expecting"
 disposition = "consume"
 
@@ -4522,6 +4486,20 @@ replacement = "bound:antecedent_io::release_migration::consume_previous_route_re
 path = "antecedent::io::replay_analysis_result"
 disposition = "deprecated"
 replacement = "bound:antecedent_io::randomized_ipow_artifact::replay_analysis_result_expecting"
+
+[[row]]
+path = "antecedent_io_core::artifact_identity"
+disposition = "not_scientific"
+reason = "identity of artifact bytes a consumer retains; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::bind_retained_artifact"
+disposition = "not_scientific"
+reason = "binds artifact bytes to a retained identity before a loader reads them; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::load_expecting"
+disposition = "consume"
 
 [[python]]
 path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"
