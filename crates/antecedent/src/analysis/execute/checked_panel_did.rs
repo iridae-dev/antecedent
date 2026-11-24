@@ -14,6 +14,7 @@ use antecedent_data::{MissingDeclaration, MissingPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod bayesian;
+mod group_time;
 mod rollout;
 mod weighted;
 
@@ -1088,32 +1089,40 @@ impl CheckedPanelDidOperation {
         if selected.iter().any(Vec::is_empty) {
             return Err(CausalError::Compile { message: "staggered DiD requires never-treated controls and subjects in the selected adoption cohort".into() });
         }
-        let means: [f64; 2] = std::array::from_fn(|group| {
-            let units = &selected[group];
-            units.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>()
-                / units.len() as f64
-        });
-        let effect = means[1] - means[0];
-        let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
-        let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
-        for group in 0..2 {
-            for unit in &selected[group] {
-                group_clusters[group].insert(unit.1);
-                let change = unit.2[&period] - unit.2[&baseline];
-                *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
-                    * (change - means[group])
-                    / selected[group].len() as f64;
-            }
-        }
-        if group_clusters.iter().any(|set| set.len() < 2) {
-            return Err(CausalError::Unsupported {
-                message: "staggered DiD cluster SE requires at least two clusters in the selected cohort and never-treated controls",
+        // On the panels the group-time ATT kernel reads, the cell is the kernel's; elsewhere the
+        // same formula runs on the selected cell alone (see `group_time`).
+        let (effect, se, cluster_count) = if let Some(cell) =
+            self.kernel_group_time_cell(y, cohort, period, &selected)
+        {
+            (cell.effect, cell.standard_error, cell.clusters)
+        } else {
+            let means: [f64; 2] = std::array::from_fn(|group| {
+                let units = &selected[group];
+                units.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>()
+                    / units.len() as f64
             });
-        }
-        let cluster_count = scores.len();
-        let variance = cluster_count as f64 / (cluster_count - 1) as f64
-            * scores.values().map(|score| score * score).sum::<f64>();
-        let se = variance.sqrt();
+            let effect = means[1] - means[0];
+            let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
+            let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
+            for group in 0..2 {
+                for unit in &selected[group] {
+                    group_clusters[group].insert(unit.1);
+                    let change = unit.2[&period] - unit.2[&baseline];
+                    *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
+                        * (change - means[group])
+                        / selected[group].len() as f64;
+                }
+            }
+            if group_clusters.iter().any(|set| set.len() < 2) {
+                return Err(CausalError::Unsupported {
+                    message: "staggered DiD cluster SE requires at least two clusters in the selected cohort and never-treated controls",
+                });
+            }
+            let cluster_count = scores.len();
+            let variance = cluster_count as f64 / (cluster_count - 1) as f64
+                * scores.values().map(|score| score * score).sum::<f64>();
+            (effect, variance.sqrt(), cluster_count)
+        };
         let estimate = EffectEstimate::new(
             effect,
             // The selected group-time SE is pointwise and has no calibrated interval.
