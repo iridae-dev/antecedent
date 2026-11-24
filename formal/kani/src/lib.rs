@@ -3,3 +3,5 @@
 
 #[cfg(kani)]
 mod bound_identity;
+#[cfg(kani)]
+mod support_labels;

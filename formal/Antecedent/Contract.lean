@@ -18,6 +18,9 @@ Rust counterparts:
 * `ObligationKind`     ↔ `antecedent_contract::obligation::ObligationKind`
 * `Obligation.unresolved` ↔ `ObligationRecord::is_unresolved`
 * `Report.compose`     ↔ `antecedent_contract::transform::TransformationReport::compose`
+* `obligationMerge`, `keptOnReplace`, `obligationUnresolved` ↔
+  `antecedent_contract::transform::{obligation_merge, obligation_kept_on_replace}` and
+  `antecedent_contract::obligation::obligation_unresolved` (proved equal in `formal/rust`)
 The composition is exercised on the production code by the adversarial campaign
 (`parity/adversarial_campaign.toml`, `contract.*` cases).
 -/
@@ -169,6 +172,43 @@ theorem foldl_adds_unresolved (os acc : List Obligation) (e : Obligation)
     rcases List.mem_cons.1 he with rfl | h
     · exact foldl_keeps_unresolved os _ e (addObligation_adds_unresolved acc e hu) hu
     · exact ih _ h
+
+/-- The unresolved rule as the Rust check states it (`obligation_unresolved`). -/
+def obligationUnresolved (k : ObligationKind) (s : AssumptionStatus) : Bool :=
+  k.unresolved || s == .declared || s == .contradicted
+
+theorem Obligation.unresolved_eq (o : Obligation) :
+    o.unresolved = obligationUnresolved o.kind o.status := rfl
+
+/-- What composition does with one later obligation (`ObligationMerge`). -/
+inductive Merge where
+  | skip
+  | replaceResolved
+  | append
+  deriving DecidableEq, Repr
+
+/-- The decision as the Rust check states it (`obligation_merge`). -/
+def obligationMerge (identical sameId unresolved : Bool) : Merge :=
+  if identical || (!unresolved && sameId) then .skip
+  else if unresolved then .replaceResolved
+  else .append
+
+/-- Which earlier record survives a replacement, as the Rust check states it. -/
+def keptOnReplace (sameId unresolved : Bool) : Bool := !sameId || unresolved
+
+/-- One later obligation added as the production loop adds it, from the two decisions. -/
+def addObligationBy (acc : List Obligation) (o : Obligation) : List Obligation :=
+  match obligationMerge (acc.contains o) (acc.any fun e => e.id == o.id) o.unresolved with
+  | .skip => acc
+  | .replaceResolved => acc.filter (fun e => keptOnReplace (e.id == o.id) e.unresolved) ++ [o]
+  | .append => acc ++ [o]
+
+/-- The production decisions add an obligation exactly as `addObligation` does. -/
+theorem addObligationBy_eq (acc : List Obligation) (o : Obligation) :
+    addObligationBy acc o = addObligation acc o := by
+  unfold addObligationBy addObligation obligationMerge keptOnReplace
+  cases hc : acc.contains o <;> cases hu : o.unresolved <;>
+    cases ha : (acc.any fun e => e.id == o.id) <;> simp [bne, *]
 
 /-- Composition never drops an unresolved obligation of either report. -/
 theorem compose_keeps_unresolved (r s : Report) (e : Obligation)
