@@ -747,7 +747,8 @@ impl TransportedClaimOffer {
         write_support(&mut writer, &self.support);
         write_operations(&mut writer, &self.operations);
         writer.opt_text(self.uncertainty.map(crate::quantity::meaning_tag));
-        writer.text(&self.transport.digest().to_hex());
+        // The transport's populations and assumptions are sets, as the ledger reads them.
+        writer.text(&self.transport.set_digest().to_hex());
         writer.word(self.evidence.len() as u64);
         for source in &self.evidence {
             writer.text(&source.to_hex());
@@ -861,7 +862,7 @@ pub fn hand_to_consumer(
         .word(PROVIDER_TRANSPORT_VERSION)
         .text(&connection.identity.to_hex())
         .text(&offer.canonical_identity().to_hex())
-        .text(&offer.transport.digest().to_hex())
+        .text(&offer.transport.set_digest().to_hex())
         .text(policy.as_str());
     Ok(TransportedHandoff {
         connection,

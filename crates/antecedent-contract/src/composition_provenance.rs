@@ -394,4 +394,34 @@ mod tests {
             assert_eq!(CompositionStage::from_name(stage.as_str()), Some(stage));
         }
     }
+
+    // Identity site `contract.composition_provenance.link_digest`
+    // (formal/identity_sites.toml): a link's parents are written in declared order (the
+    // documented Merkle form), so their order is part of the link digest, and ids are framed.
+
+    #[test]
+    fn site_link_digest_parents_are_ordered_and_framed() {
+        use CompositionStage as S;
+        let parents = ["contract", "data", "unrelated"];
+        crate::identity_laws::assert_ordered(&parents, |listed| {
+            let chain = ProvenanceChain::new(vec![
+                link("contract", S::CausalContract, &[]),
+                link("data", S::Data, &[]),
+                link("unrelated", S::SensitivityInput, &[]),
+                link("claim", S::Claim, listed),
+            ])
+            .ok()?;
+            chain.digest_of("claim").ok().map(str::to_owned)
+        });
+        let ids = ["a", "a:b", "b", "a:", ":b", "ab"];
+        crate::identity_laws::assert_injective(
+            &ids,
+            |id| (*id).to_owned(),
+            |id| {
+                ProvenanceChain::new(vec![link(id, S::Data, &[])])
+                    .ok()
+                    .and_then(|chain| chain.digest_of(id).ok().map(str::to_owned))
+            },
+        );
+    }
 }

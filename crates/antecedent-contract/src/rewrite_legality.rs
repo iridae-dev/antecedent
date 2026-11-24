@@ -1787,4 +1787,45 @@ mod tests {
         let err = FrameLedger::try_new("pop", "", "law").expect_err("blank history");
         assert_eq!(err.axis(), PreservationAxis::History);
     }
+
+    // Identity site `contract.rewrite_legality.frame.FrameLedger.fingerprint`
+    // (formal/identity_sites.toml): the executed rows of a frame are a multiset.
+
+    #[test]
+    fn site_frame_ledger_fingerprint_rows_are_a_multiset() {
+        let rows = [("r1", "f1", "d1", "u1"), ("r2", "f1", "d2", "u1"), ("r3", "f2", "d2", "u2")];
+        let fingerprint = |listed: &[(&str, &str, &str, &str)]| {
+            let mut ledger = FrameLedger::try_new("population", "history", "law").ok()?;
+            for (row, fold, dependence, uncertainty) in listed {
+                ledger.record(row, fold, dependence, uncertainty);
+            }
+            Some(ledger.fingerprint())
+        };
+        crate::identity_laws::assert_multiset(&rows, fingerprint);
+        // Every axis binds its part of the row: a changed fold, factor or state moves it.
+        let base = fingerprint(&rows).unwrap();
+        for (axis, changed) in [
+            (PreservationAxis::Folds, ("r1", "f9", "d1", "u1")),
+            (PreservationAxis::Dependence, ("r1", "f1", "d9", "u1")),
+            (PreservationAxis::Uncertainty, ("r1", "f1", "d1", "u9")),
+            (PreservationAxis::SampleSelection, ("r9", "f1", "d1", "u1")),
+        ] {
+            let mut edited = rows;
+            edited[0] = changed;
+            assert_ne!(fingerprint(&edited).unwrap().on_axis(axis), base.on_axis(axis));
+        }
+        // The contents' fingerprint is the streaming one for the same rows, in any order.
+        let contents = FrameContents::try_new_executed(
+            &[
+                FrameRow { row: "r3", fold: "f2", dependence: "d2", uncertainty: "u2" },
+                FrameRow { row: "r1", fold: "f1", dependence: "d1", uncertainty: "u1" },
+                FrameRow { row: "r2", fold: "f1", dependence: "d2", uncertainty: "u1" },
+            ],
+            "population",
+            "history",
+            "law",
+        )
+        .expect("contents");
+        assert_eq!(contents.fingerprint(), base);
+    }
 }

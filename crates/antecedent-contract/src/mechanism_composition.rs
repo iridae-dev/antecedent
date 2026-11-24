@@ -615,14 +615,24 @@ fn canonical_mechanism(m: &MechanismDeclaration) -> PlannedMechanism {
             transform_id: p.transform_id.clone(),
         })
         .collect();
+    // Parents, conditioning variables and each latent's peers are sets: the checks compare
+    // them as sets, so a repeat is the same declaration and never reaches the identity.
     parents.sort();
+    parents.dedup();
     let mut conditioning = m.conditioning_variable_ids.clone();
     conditioning.sort();
+    conditioning.dedup();
     let mut latents: Vec<LatentCauseDeclaration> = m.latent_causes.clone();
     for l in &mut latents {
         l.shared_with_variable_ids.sort();
+        l.shared_with_variable_ids.dedup();
     }
-    latents.sort_by(|a, b| a.latent_id.cmp(&b.latent_id));
+    // Ordered by the whole declaration, so two latents with one id never keep caller order.
+    latents.sort_by(|a, b| {
+        (&a.latent_id, &a.shared_with_variable_ids)
+            .cmp(&(&b.latent_id, &b.shared_with_variable_ids))
+    });
+    latents.dedup();
     PlannedMechanism {
         semantic_identity: plan_quantity_identity(&m.output),
         variable_id: m.output.variable_id.clone(),
@@ -880,6 +890,17 @@ fn check_declared_independence(decl: &MechanismCompositionDeclaration, c: &mut C
     }
 }
 
+/// The total order of admissions in a plan: every field, the basis last.
+fn admission_key(
+    a: &TransportAdmission,
+) -> (&str, AdmissionCoordinate, &str, &str, u8, &[String], &str) {
+    let (tag, targets, assumption): (u8, &[String], &str) = match &a.basis {
+        AdmissionBasis::SelectionDiagram { targets } => (1, targets.as_slice(), ""),
+        AdmissionBasis::DeclaredInvariance { assumption_id } => (2, &[], assumption_id.as_str()),
+    };
+    (&a.variable_id, a.coordinate, &a.source_id, &a.target_id, tag, targets, assumption)
+}
+
 /// The plan of a declaration that passed every check, in canonical order.
 fn canonical_plan(decl: &MechanismCompositionDeclaration) -> MechanismCompositionPlan {
     let mut mechanisms: Vec<PlannedMechanism> =
@@ -895,14 +916,10 @@ fn canonical_plan(decl: &MechanismCompositionDeclaration) -> MechanismCompositio
             targets.dedup();
         }
     }
-    admissions.sort_by(|a, b| {
-        (&a.variable_id, a.coordinate, &a.source_id, &a.target_id).cmp(&(
-            &b.variable_id,
-            b.coordinate,
-            &b.source_id,
-            &b.target_id,
-        ))
-    });
+    // Ordered by the whole admission, basis included, and a repeated admission is one: two
+    // admissions that differ only in their basis never keep caller order.
+    admissions.sort_by(|a, b| admission_key(a).cmp(&admission_key(b)));
+    admissions.dedup();
     MechanismCompositionPlan {
         target_population_id: decl.target_population_id.clone(),
         target_regime_id: decl.target_regime_id.clone(),
@@ -1709,5 +1726,113 @@ mod tests {
         assert_eq!(reason_code_for_kind("posterior_dependence"), "joint_law_required");
         assert_eq!(reason_code_for_kind("units"), "quantity_semantics_mismatch");
         assert_eq!(reason_code_for_kind("cycle"), "graph_invalid");
+    }
+
+    // Identity sites `contract.mechanism_composition.canonical_mechanism` and
+    // `contract.mechanism_composition.canonical_plan` (formal/identity_sites.toml).
+
+    fn plan_identity(d: &MechanismCompositionDeclaration) -> Option<String> {
+        check_mechanism_composition(d).ok().map(|plan| plan.identity_hex())
+    }
+
+    fn latent(id: &str, peers: &[&str]) -> LatentCauseDeclaration {
+        LatentCauseDeclaration {
+            latent_id: id.into(),
+            shared_with_variable_ids: peers.iter().map(|&p| p.to_owned()).collect(),
+        }
+    }
+
+    /// Every peer of `y` declares the latents `y` shares with it, so the checks admit them.
+    fn with_latents(y_latents: &[LatentCauseDeclaration]) -> MechanismCompositionDeclaration {
+        let mut d = decl();
+        for m in &mut d.mechanisms {
+            if m.output.variable_id == "y" {
+                m.latent_causes = y_latents.to_vec();
+            } else {
+                m.latent_causes = y_latents
+                    .iter()
+                    .filter(|l| l.shared_with_variable_ids.contains(&m.output.variable_id))
+                    .map(|l| latent(&l.latent_id, &["y"]))
+                    .collect();
+            }
+        }
+        d
+    }
+
+    #[test]
+    fn site_canonical_mechanism_parent_and_conditioning_sets() {
+        let y_parents = decl().mechanisms[2].parents.clone();
+        crate::identity_laws::assert_set(&y_parents, |parents| {
+            let mut d = decl();
+            d.mechanisms[2].parents = parents.to_vec();
+            plan_identity(&d)
+        });
+        let y_conditioning = decl().mechanisms[2].conditioning_variable_ids.clone();
+        crate::identity_laws::assert_set(&y_conditioning, |conditioning| {
+            let mut d = decl();
+            d.mechanisms[2].conditioning_variable_ids = conditioning.to_vec();
+            plan_identity(&d)
+        });
+    }
+
+    #[test]
+    fn site_canonical_mechanism_latent_sets() {
+        let latents = [latent("u", &["m"]), latent("v", &["x"]), latent("w", &["m", "x"])];
+        crate::identity_laws::assert_set(&latents, |listed| plan_identity(&with_latents(listed)));
+        let peers = ["m".to_owned(), "x".to_owned()];
+        crate::identity_laws::assert_set(&peers, |listed| {
+            let peers: Vec<&str> = listed.iter().map(String::as_str).collect();
+            plan_identity(&with_latents(&[latent("u", &peers)]))
+        });
+        // Two latents with one id but different peers are ordered by the whole declaration.
+        let same_id = [latent("u", &["m"]), latent("u", &["x"])];
+        crate::identity_laws::assert_set(&same_id, |listed| plan_identity(&with_latents(listed)));
+    }
+
+    #[test]
+    fn site_canonical_plan_mechanism_edge_and_admission_sets() {
+        let mechanisms = decl().mechanisms;
+        crate::identity_laws::assert_set(&mechanisms[..2], |listed| {
+            let mut d = decl();
+            d.mechanisms = listed.to_vec();
+            d.mechanisms.push(mechanisms[2].clone());
+            plan_identity(&d)
+        });
+        let edges = decl().edges;
+        crate::identity_laws::assert_set(&edges, |listed| {
+            let mut d = decl();
+            d.edges = listed.to_vec();
+            plan_identity(&d)
+        });
+        let mut sourced = decl();
+        sourced.mechanisms[1].output.population_id = "source".into();
+        for p in &mut sourced.mechanisms[1].parents {
+            p.population_id = "source".into();
+        }
+        let admission = |basis: AdmissionBasis| TransportAdmission {
+            variable_id: "m".into(),
+            coordinate: AdmissionCoordinate::Population,
+            source_id: "source".into(),
+            target_id: "target".into(),
+            basis,
+        };
+        // Two admissions that differ only in their basis, and a third.
+        let admissions = [
+            admission(AdmissionBasis::SelectionDiagram { targets: vec!["x".into()] }),
+            admission(AdmissionBasis::DeclaredInvariance { assumption_id: "a:m".into() }),
+            admission(AdmissionBasis::DeclaredInvariance { assumption_id: "b:m".into() }),
+        ];
+        crate::identity_laws::assert_set(&admissions, |listed| {
+            let mut d = sourced.clone();
+            d.admissions = listed.to_vec();
+            plan_identity(&d)
+        });
+        let targets = ["x".to_owned(), "y".to_owned()];
+        crate::identity_laws::assert_set(&targets, |listed| {
+            let mut d = sourced.clone();
+            d.admissions =
+                vec![admission(AdmissionBasis::SelectionDiagram { targets: listed.to_vec() })];
+            plan_identity(&d)
+        });
     }
 }

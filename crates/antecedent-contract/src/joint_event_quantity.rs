@@ -366,4 +366,36 @@ mod tests {
         assert_ne!(digest(&joint), digest(&event(JointEventKind::Probability, &["c", "a"])));
         assert_ne!(digest(&joint), digest(&event(JointEventKind::Density, &["a", "c"])));
     }
+
+    // Identity site `contract.joint_event_quantity.JointEventQuantity.write_canonical`
+    // (formal/identity_sites.toml): variables are ordered (the event's point is bound
+    // positionally to them), conditioning is a set admitted only in canonical spelling
+    // (validation lowers through `ScientificQuantity::validate`).
+
+    fn event_digest(e: &JointEventQuantity) -> Option<[u8; 32]> {
+        e.validate().ok()?;
+        let mut writer = antecedent_core::identity::CanonicalWriter::new("site.joint_event");
+        e.write_canonical(&mut writer);
+        Some(writer.finish())
+    }
+
+    #[test]
+    fn site_joint_event_variables_and_conditioning() {
+        let base = event(JointEventKind::Density, &["a", "b", "c"]);
+        crate::identity_laws::assert_ordered(&base.variables, |listed| {
+            let mut e = base.clone();
+            e.variables = listed.to_vec();
+            event_digest(&e)
+        });
+        let condition = |variable: &str| crate::QuantityCondition {
+            variable_id: variable.into(),
+            value_id: "high".into(),
+        };
+        let conditions = [condition("x"), condition("y"), condition("z")];
+        crate::identity_laws::assert_canonical_set(&conditions, |listed| {
+            let mut e = base.clone();
+            e.conditioning = listed.to_vec();
+            event_digest(&e)
+        });
+    }
 }

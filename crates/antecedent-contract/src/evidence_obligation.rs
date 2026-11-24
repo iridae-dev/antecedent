@@ -797,4 +797,54 @@ mod tests {
         tampered.required_slots = Arc::from([Arc::from("a|b")]);
         assert!(tampered.validate().is_err());
     }
+
+    // Identity site `contract.evidence_obligation.canonical_content`
+    // (formal/identity_sites.toml): variables, interventions, conditioning and slots are sets
+    // (validation refuses a repeat), and the unframed content is injective on every accepted
+    // spec, including free text that contains the separators.
+
+    fn obligation_id(spec: EvidenceObligationSpec) -> Option<Arc<str>> {
+        EvidenceObligation::try_new(spec).ok().map(|obligation| obligation.id)
+    }
+
+    #[test]
+    fn site_canonical_content_sets() {
+        let variables = [VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(5)];
+        crate::identity_laws::assert_set(&variables, |listed| {
+            let mut s = spec(EvidenceObligationKind::ProvideJointLaw);
+            s.variables = Arc::from(listed);
+            obligation_id(s)
+        });
+        let slots = ["factor:f", "factor:g", "support:h"];
+        crate::identity_laws::assert_set(&slots, |listed| {
+            let mut s = spec(EvidenceObligationKind::ProvideJointLaw);
+            s.required_slots = listed.iter().map(|&slot| Arc::from(slot)).collect();
+            obligation_id(s)
+        });
+        let conditioning = [VariableId::from_raw(7), VariableId::from_raw(8)];
+        crate::identity_laws::assert_set(&conditioning, |listed| {
+            let mut s = spec(EvidenceObligationKind::ProvideConditionalLaw);
+            s.regime.conditioned_on = Arc::from(listed);
+            obligation_id(s)
+        });
+    }
+
+    #[test]
+    fn site_canonical_content_is_injective_on_accepted_text() {
+        let texts = ["t", "t;", ";pop=", "a|b", "x;step=y", "vars=[1]", "t;vars=[1]", "", "a,b"];
+        let mut specs = Vec::new();
+        for population in texts {
+            for source in ["contract", "contract;", "c;family=x"] {
+                let mut s = spec(EvidenceObligationKind::ProvideJointLaw);
+                s.population = Some(Arc::from(population));
+                s.provenance.source = Arc::from(source);
+                specs.push(s);
+            }
+        }
+        crate::identity_laws::assert_injective(
+            &specs,
+            |s| (s.population.clone(), s.provenance.source.clone()),
+            |s| obligation_id(s.clone()),
+        );
+    }
 }
