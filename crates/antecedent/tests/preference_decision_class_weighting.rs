@@ -359,7 +359,8 @@ fn keyed_body() {
     );
     // A key that names no member is refused.
     let mut extra: Vec<(u64, f64)> = prints.iter().map(|p| (*p, 1.0)).collect();
-    let stranger = (0..).map(|k| oriented_print ^ (1 << k)).find(|p| !prints.contains(p)).unwrap();
+    let stranger =
+        (0..64).map(|k| oriented_print ^ (1 << k)).find(|p| !prints.contains(p)).unwrap();
     extra.push((stranger, 1.0));
     let refused = study(&data, cpdag_posterior(), Some(ClassPrior::from_pairs(extra).unwrap()))
         .compile_for_preference_decision(&invariant, &ctx)
