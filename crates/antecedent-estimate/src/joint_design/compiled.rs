@@ -134,6 +134,22 @@ pub enum JointDesignInference {
         /// Deterministic resampling seed.
         seed: u64,
     },
+    /// Independent-unit bootstrap of a cluster-randomized, matched-pair or switchback
+    /// design's arm means: clusters resampled within each arm, whole pairs or whole
+    /// sequences, every refit rerunning the complete estimator.
+    ///
+    /// Randomization alone does not identify the dependence of the arm-mean estimators
+    /// across arms; the law is read only under the declared premise that the independent
+    /// units were sampled independently from a larger population.
+    IndependentUnitBootstrap {
+        /// Number of complete refits, at least 99.
+        replicates: usize,
+        /// Deterministic resampling seed.
+        seed: u64,
+        /// Assumption identity of the premise that the independent units were sampled
+        /// independently from a larger population.
+        sampling: String,
+    },
     /// Native design point functional and complete-unit uncertainty.
     ///
     /// For Gaussian longitudinal designs the version-one compatibility recipe
@@ -357,6 +373,9 @@ pub enum JointNativeDesignLaw {
     DecisionCluster(super::cluster_decision::JointClusterLaw),
     /// Joint experimental arm-coordinate law.
     DecisionExperiment(super::experiment::JointExperimentalLaw),
+    /// Aligned independent-unit bootstrap refits of a randomized design's arm means under a
+    /// declared sampling premise, retaining failed slots.
+    IndependentUnitBootstrap(super::unit_bootstrap::JointUnitBootstrap),
     /// Multi-outcome regime point values without joint uncertainty.
     StaticRegime(super::static_regime::JointStaticRegimeLaw),
     /// Multi-outcome excursion law; coordinate meanings remain attached to the recipe.
@@ -376,6 +395,10 @@ impl JointDesignRecipe {
     /// Execute every design-native route without relabelling contrast targets as world means.
     /// # Errors
     /// Invalid scientific premises/support, incompatible inference, cancellation or admission failure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per design and inference pair keeps the dispatch in one table"
+    )]
     pub fn execute_native(
         &self,
         inference: &JointDesignInference,
@@ -405,6 +428,13 @@ impl JointDesignRecipe {
             (Self::DecisionExperiment { recipe }, JointDesignInference::Frequentist) => {
                 super::experiment::joint_experiment(recipe, ctx)
                     .map(JointNativeDesignLaw::DecisionExperiment)
+            }
+            (
+                Self::DecisionCluster { .. } | Self::DecisionExperiment { .. },
+                JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling },
+            ) => {
+                super::unit_bootstrap::joint_unit_bootstrap(self, *replicates, *seed, sampling, ctx)
+                    .map(JointNativeDesignLaw::IndependentUnitBootstrap)
             }
             (Self::StaticRegime { recipe }, JointDesignInference::Frequentist) => {
                 super::static_regime::joint_static_regime(recipe, ctx)

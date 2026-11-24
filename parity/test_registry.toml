@@ -1600,6 +1600,13 @@ path = "crates/antecedent-estimate/src/joint_design/switchback.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-design-independent-unit-bootstrap"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "joint-design-public-native-targets"
 crate = "antecedent"
 cargo_target = "lib"
