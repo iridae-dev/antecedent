@@ -136,13 +136,15 @@ pub(crate) enum Reading {
     Envelope,
     /// Monte Carlo over declared laws under a seeded stream.
     MonteCarlo,
+    /// A fit to declared records whose own interval reads its sampling error.
+    Sampling,
 }
 
 impl Reading {
     fn realization(self, evaluator: &'static str) -> Realization {
         let evaluator = Arc::<str>::from(evaluator);
         match self {
-            Self::Exact | Self::Envelope | Self::MonteCarlo => {
+            Self::Exact | Self::Envelope | Self::MonteCarlo | Self::Sampling => {
                 Realization::ExactPoint { evaluator }
             }
             Self::Predictive => Realization::DeclaredPredictive { evaluator },
@@ -157,6 +159,7 @@ impl Reading {
             Self::Posterior => UncertaintyReading::Posterior,
             Self::Envelope => UncertaintyReading::Envelope,
             Self::MonteCarlo => UncertaintyReading::MonteCarlo,
+            Self::Sampling => UncertaintyReading::Sampling,
         }
     }
 }
@@ -176,6 +179,20 @@ pub(crate) fn admit_compile(ctx: &ExecutionContext) -> Result<(), CausalError> {
 /// # Errors
 /// A physical operator that cannot be declared.
 pub(crate) fn lower(spec: TerminalSpec) -> Result<Arc<LoweredProgram>, CausalError> {
+    let sources: Arc<[EvidenceSourceRef]> =
+        Arc::from([EvidenceSourceRef { role: spec.role, digest: Some(spec.question) }]);
+    lower_over(spec, sources)
+}
+
+/// Seal `spec` into a lowered program whose layer four reads `sources`: [`lower`] passes the one
+/// declared source; a parent program over compiled child programs passes one source per child.
+///
+/// # Errors
+/// A physical operator that cannot be declared.
+pub(crate) fn lower_over(
+    spec: TerminalSpec,
+    sources: Arc<[EvidenceSourceRef]>,
+) -> Result<Arc<LoweredProgram>, CausalError> {
     let operator = |effect: PhysicalEffect| {
         PhysicalOperator::declare(effect).build().map_err(|_| CausalError::Compile {
             message: format!("{}: the program's operator cannot be declared", spec.plan_id),
@@ -214,7 +231,7 @@ pub(crate) fn lower(spec: TerminalSpec) -> Result<Arc<LoweredProgram>, CausalErr
         operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
-        sources: Arc::from([EvidenceSourceRef { role: spec.role, digest: Some(spec.question) }]),
+        sources,
         composition: spec.composition,
         decision: spec.decision,
         planning: None,

@@ -31,6 +31,23 @@ const fn representation_name(representation: SourceRepresentation) -> &'static s
 }
 
 impl DecisionContractError {
+    /// Registered detail id of the refusal [`Self::to_refusal`] returns, prefixed
+    /// `decision_contract.`.
+    #[must_use]
+    pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details::decision_contract;
+        match self {
+            Self::InvalidDeclaration(_) => decision_contract::INVALID_DECLARATION,
+            Self::DuplicateId(_) => decision_contract::DUPLICATE_ID,
+            Self::InvalidQuantity { .. } => decision_contract::INVALID_QUANTITY,
+            Self::OutsideDecisionScope { .. } => decision_contract::OUTSIDE_DECISION_SCOPE,
+            Self::UnknownInput(_) => decision_contract::UNKNOWN_INPUT,
+            Self::UnknownAction(_) => decision_contract::UNKNOWN_ACTION,
+            Self::InvalidParameter(_) => decision_contract::INVALID_PARAMETER,
+            Self::MissingSource { .. } => decision_contract::MISSING_SOURCE,
+        }
+    }
+
     /// Structured refusal for a contract declaration failure.
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
@@ -101,6 +118,25 @@ impl DecisionContractError {
 }
 
 impl DecisionEvalError {
+    /// Registered detail id of the refusal [`Self::to_refusal`] returns: a contract failure
+    /// keeps its `decision_contract.` detail, every other failure is prefixed
+    /// `decision_evaluation.`.
+    #[must_use]
+    pub const fn detail(&self) -> &'static str {
+        use antecedent_core::reason_details::decision_evaluation;
+        match self {
+            Self::Contract(error) => error.detail(),
+            Self::JointLawRequired { .. } => decision_evaluation::JOINT_LAW_REQUIRED,
+            Self::QuantityNotFound { .. } => decision_evaluation::QUANTITY_NOT_FOUND,
+            Self::UnsupportedCoordinate { .. } => decision_evaluation::UNSUPPORTED_COORDINATE,
+            Self::MeaningMismatch { .. } => decision_evaluation::DISTRIBUTION_MEANING,
+            Self::AnalyticLawUnsupported(_) => decision_evaluation::ANALYTIC_LAW_UNSUPPORTED,
+            Self::StructureInputsRequired(_) => decision_evaluation::STRUCTURE_INPUTS_REQUIRED,
+            Self::NonFiniteUtility { .. } => decision_evaluation::NON_FINITE_UTILITY,
+            Self::MeanSourceInsufficient { .. } => decision_evaluation::MEAN_SOURCE_INSUFFICIENT,
+        }
+    }
+
     /// Structured refusal for an evaluation failure.
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {

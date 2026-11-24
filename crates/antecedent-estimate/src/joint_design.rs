@@ -18,6 +18,7 @@ pub mod rollout;
 pub mod static_regime;
 pub mod switchback;
 pub mod synthetic;
+pub mod unit_bootstrap;
 
 /// Meaning of a joint response's uncertainty, separate from causal identification.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

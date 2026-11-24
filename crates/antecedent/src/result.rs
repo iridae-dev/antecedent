@@ -1680,6 +1680,8 @@ mod weight_basis_tests {
             StructuralWeightBasis::PosteriorProbability,
             StructuralWeightBasis::CompletionEnumeration,
             StructuralWeightBasis::CallerSuppliedClassPrior,
+            StructuralWeightBasis::PosteriorWithDeclaredClassPrior,
+            StructuralWeightBasis::SampledClassMeasure,
         ] {
             let wire = antecedent_io::StructuralWeightBasisWire::from(basis);
             assert_eq!(serde_json::to_value(wire).unwrap(), basis.as_str());

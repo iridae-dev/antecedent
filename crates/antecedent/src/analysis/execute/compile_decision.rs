@@ -381,7 +381,7 @@ pub(crate) fn require_carrier(
             name,
             ROBUST_OVER_IDENTIFIED_SET,
         )),
-        CarrierDemand::Mean if !program.utility().is_affine() => {
+        CarrierDemand::Mean if !program.utility().means_suffice() => {
             Err(DecisionCarrierError::contract(
                 "a mean carries only a utility affine in the state; this utility declares no \
                  affine form",
@@ -501,12 +501,27 @@ impl Study {
     /// - a [`DecisionCarrierError`] (as [`CausalError::Rejected`]) when the
     ///   route's statistical realization cannot supply the demanded carrier;
     /// - any refusal of [`Self::compile`].
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_decision_program, the compiled ContractAttachedDecision route: the same plan as its child, with the decision's own program gated on its unit before the same scorer runs"
+    )]
     pub fn compile_for_decision<A, O>(
         &self,
         problem: &DecisionProblem<A, O>,
         request: &DecisionCompileRequest,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        self.decision_plan(problem, request, ctx).map(|(plan, _)| plan)
+    }
+
+    /// The plan [`Self::compile_for_decision`] returns, with the decision program its layer
+    /// four carries.
+    pub(crate) fn decision_plan<A, O>(
+        &self,
+        problem: &DecisionProblem<A, O>,
+        request: &DecisionCompileRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<(PhysicalExecutionPlan, DecisionProgram), CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         validate_problem(problem)?;
         let contract_identity = declared_text(request.contract_identity(), "contract identity")?;
@@ -522,7 +537,8 @@ impl Study {
             information_value: None,
             scenario_source: None,
         };
-        self.compile_for_goal(&CompileGoal::Decision(program), ctx)
+        let plan = self.compile_for_goal(&CompileGoal::Decision(program.clone()), ctx)?;
+        Ok((plan, program))
     }
 
     /// Compile the study as the state belief of a preposterior value-of-information
@@ -549,12 +565,27 @@ impl Study {
     ///   exceeds what the admission pool holds;
     /// - a [`DecisionCarrierError`] when the route publishes no parameter posterior;
     /// - any refusal of [`Self::compile`].
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_evsi_program, the compiled EvsiAttachedDecision route: the same plan as its child, with the decision's own program gated on its unit before the same EVSI engine runs"
+    )]
     pub fn compile_for_evsi<A, O>(
         &self,
         problem: &DecisionProblem<A, O>,
         request: &EvsiRequest,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        self.evsi_plan(problem, request, ctx).map(|(plan, _)| plan)
+    }
+
+    /// The plan [`Self::compile_for_evsi`] returns, with the decision program its layer four
+    /// carries.
+    pub(crate) fn evsi_plan<A, O>(
+        &self,
+        problem: &DecisionProblem<A, O>,
+        request: &EvsiRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<(PhysicalExecutionPlan, DecisionProgram), CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         validate_problem(problem)?;
         let information_value = evsi_program(problem, request, ctx)?;
@@ -572,7 +603,8 @@ impl Study {
             information_value: Some(information_value),
             scenario_source: None,
         };
-        self.compile_for_goal(&CompileGoal::Evsi(program), ctx)
+        let plan = self.compile_for_goal(&CompileGoal::Evsi(program.clone()), ctx)?;
+        Ok((plan, program))
     }
 }
 
@@ -607,7 +639,9 @@ fn declared_text(text: Option<&str>, what: &str) -> Result<Option<Arc<str>>, Cau
 
 /// Per-action `(intercept, slope)` pairs when the utility declares one finite
 /// pair for every action.
-fn affine_coefficients<A, O>(problem: &DecisionProblem<A, O>) -> Option<Vec<(f64, f64)>> {
+pub(super) fn affine_coefficients<A, O>(
+    problem: &DecisionProblem<A, O>,
+) -> Option<Vec<(f64, f64)>> {
     let pairs = problem.utility.affine_in_state(&problem.actions)?;
     let complete = pairs.len() == problem.actions.len()
         && pairs.iter().all(|(intercept, slope)| intercept.is_finite() && slope.is_finite());

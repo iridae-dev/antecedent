@@ -8,6 +8,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_estimate::joint_design::compiled::{
     JointDesignInference, JointDesignRecipe, JointNativeDesignLaw,
 };
+use antecedent_estimate::joint_design::unit_bootstrap::{JointUnitBootstrap, joint_unit_bootstrap};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -49,6 +50,8 @@ pub struct NativeJointDesignResult {
     prepared: PreparedNativeJointDesign,
     inference: Arc<JointDesignInference>,
     law: Arc<JointNativeDesignLaw>,
+    /// The aligned refits of an independent-unit bootstrap; `law` is then the design's point.
+    unit_bootstrap: Option<Arc<JointUnitBootstrap>>,
     dependency: SemanticDigest,
     _lease: Arc<antecedent_core::execution::AdmissionLease>,
 }
@@ -282,6 +285,12 @@ impl PreparedNativeJointDesign {
     pub const fn lowered(&self) -> &Arc<LoweredProgram> {
         &self.program
     }
+    /// This design entering `program` instead of its own: the design's program with a
+    /// decision attached to layer four (`LoweredProgram::with_decision`). The recipe, proof,
+    /// dependency and point law are this design's.
+    pub(crate) fn with_lowered(&self, program: Arc<LoweredProgram>) -> Self {
+        Self { program, ..self.clone() }
+    }
     /// One view over every layer of the lowered program this design executes. Reading it
     /// executes nothing.
     #[must_use]
@@ -350,6 +359,7 @@ impl PreparedNativeJointDesign {
             | JointDesignInference::SwitchbackExactRandomization { .. } => 1,
             JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
             JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::IndependentUnitBootstrap { replicates, .. }
             | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
             JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
@@ -391,21 +401,36 @@ impl PreparedNativeJointDesign {
             .and_then(|n| u64::try_from(n).ok())
             .ok_or_else(|| failure("native joint-design statistical admission overflow"))?;
         let lease = admitted(ctx, quote)?;
-        let law = if matches!(inference, JointDesignInference::Frequentist) {
-            self.point.clone()
-        } else {
-            Arc::new(
-                self.recipe
-                    .execute_native(&inference, ctx)
-                    .map_err(|error| super::execution_failure(ctx, error))?,
-            )
+        let (law, unit_bootstrap) = match &inference {
+            JointDesignInference::Frequentist => (self.point.clone(), None),
+            // The refits are their own type, not a native design law: the result keeps the
+            // design's point as its law and carries the refits beside it.
+            JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling } => {
+                let refits = joint_unit_bootstrap(&self.recipe, *replicates, *seed, sampling, ctx)
+                    .map_err(|error| super::execution_failure(ctx, error))?;
+                (self.point.clone(), Some(Arc::new(refits)))
+            }
+            _ => (
+                Arc::new(
+                    self.recipe
+                        .execute_native(&inference, ctx)
+                        .map_err(|error| super::execution_failure(ctx, error))?,
+                ),
+                None,
+            ),
         };
-        let dependency = super::retained_law_identity(self.dependency, &inference, law.as_ref())?;
+        let dependency = match &unit_bootstrap {
+            Some(refits) => {
+                super::retained_law_identity(self.dependency, &inference, refits.as_ref())?
+            }
+            None => super::retained_law_identity(self.dependency, &inference, law.as_ref())?,
+        };
         check_cancel(ctx)?;
         Ok(NativeJointDesignResult {
             prepared: self.clone(),
             inference: Arc::new(inference),
             law,
+            unit_bootstrap,
             dependency,
             _lease: lease,
         })
@@ -431,6 +456,14 @@ impl NativeJointDesignResult {
     #[must_use]
     pub fn law(&self) -> &JointNativeDesignLaw {
         &self.law
+    }
+    /// The aligned refits of an independent-unit bootstrap of a cluster-randomized,
+    /// matched-pair or switchback design ([`JointDesignInference::IndependentUnitBootstrap`]),
+    /// retaining failed slots; `None` under any other inference. [`Self::law`] is then the
+    /// design's point.
+    #[must_use]
+    pub fn unit_bootstrap(&self) -> Option<&JointUnitBootstrap> {
+        self.unit_bootstrap.as_deref()
     }
     /// Exact fitted-law slots, priors, RNG stream and numerical recipe identity.
     #[must_use]
@@ -714,6 +747,7 @@ impl NativeJointDesignResult {
             | JointDesignInference::SyntheticConformal { .. }
             | JointDesignInference::SwitchbackExactRandomization { .. } => ("", None, None),
             JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::IndependentUnitBootstrap { replicates, .. }
             | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => {
                 ("", Some(*replicates), None)
             }

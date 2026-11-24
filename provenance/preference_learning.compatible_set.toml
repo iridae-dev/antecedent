@@ -1,0 +1,49 @@
+# Algorithm provenance for preference_learning.compatible_set.
+
+feature_id = "preference_learning.compatible_set"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Construction of Utility Functions from Expenditure Data", doi = "10.2307/2525382", sections = ["observed choices as a system of linear inequalities whose solvability is the condition for a rationalising utility (Afriat's inequalities)"] },
+ { title = "The Nonparametric Approach to Demand Analysis", doi = "10.2307/1912771", sections = ["revealed preference: a chosen bundle is revealed preferred to every bundle that was available, and the Afriat inequalities as a linear feasibility problem (section numbers not independently verified)"] },
+ { title = "Assessing a set of additive utility functions for multicriteria decision-making, the UTA method", doi = "10.1016/0377-2217(82)90155-2", sections = ["inference of piecewise-linear value-function parameters from stated preferences by linear programming, with error variables when the statements are inconsistent (section numbers not independently verified)"] },
+ { title = "Ordinal regression revisited: Multiple criteria ranking using a set of additive value functions", doi = "10.1016/j.ejor.2007.08.013", sections = ["the set of all value functions compatible with the stated preference information, rather than one representative function (section numbers not independently verified)"] },
+ { title = "Locating Minimal Infeasible Constraint Sets in Linear Programs", doi = "10.1287/ijoc.3.2.157", sections = ["the deletion filter for an irreducible infeasible subset"] },
+ { title = "New Finite Pivoting Rules for the Simplex Method", doi = "10.1287/moor.2.2.103", sections = ["the smallest-subscript rule for the entering and leaving choice, which prevents cycling"] },
+ { title = "Solving Least Squares Problems", doi = "10.1137/1.9781611971217", sections = ["Chapter 23: the NNLS active-set algorithm for non-negative least squares (section number not independently verified)"] },
+ { title = "Introduction to Interval Analysis", doi = "10.1137/1.9780898717716", sections = ["outward-rounded interval enclosures of expressions and subdivision of a box to tighten them (section numbers not independently verified)"] },
+ { title = "Compatibility of approximate solution of linear equations with given error bounds for coefficients and right-hand sides", doi = "10.1007/BF01386090", sections = ["the characterisation of the solutions of a linear system whose coefficients lie in intervals for some choice of the coefficients (the united solution set), used for the outer system on a shape box"] },
+]
+implementation_deviations = [
+ "This is not a nonparametric revealed-preference test. The value model is declared, value = F + sum_k theta_k T_k with expected parts from recorded beliefs, and each recorded choice of c over a rejected option j adds the linear relation sum_k theta_k (T_ck - T_jk) >= -tolerance - (F_c - F_j) on the preference parameters. The question answered is which parameters of that model are compatible with the records, not whether some utility function rationalises them; Afriat's and Varian's inequalities are the source of reading a choice as a linear inequality, not a procedure reproduced here.",
+ "A choice is weakly optimal within a declared additive tolerance in utility units. This is not Afriat's or Varian's multiplicative efficiency index and not UTA's per-statement error variables; when the records conflict, the reported tolerance needed is the declared tolerance plus the least common slack s >= 0 that makes every relation of the conflicting records hold together with the declared set, from one linear program.",
+ "Differences of expected parts smaller than 1e-12 times the larger operand are read as zero. A relation with no remaining coefficient is not added; if it is violated, the record alone contradicts the model and is reported as a single-record conflict.",
+ "Learned ranges are the minimum and maximum of each parameter over the declared set cut by the choice relations, two linear programs per parameter; narrowing is judged against the declared range restricted by the declared relations. Binding choices are the choice relations tight at the optimal vertices found for those extremes, not every relation that could be tight at some optimum.",
+ "A conflict is reported as a smallest set of conflicting records (exhaustive search over record subsets by increasing size, up to a configured size and a budget of 50 000 subsets, lexicographically first among the smallest), or, beyond that, as an irreducible set from Chinneck and Dravnieks' deletion filter applied to groups of relations (one group per record) with the declared ranges and relations always kept; an irreducible set need not be smallest.",
+ "Linear programs use the bounded-variable working-set primal simplex described under preference_decision.exact (Bland's rule on rows, single-variable phase one, every outcome rechecked by NNLS dual fit, Farkas multipliers or an improving ray).",
+ "A learned set is a range over the stated assumption that choices were optimal under the declared model and recorded expectations; it is not a probability statement.",
+ "The exact-rational reference (preference_set_learning_reference.py: vertex enumeration in fractions, exhaustive conflict subsets, tolerance by enumeration in (theta, s)) was written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+ "Under a value with shape parameters (a parameter inside min, max, exp or ln, or a product of two free parameters, found by closure) a recorded choice is a value relation, not a linear relation. Only the shape parameters are subdivided: on a shape box every difference of expected fixed and linear parts between the chosen and the rejected option is enclosed with outward-rounded interval arithmetic, leaving a linear system in the remaining parameters with interval coefficients. A box is outside when the outer system (some coefficient value of the box admits a solution, the united solution set of Oettli and Prager, linear within each sign orthant of the linear parameters, up to six orthant-enumerated parameters whose range crosses zero and a chord over-estimator of max(a t, b t) for any further one) is infeasible, inside when the inner system (one solution for every coefficient value of the box, made linear by one auxiliary variable per term) is feasible, and on the boundary otherwise; boundary boxes are split at the midpoint of the widest shape parameter relative to its declared range until every box is decided, the box budget (4096 by default) is spent or every width is at most a fraction (1e-4 by default) of its range. These policies are repository choices.",
+ "Under shape parameters the learned range of a shape parameter is the hull of the kept boxes and that of a linear parameter the hull of each kept box's outer linear-program range: both are outer ranges (basis enclosure), exact only up to the box width. The records conflict exactly when every box is dropped (a proof of emptiness); when no box is proven inside before the subdivision stops, neither emptiness nor non-emptiness is certified and the outcome is undetermined. A conflict under shape parameters is minimised only as far as smaller groups can be proven compatible (kind not_minimised otherwise), and its tolerance needed is the least common slack minimised over the examined shape points, an upper bound of the smallest one.",
+ "The shape-learning checks (preference_shape_learning.rs: a risk attitude enclosed from one lottery choice against its closed-form threshold, proven conflicts, an exhausted budget, a dense-grid comparison of the decision on the learned set) were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
+]
+upstream_implementations_observed = []
+modules = [
+ "crates/antecedent-design/src/preference_set_learning.rs",
+ "crates/antecedent-stats/src/linear_program.rs",
+ "crates/antecedent-design/src/preference_set_learning/region.rs",
+ "crates/antecedent-design/src/preference_enclosure.rs",
+]
+test_sources = [
+ "crates/antecedent-design/tests/preference_set_learning.rs (hand-derived ranges, binding choices, conflicts and needed tolerance, recovery of a known parameter vector from simulated choices, order invariance, refusals)",
+ "crates/antecedent-design/tests/preference_set_learning_reference.rs (learned ranges, smallest conflicts and needed tolerances against exact rational enumeration)",
+ "crates/antecedent-design/tests/oracle_data/preference_set_learning_reference.py",
+ "crates/antecedent-design/tests/oracle_data/preference_set_learning_reference.json",
+ "crates/antecedent-stats/tests/linear_program.rs (deletion filter and smallest infeasible groups)",
+ "crates/antecedent-stats/tests/linear_program_reference.rs",
+ "crates/antecedent-design/tests/preference_shape_learning.rs (a risk attitude enclosed from one recorded choice, proven conflicts, an exhausted box budget, the learned region through the accepted-preferences artifact, value relations decided on the certified route)",
+]

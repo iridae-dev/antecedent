@@ -2679,6 +2679,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        class_prior: dict[str, object] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_intervention_response(
@@ -7992,6 +7993,174 @@ def evaluate_decision_means(
 ) -> tuple[str | None, str | None]: ...
 def composition_lineage(links_json: str) -> str: ...
 
+# Decisions across stated preference ranges, and learning those ranges from recorded choices.
+class _AcceptedPreferences:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def version(self) -> int: ...
+    def summary_json(self) -> str: ...
+    def acknowledge(self, items_json: str) -> tuple[_AcceptedPreferences | None, str | None]: ...
+    def relearn_compatible_set(
+        self,
+        records_json: str,
+        decider: str | None,
+        options_json: str,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[_AcceptedPreferences | None, str | None]: ...
+    def relearn_choice_model(
+        self,
+        records_json: str,
+        decider: str | None,
+        options_json: str,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[_AcceptedPreferences | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+def table_content_identity(names: list[str], columns: Sequence[Any]) -> str: ...
+def preference_model_describe(model_json: str) -> tuple[str | None, str | None]: ...
+def preference_contract_describe(contract_json: str) -> tuple[str | None, str | None]: ...
+def preference_claim_source(
+    contract_json: str, claim: NativeResponseClaim
+) -> tuple[str | None, str | None]: ...
+def preference_claim_joint_artifact(
+    contract_json: str, claim: NativeResponseClaim
+) -> tuple[JointDistributionArtifact | None, str | None]: ...
+def decide_preferences_joint(
+    contract_json: str,
+    measure_json: str | None,
+    options_json: str,
+    source: JointDistributionArtifact,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decide_preferences_means(
+    contract_json: str,
+    measure_json: str | None,
+    options_json: str,
+    mean_source_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decide_preferences_structures(
+    contract_json: str,
+    measure_json: str | None,
+    options_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def preference_analysis_options(
+    contract_json: str,
+    source: JointDistributionArtifact | None,
+    mean_source_json: str | None,
+) -> tuple[str | None, str | None]: ...
+def export_preference_decision(
+    contract_json: str,
+    measure_json: str | None,
+    options_json: str,
+    source: JointDistributionArtifact,
+    artifact_id: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[bytes | None, str | None]: ...
+def replay_preference_decision(
+    data: bytes,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    cancel: CancellationToken | None = None,
+    retained_identity: str | None = None,
+) -> tuple[str | None, str | None]: ...
+
+class _CompiledPreferenceDecision:
+    def describe(self) -> str: ...
+    def bound_identity(self) -> str: ...
+    def execute(
+        self,
+        measure_json: str | None,
+        options_json: str,
+        *,
+        seed: int = 0,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None, JointDistributionArtifact | None]: ...
+
+def preference_compile_for_study(
+    study: PreparedAnalysis,
+    contract_json: str,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
+def preference_compile_across_studies(
+    studies: list[PreparedAnalysis],
+    contract_json: str,
+    dependence_json: str,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
+def learn_preference_set(
+    model_json: str,
+    records_json: str,
+    options_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def estimate_preference_choice_model(
+    model_json: str,
+    records_json: str,
+    options_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def accept_preferences_declared(
+    model_json: str,
+) -> tuple[_AcceptedPreferences | None, str | None]: ...
+def accept_preferences_compatible_set(
+    model_json: str,
+    records_json: str,
+    decider: str | None,
+    options_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[_AcceptedPreferences | None, str | None]: ...
+def accept_preferences_choice_model(
+    model_json: str,
+    records_json: str,
+    decider: str | None,
+    options_json: str,
+    cancel: CancellationToken | None = None,
+) -> tuple[_AcceptedPreferences | None, str | None]: ...
+def consume_accepted_preferences(
+    data: bytes,
+    expected_identity: str,
+    records_json: str | None,
+    cancel: CancellationToken | None = None,
+    retained_identity: str | None = None,
+) -> tuple[_AcceptedPreferences | None, str | None]: ...
+def preference_chain_joint_law(
+    record_json: str, cancel: CancellationToken | None
+) -> tuple[JointDistributionArtifact | None, str | None]: ...
+def preference_joint_law_of(
+    sources: list[JointDistributionArtifact],
+) -> tuple[JointDistributionArtifact | None, str | None]: ...
+def preference_experiment_source(
+    evidence_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def preference_experiment_quantity(
+    evidence_json: str,
+    outcome: str,
+    treated: bool,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
 class TrustEvidence:
     @staticmethod
     def none() -> TrustEvidence: ...
@@ -12624,6 +12793,16 @@ class _PreparedNativeJointDesign:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _NativeJointDesignResult: ...
+    def compile_for_preference_decision(
+        self,
+        contract_json: str,
+        bootstrap_json: str | None = None,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[_CompiledPreferenceDecision | None, str | None]: ...
     def consume_current(
         self,
         artifact: bytes,

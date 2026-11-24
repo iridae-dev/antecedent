@@ -20,7 +20,7 @@ Of those cells, **1434** are typed impossibilities and
 
 ## Supported units
 
-**Supported units: 3204 (matrix cells 2776, graphless rows 110, capabilities outside the matrix 318); not supported: 0 (owed records only 0, other 0).**
+**Supported units: 3208 (matrix cells 2776, graphless rows 110, capabilities outside the matrix 322); not supported: 0 (owed records only 0, other 0).**
 
 A *supported unit* is one scientific combination, and one rule decides it: a
 provenance record plus an executed independent scientific check (known truth, an
@@ -40,7 +40,7 @@ evidence as `owed: <selector>`, and the embedded support data marks the unit
   with no graph axes, 110 supported), or
 - a **capability outside the matrix** described by a capability record in
   `parity/capability_records.toml` (transport stages, adaptive procedures,
-  decisions, bridges; 318 supported). A record that
+  decisions, bridges; 322 supported). A record that
   describes a matrix cell or graphless row names it and is not counted again.
 
 API and stage routes listed under a capability record are **entry points**. They

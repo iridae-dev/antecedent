@@ -9,10 +9,12 @@ use antecedent_core::{CanonicalEncode, CanonicalWriter};
 use std::collections::BTreeSet;
 
 use super::{
-    ChainChangeWire, ChainFactorWire, Error, PROPAGATION_CHAIN_ASSUMPTION_TAG,
-    PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_JOINT_LAW_TAG,
+    ChainChangeWire, ChainDeferredTableWire, ChainFactorWire, Error,
+    PROPAGATION_CHAIN_ASSUMPTION_TAG, PROPAGATION_CHAIN_ASSUMPTION_VERSION,
+    PROPAGATION_CHAIN_DEFERRED_TAG, PROPAGATION_CHAIN_JOINT_LAW_TAG,
     PROPAGATION_CHAIN_JOINT_LAW_VERSION, PROPAGATION_CHAIN_LAW_TAG, PROPAGATION_CHAIN_LAW_VERSION,
-    PROPAGATION_CHAIN_TAG, PropagationChainRecordWire, operator_class, parse, stage_op, word_of,
+    PROPAGATION_CHAIN_TAG, PropagationChainDraftWire, PropagationChainRecordWire, operator_class,
+    parse, stage_op, word_of,
 };
 
 fn write_factors(writer: &mut CanonicalWriter, factors: &[ChainFactorWire]) -> Result<(), Error> {
@@ -47,6 +49,31 @@ const fn factor_kind_tag(kind: SharedFactorKind) -> Option<u64> {
     }
 }
 
+/// The deferred family table's declaration: its construction, rows, seed, slots, the
+/// within-study blocks and the declared cross-study blocks. Slots and groups are ordered (the
+/// blocks index the groups, the groups name the slots); the declared blocks are a set keyed by
+/// their pair of groups (the plan refuses a repeated pair), written in pair order.
+fn write_deferred(writer: &mut CanonicalWriter, deferred: &ChainDeferredTableWire) {
+    writer
+        .text(&deferred.construction)
+        .word(deferred.rows)
+        .word(deferred.seed)
+        .texts(&deferred.slots)
+        .word(word_of(deferred.within_blocks.len()));
+    for group in &deferred.within_blocks {
+        writer.texts(group);
+    }
+    let mut blocks: Vec<_> = deferred.declared_cross.iter().collect();
+    blocks.sort_by_key(|block| (block.first, block.second));
+    writer.word(word_of(blocks.len()));
+    for block in blocks {
+        writer.word(block.first).word(block.second).word(word_of(block.terms.len()));
+        for term in &block.terms {
+            writer.word(*term);
+        }
+    }
+}
+
 /// Identity of everything the record rests on, excluding its results.
 ///
 /// The stream is a [`CanonicalWriter`] under [`PROPAGATION_CHAIN_TAG`]. Every
@@ -57,7 +84,30 @@ const fn factor_kind_tag(kind: SharedFactorKind) -> Option<u64> {
 /// # Errors
 /// A stored name that is not one of the format's names.
 pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result<String, Error> {
-    let tag = if record.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION {
+    identity_of(record, None)
+}
+
+/// Identity of a draft whose family table is bound at execution: the record's stream with the
+/// table's declaration written after the sources, under its own domain
+/// ([`PROPAGATION_CHAIN_DEFERRED_TAG`]).
+///
+/// # Errors
+/// As [`propagation_chain_identity`].
+pub fn propagation_chain_draft_identity(
+    draft: &PropagationChainDraftWire,
+) -> Result<String, Error> {
+    identity_of(&draft.record, Some(&draft.deferred))
+}
+
+fn identity_of(
+    record: &PropagationChainRecordWire,
+    deferred: Option<&ChainDeferredTableWire>,
+) -> Result<String, Error> {
+    let tag = if deferred.is_some() {
+        // A draft whose family table is bound at execution is another kind of object than any
+        // sealed record: its identity lives in its own domain.
+        PROPAGATION_CHAIN_DEFERRED_TAG
+    } else if record.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION {
         PROPAGATION_CHAIN_JOINT_LAW_TAG
     } else if record.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION {
         PROPAGATION_CHAIN_ASSUMPTION_TAG
@@ -123,6 +173,9 @@ pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result
         for value in &source.values {
             writer.word(*value);
         }
+    }
+    if let Some(deferred) = deferred {
+        write_deferred(&mut writer, deferred);
     }
     writer.word(word_of(record.stages.len()));
     for stage in &record.stages {

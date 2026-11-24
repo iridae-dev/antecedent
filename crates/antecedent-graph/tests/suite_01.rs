@@ -8,3 +8,6 @@ mod dsep_exhaustive;
 
 #[path = "oracle_closure.rs"]
 mod oracle_closure;
+
+#[path = "mec_uniform_sampling.rs"]
+mod mec_uniform_sampling;

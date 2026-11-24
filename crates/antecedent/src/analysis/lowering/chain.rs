@@ -36,8 +36,9 @@ use antecedent_core::{
     PhysicalOperator, Prior, ScoreFrequentist, ScoreModel,
 };
 use antecedent_io::propagation_chain_record::{
-    PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_JOINT_LAW_VERSION,
-    PROPAGATION_CHAIN_LAW_VERSION, PropagationChainRecordWire, propagation_chain_identity,
+    ChainDeferredTableWire, PROPAGATION_CHAIN_ASSUMPTION_VERSION,
+    PROPAGATION_CHAIN_JOINT_LAW_VERSION, PROPAGATION_CHAIN_LAW_VERSION, PropagationChainDraftWire,
+    PropagationChainRecordWire, propagation_chain_draft_identity, propagation_chain_identity,
 };
 
 use crate::planner::lowered::{
@@ -54,6 +55,7 @@ const CHAIN_DESIGN_SHAPE: &str = "a propagation chain combines declared sources;
 
 const QUERY_TAG: &str = "antecedent.propagation_chain.lowered_query";
 const SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_source";
+const DEFERRED_SOURCE_TAG: &str = "antecedent.propagation_chain.lowered_deferred_source.v1";
 
 fn refuse(reason: impl std::fmt::Display) -> ChainRefusal {
     ChainRefusal::new(
@@ -73,11 +75,20 @@ fn refuse(reason: impl std::fmt::Display) -> ChainRefusal {
 /// A stored name that is not one of the format's names.
 pub(crate) fn declaration_identity(
     draft: &PropagationChainRecordWire,
+    deferred: Option<&ChainDeferredTableWire>,
     plan: &ChainPlan,
 ) -> Result<String, ChainRefusal> {
     let mut declared = draft.clone();
     plan.label.clone_into(&mut declared.label);
-    propagation_chain_identity(&declared).map_err(|error| error.to_refusal())
+    match deferred {
+        // A draft whose family table is bound at execution has its own identity domain.
+        Some(table) => propagation_chain_draft_identity(&PropagationChainDraftWire {
+            record: declared,
+            deferred: table.clone(),
+        }),
+        None => propagation_chain_identity(&declared),
+    }
+    .map_err(|error| error.to_refusal())
 }
 
 fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
@@ -101,7 +112,25 @@ fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
     }
 }
 
-fn source_digest(source: &antecedent_io::propagation_chain_record::ChainSourceWire) -> [u8; 32] {
+fn source_digest(
+    source: &antecedent_io::propagation_chain_record::ChainSourceWire,
+    deferred: Option<&ChainDeferredTableWire>,
+) -> [u8; 32] {
+    // A slot of a deferred table has no draws yet: it is digested by its place in the table,
+    // whose rows and seed are declared. A concrete source keeps its digest exactly.
+    if let Some(table) = deferred
+        && let Some(slot) = table.slots.iter().position(|id| *id == source.id)
+    {
+        let mut writer = CanonicalWriter::new(DEFERRED_SOURCE_TAG);
+        writer
+            .text(&source.id)
+            .text(&source.representation)
+            .text(&table.construction)
+            .word(table.rows)
+            .word(table.seed)
+            .word(slot as u64);
+        return writer.finish();
+    }
     let mut writer = CanonicalWriter::new(SOURCE_TAG);
     writer.text(&source.id).text(&source.representation).word(source.values.len() as u64);
     for value in &source.values {
@@ -188,9 +217,16 @@ fn operator(effect: PhysicalEffect, output: Option<u64>) -> Result<PhysicalOpera
 /// carries the table bytes. A combined decision adds its scoring operator.
 fn physical_layer(
     draft: &PropagationChainRecordWire,
+    deferred: Option<&ChainDeferredTableWire>,
     decision: Option<&DecisionProgram>,
 ) -> Result<PhysicalLayer, ChainRefusal> {
-    let rows = draft.sources.iter().map(|s| s.values.len() as u64).max().unwrap_or(1);
+    let rows = draft
+        .sources
+        .iter()
+        .map(|s| s.values.len() as u64)
+        .chain(deferred.map(|table| table.rows))
+        .max()
+        .unwrap_or(1);
     let nodes = (draft.sources.len() + draft.stages.len()) as u64;
     let retained_joint_columns = draft.joint_outputs.len() as u64;
     let table_bytes = rows
@@ -234,9 +270,10 @@ fn physical_layer(
 /// refuses, or a physical operator that does not declare its cancellation point.
 pub(crate) fn lower_chain(
     draft: PropagationChainRecordWire,
+    deferred: Option<ChainDeferredTableWire>,
     plan: ChainPlan,
 ) -> Result<LoweredProgram, ChainRefusal> {
-    lower_chain_with_decision(draft, plan, None)
+    lower_chain_with_decision(draft, deferred, plan, None)
 }
 
 /// Lower a chain and an optional decision contract as one six-layer program.
@@ -244,10 +281,11 @@ pub(crate) fn lower_chain(
 #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub(crate) fn lower_chain_with_decision(
     draft: PropagationChainRecordWire,
+    deferred: Option<ChainDeferredTableWire>,
     plan: ChainPlan,
     declared_decision: Option<DecisionProgram>,
 ) -> Result<LoweredProgram, ChainRefusal> {
-    let identity = declaration_identity(&draft, &plan)?;
+    let identity = declaration_identity(&draft, deferred.as_ref(), &plan)?;
     let query = CanonicalWriter::digest_bytes(QUERY_TAG, identity.as_bytes());
     let uncertainty = uncertainty(&plan);
     if let Some(decision) = &declared_decision {
@@ -285,13 +323,13 @@ pub(crate) fn lower_chain_with_decision(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = statistical_program(&draft, &plan, uncertainty)?;
-    let physical = physical_layer(&draft, declared_decision.as_ref())?;
+    let physical = physical_layer(&draft, deferred.as_ref(), declared_decision.as_ref())?;
     let sources: Vec<EvidenceSourceRef> = draft
         .sources
         .iter()
         .map(|source| EvidenceSourceRef {
             role: EvidenceRole::ChainSource,
-            digest: Some(source_digest(source)),
+            digest: Some(source_digest(source, deferred.as_ref())),
         })
         .collect();
     let stages = draft.stages.len();
@@ -342,7 +380,7 @@ pub(crate) fn lower_chain_with_decision(
         composition: Composition::Chained { stages },
         decision,
         planning: None,
-        chain: Some(ChainProgram::new(draft, plan, identity)),
+        chain: Some(ChainProgram::new(draft, deferred, plan, identity)),
     };
     let claim = ClaimDemand {
         uncertainty,

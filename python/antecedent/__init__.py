@@ -48,6 +48,11 @@ Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a 
   robustness under structural uncertainty, ``scenario_decision`` decides over a scenario or CPDAG
   completion set, ``sensitivity_decision`` over an assumption-sensitivity result, and ``inverse`` /
   ``inverse_query`` answer which enumerated interventions reach a target;
+* ``decision`` also states a value over several outcome attributes with its trade-offs, as
+  plain numbers (an ordinary contract) or as declared ranges decided across every admissible
+  value (and across structures); ``decision_learning`` is the optional extra that narrows or
+  estimates those trade-offs from recorded choices and stated comparisons, and its accepted
+  preferences plug into a value contract;
 * ``design`` (root-exported) ranks the study to run next, ``repair`` states evidence obligations
   and identification repair, and ``proposals`` links the two with a per-proposal receipt;
 * ``fallback`` is the opt-in beside a refusal: ``analyze(..., on_refusal="describe")`` returns the
@@ -238,6 +243,7 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
+from ._row_evidence import UnitKey
 from ._workflow import load
 from .accepted_graph import AcceptedGraph
 from .data_diagnostics import DataDiagnostics, diagnose_data
@@ -349,6 +355,7 @@ __all__ = [
     "Frequentist",
     "Bayesian",
     "ClassPrior",
+    "UnitKey",
     "Identifier",
     "Estimator",
     "Latency",
@@ -440,6 +447,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "cyclic",
     "choice_inference",
     "decision_evidence",
+    "decision_learning",
     "decision_reliability",
     "decision_robust",
     "descriptive",
@@ -540,6 +548,7 @@ if _TYPE_CHECKING:
     from . import cross_world_execution as cross_world_execution
     from . import cyclic as cyclic
     from . import decision_evidence as decision_evidence
+    from . import decision_learning as decision_learning
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust
     from . import descriptive as descriptive

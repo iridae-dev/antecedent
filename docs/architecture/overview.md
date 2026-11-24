@@ -178,6 +178,7 @@ Architecture pages:
 | Every crate dependency edge, and the edges that are refused | [compiler-crate-graph.md](compiler-crate-graph.md) |
 | Where threads are created and what bounds them | [thread-inventory.md](thread-inventory.md) |
 | Identity and coupling rules for claims and artifacts | [identity-contract.md](identity-contract.md) |
+| Decision contracts, trade-off ranges and the compiled decision route | [decision-layer.md](decision-layer.md) |
 | Counterfactual query scope | [counterfactual-coverage.md](counterfactual-coverage.md) |
 | Transport query scope | [transport-coverage.md](transport-coverage.md) |
 | Exact transport derivation | [transport-exact.md](transport-exact.md) |

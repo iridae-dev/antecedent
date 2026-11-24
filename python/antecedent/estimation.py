@@ -1326,6 +1326,8 @@ class _PreparedEngine(Generic[ResultT]):
         retain_joint_horizons: bool = False,
         on_refusal: Literal["refuse", "describe"] = "refuse",
         evidence_candidates: Sequence[Any] | None = None,
+        unit_key: Any = None,
+        row_source: Any = None,
     ) -> _PreparedEngine[_PreparedResult] | PreparedPolicyAnalysis:
         """Compile a durable plan for a supported analysis cell.
 
@@ -1694,6 +1696,9 @@ class _PreparedEngine(Generic[ResultT]):
 
         display_query = query
         query = coerce_query(query)
+        # The data as supplied: a unit key is read from it, and when the analysis keeps only
+        # some of its columns, its content identity names where the prepared rows came from.
+        source_data = data
         # Label-declared treatment levels are mapped to the arm codes of the numeric
         # declared-level path here, once; the mapping is frozen with the study.
         treatment_labels = TreatmentLabels.of(query, data=data)
@@ -1793,12 +1798,22 @@ class _PreparedEngine(Generic[ResultT]):
                     f"{discovery_algorithm}+knowledge:{accepted_graph.background_knowledge}"
                 )
             graph = accepted_graph.graph
+        # A class prior weighs the members of an equivalence class: the completions of an
+        # incomplete temporal class, or the members of the CPDAG/PAG atoms of a graph posterior
+        # read by a static response curve.
+        class_atoms_posterior = (
+            isinstance(discovery, GraphPosterior)
+            and discovery.atom_kind in ("Cpdag", "Pag")
+            and isinstance(query, ResponseCurve)
+            and not query.is_temporal
+        )
         if class_prior is not None and (
-            not isinstance(graph, (TemporalCpdag, TemporalPag))
+            not (isinstance(graph, (TemporalCpdag, TemporalPag)) or class_atoms_posterior)
             or not isinstance(inference, Bayesian)
         ):
             raise CausalUnsupportedError(
-                "class_prior requires Bayesian inference on TemporalCpdag or TemporalPag",
+                "class_prior requires Bayesian inference on TemporalCpdag or TemporalPag, or a "
+                "graph posterior of CPDAG or PAG atoms read by a static ResponseCurve",
                 reason_code="option_not_applicable",
             )
         if max_completions is not None and not isinstance(graph, (TemporalCpdag, TemporalPag)):
@@ -1918,6 +1933,22 @@ class _PreparedEngine(Generic[ResultT]):
                     reason_code="option_not_applicable",
                 )
             options["participants"] = participant_binding.contract_binding()
+        static_response = (
+            isinstance(query, ResponseCurve)
+            and not query.is_temporal
+            and frame is None
+            and table_names is not None
+        )
+        if row_source is None and (unit_key is not None or static_response):
+            from ._row_evidence import RowSource
+
+            row_source = RowSource.capture(
+                source_data, unit_key=unit_key, provenance=static_response
+            )
+        if row_source is not None:
+            options.update(
+                row_source.native_options(applies=static_response, route=type(query).__name__)
+            )
         route = _PrepareRoute(
             names=names,
             columns=columns,

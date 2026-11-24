@@ -155,6 +155,10 @@ pub struct StudyConfig {
     /// What a development build ran although a release build would have refused it at build
     /// time. Not part of the study's identity; always empty in a release build.
     pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
+    /// Where the rows of the study's table came from and the unit identifiers they observe,
+    /// checked against the table at build. Read only when separately estimated outcomes are
+    /// judged for shared evidence; never an input to identification or estimation.
+    pub(crate) evidence_rows: Option<Arc<compile_preference::EvidenceRows>>,
 }
 
 /// Prepared analysis (static or temporal).
@@ -410,12 +414,14 @@ mod cross_world_posterior;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 mod compile_decision;
+mod compile_decision_program;
 pub(crate) use compile_decision::require_carrier;
 pub use compile_decision::{
     BAYESIAN_REALIZATION, DECISION_NEXT_ATTEMPTS, DISTRIBUTIONAL_CARRIER, DecisionCarrierError,
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
     ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
+pub use compile_decision_program::{CompiledDecisionProgram, CompiledEvsiProgram};
 mod compile_graph_posterior;
 mod compile_planning;
 pub(crate) use compile_planning::compile_planning;
@@ -564,3 +570,20 @@ mod tests;
 
 mod compile_robust;
 pub use compile_robust::CompiledRobustDecision;
+
+mod compile_preference;
+pub(crate) use compile_preference::EvidenceRows;
+pub use compile_preference::{
+    BoundPreferenceContract, CompiledDecision, CompiledPreferenceDecision,
+    CompiledPreferenceEvaluation, CompiledStructure, DemandedQuantity, DesignBootstrap,
+    OutcomeDependence, PreferenceDecisionExecution, PreferenceDecisionReceipt, PreferenceDemand,
+    PreferenceRouteError, StructureIdentification, compile_contract_decision_across_studies,
+    compile_preference_decision_across_studies,
+};
+pub use compile_preference::{
+    CrossStudyCovariance, PreferenceJointLaw, SharedEvidence,
+    compile_contract_decision_across_prepared_studies,
+    compile_preference_decision_across_prepared_studies,
+    compile_preference_decision_with_shared_evidence,
+};
+pub use compile_preference::{RowProvenance, UnitKey};

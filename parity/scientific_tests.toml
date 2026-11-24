@@ -3290,3 +3290,304 @@ evidence_assertion = "kernel_bandwidth_sensitivity_rows_equal_hand_computed_kern
 kind = "known_truth"
 fixtures = []
 why = "At bandwidths 0.05, 0.5 and 2 the Gaussian kernel exp(-u^2/2) weights computed in the test give each row's weighted mean, sampling variance, support, Kish ESS and overlap verdict; a compact kernel with no row in its support reports no mean. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_decision.rs"
+evidence_assertion = "around_the_switch_point_the_choice_depends_on_the_preference"
+kind = "known_truth"
+fixtures = []
+why = "Two actions with values 10 - 4w and 5.5 - w on w in [0, 3]: the exact route reports the margin 4.5 - 3w, the switch at w = 1.5, both actions possibly best and witnesses at w = 0 and w = 3."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_decision.rs"
+evidence_assertion = "maximin_and_minimax_regret_match_hand_values"
+kind = "known_truth"
+fixtures = []
+why = "On w in [0, 2] the value ranges are [2, 10] and [3.5, 5.5]; maximin chooses B and minimax regret chooses A with worst-case regrets 1.5 and 4.5, the closed-form values."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_decision_structural.rs"
+evidence_assertion = "every_linear_program_quantity_agrees_with_a_dense_grid"
+kind = "reference"
+fixtures = []
+why = "Every linear-program quantity (value and margin ranges, necessarily and possibly best, worst-case regret, switches) equals a direct evaluation of the affine values on a dense grid of the admissible set."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/linear_program_reference.rs"
+evidence_assertion = "optima_match_exact_vertex_enumeration"
+kind = "reference"
+fixtures = ["crates/antecedent-stats/tests/oracle_data/linear_program_reference.json"]
+why = "Optima of hand-written and 36 fixed-seed generated linear programs, infeasible and degenerate cases included, equal exact rational basis enumeration."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/linear_program_reference.rs"
+evidence_assertion = "vertex_sets_match_exact_enumeration"
+kind = "reference"
+fixtures = ["crates/antecedent-stats/tests/oracle_data/linear_program_reference.json"]
+why = "Vertex sets of the admissible polytope equal exact rational enumeration of every basis."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_model_reference.rs"
+evidence_assertion = "linear_forms_match_the_exact_rational_reference"
+kind = "reference"
+fixtures = ["crates/antecedent-design/tests/oracle_data/preference_model_reference.json"]
+why = "The fixed part and parameter terms of four value models equal exact rational evaluation at unit parameter vectors."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/linear_program.rs"
+evidence_assertion = "textbook_production_program_has_its_known_optimum_and_active_set"
+kind = "known_truth"
+fixtures = []
+why = "A textbook production program reaches its known optimum and active set, and the returned certificate rechecks."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_design.rs"
+evidence_assertion = "a_cluster_randomized_design_answers_by_its_arm_means"
+kind = "known_truth"
+fixtures = []
+why = "A cluster-randomized design whose arms differ by exactly 0.7 in benefit and 1.4 in harm switches at a harm rate of exactly one half on its arm means, which equal the design's own law."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_design.rs"
+evidence_assertion = "a_matched_pair_experiment_answers_by_its_arm_means"
+kind = "known_truth"
+fixtures = []
+why = "A matched-pair experiment whose arms differ by exactly 0.7 in benefit and 1.4 in harm switches at a harm rate of exactly one half on its arm means, which equal the experiment's own law."
+
+[[test]]
+evidence_test = "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs"
+evidence_assertion = "cluster_refits_are_independent_across_arms_and_match_the_within_arm_covariance"
+kind = "known_truth"
+fixtures = []
+why = "Clusters resampled within each arm give refits whose arm means are independent across arms and whose within-arm covariance matches the closed-form between-cluster covariance of the arm mean."
+
+[[test]]
+evidence_test = "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs"
+evidence_assertion = "pair_refits_converge_to_the_pair_level_arm_covariance"
+kind = "known_truth"
+fixtures = []
+why = "Refits of whole matched pairs converge to the closed-form pair-level covariance of the two arm means, cross-arm term included."
+
+[[test]]
+evidence_test = "crates/antecedent-estimate/src/joint_design/unit_bootstrap.rs"
+evidence_assertion = "sequence_refits_converge_to_the_polarised_switchback_covariance"
+kind = "known_truth"
+fixtures = []
+why = "Refits of whole switchback sequences converge to the closed-form covariance of the polarised switchback arm means."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_joint_law.rs"
+evidence_assertion = "studies_that_share_observations_need_a_declared_cross_study_covariance"
+kind = "known_truth"
+fixtures = []
+why = "Two outcomes of one table share 200 observations: distinct evidence and a missing, misshapen or zero block refuse, and a declared block of a fifth of the product of the posterior spreads is the drawn law's cross covariance to 1e-6."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_chain_binding.rs"
+evidence_assertion = "the_bound_table_draws_the_law_the_chain_compiled_after_fitting_draws"
+kind = "reference"
+fixtures = []
+why = "The family table bound at execution draws exactly the law of a chain compiled after fitting from the same posterior moments, under distinct and under shared evidence with the declared cross block."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_unit_keys.rs"
+evidence_assertion = "projections_of_one_table_share_its_rows"
+kind = "known_truth"
+fixtures = []
+why = "Projections and row selections of one 200-row table share exactly the planted rows (200, none for even against odd rows, 100 for rows 0-149 against 50-199), and a declared block joins them with the source table as their row factor."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_compiled_unit_keys.rs"
+evidence_assertion = "keyed_studies_of_different_tables_are_judged_by_the_units_they_share"
+kind = "known_truth"
+fixtures = []
+why = "Studies of different tables keyed in one namespace whose patients overlap in 100 planted units refuse naming those 100 units, join under a declared block, and are distinct evidence when no patient is shared."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_class_weighting.rs"
+evidence_assertion = "a_uniform_prior_reads_class_members_as_probabilities"
+kind = "known_truth"
+fixtures = []
+why = "Under a uniform class prior the three members of a path class of weight 0.6 each read 0.2 beside the oriented atom 0.4, and Bayes over structures decides on those masses."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_class_weighting.rs"
+evidence_assertion = "keyed_masses_are_read_by_member_fingerprint"
+kind = "known_truth"
+fixtures = []
+why = "Masses 1 : 2 : 1 keyed by member fingerprint give the members their declared conditional shares of the class weight; a missing or unknown key refuses."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_class_weighting.rs"
+evidence_assertion = "a_pag_class_keeps_its_unidentified_member_mass"
+kind = "known_truth"
+fixtures = []
+why = "A PAG class of three maximal ancestral graphs keeps the declared mass of its one unidentified member, enumerated or drawn by circle-endpoint rejection, and sampled masses are not renormalised."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/preference_decision_class_weighting.rs"
+evidence_assertion = "clopper_pearson_bounds_match_their_closed_forms"
+kind = "reference"
+fixtures = []
+why = "Clopper-Pearson intervals and one-sided bounds equal their closed forms through the beta quantile and mirror between successes and failures."
+
+[[test]]
+evidence_test = "crates/antecedent-graph/tests/mec_uniform_sampling.rs"
+evidence_assertion = "clique_picking_counts_equal_enumeration_on_random_chordal_graphs"
+kind = "reference"
+fixtures = []
+why = "Clique-picking class sizes equal brute-force enumeration of the Markov equivalence class on at least 200 random chordal graphs."
+
+[[test]]
+evidence_test = "crates/antecedent-graph/tests/mec_uniform_sampling.rs"
+evidence_assertion = "cpdag_draws_are_uniform_members_reproduced_by_their_seed"
+kind = "known_truth"
+fixtures = []
+why = "Clique-picking draws of a 24-member class are members, uniform over the enumerated class by a chi-square test, reproduced by their seed and changed by another seed."
+
+[[test]]
+evidence_test = "crates/antecedent-graph/tests/mec_uniform_sampling.rs"
+evidence_assertion = "pag_draws_are_uniform_over_the_enumerated_members"
+kind = "known_truth"
+fixtures = []
+why = "Circle-endpoint rejection draws of a 25-member PAG class are enumerated members, uniform by a chi-square test and reproduced by their seed."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "discount_factor_switch_is_certified_on_each_side_and_shrinks_with_the_budget"
+kind = "known_truth"
+fixtures = []
+why = "A squared discount factor on [0.5, 1] switches at the closed-form d = 5/7: no certified box crosses it, the first action's best fraction brackets 3/7 and the undecided volume falls with the box budget."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "breakpoint_location_switch_is_certified_on_each_side"
+kind = "known_truth"
+fixtures = []
+why = "A parameter that moves a curve breakpoint switches at its closed-form value and is certified only on the correct side."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "exponential_risk_attitude_brackets_the_indifference_point"
+kind = "known_truth"
+fixtures = []
+why = "Under an exponential risk attitude the certified regions bracket the closed-form indifference point."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "affine_model_agrees_with_hand_computed_margins"
+kind = "reference"
+fixtures = []
+why = "On an affine model the certified enclosures of the margins contain the hand-computed margins."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "threshold_probability_certificates_hold_on_a_dense_grid"
+kind = "reference"
+fixtures = []
+why = "Every certified box for a threshold-probability criterion holds at every point of a dense parameter grid evaluated directly."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "quantile_certificates_hold_on_a_dense_grid"
+kind = "reference"
+fixtures = []
+why = "Every certified box for a quantile criterion holds at every point of a dense parameter grid evaluated directly."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_certified.rs"
+evidence_assertion = "largest_regret_certificates_hold_on_a_dense_grid"
+kind = "reference"
+fixtures = []
+why = "Every certified box for the largest-regret criterion holds at every point of a dense parameter grid evaluated directly."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_shape_learning.rs"
+evidence_assertion = "a_learned_risk_attitude_decides_on_the_certified_route_as_a_dense_grid_does"
+kind = "reference"
+fixtures = []
+why = "A risk attitude learned from a recorded lottery choice is decided on the certified route as a dense grid over the learned set decides it."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_set_learning.rs"
+evidence_assertion = "records_on_both_sides_bracket_one_parameter"
+kind = "known_truth"
+fixtures = []
+why = "Two records on either side of the indifference value bracket one parameter at its closed-form range, with both choices binding and the declared range narrowed."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_set_learning.rs"
+evidence_assertion = "a_contradictory_pair_is_the_smallest_conflict_with_its_needed_tolerance"
+kind = "known_truth"
+fixtures = []
+why = "Records requiring t >= 1 - s and t <= 1/2 + s are the smallest conflict, the needed tolerance is 1/4, and at that tolerance the records are compatible at one point."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_set_learning.rs"
+evidence_assertion = "simulated_choices_recover_a_set_holding_the_truth_that_shrinks_with_records"
+kind = "known_truth"
+fixtures = []
+why = "Choices simulated from a known parameter vector give learned sets that contain it and are nested as records are added."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_set_learning_reference.rs"
+evidence_assertion = "learned_ranges_and_conflicts_match_the_exact_rational_reference"
+kind = "reference"
+fixtures = ["crates/antecedent-design/tests/oracle_data/preference_set_learning_reference.json"]
+why = "Learned ranges, smallest conflicts and needed tolerances equal exact rational vertex enumeration."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/choice_record_reference.rs"
+evidence_assertion = "option_terms_match_the_exact_rational_reference"
+kind = "reference"
+fixtures = ["crates/antecedent-design/tests/oracle_data/choice_record_reference.json"]
+why = "Expected fixed parts and linear-form terms of recorded options equal exact rational arithmetic."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_shape_learning.rs"
+evidence_assertion = "a_risk_attitude_interval_is_enclosed_from_one_recorded_choice"
+kind = "known_truth"
+fixtures = []
+why = "A sure 1 chosen over an even lottery on 0 and 3 under v = -exp(-r x) encloses r from its closed-form threshold -ln((sqrt 5 - 1) / 2) to the declared upper end."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_choice_model.rs"
+evidence_assertion = "two_rates_and_consistency_are_recovered_from_simulated_choices"
+kind = "known_truth"
+fixtures = []
+why = "Two rates (4, -2) and consistency 1 are recovered within four standard errors from 2000 simulated logit choices."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_choice_model.rs"
+evidence_assertion = "consistency_from_one_cost_column_matches_the_hand_derivation"
+kind = "known_truth"
+fixtures = []
+why = "Four records of one cost difference with the cheaper option chosen three times give consistency ln 3 and standard error sqrt(4/3), the closed form."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/conditional_logit.rs"
+evidence_assertion = "two_options_one_feature_has_the_closed_form_maximum"
+kind = "known_truth"
+fixtures = []
+why = "A two-option one-feature conditional logit reaches its closed-form maximum."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/conditional_logit.rs"
+evidence_assertion = "cluster_sandwich_matches_the_hand_formula_in_the_two_option_case"
+kind = "reference"
+fixtures = []
+why = "The cluster sandwich covariance, with its C/(C-1) correction, equals the hand formula in the two-option case."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/conditional_logit_reference.rs"
+evidence_assertion = "conditional_logit_matches_fifty_digit_newton"
+kind = "reference"
+fixtures = ["crates/antecedent-stats/tests/oracle_data/conditional_logit_reference.json"]
+why = "Coefficients, log-likelihoods and model and cluster covariances equal an independent 50-digit Newton solution."
+
+[[test]]
+evidence_test = "crates/antecedent-design/tests/preference_shape_learning.rs"
+evidence_assertion = "a_risk_attitude_and_a_harm_weight_are_recovered_from_noisy_choices"
+kind = "known_truth"
+fixtures = []
+why = "A planted risk attitude and harm weight are recovered from simulated noisy choices, the risk attitude with a profile likelihood-ratio interval."

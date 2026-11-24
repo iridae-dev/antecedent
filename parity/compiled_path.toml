@@ -234,6 +234,16 @@ path = "antecedent::ResultPayload::transport"
 disposition = "consume"
 
 [[row]]
+path = "antecedent::Study::compile_for_decision"
+disposition = "deprecated"
+replacement = "route:ContractAttachedDecision"
+
+[[row]]
+path = "antecedent::Study::compile_for_evsi"
+disposition = "deprecated"
+replacement = "route:EvsiAttachedDecision"
+
+[[row]]
 path = "antecedent::StudyResult::discovery"
 disposition = "consume"
 
@@ -1337,6 +1347,74 @@ replacement = "route:ZTransportEvidencePlanning"
 path = "antecedent::design::prior_signal::adapt_prior_to_signal"
 disposition = "deprecated"
 replacement = "route:PriorSignalAdaptation"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::both"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::excess"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::interaction"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::rate"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::segment"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_model::shape::shortfall"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_wire::kind_named"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::decision_wire::structural_named"
+disposition = "not_scientific"
+reason = "construction, serialization or parsing helper of the preference declarations; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_design::preference_evaluation::preference_route"
+disposition = "kernel"
+reason = "kernel API; reads only the contract and names the route; the compiled TradeoffLawDecision, TradeoffCertifiedLawDecision, TradeoffStructuralDecision and TradeoffCertifiedStructuralDecision families call it at compile to choose their family and unit (crates/antecedent/src/analysis/tradeoff_decision_programs.rs answering_route)"
+
+[[row]]
+path = "antecedent_design::preference_artifact::PreferenceDecisionArtifact::evaluate_with_context"
+disposition = "kernel"
+reason = "kernel API; configures the compiled TradeoffLawDecision / TradeoffCertifiedLawDecision record, which evaluates through it (CompiledTradeoffDecision::record)"
+
+[[row]]
+path = "antecedent_design::accepted_preferences::AcceptedPreferences::relearn_compatible_set_with_context"
+disposition = "kernel"
+reason = "kernel API; configures the compiled PreferenceCompatibleSet learning route, whose relearning accept runs it (compile_compatible_set_relearn)"
+
+[[row]]
+path = "antecedent_design::accepted_preferences::AcceptedPreferences::relearn_estimate_with_context"
+disposition = "kernel"
+reason = "kernel API; configures the compiled PreferenceChoiceModel learning route, whose re-estimating accept runs it (compile_choice_model_relearn)"
+
+[[row]]
+path = "antecedent_design::preference_artifact::PreferenceDecisionArtifact::replay_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::preference_artifact::AcceptedPreferencesArtifact::replay_with_context"
+disposition = "consume"
 
 [[row]]
 path = "antecedent_design::proposal_receipt::on_arrival"
@@ -4405,6 +4483,14 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::consume_accepted"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::consume_decision"
 disposition = "consume"
 
 [[row]]

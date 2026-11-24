@@ -6,7 +6,7 @@
 //! prepared from the program `Study::compile` lowers: the static and horizon-one
 //! targets are read from the lowered programs' scientific problems, preparation
 //! installs the identification those programs retained, and decision verdicts come
-//! from the `compile_for_decision` entry. The slice keeps no admission,
+//! from the `compile_decision_program` entry. The slice keeps no admission,
 //! identification or fit cache of its own. Frequentist coverage and posterior
 //! quality are separate records. A utility-only change on the static cell reuses
 //! the causal fit.
@@ -902,7 +902,7 @@ mod tests {
             let study = linear_study(cell).unwrap();
             for demand in [affine_posterior, affine_mean, DecisionDemand::Nonlinear] {
                 let request = crate::analysis::DecisionCompileRequest::from(demand);
-                let compiled = study.compile_for_decision(&problem, &request, &ctx);
+                let compiled = study.compile_decision_program(&problem, &request, &ctx);
                 let decided = slice.cell(cell).decide(demand);
                 assert_eq!(compiled.is_ok(), decided.is_ok(), "{} {demand:?}", cell.as_str());
                 if let (Err(error), Err(missing)) = (compiled, decided) {

@@ -611,6 +611,7 @@ def prepare(
     regimes: Sequence[int] | None = None,
     provider: Any = None,
     sampling_design: str | None = None,
+    unit_key: Any = None,
     accept_discovered: bool = False,
     data_diagnostics: Any = _AUTO_DATA_DIAGNOSTICS,
     retain_joint_horizons: bool = False,
@@ -697,6 +698,11 @@ def prepare(
       ``"clustered_panel"`` or ``"dependent_time_series"``. Every resampling or sample-splitting
       step is held to it, and a request the design does not allow is refused. Any other name
       raises :class:`~antecedent.errors.CausalValueError`. Default ``None`` (no declaration).
+    * ``unit_key`` -- an :class:`antecedent.UnitKey` naming the column that identifies the unit
+      each row observes and the identifier space it belongs to. Read when a decision joins the
+      outcomes of separately prepared studies: studies of different tables keyed in the same
+      space are judged for shared evidence by the units they share. Applies to a static
+      :class:`~antecedent.ResponseCurve` on one table; refused elsewhere. Default ``None``.
     * ``population_registry`` -- definitions of the named and custom target populations a query's
       ``target_population`` refers to (:mod:`antecedent.population`).
 
@@ -785,6 +791,15 @@ def prepare(
         raise CausalTypeError("execution must be an Execution declaration")
     if measurement is not None:
         from .exposure_measurement import prepare_measured
+
+        if unit_key is not None:
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "unit_key labels the rows of one prepared table; a measured exposure prepares "
+                "one study per completed table",
+                reason_code="option_not_applicable",
+            )
 
         return cast(
             "PreparedAnalysis[Any]",
@@ -900,6 +915,7 @@ def prepare(
             "regimes": regimes,
             "provider": provider,
             "sampling_design": sampling_design,
+            "unit_key": unit_key,
             "accept_discovered": accept_discovered,
             "data_diagnostics": data_diagnostics,
             "retain_joint_horizons": retain_joint_horizons,
@@ -961,6 +977,18 @@ def prepare(
             TrialAipwQuery,
         ),
     )
+    from .query import ResponseCurve
+
+    row_source = None
+    static_response = isinstance(query, ResponseCurve) and not query.is_temporal
+    if unit_key is not None and (transport or not static_response):
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "unit_key labels the rows of one table whose static ResponseCurve a decision may "
+            f"join; {type(query).__name__} does not read it",
+            reason_code="option_not_applicable",
+        )
     if transport or isinstance(data, (Table, PanelFrame, MultiEnvFrame, EventFrame)):
         owned = data
     else:
@@ -974,6 +1002,15 @@ def prepare(
             estimator_config=estimator_config,
             participant=participant,
             missing=missing,
+        )
+        from ._row_evidence import RowSource
+
+        # The rows of the projected table keep the identity of the table they were taken from,
+        # so studies of other columns of the same rows are judged as sharing those rows.
+        row_source = RowSource.capture(
+            data,
+            unit_key=unit_key,
+            provenance=static_response,
         )
         owned = policy._call(table, projected)
     options = replay_declaration(declarations)
@@ -1041,6 +1078,7 @@ def prepare(
         return Engine.prepare(
             owned,
             **options,
+            row_source=row_source,
             # Rust describes a refusal on the study that was refused (the transport families
             # keep their own refusal records).
             on_refusal="refuse" if transport else on_refusal,

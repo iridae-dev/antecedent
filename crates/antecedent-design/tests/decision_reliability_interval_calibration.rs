@@ -51,6 +51,10 @@
 
 #[path = "../../antecedent/tests/common/calibration.rs"]
 mod calibration;
+// The choice-model trade-off interval harness shares this calibration binary rather than adding
+// a test target of its own; its records name its own file.
+#[path = "preference_choice_model_calibration.rs"]
+mod preference_choice_model_calibration;
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::ProbabilityQuantity;

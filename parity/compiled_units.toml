@@ -794,6 +794,72 @@ unit = "decision.functionals"
 entry = { rust = "crates/antecedent/src/analysis/claim_decision_programs.rs", python = "python/antecedent/decision.py" }
 
 [[route]]
+lowering = "TradeoffLawDecision"
+unit_kind = "capability"
+unit = "preference_decision.exact"
+entry = { rust = "crates/antecedent/src/analysis/tradeoff_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "TradeoffCertifiedLawDecision"
+unit_kind = "capability"
+unit = "preference_decision.certified"
+entry = { rust = "crates/antecedent/src/analysis/tradeoff_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "TradeoffStructuralDecision"
+unit_kind = "capability"
+unit = "preference_decision.exact"
+entry = { rust = "crates/antecedent/src/analysis/tradeoff_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "TradeoffCertifiedStructuralDecision"
+unit_kind = "capability"
+unit = "preference_decision.certified"
+entry = { rust = "crates/antecedent/src/analysis/tradeoff_decision_programs.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "PreferenceCompatibleSet"
+unit_kind = "capability"
+unit = "preference_learning.compatible_set"
+entry = { rust = "crates/antecedent/src/analysis/preference_learning_programs.rs", python = "python/antecedent/decision_learning.py" }
+
+[[route]]
+lowering = "PreferenceChoiceModel"
+unit_kind = "capability"
+unit = "preference_learning.choice_model"
+entry = { rust = "crates/antecedent/src/analysis/preference_learning_programs.rs", python = "python/antecedent/decision_learning.py" }
+
+[[route]]
+lowering = "PreferenceAttachedDecision"
+unit_kind = "capability"
+unit = "preference_decision.exact"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_preference.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "CertifiedPreferenceAttachedDecision"
+unit_kind = "capability"
+unit = "preference_decision.certified"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_preference.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "ContractAttachedDecision"
+unit_kind = "capability"
+unit = "decision.contract"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_preference.rs", python = "python/antecedent/decision.py" }
+
+[[route]]
+lowering = "JointScenarioAttachedDecision"
+unit_kind = "capability"
+unit = "decision.compiled_joint_scenarios"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_robust.rs", python = "python/antecedent/decision_robust.py" }
+
+[[route]]
+lowering = "EvsiAttachedDecision"
+unit_kind = "capability"
+unit = "design.evsi"
+entry = { rust = "crates/antecedent/src/analysis/execute/compile_decision_program.rs", python = "python/antecedent/design/__init__.py" }
+
+[[route]]
 lowering = "SupportedInputDecision"
 unit_kind = "capability"
 unit = "composition.boundary"

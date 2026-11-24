@@ -16,7 +16,7 @@ use antecedent::contract::{
     ExternalProgramClaim, ExternalRefusal, ProgramBinding, check_external_against_program,
 };
 use antecedent::design::decision_artifact::contract_from_json_refusal;
-use antecedent::design::decision_contract::SourceRepresentation;
+use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
 use antecedent::io::distribution_artifact::DistributionCalibration;
 use antecedent::io::external_binding_wire::{
     ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire, bind_response_to_program,
@@ -379,39 +379,9 @@ impl PyNativeResponseClaim {
     {
         crate::catch_ffi(|| {
             check_size(&[contract_json])?;
-            let contract = match contract_from_json_refusal(contract_json) {
-                Ok(contract) => contract,
-                Err(refusal) => return Ok((None, Some(refusal_json(refusal)?))),
-            };
-            let requirement = match contract.source_requirement() {
-                Ok(Some(requirement)) => requirement,
-                Ok(None) => {
-                    return Ok((
-                        None,
-                        Some(refusal_json(declared_refusal(
-                            "evaluate",
-                            antecedent::reason::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
-                            None,
-                            None,
-                            None,
-                            "declare a source requirement",
-                        ))?),
-                    ));
-                }
-                Err(error) => return Ok((None, Some(refusal_json(error.to_refusal())?))),
-            };
-            match self.claim.decision_source(&requirement) {
-                Ok(input) => match input.source {
-                    NativeDecisionSource::JointLaw(artifact) => Ok((
-                        Some(crate::distribution_api::PyJointDistributionArtifact {
-                            artifact: *artifact,
-                            source_claim: Some(self.clone()),
-                        }),
-                        None,
-                    )),
-                    NativeDecisionSource::Mean(_) => Ok((None, None)),
-                },
-                Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
+            match contract_requirement(contract_json, "declare a source requirement")? {
+                Ok(requirement) => self.joint_artifact_for(&requirement),
+                Err(refusal) => Ok((None, Some(refusal))),
             }
         })
     }
@@ -421,31 +391,75 @@ impl PyNativeResponseClaim {
     fn decision_source(&self, contract_json: &str) -> PyResult<(Option<String>, Option<String>)> {
         crate::catch_ffi(|| {
             check_size(&[contract_json])?;
-            let contract = match contract_from_json_refusal(contract_json) {
-                Ok(contract) => contract,
-                Err(refusal) => return Ok((None, Some(refusal_json(refusal)?))),
-            };
-            let requirement = match contract.source_requirement() {
-                Ok(Some(requirement)) => requirement,
-                Ok(None) => {
-                    let refusal = declared_refusal(
-                        "evaluate",
-                        antecedent::reason::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
-                        None,
-                        None,
-                        None,
-                        "declare a criterion that names the source it reads",
-                    );
-                    return Ok((None, Some(refusal_json(refusal)?)));
-                }
-                Err(error) => return Ok((None, Some(refusal_json(error.to_refusal())?))),
-            };
-            match self.claim.decision_source(&requirement) {
-                Ok(input) => Ok((Some(describe(&input)?.to_string()), None)),
-                Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
+            match contract_requirement(
+                contract_json,
+                "declare a criterion that names the source it reads",
+            )? {
+                Ok(requirement) => self.decision_source_for(&requirement),
+                Err(refusal) => Ok((None, Some(refusal))),
             }
         })
     }
+}
+
+impl PyNativeResponseClaim {
+    /// The aligned joint law the claim supplies for `requirement`; neither part when it
+    /// supplies means; the refusal when it supplies neither.
+    pub(crate) fn joint_artifact_for(
+        &self,
+        requirement: &SourceRequirement,
+    ) -> PyResult<(Option<crate::distribution_api::PyJointDistributionArtifact>, Option<String>)>
+    {
+        match self.claim.decision_source(requirement) {
+            Ok(input) => match input.source {
+                NativeDecisionSource::JointLaw(artifact) => Ok((
+                    Some(crate::distribution_api::PyJointDistributionArtifact {
+                        artifact: *artifact,
+                        source_claim: Some(self.clone()),
+                    }),
+                    None,
+                )),
+                NativeDecisionSource::Mean(_) => Ok((None, None)),
+            },
+            Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
+        }
+    }
+
+    /// The description of the decision source the claim supplies for `requirement`, or the
+    /// refusal when it does not supply the representation the requirement names.
+    pub(crate) fn decision_source_for(
+        &self,
+        requirement: &SourceRequirement,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        match self.claim.decision_source(requirement) {
+            Ok(input) => Ok((Some(describe(&input)?.to_string()), None)),
+            Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
+        }
+    }
+}
+
+/// The source requirement of a decision contract declared as JSON, or the refusal JSON;
+/// `remedy` is the remedy when the contract states no requirement.
+fn contract_requirement(
+    contract_json: &str,
+    remedy: &'static str,
+) -> PyResult<Result<SourceRequirement, String>> {
+    let contract = match contract_from_json_refusal(contract_json) {
+        Ok(contract) => contract,
+        Err(refusal) => return Ok(Err(refusal_json(refusal)?)),
+    };
+    Ok(match contract.source_requirement() {
+        Ok(Some(requirement)) => Ok(requirement),
+        Ok(None) => Err(refusal_json(declared_refusal(
+            "evaluate",
+            antecedent::reason::reason_details::native_claims::NO_SOURCE_REQUIREMENT,
+            None,
+            None,
+            None,
+            remedy,
+        ))?),
+        Err(error) => Err(refusal_json(error.to_refusal())?),
+    })
 }
 
 fn native_contract_id(graph: &str, status: &str, premises: Option<&str>) -> PyResult<String> {

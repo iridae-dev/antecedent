@@ -193,8 +193,12 @@ fn compile_chain_decision_with_worlds(
         information_value: None,
         scenario_source: action_worlds.then(|| Arc::from("declared_joint_action_worlds_v1")),
     };
-    let lowered =
-        lower_chain_with_decision(retained.draft().clone(), chain.plan().clone(), Some(program))?;
+    let lowered = lower_chain_with_decision(
+        retained.draft().clone(),
+        retained.deferred().cloned(),
+        chain.plan().clone(),
+        Some(program),
+    )?;
     let lowered = Arc::new(lowered);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
     Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds })

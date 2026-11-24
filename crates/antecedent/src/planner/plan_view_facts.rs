@@ -105,6 +105,103 @@ pub(super) fn statistical_json(program: &StatisticalProgram) -> Fact {
     })
 }
 
+/// What a decision across preferences states: the quantities it reads, the representation it
+/// needs of its sources, its trade-off parameters with their admissible ranges, the bound
+/// contract, for separately estimated outcomes the joint law the chain will produce, and for a
+/// compiled design the resampling law it draws with its sampling premise.
+fn preference_json(
+    facts: &crate::planner::lowered::PreferenceValueFacts,
+    decision: &crate::planner::lowered::DecisionProgram,
+) -> Fact {
+    let joint = facts.joint_law().map(|joint| {
+        fact!({
+            "dependence": joint.dependence(),
+            "draws": joint.draws(),
+            "seed": joint.seed(),
+            "reading": joint.reading(),
+            "label": joint.label(),
+            "declaration": joint.declaration(),
+            "program": joint.program().to_hex(),
+            "cross_blocks": joint
+                .cross_blocks()
+                .iter()
+                .map(|(first, second)| fact!({"first": first, "second": second}))
+                .collect::<Vec<_>>(),
+            "pairs": joint
+                .pairs()
+                .iter()
+                .map(|(first, second, basis)| fact!({
+                    "first": first,
+                    "second": second,
+                    "basis": &**basis,
+                }))
+                .collect::<Vec<_>>(),
+            "inputs": joint
+                .inputs()
+                .iter()
+                .map(|input| fact!({
+                    "source": input.source(),
+                    "stage": input.stage(),
+                    "study": input.study(),
+                    "quantity": input.quantity(),
+                    "factor": input.factor(),
+                    "factors": input.factors().iter().map(|factor| &**factor).collect::<Vec<_>>(),
+                    "basis": input.basis(),
+                    "namespace": input.namespace(),
+                }))
+                .collect::<Vec<_>>(),
+            "outputs": joint
+                .inputs()
+                .iter()
+                .map(|input| fact!({"stage": input.stage(), "quantity": input.quantity()}))
+                .collect::<Vec<_>>(),
+        })
+    });
+    let design = facts.design_law().map(|law| {
+        fact!({
+            "kind": law.kind(),
+            "unit": law.unit(),
+            "replicates": law.replicates(),
+            "seed": law.seed(),
+            "sampling": law.sampling(),
+        })
+    });
+    fact!({
+        "bound_contract_identity": decision.contract_identity(),
+        "representation": facts.representation(),
+        "accepted": facts.accepted().iter().map(|name| &**name).collect::<Vec<_>>(),
+        "quantities": facts
+            .quantities()
+            .iter()
+            .map(|quantity| fact!({
+                "identity": quantity.identity(),
+                "variable": quantity.variable().map(Fact::Variable),
+                "variable_id": quantity.variable_id(),
+                "regime": quantity.regime(),
+                "units": quantity.units(),
+                "population": quantity.population(),
+                "horizon": quantity.horizon(),
+                "functional": quantity.functional(),
+                "transform": quantity.transform(),
+                "source": quantity.source(),
+            }))
+            .collect::<Vec<_>>(),
+        "parameters": facts
+            .parameters()
+            .iter()
+            .map(|parameter| fact!({
+                "id": parameter.id(),
+                "units": parameter.units(),
+                "lower": parameter.lower(),
+                "upper": parameter.upper(),
+                "assumption": parameter.assumption(),
+            }))
+            .collect::<Vec<_>>(),
+        "joint_law": joint,
+        "design_law": design,
+    })
+}
+
 pub(super) fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
     let decision = program.decision().map(|decision| {
         let evsi = decision.information_value().map(|evsi| {
@@ -120,7 +217,7 @@ pub(super) fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
                 "cost_map": evsi.cost_map().is_some(),
             })
         });
-        fact!({
+        let mut stated = fact!({
             "carrier": decision.carrier().as_str(),
             "affine_utility": decision.utility().is_affine(),
             "actions": decision.actions(),
@@ -130,7 +227,14 @@ pub(super) fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
             "contract_identity": decision.contract_identity(),
             "scenario_source_identity": decision.scenario_source_identity(),
             "information_value": evsi,
-        })
+        });
+        // A preference value adds its own facts under `preference`; other decisions state
+        // only the fields above.
+        if let (Some(facts), Fact::Map(map)) = (decision.utility().preference_facts(), &mut stated)
+        {
+            map.insert("preference".to_owned(), preference_json(facts, decision));
+        }
+        stated
     });
     let planning = program.planning().map(|planning| {
         fact!({

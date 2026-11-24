@@ -47,6 +47,7 @@ from .inference import (
     ClassPrior,
     Frequentist,
     _class_prior_kwargs,
+    _graph_posterior_class_prior_kwargs,
     _max_completions_kwargs,
 )
 from .interference import (
@@ -667,6 +668,17 @@ class _PrepareRoute:
             shared["posterior"] = discovery
         elif _structure_prior_option(discovery):
             shared["options"] = {**dict(self.options), **_structure_prior_option(discovery)}
+        # A declared measure over the members of the posterior's equivalence-class atoms; the
+        # static response route carries it, and nothing is sent without one.
+        class_atoms = _graph_posterior_class_prior_kwargs(self.class_prior)
+        if class_atoms and not (
+            static and isinstance(query, ResponseCurve) and not query.is_temporal
+        ):
+            raise CausalUnsupportedError(
+                "a declared class prior over graph-posterior class atoms is read by the static "
+                "response curve route only",
+                reason_code="option_not_applicable",
+            )
         dbn: dict[str, Any] = {"frame": self.frame} if temporal else {}
         dbn |= (
             {}
@@ -707,6 +719,7 @@ class _PrepareRoute:
                 response_options=_response_options_wire(response_options, self.seed)
                 if response_options
                 else None,
+                **class_atoms,
                 **shared,
             )
             return native, "response_curve"

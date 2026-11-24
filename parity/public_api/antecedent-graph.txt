@@ -46,12 +46,16 @@ impl core::clone::Clone for antecedent_graph::GraphOverlay
 impl core::clone::Clone for antecedent_graph::GraphWorkspace
 impl core::clone::Clone for antecedent_graph::LazyUnfoldedTemporalGraph
 impl core::clone::Clone for antecedent_graph::MarkedEdge
+impl core::clone::Clone for antecedent_graph::MecUniform
+impl core::clone::Clone for antecedent_graph::MecUniformError
 impl core::clone::Clone for antecedent_graph::MiddleMark
 impl core::clone::Clone for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::clone::Clone for antecedent_graph::Pag
 impl core::clone::Clone for antecedent_graph::PagCompletion
 impl core::clone::Clone for antecedent_graph::PagReview
 impl core::clone::Clone for antecedent_graph::PagSeparation
+impl core::clone::Clone for antecedent_graph::PagUniformError
+impl core::clone::Clone for antecedent_graph::PagUniformSample
 impl core::clone::Clone for antecedent_graph::PathStep
 impl core::clone::Clone for antecedent_graph::SelectionDiagram
 impl core::clone::Clone for antecedent_graph::SeparationCertificate
@@ -95,10 +99,12 @@ impl core::cmp::Eq for antecedent_graph::DenseNodeId
 impl core::cmp::Eq for antecedent_graph::Endpoint
 impl core::cmp::Eq for antecedent_graph::GraphError
 impl core::cmp::Eq for antecedent_graph::MarkedEdge
+impl core::cmp::Eq for antecedent_graph::MecUniformError
 impl core::cmp::Eq for antecedent_graph::MiddleMark
 impl core::cmp::Eq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::cmp::Eq for antecedent_graph::Pag
 impl core::cmp::Eq for antecedent_graph::PagSeparation
+impl core::cmp::Eq for antecedent_graph::PagUniformError
 impl core::cmp::Eq for antecedent_graph::PathStep
 impl core::cmp::Eq for antecedent_graph::SeparationCertificate
 impl core::cmp::Eq for antecedent_graph::SeparationResult
@@ -131,10 +137,12 @@ impl core::cmp::PartialEq for antecedent_graph::DenseNodeId
 impl core::cmp::PartialEq for antecedent_graph::Endpoint
 impl core::cmp::PartialEq for antecedent_graph::GraphError
 impl core::cmp::PartialEq for antecedent_graph::MarkedEdge
+impl core::cmp::PartialEq for antecedent_graph::MecUniformError
 impl core::cmp::PartialEq for antecedent_graph::MiddleMark
 impl core::cmp::PartialEq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::cmp::PartialEq for antecedent_graph::Pag
 impl core::cmp::PartialEq for antecedent_graph::PagSeparation
+impl core::cmp::PartialEq for antecedent_graph::PagUniformError
 impl core::cmp::PartialEq for antecedent_graph::PathStep
 impl core::cmp::PartialEq for antecedent_graph::SeparationCertificate
 impl core::cmp::PartialEq for antecedent_graph::SeparationResult
@@ -158,6 +166,8 @@ impl core::default::Default for antecedent_graph::MiddleMark
 impl core::default::Default for antecedent_graph::SigmaSeparationWorkspace
 impl core::error::Error for antecedent_graph::CyclicDagRefusal
 impl core::error::Error for antecedent_graph::GraphError
+impl core::error::Error for antecedent_graph::MecUniformError
+impl core::error::Error for antecedent_graph::PagUniformError
 impl core::fmt::Debug for antecedent_graph::Admg
 impl core::fmt::Debug for antecedent_graph::AdmittedUnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::BitSet
@@ -186,12 +196,16 @@ impl core::fmt::Debug for antecedent_graph::GraphOverlay
 impl core::fmt::Debug for antecedent_graph::GraphWorkspace
 impl core::fmt::Debug for antecedent_graph::LazyUnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::MarkedEdge
+impl core::fmt::Debug for antecedent_graph::MecUniform
+impl core::fmt::Debug for antecedent_graph::MecUniformError
 impl core::fmt::Debug for antecedent_graph::MiddleMark
 impl core::fmt::Debug for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::fmt::Debug for antecedent_graph::Pag
 impl core::fmt::Debug for antecedent_graph::PagCompletion
 impl core::fmt::Debug for antecedent_graph::PagReview
 impl core::fmt::Debug for antecedent_graph::PagSeparation
+impl core::fmt::Debug for antecedent_graph::PagUniformError
+impl core::fmt::Debug for antecedent_graph::PagUniformSample
 impl core::fmt::Debug for antecedent_graph::PathStep
 impl core::fmt::Debug for antecedent_graph::SelectionDiagram
 impl core::fmt::Debug for antecedent_graph::SeparationCertificate
@@ -223,6 +237,8 @@ impl core::fmt::Display for antecedent_graph::CyclicDagRefusal
 impl core::fmt::Display for antecedent_graph::CyclicNextAttempt
 impl core::fmt::Display for antecedent_graph::DagOperation
 impl core::fmt::Display for antecedent_graph::GraphError
+impl core::fmt::Display for antecedent_graph::MecUniformError
+impl core::fmt::Display for antecedent_graph::PagUniformError
 impl core::hash::Hash for antecedent_graph::BitSet
 impl core::hash::Hash for antecedent_graph::DenseNodeId
 impl core::hash::Hash for antecedent_graph::Endpoint
@@ -242,9 +258,11 @@ impl core::marker::Copy for antecedent_graph::DagOperation
 impl core::marker::Copy for antecedent_graph::DenseNodeId
 impl core::marker::Copy for antecedent_graph::Endpoint
 impl core::marker::Copy for antecedent_graph::MarkedEdge
+impl core::marker::Copy for antecedent_graph::MecUniformError
 impl core::marker::Copy for antecedent_graph::MiddleMark
 impl core::marker::Copy for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::marker::Copy for antecedent_graph::PagSeparation
+impl core::marker::Copy for antecedent_graph::PagUniformError
 impl core::marker::Copy for antecedent_graph::PathStep
 impl core::marker::Copy for antecedent_graph::SigmaSeparationAssumptions
 impl core::marker::Copy for antecedent_graph::SigmaSeparationStatus
@@ -277,9 +295,13 @@ impl core::marker::Freeze for antecedent_graph::GraphOverlay [auto]
 impl core::marker::Freeze for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Freeze for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Freeze for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Freeze for antecedent_graph::MecUniform [auto]
+impl core::marker::Freeze for antecedent_graph::MecUniformError [auto]
 impl core::marker::Freeze for antecedent_graph::MiddleMark [auto]
 impl core::marker::Freeze for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Freeze for antecedent_graph::PagSeparation [auto]
+impl core::marker::Freeze for antecedent_graph::PagUniformError [auto]
+impl core::marker::Freeze for antecedent_graph::PagUniformSample [auto]
 impl core::marker::Freeze for antecedent_graph::PathStep [auto]
 impl core::marker::Freeze for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Freeze for antecedent_graph::SeparationCertificate [auto]
@@ -333,12 +355,16 @@ impl core::marker::Send for antecedent_graph::GraphOverlay [auto]
 impl core::marker::Send for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Send for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Send for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Send for antecedent_graph::MecUniform [auto]
+impl core::marker::Send for antecedent_graph::MecUniformError [auto]
 impl core::marker::Send for antecedent_graph::MiddleMark [auto]
 impl core::marker::Send for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Send for antecedent_graph::Pag [auto]
 impl core::marker::Send for antecedent_graph::PagCompletion [auto]
 impl core::marker::Send for antecedent_graph::PagReview [auto]
 impl core::marker::Send for antecedent_graph::PagSeparation [auto]
+impl core::marker::Send for antecedent_graph::PagUniformError [auto]
+impl core::marker::Send for antecedent_graph::PagUniformSample [auto]
 impl core::marker::Send for antecedent_graph::PathStep [auto]
 impl core::marker::Send for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Send for antecedent_graph::SeparationCertificate [auto]
@@ -381,10 +407,12 @@ impl core::marker::StructuralPartialEq for antecedent_graph::DenseNodeId
 impl core::marker::StructuralPartialEq for antecedent_graph::Endpoint
 impl core::marker::StructuralPartialEq for antecedent_graph::GraphError
 impl core::marker::StructuralPartialEq for antecedent_graph::MarkedEdge
+impl core::marker::StructuralPartialEq for antecedent_graph::MecUniformError
 impl core::marker::StructuralPartialEq for antecedent_graph::MiddleMark
 impl core::marker::StructuralPartialEq for antecedent_graph::OrdinaryDSeparationOnCycles
 impl core::marker::StructuralPartialEq for antecedent_graph::Pag
 impl core::marker::StructuralPartialEq for antecedent_graph::PagSeparation
+impl core::marker::StructuralPartialEq for antecedent_graph::PagUniformError
 impl core::marker::StructuralPartialEq for antecedent_graph::PathStep
 impl core::marker::StructuralPartialEq for antecedent_graph::SeparationCertificate
 impl core::marker::StructuralPartialEq for antecedent_graph::SeparationResult
@@ -425,12 +453,16 @@ impl core::marker::Sync for antecedent_graph::GraphOverlay [auto]
 impl core::marker::Sync for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Sync for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Sync for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Sync for antecedent_graph::MecUniform [auto]
+impl core::marker::Sync for antecedent_graph::MecUniformError [auto]
 impl core::marker::Sync for antecedent_graph::MiddleMark [auto]
 impl core::marker::Sync for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Sync for antecedent_graph::Pag [auto]
 impl core::marker::Sync for antecedent_graph::PagCompletion [auto]
 impl core::marker::Sync for antecedent_graph::PagReview [auto]
 impl core::marker::Sync for antecedent_graph::PagSeparation [auto]
+impl core::marker::Sync for antecedent_graph::PagUniformError [auto]
+impl core::marker::Sync for antecedent_graph::PagUniformSample [auto]
 impl core::marker::Sync for antecedent_graph::PathStep [auto]
 impl core::marker::Sync for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Sync for antecedent_graph::SeparationCertificate [auto]
@@ -486,12 +518,16 @@ impl core::marker::Unpin for antecedent_graph::GraphOverlay [auto]
 impl core::marker::Unpin for antecedent_graph::GraphWorkspace [auto]
 impl core::marker::Unpin for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::marker::Unpin for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Unpin for antecedent_graph::MecUniform [auto]
+impl core::marker::Unpin for antecedent_graph::MecUniformError [auto]
 impl core::marker::Unpin for antecedent_graph::MiddleMark [auto]
 impl core::marker::Unpin for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::marker::Unpin for antecedent_graph::Pag [auto]
 impl core::marker::Unpin for antecedent_graph::PagCompletion [auto]
 impl core::marker::Unpin for antecedent_graph::PagReview [auto]
 impl core::marker::Unpin for antecedent_graph::PagSeparation [auto]
+impl core::marker::Unpin for antecedent_graph::PagUniformError [auto]
+impl core::marker::Unpin for antecedent_graph::PagUniformSample [auto]
 impl core::marker::Unpin for antecedent_graph::PathStep [auto]
 impl core::marker::Unpin for antecedent_graph::SelectionDiagram [auto]
 impl core::marker::Unpin for antecedent_graph::SeparationCertificate [auto]
@@ -549,12 +585,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphOverlay 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MarkedEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MecUniform [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MecUniformError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MiddleMark [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Pag [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagCompletion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagReview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagSeparation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagUniformError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagUniformSample [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PathStep [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SelectionDiagram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SeparationCertificate [auto]
@@ -610,12 +650,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphOverlay [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MarkedEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MecUniform [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MecUniformError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MiddleMark [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::OrdinaryDSeparationOnCycles [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Pag [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagCompletion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagReview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagSeparation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagUniformError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagUniformSample [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PathStep [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SelectionDiagram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SeparationCertificate [auto]
@@ -658,8 +702,10 @@ pub const antecedent_graph::DEFAULT_COMPLETION_OPERATIONS: usize
 pub const antecedent_graph::WALK_ORACLE_NODE_BOUND: usize
 pub enum antecedent_graph::CopyLabels
 pub enum antecedent_graph::Endpoint
+pub enum antecedent_graph::MecUniformError
 pub enum antecedent_graph::MiddleMark
 pub enum antecedent_graph::PagSeparation
+pub enum antecedent_graph::PagUniformError
 pub enum antecedent_graph::SeparationResult
 pub enum antecedent_graph::WithinTier
 pub field antecedent_graph::CompletionValidationReport::ambiguous_global_class: bool
@@ -709,6 +755,8 @@ pub field antecedent_graph::PagCompletion::index: usize
 pub field antecedent_graph::PagReview::algorithm: alloc::sync::Arc<str>
 pub field antecedent_graph::PagReview::graph: antecedent_graph::Pag
 pub field antecedent_graph::PagReview::pending_circles: alloc::sync::Arc<[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)]>
+pub field antecedent_graph::PagUniformSample::attempts: u64
+pub field antecedent_graph::PagUniformSample::members: alloc::vec::Vec<antecedent_graph::Pag>
 pub field antecedent_graph::PathStep::node: antecedent_graph::DenseNodeId
 pub field antecedent_graph::SeparationCertificate::conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>
 pub field antecedent_graph::SigmaSeparation::assumptions: antecedent_graph::SigmaSeparationAssumptions
@@ -968,6 +1016,10 @@ pub fn <antecedent_graph::MarkedEdge>::fn causal_arrow_direction(self) -> core::
 pub fn <antecedent_graph::MarkedEdge>::fn conflict(a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> Self
 pub fn <antecedent_graph::MarkedEdge>::fn parent_child(self) -> core::option::Option<(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)>
 pub fn <antecedent_graph::MarkedEdge>::fn undirected(a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> Self
+pub fn <antecedent_graph::MecUniform>::const fn class_size(&self) -> u128
+pub fn <antecedent_graph::MecUniform>::fn new(cpdag: &antecedent_graph::Cpdag, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::MecUniformError>
+pub fn <antecedent_graph::MecUniform>::fn sample(&self, state: &mut u64) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::MecUniformError>
+pub fn <antecedent_graph::MecUniform>::fn sample_members(&self, draws: usize, seed: u64, stream: u64) -> core::result::Result<alloc::vec::Vec<antecedent_graph::Dag>, antecedent_graph::MecUniformError>
 pub fn <antecedent_graph::MiddleMark>::const fn apply(self, update: Self) -> Self
 pub fn <antecedent_graph::MiddleMark>::const fn is_definite(self) -> bool
 pub fn <antecedent_graph::Pag>::const fn is_pag_legal(edge: antecedent_graph::MarkedEdge) -> bool
@@ -1163,11 +1215,15 @@ pub fn antecedent_graph::completion::audit_finite_mag_equivalence_refs_within(gr
 pub fn antecedent_graph::completion::is_mag_completion(g: &antecedent_graph::Pag) -> bool
 pub fn antecedent_graph::completion::mag_to_admg(g: &antecedent_graph::Pag) -> core::option::Option<antecedent_graph::Admg>
 pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_graph::Cpdag, dag: &antecedent_graph::Dag) -> bool
+pub fn antecedent_graph::dag_fingerprint(dag: &antecedent_graph::Dag) -> u64
 pub fn antecedent_graph::directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> bool
 pub fn antecedent_graph::ensure_lagged(graph: &mut antecedent_graph::TemporalDag, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn antecedent_graph::error::refuse_directed_cycle(operation: antecedent_graph::DagOperation, next_attempt: antecedent_graph::CyclicNextAttempt, node_count: usize, edges: &[(u32, u32)]) -> core::result::Result<(), antecedent_graph::CyclicDagRefusal>
 pub fn antecedent_graph::error::sparse_directed_edges_contain_cycle(edges: &[(u32, u32)]) -> bool
 pub fn antecedent_graph::latent_project(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
+pub fn antecedent_graph::mag_fingerprint(mag: &antecedent_graph::Pag) -> u64
+pub fn antecedent_graph::mec_size(cpdag: &antecedent_graph::Cpdag) -> core::result::Result<u128, antecedent_graph::MecUniformError>
+pub fn antecedent_graph::pag_uniform::sample_pag_members(pag: &antecedent_graph::Pag, reference: &antecedent_graph::Pag, draws: usize, (seed, stream): (u64, u64), limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::PagUniformSample, antecedent_graph::PagUniformError>
 pub fn antecedent_graph::projection::projection_preserves_msep_sample(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId], queries: &[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId, alloc::vec::Vec<antecedent_graph::DenseNodeId>)]) -> core::result::Result<bool, antecedent_graph::GraphError>
 pub fn antecedent_graph::sigma_separates(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::SigmaSeparationWorkspace) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>
 pub fn antecedent_graph::sigma_separation::sigma_walk_oracle(graph: &antecedent_graph::CyclicMixedGraph, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, conditioning: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::SigmaSeparation, antecedent_graph::GraphError>
@@ -1183,10 +1239,12 @@ pub mod antecedent_graph::dag
 pub mod antecedent_graph::dsep
 pub mod antecedent_graph::error
 pub mod antecedent_graph::marked_storage
+pub mod antecedent_graph::mec_uniform
 pub mod antecedent_graph::msep
 pub mod antecedent_graph::named
 pub mod antecedent_graph::overlay
 pub mod antecedent_graph::pag
+pub mod antecedent_graph::pag_uniform
 pub mod antecedent_graph::projection
 pub mod antecedent_graph::selection
 pub mod antecedent_graph::sigma_separation
@@ -1238,10 +1296,13 @@ pub struct antecedent_graph::GraphOverlay has private fields
 pub struct antecedent_graph::GraphWorkspace
 pub struct antecedent_graph::LazyUnfoldedTemporalGraph
 pub struct antecedent_graph::MarkedEdge
+pub struct antecedent_graph::MecUniform
+pub struct antecedent_graph::MecUniform has private fields
 pub struct antecedent_graph::Pag
 pub struct antecedent_graph::Pag has private fields
 pub struct antecedent_graph::PagCompletion
 pub struct antecedent_graph::PagReview
+pub struct antecedent_graph::PagUniformSample
 pub struct antecedent_graph::PathStep
 pub struct antecedent_graph::SelectionDiagram
 pub struct antecedent_graph::SelectionDiagram has private fields
@@ -1307,6 +1368,10 @@ pub use antecedent_graph::error::GraphError = antecedent_graph::GraphError
 pub use antecedent_graph::error::directed_edges_contain_cycle = antecedent_graph::directed_edges_contain_cycle
 pub use antecedent_graph::is_mag_completion = antecedent_graph::completion::is_mag_completion
 pub use antecedent_graph::is_mec_member = antecedent_graph::cpdag_completion::is_mec_member
+pub use antecedent_graph::mec_uniform::MecUniform = antecedent_graph::MecUniform
+pub use antecedent_graph::mec_uniform::MecUniformError = antecedent_graph::MecUniformError
+pub use antecedent_graph::mec_uniform::dag_fingerprint = antecedent_graph::dag_fingerprint
+pub use antecedent_graph::mec_uniform::mec_size = antecedent_graph::mec_size
 pub use antecedent_graph::msep::PagSeparation = antecedent_graph::PagSeparation
 pub use antecedent_graph::overlay::DagView = antecedent_graph::DagView
 pub use antecedent_graph::overlay::GraphOverlay = antecedent_graph::GraphOverlay
@@ -1314,9 +1379,13 @@ pub use antecedent_graph::pag::DefiniteStatusPath = antecedent_graph::DefiniteSt
 pub use antecedent_graph::pag::DefiniteStatusPathSearch = antecedent_graph::DefiniteStatusPathSearch
 pub use antecedent_graph::pag::Pag = antecedent_graph::Pag
 pub use antecedent_graph::pag::PagReview = antecedent_graph::PagReview
+pub use antecedent_graph::pag_uniform::PagUniformError = antecedent_graph::PagUniformError
+pub use antecedent_graph::pag_uniform::PagUniformSample = antecedent_graph::PagUniformSample
+pub use antecedent_graph::pag_uniform::mag_fingerprint = antecedent_graph::mag_fingerprint
 pub use antecedent_graph::projection::latent_project = antecedent_graph::latent_project
 pub use antecedent_graph::projection_preserves_msep_sample = antecedent_graph::projection::projection_preserves_msep_sample
 pub use antecedent_graph::refuse_directed_cycle = antecedent_graph::error::refuse_directed_cycle
+pub use antecedent_graph::sample_pag_members = antecedent_graph::pag_uniform::sample_pag_members
 pub use antecedent_graph::selection::SelectionDiagram = antecedent_graph::SelectionDiagram
 pub use antecedent_graph::sigma_separation::OrdinaryDSeparationOnCycles = antecedent_graph::OrdinaryDSeparationOnCycles
 pub use antecedent_graph::sigma_separation::SigmaSeparation = antecedent_graph::SigmaSeparation
@@ -1384,6 +1453,13 @@ pub variant antecedent_graph::GraphError::TemporalMaterialization(antecedent_cor
 pub variant antecedent_graph::GraphError::TooManyNodes
 pub variant antecedent_graph::GraphError::UnknownNode { id: u32 }
 pub variant antecedent_graph::GraphError::UnknownVariableName { name: alloc::string::String }
+pub variant antecedent_graph::MecUniformError::ConflictEdge
+pub variant antecedent_graph::MecUniformError::CountOverflow
+pub variant antecedent_graph::MecUniformError::MemberCheckFailed
+pub variant antecedent_graph::MecUniformError::NotChordal
+pub variant antecedent_graph::MecUniformError::NotEssential
+pub variant antecedent_graph::MecUniformError::OrderNotDrawn
+pub variant antecedent_graph::MecUniformError::Stopped(antecedent_core::search::SearchStop)
 pub variant antecedent_graph::MiddleMark::Both
 pub variant antecedent_graph::MiddleMark::Empty
 pub variant antecedent_graph::MiddleMark::Left
@@ -1393,6 +1469,10 @@ pub variant antecedent_graph::OrdinaryDSeparationOnCycles::NotSettled
 pub variant antecedent_graph::PagSeparation::Connected
 pub variant antecedent_graph::PagSeparation::Separated
 pub variant antecedent_graph::PagSeparation::Undetermined
+pub variant antecedent_graph::PagUniformError::AmbiguousClass
+pub variant antecedent_graph::PagUniformError::AuditUnaffordable
+pub variant antecedent_graph::PagUniformError::BudgetExhausted { accepted: usize, attempts: u64, stop: antecedent_core::search::SearchStop }
+pub variant antecedent_graph::PagUniformError::ReferenceNotMember
 pub variant antecedent_graph::SeparationResult::Connected { active_path: alloc::vec::Vec<antecedent_graph::PathStep> }
 pub variant antecedent_graph::SeparationResult::Separated { conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>, certificate: antecedent_graph::SeparationCertificate }
 pub variant antecedent_graph::SigmaSeparationStatus::NotSeparated

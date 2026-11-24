@@ -2471,6 +2471,26 @@
       "id": "transport.z_identification",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "id": "preference_decision.exact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "preference_decision.certified",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "preference_learning.compatible_set",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "preference_learning.choice_model",
+      "status": "supported",
+      "missing_evidence": []
     }
   ]
 }

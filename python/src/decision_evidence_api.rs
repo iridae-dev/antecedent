@@ -191,7 +191,7 @@ fn regime_design(m: &Map<String, Json>) -> PyResult<JointStaticRegimeDesign> {
     })
 }
 
-struct ParsedEvidence {
+pub(crate) struct ParsedEvidence {
     value: JointExperimentEvidence,
     owner: Option<antecedent::analysis::joint_panel::designs::NativeJointDesignResult>,
 }
@@ -401,7 +401,7 @@ fn replay_compiled_evidence(
     }
 }
 
-fn evidence_with_context(
+pub(crate) fn evidence_with_context(
     value: &Json,
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<Result<ParsedEvidence, EvidenceRefusal>> {

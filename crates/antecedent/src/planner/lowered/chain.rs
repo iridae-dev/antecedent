@@ -15,12 +15,14 @@ use std::sync::Arc;
 
 use antecedent_contract::propagation_chain::ChainPlan;
 use antecedent_core::CanonicalWriter;
-use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+use antecedent_io::propagation_chain_record::{ChainDeferredTableWire, PropagationChainRecordWire};
 
 /// The chain a program was lowered from.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChainProgram {
     draft: Arc<PropagationChainRecordWire>,
+    /// The family table a deferred draft binds at execution.
+    deferred: Option<Arc<ChainDeferredTableWire>>,
     plan: ChainPlan,
     declaration_identity: Arc<str>,
 }
@@ -28,10 +30,16 @@ pub struct ChainProgram {
 impl ChainProgram {
     pub(crate) fn new(
         draft: PropagationChainRecordWire,
+        deferred: Option<ChainDeferredTableWire>,
         plan: ChainPlan,
         declaration_identity: String,
     ) -> Self {
-        Self { draft: Arc::new(draft), plan, declaration_identity: Arc::from(declaration_identity) }
+        Self {
+            draft: Arc::new(draft),
+            deferred: deferred.map(Arc::new),
+            plan,
+            declaration_identity: Arc::from(declaration_identity),
+        }
     }
 
     /// The declared chain: sources, stages, future-study draws and changes, with
@@ -39,6 +47,12 @@ impl ChainProgram {
     #[must_use]
     pub fn draft(&self) -> &PropagationChainRecordWire {
         &self.draft
+    }
+
+    /// The family table the draft binds at execution, when its table is deferred.
+    #[must_use]
+    pub fn deferred(&self) -> Option<&ChainDeferredTableWire> {
+        self.deferred.as_deref()
     }
 
     /// What the chain rule decided for every stage.

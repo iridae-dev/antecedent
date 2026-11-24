@@ -198,6 +198,10 @@ pub(crate) fn context(
     ctx.set_memory_limit(max_bytes);
     Ok(ctx)
 }
+/// A joint-panel refusal raised as its Python exception, for bridges outside this module.
+pub(crate) fn joint_panel_error(error: facade::JointPanelError) -> PyErr {
+    panel_error(error)
+}
 fn panel_error(error: facade::JointPanelError) -> PyErr {
     match error {
         facade::JointPanelError::Engine(engine::PanelError::Cancelled) => {

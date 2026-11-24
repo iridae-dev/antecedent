@@ -810,7 +810,7 @@ fn structure_prior_name(posterior: &GraphPosterior) -> String {
         }
     }
     // Lagged latent-confounder edges distinguish two templates with the same directed edges;
-    // a posterior without them writes nothing here, so its digest is the one it always had.
+    // a posterior without them writes nothing here.
     if let Some(masks) = posterior.lag_bidirected_masks() {
         writer.word(2).word(masks.len() as u64);
         for mask in masks.iter() {

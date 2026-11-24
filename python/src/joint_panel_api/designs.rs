@@ -350,6 +350,58 @@ impl PyPreparedNativeJointDesign {
             crate::detach_catch(py, || self.inner.execute(inference, &ctx).map_err(panel_error))?;
         Ok(PyNativeJointDesignResult { inner })
     }
+    /// Compile a decision across preferences (or an ordinary decision contract sent as
+    /// `{"ordinary": ...}`) whose quantities are this design's arm means,
+    /// with the decision attached to layer four of the design's program. `bootstrap_json`
+    /// (`{replicates, seed, sampling}`) declares the refits a design draws when the decision
+    /// needs a joint law: a static-regime design's whole-subject refits, or, with `sampling`
+    /// naming the premise that the independent units were sampled independently from a
+    /// larger population, a randomized design's independent-unit bootstrap. Nothing is
+    /// executed.
+    #[pyo3(signature=(contract_json,bootstrap_json=None,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments, reason = "the declaration and the execution controls")]
+    fn compile_for_preference_decision(
+        &self,
+        py: Python<'_>,
+        contract_json: &str,
+        bootstrap_json: Option<&str>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::preferences_api::CompiledReply> {
+        bounded_json(contract_json, "preference contract")?;
+        let contract = match crate::preferences_api::compile_contract_from(contract_json)? {
+            Ok(contract) => contract,
+            Err(refused) => return Ok((None, Some(refused))),
+        };
+        let bootstrap = match bootstrap_json {
+            Some(json) => {
+                bounded_json(json, "design bootstrap")?;
+                let wire: BootstrapWire =
+                    serde_json::from_str(json).map_err(|e| crate::value_err(e.to_string()))?;
+                Some(antecedent::analysis::preference_decision::DesignBootstrap {
+                    replicates: wire.replicates,
+                    seed: wire.seed,
+                    sampling: wire.sampling,
+                })
+            }
+            None => None,
+        };
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let outcome = crate::detach_catch(py, || {
+            use crate::preferences_api::CompileContract;
+            Ok(match &contract {
+                CompileContract::Tradeoff(contract) => {
+                    self.inner.compile_for_preference_decision(contract, bootstrap, &ctx)
+                }
+                CompileContract::Ordinary(contract) => {
+                    self.inner.compile_for_contract_decision(contract, bootstrap, &ctx)
+                }
+            })
+        })?;
+        crate::preferences_api::compiled_reply(outcome)
+    }
     #[pyo3(signature=(artifact,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn consume_current(
         &self,
@@ -429,3 +481,15 @@ fn replay_native_joint_design(
 }
 
 mod population;
+
+/// The refits a design draws for a decision's joint law: a static-regime design's
+/// whole-subject refits, or a randomized design's independent-unit bootstrap under the
+/// declared premise that its units were sampled independently from a larger population.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BootstrapWire {
+    replicates: usize,
+    seed: u64,
+    #[serde(default)]
+    sampling: Option<String>,
+}

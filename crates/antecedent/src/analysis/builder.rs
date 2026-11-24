@@ -378,6 +378,10 @@ pub struct StudyBuilder {
     /// compute budget, so that replacing the budget retracts only what the budget declared.
     refute_declared: bool,
     bootstrap_declared: bool,
+    /// The unit identifiers of the table's rows, set by [`Self::unit_key`].
+    unit_key: Option<super::execute::UnitKey>,
+    /// The table the rows were taken from, set by [`Self::row_provenance`].
+    row_provenance: Option<super::execute::RowProvenance>,
 }
 
 /// Declarations about the Bayesian inference, made before or after the inference they configure.
@@ -653,6 +657,8 @@ impl StudyBuilder {
             refute_declared: false,
             bootstrap_declared: false,
             data_diagnostics: Some(crate::DataDiagnostics::default()),
+            unit_key: None,
+            row_provenance: None,
         }
     }
 
@@ -708,6 +714,29 @@ impl StudyBuilder {
         let (posterior, provenance) = accepted.into_parts();
         self.graph_posterior = Some(posterior);
         self.posterior_provenance = Some(provenance);
+        self
+    }
+
+    /// Declare the unit identifiers the table's rows observe, in a named identifier space.
+    ///
+    /// Separately estimated outcomes of different tables are judged for shared evidence by the
+    /// units they share when both studies declare a key in the same space; the key never
+    /// enters identification or estimation. It is checked against the table at build.
+    #[must_use]
+    pub fn unit_key(mut self, key: super::execute::UnitKey) -> Self {
+        self.unit_key = Some(key);
+        self
+    }
+
+    /// Declare the table the study's rows were taken from: its rows are then the same
+    /// observations as the rows of any other study of that table. The provenance is carried
+    /// beside the table, never in it: a column projection of a table keeps that table's
+    /// provenance (`RowProvenance::of_table` of the source), and `RowProvenance::select_rows`
+    /// returns selected rows with theirs. A study without a declaration is a study of its own
+    /// table's rows. Checked against the table at build.
+    #[must_use]
+    pub fn row_provenance(mut self, provenance: super::execute::RowProvenance) -> Self {
+        self.row_provenance = Some(provenance);
         self
     }
 
@@ -861,11 +890,15 @@ impl StudyBuilder {
         self
     }
 
-    /// Supply mass over incomplete-temporal class members.
+    /// Supply mass over the members of a graph class.
     ///
-    /// This is not a graph posterior and not completion enumeration. Mutually
-    /// exclusive with [`Self::graph_posterior`]. A probability-weighted Bayesian
-    /// mixture requires this; without it the result is an identified set.
+    /// Over an incomplete temporal class it weighs the class's completions; a
+    /// probability-weighted Bayesian mixture requires it, and without it the result is an
+    /// identified set. Together with a [`Self::graph_posterior`] whose atoms are CPDAGs or
+    /// PAGs it is the declared conditional measure over the members of every class atom,
+    /// which a decision across the posterior's structures reads as member probabilities
+    /// (atom weight times conditional mass); a posterior of other atoms refuses it. It is not
+    /// a graph posterior and not completion enumeration.
     #[must_use]
     pub fn class_prior(mut self, prior: crate::ClassPrior) -> Self {
         self.declared.class_prior = Some(prior);
@@ -1610,6 +1643,11 @@ impl StudyBuilder {
         let discovery = self.discovery.take();
         let mechanisms = self.mechanisms.take();
         let posterior_provenance = self.posterior_provenance.take();
+        let evidence_rows = super::execute::EvidenceRows::declare(
+            self.unit_key.take(),
+            self.row_provenance.take(),
+            &self.data,
+        )?;
         let mut study = finish::assemble(finish::FinishInput {
             inspect_only,
             data: self.data,
@@ -1637,6 +1675,9 @@ impl StudyBuilder {
             Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
         }
         Arc::make_mut(&mut study.config).data_diagnostics = self.data_diagnostics;
+        if let Some(rows) = evidence_rows {
+            Arc::make_mut(&mut study.config).evidence_rows = Some(Arc::new(rows));
+        }
         Ok(study)
     }
 }

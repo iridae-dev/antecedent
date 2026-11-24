@@ -1,0 +1,677 @@
+{
+ "cases": [
+  {
+   "name": "one_parameter_bracketed",
+   "bounds": [
+    [
+     -4,
+     4
+    ]
+   ],
+   "relations": [],
+   "tolerance": 0,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        3,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        1,
+        0.75
+       ]
+      }
+     ],
+     "chosen": "b"
+    }
+   ],
+   "expected": {
+    "learned": [
+     [
+      1.0,
+      2.6666666666666665
+     ]
+    ]
+   }
+  },
+  {
+   "name": "one_parameter_bracketed_with_tolerance",
+   "bounds": [
+    [
+     -4,
+     4
+    ]
+   ],
+   "relations": [],
+   "tolerance": 0.25,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        3,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        1,
+        0.75
+       ]
+      }
+     ],
+     "chosen": "b"
+    }
+   ],
+   "expected": {
+    "learned": [
+     [
+      0.75,
+      3.0
+     ]
+    ]
+   }
+  },
+  {
+   "name": "two_parameters",
+   "bounds": [
+    [
+     -2,
+     2
+    ],
+    [
+     -2,
+     2
+    ]
+   ],
+   "relations": [],
+   "tolerance": 0,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        -1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.5,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "b"
+    },
+    {
+     "id": "r3",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        -0.25,
+        1,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        0.5,
+        -0.5,
+        0.25
+       ]
+      }
+     ],
+     "chosen": "a"
+    }
+   ],
+   "expected": {
+    "learned": [
+     [
+      -1.0,
+      2.0
+     ],
+     [
+      0.375,
+      2.0
+     ]
+    ]
+   }
+  },
+  {
+   "name": "two_parameters_declared_relation",
+   "bounds": [
+    [
+     -2,
+     2
+    ],
+    [
+     -2,
+     2
+    ]
+   ],
+   "relations": [
+    {
+     "terms": [
+      [
+       0,
+       1
+      ],
+      [
+       1,
+       2
+      ]
+     ],
+     "sense": "at_most",
+     "bound": 3
+    }
+   ],
+   "tolerance": 0,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        -1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.5,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "b"
+    },
+    {
+     "id": "r3",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        -0.25,
+        1,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        0.5,
+        -0.5,
+        0.25
+       ]
+      }
+     ],
+     "chosen": "a"
+    }
+   ],
+   "expected": {
+    "learned": [
+     [
+      -1.0,
+      1.1666666666666667
+     ],
+     [
+      0.375,
+      2.0
+     ]
+    ]
+   }
+  },
+  {
+   "name": "two_parameters_declared_relation_with_tolerance",
+   "bounds": [
+    [
+     -2,
+     2
+    ],
+    [
+     -2,
+     2
+    ]
+   ],
+   "relations": [
+    {
+     "terms": [
+      [
+       0,
+       1
+      ],
+      [
+       1,
+       2
+      ]
+     ],
+     "sense": "at_most",
+     "bound": 3
+    }
+   ],
+   "tolerance": 0.125,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        -1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.5,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "b"
+    },
+    {
+     "id": "r3",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        -0.25,
+        1,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        0.5,
+        -0.5,
+        0.25
+       ]
+      }
+     ],
+     "chosen": "a"
+    }
+   ],
+   "expected": {
+    "learned": [
+     [
+      -1.125,
+      1.25
+     ],
+     [
+      0.25,
+      2.0
+     ]
+    ]
+   }
+  },
+  {
+   "name": "one_parameter_contradictory",
+   "bounds": [
+    [
+     -4,
+     4
+    ]
+   ],
+   "relations": [],
+   "tolerance": 0,
+   "records": [
+    {
+     "id": "r1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        1,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "r2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        3,
+        0
+       ]
+      },
+      {
+       "id": "c",
+       "means": [
+        1,
+        0.75
+       ]
+      }
+     ],
+     "chosen": "b"
+    },
+    {
+     "id": "r3",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.5,
+        0
+       ]
+      }
+     ],
+     "chosen": "b"
+    }
+   ],
+   "expected": {
+    "contradictory": {
+     "records": [
+      "r1",
+      "r3"
+     ],
+     "tolerance_needed": 0.25,
+     "tolerance_needed_exact": "1/4"
+    }
+   }
+  },
+  {
+   "name": "two_parameters_contradictory_through_declared_relation",
+   "bounds": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "relations": [
+    {
+     "terms": [
+      [
+       0,
+       1
+      ],
+      [
+       1,
+       1
+      ]
+     ],
+     "sense": "at_most",
+     "bound": 1
+    }
+   ],
+   "tolerance": 0.125,
+   "records": [
+    {
+     "id": "q1",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        1,
+        0
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.75,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "q2",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        0,
+        1
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.75,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    },
+    {
+     "id": "q3",
+     "options": [
+      {
+       "id": "a",
+       "means": [
+        0,
+        0.5,
+        0.5
+       ]
+      },
+      {
+       "id": "b",
+       "means": [
+        0.25,
+        0,
+        0
+       ]
+      }
+     ],
+     "chosen": "a"
+    }
+   ],
+   "expected": {
+    "contradictory": {
+     "records": [
+      "q1",
+      "q2"
+     ],
+     "tolerance_needed": 0.25,
+     "tolerance_needed_exact": "1/4"
+    }
+   }
+  }
+ ]
+}

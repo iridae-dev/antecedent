@@ -8,7 +8,7 @@ means ``Frequentist()``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -228,34 +228,89 @@ class Bayesian:
 
 @dataclass(frozen=True, slots=True)
 class ClassPrior:
-    """Prior mass over the member graphs of an incomplete temporal graph class.
+    """Declared mass over the member graphs of a graph class.
 
-    When the structure is a temporal CPDAG or PAG, several completed graphs are compatible with
-    it. A ``ClassPrior`` states how much weight each completion receives when their answers are
-    combined; pass it as ``class_prior=`` together with :class:`Bayesian` inference. It is your
-    declaration, not a graph posterior learned from data, and it does not enumerate completions.
-    Priors on mechanism parameters stay on :class:`Bayesian`.
+    Two uses share one declaration:
+
+    * an incomplete temporal graph class (a temporal CPDAG or PAG): several completed graphs
+      are compatible with it, and a ``ClassPrior`` states how much weight each completion
+      receives when their answers are combined; pass it as ``class_prior=`` together with
+      :class:`Bayesian` inference;
+    * a graph posterior whose atoms are CPDAGs or PAGs: the prior is the conditional measure
+      over the members of every class atom, so a member's probability is its atom's posterior
+      weight times its conditional mass, and a decision across the structures can weigh them
+      (``bayes_over_structures`` included). Declare it :meth:`uniform` under a named
+      assumption, or key it by member fingerprint (the ``fingerprint`` of each structure a
+      compiled decision reports); keyed masses are normalised within each class.
+
+    Every member of a Markov equivalence class fits the data equally well, so this measure is
+    never learned: it is your declaration, not a graph posterior, and it does not enumerate
+    completions. For a PAG, uniform means uniform over the maximal ancestral graphs it
+    represents, not over latent-variable DAGs. Priors on mechanism parameters stay on
+    :class:`Bayesian`.
 
     Give exactly one of:
 
-    * ``ordered`` -- masses aligned with the order of ``identify(...).completion_keys``;
-    * ``pairs`` -- ``(completion_key, mass)`` pairs with unique unsigned 64-bit integer keys.
+    * ``ordered`` -- masses aligned with the order of ``identify(...).completion_keys``
+      (temporal classes only);
+    * ``pairs`` -- ``(key, mass)`` pairs with unique unsigned 64-bit integer keys;
 
-    Masses must be finite and nonnegative with a strictly positive total. Use
-    :meth:`from_ordered` or :meth:`from_pairs` to build one from lists.
+    or build a uniform measure with :meth:`uniform`, which puts equal mass on every member under
+    a named assumption. :meth:`with_assumption`, :meth:`exact_limit` and :meth:`sample` return a
+    copy carrying that declaration; it is held privately, so the public fields stay ``ordered``
+    and ``pairs``.
+
+    A class atom with at most :meth:`exact_limit` members (32 unless declared) is enumerated
+    exactly; a larger one is refused unless a uniform measure declares :meth:`sample`, which
+    draws members uniformly with replacement from a seed. Masses must be finite and
+    nonnegative with a strictly positive total. Use :meth:`from_ordered`, :meth:`from_pairs` or
+    :meth:`uniform` to build one.
 
     Raises:
-        ValueError: when both or neither of ``ordered`` and ``pairs`` are given, a mass is
-            negative or not finite, the total mass is not positive, or keys repeat or are not
-            unsigned 64-bit integers.
+        ValueError: when both or neither of ``ordered`` and ``pairs`` are given (or either is
+            given to a uniform measure), a mass is negative or not finite, the total mass is not
+            positive, keys repeat or are not unsigned 64-bit integers, an assumption is blank,
+            the exact limit or the number of sampled members is below one, the seed is not an
+            unsigned 64-bit integer, or a measure that is not uniform declares a sample.
     """
 
     ordered: tuple[float, ...] | None = None
     pairs: tuple[tuple[int, float], ...] | None = None
+    # Declarations reached only through uniform(), with_assumption(), exact_limit() and
+    # sample(); private so the released public fields stay exactly ordered and pairs.
+    _uniform: bool = field(default=False, repr=False, kw_only=True)
+    _assumption: str | None = field(default=None, repr=False, kw_only=True)
+    _exact_limit: int | None = field(default=None, repr=False, kw_only=True)
+    _sampling: tuple[int, int] | None = field(default=None, repr=False, kw_only=True)
 
     def __post_init__(self) -> None:
-        if (self.ordered is None) == (self.pairs is None):
+        if self._uniform:
+            if self.ordered is not None or self.pairs is not None:
+                raise ValueError("a uniform ClassPrior takes no ordered or pairs masses")
+        elif (self.ordered is None) == (self.pairs is None):
             raise ValueError("ClassPrior requires exactly one of ordered or pairs")
+        if self._assumption is not None and (
+            not isinstance(self._assumption, str) or not self._assumption.strip()
+        ):
+            raise ValueError("ClassPrior assumption must name the declaration it stands on")
+        if self._uniform and self._assumption is None:
+            raise ValueError("a uniform ClassPrior names its assumption")
+        if self._exact_limit is not None and (
+            type(self._exact_limit) is not int or self._exact_limit < 1
+        ):
+            raise ValueError("ClassPrior exact limit must be at least one member")
+        if self._sampling is not None:
+            members, seed = self._sampling
+            if type(members) is not int or members < 1:
+                raise ValueError("ClassPrior sample must draw at least one member")
+            if type(seed) is not int or not 0 <= seed < 2**64:
+                raise ValueError("ClassPrior sample seed must be an unsigned 64-bit integer")
+            if not self._uniform:
+                raise ValueError(
+                    "only a uniform ClassPrior can be sampled: keyed masses need every member's key"
+                )
+        if self._uniform:
+            return
         masses = (
             self.ordered
             if self.ordered is not None
@@ -272,6 +327,20 @@ class ClassPrior:
         if not isfinite(sum(masses)) or sum(masses) <= 0.0:
             raise ValueError("ClassPrior total mass must be strictly positive")
 
+    def __repr__(self) -> str:
+        if self._uniform:
+            text = f"ClassPrior.uniform({self._assumption!r})"
+        else:
+            text = f"ClassPrior(ordered={self.ordered!r}, pairs={self.pairs!r})"
+            if self._assumption is not None:
+                text += f".with_assumption({self._assumption!r})"
+        if self._exact_limit is not None:
+            text += f".exact_limit({self._exact_limit!r})"
+        if self._sampling is not None:
+            members, seed = self._sampling
+            text += f".sample({members!r}, seed={seed!r})"
+        return text
+
     @classmethod
     def from_ordered(cls, masses: list[float] | tuple[float, ...]) -> ClassPrior:
         """Build a prior from masses in ``identify(...).completion_keys`` order."""
@@ -281,16 +350,72 @@ class ClassPrior:
     def from_pairs(
         cls, pairs: list[tuple[int, float]] | tuple[tuple[int, float], ...]
     ) -> ClassPrior:
-        """Build a prior from ``(completion_key, mass)`` pairs."""
+        """Build a prior from ``(key, mass)`` pairs: completion keys of a temporal class, or
+        member fingerprints of graph-posterior class atoms."""
         return cls(pairs=tuple((key, float(mass)) for key, mass in pairs))
+
+    @classmethod
+    def uniform(cls, assumption: str) -> ClassPrior:
+        """Equal mass on every member of every class, declared under ``assumption`` (for
+        example ``"assumption.uniform_within_class"``)."""
+        return cls(_uniform=True, _assumption=assumption)
+
+    def with_assumption(self, assumption: str) -> ClassPrior:
+        """The same masses, naming the assumption they stand on."""
+        return replace(self, _assumption=assumption)
+
+    def exact_limit(self, limit: int) -> ClassPrior:
+        """Enumerate a class atom exactly when it has at most ``limit`` members."""
+        return replace(self, _exact_limit=limit)
+
+    def sample(self, members: int, *, seed: int) -> ClassPrior:
+        """Above the exact limit, draw ``members`` members of each class atom uniformly with
+        replacement from ``seed``. Only a uniform measure can be sampled.
+
+        A decision on sampled members is a Monte Carlo estimate: under
+        ``bayes_over_structures`` the verdict is the one on the sampled measure, never "best
+        for every member"; under ``maximin`` and ``require_invariant_best_action`` each
+        sampled member's own verdict is reported with a bound on the mass where another action
+        is best, and no combined verdict is given.
+        """
+        return replace(self, _sampling=(members, seed))
 
 
 def _class_prior_kwargs(prior: ClassPrior | None) -> dict[str, Any]:
     if prior is None:
         return {}
+    if prior._uniform or (
+        prior._assumption is not None
+        or prior._exact_limit is not None
+        or prior._sampling is not None
+    ):
+        raise ValueError(
+            "a uniform ClassPrior, an assumption, an exact limit or a sample weighs the members "
+            "of graph-posterior class atoms; a temporal class takes ordered or keyed masses"
+        )
     if prior.ordered is not None:
         return {"class_prior_ordered": list(prior.ordered)}
     return {"class_prior_pairs": list(prior.pairs or ())}
+
+
+def _graph_posterior_class_prior_kwargs(prior: ClassPrior | None) -> dict[str, Any]:
+    """The ``class_prior=`` keyword of the native graph-posterior response prepare."""
+    if prior is None:
+        return {}
+    if prior.ordered is not None:
+        raise ValueError(
+            "ordered masses name no member of a graph-posterior class; key the masses by member "
+            "fingerprint (ClassPrior.from_pairs) or declare ClassPrior.uniform(assumption)"
+        )
+    return {
+        "class_prior": {
+            "kind": "uniform" if prior._uniform else "pairs",
+            "pairs": [(int(key), float(mass)) for key, mass in prior.pairs or ()],
+            "assumption": prior._assumption,
+            "exact_limit": prior._exact_limit,
+            "sample": None if prior._sampling is None else tuple(prior._sampling),
+        }
+    }
 
 
 def _max_completions_kwargs(max_completions: int | None) -> dict[str, Any]:

@@ -5,7 +5,13 @@
 //! attempt. An EVSI request quotes its Monte Carlo store and refuses before
 //! allocation when the admission pool cannot hold it.
 //!
+//! The deprecated `compile_for_decision` and `compile_for_evsi` are exercised as released;
+//! `compile_decision_program` and `compile_evsi_program` are their compiled replacements, and
+//! the twin tests at the end check that the replacements give the same plan and the same
+//! numbers.
+//!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "the released entries are tested beside their compiled replacements")]
 
 use std::sync::Arc;
 
@@ -14,7 +20,7 @@ use antecedent::analysis::design_ranking::{
 };
 use antecedent::analysis::{
     BAYESIAN_REALIZATION, DISTRIBUTIONAL_CARRIER, DecisionCarrierError, DecisionCompileRequest,
-    MissingCarrier,
+    DecisionDemand, MissingCarrier, PublishedCarriers, score_decision,
 };
 use antecedent::planner::PhysicalExecutionPlan;
 use antecedent::planner::lowered::CarrierDemand;
@@ -365,4 +371,59 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
     // The study-independent form observes the caller's context too.
     antecedent::analysis::design_ranking::evaluate(wire.clone(), &cancelled)
         .expect_err("a cancelled caller context stops the standalone evaluation");
+}
+
+#[test]
+fn the_decision_program_twins_the_released_entry_under_its_own_unit() {
+    let ctx = ExecutionContext::for_tests(1);
+    let study = study(true);
+    let problem = affine_problem(2.0);
+    let carrier = request(CarrierDemand::ParameterPosterior);
+    let released = study.compile_for_decision(&problem, &carrier, &ctx).unwrap();
+    let compiled = study.compile_decision_program(&problem, &carrier, &ctx).unwrap();
+    // The child is the released plan, unchanged.
+    assert_eq!(decision_identity(compiled.plan()), decision_identity(&released));
+    // The decision's own program is composed over it and gated on its own unit.
+    let parent = compiled.plan_view();
+    assert_eq!(parent.program().route(), "ContractAttachedDecision");
+    let unit = parent.unit_support().expect("the decision's route is bound to its unit");
+    assert_eq!(unit.unit(), "decision.contract");
+    let children: Vec<Option<[u8; 32]>> =
+        parent.evidence().sources().iter().map(|source| source.digest()).collect();
+    assert_eq!(children, [Some(*decision_identity(&released).as_bytes())]);
+    let again = study.compile_decision_program(&problem, &carrier, &ctx).unwrap();
+    assert_eq!(again.program_identity(), compiled.program_identity());
+    let other = study.compile_decision_program(&affine_problem(3.0), &carrier, &ctx).unwrap();
+    assert_ne!(other.program_identity(), compiled.program_identity());
+
+    // The same scorer, bit for bit.
+    let published = PublishedCarriers { mean: 1.25, posterior_mean: Some(1.375) };
+    let demand = DecisionDemand::AffinePosterior { slope: 2.0, intercept: -0.5 };
+    if unit.supported() {
+        let scored = compiled.execute(demand, published, &ctx).unwrap();
+        let direct = score_decision(demand, published).unwrap();
+        assert_eq!(scored.value.to_bits(), direct.value.to_bits());
+        assert_eq!(scored.carrier, direct.carrier);
+        let no_posterior = PublishedCarriers { mean: 1.25, posterior_mean: None };
+        let missing = compiled.execute(demand, no_posterior, &ctx).unwrap_err();
+        assert_eq!(missing.kernel(), Some(&MissingCarrier::ParameterPosterior));
+        // A demand for another carrier than the one compiled is refused before scoring.
+        let mean = DecisionDemand::AffineMean { slope: 2.0, intercept: -0.5 };
+        assert!(compiled.execute(mean, published, &ctx).unwrap_err().kernel().is_none());
+    }
+}
+
+#[test]
+fn the_evsi_program_twins_the_standalone_engine() {
+    let ctx = ExecutionContext::for_tests(1);
+    let study = study(true);
+    let wire = ranking_wire(&["study-b", "study-a"]);
+    // `evaluate` runs the engine on the declared prior with no study; `evaluate_for_study` runs
+    // it through the compiled EVSI program, after the program's gate.
+    let standalone = antecedent::analysis::design_ranking::evaluate(wire.clone(), &ctx).unwrap();
+    let compiled = evaluate_for_study(&study, wire.clone(), &ctx).unwrap();
+    assert_eq!(compiled.report(), standalone.report());
+    // The child program is the plan the released entry compiles.
+    let plan = compile_for_study(&study, wire, &ctx).unwrap();
+    assert_eq!(compiled.lowered_program_identity(), Some(decision_identity(&plan)));
 }

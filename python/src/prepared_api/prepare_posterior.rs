@@ -416,6 +416,10 @@ impl PyPreparedAnalysis {
     }
 
     /// Compile once for supported static ResponseCurve × graph_posterior.
+    ///
+    /// `class_prior` declares the conditional measure over the members of every CPDAG or PAG
+    /// atom: `{"kind": "uniform" | "pairs", "pairs": [[fingerprint, mass], ...],
+    /// "assumption": str | None, "exact_limit": int | None, "sample": [members, seed] | None}`.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -429,6 +433,7 @@ impl PyPreparedAnalysis {
         seed=1,
         threads=None,
         options=None,
+        class_prior=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_graph_posterior_response(
@@ -443,10 +448,12 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
+        class_prior: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             let response_options = parse_response_options(response_options.as_ref())?;
+            let class_prior = class_prior.as_ref().map(class_prior_from).transpose()?;
             let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
@@ -461,7 +468,23 @@ impl PyPreparedAnalysis {
                 );
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
-                finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
+                match class_prior {
+                    Some(prior) => finish_with_class_prior(
+                        (data, req, gp, query),
+                        response_options,
+                        prior,
+                        &ctx,
+                    ),
+                    None => finish_static_graph_posterior(
+                        data,
+                        req,
+                        gp,
+                        query,
+                        None,
+                        response_options,
+                        &ctx,
+                    ),
+                }
             })
         })
     }
@@ -862,4 +885,74 @@ impl PyPreparedAnalysis {
             })
         })
     }
+}
+
+/// A declared class prior over the members of graph-posterior class atoms from its wire:
+/// `{"kind": "uniform" | "pairs", "pairs": [[fingerprint, mass], ...], "assumption": str |
+/// None, "exact_limit": int | None, "sample": [members, seed] | None}`. Every check is the
+/// Rust declaration's own.
+fn class_prior_from(wire: &Bound<'_, PyDict>) -> PyResult<antecedent::ClassPrior> {
+    fn present<'py>(wire: &Bound<'py, PyDict>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        Ok(wire.get_item(name)?.filter(|value| !value.is_none()))
+    }
+    let field = |name: &str| present(wire, name);
+    let kind = field("kind")?.map(|value| value.extract::<String>()).transpose()?;
+    let assumption = field("assumption")?.map(|value| value.extract::<String>()).transpose()?;
+    let mut prior = match kind.as_deref() {
+        Some("uniform") => {
+            antecedent::ClassPrior::uniform(assumption.as_deref().unwrap_or("")).map_err(py_err)?
+        }
+        Some("pairs") => {
+            let pairs = field("pairs")?
+                .map(|value| value.extract::<Vec<(u64, f64)>>())
+                .transpose()?
+                .unwrap_or_default();
+            let prior = antecedent::ClassPrior::from_pairs(pairs).map_err(py_err)?;
+            match assumption.as_deref() {
+                Some(assumption) => prior.with_assumption(assumption).map_err(py_err)?,
+                None => prior,
+            }
+        }
+        other => {
+            return Err(crate::value_err(format!(
+                "a graph-posterior class prior is uniform or keyed by member fingerprint \
+                 (kind 'uniform' or 'pairs'), not {other:?}"
+            )));
+        }
+    };
+    if let Some(limit) = field("exact_limit")?.map(|value| value.extract::<usize>()).transpose()? {
+        prior = prior.exact_limit(limit).map_err(py_err)?;
+    }
+    if let Some((members, seed)) =
+        field("sample")?.map(|value| value.extract::<(usize, u64)>()).transpose()?
+    {
+        prior = prior.sample(members, seed).map_err(py_err)?;
+    }
+    Ok(prior)
+}
+
+/// [`finish_static_graph_posterior`] for a study that declares a class prior over the members
+/// of its class atoms.
+fn finish_with_class_prior(
+    (data, mut req, gp, query): (
+        antecedent::prelude::TabularData,
+        PrepareRequest,
+        antecedent::discovery::GraphPosterior,
+        CausalQuery,
+    ),
+    response_options: Option<antecedent::estimate::ContinuousResponseOptions>,
+    prior: antecedent::ClassPrior,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<PyPreparedAnalysis> {
+    req.refuse_prior("a graph-posterior mixture")?;
+    let study = antecedent::Study::tabular(data);
+    let study = match req.accepted_posterior.take() {
+        Some(accepted) => study.accepted_graph_posterior(accepted),
+        None => study.graph_posterior(gp),
+    };
+    let builder =
+        super::with_response_options(study.query(query), response_options).class_prior(prior);
+    let builder = super::apply_estimator(req.opts.apply_budget_for(builder, false), None, None)?;
+    let builder = req.opts.apply_inference(builder)?;
+    req.compile_with(builder, false, ctx)
 }

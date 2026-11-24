@@ -24,7 +24,7 @@ use crate::decision_contract::{
 use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
 use crate::structure_aggregator::{
     AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
-    probability_sum, unassigned_probability,
+    StructureMasses, StructureState, probability_sum, structure_masses,
 };
 
 /// What is known about one structure.
@@ -343,22 +343,22 @@ pub fn evaluate_structural(
 
     let summaries = evaluate_structural_atoms(&inner, atoms)?;
 
-    let mass = |wanted: fn(&AtomStatus) -> bool| -> Option<f64> {
-        has_probabilities.then(|| {
-            probability_sum(
-                summaries.iter().filter(|s| wanted(&s.status)).filter_map(|s| s.probability),
-            )
+    let states: Vec<(Option<f64>, StructureState)> = summaries
+        .iter()
+        .map(|s| {
+            let state = match s.status {
+                AtomStatus::Evaluated(_) => StructureState::Evaluated,
+                AtomStatus::Unidentified => StructureState::Unidentified,
+                AtomStatus::Unevaluated(_) => StructureState::Unevaluated,
+            };
+            (s.probability, state)
         })
-    };
-    let evaluated_mass = mass(|s| matches!(s, AtomStatus::Evaluated(_)));
-    let unidentified_mass = mass(|s| matches!(s, AtomStatus::Unidentified));
-    let unassigned_mass = if has_probabilities {
-        unassigned_probability(summaries.iter().filter_map(|s| s.probability))
-    } else {
-        0.0
-    };
-    let unevaluated_mass =
-        mass(|s| matches!(s, AtomStatus::Unevaluated(_))).map(|m| m + unassigned_mass);
+        .collect();
+    let StructureMasses {
+        evaluated: evaluated_mass,
+        unidentified: unidentified_mass,
+        unevaluated: unevaluated_mass,
+    } = structure_masses(has_probabilities, &states);
 
     let n_actions = contract.actions.len();
     let (actions, leaders) =

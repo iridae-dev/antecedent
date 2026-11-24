@@ -82,6 +82,8 @@ LOADERS: tuple[tuple[str, bool], ...] = (
     ("antecedent.cyclic_decisions.consume_bundle_refitting", False),
     ("antecedent.cyclic_decisions.consume_decision", False),
     ("antecedent.decision.Contract.load", False),
+    ("antecedent.decision.replay", False),
+    ("antecedent.decision_learning.load", False),
     ("antecedent.decision_reliability.consume_decision_reliability_artifact", False),
     ("antecedent.decision_reliability.consume_derived_uncertainty", False),
     ("antecedent.decision_reliability.consume_sequential_policy_reliability", False),

@@ -42,7 +42,7 @@ record_sha256 = "4bfb952fa6488dc835381370c22f6c5ab363532e5dc27975109c0f7820727da
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract.rs"
 items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn put_list", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint"]
-sha256 = "72b9f251a576cebb999677da7c81ad3ac618a7c45e9bffcdc6f2a6c1efad286a"
+sha256 = "2d472a16fe96d1e8a6fb5cdb21b3ab599fec1975be6a6c5f3899b3124c88561a"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

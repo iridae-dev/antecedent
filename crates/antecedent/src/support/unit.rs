@@ -190,11 +190,33 @@ pub(crate) fn require_program_unscoped(
     })
 }
 
+/// [`require_program`] for a unit whose decision the caller already holds: the same release
+/// refusal and development record, read from `decision` instead of decided again.
+///
+/// # Errors
+///
+/// [`NotSupported`] in a release build when `decision` is not supported.
+pub(crate) fn require_decided(
+    ctx: &ExecutionContext,
+    decision: &UnitDecision,
+    entry: &'static str,
+) -> Result<(), NotSupported> {
+    decided_gate(decision, |missing| {
+        antecedent_core::support_gate::require_supported(ctx, entry, missing)
+    })
+}
+
 fn program_gate(
     key: &SupportKey<'_>,
     gate: impl FnOnce(&[&str]) -> Result<(), NotSupported>,
 ) -> Result<(), NotSupported> {
-    let decision = decide(key);
+    decided_gate(&decide(key), gate)
+}
+
+fn decided_gate(
+    decision: &UnitDecision,
+    gate: impl FnOnce(&[&str]) -> Result<(), NotSupported>,
+) -> Result<(), NotSupported> {
     if decision.status == CellStatus::Supported {
         return Ok(());
     }

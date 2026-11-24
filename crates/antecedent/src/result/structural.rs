@@ -13,6 +13,17 @@ pub enum StructuralWeightBasis {
     /// Caller-declared mass over class members. Not a graph posterior and not
     /// completion enumeration.
     CallerSuppliedClassPrior,
+    /// Graph-posterior probability of each equivalence-class atom times a caller-declared
+    /// conditional mass over the atom's members (uniform under a named assumption, or keyed
+    /// by member fingerprint). A probability under that declaration: within a Markov
+    /// equivalence class every member fits score-equivalent data equally well, so the
+    /// within-class measure is declared, never learned.
+    PosteriorWithDeclaredClassPrior,
+    /// Graph-posterior probability of each equivalence-class atom times the share of a
+    /// uniform sample of the class's members that drew each member: a Monte Carlo estimate of
+    /// a declared uniform class measure, not that measure over every member. A reader may not
+    /// take a minimum over the structures or a verdict over every member from it.
+    SampledClassMeasure,
 }
 
 impl StructuralWeightBasis {
@@ -23,6 +34,8 @@ impl StructuralWeightBasis {
             Self::PosteriorProbability => "posterior_probability",
             Self::CompletionEnumeration => "completion_enumeration",
             Self::CallerSuppliedClassPrior => "caller_supplied_class_prior",
+            Self::PosteriorWithDeclaredClassPrior => "posterior_with_declared_class_prior",
+            Self::SampledClassMeasure => "sampled_class_measure",
         }
     }
 }
@@ -33,6 +46,10 @@ impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
             StructuralWeightBasis::PosteriorProbability => Self::PosteriorProbability,
             StructuralWeightBasis::CompletionEnumeration => Self::CompletionEnumeration,
             StructuralWeightBasis::CallerSuppliedClassPrior => Self::CallerSuppliedClassPrior,
+            StructuralWeightBasis::PosteriorWithDeclaredClassPrior => {
+                Self::PosteriorWithDeclaredClassPrior
+            }
+            StructuralWeightBasis::SampledClassMeasure => Self::SampledClassMeasure,
         }
     }
 }

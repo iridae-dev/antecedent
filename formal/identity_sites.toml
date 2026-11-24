@@ -12,6 +12,209 @@
 # `concern` records where the class looks wrong for the meaning, or framing is not injective.
 
 [[sites]]
+id = "antecedent.class_prior.ClassPrior.identity_wire"
+file = "crates/antecedent/src/class_prior.rs"
+item = "impl:ClassPrior#0/fn:identity_wire#0"
+feeds = "ClassPriorIdentityWire -> structural weighting basis of a graph-posterior or temporal-class decision, and the decision program identity of a compiled class weighting"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/class_prior.rs::site_class_prior_identity_keyed_pairs_are_a_set_when_annotated", "unit:crates/antecedent/src/class_prior.rs::temporal_identities_are_unchanged", "unit:crates/antecedent/src/class_prior.rs::a_uniform_measure_names_its_assumption_and_its_draw"]
+note = "The bare Ordered and Pairs encodings are released and unchanged; the Annotated wrapper (assumption, exact limit, sample) and Uniform are additive, and ClassPriorIdentityWire::is_canonical states the same rules for a decoded payload."
+[[sites.collections]]
+name = "keyed masses (fingerprint, mass bits)"
+class = "set"
+canonical = "sort_unstable by (key, mass bits); from_pairs refuses a repeated key, so sorting is the whole canonicalization; the same inside Annotated"
+concern = ""
+[[sites.collections]]
+name = "ordered masses"
+class = "ordered"
+canonical = "as declared: the i-th mass weighs the i-th class case"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.atoms.class_keys"
+file = "crates/antecedent/src/analysis/execute/compile_preference/atoms.rs"
+item = "fn:class_keys#0"
+feeds = "class atom key -> member_key -> ClassPrior keyed masses and the structural weights of a compiled class atom"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_compiled_class_marks.rs::pag_atoms_that_differ_only_in_circle_marks_are_different_classes", "unit:crates/antecedent/tests/preference_decision_class_weighting.rs::keyed_masses_are_read_by_member_fingerprint"]
+note = "member_key (fn:member_key#0) frames (class key, member fingerprint) under its own versioned tag; both keys are the first 64 bits of a BLAKE3 digest, the bound stated at graph.mec_uniform.dag_fingerprint."
+[[sites.collections]]
+name = "circle-mark atoms of one adjacency set"
+class = "set"
+canonical = "BTreeSet of mark masks per graph key; a key is split by its marks only when the set holds more than one, and the split key frames (graph key, mark key)"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.bind.bound_identity"
+file = "crates/antecedent/src/analysis/execute/compile_preference/bind.rs"
+item = "fn:bound_identity#0"
+feeds = "BoundPreferenceContract::identity / CompiledPreferenceDecision::bound_identity -> layer four decision contract identity of every compiled preference plan"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference.rs::site_bound_identity_orders_and_frames_the_studies"]
+[[sites.collections]]
+name = "causal bindings (causal target, causal identification) per study"
+class = "ordered"
+canonical = "study order, count-prefixed, each text framed: the decision's sources are indexed by study"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.evidence.row_factor"
+file = "crates/antecedent/src/analysis/execute/compile_preference/evidence.rs"
+item = "fn:row_factor#0"
+feeds = "row factor of a chain source -> propagation-chain shared factors and the joint declaration digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference/evidence.rs::site_row_factor_rows_are_a_counted_set"]
+[[sites.collections]]
+name = "rows of the source table"
+class = "set"
+canonical = "BTreeSet<u64> (sorted, each once), count-prefixed; the source table identity framed before it"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.evidence.unit_factor"
+file = "crates/antecedent/src/analysis/execute/compile_preference/evidence.rs"
+item = "fn:unit_factor#0"
+feeds = "unit factor of a chain source -> propagation-chain shared factors and the joint declaration digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference/evidence.rs::site_unit_factor_labels_are_a_framed_set"]
+[[sites.collections]]
+name = "unit labels of one identifier space"
+class = "set"
+canonical = "every caller passes the iteration of a BTreeSet<String> (a study's labels, or the intersection of two), so sorted and each once; texts framed after the namespace"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.joint.declare"
+file = "crates/antecedent/src/analysis/execute/compile_preference/joint.rs"
+item = "fn:declare#0"
+feeds = "PreferenceJointLawFact.declaration -> UtilityForm::PreferenceValue joint_law -> decision program identity of every study joined by a chain"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_compiled_chain_binding.rs::declared_blocks_are_a_set_whatever_order_they_are_listed_in", "unit:crates/antecedent/tests/preference_decision_compiled_joint_law.rs::the_chain_that_joins_separate_studies_is_declared_and_checked_at_compile", "unit:crates/antecedent/tests/preference_decision_compiled_unit_keys.rs::studies_without_declarations_keep_the_table_content_judgement_and_encoding"]
+note = "Fixed: the declared cross-study blocks were written in the order the caller listed them; they are taken in pair order before the declaration, the plan facts and the deferred chain are built."
+[[sites.collections]]
+name = "inputs (source, stage, study, quantity, factor; unit-key basis after a presence word)"
+class = "ordered"
+canonical = "study order, then grid column order: the chain's sources and joint outputs are indexed by them"
+concern = ""
+[[sites.collections]]
+name = "inputs[].factors"
+class = "ordered"
+canonical = "row_factors order: one factor per overlapping study in the ledger's pair order, each once (contains check), derived from the studies, never caller-listed"
+concern = ""
+[[sites.collections]]
+name = "declared cross-study blocks"
+class = "set"
+canonical = "sorted by (first, second); the deferred table refuses a repeated pair; terms in row-major order by bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.measure_identity"
+file = "crates/antecedent/src/analysis/execute/compile_preference.rs"
+item = "fn:measure_identity#0"
+feeds = "PreferenceDecisionExecution receipt: the measure over the preference set an execution read"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference.rs::site_measure_identity_sets_and_alignment", "unit:crates/antecedent/tests/preference_decision_compiled_program_identity.rs::the_receipt_binds_the_options_and_measure_the_execution_read"]
+note = "Fixed: the unresolved parameter indices were written as listed; they are a set (validation refuses a repeat) and are written sorted."
+[[sites.collections]]
+name = "points"
+class = "ordered"
+canonical = "as given; weights and labels are aligned with them by position"
+concern = ""
+[[sites.collections]]
+name = "weights, labels"
+class = "ordered"
+canonical = "aligned with the points; each after a presence word"
+concern = ""
+[[sites.collections]]
+name = "unresolved parameter indices"
+class = "set"
+canonical = "sort_unstable; PreferenceMeasure::validate refuses a repeated index"
+concern = ""
+
+[[sites]]
+id = "antecedent.compile_preference.options_identity"
+file = "crates/antecedent/src/analysis/execute/compile_preference.rs"
+item = "fn:options_identity#0"
+feeds = "PreferenceDecisionExecution receipt: the exact and certified route options an execution read"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/execute/compile_preference.rs::site_options_identity_reads_every_option", "unit:crates/antecedent/tests/preference_decision_compiled_program_identity.rs::the_receipt_binds_the_options_and_measure_the_execution_read"]
+[[sites.collections]]
+name = "option fields of both routes"
+class = "ordered"
+canonical = "exhaustive destructure of PreferenceEvaluationOptions, PreferenceDecisionOptions, LpOptions and CertifiedOptions, each field in a fixed position, reals by bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.planner.lowered.LoweredProgram.identity_without_decision"
+file = "crates/antecedent/src/planner/lowered.rs"
+item = "impl:LoweredProgram#0/fn:identity_without_decision#0"
+feeds = "LoweredProgram::decides_over -> a prepared study executes the compiled decision program over its own estimate"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_compiled.rs::a_prepared_study_compiles_the_same_decision"]
+[[sites.collections]]
+name = "program layers without the decision (cell, depth, scientific, identification, statistical, evidence, claim)"
+class = "ordered"
+canonical = "fixed field order under its own versioned tag; layer four's decision cleared before its identity is taken"
+concern = ""
+
+[[sites]]
+id = "antecedent.planner.lowered.LoweredProgram.with_decision"
+file = "crates/antecedent/src/planner/lowered.rs"
+item = "impl:LoweredProgram#0/fn:with_decision#0"
+feeds = "identity of a compiled joint design program with the decision attached to layer four"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_compiled_design.rs::the_design_plan_carries_the_decision_and_its_carrier_is_checked_at_compile"]
+[[sites.collections]]
+name = "parts (the program's own identity, the new layer four identity)"
+class = "ordered"
+canonical = "fixed order under its own versioned tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.planner.lowered.decision.UtilityForm.write"
+file = "crates/antecedent/src/planner/lowered/decision.rs"
+item = "impl:UtilityForm#0/fn:write#0"
+feeds = "DecisionProgram::write -> layer four identity of a lowered decision program"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_compiled_plan_facts.rs::a_value_that_needs_draws_states_joint_draws_and_another_range_is_another_program", "unit:crates/antecedent/tests/preference_decision_compiled_plan_facts.rs::an_ordinary_decision_plan_states_exactly_the_facts_it_always_did", "unit:crates/antecedent/tests/preference_decision_compiled_design.rs::the_design_plan_carries_the_decision_and_its_carrier_is_checked_at_compile"]
+[[sites.collections]]
+name = "affine coefficients (intercept, slope)"
+class = "ordered"
+canonical = "one pair per action input, in contract order, reals by bits"
+concern = ""
+[[sites.collections]]
+name = "preference value quantities"
+class = "ordered"
+canonical = "quantity identities in demand order, framed; the joint law and design law each after a presence word"
+concern = ""
+
+[[sites]]
+id = "antecedent.preference_decision.analysis_result_identity"
+file = "crates/antecedent/src/analysis/preference_decision.rs"
+item = "fn:analysis_result_identity#0"
+feeds = "BeliefSource::AnalysisAsOf result_identity -> choice record digest -> choice-model estimate and accepted-preferences identities"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/preference_decision_end_to_end.rs::the_analysis_result_identity_names_the_estimate_kind_and_keeps_coordinate_order", "unit:crates/antecedent/tests/preference_decision_end_to_end.rs::recorded_choices_read_from_an_analysis_settle_a_price_dependent_decision"]
+note = "Fixed: a mean source's estimate kind (posterior mean or point estimate) was left out, so the same means read as posterior means and as point estimates shared an identity; it is written after the representation word."
+[[sites.collections]]
+name = "coordinates and means of a mean source"
+class = "ordered"
+canonical = "as the source lists them: each mean belongs to the coordinate at its position"
+concern = ""
+
+[[sites]]
 id = "contract.adaptive_design.accounting.AdaptiveDesignContract.interim_evidence"
 file = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
 item = "impl:AdaptiveDesignContract#0/fn:interim_evidence#0"
@@ -1783,6 +1986,21 @@ canonical = "sort_unstable + dedup of (variable, lag)"
 concern = "Same pub-field bypass."
 
 [[sites]]
+id = "design.accepted_preferences_artifact.accepted_identity"
+file = "crates/antecedent-design/src/accepted_preferences_artifact.rs"
+item = "fn:accepted_identity#0"
+feeds = "AcceptedPreferences::identity -> accepted_preferences_v1 artifact (stored and recomputed on load) and every decision that reads the accepted preferences"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/accepted_preferences.rs::learning_reviewing_and_relearning_each_give_a_new_version_and_identity", "unit:crates/antecedent-design/tests/preference_artifact.rs::accepted_preferences_of_every_basis_round_trip_and_replay"]
+note = "A part that cannot be encoded is refused, never digested as empty bytes."
+[[sites.collections]]
+name = "acknowledged review items"
+class = "set"
+canonical = "canonical_acknowledged keeps the items in the order review_items derives them and refuses a repeated or non-pending item, so the order they were acknowledged in never reaches the identity"
+concern = ""
+
+[[sites]]
 id = "design.adaptive_policy.AdaptivePolicyFamily.identity"
 file = "crates/antecedent-design/src/adaptive_policy.rs"
 item = "impl:AdaptivePolicyFamily#0/fn:identity#0"
@@ -1847,6 +2065,49 @@ note = "Decided multiset encoding: the kernel refuses repeats, so a deduplicatin
 name = "mechanisms"
 class = "multiset"
 canonical = "(mechanism, status) rows sorted, count-prefixed, repeats kept; check_diagram refuses a repeated mechanism before the diagram is used, so a valid diagram's rows are a set"
+concern = ""
+
+[[sites]]
+id = "design.choice_record.ChoiceRecordSet.digest"
+file = "crates/antecedent-design/src/choice_record.rs"
+item = "impl:ChoiceRecordSet#0/fn:digest#0"
+feeds = "records digest -> compatible-set and choice-model estimate identities, accepted-preferences replay"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.choice_record_set_digest", "unit:crates/antecedent-design/tests/choice_record.rs::digest_ignores_record_order_and_changes_with_every_field"]
+[[sites.collections]]
+name = "attributes"
+class = "ordered"
+canonical = "as declared: option beliefs are written in attribute order"
+concern = ""
+[[sites.collections]]
+name = "records"
+class = "set"
+canonical = "sorted by record id; validate refuses a repeated id"
+concern = ""
+
+[[sites]]
+id = "design.choice_record.encode_record"
+file = "crates/antecedent-design/src/choice_record.rs"
+item = "fn:encode_record#0"
+feeds = "per-record digest inside ChoiceRecordSet::digest"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.choice_record_set_digest", "unit:crates/antecedent-design/tests/choice_record.rs::digest_ignores_record_order_and_changes_with_every_field"]
+[[sites.collections]]
+name = "options"
+class = "ordered"
+canonical = "declared order; validate refuses a repeated option id; choice features and the chosen position follow it"
+concern = "No learner reads the listing order (relations and the likelihood name options by id), so one choice listed in two orders has two digests. Kept deliberately: the digest binds the record as written, and the branch's own test pins option order as identity-relevant."
+[[sites.collections]]
+name = "observation rows"
+class = "set"
+canonical = "trimmed, sort_unstable; validate refuses a repeat after trimming and a row counted by two records"
+concern = "Rows are opaque evidence-ledger ids compared exactly after trimming. The a / a#0 merge of the adaptive choice contract (canonical_source_rows) belongs to its respondent#look spelling and is not applied here."
+[[sites.collections]]
+name = "draws (rows, weights) of an option belief"
+class = "ordered"
+canonical = "row-major in attribute order, weights aligned with the rows, as the analysis exported them"
 concern = ""
 
 [[sites]]
@@ -1978,11 +2239,11 @@ concern = "duplicate exclusion per action rejected by validate() only"
 [[sites]]
 id = "design.decision_contract.encode_constraint"
 file = "crates/antecedent-design/src/decision_contract.rs"
-item = "fn:encode_constraint#0"
-feeds = "per-constraint digest inside DecisionContract::validated_identity and ProgramSearchContract::identity"
+item = "fn:constraint_digest#0"
+feeds = "per-constraint digest inside DecisionContract::validated_identity, ProgramSearchContract::identity and PreferenceContract::identity (domain antecedent.preference_contract.constraint.v1)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent-design/src/decision_contract.rs::identity_site_contract_sets_and_applies_to"]
+checks = ["unit:crates/antecedent-design/src/decision_contract.rs::identity_site_contract_sets_and_applies_to", "adversarial:identity_sites.preferences.preference_contract_actions_ordered"]
 note = "Fixed: applies_to is read with contains (a set), so the identity sorts and deduplicates it. Identities agree with earlier releases for every contract without a repeated id; accepts_identity accepts the earlier multiset spelling at DecisionContractArtifact::from_bytes, DecisionArtifact replay, structural and robust replay, and the scenario carrier."
 [[sites.collections]]
 name = "applies_to"
@@ -2503,6 +2764,121 @@ name = "variables"
 class = "multiset"
 canonical = "raw ids sort_unstable, no dedup (documented: repeats are kept), comma-joined"
 concern = "set-valued inputs (interventions of expected evidence, mediator sets) keep repeats; the text is unframed but digits and commas cannot collide"
+
+[[sites]]
+id = "design.preference_choice_model.Context.identity"
+file = "crates/antecedent-design/src/preference_choice_model.rs"
+item = "impl:Context<'_>#0/fn:identity#0"
+feeds = "ChoiceModelEstimate::identity -> MeasureOrigin::ChoiceEstimate and the accepted-preferences estimate basis"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/preference_choice_model.rs::a_fixed_seed_gives_the_same_estimate_and_record_order_does_not_matter"]
+[[sites.collections]]
+name = "fields (model identity, records digest, decider after a presence word, level, draws, seed, fit options, covariance kind)"
+class = "ordered"
+canonical = "fixed order under antecedent.choice_model_estimate.v1, reals by bits"
+concern = ""
+
+[[sites]]
+id = "design.preference_choice_model.Context.shape_identity"
+file = "crates/antecedent-design/src/preference_choice_model.rs"
+item = "impl:Context<'_>#1/fn:shape_identity#0"
+feeds = "ChoiceModelEstimate::identity of a shape fit -> MeasureOrigin::ChoiceEstimate and the accepted-preferences estimate basis"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/preference_shape_learning.rs::a_risk_attitude_and_a_harm_weight_are_recovered_from_noisy_choices"]
+note = "Its own domain tag (antecedent.choice_model_shape_estimate.v1), so a shape fit and a linear fit never share an identity."
+[[sites.collections]]
+name = "fields (as Context.identity, then grid points, dimensions, profile points, refinements)"
+class = "ordered"
+canonical = "fixed order under antecedent.choice_model_shape_estimate.v1, reals by bits"
+concern = ""
+
+[[sites]]
+id = "design.preference_contract.PreferenceContract.identity"
+file = "crates/antecedent-design/src/preference_contract.rs"
+item = "impl:PreferenceContract#0/fn:identity#0"
+feeds = "preference contract identity -> PreferenceDecisionArtifact (retained contract identity), bound contract identity of the compiled route, decision results"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.preference_contract_actions_ordered", "unit:crates/antecedent-design/tests/preference_contract.rs::identity_binds_action_and_constraint_order_but_not_relation_order_or_semantics", "unit:crates/antecedent-design/tests/preference_contract.rs::the_same_actions_in_another_order_are_another_contract"]
+note = "Results are reported in action order, so after the sorted per-action and per-constraint digests the action and constraint ids are written in declaration order (the ordinary decision contract's rule)."
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "per-action digest sorted and count-prefixed, then the action ids in declaration order; validate refuses a repeated id"
+concern = ""
+[[sites.collections]]
+name = "constraints"
+class = "ordered"
+canonical = "per-constraint digest (constraint_digest) sorted and count-prefixed, then the constraint ids in declaration order; validate refuses a repeated id"
+concern = ""
+
+[[sites]]
+id = "design.preference_contract.encode_action"
+file = "crates/antecedent-design/src/preference_contract.rs"
+item = "fn:encode_action#0"
+feeds = "per-action digest inside PreferenceContract::identity"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-design/tests/preference_contract.rs::identity_binds_action_and_constraint_order_but_not_relation_order_or_semantics", "adversarial:identity_sites.preferences.preference_contract_actions_ordered"]
+[[sites.collections]]
+name = "inputs"
+class = "ordered"
+canonical = "one input per model attribute, in attribute order (a quantity or a fixed value), count-prefixed"
+concern = ""
+
+[[sites]]
+id = "design.preference_model.ValueModel.identity"
+file = "crates/antecedent-design/src/preference_model.rs"
+item = "impl:ValueModel#0/fn:identity#0"
+feeds = "value model identity -> PreferenceContract::identity, accepted-preferences declared identity, choice-model estimate identity"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.value_model_relations_and_terms", "adversarial:identity_sites.preferences.value_model_value_relations", "unit:crates/antecedent-design/tests/preference_model.rs::identity_ignores_relation_and_term_order_but_not_semantics"]
+[[sites.collections]]
+name = "attributes, parameters"
+class = "ordered"
+canonical = "as declared: the value expression indexes them"
+concern = ""
+[[sites.collections]]
+name = "linear relations"
+class = "set"
+canonical = "per-relation digest (encode_relation), sort_unstable, count-prefixed; validate refuses a repeated relation id"
+concern = ""
+[[sites.collections]]
+name = "value relations"
+class = "set"
+canonical = "per-relation digest (encode_value_relation), sort_unstable, always count-prefixed (an empty list is written, never left out); validate refuses an id repeated across both relation lists"
+concern = ""
+
+[[sites]]
+id = "design.preference_model.encode_relation"
+file = "crates/antecedent-design/src/preference_model.rs"
+item = "fn:encode_relation#0"
+feeds = "per-relation digest inside ValueModel::identity"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.value_model_relations_and_terms", "unit:crates/antecedent-design/tests/preference_model.rs::identity_ignores_relation_and_term_order_but_not_semantics"]
+[[sites.collections]]
+name = "terms (parameter index, coefficient)"
+class = "set"
+canonical = "sorted by (index, coefficient total order), count-prefixed; validate refuses a repeated parameter index, so sorting by index is the whole canonicalization"
+concern = ""
+
+[[sites]]
+id = "design.preference_model.encode_value_relation"
+file = "crates/antecedent-design/src/preference_model.rs"
+item = "fn:encode_value_relation#0"
+feeds = "per-value-relation digest inside ValueModel::identity"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.value_model_value_relations", "unit:crates/antecedent-design/tests/preference_shape_learning.rs::value_relations_are_checked_identified_and_sent_to_the_certified_route"]
+[[sites.collections]]
+name = "chosen and rejected belief rows and weights"
+class = "ordered"
+canonical = "row-major in attribute order, weights aligned with the rows, as recorded"
+concern = "The relation reads only the weighted expectation, so the same rows listed in another order (each with its weight) are another identity; kept as recorded, since a learner writes them in the order the record's draws carry them."
 
 [[sites]]
 id = "design.prior_signal.adapt_prior_to_signal"
@@ -3031,6 +3407,34 @@ name = "probabilities"
 class = "ordered"
 canonical = "to_bits little-endian bytes in dense order, as the second framed part"
 concern = ""
+
+[[sites]]
+id = "graph.mec_uniform.dag_fingerprint"
+file = "crates/antecedent-graph/src/mec_uniform.rs"
+item = "fn:dag_fingerprint#0"
+feeds = "member fingerprint of an enumerated or sampled CPDAG class member -> member_key -> ClassPrior keyed masses and the multiplicity of drawn members"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.mec_uniform_dag_fingerprint", "unit:crates/antecedent/tests/preference_decision_class_weighting.rs::keyed_masses_are_read_by_member_fingerprint"]
+[[sites.collections]]
+name = "directed edges"
+class = "set"
+canonical = "directed_edge_pairs_sorted (sorted pairs; the graph refuses a repeated edge), count-prefixed after the node count"
+concern = "The fingerprint is the first 64 bits of a BLAKE3 digest: among n distinct members of one class the chance that two share a fingerprint is at most n(n-1)/2^65 (below 3e-8 for a million members), and a ClassPrior keyed by fingerprint refuses a mass that names no member."
+
+[[sites]]
+id = "graph.pag_uniform.mag_fingerprint"
+file = "crates/antecedent-graph/src/pag_uniform.rs"
+item = "fn:mag_fingerprint#0"
+feeds = "member fingerprint of a drawn PAG class member -> member_key -> ClassPrior keyed masses and the multiplicity of drawn members"
+released = false
+status = "checked"
+checks = ["adversarial:identity_sites.preferences.pag_uniform_mag_fingerprint", "unit:crates/antecedent/tests/preference_decision_class_weighting.rs::a_pag_class_keeps_its_unidentified_member_mass"]
+[[sites.collections]]
+name = "edges with their two marks"
+class = "set"
+canonical = "for each node in ascending order, its higher neighbours sorted by node (a PAG holds one edge per pair), each edge as (a, b, mark at a, mark at b)"
+concern = "The fingerprint is the first 64 bits of a BLAKE3 digest: among n distinct members the chance that two share a fingerprint is at most n(n-1)/2^65."
 
 [[sites]]
 id = "io_core.callback_result_artifact.protocol_to_wire"
@@ -3591,6 +3995,26 @@ canonical = "written in record order, each with a count word; stage and change o
 concern = ""
 
 [[sites]]
+id = "io_core.propagation_chain_record.identity.write_deferred"
+file = "crates/antecedent-io-core/src/propagation_chain_record/identity.rs"
+item = "fn:write_deferred#0"
+feeds = "propagation_chain_draft_identity -> compiled deferred chain program identity -> PreferenceJointLawFact.program"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/propagation_chain_record_tests.rs::the_declared_blocks_of_a_deferred_draft_enter_its_identity_as_a_set", "unit:crates/antecedent-io-core/src/propagation_chain_record_tests.rs::a_deferred_draft_has_its_own_identity_and_binds_rows_seed_and_layout"]
+note = "Fixed: the declared blocks were written in the order the wire listed them; they are written in pair order, and deferred_family_table now produces them in that order."
+[[sites.collections]]
+name = "slots, within-study groups"
+class = "ordered"
+canonical = "as declared: the groups name the slots and the declared blocks index the groups"
+concern = ""
+[[sites.collections]]
+name = "declared cross-study blocks"
+class = "set"
+canonical = "sorted by (first, second); the plan refuses a repeated pair; terms in row-major order by bits"
+concern = ""
+
+[[sites]]
 id = "io_core.propagation_chain_record.identity.write_factors"
 file = "crates/antecedent-io-core/src/propagation_chain_record/identity.rs"
 item = "fn:write_factors#0"
@@ -3865,6 +4289,20 @@ concern = ""
 name = "evidence"
 class = "multiset"
 canonical = "sort by the whole element, repeats kept by the canonicalizer; the evaluator refuses a repeated (role, regime) factor"
+concern = ""
+
+[[sites]]
+id = "antecedent.attached_decision.parent_identity"
+file = "crates/antecedent/src/analysis/attached_decision.rs"
+item = "fn:parent_identity#0"
+feeds = "the question digest of a parent decision program (PreferenceAttachedDecision, CertifiedPreferenceAttachedDecision, ContractAttachedDecision, JointScenarioAttachedDecision), hence its lowered program identity and PreferenceDecisionReceipt::decision_program"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/attached_decision_tests.rs::the_parent_identity_is_its_children_in_declared_order_and_the_decision", "unit:crates/antecedent/src/analysis/attached_decision_tests.rs::a_certified_decision_across_studies_follows_the_declared_order_of_its_studies"]
+[[sites.collections]]
+name = "children"
+class = "ordered"
+canonical = "count word, then each child's presence word and program identity in declared order (studies in declaration order, each study's structures in posterior order, then the joining chain); a declared child that compiled no program keeps its place"
 concern = ""
 
 [[sites]]

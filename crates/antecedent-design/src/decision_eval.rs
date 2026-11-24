@@ -394,6 +394,38 @@ pub fn evaluate_contract(
     evaluate_contract_validated(contract, source, identity)
 }
 
+/// Per-draw utility of every action of a contract on one aligned joint source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UtilityDraws {
+    /// `utilities[a][i]` is the utility of action `a` (declaration order) on draw `i`.
+    pub utilities: Vec<Vec<f64>>,
+    /// Draw weights, normalized to sum one.
+    pub weights: Vec<f64>,
+}
+
+/// Evaluate every action's utility on every aligned draw of `source`, without
+/// ranking the actions.
+///
+/// The rows are bound exactly as in [`evaluate_contract`]: joint alignment is
+/// required, each input is located by coordinate identity, a masked coordinate
+/// and a distribution meaning that cannot answer an outcome-law input refuse,
+/// and the weights are normalized. A caller that scores the actions under
+/// several utilities over the same quantities reads the draws once through a
+/// contract whose utilities are those quantities.
+///
+/// # Errors
+/// Refuses an invalid contract, non-joint draws, a missing or masked
+/// coordinate, a source meaning that cannot answer an outcome-law input and a
+/// non-finite utility.
+pub fn utility_draws(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<UtilityDraws, DecisionEvalError> {
+    contract.validate().map_err(DecisionEvalError::Contract)?;
+    let table = build_table(contract, source, None)?;
+    Ok(UtilityDraws { utilities: table.utilities, weights: table.weights })
+}
+
 pub(crate) fn evaluate_contract_for_program_search(
     contract: &DecisionContract,
     source: &DistributionArtifact,
@@ -524,27 +556,24 @@ pub(crate) fn rank_table(
         let is_admissible = exclusions[index].is_empty();
         let regret = if is_admissible { regret_of(index) } else { Vec::new() };
         let expected_utility = weighted_mean(utility, weights)?;
-        let (value, standard_error) = match contract.criterion {
+        let value = match criterion_value(
+            contract.criterion,
+            utility,
+            is_admissible.then_some(regret.as_slice()),
+            weights,
+        )? {
+            Some(value) => value,
+            None if matches!(contract.criterion, DecisionCriterion::Quantile { .. }) => {
+                return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+            }
+            None => f64::NAN,
+        };
+        let standard_error = match contract.criterion {
             DecisionCriterion::PosteriorExpectedUtility
-            | DecisionCriterion::PosteriorExpectedLoss => (expected_utility, exact.then_some(0.0)),
-            DecisionCriterion::ThresholdProbability { threshold } => {
-                let indicator: Vec<f64> =
-                    utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
-                (weighted_mean(&indicator, weights)?, exact.then_some(0.0))
-            }
-            DecisionCriterion::Quantile { p } => (
-                left_inverse(utility, weights, p).ok_or_else(|| {
-                    DecisionEvalError::NonFiniteUtility { action: action.id.clone() }
-                })?,
-                None,
-            ),
-            DecisionCriterion::ExpectedRegret if is_admissible => {
-                (weighted_mean(&regret, weights)?, exact.then_some(0.0))
-            }
-            DecisionCriterion::Regret if is_admissible => {
-                (positive_mass_max(&regret, weights), None)
-            }
-            _ => (f64::NAN, None),
+            | DecisionCriterion::PosteriorExpectedLoss
+            | DecisionCriterion::ThresholdProbability { .. } => exact.then_some(0.0),
+            DecisionCriterion::ExpectedRegret if is_admissible => exact.then_some(0.0),
+            _ => None,
         };
         if !expected_utility.is_finite()
             || (is_admissible
@@ -656,8 +685,49 @@ pub struct FunctionalValue {
 /// Relative roundoff tolerance used when comparing cumulative weights with a level `p`.
 const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
-/// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
-fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
+/// The value of `criterion` for one action, in the criterion's own units and orientation:
+/// `utility[i]` is the action's utility on draw `i`, `regret[i]` its shortfall from the best
+/// admissible action on draw `i` (`None` for an excluded action, which has no regret), and
+/// `weights` the normalized draw weights.
+///
+/// Expected utility and expected loss are the weighted mean of the utility; a threshold
+/// probability the weight of draws whose utility reaches the threshold; a quantile the left
+/// inverse of the weighted empirical distribution of the utility; expected regret the weighted
+/// mean of the regret; regret the largest regret over draws of positive weight. `None` for a
+/// regret criterion without regrets, for a quantile of a law with no positive weight, and for
+/// the criteria that need identified-set or structure inputs.
+///
+/// # Errors
+/// A length mismatch between values and weights, as [`DecisionEvalError::Contract`].
+pub(crate) fn criterion_value(
+    criterion: DecisionCriterion,
+    utility: &[f64],
+    regret: Option<&[f64]>,
+    weights: &[f64],
+) -> Result<Option<f64>, DecisionEvalError> {
+    Ok(match criterion {
+        DecisionCriterion::PosteriorExpectedUtility | DecisionCriterion::PosteriorExpectedLoss => {
+            Some(weighted_mean(utility, weights)?)
+        }
+        DecisionCriterion::ThresholdProbability { threshold } => {
+            let indicator: Vec<f64> =
+                utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
+            Some(weighted_mean(&indicator, weights)?)
+        }
+        DecisionCriterion::Quantile { p } => left_inverse(utility, weights, p),
+        DecisionCriterion::ExpectedRegret => {
+            regret.map(|regret| weighted_mean(regret, weights)).transpose()?
+        }
+        DecisionCriterion::Regret => regret.map(|regret| positive_mass_max(regret, weights)),
+        DecisionCriterion::MinimaxOverIdentifiedSet | DecisionCriterion::MaximinOverStructures => {
+            None
+        }
+    })
+}
+
+/// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF. Draws of zero weight are
+/// skipped; `None` when no draw has positive weight.
+pub(crate) fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
     let mut cumulative = 0.0;

@@ -38,10 +38,12 @@ pub mod dsep;
 pub mod error;
 pub mod marked_storage;
 mod mec_search;
+pub mod mec_uniform;
 pub mod msep;
 pub mod named;
 pub mod overlay;
 pub mod pag;
+pub mod pag_uniform;
 pub mod projection;
 mod scc;
 pub mod selection;
@@ -72,9 +74,11 @@ pub use error::{
     CyclicDagRefusal, CyclicNextAttempt, DagOperation, GraphError, directed_edges_contain_cycle,
     refuse_directed_cycle,
 };
+pub use mec_uniform::{MecUniform, MecUniformError, dag_fingerprint, mec_size};
 pub use msep::PagSeparation;
 pub use overlay::{DagView, GraphOverlay};
 pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
+pub use pag_uniform::{PagUniformError, PagUniformSample, mag_fingerprint, sample_pag_members};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use scc::Condensation;
 pub use selection::SelectionDiagram;

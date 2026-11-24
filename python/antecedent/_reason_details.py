@@ -8,6 +8,24 @@ from __future__ import annotations
 from typing import Final
 
 
+class accepted_preferences:  # noqa: N801
+    ACKNOWLEDGE_EMPTY: Final = "accepted_preferences.acknowledge_empty"
+    ACKNOWLEDGE_REPEATED: Final = "accepted_preferences.acknowledge_repeated"
+    ADDED_RELATION_NOT_FROM_CHOICES: Final = "accepted_preferences.added_relation_not_from_choices"
+    CHOICES_CONTRADICTORY: Final = "accepted_preferences.choices_contradictory"
+    DECIDER_UNKNOWN: Final = "accepted_preferences.decider_unknown"
+    DECLARATION_NOT_KEPT: Final = "accepted_preferences.declaration_not_kept"
+    LEARNED_NOT_REPRODUCED: Final = "accepted_preferences.learned_not_reproduced"
+    MODEL_MISMATCH: Final = "accepted_preferences.model_mismatch"
+    NOT_PENDING: Final = "accepted_preferences.not_pending"
+    OPTIONS_MISMATCH: Final = "accepted_preferences.options_mismatch"
+    POOLED_NOT_AVAILABLE: Final = "accepted_preferences.pooled_not_available"
+    RECORDS_MISMATCH: Final = "accepted_preferences.records_mismatch"
+    SET_UNDETERMINED: Final = "accepted_preferences.set_undetermined"
+    VERSION_EXHAUSTED: Final = "accepted_preferences.version_exhausted"
+    VERSION_INVALID: Final = "accepted_preferences.version_invalid"
+
+
 class adaptive_inference:  # noqa: N801
     ANALYSIS_INVALID: Final = "adaptive_inference.analysis_invalid"
     ANALYSIS_ROUTE_MISMATCH: Final = "adaptive_inference.analysis_route_mismatch"
@@ -328,6 +346,49 @@ class chain_recovery_posterior:  # noqa: N801
     EXTERNAL_POWER_PRIOR: Final = "chain_recovery_posterior.external_power_prior"
     MAPPED_PRIOR: Final = "chain_recovery_posterior.mapped_prior"
     NON_POSITIVE_SCALE: Final = "chain_recovery_posterior.non_positive_scale"
+
+
+class choice_record:  # noqa: N801
+    ANALYSIS_DATE_BLANK: Final = "choice_record.analysis_date_blank"
+    ANALYSIS_IDENTITY_BLANK: Final = "choice_record.analysis_identity_blank"
+    ATTRIBUTE_DUPLICATE: Final = "choice_record.attribute_duplicate"
+    ATTRIBUTE_ID_BLANK: Final = "choice_record.attribute_id_blank"
+    ATTRIBUTE_UNITS_BLANK: Final = "choice_record.attribute_units_blank"
+    ATTRIBUTES_DIFFER: Final = "choice_record.attributes_differ"
+    ATTRIBUTES_MISSING: Final = "choice_record.attributes_missing"
+    BELIEF_LAW_REQUIRED: Final = "choice_record.belief_law_required"
+    BELIEF_NOT_FINITE: Final = "choice_record.belief_not_finite"
+    CHOSEN_UNAVAILABLE: Final = "choice_record.chosen_unavailable"
+    CHOSEN_UNKNOWN: Final = "choice_record.chosen_unknown"
+    DECIDER_BLANK: Final = "choice_record.decider_blank"
+    DRAWS_EMPTY: Final = "choice_record.draws_empty"
+    DRAWS_WIDTH_MISMATCH: Final = "choice_record.draws_width_mismatch"
+    FORECAST_SOURCE_BLANK: Final = "choice_record.forecast_source_blank"
+    MEANS_WIDTH_MISMATCH: Final = "choice_record.means_width_mismatch"
+    MODEL_INVALID: Final = "choice_record.model_invalid"
+    OBSERVATION_ROW_BLANK: Final = "choice_record.observation_row_blank"
+    OBSERVATION_ROW_DOUBLE_COUNTED: Final = "choice_record.observation_row_double_counted"
+    OBSERVATION_ROW_REPEATED: Final = "choice_record.observation_row_repeated"
+    OBSERVATION_ROWS_MISSING: Final = "choice_record.observation_rows_missing"
+    OPTION_DUPLICATE: Final = "choice_record.option_duplicate"
+    OPTION_ID_BLANK: Final = "choice_record.option_id_blank"
+    OPTIONS_TOO_FEW: Final = "choice_record.options_too_few"
+    POOLING_ASSUMPTION_BLANK: Final = "choice_record.pooling_assumption_blank"
+    POPULATION_BLANK: Final = "choice_record.population_blank"
+    REALIZED_ASSUMPTION_BLANK: Final = "choice_record.realized_assumption_blank"
+    RECORD_DUPLICATE: Final = "choice_record.record_duplicate"
+    RECORD_ID_BLANK: Final = "choice_record.record_id_blank"
+    RECORDS_MISSING: Final = "choice_record.records_missing"
+    SHAPE_PARAMETERS_NOT_FIXED: Final = "choice_record.shape_parameters_not_fixed"
+    STATED_ASSUMPTION_BLANK: Final = "choice_record.stated_assumption_blank"
+    STATED_BELIEF_NOT_EXACT: Final = "choice_record.stated_belief_not_exact"
+    STATED_ELICITATION_BLANK: Final = "choice_record.stated_elicitation_blank"
+    TERM_NOT_FINITE: Final = "choice_record.term_not_finite"
+    UNAVAILABLE_CONSTRAINT_BLANK: Final = "choice_record.unavailable_constraint_blank"
+    WEIGHT_NEGATIVE: Final = "choice_record.weight_negative"
+    WEIGHT_NOT_FINITE: Final = "choice_record.weight_not_finite"
+    WEIGHTS_LENGTH_MISMATCH: Final = "choice_record.weights_length_mismatch"
+    WEIGHTS_SUM_INVALID: Final = "choice_record.weights_sum_invalid"
 
 
 class cluster_dml:  # noqa: N801
@@ -2352,6 +2413,225 @@ class predictive_assessment:  # noqa: N801
     WRONG_CONTRACT: Final = "predictive_assessment.wrong_contract"
 
 
+class preference_artifact:  # noqa: N801
+    CANCELLED: Final = "preference_artifact.cancelled"
+    CONTAINER_REFUSED: Final = "preference_artifact.container_refused"
+    CONTRACT_EXPECTED: Final = "preference_artifact.contract_expected"
+    ENCODE_FAILED: Final = "preference_artifact.encode_failed"
+    IDENTITY_EXPECTED: Final = "preference_artifact.identity_expected"
+    IDENTITY_RESEALED: Final = "preference_artifact.identity_resealed"
+    REPLAY_MISMATCH: Final = "preference_artifact.replay_mismatch"
+    REPLAY_RECORDS_DIFFER: Final = "preference_artifact.replay_records_differ"
+    REPLAY_SOURCE_DIFFERS: Final = "preference_artifact.replay_source_differs"
+    RESULT_CONTRACT_MISMATCH: Final = "preference_artifact.result_contract_mismatch"
+    RETAINED_ARTIFACT_MISMATCH: Final = "preference_artifact.retained_artifact_mismatch"
+    SOURCE_EXPECTED: Final = "preference_artifact.source_expected"
+    WIRE_MALFORMED: Final = "preference_artifact.wire_malformed"
+
+
+class preference_certified:  # noqa: N801
+    ATOM_PROBABILITIES_INVALID: Final = "preference_certified.atom_probabilities_invalid"
+    ATOM_PROBABILITIES_REQUIRED: Final = "preference_certified.atom_probabilities_required"
+    ATOMS_INVALID: Final = "preference_certified.atoms_invalid"
+    CANCELLED: Final = "preference_certified.cancelled"
+    ENCLOSURE_NON_FINITE: Final = "preference_certified.enclosure_non_finite"
+    LOGARITHM_DOMAIN: Final = "preference_certified.logarithm_domain"
+    MEASURE_EMPTY: Final = "preference_certified.measure_empty"
+    MEASURE_INCOMPLETE: Final = "preference_certified.measure_incomplete"
+    MEASURE_LABELS_INVALID: Final = "preference_certified.measure_labels_invalid"
+    MEASURE_POINT_DIMENSION: Final = "preference_certified.measure_point_dimension"
+    MEASURE_POINT_NON_FINITE: Final = "preference_certified.measure_point_non_finite"
+    MEASURE_POINT_OUTSIDE_SET: Final = "preference_certified.measure_point_outside_set"
+    MEASURE_REQUIRED: Final = "preference_certified.measure_required"
+    MEASURE_UNKNOWN_PARAMETER: Final = "preference_certified.measure_unknown_parameter"
+    MEASURE_WEIGHTS_INVALID: Final = "preference_certified.measure_weights_invalid"
+    MINIMAX_REGRET_NEEDS_EXPECTATION: Final = (
+        "preference_certified.minimax_regret_needs_expectation"
+    )
+    MIXTURE_CRITERION_UNSUPPORTED: Final = "preference_certified.mixture_criterion_unsupported"
+    OPTIONS_INVALID: Final = "preference_certified.options_invalid"
+    PREFERENCE_SET_EMPTY: Final = "preference_certified.preference_set_empty"
+    SOURCE_REFUSED: Final = "preference_certified.source_refused"
+    STRUCTURE_INPUTS_REQUIRED: Final = "preference_certified.structure_inputs_required"
+
+
+class preference_choice_model:  # noqa: N801
+    CANCELLED: Final = "preference_choice_model.cancelled"
+    CONSISTENCY_NOT_POSITIVE: Final = "preference_choice_model.consistency_not_positive"
+    COVARIANCE_NOT_POSITIVE_DEFINITE: Final = (
+        "preference_choice_model.covariance_not_positive_definite"
+    )
+    DRAWS_MISSING: Final = "preference_choice_model.draws_missing"
+    FIT_OPTIONS_INVALID: Final = "preference_choice_model.fit_options_invalid"
+    FIT_REFUSED: Final = "preference_choice_model.fit_refused"
+    LEVEL_INVALID: Final = "preference_choice_model.level_invalid"
+    MODEL_INVALID: Final = "preference_choice_model.model_invalid"
+    NO_DRAW_INSIDE_SET: Final = "preference_choice_model.no_draw_inside_set"
+    NOT_CONVERGED: Final = "preference_choice_model.not_converged"
+    NOTHING_IDENTIFIED: Final = "preference_choice_model.nothing_identified"
+    PROFILE_MULTIMODAL: Final = "preference_choice_model.profile_multimodal"
+    RANK_DEFICIENT: Final = "preference_choice_model.rank_deficient"
+    RECORDS_INVALID: Final = "preference_choice_model.records_invalid"
+    SEPARATED: Final = "preference_choice_model.separated"
+    SHAPE_ESTIMATE_AT_BOUND: Final = "preference_choice_model.shape_estimate_at_bound"
+    SHAPE_NOT_IDENTIFIED: Final = "preference_choice_model.shape_not_identified"
+    SHAPE_SEARCH_BUDGET: Final = "preference_choice_model.shape_search_budget"
+    STATED_AND_RECORDED_MIXED: Final = "preference_choice_model.stated_and_recorded_mixed"
+    TOO_FEW_DECIDERS_TO_CLUSTER: Final = "preference_choice_model.too_few_deciders_to_cluster"
+    UNIT_OF_ACCOUNT_MISSING: Final = "preference_choice_model.unit_of_account_missing"
+
+
+class preference_compile:  # noqa: N801
+    ATOM_KIND_NOT_COMPILED: Final = "preference_compile.atom_kind_not_compiled"
+    CANCELLED: Final = "preference_compile.cancelled"
+    CLASS_COMPLETIONS_TRUNCATED: Final = "preference_compile.class_completions_truncated"
+    CLASS_PRIOR_KEYS_MISMATCH: Final = "preference_compile.class_prior_keys_mismatch"
+    CLASS_PRIOR_SAMPLING_NEEDS_UNIFORM: Final = (
+        "preference_compile.class_prior_sampling_needs_uniform"
+    )
+    CLASS_SAMPLING_BUDGET: Final = "preference_compile.class_sampling_budget"
+    CROSS_STUDY_COVARIANCE_INVALID: Final = "preference_compile.cross_study_covariance_invalid"
+    DESIGN_EXPOSURE_BOUNDED: Final = "preference_compile.design_exposure_bounded"
+    DESIGN_NOT_SUPPORTED: Final = "preference_compile.design_not_supported"
+    DESIGN_SAMPLING_UNDECLARED: Final = "preference_compile.design_sampling_undeclared"
+    DESIGN_UNITS_TOO_FEW: Final = "preference_compile.design_units_too_few"
+    EXECUTED_PROGRAM_MISMATCH: Final = "preference_compile.executed_program_mismatch"
+    ORDINARY_MEASURE_NOT_READ: Final = "preference_compile.ordinary_measure_not_read"
+    ORDINARY_STRUCTURES_NOT_COMPILED: Final = "preference_compile.ordinary_structures_not_compiled"
+    PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
+    ROW_PROVENANCE_UNDECLARED: Final = "preference_compile.row_provenance_undeclared"
+    SAMPLED_MIXTURE_NOT_EXACT: Final = "preference_compile.sampled_mixture_not_exact"
+    STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
+    UNIT_KEY_INVALID: Final = "preference_compile.unit_key_invalid"
+    UNIT_LABEL_TYPES_DIFFER: Final = "preference_compile.unit_label_types_differ"
+
+
+class preference_contract:  # noqa: N801
+    ACTION_DUPLICATE: Final = "preference_contract.action_duplicate"
+    ACTION_ID_BLANK: Final = "preference_contract.action_id_blank"
+    ACTION_WITHOUT_QUANTITY: Final = "preference_contract.action_without_quantity"
+    CONSTRAINT_DUPLICATE: Final = "preference_contract.constraint_duplicate"
+    CONSTRAINT_ID_BLANK: Final = "preference_contract.constraint_id_blank"
+    CONSTRAINT_NON_FINITE: Final = "preference_contract.constraint_non_finite"
+    CONSTRAINT_PROBABILITY: Final = "preference_contract.constraint_probability"
+    CONSTRAINT_UNITS_BLANK: Final = "preference_contract.constraint_units_blank"
+    CONSTRAINT_UNKNOWN_ACTION: Final = "preference_contract.constraint_unknown_action"
+    CONSTRAINT_UNKNOWN_ATTRIBUTE: Final = "preference_contract.constraint_unknown_attribute"
+    CRITERION_INVALID: Final = "preference_contract.criterion_invalid"
+    DECISION_CONTRACT_REFUSED: Final = "preference_contract.decision_contract_refused"
+    FIXED_INPUT_NON_FINITE: Final = "preference_contract.fixed_input_non_finite"
+    FIXED_UNITS_MISMATCH: Final = "preference_contract.fixed_units_mismatch"
+    INPUT_COUNT_MISMATCH: Final = "preference_contract.input_count_mismatch"
+    NO_ORDINARY_FORM: Final = "preference_contract.no_ordinary_form"
+    NOT_LOWERABLE: Final = "preference_contract.not_lowerable"
+    PARAMETER_COUNT_MISMATCH: Final = "preference_contract.parameter_count_mismatch"
+    PARAMETER_NON_FINITE: Final = "preference_contract.parameter_non_finite"
+    QUANTITY_INVALID: Final = "preference_contract.quantity_invalid"
+    QUANTITY_OUTSIDE_SCOPE: Final = "preference_contract.quantity_outside_scope"
+    QUANTITY_UNITS_MISMATCH: Final = "preference_contract.quantity_units_mismatch"
+    TARGET_POPULATION_BLANK: Final = "preference_contract.target_population_blank"
+    TOO_FEW_ACTIONS: Final = "preference_contract.too_few_actions"
+
+
+class preference_decision:  # noqa: N801
+    CANCELLED: Final = "preference_decision.cancelled"
+    COEFFICIENT_NON_FINITE: Final = "preference_decision.coefficient_non_finite"
+    CRITERION_NEEDS_CERTIFIED_ROUTE: Final = "preference_decision.criterion_needs_certified_route"
+    LINEAR_PROGRAM_INFEASIBLE: Final = "preference_decision.linear_program_infeasible"
+    LINEAR_PROGRAM_REFUSED: Final = "preference_decision.linear_program_refused"
+    LINEAR_PROGRAM_UNBOUNDED: Final = "preference_decision.linear_program_unbounded"
+    MEASURE_EMPTY: Final = "preference_decision.measure_empty"
+    MEASURE_INCOMPLETE: Final = "preference_decision.measure_incomplete"
+    MEASURE_LABEL_BLANK: Final = "preference_decision.measure_label_blank"
+    MEASURE_LABEL_COUNT: Final = "preference_decision.measure_label_count"
+    MEASURE_LABEL_DUPLICATE: Final = "preference_decision.measure_label_duplicate"
+    MEASURE_ORIGIN_BLANK: Final = "preference_decision.measure_origin_blank"
+    MEASURE_POINT_DIMENSION: Final = "preference_decision.measure_point_dimension"
+    MEASURE_POINT_NON_FINITE: Final = "preference_decision.measure_point_non_finite"
+    MEASURE_POINT_OUTSIDE_SET: Final = "preference_decision.measure_point_outside_set"
+    MEASURE_REQUIRED: Final = "preference_decision.measure_required"
+    MEASURE_UNRESOLVED_REPEATED: Final = "preference_decision.measure_unresolved_repeated"
+    MEASURE_UNRESOLVED_UNKNOWN: Final = "preference_decision.measure_unresolved_unknown"
+    MEASURE_WEIGHT_COUNT: Final = "preference_decision.measure_weight_count"
+    MEASURE_WEIGHT_INVALID: Final = "preference_decision.measure_weight_invalid"
+    MEASURE_WEIGHT_TOTAL_ZERO: Final = "preference_decision.measure_weight_total_zero"
+    OPTIONS_INVALID: Final = "preference_decision.options_invalid"
+    PART_NOT_LOWERABLE: Final = "preference_decision.part_not_lowerable"
+    PREFERENCE_SET_EMPTY: Final = "preference_decision.preference_set_empty"
+    SHAPE_PARAMETERS_NEED_CERTIFIED_ROUTE: Final = (
+        "preference_decision.shape_parameters_need_certified_route"
+    )
+    SOURCE_REFUSED: Final = "preference_decision.source_refused"
+    STRUCTURE_DUPLICATE: Final = "preference_decision.structure_duplicate"
+    STRUCTURE_ID_BLANK: Final = "preference_decision.structure_id_blank"
+    STRUCTURE_PROBABILITIES_EXCEED_ONE: Final = (
+        "preference_decision.structure_probabilities_exceed_one"
+    )
+    STRUCTURE_PROBABILITIES_PARTIAL: Final = "preference_decision.structure_probabilities_partial"
+    STRUCTURE_PROBABILITIES_REQUIRED: Final = "preference_decision.structure_probabilities_required"
+    STRUCTURE_PROBABILITY_INVALID: Final = "preference_decision.structure_probability_invalid"
+    STRUCTURES_EMPTY: Final = "preference_decision.structures_empty"
+    VALUE_RELATIONS_NEED_CERTIFIED_ROUTE: Final = (
+        "preference_decision.value_relations_need_certified_route"
+    )
+    WORST_CASE_OF_EXPECTED_REGRET: Final = "preference_decision.worst_case_of_expected_regret"
+
+
+class preference_evaluation:  # noqa: N801
+    JOINT_DRAWS_REQUIRED: Final = "preference_evaluation.joint_draws_required"
+
+
+class preference_model:  # noqa: N801
+    ATTRIBUTE_COUNT_MISMATCH: Final = "preference_model.attribute_count_mismatch"
+    ATTRIBUTE_DUPLICATE: Final = "preference_model.attribute_duplicate"
+    ATTRIBUTE_ID_BLANK: Final = "preference_model.attribute_id_blank"
+    ATTRIBUTE_UNITS_BLANK: Final = "preference_model.attribute_units_blank"
+    ATTRIBUTE_UNUSED: Final = "preference_model.attribute_unused"
+    CURVE_BREAKPOINT_NON_FINITE: Final = "preference_model.curve_breakpoint_non_finite"
+    CURVE_BREAKPOINTS_NOT_INCREASING: Final = "preference_model.curve_breakpoints_not_increasing"
+    CURVE_SLOPE_COUNT: Final = "preference_model.curve_slope_count"
+    CURVE_TOO_SHORT: Final = "preference_model.curve_too_short"
+    EXPRESSION_CONSTANT_NON_FINITE: Final = "preference_model.expression_constant_non_finite"
+    EXPRESSION_TOO_DEEP: Final = "preference_model.expression_too_deep"
+    NO_ATTRIBUTES: Final = "preference_model.no_attributes"
+    PARAMETER_ASSUMPTION_BLANK: Final = "preference_model.parameter_assumption_blank"
+    PARAMETER_COUNT_MISMATCH: Final = "preference_model.parameter_count_mismatch"
+    PARAMETER_DUPLICATE: Final = "preference_model.parameter_duplicate"
+    PARAMETER_ID_BLANK: Final = "preference_model.parameter_id_blank"
+    PARAMETER_RANGE_EMPTY: Final = "preference_model.parameter_range_empty"
+    PARAMETER_RANGE_NON_FINITE: Final = "preference_model.parameter_range_non_finite"
+    PARAMETER_UNITS_BLANK: Final = "preference_model.parameter_units_blank"
+    PARAMETER_UNUSED: Final = "preference_model.parameter_unused"
+    PARAMETER_VALUE_NON_FINITE: Final = "preference_model.parameter_value_non_finite"
+    RELATION_BOUND_NON_FINITE: Final = "preference_model.relation_bound_non_finite"
+    RELATION_COEFFICIENT_NON_FINITE: Final = "preference_model.relation_coefficient_non_finite"
+    RELATION_DUPLICATE: Final = "preference_model.relation_duplicate"
+    RELATION_ID_BLANK: Final = "preference_model.relation_id_blank"
+    RELATION_ORIGIN_BLANK: Final = "preference_model.relation_origin_blank"
+    RELATION_REPEATED_PARAMETER: Final = "preference_model.relation_repeated_parameter"
+    RELATION_UNKNOWN_PARAMETER: Final = "preference_model.relation_unknown_parameter"
+    RELATION_WITHOUT_TERMS: Final = "preference_model.relation_without_terms"
+    UNKNOWN_ATTRIBUTE: Final = "preference_model.unknown_attribute"
+    UNKNOWN_PARAMETER: Final = "preference_model.unknown_parameter"
+    UTILITY_UNITS_BLANK: Final = "preference_model.utility_units_blank"
+    VALUE_NON_FINITE: Final = "preference_model.value_non_finite"
+    VALUE_RELATION_ROWS_INVALID: Final = "preference_model.value_relation_rows_invalid"
+    VALUE_RELATION_TOLERANCE_INVALID: Final = "preference_model.value_relation_tolerance_invalid"
+
+
+class preference_set_learning:  # noqa: N801
+    CANCELLED: Final = "preference_set_learning.cancelled"
+    DECLARED_SET_EMPTY: Final = "preference_set_learning.declared_set_empty"
+    LINEAR_PROGRAM_REFUSED: Final = "preference_set_learning.linear_program_refused"
+    MODEL_INVALID: Final = "preference_set_learning.model_invalid"
+    PROGRAM_INCONSISTENT: Final = "preference_set_learning.program_inconsistent"
+    RECORDS_INVALID: Final = "preference_set_learning.records_invalid"
+    REGION_BUDGET_INVALID: Final = "preference_set_learning.region_budget_invalid"
+    RELATION_ID_COLLISION: Final = "preference_set_learning.relation_id_collision"
+    TOLERANCE_NEGATIVE: Final = "preference_set_learning.tolerance_negative"
+    TOLERANCE_NON_FINITE: Final = "preference_set_learning.tolerance_non_finite"
+
+
 class prior_composition:  # noqa: N801
     UNIT_NOT_SUPPORTED: Final = "prior_composition.unit_not_supported"
 
@@ -2409,6 +2689,7 @@ class propagation_chain:  # noqa: N801
     ASSUMPTION_ENVELOPE_OPERATOR: Final = "propagation_chain.assumption_envelope_operator"
     BUDGET_EXCEEDED: Final = "propagation_chain.budget_exceeded"
     CANCELLED: Final = "propagation_chain.cancelled"
+    DEFERRED_SOURCE_UNBOUND: Final = "propagation_chain.deferred_source_unbound"
     DENOMINATOR_NOT_BOUNDED: Final = "propagation_chain.denominator_not_bounded"
     DRAWS_ARE_NOT_AN_ENCLOSURE: Final = "propagation_chain.draws_are_not_an_enclosure"
     ENCLOSURE_IS_NOT_A_LAW: Final = "propagation_chain.enclosure_is_not_a_law"
@@ -3256,6 +3537,7 @@ class split_effect:  # noqa: N801
 
 
 class structure_posterior:  # noqa: N801
+    CLASS_PRIOR_NOT_READ: Final = "structure_posterior.class_prior_not_read"
     EDGE_PRIOR_PROBABILITY: Final = "structure_posterior.edge_prior_probability"
 
 
@@ -3692,6 +3974,21 @@ class z_transport_estimate:  # noqa: N801
 
 
 ALL: Final[tuple[str, ...]] = (
+    "accepted_preferences.acknowledge_empty",
+    "accepted_preferences.acknowledge_repeated",
+    "accepted_preferences.added_relation_not_from_choices",
+    "accepted_preferences.choices_contradictory",
+    "accepted_preferences.decider_unknown",
+    "accepted_preferences.declaration_not_kept",
+    "accepted_preferences.learned_not_reproduced",
+    "accepted_preferences.model_mismatch",
+    "accepted_preferences.not_pending",
+    "accepted_preferences.options_mismatch",
+    "accepted_preferences.pooled_not_available",
+    "accepted_preferences.records_mismatch",
+    "accepted_preferences.set_undetermined",
+    "accepted_preferences.version_exhausted",
+    "accepted_preferences.version_invalid",
     "adaptive_inference.analysis_invalid",
     "adaptive_inference.analysis_route_mismatch",
     "adaptive_inference.anytime_premise_contexts",
@@ -3949,6 +4246,46 @@ ALL: Final[tuple[str, ...]] = (
     "chain_recovery_posterior.external_power_prior",
     "chain_recovery_posterior.mapped_prior",
     "chain_recovery_posterior.non_positive_scale",
+    "choice_record.analysis_date_blank",
+    "choice_record.analysis_identity_blank",
+    "choice_record.attribute_duplicate",
+    "choice_record.attribute_id_blank",
+    "choice_record.attribute_units_blank",
+    "choice_record.attributes_differ",
+    "choice_record.attributes_missing",
+    "choice_record.belief_law_required",
+    "choice_record.belief_not_finite",
+    "choice_record.chosen_unavailable",
+    "choice_record.chosen_unknown",
+    "choice_record.decider_blank",
+    "choice_record.draws_empty",
+    "choice_record.draws_width_mismatch",
+    "choice_record.forecast_source_blank",
+    "choice_record.means_width_mismatch",
+    "choice_record.model_invalid",
+    "choice_record.observation_row_blank",
+    "choice_record.observation_row_double_counted",
+    "choice_record.observation_row_repeated",
+    "choice_record.observation_rows_missing",
+    "choice_record.option_duplicate",
+    "choice_record.option_id_blank",
+    "choice_record.options_too_few",
+    "choice_record.pooling_assumption_blank",
+    "choice_record.population_blank",
+    "choice_record.realized_assumption_blank",
+    "choice_record.record_duplicate",
+    "choice_record.record_id_blank",
+    "choice_record.records_missing",
+    "choice_record.shape_parameters_not_fixed",
+    "choice_record.stated_assumption_blank",
+    "choice_record.stated_belief_not_exact",
+    "choice_record.stated_elicitation_blank",
+    "choice_record.term_not_finite",
+    "choice_record.unavailable_constraint_blank",
+    "choice_record.weight_negative",
+    "choice_record.weight_not_finite",
+    "choice_record.weights_length_mismatch",
+    "choice_record.weights_sum_invalid",
     "cluster_dml.cancelled",
     "cluster_dml.cluster_ids_missing",
     "cluster_dml.dyadic_giant_component",
@@ -5510,6 +5847,186 @@ ALL: Final[tuple[str, ...]] = (
     "predictive_assessment.too_few_clusters",
     "predictive_assessment.unknown_source",
     "predictive_assessment.wrong_contract",
+    "preference_artifact.cancelled",
+    "preference_artifact.container_refused",
+    "preference_artifact.contract_expected",
+    "preference_artifact.encode_failed",
+    "preference_artifact.identity_expected",
+    "preference_artifact.identity_resealed",
+    "preference_artifact.replay_mismatch",
+    "preference_artifact.replay_records_differ",
+    "preference_artifact.replay_source_differs",
+    "preference_artifact.result_contract_mismatch",
+    "preference_artifact.retained_artifact_mismatch",
+    "preference_artifact.source_expected",
+    "preference_artifact.wire_malformed",
+    "preference_certified.atom_probabilities_invalid",
+    "preference_certified.atom_probabilities_required",
+    "preference_certified.atoms_invalid",
+    "preference_certified.cancelled",
+    "preference_certified.enclosure_non_finite",
+    "preference_certified.logarithm_domain",
+    "preference_certified.measure_empty",
+    "preference_certified.measure_incomplete",
+    "preference_certified.measure_labels_invalid",
+    "preference_certified.measure_point_dimension",
+    "preference_certified.measure_point_non_finite",
+    "preference_certified.measure_point_outside_set",
+    "preference_certified.measure_required",
+    "preference_certified.measure_unknown_parameter",
+    "preference_certified.measure_weights_invalid",
+    "preference_certified.minimax_regret_needs_expectation",
+    "preference_certified.mixture_criterion_unsupported",
+    "preference_certified.options_invalid",
+    "preference_certified.preference_set_empty",
+    "preference_certified.source_refused",
+    "preference_certified.structure_inputs_required",
+    "preference_choice_model.cancelled",
+    "preference_choice_model.consistency_not_positive",
+    "preference_choice_model.covariance_not_positive_definite",
+    "preference_choice_model.draws_missing",
+    "preference_choice_model.fit_options_invalid",
+    "preference_choice_model.fit_refused",
+    "preference_choice_model.level_invalid",
+    "preference_choice_model.model_invalid",
+    "preference_choice_model.no_draw_inside_set",
+    "preference_choice_model.not_converged",
+    "preference_choice_model.nothing_identified",
+    "preference_choice_model.profile_multimodal",
+    "preference_choice_model.rank_deficient",
+    "preference_choice_model.records_invalid",
+    "preference_choice_model.separated",
+    "preference_choice_model.shape_estimate_at_bound",
+    "preference_choice_model.shape_not_identified",
+    "preference_choice_model.shape_search_budget",
+    "preference_choice_model.stated_and_recorded_mixed",
+    "preference_choice_model.too_few_deciders_to_cluster",
+    "preference_choice_model.unit_of_account_missing",
+    "preference_compile.atom_kind_not_compiled",
+    "preference_compile.cancelled",
+    "preference_compile.class_completions_truncated",
+    "preference_compile.class_prior_keys_mismatch",
+    "preference_compile.class_prior_sampling_needs_uniform",
+    "preference_compile.class_sampling_budget",
+    "preference_compile.cross_study_covariance_invalid",
+    "preference_compile.design_exposure_bounded",
+    "preference_compile.design_not_supported",
+    "preference_compile.design_sampling_undeclared",
+    "preference_compile.design_units_too_few",
+    "preference_compile.executed_program_mismatch",
+    "preference_compile.ordinary_measure_not_read",
+    "preference_compile.ordinary_structures_not_compiled",
+    "preference_compile.program_carries_decision",
+    "preference_compile.row_provenance_undeclared",
+    "preference_compile.sampled_mixture_not_exact",
+    "preference_compile.studies_share_evidence",
+    "preference_compile.unit_key_invalid",
+    "preference_compile.unit_label_types_differ",
+    "preference_contract.action_duplicate",
+    "preference_contract.action_id_blank",
+    "preference_contract.action_without_quantity",
+    "preference_contract.constraint_duplicate",
+    "preference_contract.constraint_id_blank",
+    "preference_contract.constraint_non_finite",
+    "preference_contract.constraint_probability",
+    "preference_contract.constraint_units_blank",
+    "preference_contract.constraint_unknown_action",
+    "preference_contract.constraint_unknown_attribute",
+    "preference_contract.criterion_invalid",
+    "preference_contract.decision_contract_refused",
+    "preference_contract.fixed_input_non_finite",
+    "preference_contract.fixed_units_mismatch",
+    "preference_contract.input_count_mismatch",
+    "preference_contract.no_ordinary_form",
+    "preference_contract.not_lowerable",
+    "preference_contract.parameter_count_mismatch",
+    "preference_contract.parameter_non_finite",
+    "preference_contract.quantity_invalid",
+    "preference_contract.quantity_outside_scope",
+    "preference_contract.quantity_units_mismatch",
+    "preference_contract.target_population_blank",
+    "preference_contract.too_few_actions",
+    "preference_decision.cancelled",
+    "preference_decision.coefficient_non_finite",
+    "preference_decision.criterion_needs_certified_route",
+    "preference_decision.linear_program_infeasible",
+    "preference_decision.linear_program_refused",
+    "preference_decision.linear_program_unbounded",
+    "preference_decision.measure_empty",
+    "preference_decision.measure_incomplete",
+    "preference_decision.measure_label_blank",
+    "preference_decision.measure_label_count",
+    "preference_decision.measure_label_duplicate",
+    "preference_decision.measure_origin_blank",
+    "preference_decision.measure_point_dimension",
+    "preference_decision.measure_point_non_finite",
+    "preference_decision.measure_point_outside_set",
+    "preference_decision.measure_required",
+    "preference_decision.measure_unresolved_repeated",
+    "preference_decision.measure_unresolved_unknown",
+    "preference_decision.measure_weight_count",
+    "preference_decision.measure_weight_invalid",
+    "preference_decision.measure_weight_total_zero",
+    "preference_decision.options_invalid",
+    "preference_decision.part_not_lowerable",
+    "preference_decision.preference_set_empty",
+    "preference_decision.shape_parameters_need_certified_route",
+    "preference_decision.source_refused",
+    "preference_decision.structure_duplicate",
+    "preference_decision.structure_id_blank",
+    "preference_decision.structure_probabilities_exceed_one",
+    "preference_decision.structure_probabilities_partial",
+    "preference_decision.structure_probabilities_required",
+    "preference_decision.structure_probability_invalid",
+    "preference_decision.structures_empty",
+    "preference_decision.value_relations_need_certified_route",
+    "preference_decision.worst_case_of_expected_regret",
+    "preference_evaluation.joint_draws_required",
+    "preference_model.attribute_count_mismatch",
+    "preference_model.attribute_duplicate",
+    "preference_model.attribute_id_blank",
+    "preference_model.attribute_units_blank",
+    "preference_model.attribute_unused",
+    "preference_model.curve_breakpoint_non_finite",
+    "preference_model.curve_breakpoints_not_increasing",
+    "preference_model.curve_slope_count",
+    "preference_model.curve_too_short",
+    "preference_model.expression_constant_non_finite",
+    "preference_model.expression_too_deep",
+    "preference_model.no_attributes",
+    "preference_model.parameter_assumption_blank",
+    "preference_model.parameter_count_mismatch",
+    "preference_model.parameter_duplicate",
+    "preference_model.parameter_id_blank",
+    "preference_model.parameter_range_empty",
+    "preference_model.parameter_range_non_finite",
+    "preference_model.parameter_units_blank",
+    "preference_model.parameter_unused",
+    "preference_model.parameter_value_non_finite",
+    "preference_model.relation_bound_non_finite",
+    "preference_model.relation_coefficient_non_finite",
+    "preference_model.relation_duplicate",
+    "preference_model.relation_id_blank",
+    "preference_model.relation_origin_blank",
+    "preference_model.relation_repeated_parameter",
+    "preference_model.relation_unknown_parameter",
+    "preference_model.relation_without_terms",
+    "preference_model.unknown_attribute",
+    "preference_model.unknown_parameter",
+    "preference_model.utility_units_blank",
+    "preference_model.value_non_finite",
+    "preference_model.value_relation_rows_invalid",
+    "preference_model.value_relation_tolerance_invalid",
+    "preference_set_learning.cancelled",
+    "preference_set_learning.declared_set_empty",
+    "preference_set_learning.linear_program_refused",
+    "preference_set_learning.model_invalid",
+    "preference_set_learning.program_inconsistent",
+    "preference_set_learning.records_invalid",
+    "preference_set_learning.region_budget_invalid",
+    "preference_set_learning.relation_id_collision",
+    "preference_set_learning.tolerance_negative",
+    "preference_set_learning.tolerance_non_finite",
     "prior_composition.unit_not_supported",
     "prior_signal.adapted_prior_not_draws",
     "prior_signal.artifact_not_in_catalog",
@@ -5555,6 +6072,7 @@ ALL: Final[tuple[str, ...]] = (
     "propagation_chain.assumption_envelope_operator",
     "propagation_chain.budget_exceeded",
     "propagation_chain.cancelled",
+    "propagation_chain.deferred_source_unbound",
     "propagation_chain.denominator_not_bounded",
     "propagation_chain.draws_are_not_an_enclosure",
     "propagation_chain.enclosure_is_not_a_law",
@@ -6267,6 +6785,7 @@ ALL: Final[tuple[str, ...]] = (
     "split_effect.structure_class",
     "split_effect.structure_unresolved",
     "split_effect.too_few_rows",
+    "structure_posterior.class_prior_not_read",
     "structure_posterior.edge_prior_probability",
     "structured_refusals.malformed_detail",
     "structured_refusals.missing_stage",
@@ -6583,6 +7102,21 @@ ALL: Final[tuple[str, ...]] = (
 )
 
 CODES: Final[dict[str, tuple[str, ...]]] = {
+    "accepted_preferences.acknowledge_empty": ("invalid_argument",),
+    "accepted_preferences.acknowledge_repeated": ("invalid_argument",),
+    "accepted_preferences.added_relation_not_from_choices": ("decision_contract_unsatisfied",),
+    "accepted_preferences.choices_contradictory": ("decision_contract_unsatisfied",),
+    "accepted_preferences.decider_unknown": ("invalid_argument",),
+    "accepted_preferences.declaration_not_kept": ("decision_contract_unsatisfied",),
+    "accepted_preferences.learned_not_reproduced": ("decision_contract_unsatisfied",),
+    "accepted_preferences.model_mismatch": ("decision_contract_unsatisfied",),
+    "accepted_preferences.not_pending": ("invalid_argument",),
+    "accepted_preferences.options_mismatch": ("decision_contract_unsatisfied",),
+    "accepted_preferences.pooled_not_available": ("invalid_argument",),
+    "accepted_preferences.records_mismatch": ("decision_contract_unsatisfied",),
+    "accepted_preferences.set_undetermined": ("decision_contract_unsatisfied",),
+    "accepted_preferences.version_exhausted": ("invalid_argument",),
+    "accepted_preferences.version_invalid": ("invalid_argument",),
     "adaptive_inference.analysis_invalid": ("invalid_argument",),
     "adaptive_inference.analysis_route_mismatch": ("adaptive_assumption_violated",),
     "adaptive_inference.anytime_premise_contexts": ("adaptive_assumption_violated",),
@@ -6848,6 +7382,46 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "chain_recovery_posterior.external_power_prior": ("route_not_supported",),
     "chain_recovery_posterior.mapped_prior": ("route_not_supported",),
     "chain_recovery_posterior.non_positive_scale": ("invalid_argument",),
+    "choice_record.analysis_date_blank": ("invalid_argument",),
+    "choice_record.analysis_identity_blank": ("invalid_argument",),
+    "choice_record.attribute_duplicate": ("invalid_argument",),
+    "choice_record.attribute_id_blank": ("invalid_argument",),
+    "choice_record.attribute_units_blank": ("invalid_argument",),
+    "choice_record.attributes_differ": ("quantity_semantics_mismatch",),
+    "choice_record.attributes_missing": ("invalid_argument",),
+    "choice_record.belief_law_required": ("decision_contract_unsatisfied",),
+    "choice_record.belief_not_finite": ("invalid_argument",),
+    "choice_record.chosen_unavailable": ("invalid_argument",),
+    "choice_record.chosen_unknown": ("invalid_argument",),
+    "choice_record.decider_blank": ("invalid_argument",),
+    "choice_record.draws_empty": ("invalid_argument",),
+    "choice_record.draws_width_mismatch": ("invalid_argument",),
+    "choice_record.forecast_source_blank": ("invalid_argument",),
+    "choice_record.means_width_mismatch": ("invalid_argument",),
+    "choice_record.model_invalid": ("invalid_argument",),
+    "choice_record.observation_row_blank": ("invalid_argument",),
+    "choice_record.observation_row_double_counted": ("evidence_double_counted",),
+    "choice_record.observation_row_repeated": ("invalid_argument",),
+    "choice_record.observation_rows_missing": ("invalid_argument",),
+    "choice_record.option_duplicate": ("invalid_argument",),
+    "choice_record.option_id_blank": ("invalid_argument",),
+    "choice_record.options_too_few": ("invalid_argument",),
+    "choice_record.pooling_assumption_blank": ("invalid_argument",),
+    "choice_record.population_blank": ("invalid_argument",),
+    "choice_record.realized_assumption_blank": ("invalid_argument",),
+    "choice_record.record_duplicate": ("invalid_argument",),
+    "choice_record.record_id_blank": ("invalid_argument",),
+    "choice_record.records_missing": ("invalid_argument",),
+    "choice_record.shape_parameters_not_fixed": ("route_not_supported",),
+    "choice_record.stated_assumption_blank": ("invalid_argument",),
+    "choice_record.stated_belief_not_exact": ("invalid_argument",),
+    "choice_record.stated_elicitation_blank": ("invalid_argument",),
+    "choice_record.term_not_finite": ("decision_contract_unsatisfied",),
+    "choice_record.unavailable_constraint_blank": ("invalid_argument",),
+    "choice_record.weight_negative": ("invalid_argument",),
+    "choice_record.weight_not_finite": ("invalid_argument",),
+    "choice_record.weights_length_mismatch": ("invalid_argument",),
+    "choice_record.weights_sum_invalid": ("invalid_argument",),
     "cluster_dml.cancelled": ("cancelled_no_claim",),
     "cluster_dml.cluster_ids_missing": ("required_option_missing",),
     "cluster_dml.dyadic_giant_component": ("dyadic_dependence_not_supported",),
@@ -8458,6 +9032,218 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "predictive_assessment.too_few_clusters": ("too_few_clusters",),
     "predictive_assessment.unknown_source": ("invalid_argument",),
     "predictive_assessment.wrong_contract": ("route_not_supported",),
+    "preference_artifact.cancelled": ("cancelled_no_claim",),
+    "preference_artifact.container_refused": ("invalid_argument",),
+    "preference_artifact.contract_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.encode_failed": ("invalid_argument",),
+    "preference_artifact.identity_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.identity_resealed": ("invalid_argument",),
+    "preference_artifact.replay_mismatch": ("decision_contract_unsatisfied",),
+    "preference_artifact.replay_records_differ": ("decision_contract_unsatisfied",),
+    "preference_artifact.replay_source_differs": ("decision_contract_unsatisfied",),
+    "preference_artifact.result_contract_mismatch": ("decision_contract_unsatisfied",),
+    "preference_artifact.retained_artifact_mismatch": ("external_binding_mismatch",),
+    "preference_artifact.source_expected": ("decision_contract_unsatisfied",),
+    "preference_artifact.wire_malformed": ("invalid_argument",),
+    "preference_certified.atom_probabilities_invalid": ("decision_contract_unsatisfied",),
+    "preference_certified.atom_probabilities_required": ("decision_contract_unsatisfied",),
+    "preference_certified.atoms_invalid": ("invalid_argument",),
+    "preference_certified.cancelled": ("cancelled_no_claim",),
+    "preference_certified.enclosure_non_finite": ("invalid_argument",),
+    "preference_certified.logarithm_domain": ("invalid_argument",),
+    "preference_certified.measure_empty": ("invalid_argument",),
+    "preference_certified.measure_incomplete": ("decision_contract_unsatisfied",),
+    "preference_certified.measure_labels_invalid": ("invalid_argument",),
+    "preference_certified.measure_point_dimension": ("invalid_argument",),
+    "preference_certified.measure_point_non_finite": ("invalid_argument",),
+    "preference_certified.measure_point_outside_set": ("invalid_argument",),
+    "preference_certified.measure_required": ("decision_contract_unsatisfied",),
+    "preference_certified.measure_unknown_parameter": ("invalid_argument",),
+    "preference_certified.measure_weights_invalid": ("invalid_argument",),
+    "preference_certified.minimax_regret_needs_expectation": ("route_not_supported",),
+    "preference_certified.mixture_criterion_unsupported": ("route_not_supported",),
+    "preference_certified.options_invalid": ("invalid_argument",),
+    "preference_certified.preference_set_empty": ("invalid_argument",),
+    "preference_certified.source_refused": (
+        "invalid_argument",
+        "quantity_semantics_mismatch",
+        "decision_contract_unsatisfied",
+        "joint_law_required",
+        "distribution_meaning_mismatch",
+        "route_not_supported",
+    ),
+    "preference_certified.structure_inputs_required": ("route_not_supported",),
+    "preference_choice_model.cancelled": ("cancelled_no_claim",),
+    "preference_choice_model.consistency_not_positive": ("glm_fit_refused",),
+    "preference_choice_model.covariance_not_positive_definite": ("glm_fit_refused",),
+    "preference_choice_model.draws_missing": ("invalid_argument",),
+    "preference_choice_model.fit_options_invalid": ("invalid_argument",),
+    "preference_choice_model.fit_refused": ("glm_fit_refused",),
+    "preference_choice_model.level_invalid": ("invalid_argument",),
+    "preference_choice_model.model_invalid": ("invalid_argument",),
+    "preference_choice_model.no_draw_inside_set": ("uncertainty_representation_insufficient",),
+    "preference_choice_model.not_converged": ("glm_fit_refused",),
+    "preference_choice_model.nothing_identified": ("design_rank_deficient",),
+    "preference_choice_model.profile_multimodal": ("glm_fit_refused",),
+    "preference_choice_model.rank_deficient": ("design_rank_deficient",),
+    "preference_choice_model.records_invalid": (
+        "invalid_argument",
+        "quantity_semantics_mismatch",
+        "evidence_double_counted",
+        "route_not_supported",
+        "decision_contract_unsatisfied",
+    ),
+    "preference_choice_model.separated": ("glm_fit_refused",),
+    "preference_choice_model.shape_estimate_at_bound": ("uncertainty_representation_insufficient",),
+    "preference_choice_model.shape_not_identified": ("design_rank_deficient",),
+    "preference_choice_model.shape_search_budget": ("invalid_argument",),
+    "preference_choice_model.stated_and_recorded_mixed": ("route_not_supported",),
+    "preference_choice_model.too_few_deciders_to_cluster": (
+        "uncertainty_representation_insufficient",
+    ),
+    "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
+    "preference_compile.atom_kind_not_compiled": ("route_not_supported",),
+    "preference_compile.cancelled": ("cancelled_no_claim",),
+    "preference_compile.class_completions_truncated": ("route_not_supported",),
+    "preference_compile.class_prior_keys_mismatch": ("invalid_argument",),
+    "preference_compile.class_prior_sampling_needs_uniform": ("invalid_argument",),
+    "preference_compile.class_sampling_budget": ("route_not_supported",),
+    "preference_compile.cross_study_covariance_invalid": ("invalid_argument",),
+    "preference_compile.design_exposure_bounded": ("effect_not_identified",),
+    "preference_compile.design_not_supported": ("route_not_supported",),
+    "preference_compile.design_sampling_undeclared": ("joint_law_required",),
+    "preference_compile.design_units_too_few": ("too_few_clusters",),
+    "preference_compile.executed_program_mismatch": ("route_not_lowered",),
+    "preference_compile.ordinary_measure_not_read": ("option_not_applicable",),
+    "preference_compile.ordinary_structures_not_compiled": ("route_not_supported",),
+    "preference_compile.program_carries_decision": ("invalid_argument",),
+    "preference_compile.row_provenance_undeclared": ("evidence_overlap_unknown",),
+    "preference_compile.sampled_mixture_not_exact": ("route_not_supported",),
+    "preference_compile.studies_share_evidence": ("evidence_double_counted",),
+    "preference_compile.unit_key_invalid": ("invalid_argument",),
+    "preference_compile.unit_label_types_differ": ("evidence_overlap_unknown",),
+    "preference_contract.action_duplicate": ("invalid_argument",),
+    "preference_contract.action_id_blank": ("invalid_argument",),
+    "preference_contract.action_without_quantity": ("invalid_argument",),
+    "preference_contract.constraint_duplicate": ("invalid_argument",),
+    "preference_contract.constraint_id_blank": ("invalid_argument",),
+    "preference_contract.constraint_non_finite": ("invalid_argument",),
+    "preference_contract.constraint_probability": ("invalid_argument",),
+    "preference_contract.constraint_units_blank": ("invalid_argument",),
+    "preference_contract.constraint_unknown_action": ("invalid_argument",),
+    "preference_contract.constraint_unknown_attribute": ("invalid_argument",),
+    "preference_contract.criterion_invalid": ("invalid_argument",),
+    "preference_contract.decision_contract_refused": (
+        "invalid_argument",
+        "quantity_semantics_mismatch",
+        "decision_contract_unsatisfied",
+    ),
+    "preference_contract.fixed_input_non_finite": ("invalid_argument",),
+    "preference_contract.fixed_units_mismatch": ("quantity_semantics_mismatch",),
+    "preference_contract.input_count_mismatch": ("invalid_argument",),
+    "preference_contract.no_ordinary_form": ("route_not_supported",),
+    "preference_contract.not_lowerable": ("route_not_supported",),
+    "preference_contract.parameter_count_mismatch": ("invalid_argument",),
+    "preference_contract.parameter_non_finite": ("invalid_argument",),
+    "preference_contract.quantity_invalid": ("quantity_semantics_mismatch",),
+    "preference_contract.quantity_outside_scope": ("quantity_semantics_mismatch",),
+    "preference_contract.quantity_units_mismatch": ("quantity_semantics_mismatch",),
+    "preference_contract.target_population_blank": ("invalid_argument",),
+    "preference_contract.too_few_actions": ("invalid_argument",),
+    "preference_decision.cancelled": ("cancelled_no_claim",),
+    "preference_decision.coefficient_non_finite": ("decision_contract_unsatisfied",),
+    "preference_decision.criterion_needs_certified_route": ("route_not_supported",),
+    "preference_decision.linear_program_infeasible": ("invalid_argument",),
+    "preference_decision.linear_program_refused": ("invalid_argument",),
+    "preference_decision.linear_program_unbounded": ("invalid_argument",),
+    "preference_decision.measure_empty": ("invalid_argument",),
+    "preference_decision.measure_incomplete": ("decision_contract_unsatisfied",),
+    "preference_decision.measure_label_blank": ("invalid_argument",),
+    "preference_decision.measure_label_count": ("invalid_argument",),
+    "preference_decision.measure_label_duplicate": ("invalid_argument",),
+    "preference_decision.measure_origin_blank": ("invalid_argument",),
+    "preference_decision.measure_point_dimension": ("invalid_argument",),
+    "preference_decision.measure_point_non_finite": ("invalid_argument",),
+    "preference_decision.measure_point_outside_set": ("invalid_argument",),
+    "preference_decision.measure_required": ("decision_contract_unsatisfied",),
+    "preference_decision.measure_unresolved_repeated": ("invalid_argument",),
+    "preference_decision.measure_unresolved_unknown": ("invalid_argument",),
+    "preference_decision.measure_weight_count": ("invalid_argument",),
+    "preference_decision.measure_weight_invalid": ("invalid_argument",),
+    "preference_decision.measure_weight_total_zero": ("invalid_argument",),
+    "preference_decision.options_invalid": ("invalid_argument",),
+    "preference_decision.part_not_lowerable": ("route_not_supported",),
+    "preference_decision.preference_set_empty": ("invalid_argument",),
+    "preference_decision.shape_parameters_need_certified_route": ("route_not_supported",),
+    "preference_decision.source_refused": (
+        "invalid_argument",
+        "quantity_semantics_mismatch",
+        "decision_contract_unsatisfied",
+        "joint_law_required",
+        "distribution_meaning_mismatch",
+        "route_not_supported",
+    ),
+    "preference_decision.structure_duplicate": ("invalid_argument",),
+    "preference_decision.structure_id_blank": ("invalid_argument",),
+    "preference_decision.structure_probabilities_exceed_one": ("decision_contract_unsatisfied",),
+    "preference_decision.structure_probabilities_partial": ("decision_contract_unsatisfied",),
+    "preference_decision.structure_probabilities_required": ("decision_contract_unsatisfied",),
+    "preference_decision.structure_probability_invalid": ("decision_contract_unsatisfied",),
+    "preference_decision.structures_empty": ("invalid_argument",),
+    "preference_decision.value_relations_need_certified_route": ("route_not_supported",),
+    "preference_decision.worst_case_of_expected_regret": ("route_not_supported",),
+    "preference_evaluation.joint_draws_required": ("joint_law_required",),
+    "preference_model.attribute_count_mismatch": ("invalid_argument",),
+    "preference_model.attribute_duplicate": ("invalid_argument",),
+    "preference_model.attribute_id_blank": ("invalid_argument",),
+    "preference_model.attribute_units_blank": ("invalid_argument",),
+    "preference_model.attribute_unused": ("invalid_argument",),
+    "preference_model.curve_breakpoint_non_finite": ("invalid_argument",),
+    "preference_model.curve_breakpoints_not_increasing": ("invalid_argument",),
+    "preference_model.curve_slope_count": ("invalid_argument",),
+    "preference_model.curve_too_short": ("invalid_argument",),
+    "preference_model.expression_constant_non_finite": ("invalid_argument",),
+    "preference_model.expression_too_deep": ("invalid_argument",),
+    "preference_model.no_attributes": ("invalid_argument",),
+    "preference_model.parameter_assumption_blank": ("invalid_argument",),
+    "preference_model.parameter_count_mismatch": ("invalid_argument",),
+    "preference_model.parameter_duplicate": ("invalid_argument",),
+    "preference_model.parameter_id_blank": ("invalid_argument",),
+    "preference_model.parameter_range_empty": ("invalid_argument",),
+    "preference_model.parameter_range_non_finite": ("invalid_argument",),
+    "preference_model.parameter_units_blank": ("invalid_argument",),
+    "preference_model.parameter_unused": ("invalid_argument",),
+    "preference_model.parameter_value_non_finite": ("invalid_argument",),
+    "preference_model.relation_bound_non_finite": ("invalid_argument",),
+    "preference_model.relation_coefficient_non_finite": ("invalid_argument",),
+    "preference_model.relation_duplicate": ("invalid_argument",),
+    "preference_model.relation_id_blank": ("invalid_argument",),
+    "preference_model.relation_origin_blank": ("invalid_argument",),
+    "preference_model.relation_repeated_parameter": ("invalid_argument",),
+    "preference_model.relation_unknown_parameter": ("invalid_argument",),
+    "preference_model.relation_without_terms": ("invalid_argument",),
+    "preference_model.unknown_attribute": ("invalid_argument",),
+    "preference_model.unknown_parameter": ("invalid_argument",),
+    "preference_model.utility_units_blank": ("invalid_argument",),
+    "preference_model.value_non_finite": ("invalid_argument",),
+    "preference_model.value_relation_rows_invalid": ("invalid_argument",),
+    "preference_model.value_relation_tolerance_invalid": ("invalid_argument",),
+    "preference_set_learning.cancelled": ("cancelled_no_claim",),
+    "preference_set_learning.declared_set_empty": ("invalid_argument",),
+    "preference_set_learning.linear_program_refused": ("invalid_argument",),
+    "preference_set_learning.model_invalid": ("invalid_argument",),
+    "preference_set_learning.program_inconsistent": ("invalid_argument",),
+    "preference_set_learning.records_invalid": (
+        "invalid_argument",
+        "quantity_semantics_mismatch",
+        "evidence_double_counted",
+        "route_not_supported",
+        "decision_contract_unsatisfied",
+    ),
+    "preference_set_learning.region_budget_invalid": ("invalid_argument",),
+    "preference_set_learning.relation_id_collision": ("invalid_argument",),
+    "preference_set_learning.tolerance_negative": ("invalid_argument",),
+    "preference_set_learning.tolerance_non_finite": ("invalid_argument",),
     "prior_composition.unit_not_supported": ("not_supported",),
     "prior_signal.adapted_prior_not_draws": ("invalid_argument",),
     "prior_signal.artifact_not_in_catalog": ("design_signal_invalid",),
@@ -8507,6 +9293,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "propagation_chain.assumption_envelope_operator": ("route_not_supported",),
     "propagation_chain.budget_exceeded": ("invalid_argument",),
     "propagation_chain.cancelled": ("cancelled_no_claim",),
+    "propagation_chain.deferred_source_unbound": ("invalid_argument",),
     "propagation_chain.denominator_not_bounded": ("invalid_argument",),
     "propagation_chain.draws_are_not_an_enclosure": ("uncertainty_representation_insufficient",),
     "propagation_chain.enclosure_is_not_a_law": ("uncertainty_representation_insufficient",),
@@ -9229,6 +10016,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "split_effect.structure_class": ("invalid_argument",),
     "split_effect.structure_unresolved": ("discovered_structure_unresolved",),
     "split_effect.too_few_rows": ("invalid_argument",),
+    "structure_posterior.class_prior_not_read": ("option_not_applicable",),
     "structure_posterior.edge_prior_probability": ("invalid_argument",),
     "structured_refusals.malformed_detail": ("invalid_argument",),
     "structured_refusals.missing_stage": ("invalid_argument",),

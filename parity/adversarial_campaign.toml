@@ -592,6 +592,42 @@ runner = "rust"
 test = "site_compile_joint_experiment"
 
 [[cases]]
+id = "identity_sites.preferences.value_model_relations_and_terms"
+kind = "preserving"
+runner = "rust"
+test = "site_value_model_relations_and_terms"
+
+[[cases]]
+id = "identity_sites.preferences.value_model_value_relations"
+kind = "preserving"
+runner = "rust"
+test = "site_value_model_value_relations"
+
+[[cases]]
+id = "identity_sites.preferences.preference_contract_actions_ordered"
+kind = "changing"
+runner = "rust"
+test = "site_preference_contract_actions_ordered"
+
+[[cases]]
+id = "identity_sites.preferences.choice_record_set_digest"
+kind = "preserving"
+runner = "rust"
+test = "site_choice_record_set_digest"
+
+[[cases]]
+id = "identity_sites.preferences.mec_uniform_dag_fingerprint"
+kind = "preserving"
+runner = "rust"
+test = "site_mec_uniform_dag_fingerprint"
+
+[[cases]]
+id = "identity_sites.preferences.pag_uniform_mag_fingerprint"
+kind = "preserving"
+runner = "rust"
+test = "site_pag_uniform_mag_fingerprint"
+
+[[cases]]
 id = "contract.translated_compose_rule_proved"
 kind = "bound"
 runner = "aeneas"
@@ -1072,3 +1108,20 @@ file = "crates/antecedent-io-core/src/staleness_artifact.rs"
 old = "        crate::retained_artifact::load_expecting(bytes, retained, Self::consume)"
 new = "        {\n            let _ = retained;\n            Self::consume(bytes)\n        }"
 caught_by = ["acceptance.loaders_bind_the_retained_bytes"]
+
+[[mutations]]
+id = "preference_contract_action_order_dropped"
+file = "crates/antecedent-design/src/preference_contract.rs"
+old = "        out.texts(&action_ids).texts(&constraint_ids);"
+new = "        let _ = (&action_ids, &constraint_ids);"
+caught_by = ["identity_sites.preferences.preference_contract_actions_ordered"]
+
+[[mutations]]
+id = "value_model_relations_kept_in_declared_order"
+file = "crates/antecedent-design/src/preference_model.rs"
+old = """        let mut relations: Vec<[u8; 32]> =
+            self.preferences.relations.iter().map(encode_relation).collect();
+        relations.sort_unstable();"""
+new = """        let relations: Vec<[u8; 32]> =
+            self.preferences.relations.iter().map(encode_relation).collect();"""
+caught_by = ["identity_sites.preferences.value_model_relations_and_terms"]

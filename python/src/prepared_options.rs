@@ -42,6 +42,8 @@ const KEYS: &[&str] = &[
     "structure_prior",
     "exact_score",
     "exact_max_parents",
+    "row_provenance",
+    "unit_key",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -232,6 +234,42 @@ pub(crate) struct PrepareOptions {
     /// Per-edge prior probabilities and soft tiers of the structure posterior a graph-posterior
     /// route searches; read by those routes only.
     pub structure_prior: Option<crate::bayesian::PriorArgs>,
+    /// The table the prepared table's columns were projected from, so studies of different
+    /// columns of the same rows are judged as sharing those rows.
+    pub row_provenance: Option<antecedent::analysis::preference_decision::RowProvenance>,
+    /// The unit identifiers the table's rows observe, one canonical label per row.
+    pub unit_key: Option<antecedent::analysis::preference_decision::UnitKey>,
+}
+
+/// The row provenance a `{"table": str, "rows": list[int] | None}` mapping declares.
+fn parse_row_provenance(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<antecedent::analysis::preference_decision::RowProvenance> {
+    let dict = value.cast::<PyDict>()?;
+    let table: String = dict
+        .get_item("table")?
+        .ok_or_else(|| crate::value_err("row_provenance option is missing \"table\""))?
+        .extract()?;
+    let rows: Option<Vec<u64>> = dict
+        .get_item("rows")?
+        .filter(|rows| !rows.is_none())
+        .map(|rows| rows.extract())
+        .transpose()?;
+    Ok(antecedent::analysis::preference_decision::RowProvenance::new(&table, rows))
+}
+
+/// The unit key a `{"namespace": str, "labels": list[str]}` mapping declares.
+fn parse_unit_key(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<antecedent::analysis::preference_decision::UnitKey> {
+    let dict = value.cast::<PyDict>()?;
+    let field = |key: &str| -> PyResult<Bound<'_, PyAny>> {
+        dict.get_item(key)?
+            .ok_or_else(|| crate::value_err(format!("unit_key option is missing {key:?}")))
+    };
+    let namespace: String = field("namespace")?.extract()?;
+    let labels: Vec<String> = field("labels")?.extract()?;
+    Ok(antecedent::analysis::preference_decision::UnitKey::canonical_labels(&namespace, labels))
 }
 
 impl PrepareOptions {
@@ -389,6 +427,10 @@ impl PrepareOptions {
                 .map(|value| value.extract())
                 .transpose()?,
             structure_prior,
+            row_provenance: item("row_provenance")?
+                .map(|value| parse_row_provenance(&value))
+                .transpose()?,
+            unit_key: item("unit_key")?.map(|value| parse_unit_key(&value)).transpose()?,
         })
     }
 
@@ -542,6 +584,12 @@ impl PrepareOptions {
         if let Some(design) = self.sampling_design {
             builder = builder.sampling_design(design);
         }
+        if let Some(provenance) = &self.row_provenance {
+            builder = builder.row_provenance(provenance.clone());
+        }
+        if let Some(key) = &self.unit_key {
+            builder = builder.unit_key(key.clone());
+        }
         builder
     }
 
@@ -575,6 +623,8 @@ impl PrepareOptions {
             exact_score: None,
             exact_max_parents: None,
             structure_prior: None,
+            row_provenance: self.row_provenance.clone(),
+            unit_key: self.unit_key.clone(),
         };
         without_bootstrap.apply(builder)
     }

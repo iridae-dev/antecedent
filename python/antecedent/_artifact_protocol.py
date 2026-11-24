@@ -509,6 +509,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "ANTECEDENT-PERIOD-REFRESH-SUMMARY": ("transport.advanced", "PeriodRefreshSummary.consume"),
     "joint_scenarios_v1": ("decision_robust", "consume_joint_scenarios"),
     "compiled_robust_decision_v1": ("decision_robust", "consume_compiled_robust_decision"),
+    "accepted_preferences_v1": ("decision_learning", "load"),
     "joint_sensitivity_interval_v1": ("transport.advanced", "consume_joint_sensitivity_interval"),
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),

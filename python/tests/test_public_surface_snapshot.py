@@ -317,6 +317,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "Refute",
         "ReviewRequired",
         "TemporalDag",
+        "UnitKey",
         # Queries
         "AnomalyAttribution",
         "AnomalyReference",
@@ -428,6 +429,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "composition_verification",
         "counterfactual_id",
         "cross_world",
+        "decision_learning",
         "decision_robust",
         "descriptive",
         "dose_grid",

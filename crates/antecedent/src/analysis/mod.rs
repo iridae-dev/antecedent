@@ -103,6 +103,7 @@ mod admg_conditional_transport;
 mod alpha_selection;
 pub mod array_fits;
 pub mod association;
+mod attached_decision;
 mod batch;
 mod batch_export;
 mod batch_retarget;
@@ -233,6 +234,7 @@ pub mod joint_transport_effect_decision;
 pub mod joint_transport_predictive_decision;
 pub mod kernel_programs;
 pub mod model_operation;
+pub mod tradeoff_decision_programs;
 pub mod trial_ipw_predictive_decision;
 pub mod trial_ipw_transport_decision;
 pub use joint_interval_artifact::{
@@ -240,7 +242,6 @@ pub use joint_interval_artifact::{
     JointIntervalNumerics, JointSensitivityIntervalArtifact,
 };
 pub mod events;
-pub mod structure_members;
 pub mod fitted_dependent_measurement;
 pub mod latent_class_effects;
 pub mod latent_soft_intervention;
@@ -275,6 +276,8 @@ pub mod per_population_discovery;
 pub mod planning;
 pub mod posterior_boundaries;
 pub mod predictive_assessment;
+pub mod preference_decision;
+pub mod preference_learning_programs;
 mod preflight;
 pub(crate) mod program_handle;
 pub mod propagation_chain;
@@ -309,6 +312,7 @@ pub mod sequential_evaluation;
 mod smoothed_dose;
 pub mod staleness;
 mod statistical;
+pub mod structure_members;
 pub mod structure_route;
 mod structure_stability;
 pub mod target_validation;
@@ -624,6 +628,7 @@ pub use execute::{
     DecisionCompileRequest, DecisionDemand, INTERVENTIONAL_LAW, MissingCarrier, PublishedCarriers,
     ROBUST_OVER_IDENTIFIED_SET, ScoredDecision, score_decision,
 };
+pub use execute::{CompiledDecisionProgram, CompiledEvsiProgram};
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,

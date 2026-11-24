@@ -39,6 +39,8 @@ pub(crate) const CYCLIC_COMPONENT_POSTERIOR_DECISIONS: UnitId =
     UnitId::new("cyclic.component_posterior_decisions");
 pub(crate) const CYCLIC_EXTERNAL_MECHANISMS: UnitId = UnitId::new("cyclic.external_mechanisms");
 pub(crate) const CYCLIC_GENERAL_SYSTEMS: UnitId = UnitId::new("cyclic.general_systems");
+pub(crate) const DECISION_COMPILED_JOINT_SCENARIOS: UnitId =
+    UnitId::new("decision.compiled_joint_scenarios");
 pub(crate) const DECISION_CONTRACT: UnitId = UnitId::new("decision.contract");
 pub(crate) const DECISION_FUNCTIONAL_INVERSE: UnitId = UnitId::new("decision.functional_inverse");
 pub(crate) const DECISION_FUNCTIONALS: UnitId = UnitId::new("decision.functionals");
@@ -118,6 +120,13 @@ pub(crate) const OBSERVATION_QUERY_CALIBRATED_PROBABILITY: UnitId =
     UnitId::new("observation_query.calibrated_probability");
 pub(crate) const OBSERVATION_QUERY_FINITE_LAW_CONDITIONING: UnitId =
     UnitId::new("observation_query.finite_law_conditioning");
+pub(crate) const PREFERENCE_DECISION_CERTIFIED: UnitId =
+    UnitId::new("preference_decision.certified");
+pub(crate) const PREFERENCE_DECISION_EXACT: UnitId = UnitId::new("preference_decision.exact");
+pub(crate) const PREFERENCE_LEARNING_CHOICE_MODEL: UnitId =
+    UnitId::new("preference_learning.choice_model");
+pub(crate) const PREFERENCE_LEARNING_COMPATIBLE_SET: UnitId =
+    UnitId::new("preference_learning.compatible_set");
 pub(crate) const PRIOR_COMPOSED_NAMED_COORDINATES: UnitId =
     UnitId::new("prior.composed_named_coordinates");
 pub(crate) const PRIOR_EXTERNAL_COMPOSITION: UnitId = UnitId::new("prior.external_composition");
@@ -210,7 +219,8 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         }
         "ExternalFeedbackEquilibrium" | "ExternalFeedbackFit" => Some(CYCLIC_EXTERNAL_MECHANISMS),
         "CyclicFamily" | "LocalCyclicCallback" => Some(CYCLIC_GENERAL_SYSTEMS),
-        "ContractLawDecision" => Some(DECISION_CONTRACT),
+        "JointScenarioAttachedDecision" => Some(DECISION_COMPILED_JOINT_SCENARIOS),
+        "ContractAttachedDecision" | "ContractLawDecision" => Some(DECISION_CONTRACT),
         "InverseQueryDecision" => Some(DECISION_FUNCTIONAL_INVERSE),
         "DecisionFunctionalValue" => Some(DECISION_FUNCTIONALS),
         "SensitivityDecision" => Some(DECISION_SENSITIVITY_COMPOSITION),
@@ -220,7 +230,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "AdaptivePolicySearch" => Some(DESIGN_ADAPTIVE_POLICY_SEARCH),
         "EvidenceObligations" => Some(DESIGN_EVIDENCE_OBLIGATIONS),
         "StructureIdentification" => Some(DESIGN_EVIDENCE_PLAN),
-        "ChoiceStudyRanking" | "FiniteActionDecision" => Some(DESIGN_EVSI),
+        "ChoiceStudyRanking" | "EvsiAttachedDecision" | "FiniteActionDecision" => Some(DESIGN_EVSI),
         "ExperimentPlanning" => Some(DESIGN_EXPERIMENT_PLANNING),
         "IdentificationRepair" | "ZTransportEvidencePlanning" => Some(DESIGN_IDENTIFICATION_REPAIR),
         "PriorSignalAdaptation" => Some(DESIGN_PRIOR_SIGNAL_PLANNING),
@@ -282,6 +292,14 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "DependentMeasuredObservation"
         | "FittedDependentMeasuredObservation"
         | "JointMeasuredObservation" => Some(OBSERVATION_QUERY_FINITE_LAW_CONDITIONING),
+        "CertifiedPreferenceAttachedDecision"
+        | "TradeoffCertifiedLawDecision"
+        | "TradeoffCertifiedStructuralDecision" => Some(PREFERENCE_DECISION_CERTIFIED),
+        "PreferenceAttachedDecision" | "TradeoffLawDecision" | "TradeoffStructuralDecision" => {
+            Some(PREFERENCE_DECISION_EXACT)
+        }
+        "PreferenceChoiceModel" => Some(PREFERENCE_LEARNING_CHOICE_MODEL),
+        "PreferenceCompatibleSet" => Some(PREFERENCE_LEARNING_COMPATIBLE_SET),
         "PowerPriorLinearSelection" => Some(PRIOR_COMPOSED_NAMED_COORDINATES),
         "ExternalPriorComposition" | "ExternalPriorTransport" => Some(PRIOR_EXTERNAL_COMPOSITION),
         "ObservationRecoveryIdentification" => Some(RECOVERY_BINARY_OBSERVATION),

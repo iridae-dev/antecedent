@@ -36,6 +36,10 @@ pub use decision::{
     CarrierDemand, Composition, DecisionProgram, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, EvsiProgram,
 };
+pub use decision::{
+    PreferenceChainInputFact, PreferenceDesignLawFact, PreferenceJointLawFact,
+    PreferenceParameterFact, PreferenceQuantityFact, PreferenceValueFacts,
+};
 pub(crate) use linear_gaussian::{
     linear_gaussian_physical_operators, linear_gaussian_program_operators,
     linear_gaussian_scientific_problem,
@@ -43,6 +47,8 @@ pub(crate) use linear_gaussian::{
 pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
 
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
+const ATTACHED_DECISION_TAG: &str = "antecedent.lowered_program.attached_decision.v1";
+const DECISION_FREE_TAG: &str = "antecedent.lowered_program.decision_free.v1";
 
 /// How far a route's lowering has been carried. Every registered route cell lowers
 /// each layer from its own scientific problem, except the atom operations a program
@@ -1714,6 +1720,67 @@ impl LoweredProgram {
     pub(crate) fn with_binding(mut self, binding: Option<[u8; 32]>) -> Self {
         self.binding = binding;
         self
+    }
+
+    /// The program with `decision` attached to layer four after lowering, for a compiled
+    /// program whose own lowering carries no decision (a compiled joint design). Every other
+    /// layer is kept. The identity binds this program's identity and the new layer four, so
+    /// it differs from this program's exactly by the decision and this program's identity is
+    /// unchanged. `None` when layer four already carries a decision.
+    pub(crate) fn with_decision(&self, decision: DecisionProgram) -> Option<Self> {
+        if self.evidence.decision.is_some() {
+            return None;
+        }
+        let mut evidence = self.evidence.clone();
+        evidence.decision = Some(decision);
+        let mut writer = CanonicalWriter::new(ATTACHED_DECISION_TAG);
+        writer.bytes(self.identity.as_bytes()).bytes(evidence.identity().as_bytes());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        Some(Self { evidence, identity, ..self.clone() })
+    }
+
+    /// Whether this program is `estimate` with a decision added to layer four: this program
+    /// carries a decision, `estimate` carries none, and every other part they are identified
+    /// by (route cell, depth, scientific problem, identification, statistical program, the
+    /// rest of layer four and the claim) is the same.
+    pub(crate) fn decides_over(&self, estimate: &Self) -> bool {
+        self.evidence.decision.is_some()
+            && estimate.evidence.decision.is_none()
+            && self.claim == estimate.claim
+            && self.identity_without_decision() == estimate.identity_without_decision()
+    }
+
+    /// Digest of every part the identity binds, with layer four's decision left out.
+    fn identity_without_decision(&self) -> SemanticDigest {
+        let mut evidence = self.evidence.clone();
+        evidence.decision = None;
+        let mut writer = CanonicalWriter::new(DECISION_FREE_TAG);
+        writer.text(self.cell.as_str());
+        // A named cell's name leaves out the family, design or reading it was lowered for,
+        // which its own identity writes; each is written here with a presence word, so two
+        // programs of one kind of named cell never compare as one program.
+        for named in
+            [self.cell.cyclic_family(), self.cell.planned_design(), self.cell.chain_reading()]
+        {
+            match named {
+                Some(name) => {
+                    writer.word(1).text(name);
+                }
+                None => {
+                    writer.word(0);
+                }
+            }
+        }
+        writer.text(self.depth.as_str());
+        if let Some(operations) = self.depth.deferred_operations() {
+            writer.text(operations);
+        }
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        SemanticDigest::from_bytes(writer.finish())
     }
 
     /// Key of the study this program was compiled for, when it recorded one.

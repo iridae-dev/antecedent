@@ -345,17 +345,49 @@ pub enum ClassPriorIdentityWire {
     /// `(completion fingerprint, mass bits)` strictly ascending by fingerprint (sorted; keys are
     /// distinct because the class prior refuses a repeated key).
     Pairs(Vec<(u64, u64)>),
+    /// Equal mass on every member of every class atom.
+    Uniform,
+    /// Masses with the declarations that annotate them.
+    Annotated {
+        /// The masses (`Ordered`, `Pairs` or `Uniform`).
+        base: Box<ClassPriorIdentityWire>,
+        /// The named assumption the masses stand on.
+        assumption: Option<String>,
+        /// The declared exact enumeration limit.
+        exact_limit: Option<u64>,
+        /// The declared draw `(members, seed)`.
+        sampling: Option<(u64, u64)>,
+    },
 }
 
 impl ClassPriorIdentityWire {
+    /// The exact enumeration limit a class prior uses when it declares none. A declared limit
+    /// equal to it is the undeclared limit, so the class prior stores it as undeclared and an
+    /// annotation never carries it.
+    pub const DEFAULT_EXACT_LIMIT: u64 = 32;
+
     /// Whether this is the form the class prior builds: ordered masses carry no list
     /// constraint; keyed pairs are strictly ascending by completion fingerprint (sorted, and
-    /// distinct because the class prior refuses a repeated key).
+    /// distinct because the class prior refuses a repeated key); a uniform measure has no
+    /// payload. An annotation wraps a canonical base that is not itself annotated and declares
+    /// at least one of: a trimmed, non-blank assumption; an exact limit that is positive and not
+    /// [`Self::DEFAULT_EXACT_LIMIT`]; a draw of at least one member.
     #[must_use]
     pub fn is_canonical(&self) -> bool {
         match self {
-            Self::Ordered(_) => true,
+            Self::Ordered(_) | Self::Uniform => true,
             Self::Pairs(pairs) => pairs.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            Self::Annotated { base, assumption, exact_limit, sampling } => {
+                !matches!(base.as_ref(), Self::Annotated { .. })
+                    && base.is_canonical()
+                    && (assumption.is_some() || exact_limit.is_some() || sampling.is_some())
+                    && assumption
+                        .as_deref()
+                        .is_none_or(|text| !text.is_empty() && text.trim() == text)
+                    && exact_limit
+                        .is_none_or(|limit| limit > 0 && limit != Self::DEFAULT_EXACT_LIMIT)
+                    && sampling.is_none_or(|(members, _)| members > 0)
+            }
         }
     }
 }
@@ -2241,6 +2273,37 @@ mod tests {
         assert!(!ClassPriorIdentityWire::Pairs(vec![(2, 3), (1, 9)]).is_canonical());
         assert!(!ClassPriorIdentityWire::Pairs(vec![(1, 9), (1, 3)]).is_canonical());
         assert!(ClassPriorIdentityWire::Ordered(vec![9, 3]).is_canonical());
+        assert!(ClassPriorIdentityWire::Uniform.is_canonical());
+
+        // Class-prior annotations: a canonical, unannotated base and at least one declaration,
+        // each in the form the class prior builds.
+        let annotated = |base: ClassPriorIdentityWire,
+                         assumption: Option<&str>,
+                         exact_limit: Option<u64>,
+                         sampling: Option<(u64, u64)>| {
+            ClassPriorIdentityWire::Annotated {
+                base: Box::new(base),
+                assumption: assumption.map(str::to_owned),
+                exact_limit,
+                sampling,
+            }
+        };
+        let uniform = || ClassPriorIdentityWire::Uniform;
+        assert!(annotated(uniform(), Some("assumption.uniform"), None, None).is_canonical());
+        assert!(annotated(uniform(), None, Some(8), Some((100, 7))).is_canonical());
+        assert!(!annotated(uniform(), None, None, None).is_canonical());
+        assert!(!annotated(uniform(), Some(""), None, None).is_canonical());
+        assert!(!annotated(uniform(), Some(" padded "), None, None).is_canonical());
+        assert!(!annotated(uniform(), None, Some(0), None).is_canonical());
+        assert!(
+            !annotated(uniform(), None, Some(ClassPriorIdentityWire::DEFAULT_EXACT_LIMIT), None)
+                .is_canonical()
+        );
+        assert!(!annotated(uniform(), None, None, Some((0, 7))).is_canonical());
+        let unsorted = ClassPriorIdentityWire::Pairs(vec![(2, 3), (1, 9)]);
+        assert!(!annotated(unsorted, Some("a"), None, None).is_canonical());
+        let nested = annotated(uniform(), Some("a"), None, None);
+        assert!(!annotated(nested, Some("b"), None, None).is_canonical());
 
         // Transport: canonical selection graph and strictly ascending targets.
         let transport = |targets: Vec<u32>| TransportIdentityWire {
