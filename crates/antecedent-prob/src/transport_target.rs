@@ -353,6 +353,18 @@ impl WeightedTarget {
         &self.adjustment.target_weights
     }
 
+    /// The unit-level effects, aligned with [`Self::weights`].
+    #[must_use]
+    pub fn unit_effects(&self) -> &[f64] {
+        &self.adjustment.unit_effects
+    }
+
+    /// The declared ESS-fraction floor.
+    #[must_use]
+    pub const fn min_ess_fraction(&self) -> f64 {
+        self.min_ess_fraction
+    }
+
     /// The declared kernel, when the weights came from one.
     #[must_use]
     pub const fn kernel(&self) -> Option<TransportKernel> {

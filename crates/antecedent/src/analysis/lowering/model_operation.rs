@@ -21,6 +21,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
 
+use crate::analysis::supplied_identity::Canonical;
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -33,7 +34,7 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 /// Domain tag of an operation's question digest.
 const QUERY_TAG: &str = "antecedent.model_operation.query";
 /// Domain tag of the fitted model's digest.
-const MODEL_TAG: &str = "antecedent.model_operation.model";
+const MODEL_TAG: &str = "antecedent.model_operation.model.v2";
 
 fn error(message: impl std::fmt::Display) -> CausalError {
     crate::compile_reason!("invalid_argument", "model_operation.lowering: {message}")
@@ -60,6 +61,8 @@ fn model_digest(source: &OperationSource<'_>) -> [u8; 32] {
     for (from, to) in edges {
         writer.word(u64::from(from)).word(u64::from(to));
     }
+    // The edges index dense nodes; each dense node's label names the variable it fits.
+    Canonical::encode(source.graph.nodes(), &mut writer);
     writer.finish()
 }
 

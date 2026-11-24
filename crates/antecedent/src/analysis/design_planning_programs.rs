@@ -47,7 +47,7 @@ use antecedent_design::{
     ZTransportRepairFamily, plan_studies, plan_z_transport_evidence, snapshot_z_transport_failure,
 };
 use antecedent_design::{DesignCost, FailedContract, TransportEvidenceCandidate};
-use antecedent_graph::{Admg, SelectionDiagram};
+use antecedent_graph::{Admg, Dag, SelectionDiagram};
 use antecedent_identify::{SidLimits, StudyPlanLimits, StudyPlanRoute, ZTransportQuery};
 use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogDeltaWire, EvidenceCatalogWire};
 use antecedent_io_core::transport_query_wire::{
@@ -857,17 +857,16 @@ fn variables(out: &mut CanonicalWriter, values: &[VariableId]) {
     }
 }
 
-/// A graph's canonical identity wire (sorted edge lists), or the encoding error.
-fn graph_wire(
-    out: &mut CanonicalWriter,
-    wire: Result<antecedent_io_core::identity::GraphIdentityWire, antecedent_io_core::IoError>,
-) {
-    match wire {
+/// A DAG's canonical identity wire (sorted edge lists), or the encoding error, then the label of
+/// every dense node in dense order (the wire indexes dense nodes; the labels name variables).
+fn dag_field(out: &mut CanonicalWriter, dag: &Dag) {
+    match antecedent_io_core::identity::dag_identity(dag) {
         Ok(wire) => Wire(&wire).encode(out),
         Err(error) => {
             out.text("unencodable").text(&error.to_string());
         }
     }
+    dag.nodes().encode(out);
 }
 
 /// The treatment, outcome, population and current joint law of a frozen failed contract.
@@ -896,17 +895,17 @@ impl Canonical for RepairContract {
             Self::Route(route) => match route {
                 FailureRoute::Backdoor(family) => {
                     variant(out, "backdoor");
-                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    dag_field(out, family.dag());
                     failed_contract(out, &**family);
                 }
                 FailureRoute::FrontDoor(family) => {
                     variant(out, "front_door");
-                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    dag_field(out, family.dag());
                     failed_contract(out, &**family);
                 }
                 FailureRoute::Instrument(family) => {
                     variant(out, "instrument");
-                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    dag_field(out, family.dag());
                     failed_contract(out, &**family);
                 }
                 FailureRoute::Hedge(family) => {
@@ -917,7 +916,7 @@ impl Canonical for RepairContract {
                 }
                 FailureRoute::Sensitivity(family) => {
                     variant(out, "sensitivity");
-                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    dag_field(out, family.dag());
                     failed_contract(out, &**family);
                 }
                 // A route added later is written by its family's name, label and obligations.
@@ -1035,6 +1034,8 @@ impl Canonical for DiagramField<'_> {
                 out.text("unencodable").text(&error.to_string());
             }
         }
+        // The wire indexes dense nodes; each dense node's label names its variable.
+        self.0.causal_graph().nodes().encode(out);
     }
 }
 

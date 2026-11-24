@@ -18,6 +18,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
 use antecedent_model::GraphFalsificationConfig;
 
+use crate::analysis::supplied_identity::Canonical;
 use crate::error::CausalError;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
@@ -28,7 +29,7 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{Realization, StatisticalProgram};
 
 /// Domain tag of the declared graph's digest.
-const GRAPH_TAG: &str = "antecedent.graph_falsification.graph";
+const GRAPH_TAG: &str = "antecedent.graph_falsification.graph.v2";
 /// Domain tag of the falsification question's digest.
 const QUERY_TAG: &str = "antecedent.graph_falsification.query";
 /// Plan id and evaluator of the route.
@@ -42,7 +43,8 @@ fn error(message: impl std::fmt::Display) -> CausalError {
     )
 }
 
-/// Digest of the declared DAG: its node count and sorted directed edges.
+/// Digest of the declared DAG: its node count, sorted directed edges and the label of every
+/// dense node in dense order (the edges index dense nodes; the labels name the variables).
 fn graph_digest(graph: &Dag) -> [u8; 32] {
     let mut writer = CanonicalWriter::new(GRAPH_TAG);
     writer.word(graph.node_count() as u64);
@@ -51,6 +53,7 @@ fn graph_digest(graph: &Dag) -> [u8; 32] {
     for (from, to) in edges {
         writer.word(u64::from(from)).word(u64::from(to));
     }
+    Canonical::encode(graph.nodes(), &mut writer);
     writer.finish()
 }
 
@@ -162,4 +165,41 @@ pub(crate) fn lower(
         claim,
     }
     .finish())
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use antecedent_core::{NodeRef, VariableId};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_model::GraphFalsificationConfig;
+
+    use super::{graph_digest, query_digest};
+
+    fn dag(labels: &[u32], edges: &[(u32, u32)]) -> Dag {
+        let mut dag = Dag::empty();
+        for &label in labels {
+            dag.add_node(NodeRef::Static(VariableId::from_raw(label))).unwrap();
+        }
+        for &(from, to) in edges {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        dag
+    }
+
+    #[test]
+    fn the_graph_identity_is_its_sorted_edges_and_its_node_labels() {
+        let base = graph_digest(&dag(&[0, 1, 2], &[(0, 1), (1, 2)]));
+        assert_eq!(base, graph_digest(&dag(&[0, 1, 2], &[(1, 2), (0, 1)])), "edge order");
+        assert_ne!(base, graph_digest(&dag(&[0, 1, 2], &[(0, 2), (1, 2)])), "a changed edge");
+        assert_ne!(base, graph_digest(&dag(&[0, 1, 7], &[(0, 1), (1, 2)])), "a changed label");
+    }
+
+    #[test]
+    fn the_query_identity_reads_every_control_by_its_bits() {
+        let graph = graph_digest(&dag(&[0, 1], &[(0, 1)]));
+        let config = |alpha: f64| GraphFalsificationConfig { alpha, ..Default::default() };
+        assert_eq!(query_digest(graph, &config(0.05)), query_digest(graph, &config(0.05)));
+        assert_ne!(query_digest(graph, &config(0.05)), query_digest(graph, &config(0.1)));
+        assert_ne!(query_digest(graph, &config(0.0)), query_digest(graph, &config(-0.0)));
+    }
 }
