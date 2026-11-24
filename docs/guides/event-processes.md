@@ -12,7 +12,7 @@ The branching entry `α` is the expected number of direct children over the whol
 
 Lifetime descendants, excluding the initiating event, are the matching column of `(I - A)^{-1} - I`. The resolvent itself counts the initiator. Descendants inside a finite horizon come from the linear filter ODE. They are not the resolvent of the horizon-discounted matrix `α (1 - exp(-β H))`, which would give every generation the full horizon.
 
-`HawkesParameters::excitation_offspring` reports all four quantities as functionals of the conditional intensity.
+`Study::prepare_excitation_offspring` (and `prepare_marked_offspring` for a marked kernel) compiles the query and reports all four quantities as functionals of the conditional intensity. In Python the operation is `offspring` (or `marked_offspring`) of `events.prepare`.
 
 ## Finite-rank marks
 
@@ -22,19 +22,19 @@ The rank and the basis are capped by the same dense-feature allowance as the cat
 
 ## Immigrant diagnostic
 
-An excitation mass is a conditional intensity. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The diagnostic agrees when the horizon-specific direct masses differ by at most the caller's tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `agreed_direct` withholds the mass.
+An excitation mass is a conditional intensity. `prepare_excitation_challenge` fits the constant-baseline model and a second model whose immigrant intensity may follow a declared nonnegative feature, such as a trend that is zero early and positive late. The diagnostic agrees when the horizon-specific direct masses differ by at most the caller's tolerance and neither fit is weakly identified or pinned to its stability cap. Otherwise the result names the reason and `agreed_direct` withholds the mass. The challenge runs as a compiled program of the `HawkesExcitation` route.
 
 Agreement is not an identification result. A latent trend can enter both fits, and the tolerance is declared rather than derived from an uncertainty test. A causal reading still needs an identification strategy, or explicit structural assumptions, and the evidence that supports them.
 
-`compare_release_times` runs only after the diagnostic agrees. It scores the constant-baseline kernel's offspring of one added event over each remaining horizon. That is a conditional scenario under the agreed diagnostic, not an identified response to the release. A utility over path outcomes is still a decision contract on the event worlds.
+`Study::prepare_release_comparison` (and `prepare_marked_release_comparison`) fits the challenge and compares the two releases only when the diagnostic agrees; a withheld reading reports no comparison. It scores the constant-baseline kernel's offspring of one added event over each remaining horizon. That is a conditional scenario under the agreed diagnostic, not an identified response to the release. A utility over path outcomes is still a decision contract on the event worlds.
 
 ## Parameter bridge and an intervened law
 
 An agreed direct mass can be offered to the parameter-intervention bridge. The source and target functionals must be `direct_offspring`, the map must be an identity or an affine map, and the evidence is the provenance digest of an accepted discovery that orients the exposure into the outcome. A reverse edge, a symmetric edge, a confounder, or an edge the discovery left unoriented refuses. A lead on the kernel, a symmetric kernel, a singular Gram, or an active stability cap refuses before the bridge is asked. The fitted regime stays `observational` and the response names a different regime. `derive_bridged_claim` then carries that one mean. Horizon and lifetime descendants are reported beside it and are not the bridged value. A withheld diagnostic produces no law.
 
-The release action is one added event: now, at a later time, or under a different mark. `release_law` draws the offspring of that event. A marked history becomes a catalog with one name per prototype, so the existing paired worlds and decision contract can read the paths. Those paths are a conditional scenario under the kernel the bridge kept. They are not, by themselves, the utility of releasing.
+The release action is one added event: now, at a later time, or under a different mark. `Study::prepare_release_law` (or `AcceptedExcitation::release_law`, which compiles and runs it) draws the offspring of that event as a program composed on the accepted question. `Study::prepare_release_question` compiles the challenge, the bridge and one release action as one program; Python's `excitation_question` operation runs it. A marked history becomes a catalog with one name per prototype, so the existing paired worlds and decision contract can read the paths. Those paths are a conditional scenario under the kernel the bridge kept. They are not, by themselves, the utility of releasing.
 
-A shock that moves the exposure and is excluded from the outcome leaves the Hawkes model. The result is a lag-count query — the exposure, the outcome, the horizon, and the instrument — and it does not return an excitation coefficient. An ordinary identified query can take that lag. The observation study sets `release_information` only when every hypothesis is the catalog kernel the bridge kept. A marked kernel is not priced that way.
+A shock that moves the exposure and is excluded from the outcome leaves the Hawkes model. The result is a lag-count query — the exposure, the outcome, the horizon, and the instrument — and it does not return an excitation coefficient. An ordinary identified query can take that lag. `Study::prepare_release_study` composes the observation study on the accepted question only when every hypothesis is the catalog kernel the bridge kept, and `PreparedEventStudy::release_information` then reports that the signal prices the release. A marked kernel is not priced that way.
 
 For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
 
