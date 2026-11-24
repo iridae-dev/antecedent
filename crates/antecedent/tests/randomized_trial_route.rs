@@ -813,16 +813,22 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
         )
         .is_err()
     );
-    let bernoulli = RandomizedEffectQuery::bernoulli_itt(
-        VariableId::from_raw(0),
-        [true, false, true, false],
-        [0.5; 4],
-        ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
-        ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
-        ("control", "treated"),
-    )
-    .with_exact_randomization_test();
-    assert!(bernoulli.validate().is_err());
+    // A Bernoulli design is tested exactly while its probability-weighted assignments can be
+    // enumerated: at most twenty rows.
+    let bernoulli = |n: usize| {
+        RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(0),
+            (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>(),
+            vec![0.5; n],
+            (0..n).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..n).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+            ("control", "treated"),
+        )
+        .with_exact_randomization_test()
+    };
+    assert!(bernoulli(4).validate().is_ok());
+    assert!(bernoulli(20).validate().is_ok());
+    assert!(bernoulli(21).validate().is_err());
 }
 
 #[test]

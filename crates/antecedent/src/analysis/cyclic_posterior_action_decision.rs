@@ -1041,7 +1041,7 @@ mod tests {
         assert_eq!(result.decision.decision.n_draws, 6000);
         // Independent closed form: with the advertising clamp moved from 0 to 1 the shared
         // disturbances cancel and the wishlists change is 0.2 / (1 - 0.2 b) for the sampled
-        // feedback weight b of that draw. The planted weight is 0.3.
+        // feedback weight b of that draw.
         let columns = &result.decision.chain.record().sources;
         assert_eq!(columns.len(), 2);
         let mut mean_weight = 0.0;
@@ -1053,7 +1053,36 @@ mod tests {
             mean_weight += parameters[0];
         }
         mean_weight /= result.posterior.samples.len() as f64;
-        assert!((mean_weight - 0.3).abs() < 0.15, "posterior mean weight {mean_weight}");
+        // The sampled weights follow the exact posterior of b, integrated here on a grid: the
+        // Gaussian equilibrium likelihood of the training rows (wishlists = b traffic + 0.2 ads
+        // and traffic = 0.2 wishlists, each disturbance of variance 0.04, Jacobian 1 - 0.2 b)
+        // times the N(0, 1) prior. The rows are generated with b = 0.3 but with deterministic
+        // disturbances of variance 0.02, so the declared model's posterior centres near 0.02,
+        // with standard deviation about 0.077.
+        let rows = request().training;
+        let log_posterior = |b: f64| {
+            let mut sum = 0.0;
+            for row in &rows {
+                let (wishlists, traffic, ads) = (row.values[0], row.values[1], row.values[2]);
+                let wishlist_error = wishlists - b * traffic - 0.2 * ads;
+                let traffic_error = traffic - 0.2 * wishlists;
+                sum -= (wishlist_error * wishlist_error + traffic_error * traffic_error) / 0.08;
+            }
+            sum + rows.len() as f64 * (1.0 - 0.2 * b).abs().ln() - 0.5 * b * b
+        };
+        let grid: Vec<f64> = (0..=20_000).map(|k| -1.0 + f64::from(k) * 1e-4).collect();
+        let peak = grid.iter().map(|&b| log_posterior(b)).fold(f64::NEG_INFINITY, f64::max);
+        let (mut mass, mut first) = (0.0, 0.0);
+        for &b in &grid {
+            let density = (log_posterior(b) - peak).exp();
+            mass += density;
+            first += b * density;
+        }
+        let exact_mean = first / mass;
+        assert!(
+            (mean_weight - exact_mean).abs() < 0.02,
+            "posterior mean weight {mean_weight}, exact {exact_mean}"
+        );
         assert!(matches!(
             &result.decision.decision.verdict,
             antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)

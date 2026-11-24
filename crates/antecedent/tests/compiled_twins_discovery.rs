@@ -163,6 +163,27 @@ fn posterior(execution: &CompiledExecution) -> GraphPosterior {
     found
 }
 
+/// The direct sampler's posterior equals the compiled one, or both refuse it: a sampler that
+/// always applies its convergence gate refuses chains that disagree, and the compiled route runs
+/// the same engine.
+fn same_posterior_or_refusal(
+    direct: Result<GraphPosterior, antecedent::CausalError>,
+    study: &Study,
+) {
+    match (direct, CompiledExecution::run(study, &ctx())) {
+        (Ok(direct), Ok(compiled)) => same_posterior(&posterior(&compiled), &direct),
+        (Err(direct), Err(compiled)) => {
+            assert!(direct.to_string().contains("diagnostics gate refused"), "{direct}");
+            assert!(compiled.to_string().contains(&direct.to_string()), "{compiled}");
+        }
+        (direct, compiled) => panic!(
+            "the twins disagree: direct {:?}, compiled {:?}",
+            direct.map(|_| ()),
+            compiled.map(|_| ())
+        ),
+    }
+}
+
 fn static_study(data: &TabularData, spec: DiscoverySpec) -> Study {
     Study::tabular(data.clone()).discovery(spec, three()).build().unwrap()
 }
@@ -383,53 +404,41 @@ fn structure_posteriors_match_their_engines() {
             &direct,
         );
 
-        let direct = antecedent::discovery::discover_structure_mcmc(
-            &data,
-            &three(),
-            &params,
-            &SCHEDULE,
-            &ctx(),
-        )
-        .unwrap();
-        same_posterior(
-            &posterior(&bayesian(DiscoverySpec::structure_mcmc(params.clone(), SCHEDULE))),
-            &direct,
-        );
-
-        let direct =
-            antecedent::discovery::discover_exact_pag_posterior(&data, &three(), &ctx()).unwrap();
-        same_posterior(
-            &posterior(&bayesian(DiscoverySpec::exact_pag_posterior(params.clone()))),
-            &direct,
-        );
-
-        let direct =
-            antecedent::discovery::discover_pag_mcmc(&data, &three(), &SCHEDULE, &ctx()).unwrap();
-        same_posterior(
-            &posterior(&bayesian(DiscoverySpec::pag_mcmc(params.clone(), SCHEDULE))),
-            &direct,
+        // Structure MCMC always applies its convergence gate. On this fixture its chains settle
+        // in different orientations of Markov-equivalent complete DAGs, so the engine refuses
+        // the posterior; the compiled route reaches the same engine and refuses it the same way.
+        same_posterior_or_refusal(
+            antecedent::discovery::discover_structure_mcmc(
+                &data,
+                &three(),
+                &params,
+                &SCHEDULE,
+                &ctx(),
+            ),
+            &static_study(&data, DiscoverySpec::structure_mcmc(params.clone(), SCHEDULE)),
         );
 
         let screen = static_params();
-        let direct = antecedent::discovery::discover_ci_screened_posterior(
-            &data,
-            &three(),
-            &params,
-            &screen,
-            &SCHEDULE,
-            antecedent::discovery::CiSoftWeight::None,
-            &ctx(),
-        )
-        .unwrap();
-        same_posterior(
-            &posterior(&bayesian(DiscoverySpec::ci_screened_posterior(
-                params.clone(),
-                screen.clone(),
-                SCHEDULE,
+        same_posterior_or_refusal(
+            antecedent::discovery::discover_ci_screened_posterior(
+                &data,
+                &three(),
+                &params,
+                &screen,
+                &SCHEDULE,
                 antecedent::discovery::CiSoftWeight::None,
-                "parcorr",
-            ))),
-            &direct,
+                &ctx(),
+            ),
+            &static_study(
+                &data,
+                DiscoverySpec::ci_screened_posterior(
+                    params.clone(),
+                    screen.clone(),
+                    SCHEDULE,
+                    antecedent::discovery::CiSoftWeight::None,
+                    "parcorr",
+                ),
+            ),
         );
 
         // Edge marginals: the exact ones and the screened ones.

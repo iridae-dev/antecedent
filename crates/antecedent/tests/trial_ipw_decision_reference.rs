@@ -385,7 +385,7 @@ fn a_decision_off_the_effect_coordinate_and_an_undeclared_premise_refuse() {
         decision,
     };
     assert!(compile_trial_ipw_transport_decision(request).is_err());
-    // A single trial arm has no inverse-odds contrast: the producer refuses to draw.
+    // A single trial arm has no inverse-odds contrast: the rows are refused before any draw.
     let (diagram, query) = diagram_and_query();
     let (decision, coordinate) = effect_decision(1.0);
     let mut one_arm = rows(outcomes, SELECTION, ASSIGNMENT);
@@ -394,13 +394,12 @@ fn a_decision_off_the_effect_coordinate_and_an_undeclared_premise_refuse() {
             *treated = true;
         }
     }
-    let plan = compile_trial_ipw_transport_decision(TrialIpwTransportDecisionRequest {
+    let refused = compile_trial_ipw_transport_decision(TrialIpwTransportDecisionRequest {
         diagram,
         query,
         rows: one_arm,
         quantity: coordinate,
         decision,
-    })
-    .unwrap();
-    assert!(plan.execute(&ExecutionContext::for_tests(31)).is_err());
+    });
+    assert!(refused.is_err());
 }
