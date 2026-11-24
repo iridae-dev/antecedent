@@ -98,9 +98,13 @@ def test_evalue_of_a_standardized_difference_warns_and_the_compiled_range_reprod
     _same_numbers(compiled, direct)
 
 
-def test_evalue_of_a_ratio_keeps_its_direct_path_without_a_warning(recwarn):
-    v.evalue(3.9, lower=1.8, upper=8.7, scale="risk_ratio")
-    assert not [w for w in recwarn if issubclass(w.category, AntecedentDeprecationWarning)]
+def test_evalue_of_a_ratio_warns_and_the_compiled_supplied_estimate_reproduces_it():
+    with pytest.warns(AntecedentDeprecationWarning, match="supplied_evalue"):
+        direct = v.evalue(3.9, lower=1.8, upper=8.7, scale="risk_ratio")
+    compiled = v.supplied_evalue(3.9, lower=1.8, upper=8.7, scale="risk_ratio")
+    for key in ("risk_ratio", "risk_ratio_limit", "evalue", "evalue_limit"):
+        assert compiled.summary[key] == direct.summary[key], key
+    assert compiled.range == direct.range
 
 
 def test_mediation_component_and_path_warn_for_one_outcome_and_the_compiled_ranges_reproduce_them():

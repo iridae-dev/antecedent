@@ -7,7 +7,10 @@
   :class:`AssumptionRange` tied to its target (what is assumed, the range tested, the
   break-even value): :func:`evalue`, :func:`omitted_variable_bias`,
   :func:`omitted_variable_bias_from_data`, :func:`rosenbaum_bounds`,
-  :func:`matched_sets_sensitivity`, :func:`amplify` and :func:`mediation_sensitivity`.
+  :func:`matched_sets_sensitivity`, :func:`amplify` and :func:`mediation_sensitivity`. Supplied
+  evidence compiles through its own programs: :func:`matched_design_sensitivity` (matched pairs
+  and sets) and :func:`supplied_evalue`, :func:`supplied_evalue_vector` and
+  :func:`supplied_evalue_posterior` (estimates computed outside the library).
 * Target-native refutation: :func:`target_refutation_plan` (the refuter catalogue of a target
   family and quadrant), :func:`derivative_consistency`, :func:`local_linearity`,
   :func:`prior_sensitivity_target` and :func:`posterior_predictive_target`. A prepared study
@@ -46,7 +49,16 @@ from ._native import (
     sensitivity_evalue_vector as _sensitivity_evalue_vector,
 )
 from ._native import (
+    sensitivity_matched_pair_vector_compiled as _sensitivity_matched_pair_vector_compiled,
+)
+from ._native import (
+    sensitivity_matched_pairs_compiled as _sensitivity_matched_pairs_compiled,
+)
+from ._native import (
     sensitivity_matched_sets as _sensitivity_matched_sets,
+)
+from ._native import (
+    sensitivity_matched_sets_compiled as _sensitivity_matched_sets_compiled,
 )
 from ._native import (
     sensitivity_mediation as _sensitivity_mediation,
@@ -83,6 +95,15 @@ from ._native import (
 )
 from ._native import (
     sensitivity_rosenbaum_vector as _sensitivity_rosenbaum_vector,
+)
+from ._native import (
+    sensitivity_supplied_evalue_compiled as _sensitivity_supplied_evalue_compiled,
+)
+from ._native import (
+    sensitivity_supplied_evalue_posterior_compiled as _sensitivity_supplied_evalue_posterior_compiled,
+)
+from ._native import (
+    sensitivity_supplied_evalue_vector_compiled as _sensitivity_supplied_evalue_vector_compiled,
 )
 from ._native import (
     target_derivative_consistency as _target_derivative_consistency,
@@ -868,6 +889,8 @@ _SensitivityAnalysis = Literal[
     "msm_parameters",
     "msm_parameter_evalue",
     "msm_parameters_refit",
+    "msm_parameter_evalue_posterior",
+    "msm_parameters_ovb_posterior",
 ]
 
 _SensitivityVectorAnalysis = Literal[
@@ -937,7 +960,12 @@ def sensitivity_range(
     * ``"msm_parameters"``, ``"msm_parameter_evalue"`` and ``"msm_parameters_refit"``: the period
       parameters of the marginal structural model a longitudinal regime study fitted, with its
       stabilized weights held fixed or with the weight models of ``numerators`` and
-      ``denominators`` (column names per period) refitted in ``replicates`` bootstrap draws.
+      ``denominators`` (column names per period) refitted in ``replicates`` bootstrap draws;
+    * ``"msm_parameter_evalue_posterior"`` and ``"msm_parameters_ovb_posterior"``: the same period
+      parameters over the conjugate posterior of the route's weighted design (its weighted
+      likelihood with the weights normalized to the effective sample size, reference prior),
+      ``draws`` draws under the execution seed; each parameter draw is read with the residual
+      standard deviation of the same draw (``level``, ``r2yz_extreme``).
 
     The summary carries the keys of the direct function of the same analysis. Every number is an
     assumption range or a diagnostic; calibration is not measured.
@@ -1038,12 +1066,12 @@ def evalue(
     ``hazard_ratio_rare``, ``hazard_ratio_common`` or ``standardized_mean_difference`` (pass
     ``standard_error`` instead of limits). VanderWeele and Ding (2017).
     """
-    if scale == "standardized_mean_difference":
-        _deprecation.direct_path_deprecated(
-            "antecedent.validation.evalue",
-            "antecedent.validation.sensitivity_range(study, 'evalue') on the study's own "
-            "average effect, which reads the standardized mean difference of its result",
-        )
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.evalue",
+        "antecedent.validation.sensitivity_range(study, 'evalue') on the study's own "
+        "average effect, which reads the standardized mean difference of its result; for an "
+        "estimate computed outside the library, antecedent.validation.supplied_evalue",
+    )
     return _sensitivity(
         "evalue",
         _sensitivity_evalue(
@@ -1149,6 +1177,11 @@ def rosenbaum_bounds(
 ) -> SensitivityResult:
     """Wilcoxon signed-rank upper-bound p-values of matched pairs under hidden bias ``Gamma``,
     and the break-even ``Gamma`` (exact law up to 300 non-zero pairs)."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.rosenbaum_bounds",
+        "antecedent.validation.matched_design_sensitivity(differences), which runs the same "
+        "signed-rank bounds through a compiled program",
+    )
     return _sensitivity(
         "rosenbaum",
         _sensitivity_rosenbaum(
@@ -1185,13 +1218,13 @@ def evalue_vector(
     The claim that every coordinate keeps its sign breaks at the smallest coordinate E-value,
     which is the range's ``break_even``.
     """
-    if scale == "standardized_mean_difference":
-        _deprecation.direct_path_deprecated(
-            "antecedent.validation.evalue_vector",
-            "antecedent.validation.sensitivity_vector_range(studies, 'evalue') over one study "
-            "per coordinate, or sensitivity_range(study, 'msm_parameter_evalue') for the "
-            "parameters of a marginal structural model",
-        )
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.evalue_vector",
+        "antecedent.validation.sensitivity_vector_range(studies, 'evalue') over one study "
+        "per coordinate, or sensitivity_range(study, 'msm_parameter_evalue') for the "
+        "parameters of a marginal structural model; for estimates computed outside the "
+        "library, antecedent.validation.supplied_evalue_vector",
+    )
 
     def floats(values: Sequence[float] | None) -> list[float] | None:
         return None if values is None else [float(v) for v in values]
@@ -1235,12 +1268,13 @@ def evalue_posterior(
     coordinate keeps its reported side of the null. ``break_even`` is the smallest E-value of a
     posterior median and ``break_even_significance`` the smallest E-value of a credible limit.
     """
-    if scale == "standardized_mean_difference" and model != "marginal_structural":
-        _deprecation.direct_path_deprecated(
-            "antecedent.validation.evalue_posterior",
-            "antecedent.validation.sensitivity_range(study, 'evalue_posterior') on a Bayesian "
-            "average effect, or 'mediation_component_evalue_posterior' on a mediation study",
-        )
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.evalue_posterior",
+        "antecedent.validation.sensitivity_range(study, 'evalue_posterior') on a Bayesian "
+        "average effect, 'mediation_component_evalue_posterior' on a mediation study or "
+        "'msm_parameter_evalue_posterior' on a marginal structural model; for draws computed "
+        "outside the library, antecedent.validation.supplied_evalue_posterior",
+    )
     return _sensitivity(
         "evalue_posterior",
         _sensitivity_evalue_posterior(
@@ -1323,13 +1357,12 @@ def omitted_variable_bias_posterior(
     the null by ``bias_scale * sqrt(R2yz * R2dz / (1 - R2dz))`` (Cinelli and Hazlett 2020).
     ``test`` is the joint posterior probability that every coordinate keeps its side.
     """
-    if model != "marginal_structural":
-        _deprecation.direct_path_deprecated(
-            "antecedent.validation.omitted_variable_bias_posterior",
-            "antecedent.validation.sensitivity_range(study, 'omitted_variable_bias_posterior') "
-            "on a Bayesian average effect, or 'mediation_component_ovb_posterior' on a "
-            "mediation study",
-        )
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.omitted_variable_bias_posterior",
+        "antecedent.validation.sensitivity_range(study, 'omitted_variable_bias_posterior') "
+        "on a Bayesian average effect, 'mediation_component_ovb_posterior' on a mediation "
+        "study or 'msm_parameters_ovb_posterior' on a marginal structural model",
+    )
     return _sensitivity(
         "omitted_variable_bias_posterior",
         _sensitivity_ovb_posterior(
@@ -1587,6 +1620,11 @@ def rosenbaum_bounds_vector(
     largest upper-bound p-value across coordinates and ``break_even_significance`` the smallest
     ``Gamma*`` (absent when some coordinate does not reject at ``Gamma = 1``).
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.rosenbaum_bounds_vector",
+        "antecedent.validation.matched_design_sensitivity(differences, labels=labels), which "
+        "runs the same vector bounds through a compiled program",
+    )
     return _sensitivity(
         "rosenbaum_vector",
         _sensitivity_rosenbaum_vector(
@@ -1610,6 +1648,11 @@ def matched_sets_sensitivity(
 ) -> SensitivityResult:
     """Rosenbaum bounds for matched sets ``(outcomes, treated_index)`` with several controls
     (separable approximation of Gastwirth, Krieger and Rosenbaum 2000)."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.matched_sets_sensitivity",
+        "antecedent.validation.matched_design_sensitivity(sets=sets), which runs the same "
+        "matched-set bounds through a compiled program",
+    )
     return _sensitivity(
         "matched_sets",
         _sensitivity_matched_sets(
@@ -1617,6 +1660,186 @@ def matched_sets_sensitivity(
             score=score,
             gammas=None if gammas is None else [float(g) for g in gammas],
             alpha=alpha,
+        ),
+    )
+
+
+def matched_design_sensitivity(
+    differences: Sequence[float] | Sequence[Sequence[float]] | None = None,
+    *,
+    sets: Sequence[tuple[Sequence[float], int]] | None = None,
+    labels: Sequence[str] | None = None,
+    score: str = "aligned_ranks",
+    gammas: Sequence[float] | None = None,
+    alpha: float = 0.05,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    execution: Execution | None = None,
+) -> SensitivityResult:
+    """Rosenbaum hidden-bias bounds of a matched design you supply, through a compiled program.
+
+    Give exactly one design:
+
+    * ``differences`` (treated minus control) of matched pairs: the Wilcoxon signed-rank
+      upper-bound p-values under hidden bias ``Gamma`` and the break-even ``Gamma`` (method
+      ``"rosenbaum"``); with ``labels``, ``differences[k]`` are the pairs behind coordinate ``k``
+      of a vector target (``family``, ``temporal``) read at its weakest coordinate (method
+      ``"rosenbaum_vector"``);
+    * ``sets`` of ``(outcomes, treated_index)`` with several controls: the separable
+      approximation of Gastwirth, Krieger and Rosenbaum (2000) on ``score`` (method
+      ``"matched_sets"``).
+
+    The summary carries the keys of :func:`rosenbaum_bounds`, :func:`rosenbaum_bounds_vector` or
+    :func:`matched_sets_sensitivity`, with the same numbers, and ``program``, the identity of the
+    compiled program. Calibration is not measured.
+    """
+    if (differences is None) == (sets is None):
+        raise CausalTypeError("give exactly one of differences and sets")
+    gamma_grid = None if gammas is None else [float(g) for g in gammas]
+    controls = native_controls(execution, seed="seed", threads="threads")
+    if sets is not None:
+        if labels is not None:
+            raise CausalTypeError("labels name the coordinates of matched-pair differences")
+        return _sensitivity(
+            "matched_sets",
+            _sensitivity_matched_sets_compiled(
+                [([float(y) for y in outcomes], int(treated)) for outcomes, treated in sets],
+                score=score,
+                gammas=gamma_grid,
+                alpha=alpha,
+                **controls,
+            ),
+        )
+    if labels is None:
+        pairs: Sequence[Any] = differences if differences is not None else ()
+        return _sensitivity(
+            "rosenbaum",
+            _sensitivity_matched_pairs_compiled(
+                [float(d) for d in pairs],
+                gammas=gamma_grid,
+                alpha=alpha,
+                target_source=target_source,
+                **controls,
+            ),
+        )
+    columns: Sequence[Any] = differences if differences is not None else ()
+    return _sensitivity(
+        "rosenbaum_vector",
+        _sensitivity_matched_pair_vector_compiled(
+            [[float(d) for d in column] for column in columns],
+            [str(label) for label in labels],
+            gammas=gamma_grid,
+            alpha=alpha,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+            **controls,
+        ),
+    )
+
+
+def supplied_evalue(
+    estimate: float,
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+    standard_error: float | None = None,
+    scale: str = "risk_ratio",
+    target_source: str | None = None,
+    execution: Execution | None = None,
+) -> SensitivityResult:
+    """E-values of an effect estimate computed outside the library, through a compiled program.
+
+    The arguments and the summary are those of :func:`evalue` (VanderWeele and Ding 2017), with
+    the same numbers, and ``program``, the identity of the compiled program. For a study the
+    library estimated, :func:`sensitivity_range` reads the estimate from the study instead.
+    """
+    return _sensitivity(
+        "evalue",
+        _sensitivity_supplied_evalue_compiled(
+            float(estimate),
+            lower=None if lower is None else float(lower),
+            upper=None if upper is None else float(upper),
+            standard_error=None if standard_error is None else float(standard_error),
+            scale=scale,
+            target_source=target_source,
+            **native_controls(execution, seed="seed", threads="threads"),
+        ),
+    )
+
+
+def supplied_evalue_vector(
+    estimates: Sequence[float],
+    labels: Sequence[str],
+    *,
+    lowers: Sequence[float] | None = None,
+    uppers: Sequence[float] | None = None,
+    standard_errors: Sequence[float] | None = None,
+    scale: str = "risk_ratio",
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+    execution: Execution | None = None,
+) -> SensitivityResult:
+    """E-values of every coordinate of a vector of estimates computed outside the library, read
+    at the weakest coordinate, through a compiled program.
+
+    The arguments and the summary are those of :func:`evalue_vector`, with the same numbers, and
+    ``program``, the identity of the compiled program.
+    """
+
+    def floats(values: Sequence[float] | None) -> list[float] | None:
+        return None if values is None else [float(v) for v in values]
+
+    return _sensitivity(
+        "evalue_vector",
+        _sensitivity_supplied_evalue_vector_compiled(
+            [float(e) for e in estimates],
+            [str(label) for label in labels],
+            lowers=floats(lowers),
+            uppers=floats(uppers),
+            standard_errors=floats(standard_errors),
+            scale=scale,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+            model=model,
+            **native_controls(execution, seed="seed", threads="threads"),
+        ),
+    )
+
+
+def supplied_evalue_posterior(
+    draws: Sequence[Sequence[float]],
+    labels: Sequence[str],
+    *,
+    scale: str = "risk_ratio",
+    level: float = 0.95,
+    family: str = "conditional_effect",
+    temporal: bool = False,
+    target_source: str | None = None,
+    model: str | None = None,
+    execution: Execution | None = None,
+) -> SensitivityResult:
+    """E-values of posterior draws computed outside the library, through a compiled program.
+
+    The arguments and the summary are those of :func:`evalue_posterior`, with the same numbers,
+    and ``program``, the identity of the compiled program.
+    """
+    return _sensitivity(
+        "evalue_posterior",
+        _sensitivity_supplied_evalue_posterior_compiled(
+            [[float(v) for v in column] for column in draws],
+            [str(label) for label in labels],
+            scale=scale,
+            level=level,
+            family=family,
+            temporal=temporal,
+            target_source=target_source,
+            model=model,
+            **native_controls(execution, seed="seed", threads="threads"),
         ),
     )
 
@@ -1815,6 +2038,7 @@ __all__ = [
     "evalue_posterior",
     "evalue_vector",
     "local_linearity",
+    "matched_design_sensitivity",
     "matched_sets_sensitivity",
     "mediation_path_sensitivity",
     "mediation_sensitivity",
@@ -1832,6 +2056,9 @@ __all__ = [
     "rosenbaum_bounds_vector",
     "sensitivity_range",
     "sensitivity_vector_range",
+    "supplied_evalue",
+    "supplied_evalue_posterior",
+    "supplied_evalue_vector",
     "target_refutation_plan",
     "validate_environment_holdout",
     "validate_pcmci_alpha_sensitivity",
