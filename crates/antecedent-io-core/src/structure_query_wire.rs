@@ -1057,17 +1057,6 @@ pub enum SimulationTargetWire {
         /// History before the panel.
         history: Vec<f64>,
     },
-    /// Nested counterfactual mean over the study's rows.
-    NestedCounterfactual {
-        /// Outer-world interventions.
-        outer: Vec<InterventionWire>,
-        /// Inner-world interventions.
-        inner: Vec<InterventionWire>,
-        /// Variables held at their outer-world values.
-        frozen: Vec<u32>,
-        /// Outcome.
-        outcome: u32,
-    },
     /// A simulation whose program holds an in-process callback. It runs in the process
     /// that holds the callback; the wire records the target and the canonical digest of
     /// the whole query, which commits to every callback's declaration (name, inputs,
@@ -1080,6 +1069,17 @@ pub enum SimulationTargetWire {
         digest: String,
         /// Names of the in-process callbacks.
         callbacks: Vec<String>,
+    },
+    /// Nested counterfactual mean over the study's rows.
+    NestedCounterfactual {
+        /// Outer-world interventions.
+        outer: Vec<InterventionWire>,
+        /// Inner-world interventions.
+        inner: Vec<InterventionWire>,
+        /// Variables held at their outer-world values.
+        frozen: Vec<u32>,
+        /// Outcome.
+        outcome: u32,
     },
 }
 
