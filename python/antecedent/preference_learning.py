@@ -76,6 +76,8 @@ from ._native import consume_accepted_preferences as _consume_accepted
 from ._native import estimate_preference_choice_model as _estimate_choice_model
 from ._native import learn_preference_set as _learn_set
 from ._native import preference_analysis_options as _analysis_options
+from ._preference_contracts import _mean_wire
+from ._preference_declarations import _raise
 from ._scientific import ScientificResult
 from ._validate import real, text
 from .errors import CausalTypeError, CausalValueError
@@ -88,8 +90,6 @@ from .preferences import (
     PreferenceRefusal,
     Structures,
     ValueModel,
-    _mean_wire,
-    _raise,
 )
 
 # --------------------------------------------------------------------------- options

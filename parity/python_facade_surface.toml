@@ -4217,13 +4217,13 @@ python = "antecedent.preference_learning.load"
 rust = "antecedent::analysis::preference_decision::record_decision"
 kind = "fn"
 status = "bound"
-python = "antecedent.preferences.PreferenceDecision.export"
+python = "antecedent._preference_results.PreferenceDecision.export"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::export_decision"
 kind = "fn"
 status = "bound"
-python = "antecedent.preferences.PreferenceDecision.export"
+python = "antecedent._preference_results.PreferenceDecision.export"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::consume_decision"
@@ -4265,7 +4265,7 @@ python = "native:python/src/preferences_api.rs"
 rust = "antecedent::analysis::preference_decision::decide_with_context"
 kind = "fn"
 status = "bound"
-python = "antecedent.preferences.Contract.evaluate"
+python = "antecedent._preference_contracts.Contract.evaluate"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::decide"
@@ -4277,7 +4277,7 @@ reason = "The form of decide_with_context without an execution context; Python d
 rust = "antecedent::analysis::preference_decision::compile_preference_decision_across_prepared_studies"
 kind = "fn"
 status = "bound"
-python = "antecedent.preferences.Contract.compile"
+python = "antecedent._preference_contracts.Contract.compile"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::compile_preference_decision_across_studies"
@@ -4307,7 +4307,7 @@ reason = "Python builds a contract over accepted preferences in antecedent.prefe
 rust = "antecedent::analysis::preference_decision::record_decision_with_context"
 kind = "fn"
 status = "bound"
-python = "antecedent.preferences.PreferenceDecision.export"
+python = "antecedent._preference_results.PreferenceDecision.export"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::clopper_pearson"
