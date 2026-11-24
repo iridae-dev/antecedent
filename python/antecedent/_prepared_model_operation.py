@@ -96,8 +96,7 @@ class PreparedModelOperation:
             self._data,
             query=self._query,
             graph=list(self._edges),
-            seed=execution.seed,
-            threads=execution.threads,
+            execution=execution,
             inapplicable={},
         )
         execution._report_progress(1.0, "model_operation")

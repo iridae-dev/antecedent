@@ -66,6 +66,9 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.graph_falsification.GraphFalsification:execution_seed": "seed recorded on the result",
     "antecedent.graph_falsification.GraphFalsification:permutation_seed": "declared permutation seed",
     "antecedent.graph_falsification.evaluate_graph:permutation_seed": "declared permutation seed",
+    "antecedent.graph_falsification.falsify_study_graph:permutation_seed": (
+        "declared permutation seed"
+    ),
     "antecedent.latent_class.LatentClassEffects:seed": "seed recorded on the result",
     "antecedent.priors.SelectAlpha:seed": (
         "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
