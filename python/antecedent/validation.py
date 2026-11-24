@@ -709,18 +709,14 @@ class TargetRefutation(ScientificResult):
 
 
 @outcome_operation
-def refute_target(
+def _native_preparation(
     source: PreparedAnalysis[Any] | Outcome[Any],
-    *,
-    checks: TargetRefutationSpec | None = None,
-    execution: Execution | None = None,
-) -> TargetRefutation:
-    """Explicitly refit a study's complete target under declared perturbations.
-
-    A retained outcome reuses its exact original native result. A preparation
-    executes its original target once before the suite. Neither operation changes
-    the source. For different observations, first use :func:`antecedent.rebind`.
-    """
+    execution: Execution | None,
+    name: str,
+    operation: str,
+) -> tuple[Any, Execution, bool]:
+    """The native preparation, execution controls and completed flag of a follow-up operation
+    on a canonical prepared study or on its retained outcome."""
     from .estimation import _PreparedEngine as Engine
     from .prepared import PreparedAnalysis
 
@@ -736,18 +732,12 @@ def refute_target(
                 {
                     "code": "route_not_supported",
                     "detail": "target_refutation.live_result_required",
-                    "message": "refitting requires the retained native result, study and observations",
+                    "message": f"{operation} requires the retained native result, study and observations",
                 }
             )
-        raise CausalTypeError(
-            "refute_target requires a canonical prepared study or retained Outcome"
-        )
+        raise CausalTypeError(f"{name} requires a canonical prepared study or retained Outcome")
     if study._refused is not None:
         require_success(study._refused)
-    if checks is None:
-        checks = TargetRefutationSpec()
-    elif not isinstance(checks, TargetRefutationSpec):
-        raise CausalTypeError("checks must be TargetRefutationSpec or None")
     controls = study.execution if execution is None else execution
     if not isinstance(controls, Execution):
         raise CausalTypeError("execution must be Execution or None")
@@ -775,9 +765,31 @@ def refute_target(
                 "next_actions": ({"action": "use the outcome's original retained study"},),
             }
         )
+    return engine._native, controls, completed
+
+
+def refute_target(
+    source: PreparedAnalysis[Any] | Outcome[Any],
+    *,
+    checks: TargetRefutationSpec | None = None,
+    execution: Execution | None = None,
+) -> TargetRefutation:
+    """Explicitly refit a study's complete target under declared perturbations.
+
+    A retained outcome reuses its exact original native result. A preparation
+    executes its original target once before the suite. Neither operation changes
+    the source. For different observations, first use :func:`antecedent.rebind`.
+    """
+    native, controls, completed = _native_preparation(
+        source, execution, "refute_target", "refitting"
+    )
+    if checks is None:
+        checks = TargetRefutationSpec()
+    elif not isinstance(checks, TargetRefutationSpec):
+        raise CausalTypeError("checks must be TargetRefutationSpec or None")
     report = TargetRefutation._from_json(
         controls._call(
-            engine._native.refute_target_bound,
+            native.refute_target_bound,
             **asdict(checks),
             require_completed=completed,
             seed=controls.seed,
@@ -805,6 +817,87 @@ def refute_target(
     return replace(report, declaration=checks)
 
 
+_SensitivityAnalysis = Literal[
+    "evalue",
+    "omitted_variable_bias",
+    "mediation",
+    "mediation_component",
+    "mediation_path",
+    "marginal_sensitivity",
+]
+
+
+def sensitivity_range(
+    source: PreparedAnalysis[Any] | Outcome[Any],
+    analysis: _SensitivityAnalysis,
+    *,
+    q: float = 1.0,
+    alpha: float = 0.05,
+    r2yz_extreme: float = 1.0,
+    kd: float = 1.0,
+    ky: float | None = None,
+    component: Literal["indirect", "direct"] = "indirect",
+    path: Literal[
+        "treatment_mediator", "mediator_outcome", "treatment_outcome", "indirect"
+    ] = "indirect",
+    lambda_max: float = 2.0,
+    grid_points: int = 17,
+    decision_threshold: float | None = None,
+    tolerance: float = 1e-10,
+    execution: Execution | None = None,
+) -> SensitivityResult:
+    """One sensitivity analysis of a prepared study's own compiled result.
+
+    The analysis reads the treatment, outcome, mediator and adjustment set the compiled study
+    identified, on the observations that produced the result, and the range is bound to the
+    result's target (the identity of the compiled program). No estimate, standard error or
+    column is supplied. A retained outcome reuses its exact native result; a preparation
+    executes its target once first.
+
+    ``analysis`` is
+
+    * ``"evalue"``: E-values of the result's effect and interval as a standardized mean
+      difference, the effect over the residual standard deviation of the outcome regressed on
+      the treatment and the adjustment set (VanderWeele and Ding 2017; a 0/1 outcome refuses);
+    * ``"omitted_variable_bias"``: the partial-R2 analysis of the linear-adjustment coefficient
+      with benchmarks against every adjustment covariate (Cinelli and Hazlett 2020; ``q``,
+      ``alpha``, ``r2yz_extreme``, ``kd``, ``ky``);
+    * ``"mediation"``: the indirect effect against the mediator-outcome error correlation
+      (Imai, Keele and Yamamoto 2010);
+    * ``"mediation_component"``: the ``component`` (indirect or direct) against the same
+      correlation;
+    * ``"mediation_path"``: the partial-R2 analysis of one ``path`` of the mediation;
+    * ``"marginal_sensitivity"``: sharp bounds of a two-level average effect under the
+      marginal sensitivity model on the empirical strata of the adjustment set
+      (``lambda_max``, ``grid_points``, ``decision_threshold``, ``tolerance``).
+
+    The summary carries the keys of the direct function of the same analysis. Every number is an
+    assumption range or a diagnostic; calibration is not measured.
+    """
+    native, controls, completed = _native_preparation(
+        source, execution, "sensitivity_range", "a sensitivity range of an outcome"
+    )
+    raw = controls._call(
+        native.sensitivity_range_bound,
+        analysis,
+        q=float(q),
+        alpha=float(alpha),
+        r2yz_extreme=float(r2yz_extreme),
+        kd=float(kd),
+        ky=None if ky is None else float(ky),
+        component=component,
+        path=path,
+        lambda_max=float(lambda_max),
+        grid_points=int(grid_points),
+        decision_threshold=None if decision_threshold is None else float(decision_threshold),
+        tolerance=float(tolerance),
+        require_completed=completed,
+        seed=controls.seed,
+        threads=controls.threads,
+    )
+    return _sensitivity(analysis, raw)
+
+
 def evalue(
     estimate: float,
     *,
@@ -820,6 +913,12 @@ def evalue(
     ``hazard_ratio_rare``, ``hazard_ratio_common`` or ``standardized_mean_difference`` (pass
     ``standard_error`` instead of limits). VanderWeele and Ding (2017).
     """
+    if scale == "standardized_mean_difference":
+        _deprecation.direct_path_deprecated(
+            "antecedent.validation.evalue",
+            "antecedent.validation.sensitivity_range(study, 'evalue') on the study's own "
+            "average effect, which reads the standardized mean difference of its result",
+        )
     return _sensitivity(
         "evalue",
         _sensitivity_evalue(
@@ -852,6 +951,11 @@ def omitted_variable_bias(
     ``RV_{q,alpha}``, bounds for confounders ``kd``/``ky`` times as strong as each benchmark
     ``(name, R2_{D~Xj|X-j}, R2_{Y~Xj|D,X-j})``, and the extreme-scenario curve as the range.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.omitted_variable_bias",
+        "antecedent.validation.sensitivity_range(study, 'omitted_variable_bias') on the "
+        "study's own average effect, which fits its linear adjustment and benchmarks",
+    )
     return _sensitivity(
         "omitted_variable_bias",
         _sensitivity_omitted_variable_bias(
@@ -889,6 +993,11 @@ def omitted_variable_bias_from_data(
     target_source: str | None = None,
 ) -> SensitivityResult:
     """Fit ``outcome ~ treatment + covariates`` and benchmark against every covariate."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.omitted_variable_bias_from_data",
+        "antecedent.validation.sensitivity_range(study, 'omitted_variable_bias') on the "
+        "study's own average effect, which fits the same regression on its adjustment set",
+    )
     return _sensitivity(
         "omitted_variable_bias",
         _sensitivity_omitted_variable_bias_fit(
@@ -1106,6 +1215,12 @@ def mediation_sensitivity_vector(
     is the smallest share of the reported component left and ``break_even`` the correlation of
     smallest magnitude at which some outcome's component reaches zero.
     """
+    if len(outcomes) == 1:
+        _deprecation.direct_path_deprecated(
+            "antecedent.validation.mediation_sensitivity_vector",
+            "antecedent.validation.sensitivity_range(study, 'mediation_component', "
+            "component=...) on an ant.MediationEffect study",
+        )
     return _sensitivity(
         "mediation_vector",
         _sensitivity_mediation_vector(
@@ -1146,6 +1261,12 @@ def mediation_path_sensitivity(
     equal partial R2 at which the product falls to ``1 - q`` (at ``q = 1`` the smaller of the
     two paths' robustness values).
     """
+    if len(outcomes) == 1:
+        _deprecation.direct_path_deprecated(
+            "antecedent.validation.mediation_path_sensitivity",
+            "antecedent.validation.sensitivity_range(study, 'mediation_path', path=...) on an "
+            "ant.MediationEffect study",
+        )
     return _sensitivity(
         "mediation_paths",
         _sensitivity_mediation_paths(
@@ -1454,6 +1575,11 @@ def prior_sensitivity_target(
 ) -> TargetCheck:
     """Shift of the posterior of the whole target vector under alternative priors, in
     baseline posterior standard deviations (draws are ``draws x coordinates``)."""
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.prior_sensitivity_target",
+        "antecedent.validation.refute_target(study, checks=TargetRefutationSpec(suite='cheap', "
+        "prior_scale_factors=...)) on a Bayesian study, which refits it under each prior",
+    )
     wire = json.loads(
         _target_prior_sensitivity(
             [str(label) for label in labels],
@@ -1528,6 +1654,7 @@ __all__ = [
     "prior_sensitivity_target",
     "rosenbaum_bounds",
     "rosenbaum_bounds_vector",
+    "sensitivity_range",
     "target_refutation_plan",
     "validate_environment_holdout",
     "validate_pcmci_alpha_sensitivity",

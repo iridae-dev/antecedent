@@ -739,6 +739,7 @@ _EXPECTED_STAGE_ALL = {
         "prior_sensitivity_target",
         "rosenbaum_bounds",
         "rosenbaum_bounds_vector",
+        "sensitivity_range",
         "target_refutation_plan",
         "validate_environment_holdout",
         "validate_pcmci_alpha_sensitivity",

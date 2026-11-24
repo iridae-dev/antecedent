@@ -268,6 +268,7 @@ pub mod sample_split_parent_set_effect;
 pub mod scientific_bridge;
 pub mod selective_discovery;
 pub mod sensitivity_decision;
+pub mod sensitivity_range;
 pub mod sequential_evaluation;
 mod smoothed_dose;
 pub mod staleness;

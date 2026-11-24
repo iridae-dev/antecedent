@@ -42,7 +42,7 @@ use crate::{
     value_err,
 };
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
     bytes.iter().fold(String::new(), |mut out, b| {
         let _ = write!(out, "{b:02x}");
@@ -115,7 +115,7 @@ fn target_json(target: &RefutationTarget) -> Value {
     })
 }
 
-fn range_json(range: &AssumptionRange) -> Value {
+pub(crate) fn range_json(range: &AssumptionRange) -> Value {
     json!({
         "target": target_json(&range.target),
         "assumption": range.assumption.as_str(),
@@ -654,7 +654,10 @@ fn sensitivity_mediation(
     .to_string())
 }
 
-fn components_json(coordinate: &MediationComponents, component: MediationComponent) -> Value {
+pub(crate) fn components_json(
+    coordinate: &MediationComponents,
+    component: MediationComponent,
+) -> Value {
     json!({
         "beta_mediator": coordinate.mediation.beta_mediator,
         "sigma_total": coordinate.mediation.sigma_total,
