@@ -724,6 +724,8 @@ impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointS
 impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl core::clone::Clone for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl core::clone::Clone for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelAdstock
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannel
 impl core::clone::Clone for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -1354,6 +1356,7 @@ impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::VaryingBlo
 impl core::cmp::Eq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
 impl core::cmp::Eq for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
 impl core::cmp::Eq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+impl core::cmp::Eq for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelAdstock
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelChannel
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelError
@@ -1996,6 +1999,8 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::Join
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelAdstock
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannel
 impl core::cmp::PartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -3277,6 +3282,8 @@ impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyn
 impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl core::fmt::Debug for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl core::fmt::Debug for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelAdstock
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannel
 impl core::fmt::Debug for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -4042,6 +4049,7 @@ impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::Sourc
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::SourceSharing
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::marker::Copy for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::marker::Copy for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelAdstock
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelFeatureInputs
 impl core::marker::Copy for antecedent_estimate::joint_panel::PanelOptimizerOptions
@@ -4827,6 +4835,8 @@ impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::Join
 impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -5953,6 +5963,8 @@ impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointS
 impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Send for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -6948,6 +6960,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::sy
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelAdstock
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannel
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -8018,6 +8032,8 @@ impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointS
 impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Sync for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -9146,6 +9162,8 @@ impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::Joint
 impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -10277,6 +10295,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_desi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -11404,6 +11424,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelAdstock [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_panel::PanelChannelHistory [auto]
@@ -12037,6 +12059,8 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelAdstock
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannel
 impl serde_core::ser::Serialize for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -13000,6 +13024,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelAdstock
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannel
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_panel::PanelChannelHistory
@@ -13339,6 +13365,8 @@ pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PAR
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_SUPPORT_WORK: u64
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER: &str
 pub const antecedent_estimate::joint_design::capabilities::JOINT_DESIGN_CAPABILITIES: [antecedent_estimate::joint_design::capabilities::JointDesignCapability; 7]
+pub const antecedent_estimate::joint_design::unit_bootstrap::MIN_INDEPENDENT_UNITS: usize
+pub const antecedent_estimate::joint_design::unit_bootstrap::MIN_REFITS: usize
 pub const antecedent_estimate::joint_panel::restriction::LINEARITY_BINS: usize
 pub const antecedent_estimate::joint_panel::restriction::MIN_DIAGNOSTIC_INNOVATIONS: usize
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT: &str
@@ -13591,6 +13619,7 @@ pub enum antecedent_estimate::joint_design::experiment::ExperimentExposure
 pub enum antecedent_estimate::joint_design::experiment::ExperimentalDesign
 pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
+pub enum antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
 pub enum antecedent_estimate::joint_panel::PanelAdstock
 pub enum antecedent_estimate::joint_panel::PanelError
 pub enum antecedent_estimate::joint_panel::PanelFeatureInputs
@@ -16413,6 +16442,11 @@ pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::don
 pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::intervention: i64
 pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::key: alloc::string::String
 pub field antecedent_estimate::joint_design::synthetic::JointSyntheticWorld::treated_unit: alloc::string::String
+pub field antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap::failures: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap::independent_units: usize
+pub field antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap::point: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap::realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap::unit: antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit
 pub field antecedent_estimate::joint_panel::PanelChannel::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelChannelHistory::id: alloc::string::String
 pub field antecedent_estimate::joint_panel::PanelChannelHistory::values: [f64; 2]
@@ -19325,6 +19359,7 @@ pub fn <antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongit
 pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn expression(&self, raw_controls: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::value_expr::ValueExpr, alloc::string::String>
 pub fn <antecedent_estimate::joint_design::instrumented::JointInstrumentedModelFit>::fn world_mean(&self, raw_doses: &[f64]) -> core::result::Result<(f64, f64), alloc::string::String>
 pub fn <antecedent_estimate::joint_design::synthetic::JointSyntheticConformal>::fn contrast_interval(&self, coefficients: &[f64]) -> core::result::Result<(f64, [f64; 2]), alloc::string::String>
+pub fn <antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit>::const fn name(self) -> &'static str
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn has_excluded_periods(&self) -> bool
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn identity(&self) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_estimate::joint_panel::PanelError>
 pub fn <antecedent_estimate::joint_panel::PanelData>::fn is_weighted(&self) -> bool
@@ -20034,6 +20069,8 @@ pub fn antecedent_estimate::joint_design::switchback::switchback_joint_sharp_nul
 pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_conformal(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation], joint_level: f64, residual_exchangeability: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::synthetic::JointSyntheticConformal, alloc::string::String>
 pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_point(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation]) -> core::result::Result<alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate>, alloc::string::String>
 pub fn antecedent_estimate::joint_design::synthetic::synthetic_joint_posterior(design: &antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, data: &[antecedent_estimate::joint_design::synthetic::JointSyntheticObservation], prior: &antecedent_estimate::joint_design::synthetic::JointSyntheticPrior, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::unit_bootstrap::independent_units(recipe: &antecedent_estimate::joint_design::compiled::JointDesignRecipe) -> core::option::Option<(antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit, usize)>
+pub fn antecedent_estimate::joint_design::unit_bootstrap::joint_unit_bootstrap(recipe: &antecedent_estimate::joint_design::compiled::JointDesignRecipe, replicates: usize, seed: u64, sampling: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap, alloc::string::String>
 pub fn antecedent_estimate::joint_influence_covariance(scores: &[&[f64]], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_estimate::JointCovariance, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_hybrid_law(point: [f64; 16], draws: &[core::option::Option<[f64; 16]>], order: [antecedent_estimate::joint_panel::decomposition::ChangeComponent; 4], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
 pub fn antecedent_estimate::joint_panel::decomposition::decompose_invariant_law(data: &antecedent_estimate::joint_panel::PanelData, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, point: &antecedent_estimate::joint_panel::PanelDraw, draws: &[core::option::Option<antecedent_estimate::joint_panel::PanelDraw>], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent_estimate::joint_panel::PanelError>
@@ -20480,6 +20517,7 @@ pub mod antecedent_estimate::joint_design::rollout
 pub mod antecedent_estimate::joint_design::static_regime
 pub mod antecedent_estimate::joint_design::switchback
 pub mod antecedent_estimate::joint_design::synthetic
+pub mod antecedent_estimate::joint_design::unit_bootstrap
 pub mod antecedent_estimate::joint_panel
 pub mod antecedent_estimate::joint_panel::decomposition
 pub mod antecedent_estimate::joint_panel::expression
@@ -21168,6 +21206,7 @@ pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticDesign
 pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticObservation
 pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticPrior
 pub struct antecedent_estimate::joint_design::synthetic::JointSyntheticWorld
+pub struct antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap
 pub struct antecedent_estimate::joint_panel::PanelChannel
 pub struct antecedent_estimate::joint_panel::PanelChannelHistory
 pub struct antecedent_estimate::joint_panel::PanelChannelParameters
@@ -22502,6 +22541,7 @@ pub variant antecedent_estimate::joint_design::JointUncertainty::Posterior { mod
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::Frequentist
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::GaussianLongitudinalBayesian { prior: antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::GaussianLongitudinalBootstrap { replicates: usize, seed: u64 }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::IndependentUnitBootstrap { replicates: usize, seed: u64, sampling: alloc::string::String }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::InstrumentedGaussian { prior: antecedent_estimate::joint_design::instrumented::JointIvGaussianPrior }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::LocalComplierBayesian { draws: usize, seed: u64 }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::LongitudinalDirichlet { prior: antecedent_estimate::joint_design::longitudinal::LongitudinalDirichletPrior }
@@ -22533,6 +22573,7 @@ pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::A
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionCluster(antecedent_estimate::joint_design::cluster_decision::JointClusterLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionExperiment(antecedent_estimate::joint_design::experiment::JointExperimentalLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Excursion(antecedent_estimate::joint_design::excursion::JointExcursionLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::IndependentUnitBootstrap(antecedent_estimate::joint_design::unit_bootstrap::JointUnitBootstrap)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::LocalComplier(antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Moments(antecedent_estimate::joint_design::compiled::JointDesignLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::StaticRegime(antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw)
@@ -22553,6 +22594,9 @@ pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHi
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::Intercept
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::Treatment { time: usize, channel: usize }
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature::TreatmentProduct { first_time: usize, first_channel: usize, second_time: usize, second_channel: usize }
+pub variant antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit::Cluster
+pub variant antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit::Pair
+pub variant antecedent_estimate::joint_design::unit_bootstrap::IndependentUnit::Sequence
 pub variant antecedent_estimate::joint_panel::PanelAdstock::Geometric
 pub variant antecedent_estimate::joint_panel::PanelAdstock::Simplex
 pub variant antecedent_estimate::joint_panel::PanelError::Cancelled

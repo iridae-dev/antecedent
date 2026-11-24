@@ -1341,6 +1341,7 @@ impl core::clone::Clone for antecedent::planner::lowered::LoweringDepth
 impl core::clone::Clone for antecedent::planner::lowered::PhysicalLayer
 impl core::clone::Clone for antecedent::planner::lowered::PlanningProgram
 impl core::clone::Clone for antecedent::planner::lowered::PreferenceChainInputFact
+impl core::clone::Clone for antecedent::planner::lowered::PreferenceDesignLawFact
 impl core::clone::Clone for antecedent::planner::lowered::PreferenceJointLawFact
 impl core::clone::Clone for antecedent::planner::lowered::PreferenceParameterFact
 impl core::clone::Clone for antecedent::planner::lowered::PreferenceQuantityFact
@@ -1626,6 +1627,7 @@ impl core::cmp::Eq for antecedent::planner::lowered::EvidenceRole
 impl core::cmp::Eq for antecedent::planner::lowered::EvidenceSourceRef
 impl core::cmp::Eq for antecedent::planner::lowered::FunctionalKind
 impl core::cmp::Eq for antecedent::planner::lowered::LoweringDepth
+impl core::cmp::Eq for antecedent::planner::lowered::PreferenceDesignLawFact
 impl core::cmp::Eq for antecedent::planner::lowered::ProgramIdentityScope
 impl core::cmp::Eq for antecedent::planner::lowered::SimulationQuote
 impl core::cmp::Eq for antecedent::planner::lowered::UncertaintyReading
@@ -2266,6 +2268,7 @@ impl core::cmp::PartialEq for antecedent::planner::lowered::FunctionalKind
 impl core::cmp::PartialEq for antecedent::planner::lowered::LoweringDepth
 impl core::cmp::PartialEq for antecedent::planner::lowered::PlanningProgram
 impl core::cmp::PartialEq for antecedent::planner::lowered::PreferenceChainInputFact
+impl core::cmp::PartialEq for antecedent::planner::lowered::PreferenceDesignLawFact
 impl core::cmp::PartialEq for antecedent::planner::lowered::PreferenceJointLawFact
 impl core::cmp::PartialEq for antecedent::planner::lowered::PreferenceParameterFact
 impl core::cmp::PartialEq for antecedent::planner::lowered::PreferenceQuantityFact
@@ -3812,6 +3815,7 @@ impl core::fmt::Debug for antecedent::planner::lowered::LoweringDepth
 impl core::fmt::Debug for antecedent::planner::lowered::PhysicalLayer
 impl core::fmt::Debug for antecedent::planner::lowered::PlanningProgram
 impl core::fmt::Debug for antecedent::planner::lowered::PreferenceChainInputFact
+impl core::fmt::Debug for antecedent::planner::lowered::PreferenceDesignLawFact
 impl core::fmt::Debug for antecedent::planner::lowered::PreferenceJointLawFact
 impl core::fmt::Debug for antecedent::planner::lowered::PreferenceParameterFact
 impl core::fmt::Debug for antecedent::planner::lowered::PreferenceQuantityFact
@@ -4165,7 +4169,6 @@ impl core::marker::Copy for antecedent::analysis::observational_survival::ArmSur
 impl core::marker::Copy for antecedent::analysis::observational_survival::ContrastWire
 impl core::marker::Copy for antecedent::analysis::preference_decision::ClassSamplingScheme
 impl core::marker::Copy for antecedent::analysis::preference_decision::ClassSize
-impl core::marker::Copy for antecedent::analysis::preference_decision::DesignBootstrap
 impl core::marker::Copy for antecedent::analysis::preference_decision::MassEstimate
 impl core::marker::Copy for antecedent::analysis::preference_decision::OutcomeDependence
 impl core::marker::Copy for antecedent::analysis::proposal_arrival::ArrivalLimits
@@ -5397,6 +5400,7 @@ impl core::marker::Freeze for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::marker::Freeze for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -6665,6 +6669,7 @@ impl core::marker::Send for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Send for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Send for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Send for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::marker::Send for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::marker::Send for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::marker::Send for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::marker::Send for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -7335,6 +7340,7 @@ impl core::marker::StructuralPartialEq for antecedent::planner::lowered::Functio
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::LoweringDepth
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PlanningProgram
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PreferenceChainInputFact
+impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PreferenceDesignLawFact
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PreferenceJointLawFact
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PreferenceParameterFact
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PreferenceQuantityFact
@@ -8586,6 +8592,7 @@ impl core::marker::Sync for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::marker::Sync for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -9854,6 +9861,7 @@ impl core::marker::Unpin for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::marker::Unpin for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -11067,6 +11075,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::L
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -12270,6 +12279,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::Lowe
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PreferenceChainInputFact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PreferenceDesignLawFact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PreferenceJointLawFact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PreferenceParameterFact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PreferenceQuantityFact [auto]
@@ -16074,6 +16084,7 @@ pub field antecedent::analysis::preference_decision::DemandedQuantity::quantity:
 pub field antecedent::analysis::preference_decision::DemandedQuantity::read_by: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent::analysis::preference_decision::DemandedQuantity::source: usize
 pub field antecedent::analysis::preference_decision::DesignBootstrap::replicates: usize
+pub field antecedent::analysis::preference_decision::DesignBootstrap::sampling: core::option::Option<alloc::string::String>
 pub field antecedent::analysis::preference_decision::DesignBootstrap::seed: u64
 pub field antecedent::analysis::preference_decision::MassEstimate::estimate: f64
 pub field antecedent::analysis::preference_decision::MassEstimate::lower: f64
@@ -20154,6 +20165,11 @@ pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn namespace(&s
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn quantity(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn source(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceChainInputFact>::fn stage(&self) -> &str
+pub fn <antecedent::planner::lowered::PreferenceDesignLawFact>::const fn replicates(&self) -> usize
+pub fn <antecedent::planner::lowered::PreferenceDesignLawFact>::const fn seed(&self) -> u64
+pub fn <antecedent::planner::lowered::PreferenceDesignLawFact>::fn kind(&self) -> &str
+pub fn <antecedent::planner::lowered::PreferenceDesignLawFact>::fn sampling(&self) -> core::option::Option<&str>
+pub fn <antecedent::planner::lowered::PreferenceDesignLawFact>::fn unit(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn draws(&self) -> usize
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn program(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::planner::lowered::PreferenceJointLawFact>::const fn seed(&self) -> u64
@@ -20178,6 +20194,7 @@ pub fn <antecedent::planner::lowered::PreferenceQuantityFact>::fn regime(&self) 
 pub fn <antecedent::planner::lowered::PreferenceQuantityFact>::fn transform(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceQuantityFact>::fn units(&self) -> &str
 pub fn <antecedent::planner::lowered::PreferenceQuantityFact>::fn variable_id(&self) -> &str
+pub fn <antecedent::planner::lowered::PreferenceValueFacts>::const fn design_law(&self) -> core::option::Option<&antecedent::planner::lowered::PreferenceDesignLawFact>
 pub fn <antecedent::planner::lowered::PreferenceValueFacts>::const fn joint_law(&self) -> core::option::Option<&antecedent::planner::lowered::PreferenceJointLawFact>
 pub fn <antecedent::planner::lowered::PreferenceValueFacts>::fn accepted(&self) -> &[alloc::sync::Arc<str>]
 pub fn <antecedent::planner::lowered::PreferenceValueFacts>::fn parameters(&self) -> &[antecedent::planner::lowered::PreferenceParameterFact]
@@ -22703,6 +22720,8 @@ pub struct antecedent::planner::lowered::PlanningProgram
 pub struct antecedent::planner::lowered::PlanningProgram has private fields
 pub struct antecedent::planner::lowered::PreferenceChainInputFact
 pub struct antecedent::planner::lowered::PreferenceChainInputFact has private fields
+pub struct antecedent::planner::lowered::PreferenceDesignLawFact
+pub struct antecedent::planner::lowered::PreferenceDesignLawFact has private fields
 pub struct antecedent::planner::lowered::PreferenceJointLawFact
 pub struct antecedent::planner::lowered::PreferenceJointLawFact has private fields
 pub struct antecedent::planner::lowered::PreferenceParameterFact

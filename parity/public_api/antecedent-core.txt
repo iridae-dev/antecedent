@@ -9483,8 +9483,9 @@ pub const antecedent_core::reason_details::preference_compile::CLASS_PRIOR_SAMPL
 pub const antecedent_core::reason_details::preference_compile::CLASS_SAMPLING_BUDGET: &str
 pub const antecedent_core::reason_details::preference_compile::CROSS_STUDY_COVARIANCE_INVALID: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_EXPOSURE_BOUNDED: &str
-pub const antecedent_core::reason_details::preference_compile::DESIGN_LAW_NOT_ALIGNED: &str
 pub const antecedent_core::reason_details::preference_compile::DESIGN_NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_SAMPLING_UNDECLARED: &str
+pub const antecedent_core::reason_details::preference_compile::DESIGN_UNITS_TOO_FEW: &str
 pub const antecedent_core::reason_details::preference_compile::PROGRAM_CARRIES_DECISION: &str
 pub const antecedent_core::reason_details::preference_compile::STUDIES_SHARE_EVIDENCE: &str
 pub const antecedent_core::reason_details::preference_compile::UNIT_KEY_INVALID: &str
