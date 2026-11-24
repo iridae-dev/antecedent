@@ -365,7 +365,21 @@ fn z_fixture() -> (SelectionDiagram, ZTransportQuery, EvidenceCatalog) {
 }
 
 #[test]
-fn z_transport_and_its_binding_equal_the_compiled_identification() {
+fn z_transport_equals_the_compiled_identification() {
+    let (diagram, query, _) = z_fixture();
+    let direct =
+        antecedent_identify::identify_z_transport(&diagram, &query, SidLimits::default(), &ctx())
+            .unwrap();
+    let Outcome::ZTransport(twin) =
+        compiled(Request::ZTransport { diagram, query, limits: SidLimits::default() })
+    else {
+        panic!("a z-transport outcome");
+    };
+    assert_eq!(z_result(&direct), z_result(&twin));
+}
+
+#[test]
+fn a_z_transport_binding_equals_the_compiled_binding() {
     let (diagram, query, catalog) = z_fixture();
     let direct =
         antecedent_identify::identify_z_transport(&diagram, &query, SidLimits::default(), &ctx())
@@ -376,15 +390,6 @@ fn z_transport_and_its_binding_equal_the_compiled_identification() {
     let bound =
         antecedent_identify::bind_z_transport_catalog(&diagram, &query, derivation, &catalog)
             .unwrap();
-
-    let Outcome::ZTransport(twin) = compiled(Request::ZTransport {
-        diagram: diagram.clone(),
-        query: query.clone(),
-        limits: SidLimits::default(),
-    }) else {
-        panic!("a z-transport outcome");
-    };
-    assert_eq!(z_result(&direct), z_result(&twin));
 
     let Outcome::ZTransportBinding(twin_bound) = compiled(Request::ZTransportBinding {
         diagram,
