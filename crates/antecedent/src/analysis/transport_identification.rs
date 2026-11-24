@@ -300,7 +300,7 @@ pub enum TransportIdentificationError {
 
 /// Refusal detail of [`TransportIdentificationError::Reentry`] (reason code
 /// `public_builder_reentry`).
-pub const REENTRY_DETAIL: &str = "transport_identification.reentry";
+pub const REENTRY_DETAIL: &str = antecedent_core::reason_details::transport_identification::REENTRY;
 
 impl fmt::Display for TransportIdentificationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

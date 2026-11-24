@@ -152,7 +152,8 @@ pub enum TemporalPredictionError {
 
 /// Refusal detail of [`TemporalPredictionError::Reentry`] (reason code
 /// `public_builder_reentry`).
-pub const REENTRY_DETAIL: &str = "temporal_linear_prediction.reentry";
+pub const REENTRY_DETAIL: &str =
+    antecedent_core::reason_details::temporal_linear_prediction::REENTRY;
 
 impl fmt::Display for TemporalPredictionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

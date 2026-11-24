@@ -29,7 +29,11 @@ use crate::planner::statistical::{
 const CHECK_TARGET_TAG: &str = "antecedent.discovery_validation.target.v1";
 
 fn error(message: impl std::fmt::Display) -> CausalError {
-    crate::compile_reason!("invalid_argument", "discovery_validation.lowering: {message}")
+    crate::compile_reason!(
+        "invalid_argument",
+        "{}: {message}",
+        antecedent_core::reason_details::discovery_validation::LOWERING
+    )
 }
 
 /// The resampling `check` draws from the search's data, if any.
@@ -85,7 +89,7 @@ pub(crate) fn lower(
         },
         identity_scope: search.identity_scope(),
         runtime_query: None,
-        plan_id: Arc::from(format!("discovery_validation.{}", check.id())),
+        plan_id: Arc::from(format!("discovery_validation_{}.v1", check.id())),
         data: child.data,
         graph_class: child.graph_class,
         query_variables: Arc::clone(&child.query_variables),
@@ -94,7 +98,7 @@ pub(crate) fn lower(
         supported: false,
         support_status: None,
     };
-    let score = ScoreModel::new(format!("discovery_validation.{}", check.id()))
+    let score = ScoreModel::new(format!("{}_discovery_check", check.id()))
         .map_err(|declaration| error(declaration.to_string()))?;
     let resampling = resampling(check);
     let statistical = StatisticalProgram {

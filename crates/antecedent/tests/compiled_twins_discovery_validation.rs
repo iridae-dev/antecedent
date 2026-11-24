@@ -38,7 +38,7 @@ use antecedent::validate::{
 use antecedent::{DiscoverySpec, Study};
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::{
-    MultiEnvironmentData, SamplingRegularity, TabularData, TimeIndex, TimeSeriesData,
+    MultiEnvironmentData, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
 
 fn v(raw: u32) -> VariableId {
@@ -405,7 +405,12 @@ fn a_check_refuses_a_search_it_does_not_validate() {
             )
             .unwrap_err();
         assert!(error.to_string().contains("route_not_supported"), "{error}");
-        assert!(error.to_string().contains("discovery_validation.wrong_search"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::discovery_validation::WRONG_SEARCH),
+            "{error}"
+        );
 
         let error = Study::series(series.clone())
             .discovery(DiscoverySpec::pcmci(params(1, 0.05, false, "parcorr"), "parcorr"), vars())
@@ -413,7 +418,12 @@ fn a_check_refuses_a_search_it_does_not_validate() {
             .unwrap()
             .validate_discovery(DiscoveryCheck::EnvironmentHoldout { n_discovery: 1 }, &ctx())
             .unwrap_err();
-        assert!(error.to_string().contains("discovery_validation.wrong_search"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains(antecedent_core::reason_details::discovery_validation::WRONG_SEARCH),
+            "{error}"
+        );
     });
 }
 

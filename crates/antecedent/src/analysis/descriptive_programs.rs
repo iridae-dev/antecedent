@@ -126,7 +126,7 @@ pub enum DescriptiveProgramError {
 
 /// Refusal detail of [`DescriptiveProgramError::Reentry`] (reason code
 /// `public_builder_reentry`).
-pub const REENTRY_DETAIL: &str = "descriptive_programs.reentry";
+pub const REENTRY_DETAIL: &str = antecedent_core::reason_details::descriptive_programs::REENTRY;
 
 impl fmt::Display for DescriptiveProgramError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -253,12 +253,20 @@ impl DiscoveryValidation {
 
 /// A check on a modality its search does not read.
 fn wrong_modality(message: impl std::fmt::Display) -> CausalError {
-    crate::compile_reason!("route_not_supported", "discovery_validation.wrong_modality: {message}")
+    crate::compile_reason!(
+        "route_not_supported",
+        "{}: {message}",
+        antecedent_core::reason_details::discovery_validation::WRONG_MODALITY
+    )
 }
 
 /// A check of a search it does not validate.
 fn wrong_search(message: impl std::fmt::Display) -> CausalError {
-    crate::compile_reason!("route_not_supported", "discovery_validation.wrong_search: {message}")
+    crate::compile_reason!(
+        "route_not_supported",
+        "{}: {message}",
+        antecedent_core::reason_details::discovery_validation::WRONG_SEARCH
+    )
 }
 
 fn data_of(data: &DataInput) -> DiscoverData<'_> {
@@ -388,8 +396,8 @@ fn run_check(
             let assignment = spec.regime_assignment().cloned().ok_or_else(|| {
                 crate::compile_reason!(
                     "required_option_missing",
-                    "discovery_validation.regimes_missing: the regime_stability check reads the \
-                     regime labels the search declares"
+                    "{}: the regime_stability check reads the regime labels the search declares",
+                    antecedent_core::reason_details::discovery_validation::REGIMES_MISSING
                 )
             })?;
             // The labels are held fixed: the check measures stability under the declared
@@ -432,15 +440,16 @@ impl Study {
         let CausalQuery::Discover(query) = &self.query else {
             return Err(crate::compile_reason!(
                 "route_not_supported",
-                "discovery_validation.not_a_search: a validation check runs on a study built with \
-                 StudyBuilder::discovery"
+                "{}: a validation check runs on a study built with StudyBuilder::discovery",
+                antecedent_core::reason_details::discovery_validation::NOT_A_SEARCH
             ));
         };
         let spec = self.discovery.as_deref().ok_or_else(|| {
             crate::compile_reason!(
                 "route_not_supported",
-                "discovery_validation.not_a_search: the study carries no executable search; build \
-                 it with StudyBuilder::discovery"
+                "{}: the study carries no executable search; build it with \
+                 StudyBuilder::discovery",
+                antecedent_core::reason_details::discovery_validation::NOT_A_SEARCH
             )
         })?;
         if !check.admits(spec.method()) {
@@ -458,7 +467,8 @@ impl Study {
         let search = plan.lowered().ok_or_else(|| {
             crate::compile_reason!(
                 "invalid_argument",
-                "discovery_validation.lowering: the compiled search carries no lowered program"
+                "{}: the compiled search carries no lowered program",
+                antecedent_core::reason_details::discovery_validation::LOWERING
             )
         })?;
         let lowered =

@@ -35,7 +35,11 @@ const QUERY_TAG: &str = "antecedent.graph_falsification.query";
 const PLAN_ID: &str = "gcm.graph_falsification";
 
 fn error(message: impl std::fmt::Display) -> CausalError {
-    crate::compile_reason!("invalid_argument", "graph_falsification.lowering: {message}")
+    crate::compile_reason!(
+        "invalid_argument",
+        "{}: {message}",
+        antecedent_core::reason_details::graph_falsification::LOWERING
+    )
 }
 
 /// Digest of the declared DAG: its node count and sorted directed edges.
