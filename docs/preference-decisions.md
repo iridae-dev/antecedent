@@ -396,11 +396,40 @@ each part of the value, and the certified route reads one aligned joint law.
 | Separate studies, one outcome each | `contract.compile([study_a, study_b])` | Means side by side for an affine expectation. A value that needs a joint law needs a declared dependence: `draws=` (and `seed=`) under distinct evidence, so the propagation chain draws one aligned law from a family table matched to each study's posterior moments. The chain is declared, checked and compiled at compile with its family table deferred: the plan states its inputs, dependence, joint outputs and program identity, the table's work budget is checked before fitting, and execution binds each study's posterior moments to the table. |
 | Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. The declared block, rows of the first study's coordinates by columns of the second's, is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
 | One static-regime design of several outcomes | `contract.compile(design, refits=99)` | Its arm means, or with `refits=` its aligned whole-subject bootstrap refits as one law of every outcome under both arms. |
-| One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)` | Its arm means, under an exposure declared free of interference. These designs retain a conservative design-based covariance of their arm means, not an aligned law, so a value that needs a joint law is refused at compile naming the design. |
+| One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)`, or `contract.compile(design, refits=99, seed=..., sampling="assumption.units_sampled")` | Its arm means, under an exposure declared free of interference. A value that needs a joint law reads the independent-unit bootstrap of the arm means, and only under a declared premise (`sampling=`, with `refits=`) that the clusters, pairs or sequences were sampled independently from a larger population; see [a joint law of a randomized design](#a-joint-law-of-a-randomized-design). |
 | Laws you already hold whose rows pair | `contract.evaluate(pf.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
 
 The compiled design carries the decision in its own program's evidence layer, so its plan view
-shows the decision and the design executes the decision-bearing program. The studies of a
+shows the decision and the design executes the decision-bearing program. When the decision reads
+refits, the plan states the design's resampling law (`design_law`: its kind, unit, refits, seed
+and premise), and all of them enter the decision program's identity.
+
+### A joint law of a randomized design
+
+Randomization identifies the arm means of a cluster-randomized design, a matched-pair experiment
+or a switchback experiment, and a conservative covariance bound for any linear combination of
+them. It does not identify how the arm-mean estimators vary together across arms: that depends
+on the joint distribution of each unit's outcomes under both arms, which no assignment reveals.
+A value that needs a joint law of these outcomes therefore needs a further premise, declared by
+you: that the independent units were sampled independently from a larger population. Under it,
+the sampling law of the arm means is identified and an independent-unit bootstrap estimates it.
+
+```python
+compiled = contract.compile(design, refits=199, seed=11,
+                            sampling="assumption.clusters_sampled_from_population")
+```
+
+- Clusters are resampled within each arm, so each arm keeps its size; matched pairs and
+  switchback sequences are resampled whole. Every refit reruns the complete estimator.
+- The bootstrap needs at least 99 refits and at least 30 independent units: 30 clusters in each
+  arm, 30 pairs or 30 sequences. Fewer units refuse with `preference_compile.design_units_too_few`.
+- Without `sampling=`, a value that needs a joint law refuses at compile with
+  `preference_compile.design_sampling_undeclared`; `sampling=` without `refits=` raises
+  `CausalValueError`. Arm means alone, for an affine expectation, need neither.
+- A refit the estimator refuses keeps its slot and refuses the decision at execute
+  (`native_claims.joint_law_invalid`); no refit is dropped.
+- The premise's identity is listed in the decision's assumptions. The law is labelled a
+  bootstrap law, unverified and with no calibration measured. The studies of a
 graph posterior cannot be combined with other studies in one compile.
 
 ### Which studies share evidence
@@ -438,12 +467,15 @@ a law that treated them as independent would understate the spread of every marg
 
 A refusal for shared evidence says how many observations (`200 shared observations`) or units
 (`100 shared units in namespace hospital_mrn`) the pair shares, and only those pairs need a
-declared block. In Rust, the same declarations are `StudyBuilder::unit_key(UnitKey::column(id,
-namespace))` (or `UnitKey::labels`) and `StudyBuilder::row_provenance(RowProvenance::of_table(&source))`
-for a projection of `source`; `RowProvenance::new(table, Some(rows))` names the rows a study
-selected, so studies of disjoint rows of one table are distinct and studies of overlapping rows
-share them. A Rust study built without these declarations is judged by its own table's content
-alone. A key column that is the study's treatment or outcome is refused
+declared block. In Rust, a unit key is `StudyBuilder::unit_key(UnitKey::column(id, namespace))`
+(or `UnitKey::labels`). A table made by `TabularData::project` or `TabularData::select_rows`
+remembers the table its rows came from and their positions in it (`TabularData::row_origin`),
+and a study built on it is judged by that origin without any declaration: two projections of
+one table share every row, and row selections share exactly the rows both took. For a table
+derived some other way, declare the origin with
+`StudyBuilder::row_provenance(RowProvenance::of_table(&source))`, or
+`RowProvenance::new(table, Some(rows))` to name the selected rows; a declaration replaces the
+remembered origin. A key column that is the study's treatment or outcome is refused
 (`preference_compile.unit_key_invalid`).
 
 ## Decide across uncertain causal structures
@@ -675,7 +707,8 @@ full tables are in
 | `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Studies of different tables whose overlap cannot be judged: unit keys in different namespaces, or a key on one study only | Key both studies in one namespace, or declare their covariance with `shared=` |
 | `preference_compile.unit_key_invalid` | `invalid_argument` | A study's unit key column is its treatment or its outcome | Name a column that identifies the units the rows observe |
 | `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | A declared block has the wrong shape, a zero or non-finite term, or names studies that share nothing | Declare one finite, nonzero block per overlapping pair |
-| `preference_compile.design_law_not_aligned` | `joint_law_required` | A cluster or experiment design asked for a joint law | Decide with an affine value and an expectation, which its arm means answer |
+| `preference_compile.design_sampling_undeclared` | `joint_law_required` | A cluster-randomized, matched-pair or switchback design asked for a joint law with no declared sampling premise | Declare `sampling=` with `refits=` (at least 99), or decide with an affine value and an expectation, which its arm means answer |
+| `preference_compile.design_units_too_few` | `too_few_clusters` | The design has fewer than 30 clusters in an arm, 30 matched pairs or 30 switchback sequences for its independent-unit bootstrap | Add units, or decide with an affine value and an expectation |
 | `preference_compile.design_exposure_bounded` | `effect_not_identified` | The design's exposure declares bias bounds | Declare no interference, or decide over the bounded set robustly |
 | `preference_compile.design_not_supported` | `route_not_supported` | The compiled design has no arm coordinates the decision reads | Use a static-regime, cluster-randomized, matched-pair or switchback design |
 | `preference_compile.atom_kind_not_compiled` | `route_not_supported` | Lagged temporal graph-posterior atoms, or a structure the single-graph route does not support | Decide over a posterior whose atoms the single-graph compiler compiles |
@@ -692,10 +725,10 @@ full tables are in
 - Linked pairs of structure and trade-off. Every admissible structure is paired with every
   admissible trade-off.
 - A certified answer from means. The certified route reads aligned joint draws.
-- A joint law of a cluster-randomized design or a matched-pair or switchback experiment. Their
-  arm covariance is a conservative design-based estimate, and the covariance of the potential
-  outcomes across arms that a law would need is not identified by randomization; they answer
-  affine expectations from their arm means.
+- A joint law of a cluster-randomized design or a matched-pair or switchback experiment under
+  randomization alone. Randomization does not identify the cross-arm dependence of their
+  arm-mean estimators, so a joint law needs your declared premise that the units were sampled
+  from a larger population.
 - Graph posteriors with lagged temporal atoms in the compiled route: the decision binds a static
   mean response curve of tabular data, and lagged atoms need a temporal query on temporal data.
 - A graph posterior among several separately fitted studies in one compile.
@@ -716,7 +749,7 @@ full tables are in
 | Language | Entry |
 | --- | --- |
 | Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `Measure`, `Structures`, `Contract(...).compile(...)` with `CompiledDecision.inspect()`, `.class_sampling` and `.execute()`, `Contract(...).evaluate(...)`, `PreferenceDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
-| Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`; `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
+| Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `TabularData::row_origin` (set by `TabularData::project` and `TabularData::select_rows`); `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
 

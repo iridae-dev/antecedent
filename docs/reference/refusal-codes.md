@@ -1210,7 +1210,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 
 ### Compiled decisions across studies and structures
 
-`preference_compile.*`, with the reused details `decision_evidence.dependence_unknown`, `decision_adapters.completion_count_not_probability` and `structure_posterior.class_prior_not_read`. Raised when a preference contract is compiled with the analysis that estimates its quantities (stage `bind` for a study's declarations, `compile` for the rest), before anything is fitted.
+`preference_compile.*`, with the reused details `decision_evidence.dependence_unknown`, `decision_adapters.completion_count_not_probability` and `structure_posterior.class_prior_not_read`, raised when a preference contract is compiled with the analysis that estimates its quantities (stage `bind` for a study's declarations, `compile` for the rest), before anything is fitted; and `propagation_chain.deferred_source_unbound`, raised when the propagation chain of a compiled decision is used before execution binds its family table.
 
 | Detail | Code | What would support the request |
 | --- | --- | --- |
@@ -1225,9 +1225,12 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_compile.class_sampling_budget` | `route_not_supported` | Draw fewer members, orient edges or declare the structure. A computational limit, not a statistical one. |
 | `decision_adapters.completion_count_not_probability` | `decision_contract_unsatisfied` | Declare a class prior over the members of the CPDAG or PAG atoms, or choose another structural policy than `bayes_over_structures`. |
 | `structure_posterior.class_prior_not_read` | `option_not_applicable` | Compile a preference decision across the posterior's structures, which reads the class prior, or drop the prior for an ordinary estimate, which treats each class atom as a whole. |
+| `preference_compile.design_sampling_undeclared` | `joint_law_required` | Declare the premise that the design's independent units (clusters, matched pairs or switchback sequences) were sampled independently from a larger population (`sampling=`, with at least 99 `refits=`), so the arm means are read from their independent-unit bootstrap; or decide with an affine value and an expectation, which the arm means answer. Randomization alone does not identify the cross-arm dependence of the arm-mean estimators. |
+| `preference_compile.design_units_too_few` | `too_few_clusters` | Supply at least 30 clusters in each arm, 30 matched pairs or 30 switchback sequences for the independent-unit bootstrap, or decide with an affine value and an expectation. The supplied text names the units the design has. |
 | `preference_compile.design_exposure_bounded` | `effect_not_identified` | Declare no interference, or decide over the bounded set with a robust decision. |
 | `preference_compile.design_not_supported` | `route_not_supported` | Use a static-regime, cluster-randomized, matched-pair or switchback design. |
 | `preference_compile.program_carries_decision` | `invalid_argument` | Compile the design again before attaching another decision. |
+| `propagation_chain.deferred_source_unbound` | `invalid_argument` | Execute the compiled decision, which binds each study's posterior moments to the chain's deferred family table (in Rust, execute the chain program with the bound table). A chain compiled with its table deferred holds no draws until then, so it is not sealed, encoded, replayed or executed as it is. |
 
 ### Learning preferences from recorded choices
 
