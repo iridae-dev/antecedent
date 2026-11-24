@@ -279,21 +279,30 @@ fn debug_canonical<T: std::fmt::Debug>(tag: &str, input: &T) -> [u8; 32] {
     writer.finish()
 }
 
+/// The support refusal's message, led by its namespaced detail.
+fn unit_refusal_message(refusal: &NotSupported) -> String {
+    format!(
+        "{}: {}",
+        antecedent_core::reason_details::prior_composition::UNIT_NOT_SUPPORTED,
+        refusal.message()
+    )
+}
+
 /// The support refusal as a probability refusal (`not_supported`, detail
 /// `prior_composition.unit_not_supported`).
 fn prob_refusal(refusal: &NotSupported) -> ProbError {
     ProbError::Refused {
         code: antecedent_core::reason_code!("not_supported"),
-        message: format!("prior_composition.unit_not_supported: {}", refusal.message()),
+        message: unit_refusal_message(refusal),
     }
 }
 
-/// The support refusal as a transport refusal. `TransportError` carries no owned message, so
-/// the refusal is reported under its fixed text; the unit's decision is on the plan view.
-fn transport_refusal(_refusal: &NotSupported) -> TransportError {
-    TransportError::InvalidWeights {
-        message: "not_supported: the support unit of the compiled external prior transport \
-                  route is not supported in this build; its decision is on the plan view",
+/// The support refusal as a transport refusal, under the same code and detail as
+/// [`prob_refusal`].
+fn transport_refusal(refusal: &NotSupported) -> TransportError {
+    TransportError::Refused {
+        code: antecedent_core::reason_code!("not_supported"),
+        message: unit_refusal_message(refusal),
     }
 }
 
@@ -527,7 +536,8 @@ impl CompiledPriorTagTransport {
     /// # Errors
     ///
     /// The support refusal once the gate is on, in a release build, while the unit is not
-    /// supported (reported as `transport_invalid_weights` with a `not_supported` message), and
+    /// supported (`TransportError::Refused`, code `not_supported`, detail
+    /// `prior_composition.unit_not_supported`), and
     /// the refusals of the transport.
     pub fn apply_transport(
         &self,
@@ -638,7 +648,8 @@ impl CompiledKernelBandwidthSensitivity {
     /// # Errors
     ///
     /// The support refusal once the gate is on, in a release build, while the unit is not
-    /// supported (reported as `transport_invalid_weights` with a `not_supported` message), and
+    /// supported (`TransportError::Refused`, code `not_supported`, detail
+    /// `prior_composition.unit_not_supported`), and
     /// the refusals of the sensitivity.
     pub fn sensitivity(
         &self,
@@ -653,5 +664,44 @@ impl CompiledKernelBandwidthSensitivity {
             &input.unit_effects,
             input.min_ess_fraction,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NotSupported, ProbError, TransportError, prob_refusal, transport_refusal};
+
+    #[test]
+    fn a_unit_refusal_keeps_its_not_supported_code_and_detail_on_both_error_types() {
+        let refusal = NotSupported {
+            detail: "ExternalPriorTransport",
+            missing: vec!["scientific_record".to_owned()],
+        };
+        let detail = antecedent_core::reason_details::prior_composition::UNIT_NOT_SUPPORTED;
+        let not_supported = antecedent_core::reason_code!("not_supported");
+        match transport_refusal(&refusal) {
+            TransportError::Refused { code, message } => {
+                assert_eq!(code, not_supported);
+                assert!(message.starts_with(&format!("{detail}: ")), "{message}");
+                assert!(message.contains(refusal.message()), "{message}");
+            }
+            other => panic!("expected the refused variant, got {other:?}"),
+        }
+        assert_eq!(transport_refusal(&refusal).code(), not_supported);
+        // Through the probability error the code and the detail-led message are unchanged.
+        match ProbError::from(transport_refusal(&refusal)) {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, not_supported);
+                assert!(message.starts_with(&format!("{detail}: ")), "{message}");
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+        match prob_refusal(&refusal) {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, not_supported);
+                assert!(message.starts_with(&format!("{detail}: ")), "{message}");
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
     }
 }

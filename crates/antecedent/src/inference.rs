@@ -1273,6 +1273,8 @@ pub use antecedent_prob::BayesLikelihood;
 pub use antecedent_prob::ConflictSummary;
 /// Probability / inference errors.
 pub use antecedent_prob::ProbError;
+/// Structured transport refusals, including a compiled transport route's support refusal.
+pub use antecedent_prob::TransportError;
 /// Power-prior discount chosen from out-of-sample fit, with a selection-aware interval.
 pub use antecedent_prob::{
     AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,

@@ -30,6 +30,30 @@ pub(crate) fn pyvalue<E: std::fmt::Display>(e: E) -> PyErr {
     crate::value_err(e.to_string())
 }
 
+/// A compiled prior-composition run's error: a support-gate refusal (`not_supported`) is the
+/// Python refusal class with its reason code and detail; every other error is invalid input,
+/// as [`pyvalue`].
+fn composition_err(e: antecedent::inference::ProbError) -> PyErr {
+    match &e {
+        antecedent::inference::ProbError::Refused { code, message }
+            if *code == antecedent::reason::reason_code!("not_supported") =>
+        {
+            crate::refusal(code, message)
+        }
+        _ => pyvalue(e),
+    }
+}
+
+/// A compiled prior-transport run's error, as [`composition_err`].
+fn transport_err(e: antecedent::inference::TransportError) -> PyErr {
+    match &e {
+        antecedent::inference::TransportError::Refused { code, message } => {
+            crate::refusal(code, message)
+        }
+        _ => pyvalue(e),
+    }
+}
+
 fn role_from_str(s: &str) -> PyResult<DesignVariableRole> {
     match s {
         "treatment" => Ok(DesignVariableRole::Treatment),
@@ -633,8 +657,8 @@ fn compose_transport_path<'py>(
         &ctx,
     )
     .map_err(py_err)?;
-    let (composed, _) = compiled.compose_with_transport(&ctx).map_err(pyvalue)?;
-    let (prepared, _) = compiled.apply_transport(&ctx).map_err(pyvalue)?;
+    let (composed, _) = compiled.compose_with_transport(&ctx).map_err(composition_err)?;
+    let (prepared, _) = compiled.apply_transport(&ctx).map_err(transport_err)?;
     let prepared: Vec<ExternalPriorSource> = prepared
         .into_iter()
         .zip(composed.alphas_applied.iter())
@@ -746,7 +770,7 @@ fn compose_external_priors_py<'py>(
     let composed = antecedent::Study::compile_external_prior_composition(srcs, baseline, &ctx)
         .map_err(py_err)?
         .compose(&ctx)
-        .map_err(pyvalue)?;
+        .map_err(composition_err)?;
     let d = composed_to_dict(py, &composed)?;
     d.set_item("sources", sources)?;
     Ok(d)
@@ -844,7 +868,8 @@ fn compose_external_priors_for_target_py<'py>(
         &ctx,
     )
     .map_err(py_err)?;
-    let (prepared, overlap) = compiled.apply_weighted_target_transport(&ctx).map_err(pyvalue)?;
+    let (prepared, overlap) =
+        compiled.apply_weighted_target_transport(&ctx).map_err(composition_err)?;
     let src_list = sources_to_py_list(py, &prepared)?;
     let out = if let Some(c) = conflict {
         let policy_c = conflict_policy_from_dict(Some(c))?
@@ -859,7 +884,7 @@ fn compose_external_priors_for_target_py<'py>(
         d
     } else {
         let (composed, _) =
-            compiled.compose_with_weighted_target_transport(&ctx).map_err(pyvalue)?;
+            compiled.compose_with_weighted_target_transport(&ctx).map_err(composition_err)?;
         composed_to_dict(py, &composed)?
     };
     out.set_item("sources", src_list)?;
@@ -911,7 +936,7 @@ fn transport_bandwidth_sensitivity_py<'py>(
     )
     .map_err(py_err)?
     .sensitivity(&ctx)
-    .map_err(pyvalue)?;
+    .map_err(transport_err)?;
     let out = PyList::empty(py);
     for row in &rows {
         let d = PyDict::new(py);
@@ -1640,7 +1665,7 @@ fn compose_count_power_priors_py(
             )
             .map_err(py_err)?
             .compose(&ctx)
-            .map_err(pyvalue)?;
+            .map_err(composition_err)?;
             Ok((h.alpha, h.beta))
         }
         "gamma" => {
@@ -1655,7 +1680,7 @@ fn compose_count_power_priors_py(
             )
             .map_err(py_err)?
             .compose(&ctx)
-            .map_err(pyvalue)?;
+            .map_err(composition_err)?;
             Ok((h.shape, h.rate))
         }
         other => Err(crate::value_err(format!("unknown count prior family `{other}`"))),
@@ -1723,4 +1748,53 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gamma_from_moments_py, m)?)?;
     m.add_function(wrap_pyfunction!(gamma_from_mean_and_ess_py, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compiled_refusal_tests {
+    use super::{composition_err, transport_err};
+    use antecedent::inference::{ProbError, TransportError};
+    use pyo3::prelude::*;
+
+    fn reason_code(py: Python<'_>, error: &PyErr) -> Option<String> {
+        error.value(py).getattr("reason_code").ok().and_then(|code| code.extract().ok())
+    }
+
+    #[test]
+    fn a_unit_refusal_of_a_compiled_prior_route_is_the_refusal_class_with_its_code() {
+        Python::initialize();
+        Python::attach(|py| {
+            let not_supported = antecedent::reason::reason_code!("not_supported");
+            let detail = antecedent::reason::reason_details::prior_composition::UNIT_NOT_SUPPORTED;
+            let message = format!("{detail}: the unit is not supported");
+            let transport = transport_err(TransportError::Refused {
+                code: not_supported,
+                message: message.clone(),
+            });
+            let composition = composition_err(ProbError::Refused {
+                code: not_supported,
+                message: message.clone(),
+            });
+            for error in [transport, composition] {
+                assert!(error.is_instance_of::<crate::CausalUnsupportedError>(py));
+                assert_eq!(reason_code(py, &error).as_deref(), Some(not_supported));
+                let text = error.value(py).to_string();
+                assert!(text.contains(detail), "{text}");
+            }
+        });
+    }
+
+    #[test]
+    fn other_transport_and_composition_errors_stay_invalid_input() {
+        Python::initialize();
+        Python::attach(|py| {
+            let invalid = transport_err(TransportError::InvalidWeights { message: "empty" });
+            let policy = composition_err(ProbError::from(TransportError::InvalidWeights {
+                message: "empty",
+            }));
+            for error in [invalid, policy] {
+                assert!(!error.is_instance_of::<crate::CausalUnsupportedError>(py));
+            }
+        });
+    }
 }

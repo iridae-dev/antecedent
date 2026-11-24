@@ -276,6 +276,15 @@ pub enum TransportError {
         /// Prior dimension.
         n_coef: usize,
     },
+    /// Refused under a registered reason code whose namespaced detail leads the message, such
+    /// as the support-gate refusal of a compiled route that runs a transport.
+    #[error("{code}: {message}")]
+    Refused {
+        /// Registered reason code (for a support-gate refusal, `not_supported`).
+        code: &'static str,
+        /// The namespaced detail, then the explanation.
+        message: String,
+    },
 }
 
 impl TransportError {
@@ -288,13 +297,18 @@ impl TransportError {
             Self::InvalidWeights { .. } => "transport_invalid_weights",
             Self::UnknownPolicy { .. } => "transport_unknown_policy",
             Self::CoefIndexOutOfRange { .. } => "transport_coef_index_out_of_range",
+            Self::Refused { code, .. } => *code,
         }
     }
 }
 
 impl From<TransportError> for ProbError {
     fn from(e: TransportError) -> Self {
-        ProbError::Refused { code: e.code(), message: e.to_string() }
+        match e {
+            // The detail already leads the message; the code is the refusal's own.
+            TransportError::Refused { code, message } => ProbError::Refused { code, message },
+            other => ProbError::Refused { code: other.code(), message: other.to_string() },
+        }
     }
 }
 
@@ -560,6 +574,40 @@ pub fn compose_with_transport(
         .collect();
     let composed = compose_external_priors_with_alphas(&prepared, &requested, &applied, baseline)?;
     Ok((composed, outcomes))
+}
+
+#[cfg(test)]
+mod refused_tests {
+    use super::*;
+
+    #[test]
+    fn a_refused_transport_keeps_its_code_and_detail_through_the_probability_error() {
+        let refused = TransportError::Refused {
+            code: "not_supported",
+            message: "route.unit_detail: the unit is not supported".into(),
+        };
+        assert_eq!(refused.code(), "not_supported");
+        assert_eq!(
+            refused.to_string(),
+            "not_supported: route.unit_detail: the unit is not supported"
+        );
+        match ProbError::from(refused) {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, "not_supported");
+                assert_eq!(message, "route.unit_detail: the unit is not supported");
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+        // The other variants still lead their message with their own code.
+        let invalid = TransportError::InvalidWeights { message: "empty weights" };
+        match ProbError::from(invalid) {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, "transport_invalid_weights");
+                assert_eq!(message, "transport_invalid_weights: empty weights");
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+    }
 }
 
 #[cfg(test)]
