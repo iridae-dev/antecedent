@@ -1103,10 +1103,6 @@ pub enum AttributionOutcome {
     UnitChange(UnitChangeResult),
     /// Mechanism-change detections.
     MechanismChange(Vec<MechanismChangeDetection>),
-    /// Model-implied strength of every edge.
-    ArrowStrengths(Vec<crate::gcm::ArrowStrength>),
-    /// Population do-contrast of a parent on a child.
-    PopulationDoContrast(crate::gcm::PopulationDoContrast),
 }
 
 /// The answer of a compiled attribution and the mechanisms it ran on.
@@ -1139,10 +1135,6 @@ pub enum SimulationOutcome {
     Counterfactual(crate::gcm::CounterfactualResult),
     /// Realised values of every step of a rollout or panel replay.
     Temporal(crate::gcm::TemporalPath),
-    /// A named do-sampler's draws or weighted sample.
-    DoSample(antecedent_model::DoSampleResult),
-    /// The fitted model's falsification evaluation.
-    ModelEvaluation(antecedent_model::ModelEvaluationReport),
 }
 
 /// The answer of a compiled simulation and the mechanisms it ran on.
@@ -1201,7 +1193,7 @@ pub use selective_route::SelectiveSearchResult;
 pub use discovery_route::panel_of_units;
 pub(crate) use discovery_route::{admit, discovery_quote, run_discovery};
 
-mod model_operations;
+pub(crate) mod model_operations;
 mod model_routes;
 
 pub use model_routes::attribution_quantities;

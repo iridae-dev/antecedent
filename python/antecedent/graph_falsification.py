@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ._data import as_columns
+from ._deprecation import direct_path_deprecated
 from ._native import evaluate_graph as _evaluate_graph
+from .errors import CausalTypeError
 from .execution import Execution, native_controls
 
 
@@ -107,10 +109,15 @@ def evaluate_graph(
     This is not a likelihood diagnostic: nothing is fitted and no outcome is shuffled. See
     ``limitations`` on the result for what the verdict does not establish.
     """
+    direct_path_deprecated(
+        "antecedent.graph_falsification.evaluate_graph",
+        "antecedent.graph_falsification.falsify_study_graph(antecedent.prepare(data, "
+        "graph=edges, query=...), ...)",
+    )
     names, columns = as_columns(data)
     ctl = native_controls(execution, seed="seed", threads="threads", cancel="cancel")
     runner = Execution() if execution is None else execution
-    raw = json.loads(
+    return _report(
         runner._call(
             _evaluate_graph,
             names,
@@ -128,6 +135,66 @@ def evaluate_graph(
             **ctl,
         )
     )
+
+
+def falsify_study_graph(
+    study: Any,
+    *,
+    ci_test: str = "parcorr",
+    alpha: float = 0.05,
+    significance: float = 0.05,
+    n_permutations: int = 200,
+    min_permutations: int = 20,
+    max_equivalent_share: float | None = None,
+    max_ci_tests: int | None = None,
+    ci_replicates: int = 199,
+    permutation_seed: int | None = None,
+    execution: Execution | None = None,
+) -> GraphFalsification:
+    """Falsify a prepared study's own DAG against the table it retained.
+
+    ``study`` is an :class:`antecedent.PreparedAnalysis` prepared on a supplied static DAG over a
+    table (``antecedent.prepare(data, graph=edges, query=...)``). The test is the one
+    :func:`evaluate_graph` describes, run through the study's compiled ``GraphFalsification``
+    program: the run is gated on the support unit ``gcm.model.graph_falsification`` and the
+    report is the same, number for number, as ``evaluate_graph`` on the same rows, edges,
+    settings and execution seed. ``execution`` defaults to the study's own.
+
+    The nodes are the columns the study retained, in the data's own order (preparation keeps
+    the columns the graph and the query name, in the order the data holds them), so node ids
+    follow the table exactly as ``evaluate_graph`` numbers them. A column of the data that the
+    graph does not name is not retained, so it is not tested as an isolated node; declare it in
+    the graph to test it.
+    """
+    native = getattr(getattr(study, "_engine", None), "_native", None)
+    if native is None or not hasattr(native, "falsify_graph"):
+        raise CausalTypeError(
+            "falsify_study_graph requires a PreparedAnalysis prepared on a supplied DAG over a "
+            "table (antecedent.prepare(data, graph=edges, query=...))"
+        )
+    runner = getattr(study, "execution", None) if execution is None else execution
+    runner = Execution() if runner is None else runner
+    ctl = native_controls(runner, seed="seed", threads="threads", cancel="cancel")
+    return _report(
+        runner._call(
+            native.falsify_graph,
+            ci_test=ci_test,
+            alpha=alpha,
+            significance=significance,
+            n_permutations=n_permutations,
+            min_permutations=min_permutations,
+            max_equivalent_share=max_equivalent_share,
+            max_ci_tests=max_ci_tests,
+            ci_replicates=ci_replicates,
+            permutation_seed=permutation_seed,
+            **ctl,
+        )
+    )
+
+
+def _report(payload: str) -> GraphFalsification:
+    """The Python view of a falsification report that crossed as JSON."""
+    raw = json.loads(payload)
     evidence = tuple(
         MarkovImplicationTest(
             node=e["node"],
@@ -144,4 +211,9 @@ def evaluate_graph(
     return GraphFalsification(evidence=evidence, **raw)
 
 
-__all__ = ["GraphFalsification", "MarkovImplicationTest", "evaluate_graph"]
+__all__ = [
+    "GraphFalsification",
+    "MarkovImplicationTest",
+    "evaluate_graph",
+    "falsify_study_graph",
+]

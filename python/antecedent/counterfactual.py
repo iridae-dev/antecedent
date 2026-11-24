@@ -60,6 +60,20 @@ class FittedGcm:
         return self._native.mechanism_selection()
 
     def arrow_strengths(self) -> list[Any]:
+        """The model-implied strength of every edge (linear-family mechanisms).
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.ArrowStrengths())`` answers it through the compiled attribution route, with a
+        contract and a claim, and the same numbers.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.arrow_strengths",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.ArrowStrengths())",
+            )
         return self._native.arrow_strengths()
 
     def anomaly_attribution(self, outcomes: list[str], *, max_units: int = 0) -> list[Any]:
@@ -172,6 +186,21 @@ class FittedGcm:
         max_units: int | None = None,
         execution: Execution | None = None,
     ) -> Any:
+        """Population do-contrast of ``parent`` on ``child`` with common random numbers.
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.PopulationContrast(parent, child, delta, max_units=...), execution=Execution(seed=...))`` answers it
+        through the compiled attribution route with the same numbers for the same execution seed; the
+        route's draws follow the query's seed, not the execution context it runs under.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.population_do_contrast",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.PopulationContrast(parent, child, delta), execution=Execution(seed=...))",
+            )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(
             execution,
@@ -216,6 +245,21 @@ class FittedGcm:
         *,
         execution: Execution | None = None,
     ) -> float:
+        """Mean of ``outcome`` when the ``outer`` and ``inner`` hard interventions hold together.
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.SimultaneousCounterfactual(outcome, outer, inner))`` answers it through the
+        compiled simulation route with the same number, and refuses overlapping sets when the
+        query is declared rather than when it runs.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.simultaneous_counterfactual",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.SimultaneousCounterfactual(outcome, outer, inner))",
+            )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(
             execution, self._native.simultaneous_counterfactual, outcome, outer, inner, **ctl
@@ -229,6 +273,21 @@ class FittedGcm:
         *,
         execution: Execution | None = None,
     ) -> float:
+        """Mean of ``outcome`` over ``n`` ancestral draws under hard ``interventions``.
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.InterventionalMean(outcome, interventions, n), execution=Execution(seed=...))`` averages the draws of
+        the compiled simulation route, which start from this method's stream for the same execution seed,
+        so the number is the same.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.interventional_mean",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.InterventionalMean(outcome, interventions, n), execution=Execution(seed=...))",
+            )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(execution, self._native.interventional_mean, outcome, interventions, n, **ctl)
 
@@ -246,6 +305,21 @@ class FittedGcm:
         root_match_tolerance: float | None = None,
         execution: Execution | None = None,
     ) -> Any:
+        """Run a named do-sampler for ``outcome`` under hard ``interventions``.
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.DoSampling(method, outcome, interventions, n, ...), execution=Execution(seed=...))`` runs the same
+        sampler through the compiled simulation route, starting from this method's stream for
+        the same seed, so the draws are the same.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.do_sample",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.DoSampling(method, outcome, interventions, n), execution=Execution(seed=...))",
+            )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(
             execution,
@@ -269,6 +343,21 @@ class FittedGcm:
         n_permutations: int = 20,
         execution: Execution | None = None,
     ) -> Any:
+        """The fitted model's falsification evaluation on its own rows.
+
+        Deprecated direct path: ``antecedent.analyze(data, graph=edges,
+        query=antecedent.model_operations.FittedModelEvaluation(alpha=..., n_permutations=...), execution=Execution(seed=...))`` runs the same
+        evaluation through the compiled simulation route with the same report for the same
+        seed.
+        The deprecation applies to a model fitted by ``fit_gcm`` with no selection keyword on a
+        supplied graph, the model ``analyze`` refits; a model with its own candidate set,
+        constraints, splits or an accepted discovered structure keeps this method.
+        """
+        if self._native.analyze_refits_this_model:
+            direct_path_deprecated(
+                "antecedent.counterfactual.FittedGcm.evaluate",
+                "antecedent.analyze(data, graph=edges, query=antecedent.model_operations.FittedModelEvaluation(alpha=..., n_permutations=...), execution=Execution(seed=...))",
+            )
         ctl = native_controls(execution, seed="seed", threads="threads")
         return _run(
             execution,

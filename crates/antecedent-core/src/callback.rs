@@ -404,6 +404,12 @@ pub enum CallbackError {
         /// The declaration.
         declared: String,
     },
+    /// A caller asked for derivatives the callback does not provide.
+    #[error("callback {name} provides no derivatives; implement value_and_derivatives")]
+    DerivativesNotProvided {
+        /// The callback's declared name.
+        name: String,
+    },
 }
 
 impl CallbackError {
@@ -427,6 +433,22 @@ pub trait BatchCallback: Send + Sync + fmt::Debug {
     /// [`CallbackError::Raised`] when the callback fails, or a shape / dtype error when
     /// it returns something other than one real value per row.
     fn call(&self, inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError>;
+
+    /// The callback's value at one point and its derivatives with respect to every declared
+    /// input, in declared order (`inputs` holds one value per declared input).
+    ///
+    /// A differentiable mechanism (a local feedback mechanism solved by Newton's method)
+    /// implements this; the correctness of the derivatives is the implementer's obligation. A
+    /// callback that does not implement it keeps this default, which refuses.
+    ///
+    /// # Errors
+    ///
+    /// [`CallbackError::DerivativesNotProvided`] by default; an implementation returns the
+    /// errors of [`Self::call`].
+    fn value_and_derivatives(&self, inputs: &[f64]) -> Result<(f64, Vec<f64>), CallbackError> {
+        let _ = inputs;
+        Err(CallbackError::DerivativesNotProvided { name: self.spec().name.clone() })
+    }
 }
 
 /// A callback applied to argument expressions. Equal only to itself (same callback

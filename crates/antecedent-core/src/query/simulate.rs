@@ -113,10 +113,6 @@ pub enum SimulationTarget {
         /// Steps before the panel, most recent first, laid out like `panel`.
         history: Arc<[f64]>,
     },
-    /// A named do-sampler (weighting, kernel density or Metropolis-Hastings) for one outcome.
-    DoSample(super::model_operations::DoSamplerTarget),
-    /// The fitted model's falsification evaluation on the study's rows.
-    ModelEvaluation(super::model_operations::ModelEvaluationTarget),
 }
 
 fn encode_schedule(writer: &mut CanonicalWriter, schedule: &InterventionSequence) {
@@ -149,8 +145,6 @@ impl SimulationTarget {
             Self::Counterfactual { .. } => "counterfactual",
             Self::TemporalRollout { .. } => "temporal_rollout",
             Self::TemporalCounterfactual { .. } => "temporal_counterfactual",
-            Self::DoSample(_) => "do_sample",
-            Self::ModelEvaluation(_) => "model_evaluation",
         }
     }
 }
@@ -210,14 +204,6 @@ impl CanonicalEncode for SimulationTarget {
                     .reals(panel)
                     .reals(history);
             }
-            Self::DoSample(target) => {
-                writer.word(9);
-                target.encode(writer);
-            }
-            Self::ModelEvaluation(target) => {
-                writer.word(10);
-                target.encode(writer);
-            }
         }
     }
 }
@@ -267,11 +253,6 @@ impl SimulateQuery {
             | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
                 (schedule.steps.first().and_then(|step| step.intervention.primary_variable()), None)
             }
-            SimulationTarget::DoSample(target) => (
-                target.interventions.first().and_then(Intervention::primary_variable),
-                Some(target.outcome),
-            ),
-            SimulationTarget::ModelEvaluation(_) => (None, None),
         }
     }
 
@@ -378,5 +359,38 @@ impl SimulateQuery {
                 Ok(())
             }
         }
+    }
+
+    /// The counterfactual of `outcomes` when the `outer` and `inner` hard interventions hold
+    /// simultaneously on the abduced factual noise (`Y_{outer, inner}`): one world holding both
+    /// sets, `outer` first.
+    ///
+    /// The sets are checked for disjointness here, at declaration: two interventions on one
+    /// variable are contradictory as a single world, and a world that let the later one win
+    /// would answer a different question. A nested query (`Y_{x, M_{x'}}`) is declared with its
+    /// frozen set instead.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidSimulate`] with [`SimulateFault::SimultaneousTargetsOverlap`] when
+    /// a variable is targeted by both sets, and the errors of [`Self::validate`].
+    pub fn simultaneous_world(
+        outer: &[Intervention],
+        inner: &[Intervention],
+        outcomes: impl Into<Arc<[VariableId]>>,
+    ) -> Result<Self, QueryError> {
+        let overlap = outer.iter().filter_map(Intervention::primary_variable).any(|variable| {
+            inner.iter().any(|intervention| intervention.primary_variable() == Some(variable))
+        });
+        if overlap {
+            return Err(QueryError::InvalidSimulate(SimulateFault::SimultaneousTargetsOverlap));
+        }
+        let interventions: Arc<[Intervention]> = outer.iter().chain(inner).cloned().collect();
+        let query = Self::new(SimulationTarget::Counterfactual {
+            interventions,
+            outcomes: outcomes.into(),
+        });
+        query.validate()?;
+        Ok(query)
     }
 }

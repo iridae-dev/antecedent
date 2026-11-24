@@ -198,6 +198,10 @@ pub enum QueryError {
     /// Invalid sequentially randomized unit-period design.
     #[error("invalid temporal-design query: {0}")]
     InvalidTemporalDesign(TemporalDesignFault),
+    /// Invalid operation on a fitted structural model (edge strengths, population do-contrast,
+    /// do-sampler, model evaluation).
+    #[error("invalid model-operation query: {0}")]
+    InvalidModelOperation(super::model_operations::ModelOperationFault),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {
@@ -371,4 +375,10 @@ pub enum QueryError {
     /// Exceedance threshold is non-finite or the grid is empty / not strictly increasing.
     #[error("outcome functional thresholds must be finite and strictly increasing")]
     InvalidOutcomeFunctional,
+}
+
+impl From<super::model_operations::ModelOperationFault> for QueryError {
+    fn from(fault: super::model_operations::ModelOperationFault) -> Self {
+        Self::InvalidModelOperation(fault)
+    }
 }

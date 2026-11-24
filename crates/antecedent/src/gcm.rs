@@ -662,6 +662,7 @@ pub mod external_mechanism {
 }
 /// Items of `antecedent-model::local_cyclic`.
 pub mod local_cyclic {
+    pub use antecedent_model::callback_cyclic::CallbackCyclicMechanism;
     pub use antecedent_model::local_cyclic::{
         LocalCyclicMechanism, LocalCyclicModel, LocalCyclicPolicy,
     };

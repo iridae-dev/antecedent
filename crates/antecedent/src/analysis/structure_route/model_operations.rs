@@ -1,17 +1,19 @@
-//! Execution of the fitted-model operations a model route answers beyond attribution and plain
-//! simulation: edge strengths, the population do-contrast, a named do-sampler and the held-out
-//! falsification evaluation.
+//! Execution of the fitted-model operations a prepared study answers on its own fitted model
+//! (`PreparedStudy::model_operation`): edge strengths, the population do-contrast, a named
+//! do-sampler, the held-out falsification evaluation and a nested counterfactual.
 //!
 //! Each runner calls the same kernel function the direct `antecedent::gcm` entry calls, with the
 //! inputs the target declares, so the compiled answer and the direct answer are the same numbers.
-//! The streams differ in one way: the direct entries draw from the caller's execution context
-//! (the population do-contrast, the Python do-sampler and mean), the targets carry their own seed.
+//! Every target carries its own seed. The population do-contrast draws from the attribution
+//! stream of a generator seeded with the target's seed, which is the stream the direct entry
+//! draws from under a context seeded the same way; the do-samplers start their generator at the
+//! target's seed, as a direct caller passing `CausalRng::from_seed(seed)` does.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalRng, DoSamplerMethod, DoSamplerTarget, ExecutionContext, Intervention,
-    ModelEvaluationTarget, PopulationDoContrastTarget,
+    ModelEvaluationTarget, NestedCounterfactualTarget, PopulationDoContrastTarget, RngFactory,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{
@@ -33,6 +35,10 @@ pub(crate) fn run_arrow_strengths(fitted: &FittedGcm) -> Result<Vec<ArrowStrengt
 
 /// Population do-contrast of the target's parent on its child over the study's rows.
 ///
+/// The kernel draws both arms from the context's attribution stream; the context it is given
+/// keeps every setting of `ctx` (threads, cancellation, admission) and replaces only the
+/// generator, by one seeded with the target's seed.
+///
 /// # Errors
 ///
 /// A table larger than the target's row cap, or a sampling failure.
@@ -43,6 +49,8 @@ pub(crate) fn run_population_do_contrast(
     ctx: &ExecutionContext,
 ) -> Result<PopulationDoContrast, CausalError> {
     let cap = target.max_units.unwrap_or_else(|| data.row_count());
+    let mut seeded = ctx.clone();
+    seeded.rng = RngFactory::from_seed(target.seed);
     crate::gcm::population_do_contrast(
         &fitted.model,
         data,
@@ -50,7 +58,7 @@ pub(crate) fn run_population_do_contrast(
         target.child,
         target.delta,
         cap,
-        ctx,
+        &seeded,
     )
     .map_err(CausalError::from)
 }
@@ -125,4 +133,28 @@ pub(crate) fn run_model_evaluation(
     ModelEvaluator { alpha: target.alpha, n_permutations: target.n_permutations, seed: target.seed }
         .evaluate(&fitted.model, data, ctx)
         .map_err(CausalError::from)
+}
+
+/// The nested counterfactual mean of the target over the study's rows: abduct once, evaluate
+/// the outer world, hold the frozen variables at their outer values and evaluate the inner world,
+/// the call `antecedent::gcm::nested_counterfactual` makes on the same fitted model.
+///
+/// # Errors
+///
+/// An unsupported intervention kind, an invalid frozen set, abduction or prediction failures.
+pub(crate) fn run_nested_counterfactual(
+    fitted: &FittedGcm,
+    data: &TabularData,
+    target: &NestedCounterfactualTarget,
+    ctx: &ExecutionContext,
+) -> Result<f64, CausalError> {
+    let engine = crate::gcm::CounterfactualEngine::new(fitted.model.clone());
+    let mut ws = MechanismWorkspace::default();
+    let spec = antecedent_counterfactual::NestedSpec {
+        outer: &target.outer,
+        inner: &target.inner,
+        frozen: &target.frozen,
+        outcome: target.outcome,
+    };
+    crate::gcm::nested_counterfactual(&engine, data, &spec, &mut ws, ctx).map_err(CausalError::from)
 }

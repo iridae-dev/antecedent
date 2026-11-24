@@ -8,13 +8,14 @@
 //! missing regime factors, for the Python layer to raise as its own exception type.
 
 use crate::bridge::check_declared_size;
+use antecedent::analysis::compiled_transported_counterfactual::TransportedCompileError;
 use antecedent::analysis::transported_counterfactual::{
     TransportedCounterfactual, TransportedCounterfactualArtifactError,
     TransportedCounterfactualIdentity, TransportedCounterfactualRequestWire,
 };
 use pyo3::prelude::*;
 
-use crate::{detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, py_err, py_execution_context, value_err, with_reason_code};
 
 /// Largest request / identity JSON accepted.
 const MAX_JSON_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
@@ -47,7 +48,8 @@ fn check_size(text: &str) -> PyResult<()> {
     check_declared_size(text, MAX_JSON_BYTES, "transported counterfactual")
 }
 
-/// Evaluate the transported contrast and seal it:
+/// Evaluate the transported contrast and seal it through its compiled program
+/// (`TransportedCounterfactual::compile`, support unit `counterfactual.transported_additive`):
 /// `(report json, artifact bytes, refusal json)`.
 #[pyfunction]
 fn evaluate_transported_counterfactual(
@@ -64,17 +66,22 @@ fn evaluate_transported_counterfactual(
             )
         })?;
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match TransportedCounterfactual::evaluate(&request) {
-        Ok(done) => {
-            let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
-            let report = serde_json::to_string(&done.report())
-                .map_err(|e| crate::serialization_err(e.to_string()))?;
-            Ok((Some(report), Some(bytes), None))
+    detach_catch(py, move || {
+        let ctx = py_execution_context(0, crate::resolve_user_threads(None));
+        match TransportedCounterfactual::compile(&request, &ctx) {
+            Ok(compiled) => {
+                let done = compiled.into_counterfactual();
+                let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
+                let report = serde_json::to_string(&done.report())
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
+                Ok((Some(report), Some(bytes), None))
+            }
+            Err(TransportedCompileError::Evaluation(error)) => match refusal_json(&error)? {
+                Some(json) => Ok((None, None, Some(json))),
+                None => Err(failure(&error)),
+            },
+            Err(other) => Err(py_err(antecedent::CausalError::from(other))),
         }
-        Err(error) => match refusal_json(&error)? {
-            Some(json) => Ok((None, None, Some(json))),
-            None => Err(failure(&error)),
-        },
     })
 }
 
