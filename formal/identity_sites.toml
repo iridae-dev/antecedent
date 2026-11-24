@@ -9424,4 +9424,226 @@ class = "set"
 canonical = "BTreeSet of names or name pairs, count-prefixed, each name framed as text; an edge is an ordered pair"
 concern = ""
 
+[[sites]]
+id = "antecedent.joint_panel.experiment.native.target_projection"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+item = "fn:target_projection#0"
+feeds = "NativeJointDesignResult::experiment_quantity (regime_id and functional_id of the native experiment target), which the bridge of a native experiment update must name and the native ranking question binds"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_native_experiment_target_frames_the_binding_by_bits", "unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_native_experiment_released_target_still_verifies", "adversarial:identity_sites.facade.panel4.native_target_framing", "adversarial:identity_sites.facade.panel4.native_target_released_verifies"]
+note = "Versioned: antecedent.native_experiment_target.v1 wrote the coefficients without a count and the regularization as bare serde_json text, so a binding with one more coefficient spelling the text's length prefix and bytes collided with a regularized one. v2 writes the design dependency, then NativeExperimentBinding::write (coefficients count-prefixed, units, the regularization behind a presence word with its bounds by their bits). The released encoding is kept byte-identical (TargetEncoding::Released); condition_native_in, which every replay of a native experiment artifact re-executes against its stored bridge, accepts a target named under either (names_experiment_target)."
+[[sites.collections]]
+name = "coefficients (one per retained native target)"
+class = "ordered"
+canonical = "count-prefixed, in order, by their bits: coefficient k weighs native target k"
+concern = ""
+[[sites.collections]]
+name = "parts (design dependency, coefficients, response units, optional local-ratio regularization: three bounds and the assumption)"
+class = "ordered"
+canonical = "fixed field order under the v2 tag; texts length-prefixed, the regularization behind a presence word, bounds by their bits"
+concern = ""
 
+[[sites]]
+id = "antecedent.joint_panel.experiment.native.native_experiment_digest"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+item = "fn:native_experiment_digest#0"
+feeds = "the trial evidence of the JointPanelExperiment native condition program (condition_native_experiment), hence its lowered program identity"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_native_condition_and_component_law_bind_their_parts"]
+note = "Extracted byte-identically from condition_native_experiment."
+[[sites.collections]]
+name = "parts (binding, update evidence identity)"
+class = "ordered"
+canonical = "NativeExperimentBinding::write (coefficients count-prefixed and ordered, units, presence-worded regularization), then the evidence identity, under the native experiment tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.joint.joint_dependency"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+item = "fn:joint_dependency#0"
+feeds = "PanelJointExperimentResult::dependency_identity: the conditioned laws' causal_contract_id, each component law's identity and the decision sources a joint update hands on"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_joint_dependency_counts_each_component_mapping", "adversarial:identity_sites.facade.panel4.joint_mapping_count"]
+note = "Versioned: antecedent.joint_panel.joint_update.v1 wrote each component's (intercept, slope) pairs, the sampling covariance and the bias bounds without counts, so a last component with one more pair spelling the covariance's count and first entry shared the bytes of a longer covariance. v2 count-prefixes each. No dual-accept is needed: the joint experiment artifact stores no dependency (its replay recomputes it from the retained inputs and consume_current compares two recomputations), and no ledger label or stored record carries it."
+[[sites.collections]]
+name = "components (bridge identity, functional id, observed mean, paired mapping)"
+class = "ordered"
+canonical = "count-prefixed, in declared order: component k is Input(k) and observed mean k"
+concern = ""
+[[sites.collections]]
+name = "paired (intercept, slope) realizations of each component"
+class = "ordered"
+canonical = "count-prefixed per component, by their bits: realization s pairs with draw slot s"
+concern = ""
+[[sites.collections]]
+name = "sampling covariance and optional bias bounds"
+class = "ordered"
+canonical = "each count-prefixed by their bits, row-major over components; the bounds behind a presence word"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.joint.component_law_digest"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+item = "fn:component_law_digest#0"
+feeds = "the ConditionedLaw identity a joint update's decision or ranking program reads for one component"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_native_condition_and_component_law_bind_their_parts"]
+note = "Extracted byte-identically from PanelJointExperimentResult::conditioned."
+[[sites.collections]]
+name = "parts (joint dependency, component index)"
+class = "ordered"
+canonical = "fixed order under the component-law tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.future_regime.future_regime_digest"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/future_regime.rs"
+item = "fn:future_regime_digest#0"
+feeds = "PanelFutureStudyValue::regime_identity and PanelFutureStudyUpdate::regime_identity of a candidate study in another regime"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_future_regime_orders_weights_and_mapping"]
+note = "Extracted byte-identically from PanelExperimentResult::future_regime_identity. The projection weights are flattened behind their total count and the mapping is intercepts then slopes without counts; both are injective given the dependency, which fixes each world's horizon (row width) and the retained draw count (realizations, and intercepts and slopes are validated to that count)."
+[[sites.collections]]
+name = "projection weights (one row per world)"
+class = "ordered"
+canonical = "flattened in world then period order behind their total count, by their bits: weight t of world w weighs period t"
+concern = ""
+[[sites.collections]]
+name = "paired mapping (intercepts, then slopes)"
+class = "ordered"
+canonical = "by their bits, realization s pairs with draw slot s; the count is the dependency's draw count"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.future_regime.PanelFutureRegime.declaration_identity"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/future_regime.rs"
+item = "impl:PanelFutureRegime#0/fn:declaration_identity#0"
+feeds = "the regime a ranking or future-study condition program binds before the regime is validated"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_future_regime_orders_weights_and_mapping"]
+[[sites.collections]]
+name = "parts (study id, bridge identity, functional, paired mapping, mapping origin)"
+class = "ordered"
+canonical = "fixed order; the functional tagged, the mapping as PanelExperimentMapping::write (count-prefixed, ordered by draw slot)"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.future_regime.future_study_outcome_digest"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/future_regime.rs"
+item = "fn:future_study_outcome_digest#0"
+feeds = "the trial evidence of the condition program update_for_future_study executes"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_future_regime_orders_weights_and_mapping"]
+note = "Extracted byte-identically from update_for_future_study."
+[[sites.collections]]
+name = "parts (update dependency, study id, sample size, observation variance, hypothetical outcome, optional regime)"
+class = "ordered"
+canonical = "fixed order; reals by bits, the regime's declaration identity behind a presence word"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.designs.native.native_dependency"
+file = "crates/antecedent/src/analysis/joint_panel/designs/native.rs"
+item = "fn:native_dependency#0"
+feeds = "PreparedNativeJointDesign::dependency (compiled_native_joint_design.v1): the native design's program source, ledger model labels of native experiments, decision-evidence design ids and every native experiment target"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs::site_joint_panel_native_design_dependency_is_the_ordered_recipe"]
+note = "Extracted byte-identically from PreparedNativeJointDesign::compile. The recipe types (antecedent-estimate joint_design) hold no hash-ordered map."
+[[sites.collections]]
+name = "the recipe's lists (units, episodes, schedules, rows, worlds, targets)"
+class = "ordered"
+canonical = "the recipe's CBOR wire as declared: units, episodes and rows are read positionally by the native estimators and their seeded resampling, worlds and targets are reported in declared order; reals keep their exact bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.static_source.source_graph"
+file = "crates/antecedent/src/analysis/joint_panel/static_source.rs"
+item = "fn:source_graph#0"
+feeds = "the graph part of the static empirical source binding of a joint panel bound to a static proof"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/static_source.rs::site_joint_panel_static_source_binds_the_labelled_graph_as_a_set_of_edges", "adversarial:identity_sites.facade.panel4.static_graph_edge_set"]
+note = "Versioned with static_binding: the released binding hashed dag_to_wire / admg_to_wire (dense ids, each node's children in insertion order, no labels), so the same proof graph built in another insertion order bound another source. It now hashes the canonical identity wire (dag_identity / admg_identity)."
+[[sites.collections]]
+name = "edges of the proof's graph"
+class = "set"
+canonical = "the graph's identity wire: nodes by label, directed (and bidirected) edges remapped and sorted; the graph refuses a repeated edge"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.static_source.static_binding"
+file = "crates/antecedent/src/analysis/joint_panel/static_source.rs"
+item = "fn:static_binding#0"
+feeds = "the panel.static_empirical_source_identity assumption of the bound target, hence the target identity and the panel's program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/static_source.rs::site_joint_panel_static_source_binds_the_labelled_graph_as_a_set_of_edges"]
+note = "Versioned: antecedent.panel.static_source_binding.v1 -> v2 (canonical graph wire). No dual-accept is needed: the binding is recomputed from the live proof whenever a panel is bound and is stored only inside a target, which artifacts carry as stored (replays never re-derive it); a 3.0 target is consumed from its stored copy."
+[[sites.collections]]
+name = "parts (graph identity wire, proof source digest, identification identity)"
+class = "ordered"
+canonical = "fixed order, each length-prefixed, under the v2 tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.ports.response_functional_digest"
+file = "crates/antecedent/src/analysis/joint_panel/ports.rs"
+item = "fn:response_functional_digest#0"
+feeds = "the functional_id (weighted_mean:<digest>) of each projected world quantity, hence experiment targets and mean sources"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/ports.rs::site_joint_panel_ports_response_functional_orders_the_period_weights"]
+note = "Extracted byte-identically from JointPanelResult::projection."
+[[sites.collections]]
+name = "period weights of one world"
+class = "ordered"
+canonical = "count-prefixed, by their bits, after the target identity: weight t weighs period t"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.explanation.scientific.population.transport_identity"
+file = "crates/antecedent/src/analysis/joint_panel/explanation/scientific/population.rs"
+item = "fn:transport_identity#0"
+feeds = "PopulationReferenceTransportProof::identity, bound into the numeric digest of every population-reference artifact"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/explanation/scientific/population.rs::site_joint_panel_population_transport_binds_the_labelled_graph_and_ordered_strata", "unit:crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::site_joint_panel_population_reference_released_digest_still_replays", "adversarial:identity_sites.facade.panel4.population_released_replays"]
+note = "Versioned: antecedent.reference.population.root_transport.v1 hashed admg_to_wire (dense, insertion-ordered, no node labels), so two diagrams with the same edge pattern over different variables shared a theorem identity, and wrote the strata without a count. v2 writes the source question, the diagram's admg_identity (nodes by label, edges sorted), its selection targets sorted, the baseline, then the strata count-prefixed. released_transport_identity keeps the v1 bytes, and both artifact readers (replay_population_reference and consume_population_reference_current) accept a numeric digest bound to either (population_digest_matches)."
+[[sites.collections]]
+name = "edges of the selection diagram's graph"
+class = "set"
+canonical = "admg_identity wire: nodes by label, directed and bidirected edges sorted (bidirected as unordered pairs)"
+concern = ""
+[[sites.collections]]
+name = "selection targets"
+class = "set"
+canonical = "sorted and deduplicated raw variable ids (SelectionDiagram refuses a repeat; the theorem confines them to the baseline)"
+concern = ""
+[[sites.collections]]
+name = "strata (value, before weight, after weight, world basis)"
+class = "ordered"
+canonical = "count-prefixed in declared order, reals by bits: the mixture is summed in that order and weights and world bases are aligned with it"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.explanation.scientific.artifact.numerical_digest"
+file = "crates/antecedent/src/analysis/joint_panel/explanation/scientific/artifact.rs"
+item = "fn:numerical_digest#0"
+feeds = "the archived numeric digest of reference-decomposition and population-reference artifacts, re-checked by their replay and consume"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::site_joint_panel_population_reference_released_digest_still_replays"]
+note = "Hybrid vectors and covariance blocks are fixed-size arrays; the optional weights are aligned with the draws, whose count is written. Unchanged."
+[[sites.collections]]
+name = "draws (optional per-slot hybrid decompositions) and their weights"
+class = "ordered"
+canonical = "count-prefixed draws in slot order, each behind a presence word, every real by its bits; weights behind a presence word, aligned with the draws"
+concern = ""

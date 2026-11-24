@@ -1109,6 +1109,64 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn site_joint_panel_population_reference_released_digest_still_replays() {
+        use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
+        let ctx = ExecutionContext::for_tests(319);
+        let (posterior, components) =
+            compiled_parameter_population_scenario(false, None, 8192, true);
+        let mut graph = Admg::with_variables(5);
+        for variable in 0..4 {
+            graph
+                .insert_directed(DenseNodeId::from_raw(variable), DenseNodeId::from_raw(4))
+                .unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(3)]).unwrap();
+        let bindings = PopulationReferenceBindings {
+            baseline: VariableId::from_raw(3),
+            strata: vec![0.0, 1.0],
+            stratum_worlds: vec![
+                components.hybrids,
+                components.hybrids.map(|id| ScientificWorldId::from_raw(id.raw() + 8)),
+            ],
+            before_weights: vec![0.8, 0.2],
+            after_weights: vec![0.2, 0.8],
+            components,
+        };
+        let result = posterior.prepared().execute(JointDesignInference::Frequentist, &ctx).unwrap();
+        // An artifact exported before the transport theorem's identity was versioned binds the
+        // released identity in its numeric digest; it still replays and is still consumed.
+        let released = result
+            .export_released_population_reference(
+                &bindings,
+                &diagram,
+                ScientificConsumptionScope::IdentifiedCausal,
+                &ctx,
+            )
+            .unwrap();
+        let current = result
+            .export_population_reference(
+                &bindings,
+                &diagram,
+                ScientificConsumptionScope::IdentifiedCausal,
+                &ctx,
+            )
+            .unwrap();
+        assert_ne!(released, current, "the theorem identity is versioned");
+        for bytes in [&released, &current] {
+            replay_population_reference(bytes, &ctx).unwrap();
+            result
+                .consume_population_reference_current(
+                    bytes,
+                    &bindings,
+                    &diagram,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ctx,
+                )
+                .unwrap();
+        }
+    }
 }
 
 impl crate::analysis::joint_panel::designs::JointDesignResult {

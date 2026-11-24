@@ -799,3 +799,280 @@ fn site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact() {
         component(2.0).evidence_identity(),
     ]);
 }
+
+#[test]
+fn site_joint_panel_native_experiment_target_frames_the_binding_by_bits() {
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    let dependency = SemanticDigest::from_bytes([3; 32]);
+    let bounds = |intercept: f64, assumption: String| LocalRatioGaussianRegularization {
+        max_abs_intercept: intercept,
+        min_abs_slope: 0.5,
+        max_abs_slope: 2.0,
+        assumption,
+    };
+    let binding = |coefficients: &[f64],
+                   regularization: Option<LocalRatioGaussianRegularization>| {
+        NativeExperimentBinding {
+            coefficients: coefficients.to_vec(),
+            outcome_units: "unit".into(),
+            local_ratio_regularization: regularization,
+        }
+    };
+    let current = |b: &NativeExperimentBinding| {
+        target_projection(dependency, b, TargetEncoding::Current).unwrap()
+    };
+    let released = |b: &NativeExperimentBinding| {
+        target_projection(dependency, b, TargetEncoding::Released).unwrap()
+    };
+    // Coefficient `k` weighs native target `k`.
+    ordered_laws(&[1.0, 2.0, 3.0], |coefficients| Some(current(&binding(coefficients, None))));
+    // The regularization bounds are written by their bits, never through text.
+    bit_exact(|x| Some(current(&binding(&[1.0], Some(bounds(x, "bounded".into()))))));
+    all_distinct(&[
+        current(&binding(&[1.0], None)),
+        current(&binding(&[1.0, 0.0], None)),
+        current(&binding(&[1.0], Some(bounds(1.0, "bounded".into())))),
+        current(&binding(&[1.0], Some(bounds(2.0, "bounded".into())))),
+        target_projection(
+            SemanticDigest::from_bytes([4; 32]),
+            &binding(&[1.0], None),
+            TargetEncoding::Current,
+        )
+        .unwrap(),
+        released(&binding(&[1.0], None)),
+    ]);
+    // The released encoding wrote the coefficients without a count and the regularization as
+    // bare JSON text, so a binding with one more coefficient whose bits spell the text's length
+    // prefix and bytes collided with it. The current encoding separates them.
+    let mut assumption = String::from("b");
+    let text = loop {
+        let text = serde_json::to_string(&bounds(1.0, assumption.clone())).unwrap();
+        if text.len() % 8 == 0 {
+            break text;
+        }
+        assumption.push('b');
+    };
+    let regularized = binding(&[1.0], Some(bounds(1.0, assumption)));
+    let mut spelled = vec![1.0, f64::from_bits(text.len() as u64)];
+    spelled.extend(
+        text.as_bytes()
+            .chunks_exact(8)
+            .map(|chunk| f64::from_bits(u64::from_le_bytes(chunk.try_into().unwrap()))),
+    );
+    let spelled = binding(&spelled, None);
+    assert_eq!(released(&regularized), released(&spelled), "the released framing collides");
+    assert_ne!(current(&regularized), current(&spelled));
+}
+
+#[test]
+fn site_joint_panel_native_experiment_released_target_still_verifies() {
+    let ctx = ExecutionContext::for_tests(445);
+    let (recipe, _, coefficients) =
+        super::super::super::designs::native_experiment_fixtures().remove(0);
+    let prepared =
+        super::super::super::designs::PreparedNativeJointDesign::compile(recipe, &ctx).unwrap();
+    let result = prepared
+        .execute(
+            antecedent_estimate::joint_design::compiled::JointDesignInference::Frequentist,
+            &ctx,
+        )
+        .unwrap();
+    let binding = NativeExperimentBinding {
+        coefficients,
+        outcome_units: "original_response_unit".into(),
+        local_ratio_regularization: None,
+    };
+    let current = result.experiment_quantity(&binding).unwrap();
+    let released = result.experiment_quantity_as(&binding, TargetEncoding::Released).unwrap();
+    assert_ne!(current, released, "the projection is versioned");
+    // A bridge retained under either encoding names this binding's target.
+    assert!(result.names_experiment_target(&binding, &current).unwrap());
+    assert!(result.names_experiment_target(&binding, &released).unwrap());
+    let other = NativeExperimentBinding { outcome_units: "another_unit".into(), ..binding.clone() };
+    let foreign = result.experiment_quantity(&other).unwrap();
+    assert!(!result.names_experiment_target(&binding, &foreign).unwrap());
+    let foreign = result.experiment_quantity_as(&other, TargetEncoding::Released).unwrap();
+    assert!(!result.names_experiment_target(&binding, &foreign).unwrap());
+}
+
+/// A joint update over components whose mappings hold `slots` realizations each.
+fn site_joint_update(slots: &[usize]) -> super::super::PanelJointExperimentUpdate {
+    let id = |byte: u8| SourceId::from_digest(SemanticDigest::from_bytes([byte; 32]));
+    let quantity = ScientificQuantity {
+        variable_id: "native:site:0".into(),
+        variable_name: "response".into(),
+        role: QuantityRole::Outcome,
+        units: "response".into(),
+        population_id: "site_population".into(),
+        regime_id: "native:site:response".into(),
+        horizon: 0,
+        functional_id: "mean".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    super::super::PanelJointExperimentUpdate {
+        components: slots
+            .iter()
+            .map(|&n| super::super::PanelJointExperimentComponent {
+                bridge: bridge(&quantity, 1.0, 0.1, 0.0, 0),
+                functional: super::super::super::JointPanelResponseFunctional::TerminalMean,
+                mapping: PanelExperimentMapping {
+                    dependency: SemanticDigest::from_bytes([7; 32]),
+                    intercepts: vec![0.5; n],
+                    slopes: vec![1.0; n],
+                },
+            })
+            .collect(),
+        observed_means: vec![0.5; slots.len()],
+        sampling_covariance: vec![1.0; slots.len() * slots.len()],
+        sample_size: 10,
+        modular_policy: super::super::PanelExperimentModularPolicy::FrozenJointImportance,
+        evidence: PanelExperimentEvidence {
+            model: id(1),
+            prior_origins: vec![],
+            experiment: id(2),
+            mapping: id(3),
+        },
+        contrast_bias_bounds: None,
+    }
+}
+
+#[test]
+fn site_joint_panel_joint_dependency_counts_each_component_mapping() {
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    let source = SemanticDigest::from_bytes([9; 32]);
+    let dependency = |update: &super::super::PanelJointExperimentUpdate| {
+        super::super::joint::joint_dependency(source, "contract", update, &[0.5, 0.5])
+    };
+    // Each component's mapping is count-prefixed. Without the count, a last component with one
+    // more (intercept, slope) pair whose reals spell the covariance's count and first entry
+    // shared the bytes of a longer covariance: the released encoding's collision.
+    let mut longer_covariance = site_joint_update(&[1, 1]);
+    longer_covariance.sampling_covariance = vec![1.0, f64::from_bits(1), 1.0];
+    let mut longer_mapping = site_joint_update(&[1, 1]);
+    longer_mapping.components[1].mapping.intercepts = vec![0.5, f64::from_bits(3)];
+    longer_mapping.components[1].mapping.slopes = vec![1.0, 1.0];
+    longer_mapping.sampling_covariance = vec![1.0];
+    let base = site_joint_update(&[1, 1]);
+    all_distinct(&[
+        dependency(&longer_covariance),
+        dependency(&longer_mapping),
+        dependency(&base),
+        dependency(&site_joint_update(&[2, 2])),
+        super::super::joint::joint_dependency(source, "other", &base, &[0.5, 0.5]),
+        super::super::joint::joint_dependency(
+            SemanticDigest::from_bytes([8; 32]),
+            "contract",
+            &base,
+            &[0.5, 0.5],
+        ),
+    ]);
+    // Realization `s` pairs with draw slot `s`.
+    ordered_laws(&[0.0, 1.0, 2.0], |intercepts| {
+        let mut update = site_joint_update(&[3]);
+        update.components[0].mapping.intercepts = intercepts.to_vec();
+        Some(dependency(&update))
+    });
+    bit_exact(|x| {
+        let mut update = site_joint_update(&[1]);
+        update.observed_means[0] = x;
+        Some(dependency(&update))
+    });
+    let mut bounded = site_joint_update(&[1, 1]);
+    bounded.contrast_bias_bounds = Some(vec![0.1, 0.2]);
+    let mut swapped = site_joint_update(&[1, 1]);
+    swapped.contrast_bias_bounds = Some(vec![0.2, 0.1]);
+    all_distinct(&[
+        dependency(&site_joint_update(&[1, 1])),
+        dependency(&bounded),
+        dependency(&swapped),
+    ]);
+}
+
+#[test]
+fn site_joint_panel_future_regime_orders_weights_and_mapping() {
+    use super::super::future_regime::{
+        PanelFutureRegime, PanelFutureStudy, future_regime_digest, future_study_outcome_digest,
+    };
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    let quantity = ScientificQuantity {
+        variable_id: "native:site:0".into(),
+        variable_name: "response".into(),
+        role: QuantityRole::Outcome,
+        units: "response".into(),
+        population_id: "site_population".into(),
+        regime_id: "native:site:response".into(),
+        horizon: 0,
+        functional_id: "mean".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let regime = |intercepts: &[f64]| PanelFutureRegime {
+        functional: super::super::super::JointPanelResponseFunctional::TerminalMean,
+        bridge: bridge(&quantity, 1.0, 0.1, 0.0, 0),
+        mapping: PanelExperimentMapping {
+            dependency: SemanticDigest::from_bytes([7; 32]),
+            intercepts: intercepts.to_vec(),
+            slopes: vec![1.0; intercepts.len()],
+        },
+        mapping_evidence: SourceId::from_digest(SemanticDigest::from_bytes([5; 32])),
+    };
+    let dependency = SemanticDigest::from_bytes([6; 32]);
+    let weights = vec![vec![0.5, 0.5], vec![0.0, 1.0]];
+    // Weight `t` of world `w` weighs period `t`; realization `s` pairs with draw slot `s`.
+    ordered_laws(&[0.0, 1.0, 2.0], |intercepts| {
+        Some(future_regime_digest(&regime(intercepts), dependency, &weights))
+    });
+    ordered_laws(&[0.25, 0.5, 0.75], |row| {
+        Some(future_regime_digest(&regime(&[0.0]), dependency, &[row.to_vec()]))
+    });
+    bit_exact(|x| Some(future_regime_digest(&regime(&[x]), dependency, &weights)));
+    all_distinct(&[
+        future_regime_digest(&regime(&[0.0]), dependency, &weights),
+        future_regime_digest(&regime(&[0.0]), SemanticDigest::from_bytes([2; 32]), &weights),
+        future_regime_digest(&regime(&[0.0]), dependency, &[vec![0.5, 0.5]]),
+        regime(&[0.0]).declaration_identity("study-a"),
+        regime(&[0.0]).declaration_identity("study-b"),
+        regime(&[1.0]).declaration_identity("study-a"),
+    ]);
+    let study = |regime: Option<PanelFutureRegime>| PanelFutureStudy {
+        sample: super::super::PanelFutureSample {
+            id: "study-a".into(),
+            sample_size: 10,
+            observation_variance: 1.0,
+            cost_utility: None,
+        },
+        regime,
+    };
+    bit_exact(|x| Some(future_study_outcome_digest(dependency, &study(None), x)));
+    all_distinct(&[
+        future_study_outcome_digest(dependency, &study(None), 0.5),
+        future_study_outcome_digest(dependency, &study(Some(regime(&[0.0]))), 0.5),
+        future_study_outcome_digest(dependency, &study(Some(regime(&[1.0]))), 0.5),
+        future_study_outcome_digest(SemanticDigest::from_bytes([2; 32]), &study(None), 0.5),
+    ]);
+}
+
+#[test]
+fn site_joint_panel_native_condition_and_component_law_bind_their_parts() {
+    use crate::identity_laws::all_distinct;
+    let binding = |units: &str| NativeExperimentBinding {
+        coefficients: vec![1.0, 2.0],
+        outcome_units: units.into(),
+        local_ratio_regularization: None,
+    };
+    let evidence = SemanticDigest::from_bytes([1; 32]);
+    let swapped = NativeExperimentBinding { coefficients: vec![2.0, 1.0], ..binding("unit") };
+    all_distinct(&[
+        native_experiment_digest(&binding("unit"), evidence),
+        native_experiment_digest(&binding("other"), evidence),
+        native_experiment_digest(&swapped, evidence),
+        native_experiment_digest(&binding("unit"), SemanticDigest::from_bytes([2; 32])),
+    ]);
+    let dependency = SemanticDigest::from_bytes([3; 32]);
+    all_distinct(&[
+        super::super::joint::component_law_digest(dependency, 0),
+        super::super::joint::component_law_digest(dependency, 1),
+        super::super::joint::component_law_digest(SemanticDigest::from_bytes([4; 32]), 0),
+    ]);
+}

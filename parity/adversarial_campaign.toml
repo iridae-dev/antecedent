@@ -1262,6 +1262,36 @@ kind = "preserving"
 runner = "facade"
 test = "site_joint_panel_designs_released_dependency_still_verifies"
 
+[[cases]]
+id = "identity_sites.facade.panel4.native_target_framing"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_native_experiment_target_frames_the_binding_by_bits"
+
+[[cases]]
+id = "identity_sites.facade.panel4.native_target_released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_native_experiment_released_target_still_verifies"
+
+[[cases]]
+id = "identity_sites.facade.panel4.joint_mapping_count"
+kind = "changing"
+runner = "facade"
+test = "site_joint_panel_joint_dependency_counts_each_component_mapping"
+
+[[cases]]
+id = "identity_sites.facade.panel4.static_graph_edge_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_static_source_binds_the_labelled_graph_as_a_set_of_edges"
+
+[[cases]]
+id = "identity_sites.facade.panel4.population_released_replays"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_population_reference_released_digest_still_replays"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -2435,3 +2465,38 @@ old = """        if identity(&target, &wire.proof)? != self.dependency
         {"""
 new = """        if identity(&target, &wire.proof)? != self.dependency {"""
 caught_by = ["identity_sites.facade.design3.released_verifies"]
+
+[[mutations]]
+id = "panel4_native_coefficients_sorted"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+old = "        writer.reals(&self.coefficients).text(&self.outcome_units);"
+new = "        let mut sorted = self.coefficients.clone();\n        sorted.sort_by(f64::total_cmp);\n        writer.reals(&sorted).text(&self.outcome_units);"
+caught_by = ["identity_sites.facade.panel4.native_target_framing"]
+
+[[mutations]]
+id = "panel4_native_released_target_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/native.rs"
+old = "            || *target == self.experiment_quantity_as(binding, TargetEncoding::Released)?)"
+new = "            || false)"
+caught_by = ["identity_sites.facade.panel4.native_target_released_verifies"]
+
+[[mutations]]
+id = "panel4_joint_mapping_count_dropped"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+old = "        joint.word(pairs as u64);"
+new = "        let _ = pairs;"
+caught_by = ["identity_sites.facade.panel4.joint_mapping_count"]
+
+[[mutations]]
+id = "panel4_static_graph_insertion_order"
+file = "crates/antecedent/src/analysis/joint_panel/static_source.rs"
+old = "                &antecedent_io::dag_identity(graph).map_err(JointPanelError::compile)?,"
+new = "                &antecedent_io::dag_to_wire(graph).map_err(JointPanelError::compile)?,"
+caught_by = ["identity_sites.facade.panel4.static_graph_edge_set"]
+
+[[mutations]]
+id = "panel4_population_released_digest_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/explanation/scientific/artifact.rs"
+old = "        || digest(result.transport.released_identity())? == archived)"
+new = "        || false)"
+caught_by = ["identity_sites.facade.panel4.population_released_replays"]

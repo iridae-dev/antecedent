@@ -205,20 +205,33 @@ impl NativeJointDesignResult {
         &self,
         binding: &NativeExperimentBinding,
     ) -> Result<ScientificQuantity, JointPanelError> {
+        self.experiment_quantity_as(binding, TargetEncoding::Current)
+    }
+
+    /// Whether `target` is this binding's experiment quantity. A bridge retained before the
+    /// projection was framed (an artifact replayed from its stored bridge) names the released
+    /// projection of the same binding, and is accepted too.
+    fn names_experiment_target(
+        &self,
+        binding: &NativeExperimentBinding,
+        target: &ScientificQuantity,
+    ) -> Result<bool, JointPanelError> {
+        Ok(*target == self.experiment_quantity(binding)?
+            || *target == self.experiment_quantity_as(binding, TargetEncoding::Released)?)
+    }
+
+    /// [`Self::experiment_quantity`] with its projection named under `encoding`.
+    fn experiment_quantity_as(
+        &self,
+        binding: &NativeExperimentBinding,
+        encoding: TargetEncoding,
+    ) -> Result<ScientificQuantity, JointPanelError> {
         let mut quantity = native_coordinates(self, binding)?.remove(0);
-        let mut writer =
-            antecedent_core::CanonicalWriter::new("antecedent.native_experiment_target.v1");
-        writer.bytes(self.prepared().dependency().as_bytes()).text(&binding.outcome_units);
-        for c in &binding.coefficients {
-            writer.real(*c);
-        }
-        if let Some(bounds) = &binding.local_ratio_regularization {
-            writer.text(
-                &serde_json::to_string(bounds)
-                    .map_err(|error| JointPanelError::compile(error.to_string()))?,
-            );
-        }
-        let projection = SemanticDigest::from_bytes(writer.finish());
+        let projection = SemanticDigest::from_bytes(target_projection(
+            self.prepared().dependency(),
+            binding,
+            encoding,
+        )?);
         quantity.regime_id = format!("native-projection:{projection}");
         quantity.functional_id =
             format!("{}:linear:{projection}", self.prepared().identification().target_kind);
@@ -241,13 +254,10 @@ impl NativeJointDesignResult {
         ctx: &ExecutionContext,
     ) -> Result<NativeJointExperimentResult, JointPanelError> {
         let update = request.into_update();
-        let mut experiment = CanonicalWriter::new("antecedent.joint_panel.native_experiment.v1");
-        binding.write(&mut experiment);
-        experiment.bytes(update.evidence_identity().as_bytes());
         let lowered = experiment_program(
             ExperimentOperation::NativeCondition,
             self.program_identity(),
-            SemanticDigest::from_bytes(experiment.finish()),
+            native_experiment_digest(&binding, update.evidence_identity()),
             update.evidence_bytes(),
             None,
         )?;
@@ -271,7 +281,7 @@ impl NativeJointDesignResult {
         program: ExecutedProgram,
     ) -> Result<NativeJointExperimentResult, JointPanelError> {
         source::check_cancelled(ctx)?;
-        if update.bridge.target.quantity != self.experiment_quantity(&binding)? {
+        if !self.names_experiment_target(&binding, &update.bridge.target.quantity)? {
             return Err(JointPanelError::compile(
                 "experimental bridge must target the exact method-native functional, population and units",
             ));
@@ -709,6 +719,61 @@ impl NativeJointExperimentResult {
             ));
         }
         Ok(())
+    }
+}
+
+/// The trial evidence a native condition program cites: the binding (coefficients
+/// count-prefixed and in order, the response units, any regularization behind a presence word
+/// with its bounds by their bits) and the update's evidence identity.
+fn native_experiment_digest(
+    binding: &NativeExperimentBinding,
+    evidence: SemanticDigest,
+) -> SemanticDigest {
+    let mut experiment = CanonicalWriter::new("antecedent.joint_panel.native_experiment.v1");
+    binding.write(&mut experiment);
+    experiment.bytes(evidence.as_bytes());
+    SemanticDigest::from_bytes(experiment.finish())
+}
+
+/// Which encoding names the projection of a native experiment target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TargetEncoding {
+    /// Every field framed: the coefficients count-prefixed, the regularization behind a
+    /// presence word with its bounds by their bits.
+    Current,
+    /// The released encoding: unframed coefficients and the regularization's JSON text. Kept
+    /// byte-identical so a bridge retained under it still verifies.
+    Released,
+}
+
+/// Digest of the projection that names a native experiment target: the design dependency and
+/// the binding (coefficients in order, the response units, any local-ratio regularization).
+fn target_projection(
+    dependency: SemanticDigest,
+    binding: &NativeExperimentBinding,
+    encoding: TargetEncoding,
+) -> Result<[u8; 32], JointPanelError> {
+    match encoding {
+        TargetEncoding::Current => {
+            let mut writer = CanonicalWriter::new("antecedent.native_experiment_target.v2");
+            writer.bytes(dependency.as_bytes());
+            binding.write(&mut writer);
+            Ok(writer.finish())
+        }
+        TargetEncoding::Released => {
+            let mut writer = CanonicalWriter::new("antecedent.native_experiment_target.v1");
+            writer.bytes(dependency.as_bytes()).text(&binding.outcome_units);
+            for c in &binding.coefficients {
+                writer.real(*c);
+            }
+            if let Some(bounds) = &binding.local_ratio_regularization {
+                writer.text(
+                    &serde_json::to_string(bounds)
+                        .map_err(|error| JointPanelError::compile(error.to_string()))?,
+                );
+            }
+            Ok(writer.finish())
+        }
     }
 }
 

@@ -519,13 +519,7 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
             ));
         }
         let result = current.decompose_population_reference(bindings, diagram, scope, ctx)?;
-        if numerical_digest(
-            &result.decomposition,
-            result.covariance.as_ref(),
-            result.transport.identity(),
-            ctx,
-        )? != wire.digest
-        {
+        if !population_digest_matches(&result, wire.digest, ctx)? {
             return Err(invalid("population-reference numeric replay mismatch"));
         }
         Ok(result)
@@ -577,13 +571,7 @@ pub fn replay_population_reference_with_limits(
         scope,
         ctx,
     )?;
-    if numerical_digest(
-        &result.decomposition,
-        result.covariance.as_ref(),
-        result.transport.identity(),
-        ctx,
-    )? != wire.digest
-    {
+    if !population_digest_matches(&result, wire.digest, ctx)? {
         return Err(invalid("historical population-reference numeric replay mismatch"));
     }
     Ok(HistoricalPopulationReference {
@@ -592,4 +580,49 @@ pub fn replay_population_reference_with_limits(
         covariance: result.covariance,
         transport_identity: result.transport.identity(),
     })
+}
+
+/// Whether a replayed population decomposition reproduces an archived numeric digest: under
+/// the transport theorem's current identity, or under its released identity for an artifact
+/// exported before the theorem's graph was written by label.
+fn population_digest_matches(
+    result: &PopulationReferenceDecomposition,
+    archived: [u8; 32],
+    ctx: &ExecutionContext,
+) -> Result<bool, JointPanelError> {
+    let digest = |transport: SemanticDigest| {
+        numerical_digest(&result.decomposition, result.covariance.as_ref(), transport, ctx)
+    };
+    Ok(digest(result.transport.identity())? == archived
+        || digest(result.transport.released_identity())? == archived)
+}
+
+#[cfg(test)]
+impl crate::analysis::joint_panel::designs::JointDesignResult {
+    /// The population-reference artifact as it was exported before the transport theorem's
+    /// identity was versioned: its numeric digest binds the released identity.
+    pub(crate) fn export_released_population_reference(
+        &self,
+        bindings: &PopulationReferenceBindings,
+        diagram: &antecedent_graph::SelectionDiagram,
+        scope: ScientificConsumptionScope,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, JointPanelError> {
+        let result = self.decompose_population_reference(bindings, diagram, scope, ctx)?;
+        let wire = PopulationArtifact {
+            version: 1,
+            design: self
+                .export_artifact_with_limits(ReferenceArtifactLimits::default().design())?,
+            bindings: PopulationBindingsWire::from_domain(bindings),
+            diagram: DiagramWire::from_domain(diagram)?,
+            identified: scope == ScientificConsumptionScope::IdentifiedCausal,
+            digest: numerical_digest(
+                &result.decomposition,
+                result.covariance.as_ref(),
+                result.transport.released_identity(),
+                ctx,
+            )?,
+        };
+        antecedent_io_core::convert::to_cbor(&wire).map_err(JointPanelError::compile)
+    }
 }
