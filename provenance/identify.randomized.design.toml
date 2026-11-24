@@ -33,7 +33,7 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "contract"
 rationale = "randomized_identification stamps the identification of a randomized-effect query: an expectation functional of the outcome, the rule name (intention-to-treat, multi-arm, Wald complier, one-sided treatment on the treated), and the declared assumptions of the assignment design, noncompliance, covariate adjustment and a requested exact test."
-no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options; it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
+no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options and on the study's declared randomized adjustment (an estimated-slope CUPED declaration selects the estimated pre-assignment covariate record that the query marker selected before); it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
 covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.estimated_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
 record_sha256 = "2d184a771857689290840a1c2fc353b8b870ac4898472229c5e6c16e85ef0bc6"
 
@@ -41,7 +41,7 @@ record_sha256 = "2d184a771857689290840a1c2fc353b8b870ac4898472229c5e6c16e85ef0bc
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
 items = ["fn push_randomized_core_assumptions", "fn push_randomized_covariate_assumptions", "fn push_randomized_design_assumptions", "fn randomized_identification"]
-sha256 = "9d7220e09dcc6054363f81faecf79860f2c706832823003d92b51e8018d054cc"
+sha256 = "83c88858a363c601779b98d9f461761abeb672b9585ea51b6462d82885cfed13"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
