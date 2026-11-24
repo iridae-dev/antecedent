@@ -151,6 +151,15 @@ In Python a `decision.Contract` takes one of two forms, told apart by `value=`:
 | `target_population`, `horizon`, `constraints`, `structural_policy` | as declared | the same; constraints read attributes |
 | `policy` | not accepted | `TradeoffPolicy`; defaults to `invariant_best`; accepted only when the value declares a trade-off range |
 
+`utility_units`, `criterion` and `target_population` default to `None` in the signature only
+so the value form can leave the first two out. Construction still checks them: an ordinary
+contract without `utility_units` or `criterion` raises `CausalTypeError`, and either form
+without `target_population` raises `CausalTypeError` (a `TypeError`). With `value=`, an omitted
+`utility_units` is taken from the value's units and an omitted `criterion` means expected
+utility. `Action.utility` likewise defaults to `None` only for named inputs: an action with
+positional inputs and no `utility` raises `CausalTypeError`. An ordinary contract is written
+exactly as before `value=` existed.
+
 A contract never mixes the two readings: an action with named inputs in an ordinary contract,
 or positional inputs in a value contract, raises `CausalTypeError` naming the action.
 `contract.form` is `"ordinary"` or `"tradeoff"`, `contract.route` is `"exact"`,

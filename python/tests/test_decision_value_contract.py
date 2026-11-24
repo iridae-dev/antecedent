@@ -490,6 +490,37 @@ def test_value_form_validation():
     assert admissibility_on_ranged.value.reason_code == "option_not_applicable"
 
 
+def test_an_ordinary_contract_is_written_and_checked_as_before_value_existed():
+    # Written as an ordinary-form caller always wrote it: positionally or by keyword.
+    by_position = decision.Contract(
+        _positional_actions(), "qaly", decision.Criterion.expected_utility(), "target"
+    )
+    by_keyword = _hand_contract()
+    assert by_position.identity == by_keyword.identity
+    assert by_position.form == "ordinary"
+    assert (by_position.value, by_position.policy) == (None, None)
+    assert type(require_success(by_position.evaluate(_source()))) is decision.Decision
+
+    # The fields that default to None are still required of an ordinary contract: leaving one
+    # out, or passing None, raises a TypeError naming it.
+    complete: dict[str, Any] = {
+        "utility_units": "qaly",
+        "criterion": decision.Criterion.expected_utility(),
+        "target_population": "target",
+    }
+    for missing in complete:
+        given = {name: v for name, v in complete.items() if name != missing}
+        with pytest.raises(CausalTypeError, match=missing):
+            decision.Contract(actions=_positional_actions(), **given)
+        with pytest.raises(CausalTypeError, match=missing):
+            decision.Contract(actions=_positional_actions(), **given, **{missing: None})
+    with pytest.raises(TypeError, match="target_population"):
+        decision.Contract(_positional_actions(), "qaly", decision.Criterion.expected_utility())
+    # An action read by position still needs its utility.
+    with pytest.raises(TypeError, match="utility"):
+        decision.Action("treat", inputs=(TREAT_BENEFIT, TREAT_HARM))
+
+
 def test_value_form_defaults_and_replace():
     contract = _value_contract()
     assert contract.horizon == 0

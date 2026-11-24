@@ -373,6 +373,10 @@ class Action:
     * a mapping from attribute ids (or :class:`Attribute` objects) to quantities, or to finite
       numbers in the attribute's units for an input known without uncertainty. The action then
       takes no ``utility``: the contract's ``value=`` reads every action's inputs by name.
+
+    ``utility`` defaults to ``None`` only for the mapping form: with positional inputs it is
+    required, and ``None`` raises :class:`~antecedent.errors.CausalTypeError`; with a mapping
+    it must stay ``None``. With a mapping, a kind given third by position is read as ``kind``.
     """
 
     id: str
@@ -628,6 +632,23 @@ class Contract:
     identity, result type, exact ties and exact replay as the contract written by position.
     A value with a named trade-off (:func:`tradeoff`) is decided across every admissible value
     of its trade-offs. Which engine decides is settled natively; :attr:`form` reports it.
+
+    Three fields default to ``None`` only so the value form can leave them out; construction
+    checks them:
+
+    * ``target_population`` is required in both forms: ``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`.
+    * ``utility_units`` is required for an ordinary contract (``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`). With ``value=`` it may stay ``None``: the
+      contract is in the value's units, and a string given here must equal them.
+    * ``criterion`` is required for an ordinary contract (``None`` raises
+      :class:`~antecedent.errors.CausalTypeError`). With ``value=`` it may stay ``None``, which
+      decides by expected utility.
+
+    ``value`` and ``policy`` are keyword-only and default to ``None``: no value is the ordinary
+    form, and an ordinary contract refuses ``policy=`` (``option_not_applicable``). An ordinary
+    contract is therefore written exactly as before ``value=`` existed, with ``actions``,
+    ``utility_units``, ``criterion`` and ``target_population`` all given.
     """
 
     actions: tuple[Action, ...]
