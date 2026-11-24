@@ -267,11 +267,15 @@ impl StructurePriorSpec {
 }
 
 /// Edges in id order (a per-edge map is a set), then every other field.
+///
+/// Validation refuses two entries for one `(from, to)`, so the probability bits that break
+/// ties change no valid map's bytes; they make the order of an unvalidated map's entries
+/// independent of how they were listed.
 impl CanonicalEncode for StructurePriorSpec {
     fn encode(&self, writer: &mut CanonicalWriter) {
         writer.opt_real(self.edge_inclusion);
         let mut edges = self.edges.to_vec();
-        edges.sort_by_key(|(from, to, _)| (from.raw(), to.raw()));
+        edges.sort_by_key(|(from, to, p)| (from.raw(), to.raw(), p.to_bits()));
         writer.word(count(edges.len()));
         for (from, to, p) in edges {
             writer.word(u64::from(from.raw())).word(u64::from(to.raw())).real(p);
