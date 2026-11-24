@@ -190,7 +190,9 @@ fn beta_weights(alpha: f64, beta: f64, points: usize) -> Vec<f64> {
         })
         .collect();
     let total: f64 = weights.iter().sum();
-    weights.iter_mut().for_each(|w| *w /= total);
+    for w in &mut weights {
+        *w /= total;
+    }
     weights
 }
 

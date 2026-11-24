@@ -294,6 +294,7 @@ fn one_series<'a>(
 }
 
 /// Run `check` with the engine the study's search runs, on the study's data.
+#[allow(clippy::too_many_lines, reason = "one arm per check, each calling its engine")]
 fn run_check(
     check: &DiscoveryCheck,
     spec: &DiscoverySpec,

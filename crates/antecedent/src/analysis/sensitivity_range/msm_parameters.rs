@@ -49,6 +49,7 @@ struct MsmDesign {
 
 impl PreparedStudy {
     /// The marginal structural model analyses, or `None` when `request` is another analysis.
+    #[allow(clippy::too_many_lines, reason = "one arm per marginal structural model analysis")]
     pub(super) fn msm_parameter_range(
         &self,
         data: &TabularData,

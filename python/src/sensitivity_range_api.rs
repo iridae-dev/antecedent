@@ -342,6 +342,9 @@ struct Settings {
     replicates: usize,
 }
 
+/// The per-time treatment and confounder sets a marginal structural model refit reads.
+type RefitSets = (Vec<Vec<VariableId>>, Vec<Vec<VariableId>>);
+
 /// The scalar request of `analysis`.
 #[allow(clippy::too_many_arguments)]
 fn scalar_request(
@@ -350,7 +353,7 @@ fn scalar_request(
     component: &str,
     path: &str,
     spec: MsmSensitivitySpec,
-    refit: Option<(Vec<Vec<VariableId>>, Vec<Vec<VariableId>>)>,
+    refit: Option<RefitSets>,
     seed: u64,
 ) -> PyResult<SensitivityRangeRequest> {
     let Settings { q, alpha, r2yz_extreme, kd, ky, level, draws, replicates } = *settings;
@@ -525,13 +528,12 @@ impl PyPreparedAnalysis {
             let study = source.materialize(&ctx).map_err(py_err)?;
             let study = crate::interrupt::bind_study_validators(&study)?;
             let mut original_executions = 0_u32;
-            let result = match retained {
-                Some(result) => result,
-                None => {
-                    let result = study.estimate_retained(&ctx).map_err(py_err)?;
-                    original_executions += 1;
-                    Arc::new(result)
-                }
+            let result = if let Some(result) = retained {
+                result
+            } else {
+                let result = study.estimate_retained(&ctx).map_err(py_err)?;
+                original_executions += 1;
+                Arc::new(result)
             };
             let outcome = study.sensitivity_range(&result, &request, &ctx).map_err(py_err)?;
             let schema = study.schema();

@@ -245,6 +245,10 @@ pub enum TransportIdentificationRequest {
 /// What the kernel identifier returned, unchanged.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "each outcome is the kernel's own result, returned once and unchanged"
+)]
 pub enum TransportIdentificationOutcome {
     /// [`TransportIdentificationRequest::Classical`].
     Classical(ClassicalTransportResult),
@@ -566,6 +570,10 @@ fn sid_limits(writer: &mut CanonicalWriter, limits: SidLimits) {
 }
 
 /// The digest of the question: the request kind and every input the identifier reads.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per identification request, each spelling its inputs"
+)]
 fn question(request: &TransportIdentificationRequest) -> [u8; 32] {
     use TransportIdentificationRequest as R;
     let mut w = CanonicalWriter::new("antecedent.transport_identification.question.v1");

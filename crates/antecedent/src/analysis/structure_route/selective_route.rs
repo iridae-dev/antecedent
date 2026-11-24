@@ -216,28 +216,24 @@ pub(super) fn run_selective(
     }
     match (&selective.contract, data) {
         (SelectiveContract::Static(contract), DiscoverData::Tabular(table)) => {
-            let (adapter, report) = match &selective.resume {
-                Some(state) => StaticSelectiveDiscovery::resume(contract, Some(*table), state, ctx)
-                    .map_err(selective_error)?,
-                None => {
-                    let mut adapter = StaticSelectiveDiscovery::new();
-                    let report = adapter.run(contract, table, ctx).map_err(selective_error)?;
-                    (adapter, report)
-                }
+            let (adapter, report) = if let Some(state) = &selective.resume {
+                StaticSelectiveDiscovery::resume(contract, Some(*table), state, ctx)
+                    .map_err(selective_error)?
+            } else {
+                let mut adapter = StaticSelectiveDiscovery::new();
+                let report = adapter.run(contract, table, ctx).map_err(selective_error)?;
+                (adapter, report)
             };
             finish(adapter.outcome(), adapter.export_state(), report)
         }
         (SelectiveContract::Temporal(contract), DiscoverData::Series(series)) => {
-            let (adapter, report) = match &selective.resume {
-                Some(state) => {
-                    TemporalSelectiveDiscovery::resume(contract, Some(*series), state, ctx)
-                        .map_err(selective_error)?
-                }
-                None => {
-                    let mut adapter = TemporalSelectiveDiscovery::new();
-                    let report = adapter.run(contract, series, ctx).map_err(selective_error)?;
-                    (adapter, report)
-                }
+            let (adapter, report) = if let Some(state) = &selective.resume {
+                TemporalSelectiveDiscovery::resume(contract, Some(*series), state, ctx)
+                    .map_err(selective_error)?
+            } else {
+                let mut adapter = TemporalSelectiveDiscovery::new();
+                let report = adapter.run(contract, series, ctx).map_err(selective_error)?;
+                (adapter, report)
             };
             finish(adapter.outcome(), adapter.export_state(), report)
         }

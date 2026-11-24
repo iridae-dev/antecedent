@@ -145,6 +145,10 @@ impl SensitivityVectorOutcome {
 /// No coordinate; any refusal of [`PreparedStudy::sensitivity_range`] for one coordinate (a
 /// result another program produced or that was modified, a non-mediation study for the mediation
 /// analyses, a 0/1 outcome for the E-values); and the refusals of the kernel function.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per vector analysis, each reading its coordinates"
+)]
 pub fn sensitivity_vector_range(
     coordinates: &[(&PreparedStudy, &StudyResult)],
     request: &SensitivityVectorRequest,

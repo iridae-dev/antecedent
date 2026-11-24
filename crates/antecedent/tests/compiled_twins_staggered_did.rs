@@ -13,7 +13,9 @@
 #![allow(
     clippy::float_cmp,
     clippy::cast_lossless,
-    reason = "bit-identical equality is the property under test; fixtures widen small integers"
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "bit-identical equality is the property under test; fixtures convert small nonnegative integers"
 )]
 
 use std::sync::Arc;

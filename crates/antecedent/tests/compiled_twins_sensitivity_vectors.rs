@@ -24,6 +24,7 @@
     clippy::cast_precision_loss,
     clippy::many_single_char_names,
     clippy::too_many_lines,
+    clippy::cast_possible_truncation,
     reason = "bits are compared exactly; the fixtures are small and use model notation"
 )]
 
@@ -343,7 +344,11 @@ fn compiled_vector_evalue_and_ovb_equal_the_direct_vector_ranges() {
         };
         let direct: Vec<_> = [&fixture.y1, &fixture.y2]
             .iter()
-            .map(|y| linear_adjustment_fit(y, &fixture.t, &[fixture.z.clone()]).unwrap().summary)
+            .map(|y| {
+                linear_adjustment_fit(y, &fixture.t, std::slice::from_ref(&fixture.z))
+                    .unwrap()
+                    .summary
+            })
             .collect();
         assert_eq!(summaries, direct);
         same_range(&range, &ovb_vector_range(target, &direct, 1.0, 0.05, 1.0).unwrap());

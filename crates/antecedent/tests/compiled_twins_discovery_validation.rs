@@ -429,7 +429,7 @@ fn a_check_refuses_a_search_it_does_not_validate() {
 
 /// The check's program is keyed by the search program and by every option of the check: the same
 /// check on the same study is the same program, another replicate count is another program, and
-/// the program names the DiscoveryValidation route.
+/// the program names the `DiscoveryValidation` route.
 #[test]
 fn a_check_program_is_keyed_by_the_search_and_its_options() {
     on_large_stack("check-identity", || {

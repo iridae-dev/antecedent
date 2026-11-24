@@ -2,7 +2,7 @@
 //! marginals with the compiled structure-discovery route, and an independent check of the
 //! compiled marginals.
 //!
-//! * A selective search compiles as the DiscoverStatic or DiscoverTemporal route of its
+//! * A selective search compiles as the `DiscoverStatic` or `DiscoverTemporal` route of its
 //!   algorithm and runs the adapter: its outcome, structure, run report and exported state equal
 //!   the adapter's own run, fresh and resumed from a portable state.
 //! * Exact signed-uniform marginals with a draw limit integrate the missing cells of the last

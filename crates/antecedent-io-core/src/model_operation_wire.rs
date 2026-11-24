@@ -267,35 +267,35 @@ mod tests {
     use super::*;
     use antecedent_core::Value;
 
-    fn round_trip(operation: ModelOperation) {
-        let wire = ModelOperationWire::from_domain(&operation).unwrap();
-        assert_eq!(wire.to_domain().unwrap(), operation);
+    fn round_trip(operation: &ModelOperation) {
+        let wire = ModelOperationWire::from_domain(operation).unwrap();
+        assert_eq!(&wire.to_domain().unwrap(), operation);
     }
 
     #[test]
     fn every_model_operation_round_trips() {
         let v = VariableId::from_raw;
-        round_trip(ModelOperation::ArrowStrengths(ArrowStrengthsTarget));
-        round_trip(ModelOperation::PopulationDoContrast(PopulationDoContrastTarget {
+        round_trip(&ModelOperation::ArrowStrengths(ArrowStrengthsTarget));
+        round_trip(&ModelOperation::PopulationDoContrast(PopulationDoContrastTarget {
             parent: v(0),
             child: v(1),
             delta: 0.5,
             max_units: Some(10),
             seed: 3,
         }));
-        round_trip(ModelOperation::DoSample(DoSamplerTarget {
+        round_trip(&ModelOperation::DoSample(DoSamplerTarget {
             method: DoSamplerMethod::Mcmc { proposal_sd: Some(0.2), burn_in: Some(5), thin: None },
             outcome: v(1),
             interventions: Arc::from([Intervention::set(v(0), Value::f64(1.0))]),
             draws: 7,
             seed: 9,
         }));
-        round_trip(ModelOperation::ModelEvaluation(ModelEvaluationTarget {
+        round_trip(&ModelOperation::ModelEvaluation(ModelEvaluationTarget {
             alpha: 0.05,
             n_permutations: 3,
             seed: 1,
         }));
-        round_trip(ModelOperation::NestedCounterfactual(NestedCounterfactualTarget {
+        round_trip(&ModelOperation::NestedCounterfactual(NestedCounterfactualTarget {
             outer: Arc::from([Intervention::set(v(0), Value::f64(0.0))]),
             inner: Arc::from([Intervention::set(v(0), Value::f64(1.0))]),
             frozen: Arc::from([v(1)]),

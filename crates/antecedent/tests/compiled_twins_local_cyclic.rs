@@ -67,7 +67,7 @@ struct Declared {
 }
 
 impl Declared {
-    fn new(id: &str, f: Option<Mechanism>) -> Arc<dyn BatchCallback> {
+    fn callback(id: &str, f: Option<Mechanism>) -> Arc<dyn BatchCallback> {
         Arc::new(Self {
             spec: CallbackSpec {
                 name: id.to_owned(),
@@ -113,12 +113,12 @@ fn declared(with_derivatives: bool) -> Vec<DeclaredCyclicMechanism> {
         DeclaredCyclicMechanism {
             id: "x0".into(),
             reads: vec![1],
-            callback: Declared::new("x0", with_derivatives.then_some(first as Mechanism)),
+            callback: Declared::callback("x0", with_derivatives.then_some(first as Mechanism)),
         },
         DeclaredCyclicMechanism {
             id: "x1".into(),
             reads: vec![0],
-            callback: Declared::new("x1", Some(second as Mechanism)),
+            callback: Declared::callback("x1", Some(second as Mechanism)),
         },
     ]
 }

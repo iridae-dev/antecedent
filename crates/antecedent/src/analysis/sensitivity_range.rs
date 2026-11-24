@@ -840,20 +840,19 @@ impl ArmCounts {
     fn add(&mut self, value: f64) -> Result<(), CausalError> {
         // -0.0 and 0.0 are one outcome value.
         let value = value + 0.0;
-        let slot = match self.index.get(&value.to_bits()) {
-            Some(&slot) => slot,
-            None => {
-                if self.values.len() == MSM_MAX_OUTCOMES {
-                    return Err(CausalError::Unsupported {
-                        message: "the empirical marginal sensitivity model reads at most 256 \
-                                  distinct outcomes per arm and stratum",
-                    });
-                }
-                self.index.insert(value.to_bits(), self.values.len());
-                self.values.push(value);
-                self.counts.push(0);
-                self.values.len() - 1
+        let slot = if let Some(&slot) = self.index.get(&value.to_bits()) {
+            slot
+        } else {
+            if self.values.len() == MSM_MAX_OUTCOMES {
+                return Err(CausalError::Unsupported {
+                    message: "the empirical marginal sensitivity model reads at most 256 \
+                              distinct outcomes per arm and stratum",
+                });
             }
+            self.index.insert(value.to_bits(), self.values.len());
+            self.values.push(value);
+            self.counts.push(0);
+            self.values.len() - 1
         };
         self.counts[slot] += 1;
         self.total += 1;
@@ -899,19 +898,18 @@ fn empirical_strata(
     for row in 0..rows {
         let treatment = columns[0][row];
         let key: Vec<u64> = columns[2..].iter().map(|c| (c[row] + 0.0).to_bits()).collect();
-        let slot = match index.get(&key) {
-            Some(&slot) => slot,
-            None => {
-                if arms.len() == MSM_MAX_STRATA {
-                    return Err(CausalError::Unsupported {
-                        message: "the empirical marginal sensitivity model reads at most 4096 \
-                                  strata; next attempt: an adjustment set of finite levels",
-                    });
-                }
-                index.insert(key, arms.len());
-                arms.push((ArmCounts::default(), ArmCounts::default()));
-                arms.len() - 1
+        let slot = if let Some(&slot) = index.get(&key) {
+            slot
+        } else {
+            if arms.len() == MSM_MAX_STRATA {
+                return Err(CausalError::Unsupported {
+                    message: "the empirical marginal sensitivity model reads at most 4096 \
+                              strata; next attempt: an adjustment set of finite levels",
+                });
             }
+            index.insert(key, arms.len());
+            arms.push((ArmCounts::default(), ArmCounts::default()));
+            arms.len() - 1
         };
         let (untreated, treated) = &mut arms[slot];
         if treatment == active {

@@ -628,8 +628,14 @@ fn mixed_source_search_and_its_binding_equal_the_compiled_identification() {
     assert_eq!(derivation.to_record(), twin.to_record());
     assert_eq!(cited, twin_cited);
     assert_eq!(
-        alternatives.iter().map(|a| a.to_record()).collect::<Vec<_>>(),
-        twin_alternatives.iter().map(|a| a.to_record()).collect::<Vec<_>>()
+        alternatives
+            .iter()
+            .map(antecedent_identify::MixedSourceDerivation::to_record)
+            .collect::<Vec<_>>(),
+        twin_alternatives
+            .iter()
+            .map(antecedent_identify::MixedSourceDerivation::to_record)
+            .collect::<Vec<_>>()
     );
 
     let Outcome::MixedSourceBinding(twin_bound) = compiled(Request::MixedSourceBinding {

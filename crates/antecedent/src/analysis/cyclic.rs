@@ -21,7 +21,7 @@ use antecedent_model::nonlinear_equilibrium::Clamp;
 
 /// A release build refuses a cyclic program whose route has no supported unit, and a development
 /// build records what it would refuse. A refusal keeps the registered `not_supported` code.
-fn unsupported(refusal: NotSupported) -> CyclicArtifactError {
+fn unsupported(refusal: &NotSupported) -> CyclicArtifactError {
     CyclicArtifactError::ScientificRefusal {
         code: refusal.code(),
         detail: refusal.detail,
@@ -262,7 +262,8 @@ impl Study {
         let (lowered, section) = lower_cyclic_system_with_contract(&request, ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
         let lowered = Arc::new(lowered);
-        gate_program(ctx, &StagedProgram(Arc::clone(&lowered))).map_err(unsupported)?;
+        gate_program(ctx, &StagedProgram(Arc::clone(&lowered)))
+            .map_err(|refusal| unsupported(&refusal))?;
         let product = PreparedCyclicExecution::prepare(request, ctx)?;
         Ok(PreparedStudy { state: CyclicPreparedState { product, lowered, contract } })
     }
@@ -296,7 +297,7 @@ impl PreparedStudy<CyclicPreparedState> {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CyclicExecutionReport, CyclicArtifactError> {
-        gate_program(ctx, &self.state).map_err(unsupported)?;
+        gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
         let identity = self.state.lowered.identity();
         self.state
             .product
@@ -387,7 +388,7 @@ impl PreparedStudy<CyclicPreparedState> {
         let (lowered, section) = lower_cyclic_system_with_contract(product.request(), ctx)?;
         let contract = Arc::new(CyclicFamilyContract::of(section, &lowered));
         let state = CyclicPreparedState { product, lowered: Arc::new(lowered), contract };
-        gate_program(ctx, &state).map_err(unsupported)?;
+        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(Self { state })
     }
     /// Export a result without refitting; the consumer independently refits/replays.
@@ -421,7 +422,7 @@ impl PreparedStudy<CyclicPreparedState> {
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::from_system(self.state.product.clone(), ctx)?;
         let state = CyclicFamilyPreparedState::lower(program)?;
-        gate_program(ctx, &state).map_err(unsupported)?;
+        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(PreparedStudy { state })
     }
 }
@@ -718,7 +719,7 @@ impl Study {
     ) -> Result<PreparedStudy<CyclicFamilyPreparedState>, CyclicArtifactError> {
         let program = CompiledCyclicFamilyProgram::compile(request, ctx)?;
         let state = CyclicFamilyPreparedState::lower(program)?;
-        gate_program(ctx, &state).map_err(unsupported)?;
+        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(PreparedStudy { state })
     }
 
@@ -880,7 +881,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::cyclic_family_artifact::CyclicFamilyReport, CyclicArtifactError>
     {
-        gate_program(ctx, &self.state).map_err(unsupported)?;
+        gate_program(ctx, &self.state).map_err(|refusal| unsupported(&refusal))?;
         let identity = self.state.lowered.identity();
         #[cfg(test)]
         CYCLIC_FAMILY_EXECUTIONS.with(|count| count.set(count.get() + 1));
@@ -919,7 +920,7 @@ impl PreparedStudy<CyclicFamilyPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, CyclicArtifactError> {
         let state = CyclicFamilyPreparedState::lower(self.state.program.rebind(request, ctx)?)?;
-        gate_program(ctx, &state).map_err(unsupported)?;
+        gate_program(ctx, &state).map_err(|refusal| unsupported(&refusal))?;
         Ok(Self { state })
     }
     /// Execute and encode as separate steps through the same retained owner.

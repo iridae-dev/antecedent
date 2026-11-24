@@ -10,6 +10,11 @@
 //! Dirichlet mass times a weight that is constant within the arm, so each arm row is selected
 //! with probability `1 / (rows in the arm)` and the two arms, which use disjoint Dirichlet
 //! blocks, are independent. All of that is computed here without any code of the library.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "fixtures index a few dozen rows, and supplied draws and outcomes are compared exactly"
+)]
 
 use std::sync::Arc;
 

@@ -602,7 +602,7 @@ impl CompiledInputFunctional {
         evaluate_functional_on_input(
             &self.contract,
             &self.action_id,
-            self.functional.clone(),
+            self.functional,
             &self.input,
             self.weakest,
         )

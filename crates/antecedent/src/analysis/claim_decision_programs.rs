@@ -395,6 +395,10 @@ impl CompiledIdentifiedSetDecision {
 
 /// What a contract is evaluated on.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a source is built once per program and moved into it; boxing the law would add an indirection to the public construction"
+)]
 pub enum ContractSource {
     /// Aligned joint draws of the actions' inputs.
     Law(DistributionArtifact),
@@ -556,7 +560,7 @@ impl CompiledDecisionFunctional {
         ctx: &ExecutionContext,
     ) -> Result<FunctionalValue, TerminalError<DecisionEvalError>> {
         let _scoped = self.enter(ctx)?;
-        evaluate_functional(&self.contract, &self.action_id, self.functional.clone(), &self.law)
+        evaluate_functional(&self.contract, &self.action_id, self.functional, &self.law)
             .map_err(TerminalError::Kernel)
     }
 }

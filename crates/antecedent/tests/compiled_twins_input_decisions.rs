@@ -245,14 +245,9 @@ fn compiled_input_functional_equals_evaluate_functional_on_input() {
     )
     .unwrap();
     let functional = DecisionFunctional::Probability { threshold: 2.0, tail: Tail::Upper };
-    let direct = evaluate_functional_on_input(
-        &two,
-        "treat",
-        functional.clone(),
-        &input,
-        SupportStatus::Supported,
-    )
-    .unwrap();
+    let direct =
+        evaluate_functional_on_input(&two, "treat", functional, &input, SupportStatus::Supported)
+            .unwrap();
     let program =
         compile_input_functional(two, "treat", functional, input, SupportStatus::Supported, &ctx)
             .unwrap();

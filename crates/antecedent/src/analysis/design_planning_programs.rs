@@ -68,6 +68,10 @@ use crate::planner::lowered::{Composition, EvidenceRole, FunctionalKind, Program
 
 /// A failed contract whose evidence obligations a repair search tries to close.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a contract is built once per repair search and moved into its program"
+)]
 pub enum RepairContract {
     /// A theorem route of a failed identification: back-door, front-door, instrument, hedge or
     /// sensitivity.
@@ -450,7 +454,7 @@ fn evaluation_digest<A, O>(eval: &DesignEvaluationContext<'_, A, O>) -> [u8; 32]
         .field("query_id_unlock", &eval.query_id_unlock.map(QueryUnlockField))
         .field("env_id_unlock", &eval.env_id_unlock.map(EnvironmentUnlockField))
         .field("identified_under_intervention", &eval.identified_under_intervention.map(FlagsField))
-        .field("graph_features", &eval.graph_features.map(|features| features.to_vec()));
+        .field("graph_features", &eval.graph_features.map(<[u32]>::to_vec));
     match eval.decisions {
         Some(registry) => {
             declaration.field("decisions", &true);
@@ -1009,15 +1013,12 @@ struct CatalogField<'a>(&'a EvidenceCatalog);
 
 impl Canonical for CatalogField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
-        match self.0.canonicalized() {
-            Ok(canonical) => {
-                variant(out, "canonical");
-                Wire(&EvidenceCatalogWire::from_catalog(&canonical)).encode(out);
-            }
-            Err(_) => {
-                variant(out, "declared");
-                Wire(&EvidenceCatalogWire::from_catalog(self.0)).encode(out);
-            }
+        if let Ok(canonical) = self.0.canonicalized() {
+            variant(out, "canonical");
+            Wire(&EvidenceCatalogWire::from_catalog(&canonical)).encode(out);
+        } else {
+            variant(out, "declared");
+            Wire(&EvidenceCatalogWire::from_catalog(self.0)).encode(out);
         }
     }
 }

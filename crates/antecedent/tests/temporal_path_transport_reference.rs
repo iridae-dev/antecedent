@@ -9,7 +9,12 @@
 //! `counterfactual_transport_lifecycle.rs`; this file adds the sampled route, the time-order
 //! refusal for it, and the support unit of each route.
 
-#![allow(dead_code, reason = "the shared oracle fixtures are included whole")]
+#![allow(
+    dead_code,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "the shared oracle fixtures are included whole; table counts round nonnegative cell probabilities times a unit count"
+)]
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

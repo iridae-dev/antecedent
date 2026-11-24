@@ -594,6 +594,7 @@ impl DiscoverySpec {
 
     /// Digest of everything the search runs that the method and bounds do not
     /// state by value.
+    #[allow(clippy::too_many_lines, reason = "one field per search setting, in a fixed order")]
     fn configuration(&self) -> [u8; 32] {
         fn knowledge(
             writer: &mut CanonicalWriter,

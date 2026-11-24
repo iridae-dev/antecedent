@@ -12,6 +12,7 @@
     clippy::cast_sign_loss,
     clippy::cast_precision_loss,
     clippy::cast_lossless,
+    clippy::cast_possible_truncation,
     reason = "integration test builds fixtures from small nonnegative counts and calls the direct entries it compares"
 )]
 // SPDX-License-Identifier: MIT OR Apache-2.0

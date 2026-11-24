@@ -322,7 +322,7 @@ fn encode_design(
     data: &TimeSeriesData,
     target: VariableId,
     parents: &[LaggedColumn],
-    policy: &KernelPolicy,
+    policy: KernelPolicy,
 ) {
     w.bytes(&series_digest(data));
     w.word(u64::from(target.raw()));
@@ -342,11 +342,11 @@ fn question(request: &TemporalPredictionRequest) -> [u8; 32] {
     match request {
         R::Fit { data, target, parents, policy } => {
             w.text("fit");
-            encode_design(&mut w, data, *target, parents, policy);
+            encode_design(&mut w, data, *target, parents, *policy);
         }
         R::PredictConditional { data, target, parents, held, level, policy } => {
             w.text("predict_conditional");
-            encode_design(&mut w, data, *target, parents, policy);
+            encode_design(&mut w, data, *target, parents, *policy);
             w.word(u64::from(held.raw())).real(*level);
         }
     }

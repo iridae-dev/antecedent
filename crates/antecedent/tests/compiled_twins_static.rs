@@ -20,6 +20,7 @@
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,
+    clippy::cast_lossless,
     reason = "the bits are compared exactly and the fixtures build columns from small counts"
 )]
 

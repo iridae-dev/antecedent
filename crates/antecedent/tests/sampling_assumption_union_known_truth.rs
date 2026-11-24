@@ -5,6 +5,12 @@
 //! blocks) are checked against the sampling standard error of a mean of known
 //! variance, which the resampling must reproduce within bootstrap noise.
 //!
+#![allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "the type-7 quantile index is the floor of a nonnegative position within the sample, and a replay reproduces the union exactly"
+)]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::propagation_chain::PropagationChain;
@@ -104,7 +110,7 @@ fn the_union_is_the_basic_bootstrap_endpoint_formula_over_the_replicate_endpoint
     let artifact = plan.export(&result, &ctx).expect("exports");
     let replay = consume_sampling_assumption_union(&artifact, plan.lowered().identity(), &ctx)
         .expect("replays");
-    assert!((replay.union_lower - result.union_lower).abs() == 0.0);
+    assert_eq!((replay.union_lower - result.union_lower).abs(), 0.0);
 }
 
 fn bernoulli_half(n: usize, group: usize) -> Vec<f64> {

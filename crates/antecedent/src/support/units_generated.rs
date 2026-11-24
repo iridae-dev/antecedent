@@ -97,6 +97,7 @@ pub(crate) const VALIDATE_DISCOVERY_STABILITY: UnitId = UnitId::new("validate.di
 /// The unit whose support status gates the compiled route `route`, by its
 /// `PlanRoute::as_str` name.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one arm per bound compiled route, generated")]
 pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
     match route {
         "CategoricalPosteriorCandidate" => Some(CATEGORICAL_TREATMENT_COMPILED_CANDIDATE),

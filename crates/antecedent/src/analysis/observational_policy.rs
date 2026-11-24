@@ -705,9 +705,9 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<HeldOutPolicyValueCandidate, CausalError> {
-        gate_program(ctx, self)?;
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
+        gate_program(ctx, self)?;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a calibration candidate requires the graph-checked route")
         })?;
@@ -820,9 +820,9 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
-        gate_program(ctx, self)?;
         const LEVEL: f64 = 0.95;
         const Z: f64 = 1.959_963_984_540_054;
+        gate_program(ctx, self)?;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a cross-fit candidate requires the graph-checked route")
         })?;

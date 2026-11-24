@@ -502,13 +502,12 @@ fn compiled_decision_functional_equals_evaluate_functional() {
     let ctx = ExecutionContext::for_tests(7);
     for functional in [DecisionFunctional::Expectation, DecisionFunctional::Variance] {
         let program =
-            compile_decision_functional(xyk_contract(), "X", functional.clone(), xyk_law(), &ctx)
-                .unwrap();
+            compile_decision_functional(xyk_contract(), "X", functional, xyk_law(), &ctx).unwrap();
         assert_runs_under(program.lowered(), "DecisionFunctionalValue");
         let unit = program.plan_view().unit_support().expect("the family is bound to a unit");
         assert_eq!(unit.unit(), "decision.functionals");
         let compiled = program.execute(&ctx).unwrap();
-        let direct = evaluate_functional(&xyk_contract(), "X", functional.clone(), &xyk_law());
+        let direct = evaluate_functional(&xyk_contract(), "X", functional, &xyk_law());
         assert_same(&compiled, &direct.unwrap());
     }
     // X pays x in {0, 2} with equal weight: E[x] = 1 and Var[x] = 2 - 1 = 1.

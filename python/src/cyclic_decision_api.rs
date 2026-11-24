@@ -159,11 +159,10 @@ fn gate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<(&'static s
     } else if let Some(found) = error.downcast_ref::<Target>() {
         let Target::Invalid(message) = found else { return None };
         (found.reason_code(), found.detail(), *message)
-    } else if let Some(found) = error.downcast_ref::<Joint>() {
+    } else {
+        let found = error.downcast_ref::<Joint>()?;
         let Joint::Invalid(message) = found else { return None };
         (found.reason_code(), found.detail(), *message)
-    } else {
-        return None;
     };
     if code != Some(antecedent::reason::reason_code!("not_supported")) {
         return None;
