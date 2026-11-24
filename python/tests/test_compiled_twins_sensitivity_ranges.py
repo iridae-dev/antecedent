@@ -11,6 +11,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import regimes
 from antecedent import validation as v
 from antecedent._deprecation import AntecedentDeprecationWarning
 
@@ -135,12 +136,193 @@ def test_the_compiled_mediation_curve_reproduces_the_deprecated_direct_curve():
     assert compiled.range.target.labels == ("total", "direct", "indirect")
 
 
-def test_a_vector_of_several_outcomes_keeps_its_direct_path_without_a_warning(recwarn):
-    data = _mediated()
-    v.mediation_sensitivity_vector(
-        data["t"], data["m"], [data["y"], data["y"] + 1.0], [], ["a", "b"]
+def _two_mediated():
+    rng = np.random.default_rng(42)
+    n = 500
+    t = rng.integers(0, 2, size=n).astype(float)
+    m = 0.7 * t + rng.normal(size=n)
+    y1 = 0.2 * t + 0.9 * m + rng.normal(size=n)
+    y2 = 0.5 * t + 0.3 * m + rng.normal(size=n)
+    return {"t": t, "m": m, "y1": y1, "y2": y2}
+
+
+def _two_outcomes():
+    rng = np.random.default_rng(41)
+    n = 400
+    z = rng.normal(size=n)
+    t = (rng.random(n) < 1.0 / (1.0 + np.exp(-0.7 * z))).astype(float)
+    y1 = 0.8 * t + 0.6 * z + rng.normal(size=n)
+    y2 = 0.4 * t - 0.5 * z + rng.normal(size=n)
+    return {"t": t, "y1": y1, "y2": y2, "z": z}
+
+
+def _outcome_study(data, outcome, inference=None):
+    return ant.prepare(
+        data,
+        graph=[("z", "t"), ("z", "y1"), ("z", "y2"), ("t", "y1"), ("t", "y2")],
+        query=ant.AverageEffect("t", outcome),
+        inference=ant.Frequentist(bootstrap=0) if inference is None else inference,
+        refute="none",
+        execution=ant.Execution(seed=5, threads=1),
     )
-    assert not [w for w in recwarn if issubclass(w.category, AntecedentDeprecationWarning)]
+
+
+def _mediation_outcome_study(data, outcome):
+    return ant.prepare(
+        data,
+        graph=[("t", "m"), ("t", "y1"), ("m", "y1"), ("t", "y2"), ("m", "y2")],
+        query=ant.MediationEffect("t", outcome, mediators=["m"]),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+        execution=ant.Execution(seed=5, threads=1),
+    )
+
+
+def test_the_vector_mediation_warns_and_the_compiled_vector_over_studies_reproduces_it():
+    data = _two_mediated()
+    studies = [_mediation_outcome_study(data, "y1"), _mediation_outcome_study(data, "y2")]
+    for component in ("indirect", "direct"):
+        compiled = v.sensitivity_vector_range(studies, "mediation_component", component=component)
+        with pytest.warns(AntecedentDeprecationWarning, match="mediation_sensitivity_vector"):
+            direct = v.mediation_sensitivity_vector(
+                data["t"],
+                data["m"],
+                [data["y1"], data["y2"]],
+                [],
+                ["y1", "y2"],
+                component=component,
+            )
+        assert compiled.summary["coordinates"] == direct.summary["coordinates"]
+        _same_numbers(compiled, direct)
+        assert compiled.range.target.labels == ("y1", "y2")
+    compiled = v.sensitivity_vector_range(studies, "mediation_path", path="indirect")
+    with pytest.warns(AntecedentDeprecationWarning, match="mediation_path_sensitivity"):
+        direct = v.mediation_path_sensitivity(
+            data["t"], data["m"], [data["y1"], data["y2"]], [], ["y1", "y2"], path="indirect"
+        )
+    assert compiled.summary["coordinates"] == direct.summary["coordinates"]
+    _same_numbers(compiled, direct)
+
+
+def test_the_vector_evalue_and_partial_r2_warn_and_the_compiled_vector_reproduces_them():
+    data = _two_outcomes()
+    studies = [_outcome_study(data, "y1"), _outcome_study(data, "y2")]
+    compiled = v.sensitivity_vector_range(studies, "evalue")
+    with pytest.warns(AntecedentDeprecationWarning, match="evalue_vector"):
+        direct = v.evalue_vector(
+            compiled.summary["standardized_effect"],
+            ["y1", "y2"],
+            standard_errors=compiled.summary["standardized_standard_error"],
+            scale="standardized_mean_difference",
+        )
+    for key in ("risk_ratio", "risk_ratio_limit", "evalue", "evalue_limit"):
+        assert compiled.summary[key] == direct.summary[key], key
+    _same_numbers(compiled, direct)
+    compiled = v.sensitivity_vector_range(studies, "omitted_variable_bias")
+    with pytest.warns(AntecedentDeprecationWarning, match="omitted_variable_bias_vector"):
+        direct = v.omitted_variable_bias_vector(
+            compiled.summary["estimate"],
+            compiled.summary["standard_error"],
+            compiled.summary["dof"],
+            ["y1", "y2"],
+        )
+    assert compiled.summary["robustness_value"] == direct.summary["robustness_value"]
+    _same_numbers(compiled, direct)
+
+
+def test_the_posterior_entries_warn_and_the_compiled_posteriors_reproduce_them():
+    data = _two_outcomes()
+    study = _outcome_study(data, "y1", inference=ant.Bayesian(n_draws=400))
+    compiled = v.sensitivity_range(study, "evalue_posterior")
+    with pytest.warns(AntecedentDeprecationWarning, match="evalue_posterior"):
+        direct = v.evalue_posterior(
+            [compiled.summary["draws"]], ["ate"], scale="standardized_mean_difference"
+        )
+    for key in ("median_risk_ratio", "credible_interval", "evalue", "evalue_limit"):
+        assert compiled.summary[key] == direct.summary[key], key
+    _same_numbers(compiled, direct)
+    compiled = v.sensitivity_range(study, "omitted_variable_bias_posterior")
+    with pytest.warns(AntecedentDeprecationWarning, match="omitted_variable_bias_posterior"):
+        direct = v.omitted_variable_bias_posterior(
+            [compiled.summary["coefficients"]], [compiled.summary["bias_scale"]], ["ate"]
+        )
+    _same_numbers(compiled, direct)
+
+    mediated = _two_mediated()
+    compiled = v.sensitivity_range(
+        _mediation_outcome_study(mediated, "y1"), "mediation_posterior", draws=400
+    )
+    with pytest.warns(AntecedentDeprecationWarning, match="mediation_sensitivity_posterior"):
+        direct = v.mediation_sensitivity_posterior(
+            [compiled.summary["beta_mediator"]],
+            [compiled.summary["sigma_total"]],
+            [compiled.summary["sigma_mediator"]],
+            [compiled.summary["rho_tilde"]],
+            [compiled.summary["total_effect"]],
+            ["indirect"],
+        )
+    _same_numbers(compiled, direct)
+
+
+def _regime(n=400, seed=45):
+    rng = np.random.default_rng(seed)
+    l1 = rng.normal(size=n)
+    p1 = np.where(l1 > 0.0, 0.7, 0.3)
+    a1 = rng.random(n) < p1
+    l2 = 0.5 * a1 + rng.normal(size=n)
+    p2 = np.where(l2 > 0.0, 0.65, 0.35)
+    a2 = rng.random(n) < p2
+    y = 1.0 + 2.0 * a1 + 1.5 * a2 + 0.8 * l1 + rng.normal(size=n)
+    query = regimes.LongitudinalRegime(
+        outcome="y",
+        treatment_history=np.column_stack([a1, a2]).tolist(),
+        actions=[False, False],
+        treatment_probabilities=np.column_stack([p1, p2]).tolist(),
+        censoring_probabilities=np.ones((n, 2)).tolist(),
+        subject_ids=[f"s{i}" for i in range(n)],
+        fold_ids=[i % 5 for i in range(n)],
+        method="marginal_structural_model",
+        stabilizing_numerator_probabilities=[0.5, 0.5],
+    )
+    data = {"y": y, "l1": l1, "l2": l2}
+    study = ant.prepare(data, query=query, refute="none", execution=ant.Execution(seed=7))
+    exposures = [a1.astype(float), a2.astype(float)]
+    weights = (0.5 / np.where(a1, p1, 1.0 - p1)) * (0.5 / np.where(a2, p2, 1.0 - p2))
+    return study, data, exposures, weights
+
+
+def test_the_msm_parameter_entries_warn_and_the_compiled_regime_reading_reproduces_them():
+    study, data, exposures, weights = _regime()
+    compiled = v.sensitivity_range(study, "msm_parameters")
+    assert compiled.summary["weights"] == pytest.approx(weights.tolist(), rel=1e-12)
+    with pytest.warns(AntecedentDeprecationWarning, match="msm_parameter_sensitivity"):
+        direct = v.msm_parameter_sensitivity(
+            data["y"], exposures, compiled.summary["weights"], ["period[0]", "period[1]"]
+        )
+    for key in ("estimate", "standard_error", "dof", "robustness_value"):
+        assert compiled.summary[key] == direct.summary[key], key
+    _same_numbers(compiled, direct)
+    compiled = v.sensitivity_range(
+        study,
+        "msm_parameters_refit",
+        numerators=[[], []],
+        denominators=[["l1"], ["l2"]],
+        replicates=99,
+    )
+    with pytest.warns(AntecedentDeprecationWarning, match="msm_parameter_sensitivity_refit"):
+        direct = v.msm_parameter_sensitivity_refit(
+            data["y"],
+            exposures,
+            exposures,
+            [[], []],
+            [[data["l1"]], [data["l2"]]],
+            ["period[0]", "period[1]"],
+            replicates=99,
+            execution=ant.Execution(seed=7),
+        )
+    for key in ("estimate", "standard_error", "fixed_weight_standard_error"):
+        assert compiled.summary[key] == direct.summary[key], key
+    _same_numbers(compiled, direct)
 
 
 def test_the_marginal_sensitivity_model_reads_the_empirical_strata_of_the_adjustment_set():

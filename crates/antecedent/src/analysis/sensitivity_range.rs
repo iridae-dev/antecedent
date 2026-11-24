@@ -32,6 +32,16 @@
 //! * [`SensitivityRangeRequest::MarginalSensitivity`]: [`msm_ate_sensitivity`] on the empirical
 //!   strata of the adjustment set (mass, propensity and the outcome law of each arm), for a
 //!   two-level treatment and the mean of the outcome in all observed units.
+//! * The posterior analyses ([`SensitivityRangeRequest::EValuePosterior`],
+//!   [`SensitivityRangeRequest::OmittedVariableBiasPosterior`] and the mediation posterior
+//!   analyses) read the study's own posterior draws or the reference posterior of the working
+//!   model; see the `posterior` submodule.
+//! * The marginal structural model analyses ([`SensitivityRangeRequest::MsmParameters`],
+//!   [`SensitivityRangeRequest::MsmParameterEValue`] and
+//!   [`SensitivityRangeRequest::MsmParametersRefittingWeights`]) read the weighted design of a
+//!   longitudinal regime study fitted with the marginal structural model method.
+//! * [`sensitivity_vector_range`] reads several compiled results as the coordinates of one
+//!   vector target.
 //!
 //! The linear working models are the models the ranges are defined for; on a route whose
 //! estimator is not linear adjustment the range describes the linear working model on the same
@@ -48,15 +58,17 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, OutcomeFunctional, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
+use antecedent_estimate::EffectEstimate;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{RefutationTarget, TargetFamily};
 use antecedent_validate::{
     AssumptionRange, BenchmarkBound, EValueBounds, EffectInterval, EffectScale,
-    LinearAdjustmentFit, MediationComponent, MediationComponents, MediationPath, MediationPaths,
-    MediationSensitivitySummary, MsmOutcomeLaw, MsmSensitivityResult, MsmSensitivitySpec,
-    MsmStratum, ValidationError, benchmark_bound, evalue_range, linear_adjustment_fit,
-    mediation_components_fit, mediation_path_ovb_range, mediation_paths_fit, mediation_range,
-    mediation_sensitivity_fit, mediation_vector_range, msm_ate_sensitivity, ovb_range,
+    LinearAdjustmentFit, LinearAdjustmentSummary, MediationComponent, MediationComponents,
+    MediationPath, MediationPaths, MediationSensitivitySummary, MsmOutcomeLaw, MsmRefitFit,
+    MsmSensitivityResult, MsmSensitivitySpec, MsmStratum, PosteriorEValue, ValidationError,
+    benchmark_bound, evalue_range, linear_adjustment_fit, mediation_components_fit,
+    mediation_path_ovb_range, mediation_paths_fit, mediation_range, mediation_sensitivity_fit,
+    mediation_vector_range, msm_ate_sensitivity, ovb_range,
 };
 
 use super::builder::DataInput;
@@ -66,6 +78,12 @@ use super::target_validation::{
 };
 use crate::error::CausalError;
 use crate::result::StudyResult;
+
+mod msm_parameters;
+mod posterior;
+mod vector;
+
+pub use vector::{SensitivityVectorOutcome, SensitivityVectorRequest, sensitivity_vector_range};
 
 /// Most strata the empirical marginal sensitivity model reads.
 const MSM_MAX_STRATA: usize = 4096;
@@ -109,6 +127,107 @@ pub enum SensitivityRangeRequest {
     },
     /// Sharp bounds of the average effect under the marginal sensitivity model.
     MarginalSensitivity(MsmSensitivitySpec),
+    /// E-values of the posterior of a Bayesian average effect fitted under a Gaussian outcome
+    /// model: each draw of the effect over the residual standard deviation of the same draw.
+    EValuePosterior {
+        /// Credible level of the limit E-value.
+        level: f64,
+    },
+    /// Partial-R² sensitivity of the posterior of a Bayesian average effect fitted under a
+    /// Gaussian outcome model.
+    OmittedVariableBiasPosterior {
+        /// Credible level of the adjusted limit.
+        level: f64,
+        /// Outcome partial R² of the extreme-scenario curve, in `(0, 1]`.
+        r2yz_extreme: f64,
+    },
+    /// The mediation component against the mediator-outcome error correlation, over the
+    /// reference posterior of the linear working model (see [`MediationReferencePosterior`]).
+    MediationPosterior {
+        /// The component.
+        component: MediationComponent,
+        /// Credible level of the significance break-even.
+        level: f64,
+        /// Reference posterior draws (at least two).
+        draws: usize,
+    },
+    /// E-values of the mediation component over the reference posterior of the working model,
+    /// each draw standardized by the residual standard deviation of the total-effect regression.
+    MediationComponentEValuePosterior {
+        /// The component.
+        component: MediationComponent,
+        /// Credible level of the limit E-value.
+        level: f64,
+        /// Reference posterior draws (at least two).
+        draws: usize,
+    },
+    /// Partial-R² sensitivity of the mediator-outcome coefficient over the reference posterior
+    /// of the working model.
+    MediationComponentOvbPosterior {
+        /// Credible level of the adjusted limit.
+        level: f64,
+        /// Outcome partial R² of the extreme-scenario curve, in `(0, 1]`.
+        r2yz_extreme: f64,
+        /// Reference posterior draws (at least two).
+        draws: usize,
+    },
+    /// Partial-R² sensitivity of the period parameters of the marginal structural model a
+    /// longitudinal regime study fitted, with its stabilized weights held fixed.
+    MsmParameters {
+        /// Share of the estimate a confounder must remove to explain it away.
+        q: f64,
+        /// Level of the significance robustness value and of the adjusted limits.
+        alpha: f64,
+        /// Outcome partial R² of the extreme-scenario curve, in `(0, 1]`.
+        r2yz_extreme: f64,
+    },
+    /// E-values of the period parameters of the marginal structural model, each standardized
+    /// by the weighted residual standard deviation of the fit.
+    MsmParameterEValue,
+    /// Partial-R² sensitivity of the period parameters with weight models refitted in a unit
+    /// bootstrap, so their standard errors carry the cost of estimating the weights.
+    MsmParametersRefittingWeights(MsmRefitRequest),
+}
+
+/// The weight models and bootstrap of [`SensitivityRangeRequest::MsmParametersRefittingWeights`].
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MsmRefitRequest {
+    /// Covariate columns of each period's numerator model (empty: the marginal probability).
+    pub numerator: Vec<Vec<VariableId>>,
+    /// Covariate columns of each period's denominator model (the measured history).
+    pub denominator: Vec<Vec<VariableId>>,
+    /// Bootstrap replicates (at least `MIN_MSM_REPLICATES`).
+    pub replicates: usize,
+    /// Seed of the bootstrap.
+    pub seed: u64,
+    /// Share of the estimate a confounder must remove to explain it away.
+    pub q: f64,
+    /// Level of the significance robustness value and of the adjusted limits.
+    pub alpha: f64,
+    /// Outcome partial R² of the extreme-scenario curve, in `(0, 1]`.
+    pub r2yz_extreme: f64,
+}
+
+impl MsmRefitRequest {
+    /// A refit request with conventional settings: `q = 1`, `alpha = 0.05`, the most extreme
+    /// outcome partial R² and 200 replicates.
+    #[must_use]
+    pub const fn new(
+        numerator: Vec<Vec<VariableId>>,
+        denominator: Vec<Vec<VariableId>>,
+        seed: u64,
+    ) -> Self {
+        Self {
+            numerator,
+            denominator,
+            replicates: 200,
+            seed,
+            q: 1.0,
+            alpha: 0.05,
+            r2yz_extreme: 1.0,
+        }
+    }
 }
 
 impl SensitivityRangeRequest {
@@ -185,6 +304,63 @@ pub enum SensitivityRangeOutcome {
         /// Sharp bounds, grid and tipping point.
         result: MsmSensitivityResult,
     },
+    /// [`SensitivityRangeRequest::EValuePosterior`].
+    EValuePosterior {
+        /// Draws of the effect over the residual standard deviation of the same draw.
+        draws: Vec<f64>,
+        /// Posterior medians, credible limits and E-values.
+        summary: PosteriorEValue,
+        /// The range.
+        range: AssumptionRange,
+    },
+    /// [`SensitivityRangeRequest::OmittedVariableBiasPosterior`].
+    OmittedVariableBiasPosterior {
+        /// Draws of the effect.
+        coefficients: Vec<f64>,
+        /// Per draw, `|active - control|` times the residual standard deviation of the outcome
+        /// over the residual standard deviation of the treatment given the adjustment set.
+        bias_scale: Vec<f64>,
+        /// The range.
+        range: AssumptionRange,
+    },
+    /// [`SensitivityRangeRequest::MediationPosterior`],
+    /// [`SensitivityRangeRequest::MediationComponentEValuePosterior`] and
+    /// [`SensitivityRangeRequest::MediationComponentOvbPosterior`].
+    MediationPosterior {
+        /// The reference posterior of the working model.
+        posterior: MediationReferencePosterior,
+        /// E-values of the component, for the E-value analysis.
+        evalue: Option<PosteriorEValue>,
+        /// The range.
+        range: AssumptionRange,
+    },
+    /// [`SensitivityRangeRequest::MsmParameters`].
+    MsmParameters {
+        /// One summary per period parameter.
+        summaries: Vec<LinearAdjustmentSummary>,
+        /// The stabilized weight of each observed subject, in row order.
+        weights: Vec<f64>,
+        /// The range, read at the weakest parameter.
+        range: AssumptionRange,
+    },
+    /// [`SensitivityRangeRequest::MsmParameterEValue`].
+    MsmParameterEValue {
+        /// One summary per period parameter.
+        summaries: Vec<LinearAdjustmentSummary>,
+        /// Weighted residual standard deviation the parameters are standardized by.
+        residual_sd: f64,
+        /// The E-values of each parameter.
+        bounds: Vec<EValueBounds>,
+        /// The range, read at the weakest parameter.
+        range: AssumptionRange,
+    },
+    /// [`SensitivityRangeRequest::MsmParametersRefittingWeights`].
+    MsmParametersRefittingWeights {
+        /// Fixed-weight and refitted summaries and the replicate counts.
+        fit: MsmRefitFit,
+        /// The range of the refitted summaries, read at the weakest parameter.
+        range: AssumptionRange,
+    },
 }
 
 impl SensitivityRangeOutcome {
@@ -197,10 +373,55 @@ impl SensitivityRangeOutcome {
             | Self::OmittedVariableBias { range, .. }
             | Self::Mediation { range, .. }
             | Self::MediationComponent { range, .. }
-            | Self::MediationPath { range, .. } => Some(range),
+            | Self::MediationPath { range, .. }
+            | Self::EValuePosterior { range, .. }
+            | Self::OmittedVariableBiasPosterior { range, .. }
+            | Self::MediationPosterior { range, .. }
+            | Self::MsmParameters { range, .. }
+            | Self::MsmParameterEValue { range, .. }
+            | Self::MsmParametersRefittingWeights { range, .. } => Some(range),
             Self::MarginalSensitivity { .. } => None,
         }
     }
+}
+
+/// Per-draw regression summaries of the linear working model of a mediation, drawn from its
+/// reference posterior (`p(beta, sigma^2) ∝ 1 / sigma^2`, independent across the mediator
+/// regression `M ~ 1 + T + X` and the outcome regression `Y ~ 1 + T + M + X`) on the retained
+/// table, under keyed streams of the execution context's seed. The total-effect regression's
+/// summaries follow from the two: `total = c + gamma a`,
+/// `sigma_total = sqrt(sigma_outcome^2 + gamma^2 sigma_mediator^2)` and
+/// `rho_tilde = gamma sigma_mediator / sigma_total`, so at `rho = 0` every draw's indirect effect
+/// is the product `a gamma`.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MediationReferencePosterior {
+    /// Treatment coefficient of the mediator regression, `a`.
+    pub beta_mediator: Vec<f64>,
+    /// Residual standard deviation of the total-effect regression.
+    pub sigma_total: Vec<f64>,
+    /// Residual standard deviation of the mediator regression.
+    pub sigma_mediator: Vec<f64>,
+    /// Correlation of the total-effect and mediator residuals.
+    pub rho_tilde: Vec<f64>,
+    /// Treatment coefficient of the total-effect regression.
+    pub total_effect: Vec<f64>,
+    /// Mediator coefficient of the outcome regression, `gamma`.
+    pub mediator_outcome: Vec<f64>,
+    /// Residual standard deviation of the outcome regression.
+    pub sigma_outcome: Vec<f64>,
+    /// Residual standard deviation of the mediator given the treatment and the adjustment set,
+    /// on the outcome regression's residual degrees of freedom (the scale of the
+    /// mediator-outcome coefficient's bias).
+    pub mediator_scale: f64,
+}
+
+/// An effect and its standard error over a residual standard deviation.
+#[derive(Clone, Copy, Debug)]
+struct Standardized {
+    effect: f64,
+    standard_error: Option<f64>,
+    residual_sd: f64,
 }
 
 /// Treatment, mediator, outcome and adjustment columns of a mediation study.
@@ -233,37 +454,11 @@ impl PreparedStudy {
         request: &SensitivityRangeRequest,
         ctx: &ExecutionContext,
     ) -> Result<SensitivityRangeOutcome, CausalError> {
-        let DataInput::Tabular(data) = &self.study().data else {
-            return Err(CausalError::Unsupported {
-                message: "a sensitivity range reads independent rows of one table; next \
-                          attempt: a study on a tabular input",
-            });
-        };
-        // The result must be the sealed engine-produced result of these exact observations.
-        let _checked = checked_refutation_input(result, PreparedTargetData::Tabular(data), ctx)?;
-        let program = result.lowered_program_identity().ok_or(CausalError::Unsupported {
-            message: "a sensitivity range is bound to the lowered program that produced the \
-                      result; next attempt: execute through a prepared handle",
-        })?;
-        if let Some(lowered) = self.plan().lowered()
-            && lowered.semantic_identity() != Some(program)
-        {
-            return Err(CausalError::Conflict {
-                what: "program",
-                detail: "the result was not produced by this prepared handle's lowered program",
-            });
+        let (data, program) = self.checked_result(result, ctx)?;
+        if let Some(outcome) = self.msm_parameter_range(data, result, program, request)? {
+            return Ok(outcome);
         }
-        let treatment = result.treatment.ok_or(CausalError::Unsupported {
-            message: "a sensitivity range needs a result with a treatment",
-        })?;
-        let bound = Bound {
-            data,
-            result,
-            treatment,
-            outcome: result.outcome,
-            adjustment: result.estimand.adjustment_set.iter().copied().collect(),
-            program: *program.as_bytes(),
-        };
+        let bound = Self::bound_from(data, result, program)?;
         match request {
             SensitivityRangeRequest::EValue => bound.evalue(),
             SensitivityRangeRequest::OmittedVariableBias { q, alpha, r2yz_extreme, kd, ky } => {
@@ -308,7 +503,87 @@ impl PreparedStudy {
             SensitivityRangeRequest::MarginalSensitivity(spec) => {
                 self.marginal_sensitivity(&bound, spec)
             }
+            SensitivityRangeRequest::EValuePosterior { level } => {
+                self.evalue_posterior(&bound, *level)
+            }
+            SensitivityRangeRequest::OmittedVariableBiasPosterior { level, r2yz_extreme } => {
+                self.ovb_posterior(&bound, *level, *r2yz_extreme)
+            }
+            SensitivityRangeRequest::MediationPosterior { .. }
+            | SensitivityRangeRequest::MediationComponentEValuePosterior { .. }
+            | SensitivityRangeRequest::MediationComponentOvbPosterior { .. } => {
+                self.mediation_posterior(&bound, request, ctx)
+            }
+            SensitivityRangeRequest::MsmParameters { .. }
+            | SensitivityRangeRequest::MsmParameterEValue
+            | SensitivityRangeRequest::MsmParametersRefittingWeights(_) => {
+                Err(CausalError::Unsupported {
+                    message: "the marginal structural model parameters are read from a \
+                              longitudinal regime study fitted with the marginal structural \
+                              model method",
+                })
+            }
         }
+    }
+
+    /// The retained table and the producing program of `result`, after checking that this
+    /// handle's lowered program produced it, unmodified, from these exact observations.
+    fn checked_result(
+        &self,
+        result: &StudyResult,
+        ctx: &ExecutionContext,
+    ) -> Result<(&TabularData, [u8; 32]), CausalError> {
+        let DataInput::Tabular(data) = &self.study().data else {
+            return Err(CausalError::Unsupported {
+                message: "a sensitivity range reads independent rows of one table; next \
+                          attempt: a study on a tabular input",
+            });
+        };
+        // The result must be the sealed engine-produced result of these exact observations.
+        let _checked = checked_refutation_input(result, PreparedTargetData::Tabular(data), ctx)?;
+        let program = result.lowered_program_identity().ok_or(CausalError::Unsupported {
+            message: "a sensitivity range is bound to the lowered program that produced the \
+                      result; next attempt: execute through a prepared handle",
+        })?;
+        if let Some(lowered) = self.plan().lowered()
+            && lowered.semantic_identity() != Some(program)
+        {
+            return Err(CausalError::Conflict {
+                what: "program",
+                detail: "the result was not produced by this prepared handle's lowered program",
+            });
+        }
+        Ok((data, *program.as_bytes()))
+    }
+
+    /// What every analysis of an effect reads: [`Self::checked_result`], the treatment, the
+    /// outcome and the identified adjustment set.
+    fn bind<'a>(
+        &'a self,
+        result: &'a StudyResult,
+        ctx: &ExecutionContext,
+    ) -> Result<Bound<'a>, CausalError> {
+        let (data, program) = self.checked_result(result, ctx)?;
+        Self::bound_from(data, result, program)
+    }
+
+    /// [`Self::bind`] on an already checked result.
+    fn bound_from<'a>(
+        data: &'a TabularData,
+        result: &'a StudyResult,
+        program: [u8; 32],
+    ) -> Result<Bound<'a>, CausalError> {
+        let treatment = result.treatment.ok_or(CausalError::Unsupported {
+            message: "a sensitivity range needs a result with a treatment",
+        })?;
+        Ok(Bound {
+            data,
+            result,
+            treatment,
+            outcome: result.outcome,
+            adjustment: result.estimand.adjustment_set.iter().copied().collect(),
+            program,
+        })
     }
 
     /// Treatment, mediator, outcome and adjustment columns (complete cases) of a mediation
@@ -403,10 +678,7 @@ impl Bound<'_> {
         reason = "exact 0/1 coding is the binary-outcome test; the residual degrees of freedom are \
                   far below 2^53"
     )]
-    fn evalue(&self) -> Result<SensitivityRangeOutcome, CausalError> {
-        let effect = self.result.estimate.as_effect().ok_or(CausalError::Unsupported {
-            message: "the E-value reads the result's scalar effect",
-        })?;
+    fn residual_sd(&self) -> Result<f64, CausalError> {
         let mut ids = vec![self.outcome, self.treatment];
         ids.extend(self.adjustment.iter().copied());
         let columns = complete_cases(self.data, &ids)?;
@@ -443,9 +715,30 @@ impl Bound<'_> {
                 message: "the outcome regression leaves no residual variation to standardize by",
             });
         }
+        Ok(residual_sd)
+    }
+
+    /// `effect` over the residual standard deviation of the outcome regression, with its
+    /// standard error (the bootstrap one when present, else the analytic one) on that scale.
+    fn standardized(&self, effect: &EffectEstimate) -> Result<Standardized, CausalError> {
+        let residual_sd = self.residual_sd()?;
         let se = effect.se_bootstrap().unwrap_or(effect.se_analytic());
-        let standardized_standard_error = (se.is_finite() && se >= 0.0).then_some(se / residual_sd);
-        let standardized_effect = effect.ate / residual_sd;
+        Ok(Standardized {
+            effect: effect.ate / residual_sd,
+            standard_error: (se.is_finite() && se >= 0.0).then_some(se / residual_sd),
+            residual_sd,
+        })
+    }
+
+    fn evalue(&self) -> Result<SensitivityRangeOutcome, CausalError> {
+        let effect = self.result.estimate.as_effect().ok_or(CausalError::Unsupported {
+            message: "the E-value reads the result's scalar effect",
+        })?;
+        let Standardized {
+            effect: standardized_effect,
+            standard_error: standardized_standard_error,
+            residual_sd,
+        } = self.standardized(effect)?;
         let (bounds, range) = evalue_range(
             result_refutation_target(self.result)?,
             EffectInterval::Standardized {
@@ -471,17 +764,7 @@ impl Bound<'_> {
         kd: f64,
         ky: f64,
     ) -> Result<SensitivityRangeOutcome, CausalError> {
-        let covariates: Vec<VariableId> = self
-            .adjustment
-            .iter()
-            .copied()
-            .filter(|&id| id != self.treatment && id != self.outcome)
-            .collect();
-        let mut ids = vec![self.outcome, self.treatment];
-        ids.extend(covariates.iter().copied());
-        let mut columns = complete_cases(self.data, &ids)?;
-        let adjustment = columns.split_off(2);
-        let fit = linear_adjustment_fit(&columns[0], &columns[1], &adjustment)?;
+        let (fit, covariates) = self.linear_fit()?;
         let range = ovb_range(
             result_refutation_target(self.result)?,
             &fit.summary,
@@ -496,6 +779,27 @@ impl Bound<'_> {
             .map(|(&r2d, &r2y)| benchmark_bound(r2d, r2y, kd, ky))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(SensitivityRangeOutcome::OmittedVariableBias { fit, covariates, benchmarks, range })
+    }
+
+    /// The adjustment covariates (treatment and outcome left out) and their columns.
+    fn covariates(&self) -> Vec<VariableId> {
+        self.adjustment
+            .iter()
+            .copied()
+            .filter(|&id| id != self.treatment && id != self.outcome)
+            .collect()
+    }
+
+    /// [`linear_adjustment_fit`] of `outcome ~ 1 + treatment + adjustment set`, and the
+    /// covariates in the order of its partial R²s.
+    fn linear_fit(&self) -> Result<(LinearAdjustmentFit, Vec<VariableId>), CausalError> {
+        let covariates = self.covariates();
+        let mut ids = vec![self.outcome, self.treatment];
+        ids.extend(covariates.iter().copied());
+        let mut columns = complete_cases(self.data, &ids)?;
+        let adjustment = columns.split_off(2);
+        let fit = linear_adjustment_fit(&columns[0], &columns[1], &adjustment)?;
+        Ok((fit, covariates))
     }
 }
 
