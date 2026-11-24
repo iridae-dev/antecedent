@@ -269,7 +269,7 @@ fn parse_unit_key(
     };
     let namespace: String = field("namespace")?.extract()?;
     let labels: Vec<String> = field("labels")?.extract()?;
-    Ok(antecedent::analysis::preference_decision::UnitKey::labels(&namespace, labels))
+    Ok(antecedent::analysis::preference_decision::UnitKey::canonical_labels(&namespace, labels))
 }
 
 impl PrepareOptions {

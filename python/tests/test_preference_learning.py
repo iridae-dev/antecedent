@@ -7,7 +7,9 @@ chooses ``(0, 0)`` over ``(3, 1)`` implies ``w >= 3``. Every expected answer fol
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -245,6 +247,29 @@ def _noisy_records(n: int = 400, *, w: float = 1.5, consistency: float = 3.0) ->
     return pl.Records(tuple(records), "target", POOLED)
 
 
+def _coverage_recorded(*, functional: str, level: float, records: int) -> bool:
+    """Whether the shipped coverage table, the one the estimate's calibration status is
+    resolved from, holds a current record for a pooled one-decider conditional-logit trade-off
+    interval of ``functional`` at ``level`` that covers ``records`` choices."""
+    path = (
+        Path(__file__).resolve().parents[2] / "crates/antecedent-io-core/data/coverage_records.json"
+    )
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    attesting = set(snapshot["attesting_record_ids"])
+    return any(
+        row["id"] in attesting
+        and row["query"] == "PreferenceTradeOffFromChoices"
+        and row["estimator"] == "preference.conditional_logit.parameter_ratio"
+        and row["interval_method"] == "wald_delta_method"
+        and row["se_kind"] == "observed_information"
+        and row["dependence"] == "independent_records"
+        and row["functional"] == functional
+        and math.isclose(row["nominal"], level)
+        and row["n_min"] <= records <= row["n_max"]
+        for row in snapshot["records"]
+    )
+
+
 def test_the_choice_model_estimates_the_trade_off_and_carries_its_measure():
     records = _noisy_records()
     fit = require_success(pl.ChoiceModel(draws=500, seed=7).learn(TWO, records))
@@ -253,9 +278,12 @@ def test_the_choice_model_estimates_the_trade_off_and_carries_its_measure():
     assert estimate.parameter == "harm_weight"
     assert estimate.estimate == pytest.approx(1.5, abs=0.4)
     assert estimate.interval[0] < estimate.estimate < estimate.interval[1]
-    # The one-parameter Wald interval has a calibration group: its status is read from the
-    # shipped coverage table, so it is either documented state.
-    assert fit.pooled.interval_calibration in {"measured", "not_measured"}
+    # The one-parameter Wald interval's status is read from the shipped coverage table: measured
+    # exactly when a current record of its calibration group covers this fit.
+    recorded = _coverage_recorded(
+        functional="trade_off_ratio.learnable_1", level=fit.pooled.level, records=400
+    )
+    assert fit.pooled.interval_calibration == ("measured" if recorded else "not_measured")
     assert fit.pooled.not_learnable == ()
     assert fit.pooled.measure.estimate is not None
 

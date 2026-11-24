@@ -2165,6 +2165,21 @@ class PreferenceDecision(ScientificResult):
         return None if reason is None else str(reason)
 
     @property
+    def effective_tie_tolerance(self) -> float | None:
+        """The tie tolerance the verdict applied: margins within it counted as ties.
+
+        On the exact route it is the declared ``tie_tolerance`` or, when larger, the numerical
+        error bound of the margins (the rounding of the expected values plus the linear-program
+        tolerances times the margin's slope). On the certified route it is the declared tolerance
+        on boxes, whose enclosures are outward-rounded, and under a weighted policy the declared
+        tolerance plus the widest measure-weighted margin enclosure. ``None`` when no single table
+        was combined (structures that disagree, or too little science to combine them).
+        """
+        table = self._table
+        value = None if table is None else table.get("effective_tie_tolerance")
+        return None if value is None else float(value)
+
+    @property
     def contract_identity(self) -> str:
         return str(self._body["contract_identity"])
 

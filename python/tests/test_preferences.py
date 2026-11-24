@@ -11,6 +11,7 @@ below ``w = 2`` and wait above it, so every answer below is known in closed form
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import antecedent as ant
@@ -356,6 +357,57 @@ def test_replay_keeps_the_stored_evaluation_options():
     # Re-exporting the replayed decision recomputes it under the stored options.
     assert bytes(replayed.export()) == bytes(exported)
     assert bytes(_decide(contract).export()) != bytes(exported)
+
+
+def test_a_record_written_with_every_option_re_exports_byte_identically():
+    # Options Python's `evaluate` cannot set (a certified tie tolerance other than the exact
+    # route's, non-default linear-program tolerances) are written as a Rust caller would write
+    # them, through the native exporter; replay hands every stored option back, so the replayed
+    # decision re-exports to the same bytes.
+    from antecedent._native import export_preference_decision
+
+    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
+    for value in (BENEFIT - w * w * HARM, BENEFIT - w * HARM):
+        contract = _contract(pf.ValueModel(value, utility_units="qaly"))
+        options = {
+            "tie_tolerance": 1e-7,
+            "certified_tie_tolerance": 1e-3,
+            "max_boxes": 64,
+            "lp_feasibility_tolerance": 1e-10,
+            "lp_optimality_tolerance": 1e-11,
+            "lp_max_pivots": 5_000,
+        }
+        data, refusal = export_preference_decision(
+            json.dumps(contract._wire()),
+            None,
+            json.dumps(options),
+            _source()._native,
+            "preference-decision",
+        )
+        assert refusal is None and data is not None
+        written = bytes(data)
+        replayed = require_success(pf.replay(written, contract=contract, source=_source()))
+        assert bytes(replayed.export()) == written
+        effective = replayed.effective_tie_tolerance
+        assert effective is not None
+        if replayed.route == "certified":
+            assert effective == 1e-3
+        else:
+            assert effective >= 1e-7
+
+
+def test_the_effective_tie_tolerance_is_reported():
+    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
+    exact = _decide(_contract(pf.ValueModel(BENEFIT - w * HARM, utility_units="qaly")))
+    assert exact.route == "exact"
+    # The declared 1e-9, or the margins' numerical bound when that is larger.
+    assert exact.effective_tie_tolerance is not None and exact.effective_tie_tolerance >= 1e-9
+    certified = _decide(
+        _contract(pf.ValueModel(BENEFIT - w * w * HARM, utility_units="qaly")),
+        tie_tolerance=1e-4,
+    )
+    assert certified.route == "certified"
+    assert certified.effective_tie_tolerance == 1e-4
 
 
 # --------------------------------------------------------------------------- several outcomes

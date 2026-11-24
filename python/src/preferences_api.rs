@@ -623,10 +623,16 @@ fn measure_opt(json: Option<&str>) -> PyResult<Option<PreferenceMeasure>> {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct OptionsWire {
+    /// Both routes' tie tolerance.
     tie_tolerance: Option<f64>,
+    /// The certified route's tie tolerance, when it differs from the exact route's.
+    certified_tie_tolerance: Option<f64>,
     vertex_cap: Option<usize>,
     max_boxes: Option<usize>,
     min_width_fraction: Option<f64>,
+    lp_feasibility_tolerance: Option<f64>,
+    lp_optimality_tolerance: Option<f64>,
+    lp_max_pivots: Option<usize>,
 }
 
 fn options_from(json: &str) -> PyResult<PreferenceEvaluationOptions> {
@@ -635,6 +641,18 @@ fn options_from(json: &str) -> PyResult<PreferenceEvaluationOptions> {
     if let Some(tolerance) = wire.tie_tolerance {
         options.exact.tie_tolerance = tolerance;
         options.certified.tie_tolerance = tolerance;
+    }
+    if let Some(tolerance) = wire.certified_tie_tolerance {
+        options.certified.tie_tolerance = tolerance;
+    }
+    if let Some(tolerance) = wire.lp_feasibility_tolerance {
+        options.exact.lp.feasibility_tolerance = tolerance;
+    }
+    if let Some(tolerance) = wire.lp_optimality_tolerance {
+        options.exact.lp.optimality_tolerance = tolerance;
+    }
+    if let Some(pivots) = wire.lp_max_pivots {
+        options.exact.lp.max_pivots = pivots;
     }
     if let Some(cap) = wire.vertex_cap {
         options.exact.vertex_cap = cap;
@@ -649,13 +667,17 @@ fn options_from(json: &str) -> PyResult<PreferenceEvaluationOptions> {
 }
 
 /// The options in the wire [`options_from`] reads, every field set: reading it back gives the
-/// same options (the linear-program tolerances, which the wire does not carry, stay default).
+/// same options, the certified tie tolerance and the linear-program tolerances included.
 fn options_value(options: PreferenceEvaluationOptions) -> Value {
     json!({
         "tie_tolerance": options.exact.tie_tolerance,
+        "certified_tie_tolerance": options.certified.tie_tolerance,
         "vertex_cap": options.exact.vertex_cap,
         "max_boxes": options.certified.max_boxes,
         "min_width_fraction": options.certified.min_width_fraction,
+        "lp_feasibility_tolerance": options.exact.lp.feasibility_tolerance,
+        "lp_optimality_tolerance": options.exact.lp.optimality_tolerance,
+        "lp_max_pivots": options.exact.lp.max_pivots,
     })
 }
 
@@ -984,6 +1006,7 @@ fn exact_json(r: &PreferenceDecisionResult) -> Value {
         "assumptions": r.assumptions,
         "source": receipt_json!(r.source),
         "n_draws": r.n_draws,
+        "effective_tie_tolerance": r.effective_tie_tolerance,
         "undecided_fraction": Value::Null,
         "regions": Vec::<Value>::new(),
     })
@@ -1039,6 +1062,7 @@ fn certified_json(r: &CertifiedPreferenceResult) -> Value {
         "assumptions": r.assumptions,
         "source": receipt_json!(r.source),
         "n_draws": r.n_draws,
+        "effective_tie_tolerance": r.effective_tie_tolerance,
     })
 }
 
@@ -1911,7 +1935,12 @@ fn executed_json(
         "contract_identity": receipt.contract_identity,
         "causal": receipt.causal,
         "programs": receipt.programs.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
-        "executed": receipt.executed.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
+        // Aligned with `programs`; `null` where no executed result reports an identity.
+        "executed": receipt
+            .executed
+            .iter()
+            .map(|digest| digest.as_ref().map(SemanticDigest::to_hex))
+            .collect::<Vec<_>>(),
         "measure": receipt.measure,
         "options": receipt.options,
         "mixture": executed.mixture.as_ref().map(|m| json!({
