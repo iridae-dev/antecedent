@@ -19,7 +19,10 @@ fn write_factors(writer: &mut CanonicalWriter, factors: &[ChainFactorWire]) -> R
     let mut canonical: BTreeSet<(u64, String)> = BTreeSet::new();
     for factor in factors {
         let kind = parse(SharedFactorKind::from_name(&factor.kind), "factor kind", &factor.kind)?;
-        canonical.insert((factor_kind_tag(kind), factor.id.clone()));
+        let tag = factor_kind_tag(kind).ok_or_else(|| {
+            Error::Malformed(format!("factor kind {} has no canonical tag", factor.kind))
+        })?;
+        canonical.insert((tag, factor.id.clone()));
     }
     writer.word(u64::try_from(canonical.len()).unwrap_or(u64::MAX));
     for (tag, id) in &canonical {
@@ -28,17 +31,19 @@ fn write_factors(writer: &mut CanonicalWriter, factors: &[ChainFactorWire]) -> R
     Ok(())
 }
 
-/// Canonical tag of a factor kind. Append-only.
-const fn factor_kind_tag(kind: SharedFactorKind) -> u64 {
+/// Canonical tag of a factor kind. Append-only. A kind added to the (non-exhaustive) enum
+/// without a tag here has none, and the identity refuses it rather than giving two kinds one
+/// tag.
+const fn factor_kind_tag(kind: SharedFactorKind) -> Option<u64> {
     match kind {
-        SharedFactorKind::Row => 1,
-        SharedFactorKind::Cluster => 2,
-        SharedFactorKind::Model => 3,
-        SharedFactorKind::Parameter => 4,
-        SharedFactorKind::Prior => 5,
-        SharedFactorKind::Disturbance => 6,
-        SharedFactorKind::Period => 7,
-        _ => 0,
+        SharedFactorKind::Row => Some(1),
+        SharedFactorKind::Cluster => Some(2),
+        SharedFactorKind::Model => Some(3),
+        SharedFactorKind::Parameter => Some(4),
+        SharedFactorKind::Prior => Some(5),
+        SharedFactorKind::Disturbance => Some(6),
+        SharedFactorKind::Period => Some(7),
+        _ => None,
     }
 }
 
