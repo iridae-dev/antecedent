@@ -61,6 +61,7 @@ from ._compiled_robust import (
     consume_joint_scenarios,
     joint_scenario_carrier,
 )
+from ._decision_result import DecisionResult, Standing, _standing
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
 from ._native import evaluate_robust_decision as _evaluate_robust
@@ -539,8 +540,13 @@ def _range_list(value: tuple[float, float] | None) -> list[float] | None:
     return None if value is None else [value[0], value[1]]
 
 
-class RobustDecision(ScientificResult):
-    """A robustness assessment with the evidence behind it; exportable and replayable."""
+class RobustDecision(DecisionResult):
+    """A robustness assessment with the evidence behind it; exportable and replayable.
+
+    ``kind`` is the claim type that was adapted and ``verdict`` the robustness state;
+    ``choice``, ``standing`` and ``statement`` read the verdict the way every decision result is
+    read.
+    """
 
     @property
     def answer(self) -> Answer:
@@ -571,6 +577,7 @@ class RobustDecision(ScientificResult):
         self._robust: Mapping[str, Any] = body["robust"]
         self._result: Mapping[str, Any] = self._robust["result"]
         self._replay = replay
+        self._declared: Any = None
 
     @property
     def kind(self) -> str:
@@ -589,6 +596,33 @@ class RobustDecision(ScientificResult):
     @property
     def selected(self) -> str | None:
         return self.verdict.selected
+
+    @property
+    def choice(self) -> str | None:
+        """The chosen action (the same as :attr:`selected`)."""
+        return self.selected
+
+    @property
+    def standing(self) -> Standing:
+        """The robustness state in the vocabulary every decision result shares."""
+        return _standing(self._body)
+
+    @property
+    def statement(self) -> str:
+        """The robustness state in plain words."""
+        return str(self._body["statement"])
+
+    @property
+    def effective_tie_tolerance(self) -> float:
+        """Values tie only when exactly equal."""
+        return 0.0
+
+    @property
+    def contract(self) -> Any:
+        """The contract as declared: the :class:`~antecedent.decision.Contract` a decision across
+        :class:`~antecedent.decision.Structures` was evaluated with, else the admissible
+        contract."""
+        return self._contract if self._declared is None else self._declared
 
     @property
     def actions(self) -> tuple[ActionRobustness, ...]:
@@ -946,7 +980,13 @@ def replay(
     body = json.loads(result)
     # A replay re-derives the robustness result; per-structure answers and
     # completion counts are not stored in the artifact, so they are empty here.
-    shell = {"structural": {"atoms": []}, "completion_counts": [], "robust": body["robust"]}
+    shell = {
+        "structural": {"atoms": []},
+        "completion_counts": [],
+        "robust": body["robust"],
+        "standing": body.get("standing"),
+        "statement": body.get("statement"),
+    }
     stored = tuple(
         ExternalReceipt(
             atom_id=r["atom_id"],

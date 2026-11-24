@@ -1,4 +1,4 @@
-"""Compile a decision across preferences with a compiled design of several outcomes."""
+"""Compile a decision contract with a compiled design of several outcomes."""
 
 from __future__ import annotations
 
@@ -26,6 +26,9 @@ def compile_with_design(
     execution: Execution | None,
 ) -> tuple[Any, str | None]:
     """Compile the contract with the design's own program; returns ``(compiled, refusal)``.
+
+    ``contract_json`` is a contract across trade-offs, or ``{"ordinary": wire}`` for an
+    ordinary contract.
 
     The design reads its arm means, or with ``refits`` its refits under ``seed``: a
     static-regime design's aligned whole-subject refits, or, with ``sampling`` naming the

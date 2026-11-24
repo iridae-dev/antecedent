@@ -1,5 +1,5 @@
-"""The result of a decision across trade-off ranges, its records and its replay. Public
-names are exported from :mod:`antecedent.preferences`."""
+"""The result of a decision across trade-off ranges and the records it carries. Public names
+are exported from :mod:`antecedent.decision`."""
 
 from __future__ import annotations
 
@@ -9,25 +9,16 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
-from ._artifact_protocol import (
-    ExportedArtifact,
-    artifact_consumer,
-    artifact_export,
-    artifact_from_receipt,
-    container_bytes,
-)
+from ._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
+from ._decision_result import DecisionResult, Standing, _standing
+from ._decision_value import Measure, _raise
 from ._native import export_preference_decision as _export_decision
-from ._native import replay_preference_decision as _replay_decision
-from ._preference_declarations import Measure, PreferenceRefusal, _raise
-from ._scientific import ScientificResult
-from .decision import ConstraintExclusion, _not_replayable
-from .errors import CausalTypeError
-from .execution import Execution, resolve_execution
-from .joint_distribution import JointDistributionArtifact, ScientificQuantity
-from .outcomes import Answer, outcome_operation, require_success
+from .decision import ConstraintExclusion, PreferenceRefusal, _not_replayable
+from .joint_distribution import JointDistributionArtifact
+from .outcomes import Answer
 
 if TYPE_CHECKING:
-    from ._preference_contracts import Contract
+    from .decision import Contract
 
 # --------------------------------------------------------------------------- result
 
@@ -161,71 +152,6 @@ class SampledMargin:
     standard_error: float | None
 
 
-@dataclass(frozen=True, slots=True)
-class CompiledQuantity:
-    """One quantity the actions read, bound to the analysis that targets it.
-
-    ``source`` is the position of the study in the compiled source (0 for one study or a
-    design); ``read_by`` lists the ``(action, attribute)`` of every input that reads it.
-    """
-
-    quantity: ScientificQuantity
-    source: int
-    read_by: tuple[tuple[str, str], ...]
-
-
-@dataclass(frozen=True, slots=True)
-class TradeOffRange:
-    """One trade-off parameter as the compiled plan states it: its units, its declared range
-    (``lower == upper`` for a fixed value) and the assumption the range stands on."""
-
-    id: str
-    units: str
-    lower: float
-    upper: float
-    assumption: str
-
-
-@dataclass(frozen=True, slots=True)
-class JointLawInput:
-    """One column of a study's law that the joint law of several studies reads: the study's
-    position, the canonical identity of the quantity and the chain stage it becomes."""
-
-    study: int
-    quantity: str
-    stage: str
-
-
-@dataclass(frozen=True, slots=True)
-class JointLawPlan:
-    """The joint law separately estimated outcomes are joined into, declared at compile.
-
-    ``dependence`` is ``distinct_evidence`` or ``shared_evidence``; ``draws`` aligned rows are
-    drawn under ``seed``; ``cross_blocks`` names the study pairs whose cross covariance was
-    declared; ``inputs`` are the columns the chain reads, in output order.
-    """
-
-    dependence: str
-    draws: int
-    seed: int
-    cross_blocks: tuple[tuple[int, int], ...]
-    inputs: tuple[JointLawInput, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class DesignLawPlan:
-    """The resampling law a compiled design draws when the decision needs one law of its
-    outcomes: ``static_regime_refits`` or ``independent_unit_bootstrap``, the unit resampled
-    (``subject``, ``cluster``, ``pair`` or ``sequence``), the number of refits, their seed and
-    the declared sampling premise (required for an independent-unit bootstrap)."""
-
-    kind: str
-    unit: str
-    replicates: int
-    seed: int
-    sampling: str | None
-
-
 def _class_sampling(wire: Mapping[str, Any]) -> ClassSampling:
     size = wire["class_size"]
     return ClassSampling(
@@ -274,7 +200,7 @@ _STATEMENTS = {
 }
 
 
-class PreferenceDecision(ScientificResult):
+class TradeoffDecision(DecisionResult):
     """The decision across the admissible trade-offs (and structures, when supplied).
 
     ``kind`` is the verdict in snake case: ``necessarily_best`` (one action strictly ahead
@@ -296,7 +222,7 @@ class PreferenceDecision(ScientificResult):
 
     def __init__(
         self,
-        contract: Contract,
+        contract: Any,
         source: Any,
         body: Mapping[str, Any],
         measure: Mapping[str, Any] | None,
@@ -336,6 +262,16 @@ class PreferenceDecision(ScientificResult):
     def selected(self) -> str | None:
         """The action the verdict chooses, or ``None`` when it chooses none."""
         return _verdict_action(self._verdict)
+
+    @property
+    def choice(self) -> str | None:
+        """The action the verdict chooses (the same as :attr:`selected`)."""
+        return self.selected
+
+    @property
+    def standing(self) -> Standing:
+        """The verdict in the vocabulary every decision result shares."""
+        return _standing(self._body)
 
     @property
     def answer(self) -> Answer:
@@ -628,7 +564,9 @@ class PreferenceDecision(ScientificResult):
         return 0 if table is None else int(table.get("n_draws", 0))
 
     @property
-    def contract(self) -> Contract:
+    def contract(self) -> Contract | Any:
+        """The contract as declared (a :class:`~antecedent.decision.Contract`, or the
+        :class:`antecedent.preferences.Contract` it was declared with)."""
         return self._contract
 
     @property
@@ -652,11 +590,11 @@ class PreferenceDecision(ScientificResult):
             raise PreferenceRefusal(
                 _not_replayable(
                     type(self._source).__name__,
-                    "export a decision across preferences evaluated on aligned joint draws",
+                    "export a decision across trade-offs evaluated on aligned joint draws",
                 )
             )
         data, refusal = _export_decision(
-            json.dumps(self._contract._wire()),
+            json.dumps(self._contract._tradeoff_wire()),
             None if self._measure_wire is None else json.dumps(self._measure_wire),
             json.dumps(self._options),
             self._source._native,
@@ -667,50 +605,17 @@ class PreferenceDecision(ScientificResult):
         return artifact_from_receipt(self, bytes(data))
 
     def __repr__(self) -> str:
-        return f"<PreferenceDecision {self.kind} {self.selected!r} ({self.route})>"
+        return f"<TradeoffDecision {self.kind} {self.selected!r} ({self.route})>"
 
 
-@outcome_operation
-@artifact_consumer(
-    proof=(
-        "Independent native replay loads the record under the consumer's contract identity and "
-        "draw digest, recomputes the decision and compares every stored field."
-    ),
-    replayable=True,
-    identity=("contract", "source"),
-    input="data",
-)
-def replay(
-    data: bytes,
-    *,
-    contract: Contract,
-    source: JointDistributionArtifact,
-    execution: Execution | None = None,
-) -> PreferenceDecision:
-    """Recompute a stored decision across preferences from the consumer's own inputs.
-
-    The contract and draws are the consumer's: a record computed under another contract, from
-    other draws, or with edited numbers refuses. The stored measure and options are reused. The
-    recomputation reads the execution's cancellation token at its work boundaries; a cancelled
-    replay is refused with ``cancelled_no_claim``.
-    """
-    execution = resolve_execution(execution)
-    data = container_bytes(data)
-    source = require_success(source)
-    from ._preference_contracts import Contract
-
-    if not isinstance(contract, Contract):
-        raise CausalTypeError(f"replay needs a preferences.Contract, not {type(contract).__name__}")
-    if not isinstance(source, JointDistributionArtifact):
-        raise CausalTypeError(
-            "replay needs the JointDistributionArtifact of aligned draws the decision was "
-            f"computed from, not {type(source).__name__}"
-        )
-    body, refusal = _replay_decision(
-        data, json.dumps(contract._wire()), source._native, execution.cancel
-    )
-    _raise(refusal)
-    assert body is not None
-    decoded = json.loads(body)
-    options = decoded.pop("options", None) or {}
-    return PreferenceDecision(contract, source, decoded, decoded.get("measure"), options)
+__all__ = [
+    "ActionRecord",
+    "ClassSampling",
+    "Region",
+    "SampledMargin",
+    "SampledMass",
+    "StructureOutcome",
+    "Switch",
+    "SwitchThreshold",
+    "TradeoffDecision",
+]

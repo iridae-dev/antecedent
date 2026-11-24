@@ -1,6 +1,7 @@
-"""Declarations of a decision across trade-off ranges: expressions over attributes and
-trade-off parameters, relations, the value model, actions, policies, measures, structures
-and hard constraints. Public names are exported from :mod:`antecedent.preferences`."""
+"""Declarations of a value over several outcome attributes: attributes, trade-offs and the
+expressions over them, relations between trade-offs, the value, trade-off policies, measures
+over the trade-offs and the causal structures a decision is taken across. Public names are
+exported from :mod:`antecedent.decision`."""
 
 from __future__ import annotations
 
@@ -9,21 +10,20 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import reduce
-from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, get_args
 
 from ._native import preference_model_describe as _describe_model
 from ._refusal import raise_refusal
 from ._validate import real, text
-from .decision import ActionKind, Constraint
-from .decision import Expr as _DecisionExpr
-from .decision import StructuralPolicy as StructuralPolicyKind
-from .errors import CausalTypeError, CausalValueError, StructuredRefusal
-from .joint_distribution import ScientificQuantity
+from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
     from .decision_robust import Claim
 
+ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
+StructuralPolicyKind = Literal[
+    "require_invariant_best_action", "maximin", "bayes_over_structures", "report_only"
+]
 PolicyKind = Literal[
     "require_invariant_best_action", "maximin", "minimax_regret", "weighted", "report_only"
 ]
@@ -34,28 +34,12 @@ _SENSES: dict[str, Sense] = {">=": "at_least", "<=": "at_most", "==": "equal"}
 _SYMBOLS = {"at_least": ">=", "at_most": "<=", "equal": "=="}
 
 
-class PreferenceRefusal(StructuredRefusal):
-    """A refusal of a value model, a preference contract or a decision across preferences.
-
-    A :class:`~antecedent.errors.StructuredRefusal`: ``code`` (alias ``reason_code``) is the
-    registered refusal code and ``detail`` the namespaced ``family.slot`` (for example
-    ``preference_decision.measure_required``); ``offending`` names the parameter, action or
-    record when there is one, and ``expected`` / ``supplied`` carry the compared values.
-    """
-
-    def __init__(self, refusal: Mapping[str, Any]) -> None:
-        offending = refusal.get("offending")
-        message = refusal.get("message")
-        detail = str(refusal["detail"])
-        text_ = (
-            detail + (f": {message}" if message else "") + (f" at {offending}" if offending else "")
-        )
-        super().__init__(refusal, text=text_)
-        self.expected: str | None = refusal.get("expected")
-        self.supplied: str | None = refusal.get("supplied")
-
-
 def _raise(payload: str | None) -> None:
+    """Raise the native refusal in ``payload`` as a :class:`~antecedent.decision.PreferenceRefusal`."""
+    if payload is None:
+        return
+    from .decision import PreferenceRefusal
+
     raise_refusal(payload, PreferenceRefusal)
 
 
@@ -80,38 +64,38 @@ class _Algebra:
 
     __slots__ = ()
 
-    def _expr(self) -> Expr:
+    def _expr(self) -> ValueExpr:
         raise NotImplementedError
 
-    def __add__(self, other: Operand) -> Expr:
+    def __add__(self, other: Operand) -> ValueExpr:
         return _binary("add", self, other)
 
-    def __radd__(self, other: Operand) -> Expr:
+    def __radd__(self, other: Operand) -> ValueExpr:
         return _binary("add", other, self)
 
-    def __sub__(self, other: Operand) -> Expr:
+    def __sub__(self, other: Operand) -> ValueExpr:
         return _binary("sub", self, other)
 
-    def __rsub__(self, other: Operand) -> Expr:
+    def __rsub__(self, other: Operand) -> ValueExpr:
         return _binary("sub", other, self)
 
-    def __mul__(self, other: Operand) -> Expr:
+    def __mul__(self, other: Operand) -> ValueExpr:
         return _binary("mul", self, other)
 
-    def __rmul__(self, other: Operand) -> Expr:
+    def __rmul__(self, other: Operand) -> ValueExpr:
         return _binary("mul", other, self)
 
-    def __truediv__(self, other: float) -> Expr:
+    def __truediv__(self, other: float) -> ValueExpr:
         divisor = _number(other, "a divisor")
         if divisor == 0.0:
             raise CausalValueError("an expression is divided only by a nonzero number")
         return _binary("mul", self, 1.0 / divisor)
 
-    def __neg__(self) -> Expr:
+    def __neg__(self) -> ValueExpr:
         inner = self._expr()
-        return Expr({"neg": inner._node}, inner._leaves)
+        return ValueExpr({"neg": inner._node}, inner._leaves)
 
-    def __pos__(self) -> Expr:
+    def __pos__(self) -> ValueExpr:
         return self._expr()
 
     def __ge__(self, other: Operand) -> Relation:
@@ -124,7 +108,7 @@ class _Algebra:
 Operand: TypeAlias = "_Algebra | float"
 
 
-def _coerce(value: Any) -> Expr:
+def _coerce(value: Any) -> ValueExpr:
     if isinstance(value, _Algebra):
         return value._expr()
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -135,16 +119,16 @@ def _coerce(value: Any) -> Expr:
     number = float(value)
     if not math.isfinite(number):
         raise CausalValueError("a constant in a value expression is finite")
-    return Expr({"const": number}, ())
+    return ValueExpr({"const": number}, ())
 
 
-def _binary(op: str, left: Any, right: Any) -> Expr:
+def _binary(op: str, left: Any, right: Any) -> ValueExpr:
     a, b = _coerce(left), _coerce(right)
-    return Expr({op: [a._node, b._node]}, _merge(a._leaves, b._leaves))
+    return ValueExpr({op: [a._node, b._node]}, _merge(a._leaves, b._leaves))
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class Expr(_Algebra):
+class ValueExpr(_Algebra):
     """A closed expression over attributes, trade-off parameters and numbers.
 
     Build it with ``+``, ``-``, ``*``, ``/`` by a number, unary ``-``, :func:`exp`, :func:`ln`,
@@ -155,14 +139,14 @@ class Expr(_Algebra):
     _node: Any
     _leaves: tuple[Any, ...] = ()
 
-    def _expr(self) -> Expr:
+    def _expr(self) -> ValueExpr:
         return self
 
     def __bool__(self) -> bool:
         raise CausalTypeError("an expression has no truth value")
 
     def __repr__(self) -> str:
-        return f"Expr({json.dumps(self._node, sort_keys=True)})"
+        return f"ValueExpr({json.dumps(self._node, sort_keys=True)})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,12 +160,12 @@ class Attribute(_Algebra):
         text(self.id, "Attribute.id", non_empty=True)
         text(self.units, "Attribute.units", non_empty=True)
 
-    def _expr(self) -> Expr:
-        return Expr({"attribute": self.id}, (self,))
+    def _expr(self) -> ValueExpr:
+        return ValueExpr({"attribute": self.id}, (self,))
 
 
 @dataclass(frozen=True, slots=True)
-class Parameter(_Algebra):
+class Tradeoff(_Algebra):
     """A trade-off parameter with its admissible range and the judgment the range stands on.
 
     The range is a declared assumption, not a probability distribution. ``lower == upper`` fixes
@@ -195,19 +179,19 @@ class Parameter(_Algebra):
     assumption: str
 
     def __post_init__(self) -> None:
-        text(self.id, "Parameter.id", non_empty=True)
-        text(self.units, "Parameter.units", non_empty=True)
-        text(self.assumption, "Parameter.assumption", non_empty=True)
-        object.__setattr__(self, "lower", _number(self.lower, "Parameter.lower"))
-        object.__setattr__(self, "upper", _number(self.upper, "Parameter.upper"))
+        text(self.id, "Tradeoff.id", non_empty=True)
+        text(self.units, "Tradeoff.units", non_empty=True)
+        text(self.assumption, "Tradeoff.assumption", non_empty=True)
+        object.__setattr__(self, "lower", _number(self.lower, "Tradeoff.lower"))
+        object.__setattr__(self, "upper", _number(self.upper, "Tradeoff.upper"))
 
     @property
     def is_fixed(self) -> bool:
         """Whether the range is a single value."""
         return self.lower == self.upper
 
-    def _expr(self) -> Expr:
-        return Expr({"parameter": self.id}, (self,))
+    def _expr(self) -> ValueExpr:
+        return ValueExpr({"parameter": self.id}, (self,))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -224,74 +208,97 @@ def attribute(id: str, *, units: str) -> Attribute:
     return Attribute(id, units)
 
 
-def strength(id: str, *, units: str, lower: float, upper: float, assumption: str) -> Parameter:
+def tradeoff(
+    id: str,
+    *,
+    units: str,
+    lower: float | None = None,
+    upper: float | None = None,
+    value: float | None = None,
+    assumption: str | None = None,
+) -> Tradeoff:
     """A trade-off whose admissible values are ``[lower, upper]``.
 
-    ``units`` is utility per unit of what it multiplies (``qaly/event``); ``assumption`` names
-    the judgment the range stands on. Every value in the range is treated as admissible; none
-    is more likely than another.
+    The range is a declared assumption, not a probability: every value in it is treated as
+    admissible and none is more likely than another. ``units`` is utility per unit of what the
+    trade-off multiplies (``qaly/event``) and ``assumption`` names the judgment the range stands
+    on. ``value=`` fixes the trade-off at one value as a named trade-off (its assumption is
+    ``declared_value`` unless named). A plain number in the expression is a fixed trade-off with
+    no name: a value with only plain numbers is an ordinary contract.
     """
-    return Parameter(id, units, lower, upper, assumption)
+    if value is not None:
+        if lower is not None or upper is not None:
+            raise CausalValueError(
+                "a trade-off takes lower= and upper= (a range) or value= (one value), not both"
+            )
+        return Tradeoff(
+            id, units, value, value, "declared_value" if assumption is None else assumption
+        )
+    if lower is None or upper is None:
+        raise CausalValueError(
+            "a trade-off takes lower= and upper= for a range of admissible values, or value= "
+            "for one value"
+        )
+    if assumption is None:
+        raise CausalValueError(
+            f"the range of trade-off {id!r} names the judgment it stands on: give assumption="
+        )
+    return Tradeoff(id, units, lower, upper, assumption)
 
 
-def fixed(id: str, *, units: str, value: float, assumption: str = "declared_value") -> Parameter:
-    """A trade-off known as one value (a range of width zero)."""
-    return Parameter(id, units, value, value, assumption)
-
-
-def exp(value: Operand) -> Expr:
+def exp(value: Operand) -> ValueExpr:
     """Natural exponential."""
     inner = _coerce(value)
-    return Expr({"exp": inner._node}, inner._leaves)
+    return ValueExpr({"exp": inner._node}, inner._leaves)
 
 
-def ln(value: Operand) -> Expr:
+def ln(value: Operand) -> ValueExpr:
     """Natural logarithm; the argument must stay positive wherever it is evaluated."""
     inner = _coerce(value)
-    return Expr({"ln": inner._node}, inner._leaves)
+    return ValueExpr({"ln": inner._node}, inner._leaves)
 
 
-def maximum(left: Operand, right: Operand) -> Expr:
+def maximum(left: Operand, right: Operand) -> ValueExpr:
     """Pointwise maximum."""
     return _binary("max", left, right)
 
 
-def minimum(left: Operand, right: Operand) -> Expr:
+def minimum(left: Operand, right: Operand) -> ValueExpr:
     """Pointwise minimum."""
     return _binary("min", left, right)
 
 
 def _attribute_arg(value: object, what: str) -> Attribute:
     if not isinstance(value, Attribute):
-        raise CausalTypeError(f"{what} is an Attribute made by preferences.attribute(...)")
+        raise CausalTypeError(f"{what} is an Attribute made by decision.attribute(...)")
     return value
 
 
-def excess(of: Attribute, above: float) -> Expr:
+def excess(of: Attribute, above: float) -> ValueExpr:
     """``max(x - above, 0)``: how far the attribute exceeds a threshold."""
     x = _attribute_arg(of, "excess(of=...)")
     return maximum(x - _number(above, "above"), 0.0)
 
 
-def shortfall(of: Attribute, below: float) -> Expr:
+def shortfall(of: Attribute, below: float) -> ValueExpr:
     """``max(below - x, 0)``: how far the attribute falls short of a threshold."""
     x = _attribute_arg(of, "shortfall(of=...)")
     return maximum(_number(below, "below") - x, 0.0)
 
 
-def segment(of: Attribute, start: float, end: float) -> Expr:
+def segment(of: Attribute, start: float, end: float) -> ValueExpr:
     """``clamp(x, start, end) - start``: the part of the attribute inside ``[start, end]``."""
     x = _attribute_arg(of, "segment(of=...)")
     lo, hi = _number(start, "start"), _number(end, "end")
     return minimum(maximum(x, lo), hi) - lo
 
 
-def interaction(a: Attribute, b: Attribute) -> Expr:
+def interaction(a: Attribute, b: Attribute) -> ValueExpr:
     """``x_a * x_b``."""
     return _attribute_arg(a, "interaction(a=...)") * _attribute_arg(b, "interaction(b=...)")
 
 
-def both(a: Attribute, b: Attribute) -> Expr:
+def both(a: Attribute, b: Attribute) -> ValueExpr:
     """``min(x_a, x_b)``: the attribute that is lower."""
     return minimum(_attribute_arg(a, "both(a=...)"), _attribute_arg(b, "both(b=...)"))
 
@@ -312,11 +319,11 @@ class Relation:
     sense: Sense
     bound: float
     origin: Literal["declared", "shape_rule"] = "declared"
-    parameters: tuple[Parameter, ...] = field(default=(), compare=False, repr=False)
+    parameters: tuple[Tradeoff, ...] = field(default=(), compare=False, repr=False)
 
     def __bool__(self) -> bool:
         raise CausalTypeError(
-            "a Relation is a declaration, not a truth value; pass it to ValueModel(relations=...)"
+            "a Relation is a declaration, not a truth value; pass it to Value(relations=...)"
         )
 
     def _wire(self, index: Mapping[str, int]) -> dict[str, Any]:
@@ -377,7 +384,7 @@ def _relation_of(left: Any, right: Any, sense: Sense, id: str | None = None) -> 
     if id is None:
         lhs = "".join(f"{value:+g}*{name}" for name, value in pairs)
         id = f"{lhs}{_SYMBOLS[sense]}{bound:g}"
-    parameters = tuple(p for p in difference._leaves if isinstance(p, Parameter))
+    parameters = tuple(p for p in difference._leaves if isinstance(p, Tradeoff))
     return Relation(id, pairs, sense, bound, "declared", parameters)
 
 
@@ -411,21 +418,21 @@ class Curve(_Algebra):
 
     The curve is zero at the first breakpoint and flat outside the first and last ones. Its
     shape rules (:meth:`increasing`, :meth:`decreasing`, :meth:`diminishing`,
-    :meth:`accelerating`) return relations to pass to :class:`ValueModel`; they restrict the
+    :meth:`accelerating`) return relations to pass to :class:`Value`; they restrict the
     slopes, so they are judgments like the ranges.
     """
 
     of: Attribute
     breakpoints: tuple[float, ...]
-    slopes: tuple[Parameter, ...]
+    slopes: tuple[Tradeoff, ...]
     id: str | None = None
 
     def __post_init__(self) -> None:
         _attribute_arg(self.of, "Curve.of")
         points = tuple(_number(b, "a breakpoint") for b in self.breakpoints)
         slopes = tuple(self.slopes)
-        if any(not isinstance(s, Parameter) for s in slopes):
-            raise CausalTypeError("Curve.slopes are Parameters made by strength(...) or fixed(...)")
+        if any(not isinstance(s, Tradeoff) for s in slopes):
+            raise CausalTypeError("Curve.slopes are trade-offs made by decision.tradeoff(...)")
         if len(points) < 2 or len(slopes) + 1 != len(points):
             raise CausalValueError("a curve has at least two breakpoints and one slope per segment")
         if any(a >= b for a, b in zip(points, points[1:], strict=False)):
@@ -437,7 +444,7 @@ class Curve(_Algebra):
     def _prefix(self) -> str:
         return self.id or f"{self.of.id}.curve"
 
-    def _expr(self) -> Expr:
+    def _expr(self) -> ValueExpr:
         parts = [
             slope * segment(self.of, a, b)
             for slope, a, b in zip(
@@ -522,55 +529,91 @@ def _flatten(relations: Iterable[Any]) -> tuple[Relation, ...]:
         elif isinstance(item, Iterable) and not isinstance(item, (str, bytes)):
             out.extend(_flatten(item))
         else:
-            raise CausalTypeError("ValueModel.relations holds Relations (or groups of them)")
+            raise CausalTypeError("Value.relations holds Relations (or groups of them)")
     return tuple(out)
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class ValueModel:
-    """How the outcome attributes combine into one value, with explicit trade-offs.
+class Value:
+    """How the outcome attributes combine into one value, with its trade-offs.
 
-    ``value`` is an expression over attributes and trade-off parameters. The attributes and
-    parameters are read from it in order of first appearance unless ``attributes=`` or
-    ``parameters=`` fixes the order. ``relations`` restrict the parameters jointly. The model is
-    complete on its own: it is a declaration of judgments, not an estimate.
+    ``expr`` is an expression over attributes (:func:`attribute`), trade-offs (:func:`tradeoff`)
+    and numbers; ``units`` names the utility it is in. The attributes and trade-offs are read
+    from the expression in order of first appearance unless ``attributes=`` or ``tradeoffs=``
+    fixes the order. ``relations`` restrict the trade-offs jointly. A value is a declaration of
+    judgments, not an estimate.
+
+    A value whose trade-offs are all plain numbers is the utility of an ordinary contract;
+    one with a named trade-off is decided across every admissible value of its trade-offs.
     """
 
-    value: Any
-    utility_units: str
-    relations: tuple[Relation, ...] = ()
-    attributes: tuple[Attribute, ...] | None = None
-    parameters: tuple[Parameter, ...] | None = None
+    __slots__ = ("_expr_value", "_units", "_relations", "_attributes", "_tradeoffs")
 
-    def __post_init__(self) -> None:
-        expr = _coerce(self.value)
-        text(self.utility_units, "ValueModel.utility_units", non_empty=True)
-        relations = _flatten(self.relations)
-        attributes = _declarations(Attribute, expr._leaves, self.attributes)
-        parameters = _declarations(
-            Parameter,
-            (*expr._leaves, *(p for r in relations for p in r.parameters)),
-            self.parameters,
+    def __init__(
+        self,
+        expr: Any,
+        *,
+        units: str,
+        relations: Iterable[Any] = (),
+        attributes: Sequence[Attribute] | None = None,
+        tradeoffs: Sequence[Tradeoff] | None = None,
+    ) -> None:
+        value = _coerce(expr)
+        text(units, f"{type(self).__name__} units", non_empty=True)
+        flat = _flatten(relations)
+        found_attributes = _declarations(Attribute, value._leaves, attributes)
+        found_tradeoffs = _declarations(
+            Tradeoff, (*value._leaves, *(p for r in flat for p in r.parameters)), tradeoffs
         )
-        object.__setattr__(self, "value", expr)
-        object.__setattr__(self, "relations", relations)
-        object.__setattr__(self, "attributes", attributes)
-        object.__setattr__(self, "parameters", parameters)
+        object.__setattr__(self, "_expr_value", value)
+        object.__setattr__(self, "_units", units)
+        object.__setattr__(self, "_relations", flat)
+        object.__setattr__(self, "_attributes", found_attributes)
+        object.__setattr__(self, "_tradeoffs", found_tradeoffs)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(f"{type(self).__name__} is immutable")
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(f"{type(self).__name__} is immutable")
+
+    @property
+    def expr(self) -> ValueExpr:
+        """The value expression."""
+        return self._expr_value
+
+    @property
+    def units(self) -> str:
+        """The utility units the value is in."""
+        return self._units
+
+    @property
+    def relations(self) -> tuple[Relation, ...]:
+        """Linear relations between the trade-offs."""
+        return self._relations
+
+    @property
+    def attributes(self) -> tuple[Attribute, ...]:
+        """The attributes the value reads, in order."""
+        return self._attributes
+
+    @property
+    def tradeoffs(self) -> tuple[Tradeoff, ...]:
+        """The named trade-offs the value reads, in order."""
+        return self._tradeoffs
 
     def _wire(self) -> dict[str, Any]:
-        assert self.attributes is not None and self.parameters is not None
-        attributes = {a.id: k for k, a in enumerate(self.attributes)}
-        parameters = {p.id: j for j, p in enumerate(self.parameters)}
+        attributes = {a.id: k for k, a in enumerate(self._attributes)}
+        parameters = {p.id: j for j, p in enumerate(self._tradeoffs)}
         return {
-            "attributes": [{"id": a.id, "units": a.units} for a in self.attributes],
-            "parameters": [p._wire() for p in self.parameters],
-            "relations": [r._wire(parameters) for r in self.relations],
-            "value": _resolve(self.value._node, attributes, parameters),
-            "utility_units": self.utility_units,
+            "attributes": [{"id": a.id, "units": a.units} for a in self._attributes],
+            "parameters": [p._wire() for p in self._tradeoffs],
+            "relations": [r._wire(parameters) for r in self._relations],
+            "value": _resolve(self._expr_value._node, attributes, parameters),
+            "utility_units": self._units,
         }
 
     def _preference_wire(self) -> dict[str, Any]:
-        """The protocol a :class:`Contract` reads from ``preferences=``: the model and no measure."""
+        """What a contract reads from its value: the model and no measure."""
         return {"model": self._wire(), "measure": None}
 
     def _described(self) -> dict[str, Any]:
@@ -586,75 +629,67 @@ class ValueModel:
 
     @property
     def shape_parameters(self) -> tuple[str, ...]:
-        """Parameters the value is not affine in. Non-empty means the certified route answers."""
+        """Trade-offs the value is not affine in. Non-empty means the certified route answers."""
         return tuple(self._described()["shape_parameters"])
 
-    def validate(self) -> ValueModel:
-        """Check the model natively; raise :class:`PreferenceRefusal` when it is invalid."""
+    def validate(self) -> Value:
+        """Check the value natively; raise :class:`~antecedent.decision.PreferenceRefusal` when
+        it is invalid."""
         self._described()
         return self
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}({self._expr_value!r}, units={self._units!r}, "
+            f"tradeoffs={tuple(t.id for t in self._tradeoffs)!r})"
+        )
 
-# --------------------------------------------------------------------------- contract
 
+class ValueModel(Value):
+    """A :class:`Value` declared as ``ValueModel(value, utility_units, relations=(),
+    attributes=None, parameters=None)``: ``value`` is the expression, ``utility_units`` its
+    units and ``parameters`` the trade-offs in order."""
 
-@dataclass(frozen=True, slots=True)
-class Action:
-    """One candidate action: what it supplies for each attribute, by attribute id.
+    __slots__ = ()
 
-    A value is a :class:`~antecedent.joint_distribution.ScientificQuantity` whose law the source
-    supplies, or a plain number for an input known without uncertainty (in the attribute's
-    units). At least one input is a quantity.
-    """
-
-    id: str
-    inputs: Mapping[str, ScientificQuantity | float]
-    kind: ActionKind = "intervention"
-
-    def __post_init__(self) -> None:
-        text(self.id, "Action.id", non_empty=True)
-        if not isinstance(self.inputs, Mapping):
-            raise CausalTypeError("Action.inputs maps attribute ids to quantities or numbers")
-        inputs: dict[str, ScientificQuantity | float] = {}
-        for key, value in self.inputs.items():
-            name = key.id if isinstance(key, Attribute) else key
-            if not isinstance(name, str):
-                raise CausalTypeError("Action.inputs keys are attribute ids or Attributes")
-            if not isinstance(value, ScientificQuantity):
-                value = _number(value, f"Action {self.id!r} input {name!r}")
-            inputs[name] = value
-        if self.kind not in get_args(ActionKind):
-            raise CausalValueError(f"Action.kind is one of {get_args(ActionKind)}")
-        object.__setattr__(self, "inputs", MappingProxyType(inputs))
+    def __init__(
+        self,
+        value: Any,
+        utility_units: str,
+        relations: Iterable[Any] = (),
+        attributes: Sequence[Attribute] | None = None,
+        parameters: Sequence[Tradeoff] | None = None,
+    ) -> None:
+        super().__init__(
+            value,
+            units=utility_units,
+            relations=relations,
+            attributes=attributes,
+            tradeoffs=parameters,
+        )
 
     @property
-    def quantities(self) -> tuple[ScientificQuantity, ...]:
-        """The scientific quantities the action reads, in input order."""
-        return tuple(v for v in self.inputs.values() if isinstance(v, ScientificQuantity))
+    def value(self) -> ValueExpr:
+        """The value expression."""
+        return self._expr_value
 
-    def _wire(self, attributes: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-        names = [a["id"] for a in attributes]
-        missing = [n for n in names if n not in self.inputs]
-        extra = [n for n in self.inputs if n not in names]
-        if missing or extra:
-            raise CausalValueError(
-                f"Action {self.id!r} supplies every attribute of the model exactly once"
-                + (f"; missing {missing}" if missing else "")
-                + (f"; unknown {extra}" if extra else "")
-            )
-        wire = []
-        for attr in attributes:
-            value = self.inputs[attr["id"]]
-            if isinstance(value, ScientificQuantity):
-                wire.append({"quantity": value._wire()})
-            else:
-                wire.append({"fixed": {"value": float(value), "units": attr["units"]}})
-        return {"id": self.id, "kind": self.kind, "inputs": wire}
+    @property
+    def utility_units(self) -> str:
+        """The utility units the value is in."""
+        return self._units
+
+    @property
+    def parameters(self) -> tuple[Tradeoff, ...]:
+        """The trade-offs the value reads, in order."""
+        return self._tradeoffs
+
+
+# --------------------------------------------------------------------------- policies
 
 
 @dataclass(frozen=True, slots=True)
-class Policy:
-    """How a result across the admissible trade-offs may be consumed.
+class TradeoffPolicy:
+    """How a result across the admissible trade-offs may be consumed (``Contract(policy=...)``).
 
     * :meth:`invariant_best` chooses only an action best at every admissible value;
     * :meth:`maximin` the action with the best worst-case value over the set;
@@ -668,29 +703,29 @@ class Policy:
     def __post_init__(self) -> None:
         if self.kind not in get_args(PolicyKind):
             raise CausalValueError(
-                f"Policy kind {self.kind!r} is not one of {get_args(PolicyKind)}; build one with "
-                "Policy.invariant_best(), .maximin(), .minimax_regret(), .weighted() or "
-                ".report_only()"
+                f"TradeoffPolicy kind {self.kind!r} is not one of {get_args(PolicyKind)}; build "
+                "one with TradeoffPolicy.invariant_best(), .maximin(), .minimax_regret(), "
+                ".weighted() or .report_only()"
             )
 
     @classmethod
-    def invariant_best(cls) -> Policy:
+    def invariant_best(cls) -> TradeoffPolicy:
         return cls("require_invariant_best_action")
 
     @classmethod
-    def maximin(cls) -> Policy:
+    def maximin(cls) -> TradeoffPolicy:
         return cls("maximin")
 
     @classmethod
-    def minimax_regret(cls) -> Policy:
+    def minimax_regret(cls) -> TradeoffPolicy:
         return cls("minimax_regret")
 
     @classmethod
-    def weighted(cls) -> Policy:
+    def weighted(cls) -> TradeoffPolicy:
         return cls("weighted")
 
     @classmethod
-    def report_only(cls) -> Policy:
+    def report_only(cls) -> TradeoffPolicy:
         return cls("report_only")
 
 
@@ -701,12 +736,12 @@ class StructuralPolicy:
     * :meth:`invariant_best` requires every structure to be evaluated and their verdicts to
       agree; otherwise the result is ``structures_disagree``;
     * :meth:`maximin` scores each action by its worst value over structures at each trade-off,
-      then applies the preference :class:`Policy`;
+      then applies the :class:`TradeoffPolicy`;
     * :meth:`bayes_over_structures` weighs the per-structure values by the supplied structure
       probabilities, never renormalized;
     * :meth:`report_only` reports each structure's result with no combination.
 
-    ``Contract(structural_policy=...)`` also takes the kind as a string.
+    ``Contract(structural_policy=...)`` takes the kind as a string and also accepts this class.
     """
 
     kind: StructuralPolicyKind
@@ -877,38 +912,11 @@ class Structures:
         return cls("finite_scenarios", tuple(claims))
 
 
-def constraint(
-    id: str,
-    expr: Operand,
-    *,
-    at_most: float,
-    units: str,
-    min_probability: float = 1.0,
-    applies_to: Sequence[str] = (),
-) -> Constraint:
-    """A hard constraint ``P(expr <= at_most) >= min_probability`` over attributes.
-
-    It never reads a trade-off parameter, so whether it excludes an action does not depend on
-    preferences. Returns a :class:`antecedent.decision.Constraint` to pass to ``constraints=``.
-    """
-    inner = _coerce(expr)
-    if any(isinstance(leaf, Parameter) for leaf in inner._leaves):
-        raise CausalValueError("a hard constraint reads attributes only, never a trade-off")
-    return Constraint(
-        id=id,
-        expr=_DecisionExpr(inner._node),
-        bound=at_most,
-        units=units,
-        min_probability=min_probability,
-        applies_to=tuple(applies_to),
-    )
-
-
 def _constraint_node(node: Any, attributes: Mapping[str, int]) -> Any:
     ((op, arg),) = node.items()
     if op == "attribute":
         if arg not in attributes:
-            raise CausalValueError(f"a constraint reads attribute {arg!r}, which the model lacks")
+            raise CausalValueError(f"a constraint reads attribute {arg!r}, which the value lacks")
         return {"input": attributes[arg]}
     if op in ("const", "input"):
         return node
@@ -917,3 +925,41 @@ def _constraint_node(node: Any, attributes: Mapping[str, int]) -> Any:
     if isinstance(arg, list):
         return {op: [_constraint_node(item, attributes) for item in arg]}
     return {op: _constraint_node(arg, attributes)}
+
+
+def _constraint_node_of(expr: Any) -> Any:
+    """The expression node of a hard constraint over attributes; a trade-off is refused, so
+    whether a constraint excludes an action never depends on the trade-offs."""
+    inner = _coerce(expr)
+    if any(isinstance(leaf, Tradeoff) for leaf in inner._leaves):
+        raise CausalValueError("a hard constraint reads attributes only, never a trade-off")
+    return inner._node
+
+
+__all__ = [
+    "ActionKind",
+    "Attribute",
+    "Curve",
+    "Measure",
+    "Relation",
+    "StructuralPolicy",
+    "StructuralPolicyKind",
+    "Structures",
+    "Tradeoff",
+    "TradeoffPolicy",
+    "Value",
+    "ValueExpr",
+    "ValueModel",
+    "attribute",
+    "both",
+    "excess",
+    "exp",
+    "interaction",
+    "ln",
+    "maximum",
+    "minimum",
+    "relation",
+    "segment",
+    "shortfall",
+    "tradeoff",
+]
