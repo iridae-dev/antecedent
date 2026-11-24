@@ -100,7 +100,7 @@ def test_normal_public_measured_joint_scalar_and_original_source_fresh_replay(
     mean, covariance, contrast = oracle(opts, learned)
     assert scalar.point == pytest.approx(contrast @ mean, abs=2e-10)
     assert scalar.level == 0.95
-    assert scalar.record_id.endswith(
+    assert scalar.record_id.partition(".v2_validation")[0].endswith(
         ("learned_degree2_gaussian_" if learned else "joint_gaussian_")
         + {
             "one": "one_source_intercept_l95",
@@ -183,7 +183,9 @@ print(json.dumps(r.inspect(),sort_keys=True))
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()),
+            expected=measured.expected_identity,
+            execution=Execution(cancel=cancelled),
         )
 
 

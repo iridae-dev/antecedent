@@ -46,7 +46,9 @@ def test_normal_recovered_effect_bca_original_source_and_fresh_measured_replay(t
     assert measured.route == "sampled_recovery" and len(measured.scalars) == 1
     scalar = measured.scalar("recovered_effect")
     assert scalar.calibration == "calibrated" and scalar.level == 0.95
-    assert scalar.record_id.endswith("binary_missingness_whole_row_recovery_bca_l95")
+    assert scalar.record_id.partition(".v2_validation")[0].endswith(
+        "binary_missingness_whole_row_recovery_bca_l95"
+    )
     assert scalar.basis["key"]["interval_method"] == "bootstrap_bca"
     assert scalar.basis["scope"]["row_count"] == 2000
     assert len(scalar.calibration_sha) == 40

@@ -93,7 +93,9 @@ print(json.dumps(r.inspect(),sort_keys=True))
     cancelled.cancel()
     with pytest.raises(CausalCancelledError):
         MeasuredInference.load(
-            bytes(measured.export()), expected=measured.expected_identity, cancel=cancelled
+            bytes(measured.export()),
+            expected=measured.expected_identity,
+            execution=Execution(cancel=cancelled),
         )
 
 

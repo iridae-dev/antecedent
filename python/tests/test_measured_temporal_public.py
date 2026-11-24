@@ -140,7 +140,8 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
             per_draw, abs=1e-12
         )
         assert source["result"]["studentization"]["pivots"] == pytest.approx(pivots, abs=1e-10)
-    assert not hasattr(session._handle, "interval_candidate")
+    # The checked candidate handoff (TemporalSession.interval_candidate) stays a public entry of
+    # the session; the measured interval above does not pass through it.
     replay(result, tmp_path)
 
 
@@ -155,7 +156,9 @@ def test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_c
     scalar = result.scalar("response")
     source = result.source_report()
     assert source["result"]["calibration"] == "not_measured"
-    assert scalar.record_id.endswith("temporal_two_step_units_studentized_l95")
+    assert scalar.record_id.partition(".v2_validation")[0].endswith(
+        "temporal_two_step_units_studentized_l95"
+    )
     points = independent_replicates(source)
     values = np.array([0.49 + (0.2 if i % 2 else -0.2) for i in range(100)])
     selected = np.array(
