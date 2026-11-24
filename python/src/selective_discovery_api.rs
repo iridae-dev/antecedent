@@ -23,12 +23,10 @@ use antecedent::analysis::sample_split_analysis::{
     AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
     split_evidence_sources,
 };
-use antecedent::analysis::sample_split_effect::{
-    SplitEffect, estimate_effect_on_split, measure_source,
-};
+use antecedent::analysis::sample_split_effect::{SplitEffect, estimate_effect_on_split};
 use antecedent::analysis::sample_split_parent_set_effect::{
     Knowledge, ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
-    estimate_parent_set_effect_with_knowledge, measure_source as measure_parent_set_source,
+    estimate_parent_set_effect_with_knowledge,
 };
 use antecedent::analysis::selective_discovery::{
     CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure, DiscoveredStructureRefusal,

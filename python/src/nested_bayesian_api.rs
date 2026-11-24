@@ -125,9 +125,11 @@ fn nested_markov_posterior_candidate(
     let sampler = python_sampler(seed);
     let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
-        Candidate::from_artifact(
-            Artifact::build(&input, &options, prior, sampler, &ctx).map_err(error)?,
+        let compiled = antecedent::Study::compile_nested_markov_posterior(
+            input, options, prior, sampler, &ctx,
         )
+        .map_err(crate::py_err)?;
+        Candidate::from_artifact(compiled.fit(&ctx).map_err(error)?)
     })
 }
 #[pyfunction]
@@ -190,8 +192,11 @@ fn nested_markov_posterior_measured(
     let prior = declared_prior(alpha, beta)?;
     let sampler = python_sampler(seed);
     crate::detach_catch(py, move || {
-        let (_, measured) =
-            Artifact::build_measured(&input, &options, prior, sampler, &ctx).map_err(error)?;
+        let compiled = antecedent::Study::compile_nested_markov_posterior(
+            input, options, prior, sampler, &ctx,
+        )
+        .map_err(crate::py_err)?;
+        let (_, measured) = compiled.measure(&ctx).map_err(error)?;
         crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
     })
 }

@@ -1,0 +1,36 @@
+feature_id = "transport.single_source_z_transport"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Execution of a checked single-source z-transport formula through the prepared route
+# (crates/antecedent/src/analysis/z_transport.rs: StudyBuilder::z_transport and
+# z_transport_empirical, PreparedZTransport::estimate, estimate_bayesian,
+# estimate_independent_components and estimate_intervention_factorized_components; compiled as
+# the ZTransportEstimate family in crates/antecedent/src/analysis/kernel_programs/z_transport.rs).
+# The formula comes from the bounded single-source TRz derivation of antecedent-identify and is
+# evaluated over the source laws it cites by the exact finite-law evaluator of antecedent-expr.
+# The paper is cited for the definition of z-transportability and the TRz construction; its text
+# was not retrieved in this review and no theorem number is claimed.
+papers = [
+  { title = "Causal Transportability with Limited Experiments", url = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf", sections = ["Definition of z-transportability", "Algorithm TRz (single source, limited experiments)"] },
+]
+
+implementation_deviations = [
+  "Sound and incomplete: the derivation is a bounded search under the z-transport contract's observed-variable and controllable bounds (at most 4 controllable finite discrete variables, a search budget), not an unbounded decision procedure, so a failure to derive is never a proof of non-transportability except for a replayed line-11 obstruction.",
+  "Single source: one source population's experiments, or two separately prepared formulas combined only when their outcome and treatment sets lie in disconnected graph components or their outcomes m-separate given the union of their treatments; a joint law over two sources' interventions is never fabricated.",
+  "Finite discrete laws only: the target law is computed exactly from the cited source joints (exact laws are point-only). For counted tables the point is the empirical plug-in, and the attached equal-tail percentile bootstrap (each cited law resampled as its own multinomial table) or finite-discrete posterior interval is nominal: its coverage is not measured and no interval support is claimed.",
+  "The functional is checked against the selection diagram and catalog when it is bound; the prepared route rechecks only its input identity and that the compiled physical plan executes the checked program.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/z_transport_known_truth.rs (target law enumerated from a structural causal model on the surrogate graph; exact and counted source tables under do(Z = 0))",
+  "crates/antecedent/src/analysis/z_transport.rs (in-module tests: enumerated disconnected and connected two-source models combined by the component entries, artifact export and independent consumption, refresh and refusals)",
+  "crates/antecedent-estimate/tests/z_transport_cited_evidence.rs",
+  "crates/antecedent-estimate/tests/z_transport_sequential_exchange.rs",
+  "crates/antecedent/tests/compiled_twins_z_transport.rs (the compiled route against the direct prepared route, bit for bit)",
+]

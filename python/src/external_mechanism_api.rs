@@ -236,8 +236,10 @@ fn external_execute(
         serde_json::from_str(request_json).map_err(|e| operation_error(e, &ctx))?;
     let resolver = resolver_of(resolver);
     crate::detach_catch(py, move || {
-        let report = request
-            .execute(resolver.as_ref().map(|r| r as &dyn TrustedMechanismResolver), &ctx)
+        let compiled =
+            antecedent::Study::compile_external_feedback(request, &ctx).map_err(crate::py_err)?;
+        let report = compiled
+            .evaluate(resolver.as_ref().map(|r| r as &dyn TrustedMechanismResolver), &ctx)
             .map_err(|e| operation_error(e, &ctx))?;
         serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })

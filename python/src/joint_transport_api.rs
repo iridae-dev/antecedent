@@ -293,9 +293,11 @@ mod enabled {
                     max_unsupported_mass: model.max_unsupported_mass,
                     conflict_z_threshold: model.conflict_z_threshold,
                 };
-                let (wire, _) =
-                    LearnedJointArtifactWire::build(&id, &model, &sources, &target, options, &ctx)
-                        .map_err(io)?;
+                let compiled = antecedent::Study::compile_learned_joint_transport(
+                    id, model, sources, target, options, &ctx,
+                )
+                .map_err(crate::py_err)?;
+                let (wire, _) = compiled.fit(&ctx).map_err(io)?;
                 let data = wire.export().map_err(io)?;
                 Ok((serde_json::to_string(&wire).map_err(|e| invalid(&e.to_string()))?, data))
             } else {
@@ -347,15 +349,19 @@ mod enabled {
                     max_unsupported_mass: model.max_unsupported_mass,
                     conflict_z_threshold: model.conflict_z_threshold,
                 };
-                LearnedJointArtifactWire::build_measured(
-                    &id, &model, &sources, &target, options, level, &ctx,
+                antecedent::Study::compile_learned_joint_transport(
+                    id, model, sources, target, options, &ctx,
                 )
+                .map_err(crate::py_err)?
+                .measure(level, &ctx)
                 .map_err(io)?
                 .2
             } else {
-                JointBayesianArtifactWire::build_measured(
-                    &id, &model, &sources, &target, options, level, &ctx,
+                antecedent::Study::compile_joint_bayesian_transport(
+                    id, model, sources, target, options, &ctx,
                 )
+                .map_err(crate::py_err)?
+                .measure(level, &ctx)
                 .map_err(io)?
                 .2
             };

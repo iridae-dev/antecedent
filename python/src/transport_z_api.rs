@@ -660,7 +660,8 @@ impl ZTransportStage {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PreparedZTransportStage {
-    inner: antecedent::PreparedZTransport,
+    /// The prepared formula compiled under the `ZTransportEstimate` route.
+    inner: antecedent::analysis::kernel_programs::z_transport::CompiledZTransport,
     graph: Admg,
     diagram: SelectionDiagram,
     catalog: antecedent::query::EvidenceCatalog,
@@ -771,11 +772,11 @@ impl PreparedZTransportStage {
     ) -> PyResult<Self> {
         let sensitivity_diagram = diagram.clone();
         let inner = if empirical {
-            antecedent::StudyBuilder::z_transport_empirical(
+            antecedent::Study::compile_z_transport_empirical(
                 diagram, functional, data, request, limits, ctx,
             )
         } else {
-            antecedent::StudyBuilder::z_transport(diagram, functional, data, request, limits, ctx)
+            antecedent::Study::compile_z_transport(diagram, functional, data, request, limits, ctx)
         }
         .map_err(error)?;
         Ok(Self {
@@ -809,15 +810,17 @@ impl PreparedZTransportStage {
 
     /// The raw io-crate artifact of the last execution.
     pub(crate) fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
-        self.last_result(what)?.export_named(&self.inner, &self.graph.names).map_err(error)
+        self.last_result(what)?
+            .export_named(self.inner.prepared(), &self.graph.names)
+            .map_err(error)
     }
 
     /// Interval JSON for one execution: availability is the presence of mean
     /// intervals, never a string test on the method name. `method` is the
     /// interval constructor and `reason` why it is withheld or uncalibrated.
     /// The retained prepared z stage (shared, immutable).
-    pub(crate) const fn prepared(&self) -> &antecedent::PreparedZTransport {
-        &self.inner
+    pub(crate) fn prepared(&self) -> &antecedent::PreparedZTransport {
+        self.inner.prepared()
     }
 
     fn interval_json(&self, result: &antecedent::ZTransportResult) -> serde_json::Value {
@@ -847,7 +850,8 @@ impl PreparedZTransportStage {
         crate::detach_catch(py, || {
             let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
             let ctx = branch.ctx(None, None);
-            branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
+            branch.inner =
+                self.inner.refresh(self.inner.prepared().data().clone(), &ctx).map_err(error)?;
             Ok(branch)
         })
     }
@@ -870,8 +874,8 @@ impl PreparedZTransportStage {
         let result = crate::detach_catch(py, move || {
             antecedent::validate::z_transport_mechanism_sensitivity(
                 &diagram,
-                inner.functional(),
-                inner.data(),
+                inner.prepared().functional(),
+                inner.prepared().data(),
                 max_fraction,
                 decision_threshold,
                 &ctx,
@@ -882,6 +886,7 @@ impl PreparedZTransportStage {
             antecedent::ZTransportSensitivityArtifactWire::baseline_digest(&baseline_bytes);
         let provider_snapshots = self
             .inner
+            .prepared()
             .data()
             .laws()
             .iter()
@@ -942,7 +947,7 @@ impl PreparedZTransportStage {
             None => inner.estimate(&ctx).map_err(error),
         })?;
         let names = &self.graph.names;
-        let query = self.inner.functional().derivation().query();
+        let query = self.inner.prepared().functional().derivation().query();
         let distribution = result.distribution();
         let payload = serde_json::json!({
             "status":"available",

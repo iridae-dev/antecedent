@@ -22,7 +22,6 @@ use antecedent::execution::SearchLimits;
 use antecedent::io::sampled_counterfactual_transport_artifact::{
     SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
     SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
-    sampled_counterfactual_transport_artifact,
 };
 use antecedent::query::EvidenceCatalog;
 use pyo3::prelude::*;
@@ -193,13 +192,14 @@ impl SampledCounterfactualTransportResultNative {
         let identity = self.wire.identity();
         let ctx = crate::measured_inference_api::context(0, memory_bytes, cancel);
         crate::detach_catch(py, move || {
-            let measured = SampledCounterfactualTransportArtifactWire::measure(
+            let compiled = antecedent::Study::compile_sampled_counterfactual_transport_interval(
                 &bytes,
-                &identity,
+                identity,
                 SampledCounterfactualTransportConsumeLimits::default(),
                 &ctx,
             )
-            .map_err(error)?;
+            .map_err(crate::py_err)?;
+            let measured = compiled.measure(&ctx).map_err(error)?;
             crate::measured_inference_api::check_cancelled(&ctx)?;
             crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
         })
@@ -406,11 +406,17 @@ fn estimate_sampled_counterfactual_transport_native(
     let catalog = inner.derivation().catalog.clone();
     let (wire, estimate) = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory, cancel);
-        sampled_counterfactual_transport_artifact(inner.derivation(), &request, &names, &ctx)
-            .map_err(|e| {
-                let (code, message) = e.refusal();
-                io_refusal(code, message)
-            })
+        let compiled = antecedent::Study::compile_sampled_counterfactual_transport(
+            inner.derivation().clone(),
+            request,
+            names,
+            &ctx,
+        )
+        .map_err(crate::py_err)?;
+        compiled.estimate(&ctx).map_err(|e| {
+            let (code, message) = e.refusal();
+            io_refusal(code, message)
+        })
     })?;
     Ok(SampledCounterfactualTransportResultNative {
         wire,

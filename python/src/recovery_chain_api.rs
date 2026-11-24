@@ -235,7 +235,7 @@ fn recover_recovery_chain(
             let decided = RecoveryChain::decide(&graph, &query, &nodes, &ctx)?;
             let evaluate = matches!(decided.decision(), ChainRecoveryDecision::Recovered(_));
             let decided = match &law {
-                Some(wire) if evaluate => decided.recover(wire.to_law()?)?,
+                Some(wire) if evaluate => decided.recover_with_context(wire.to_law()?, &ctx)?,
                 _ => decided,
             };
             if let Ok(bytes) = decided.export() {

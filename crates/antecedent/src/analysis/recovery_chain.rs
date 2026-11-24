@@ -6,7 +6,9 @@
 //! a checked plan, or a self-censoring edge with an exactly verified witness (two
 //! models that agree on the nine observed pattern cells and differ on the target).
 //! A recovered plan is then evaluated on an exact nine-cell pattern law with
-//! [`RecoveryChain::recover`]. Edges outside the row are `route_not_supported`, never
+//! [`RecoveryChain::recover_with_context`], which compiles the evaluation as the
+//! `ChainObservationRecovery` program and passes its support gate ([`RecoveryChain::recover`]
+//! is the same evaluation without the gate). Edges outside the row are `route_not_supported`, never
 //! nonrecoverable; a missing cell is `transport_support_failure`. Exact laws only: a
 //! sampled provider composed on this row is calibrated separately and is `not_measured`
 //! and closed.
@@ -91,6 +93,47 @@ impl RecoveryChain {
             ));
         };
         let recovered = evaluate_chain_recovery(plan, &observed)?;
+        self.observed = Some(observed);
+        self.recovered = Some(recovered);
+        Ok(self)
+    }
+
+    /// [`Self::recover`] through the compiled `ChainObservationRecovery` program: the checked
+    /// plan and the observed law are compiled with
+    /// [`Study::compile_chain_observation_recovery`](crate::analysis::Study::compile_chain_observation_recovery),
+    /// which passes the support gate of the `recovery.chain_observation` unit and then makes
+    /// the very evaluation [`Self::recover`] makes, so the recovered law is the same bit for bit.
+    ///
+    /// # Errors
+    /// As [`Self::recover`]; also the support refusal (detail
+    /// `recovery_chain.unsupported_mechanism`) in a release build when the unit is not
+    /// supported, a compile from inside a lowered dispatch (the same detail), and cancellation
+    /// before compiling (`recovery_chain.budget`).
+    pub fn recover_with_context(
+        mut self,
+        observed: ChainPatternLaw,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, ChainRecoveryError> {
+        let ChainRecoveryDecision::Recovered(plan) = &self.decision else {
+            return Err(ChainRecoveryError::new(
+                ChainRecoveryDetail::NonrecoverableWitness,
+                "a self-censoring edge is not recoverable for every model Markov to the m-graph; see the witness",
+            ));
+        };
+        let compiled = crate::analysis::Study::compile_chain_observation_recovery(
+            (**plan).clone(),
+            observed,
+            ctx,
+        )
+        .map_err(|error| {
+            let detail = if matches!(error, CausalError::Cancelled { .. }) {
+                ChainRecoveryDetail::Budget
+            } else {
+                ChainRecoveryDetail::UnsupportedMechanism
+            };
+            ChainRecoveryError::new(detail, error.to_string())
+        })?;
+        let recovered = compiled.evaluate(ctx)?;
         self.observed = Some(observed);
         self.recovered = Some(recovered);
         Ok(self)

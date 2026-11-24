@@ -318,17 +318,55 @@ def route_names(registry: str) -> set[str]:
 # -- Python ---------------------------------------------------------------------------------
 
 
-def _rust_functions(root: Path) -> tuple[dict[str, str], set[str], Counter]:
-    """Body text by function name over python/src, and the names a Python caller can reach."""
+_PYMETHODS = re.compile(r"#\[pymethods\]\s*impl(?:\s*<[^>{]*>)?\s+(\w+)")
+_PYCLASS = re.compile(r"#\[pyclass\b([^\]]*)\]\s*(?:#\[[^\]]*\]\s*)*pub(?:\([^)]*\))?\s+(?:struct|enum)\s+(\w+)|#\[pyclass\b([^\]]*)\]\s*(?:#\[[^\]]*\]\s*)*(?:struct|enum)\s+(\w+)")
+_PY_NAME = re.compile(r"\bname\s*=\s*\"(\w+)\"")
+# How far before a `fn` its attributes are read; the head is cut at the previous item's end, so
+# a long `#[pyo3(signature = ...)]` keeps the `#[pyfunction(name = ...)]` above it in view.
+HEAD_WINDOW = 4000
+
+
+def _python_name(raw_head: str) -> str | None:
+    """The Python name an item's attributes give it (`#[pyfunction(name = ...)]`,
+    `#[pyo3(name = ...)]`), when they rename it."""
+    for attribute in re.findall(r"#\[(?:pyfunction|pyo3)\s*\(([^\]]*)\)\]", raw_head):
+        found = _PY_NAME.search(attribute)
+        if found:
+            return found.group(1)
+    return None
+
+
+def _rust_functions(root: Path) -> tuple[dict[str, str], dict[str, str], Counter]:
+    """Body text by function name over python/src, and the Rust function behind each name a
+    Python caller can reach.
+
+    A `#[pyfunction]` is reached by its Rust name and by the name `#[pyfunction(name = ...)]` or
+    `#[pyo3(name = ...)]` gives it. A method of a `#[pymethods]` block is reached as
+    `<Class>.<method>`, the Python names of both (`#[pyclass(name = ...)]`,
+    `#[pyo3(name = ...)]`); its body is keyed `<RustType>::<rust fn>`.
+    """
     bodies: dict[str, str] = defaultdict(str)
-    exposed: set[str] = set()
+    exposed: dict[str, str] = {}
     definitions: Counter = Counter()
     base = root / "python" / "src"
     if not base.is_dir():
-        return {}, set(), Counter()
+        return {}, {}, Counter()
+    class_names: dict[str, str] = {}
+    sources: list[tuple[str, str]] = []
     for path in sorted(base.rglob("*.rs")):
         raw = path.read_text(encoding="utf-8")
-        skeleton = lex(raw).skeleton
+        sources.append((raw, lex(raw).skeleton))
+        for match in _PYCLASS.finditer(raw):
+            attributes = match.group(1) if match.group(2) else match.group(3)
+            rust = match.group(2) or match.group(4)
+            renamed = _PY_NAME.search(attributes or "")
+            class_names[rust] = renamed.group(1) if renamed else rust
+    for raw, skeleton in sources:
+        blocks: list[tuple[int, int, str]] = []
+        for match in _PYMETHODS.finditer(skeleton):
+            brace = skeleton.find("{", match.end())
+            if brace >= 0:
+                blocks.append((brace, _balanced(skeleton, brace, "{", "}"), match.group(1)))
         for match in re.finditer(r"\bfn\s+(\w+)", skeleton):
             name = match.group(1)
             brace = skeleton.find("{", match.end())
@@ -336,16 +374,22 @@ def _rust_functions(root: Path) -> tuple[dict[str, str], set[str], Counter]:
             if brace < 0 or (0 <= semi < brace):
                 continue
             end = _balanced(skeleton, brace, "{", "}")
-            bodies[name] += " " + skeleton[match.end() : end]
+            owner = next((cls for start, stop, cls in blocks if start < match.start() < stop), None)
+            key = f"{owner}::{name}" if owner else name
+            bodies[key] += " " + skeleton[match.end() : end]
             definitions[name] += 1
-            head = skeleton[max(0, match.start() - 400) : match.start()]
+            head = skeleton[max(0, match.start() - HEAD_WINDOW) : match.start()]
             last_item = max(head.rfind("}"), head.rfind(";"))
-            head = head[last_item + 1 :] if last_item >= 0 else head
-            if "#[pyfunction" in head:
-                exposed.add(name)
-                rename = re.search(r"name\s*=\s*\"(\w+)\"", raw[max(0, match.start() - 400) : match.start()])
-                if rename:
-                    exposed.add(rename.group(1))
+            start = max(0, match.start() - HEAD_WINDOW) + (last_item + 1 if last_item >= 0 else 0)
+            head = skeleton[start : match.start()]
+            renamed = _python_name(raw[start : match.start()])
+            if owner:
+                python_class = class_names.get(owner, owner)
+                exposed[f"{python_class}.{renamed or name}"] = key
+            elif "#[pyfunction" in head:
+                exposed[name] = key
+                if renamed:
+                    exposed[renamed] = key
     return dict(bodies), exposed, definitions
 
 
@@ -385,11 +429,15 @@ def python_reach(root: Path, rows: list[dict]) -> dict[str, set[str]]:
     }
     # A helper is followed only when its name is defined once, so a common name such as `new`
     # does not join unrelated bindings.
+    # A method of a #[pymethods] block is keyed `<Type>::<name>`; a call names it bare.
+    keys: dict[str, list[str]] = defaultdict(list)
+    for key in bodies:
+        keys[key.rsplit("::", 1)[-1]].append(key)
     calls = {
         name: {
-            callee
+            keys[callee][0]
             for callee in re.findall(r"\b(\w+)\s*\(", text)
-            if callee in bodies and callee != name and definitions[callee] == 1
+            if definitions[callee] == 1 and len(keys.get(callee, ())) == 1 and keys[callee][0] != name
         }
         for name, text in bodies.items()
     }
@@ -403,7 +451,9 @@ def python_reach(root: Path, rows: list[dict]) -> dict[str, set[str]]:
                 if extra:
                     reach[name] |= extra
                     changed = True
-    return {name: reach[name] for name in exposed if name in reach and reach[name]}
+    return {
+        python: reach[rust] for python, rust in exposed.items() if rust in reach and reach[rust]
+    }
 
 
 @dataclass
@@ -461,8 +511,19 @@ def _function_info(node: ast.AST, aliases: dict[str, str], modules: set[str]) ->
         elif isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name):
             if child.value.id in modules:
                 natives.add(child.attr)
+            elif child.value.id in aliases:
+                # A method of a native class imported from `_native`: `Class.method`.
+                natives.add(f"{aliases[child.value.id]}.{child.attr}")
             elif child.value.id == "self":
                 called.add(child.attr)
+        elif (
+            isinstance(child, ast.Attribute)
+            and isinstance(child.value, ast.Attribute)
+            and isinstance(child.value.value, ast.Name)
+            and child.value.value.id in modules
+        ):
+            # A method of a native class reached through the module: `_native.Class.method`.
+            natives.add(f"{child.value.attr}.{child.attr}")
         if isinstance(child, ast.Call):
             if isinstance(child.func, ast.Name):
                 called.add(child.func.id)

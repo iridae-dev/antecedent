@@ -251,7 +251,69 @@ def case_unclassified_python_wrapper(root: Path) -> str:
     return "python/antecedent/planted_wrapper.py::planted_run: unclassified Python wrapper"
 
 
+def plant_deprecated_facade(root: Path) -> None:
+    """The deprecated facade function and its compiled replacement, with no native or wrapper."""
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        '#[deprecated(since = "1.0.0")] pub fn antecedent::planted::planted_old_fit('
+        f"ctx: {CTX}) -> {RESULT}\n"
+        f"pub fn antecedent::planted::planted_new_fit(ctx: {CTX}) -> {RESULT}\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row("antecedent::planted::planted_new_fit", "compiled", route=compiled_route())
+        + manifest_row(
+            "antecedent::planted::planted_old_fit",
+            "deprecated",
+            replacement="antecedent::planted::planted_new_fit",
+        ),
+    )
+
+
+def case_renamed_native_wrapper(root: Path) -> str:
+    plant_deprecated_facade(root)
+    # A long signature puts the renaming attribute far above the `fn`.
+    signature = ", ".join(f"argument_{index}=None" for index in range(60))
+    append(
+        root,
+        "python/src/planted_renamed_api.rs",
+        '#[pyfunction(name = "planted_renamed")]\n'
+        f"#[pyo3(signature = ({signature}))]\n"
+        "fn planted_renamed_py() {\n    antecedent::planted::planted_old_fit();\n}\n",
+    )
+    append(
+        root,
+        "python/antecedent/planted_renamed.py",
+        "from ._native import planted_renamed as _planted_renamed\n\n\n"
+        "def planted_renamed_run():\n    return _planted_renamed()\n",
+    )
+    return "python/antecedent/planted_renamed.py::planted_renamed_run: unclassified Python wrapper"
+
+
+def case_renamed_native_method(root: Path) -> str:
+    plant_deprecated_facade(root)
+    append(
+        root,
+        "python/src/planted_stage_api.rs",
+        '#[pyclass(name = "PlantedStage")]\nstruct PlantedStageNative;\n\n'
+        "#[pymethods]\nimpl PlantedStageNative {\n"
+        '    #[staticmethod]\n    #[pyo3(name = "run")]\n'
+        "    fn run_py() {\n        antecedent::planted::planted_old_fit();\n    }\n}\n",
+    )
+    append(
+        root,
+        "python/antecedent/planted_stage.py",
+        "from ._native import PlantedStage\n\n\n"
+        "def planted_stage_run():\n    return PlantedStage.run()\n",
+    )
+    return "python/antecedent/planted_stage.py::planted_stage_run: unclassified Python wrapper"
+
+
 CASES: list[tuple[str, Callable[[Path], str]]] = [
+    ("a renamed native behind a long signature", case_renamed_native_wrapper),
+    ("a renamed method of a native class", case_renamed_native_method),
     ("a _with_context re-export", case_with_context_reexport),
     ("a method on a re-exported type", case_method_on_reexported_type),
     ("a module-namespace re-export", case_module_namespace_reexport),

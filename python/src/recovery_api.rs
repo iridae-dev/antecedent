@@ -287,7 +287,6 @@ impl ObservationRecoveryStage {
     ) -> PyResult<(String, Vec<u8>)> {
         use antecedent::estimate::{
             ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
-            estimate_sampled_recovery,
         };
         use antecedent::io::sampled_recovery_artifact::{
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
@@ -387,7 +386,7 @@ impl ObservationRecoveryStage {
                 })
                 .collect(),
         };
-        let derivation = derivation.clone();
+        let derivation = (**derivation).clone();
         let graph = self.shared.clone();
         let catalog = self.catalog.clone();
         let names = self.graph.names.clone();
@@ -397,14 +396,20 @@ impl ObservationRecoveryStage {
         };
         let ctx = crate::measured_inference_api::context(seed, memory, cancel);
         crate::detach_catch(py, move || {
-            let result = estimate_sampled_recovery(&derivation, &input, &config, &ctx)
+            // The compiled family passes the unit's support gate, then makes the direct call.
+            let compiled = antecedent::Study::compile_sampled_observation_recovery(
+                derivation, input, config, &ctx,
+            )
+            .map_err(crate::py_err)?;
+            let result = compiled
+                .estimate(&ctx)
                 .map_err(|e| sampled_candidate_error(e.reason_code(), &e.to_string()))?;
             let wire = SampledRecoveryArtifactWire::checked(&SampledRecoveryArtifactInput {
                 graph: &graph,
                 effect: &effect,
-                derivation: &derivation,
+                derivation: compiled.derivation(),
                 catalog: &catalog,
-                input: &input,
+                input: compiled.observations(),
                 result: &result,
                 variable_names: &names,
             })
@@ -502,12 +507,15 @@ impl ObservationRecoveryStage {
                 premises_digest: Some(source.premises_digest),
                 data_digest: Some(source.data_digest),
             };
-            let measured = SampledRecoveryArtifactWire::measure(
+            // The compiled family passes the unit's support gate, then makes the direct call.
+            let measured = antecedent::Study::compile_measured_sampled_observation_recovery(
                 &bytes,
-                &expected,
+                expected,
                 SampledRecoveryConsumeLimits::default(),
                 &ctx,
             )
+            .map_err(crate::py_err)?
+            .measure(&ctx)
             .map_err(crate::transport_common::error)?;
             crate::measured_inference_api::check_cancelled(&ctx)?;
             crate::measured_inference_api::NativeMeasuredInference::from_io(measured)

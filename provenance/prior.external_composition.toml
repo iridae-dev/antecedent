@@ -1,0 +1,57 @@
+feature_id = "prior.external_composition"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Composition of declared external prior sources with a baseline at declared power-prior
+# discounts, and the transport of those sources toward a target population before composition
+# (crates/antecedent-prob/src/external_prior.rs compose_external_priors and
+# compose_external_priors_with_alphas; crates/antecedent-prob/src/power_prior_alpha.rs
+# compose_beta_power_priors and compose_gamma_power_priors; crates/antecedent-prob/src/transport.rs
+# apply_transport and compose_with_transport; crates/antecedent-prob/src/transport_target.rs
+# apply_weighted_target_transport, compose_with_weighted_target_transport and
+# kernel_bandwidth_sensitivity), compiled as the ExternalPriorComposition and
+# ExternalPriorTransport families in
+# crates/antecedent/src/analysis/kernel_programs/prior_composition.rs.
+#
+# What comes from a paper: the power prior, the historical-data likelihood raised to a fixed
+# discount a0 in [0, 1] (Ibrahim and Chen 2000; reviewed with its theory in Ibrahim, Chen, Gwon
+# and Chen 2015). For a Beta-Binomial or a Gamma-Poisson likelihood with a conjugate initial prior
+# the power prior is exactly Beta(a + a0 k, b + a0 (n - k)) or Gamma(shape + a0 S, rate + a0 E),
+# which is what the count compositions compute. The Kish (1965) effective sample size
+# (sum w)^2 / sum w^2 is a standard survey-sampling diagnostic.
+#
+# What does not come from a paper, and is a declared construction of this repository: the
+# Gaussian composition takes sources that are already Gaussian coefficient priors (not historical
+# data) and composes them as the tempered product of Gaussian densities (precision sum), or as a
+# moment-matched mixture; the population-tag transport policy, the unit reweighting that moves a
+# coefficient's prior mean to the weighted mean of declared unit effects and widens its variance
+# by the sampling variance of that mean, the weighted-target overlap floors (Kish ESS of 20 and a
+# fraction of the rows) and the kernel families are declared reweightings, not methods of the
+# cited papers. The papers were not retrieved in this review and no theorem number is claimed.
+papers = [
+  { title = "Power prior distributions for regression models", doi = "10.1214/ss/1009212673", sections = ["Definition of the power prior with a fixed discount a0 in [0, 1]; the conjugate Beta-Binomial and Poisson-Gamma special cases"] },
+  { title = "The power prior: theory and applications", doi = "10.1002/sim.6728", sections = ["Power prior with fixed a0 and multiple historical studies (one discount per study); conjugate closed forms"] },
+  { title = "Survey Sampling", sections = ["Effective sample size of a weighted sample, (sum w)^2 / sum w^2"] },
+]
+
+implementation_deviations = [
+  "Gaussian sources are already Gaussian coefficient priors, not historical data: the power path is the tempered product N(m0, V0) * prod_k N(m_k, V_k)^alpha_k (precision sum), which equals the power prior of the cited papers only when each source is the Gaussian posterior of its historical data under a flat initial prior; the composition does not form that posterior from data.",
+  "The mixture path moment-matches sum_k w_k N(m_k, V_k / alpha_k) + (1 - sum w) N(m0, V0) to one Gaussian, discarding multimodality; mixture power priors in the cited review are not collapsed.",
+  "Several sources take one discount each (the cited review's multiple-historical-studies form); the discounts are declared, never estimated here (a data-chosen discount belongs to the power-prior selection families).",
+  "Prior-strength ESS is alpha times a caller-declared ESS per source; it is metadata, not a quantity of the cited papers.",
+  "Population-tag transport, the invariance policies (invariant conditional outcome, invariant effect modifiers, invariant propensity), the forced-zero discount without weights or below a Kish ESS of 20, and the unit reweighting (weighted mean of unit effects, variance widened by the sampling variance of that mean divided by the source's residual variance) are declared reweightings of this repository, not a published estimator; they carry no guarantee from the cited papers.",
+  "A weighted target is a declared row weighting or a declared kernel (Gaussian exp(-u^2/2), Epanechnikov 1 - u^2, tricube (1 - u^3)^3 with u = d / h) over caller-supplied distances; the bandwidth is declared, never selected, and the bandwidth sensitivity reports the transported mean at each declared bandwidth without choosing one.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/external_prior_composition_known_truth.rs (closed forms derived by hand in the test: precision-weighted Gaussian composition of one and two sources, the count power priors, the tag and weighted-target reweighting, the kernel weights across bandwidths)",
+  "crates/antecedent-prob/tests/external_prior_quadrature.rs (Gaussian composition against numerical quadrature of the tempered product and of the mixture density)",
+  "crates/antecedent/tests/transport_weighted_target.rs (hand kernel weights, planted neighbourhood effects and the overlap floors)",
+  "crates/antecedent/tests/compiled_twins_prior_composition.rs (the compiled routes against the direct kernel functions, bit for bit)",
+  "python/tests/test_prior_bank.py",
+]

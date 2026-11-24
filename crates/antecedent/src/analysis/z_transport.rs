@@ -23,6 +23,11 @@ use std::sync::Arc;
 
 use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err, is_valid_exact_law};
 
+/// Refuse under a registered reason code with a registered refusal detail and what failed.
+fn refused(code: &'static str, detail: &str, explanation: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {explanation}") }
+}
+
 /// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]
 pub struct PreparedZTransport {
@@ -103,7 +108,11 @@ impl ZTransportResult {
         max_atoms: usize,
     ) -> Result<Self, IoError> {
         if left.interval_method.is_some() || right.interval_method.is_some() {
-            return Err(err("z_transport.cross_source_interval_not_supported"));
+            return Err(refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::z_transport_estimate::CROSS_SOURCE_INTERVAL_NOT_SUPPORTED,
+                "a component carries an empirical interval, and no joint resampling of two sources is implemented",
+            ));
         }
         let first = &left.distribution;
         let second = &right.distribution;
@@ -112,14 +121,28 @@ impl ZTransportResult {
             || !is_valid_exact_law(first)
             || !is_valid_exact_law(second)
         {
-            return Err(err("z_transport.invalid_independent_component_law"));
+            return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::z_transport_estimate::INVALID_INDEPENDENT_COMPONENT_LAW,
+                "the atom limit is zero, the components share an outcome, or a component law is malformed",
+            ));
         }
         let atom_count = first
             .atoms
             .len()
             .checked_mul(second.atoms.len())
             .filter(|count| *count <= max_atoms)
-            .ok_or_else(|| err("z_transport.combination_atom_limit"))?;
+            .ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    antecedent_core::reason_details::z_transport_estimate::COMBINATION_ATOM_LIMIT,
+                    &format!(
+                        "the product of {} and {} atoms exceeds the limit of {max_atoms}",
+                        first.atoms.len(),
+                        second.atoms.len()
+                    ),
+                )
+            })?;
         let mut outcomes = first.outcomes.to_vec();
         outcomes.extend(second.outcomes.iter().copied());
         let mut atoms = Vec::with_capacity(atom_count);
@@ -247,7 +270,9 @@ impl PreparedZTransport {
                 right.functional.derivation().query(),
             )
         {
-            return Err(err("z_transport.components_not_independent"));
+            return Err(components_not_independent(
+                "the formulas do not share one graph and target, share a source, or do not lie in disconnected graph components",
+            ));
         }
         let left_result = left.estimate(ctx)?;
         let right_result = right.estimate(ctx)?;
@@ -283,7 +308,9 @@ impl PreparedZTransport {
                 (right.functional.derivation().query(), &right.request),
             )
         {
-            return Err(err("z_transport.components_not_independent"));
+            return Err(components_not_independent(
+                "the formulas do not share one graph and target, share a source, or their outcomes do not factorize under the intervention",
+            ));
         }
         let left_result = left.estimate(ctx)?;
         let right_result = right.estimate(ctx)?;
@@ -629,7 +656,11 @@ fn verify_plan_program(
     program: &FunctionalProgram,
 ) -> Result<(), IoError> {
     if plan.root() != program.mapping().executable || plan.arena() != program.arena() {
-        return Err(err("z_transport.physical_plan_program_mismatch"));
+        return Err(refused(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::z_transport_estimate::PHYSICAL_PLAN_PROGRAM_MISMATCH,
+            "the refreshed laws compile a plan other than the retained checked program",
+        ));
     }
     Ok(())
 }
@@ -637,9 +668,22 @@ fn verify_plan_program(
 /// Refuse a law set that is not an empirical plug-in table.
 fn require_empirical_counts(data: &ExactTransportData) -> Result<(), IoError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-        return Err(err("z_transport.empirical_counts_required"));
+        return Err(refused(
+            antecedent_core::reason_code!("transport_missing_provider"),
+            antecedent_core::reason_details::z_transport_estimate::EMPIRICAL_COUNTS_REQUIRED,
+            "every law of an empirical preparation carries counts",
+        ));
     }
     Ok(())
+}
+
+/// Refuse two prepared formulas whose product is not certified as the target law.
+fn components_not_independent(explanation: &str) -> IoError {
+    refused(
+        antecedent_core::reason_code!("transport_not_certified"),
+        antecedent_core::reason_details::z_transport_estimate::COMPONENTS_NOT_INDEPENDENT,
+        explanation,
+    )
 }
 
 fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalProgram, IoError> {
@@ -1423,7 +1467,7 @@ mod tests {
             &ExecutionContext::for_tests(0),
         );
         assert!(
-            matches!(&refused, Err(error) if error.to_string().contains("z_transport.components_not_independent")),
+            matches!(&refused, Err(error) if error.to_string().contains(antecedent_core::reason_details::z_transport_estimate::COMPONENTS_NOT_INDEPENDENT)),
             "{refused:?}"
         );
     }
@@ -1446,7 +1490,7 @@ mod tests {
             &ExecutionContext::for_tests(0),
         );
         assert!(
-            matches!(&refused, Err(error) if error.to_string().contains("z_transport.components_not_independent")),
+            matches!(&refused, Err(error) if error.to_string().contains(antecedent_core::reason_details::z_transport_estimate::COMPONENTS_NOT_INDEPENDENT)),
             "{refused:?}"
         );
         let aligned = independent_component(&diagram, "beta", x, y, false, 0.6, None);
@@ -1626,11 +1670,135 @@ mod tests {
         )
         .unwrap();
         let error = prepared.refresh(exact, &ctx).unwrap_err();
-        assert!(error.to_string().contains("z_transport.empirical_counts_required"), "{error}");
+        assert!(
+            error.to_string().contains(
+                antecedent_core::reason_details::z_transport_estimate::EMPIRICAL_COUNTS_REQUIRED
+            ),
+            "{error}"
+        );
+        assert_eq!(error.reason_code(), Some("transport_missing_provider"));
         let refreshed = prepared.refresh(counted, &ctx).unwrap();
         assert_eq!(
             refreshed.estimate(&ctx).unwrap().interval_type(),
             antecedent_estimate::PERCENTILE_BOOTSTRAP
+        );
+    }
+
+    #[test]
+    fn an_empirical_preparation_refuses_count_free_laws() {
+        let (diagram, functional, exact, assignment) = fixture(false);
+        let error = StudyBuilder::z_transport_empirical(
+            diagram,
+            functional,
+            exact,
+            assignment,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(7),
+        )
+        .unwrap_err();
+        assert!(
+            error.to_string().contains(
+                antecedent_core::reason_details::z_transport_estimate::EMPIRICAL_COUNTS_REQUIRED
+            ),
+            "{error}"
+        );
+        assert_eq!(error.reason_code(), Some("transport_missing_provider"));
+    }
+
+    #[test]
+    fn combining_components_refuses_intervals_invalid_laws_and_oversized_products() {
+        let ctx = ExecutionContext::for_tests(7);
+        let estimate = |empirical: bool| {
+            let (diagram, functional, data, assignment) = fixture(empirical);
+            let limits = ExactEvaluationLimits::default();
+            let prepared = if empirical {
+                StudyBuilder::z_transport_empirical(
+                    diagram, functional, data, assignment, limits, &ctx,
+                )
+            } else {
+                StudyBuilder::z_transport(diagram, functional, data, assignment, limits, &ctx)
+            };
+            prepared.unwrap().estimate(&ctx).unwrap()
+        };
+        let exact = estimate(false);
+        let counted = estimate(true);
+        assert!(counted.interval_method().is_some());
+        // The same law on a coordinate the first component does not name.
+        let mut disjoint = exact.clone();
+        disjoint.distribution.outcomes = Arc::from([VariableId::from_raw(9)]);
+        let refusal = |result: Result<ZTransportResult, IoError>| {
+            let error = result.unwrap_err();
+            (error.reason_code(), error.to_string())
+        };
+
+        let (code, text) =
+            refusal(ZTransportResult::combine_independent_components(&counted, &disjoint, 16));
+        assert_eq!(code, Some("route_not_supported"));
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::z_transport_estimate::CROSS_SOURCE_INTERVAL_NOT_SUPPORTED
+            ),
+            "{text}"
+        );
+
+        for (left, right, max_atoms) in [(&exact, &exact, 16), (&exact, &disjoint, 0)] {
+            let (code, text) =
+                refusal(ZTransportResult::combine_independent_components(left, right, max_atoms));
+            assert_eq!(code, Some("invalid_argument"));
+            assert!(
+                text.contains(
+                    antecedent_core::reason_details::z_transport_estimate::INVALID_INDEPENDENT_COMPONENT_LAW
+                ),
+                "{text}"
+            );
+        }
+
+        let atoms = exact.distribution().atoms.len() * disjoint.distribution().atoms.len();
+        let (code, text) =
+            refusal(ZTransportResult::combine_independent_components(&exact, &disjoint, atoms - 1));
+        assert_eq!(code, Some("transport_budget_cancel"));
+        assert!(
+            text.contains(
+                antecedent_core::reason_details::z_transport_estimate::COMBINATION_ATOM_LIMIT
+            ),
+            "{text}"
+        );
+        let combined =
+            ZTransportResult::combine_independent_components(&exact, &disjoint, atoms).unwrap();
+        assert_eq!(combined.distribution().atoms.len(), atoms);
+    }
+
+    #[test]
+    fn a_plan_compiled_from_another_formula_is_refused_as_a_program_mismatch() {
+        let ctx = ExecutionContext::for_tests(7);
+        let (diagram, functional, data, request) = fixture(false);
+        let surrogate = StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            request,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        let (a, b, diagram, functional, data) = direct_joint_fixture();
+        let direct = StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            Assignment::from_pairs([(a, Value::Bool(true)), (b, Value::Bool(false))]),
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        verify_plan_program(&surrogate.plan, &surrogate.program).unwrap();
+        let error = verify_plan_program(&surrogate.plan, &direct.program).unwrap_err();
+        assert_eq!(error.reason_code(), Some("invalid_argument"));
+        assert!(
+            error.to_string().contains(
+                antecedent_core::reason_details::z_transport_estimate::PHYSICAL_PLAN_PROGRAM_MISMATCH
+            ),
+            "{error}"
         );
     }
 

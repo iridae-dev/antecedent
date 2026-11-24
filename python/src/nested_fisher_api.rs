@@ -84,9 +84,10 @@ fn nested_markov_fisher_candidate(
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
     let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
-        Candidate::from_artifact(
-            NestedFisherArtifact::build(&input, &options, nominal_level, &ctx).map_err(error)?,
-        )
+        let compiled =
+            antecedent::Study::compile_nested_markov_fisher(input, options, nominal_level, &ctx)
+                .map_err(crate::py_err)?;
+        Candidate::from_artifact(compiled.fit(&ctx).map_err(error)?)
     })
 }
 #[pyfunction]
@@ -142,9 +143,10 @@ fn nested_markov_fisher_measured(
     let input = declared_input(variables, directed, bidirected, regimes);
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
     crate::detach_catch(py, move || {
-        let (_, measured) =
-            NestedFisherArtifact::build_measured(&input, &options, nominal_level, &ctx)
-                .map_err(error)?;
+        let compiled =
+            antecedent::Study::compile_nested_markov_fisher(input, options, nominal_level, &ctx)
+                .map_err(crate::py_err)?;
+        let (_, measured) = compiled.measure(&ctx).map_err(error)?;
         crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
     })
 }
