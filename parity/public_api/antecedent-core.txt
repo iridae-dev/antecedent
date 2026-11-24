@@ -7618,9 +7618,11 @@ pub const antecedent_core::reason_code::RUNTIME_REFUSAL_CODES: &[&str]
 pub const antecedent_core::reason_details::REASON_DETAILS: &[&str]
 pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_EMPTY: &str
 pub const antecedent_core::reason_details::accepted_preferences::ACKNOWLEDGE_REPEATED: &str
+pub const antecedent_core::reason_details::accepted_preferences::ADDED_RELATION_NOT_FROM_CHOICES: &str
 pub const antecedent_core::reason_details::accepted_preferences::CHOICES_CONTRADICTORY: &str
 pub const antecedent_core::reason_details::accepted_preferences::DECIDER_UNKNOWN: &str
 pub const antecedent_core::reason_details::accepted_preferences::DECLARATION_NOT_KEPT: &str
+pub const antecedent_core::reason_details::accepted_preferences::LEARNED_NOT_REPRODUCED: &str
 pub const antecedent_core::reason_details::accepted_preferences::MODEL_MISMATCH: &str
 pub const antecedent_core::reason_details::accepted_preferences::NOT_PENDING: &str
 pub const antecedent_core::reason_details::accepted_preferences::OPTIONS_MISMATCH: &str

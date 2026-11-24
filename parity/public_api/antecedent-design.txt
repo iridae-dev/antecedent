@@ -12306,6 +12306,7 @@ pub field antecedent_design::preference_certified::CertifiedPreferenceResult::ac
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::assumptions: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::boxes_examined: usize
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::contract_identity: alloc::string::String
+pub field antecedent_design::preference_certified::CertifiedPreferenceResult::effective_tie_tolerance: f64
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::n_draws: usize
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::parameter_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::preference_certified::CertifiedPreferenceResult::policy: antecedent_design::preference_contract::PreferencePolicy
@@ -12397,6 +12398,7 @@ pub field antecedent_design::preference_decision::PreferenceDecisionResult::acti
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::assumptions: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::contract_identity: alloc::string::String
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::draw_share_best_everywhere: core::option::Option<f64>
+pub field antecedent_design::preference_decision::PreferenceDecisionResult::effective_tie_tolerance: f64
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::n_draws: usize
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::parameter_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::preference_decision::PreferenceDecisionResult::parameter_ranges: alloc::vec::Vec<(f64, f64)>
@@ -15738,10 +15740,12 @@ pub variant antecedent_design::ZTransportPlanningError::Invalid(alloc::string::S
 pub variant antecedent_design::ZTransportPlanningError::InvalidSpec(&'static str)
 pub variant antecedent_design::ZTransportPlanningError::Io(antecedent_io_core::error::IoError)
 pub variant antecedent_design::ZTransportPlanningError::UnsupportedVersion { version: u32 }
+pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::AddedRelationNotFromChoices { relation: alloc::string::String }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::ChoiceModel(antecedent_design::preference_choice_model::ChoiceModelError)
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::Contradictory { decider: core::option::Option<alloc::string::String>, conflict: antecedent_design::preference_set_learning::ChoiceConflict }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::DeciderUnknown { decider: alloc::string::String }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::DeclarationNotKept { part: &'static str }
+pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::LearnedNotReproduced { field: &'static str }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::Model(antecedent_design::preference_model::PreferenceModelError)
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::ModelMismatch { expected: alloc::string::String, found: alloc::string::String }
 pub variant antecedent_design::accepted_preferences::AcceptedPreferencesError::NoItems

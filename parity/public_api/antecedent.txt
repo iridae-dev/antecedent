@@ -16101,7 +16101,7 @@ pub field antecedent::analysis::preference_decision::PreferenceDecisionExecution
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::bound_identity: alloc::string::String
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::causal: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::contract_identity: alloc::string::String
-pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::executed: alloc::vec::Vec<antecedent_core::identity::SemanticDigest>
+pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::executed: alloc::vec::Vec<core::option::Option<antecedent_core::identity::SemanticDigest>>
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::measure: core::option::Option<alloc::string::String>
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::options: alloc::string::String
 pub field antecedent::analysis::preference_decision::PreferenceDecisionReceipt::programs: alloc::vec::Vec<antecedent_core::identity::SemanticDigest>
@@ -19486,9 +19486,10 @@ pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn rows(&self
 pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn table(&self) -> &str
 pub fn <antecedent::analysis::preference_decision::SampledStructuralEvaluation>::fn statement(&self) -> alloc::string::String
 pub fn <antecedent::analysis::preference_decision::UnitKey>::const fn variable(&self) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent::analysis::preference_decision::UnitKey>::fn canonical_labels(namespace: &str, labels: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::preference_decision::UnitKey>::fn column(variable: antecedent_core::ids::VariableId, namespace: &str) -> Self
-pub fn <antecedent::analysis::preference_decision::UnitKey>::fn labels(namespace: &str, labels: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::preference_decision::UnitKey>::fn namespace(&self) -> &str
+pub fn <antecedent::analysis::preference_decision::UnitKey>::fn text_labels(namespace: &str, identifiers: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn <antecedent::analysis::propagation_chain::DeferredFamilyTable>::fn draft(&self, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire
 pub fn <antecedent::analysis::propagation_chain::FamilyEstimateDecl>::fn new(id: &str, meaning: antecedent_contract::propagation_chain::LawMeaning) -> Self
 pub fn <antecedent::analysis::propagation_chain::FamilyEstimateDecl>::fn with_factor(self, kind: antecedent_contract::dependence::SharedFactorKind, id: &str) -> Self
