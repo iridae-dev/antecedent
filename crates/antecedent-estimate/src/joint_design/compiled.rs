@@ -373,9 +373,6 @@ pub enum JointNativeDesignLaw {
     DecisionCluster(super::cluster_decision::JointClusterLaw),
     /// Joint experimental arm-coordinate law.
     DecisionExperiment(super::experiment::JointExperimentalLaw),
-    /// Aligned independent-unit bootstrap refits of a randomized design's arm means under a
-    /// declared sampling premise, retaining failed slots.
-    IndependentUnitBootstrap(super::unit_bootstrap::JointUnitBootstrap),
     /// Multi-outcome regime point values without joint uncertainty.
     StaticRegime(super::static_regime::JointStaticRegimeLaw),
     /// Multi-outcome excursion law; coordinate meanings remain attached to the recipe.
@@ -429,13 +426,13 @@ impl JointDesignRecipe {
                 super::experiment::joint_experiment(recipe, ctx)
                     .map(JointNativeDesignLaw::DecisionExperiment)
             }
-            (
-                Self::DecisionCluster { .. } | Self::DecisionExperiment { .. },
-                JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling },
-            ) => {
-                super::unit_bootstrap::joint_unit_bootstrap(self, *replicates, *seed, sampling, ctx)
-                    .map(JointNativeDesignLaw::IndependentUnitBootstrap)
-            }
+            // The refits are not one of the native laws: they are read through
+            // `unit_bootstrap::joint_unit_bootstrap`, which returns them as their own type.
+            (_, JointDesignInference::IndependentUnitBootstrap { .. }) => Err(
+                "an independent-unit bootstrap is executed by unit_bootstrap::joint_unit_bootstrap, \
+                 not as a native design law"
+                    .into(),
+            ),
             (Self::StaticRegime { recipe }, JointDesignInference::Frequentist) => {
                 super::static_regime::joint_static_regime(recipe, ctx)
                     .map(JointNativeDesignLaw::StaticRegime)

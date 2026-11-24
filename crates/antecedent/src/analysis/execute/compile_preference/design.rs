@@ -134,6 +134,12 @@ impl DesignSource {
         let compiled = self.design.program_identity();
         let ran = checked_executed(Some(compiled), Some(result.program_identity()))?;
         let dependency = result.dependency_identity().to_hex();
+        if let Some(refits) = result.unit_bootstrap() {
+            let rng_id = self.resampling_id(Some(refits.unit))?;
+            let law =
+                self.refit_law((&refits.realizations, &refits.failures), rng_id, &dependency)?;
+            return Ok((NativeDecisionSource::JointLaw(Box::new(law)), vec![compiled], vec![ran]));
+        }
         let source = match (result.law(), representation) {
             (JointNativeDesignLaw::StaticRegime(point), SourceRepresentation::Mean) => {
                 NativeDecisionSource::Mean(self.arm_means(point.means.clone(), &dependency)?)
@@ -147,14 +153,6 @@ impl DesignSource {
             }
             (JointNativeDesignLaw::StaticRegimeBootstrap(refits), _) => {
                 let rng_id = self.resampling_id(None)?;
-                NativeDecisionSource::JointLaw(Box::new(self.refit_law(
-                    (&refits.realizations, &refits.failures),
-                    rng_id,
-                    &dependency,
-                )?))
-            }
-            (JointNativeDesignLaw::IndependentUnitBootstrap(refits), _) => {
-                let rng_id = self.resampling_id(Some(refits.unit))?;
                 NativeDecisionSource::JointLaw(Box::new(self.refit_law(
                     (&refits.realizations, &refits.failures),
                     rng_id,
