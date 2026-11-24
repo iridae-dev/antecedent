@@ -2038,3 +2038,6 @@ fn a_weighted_target_without_covariates_or_with_a_bad_floor_is_refused() {
     bad.min_ess_fraction_bits = 1.5_f64.to_bits();
     assert!(transport().with_weighted_target(bad).is_err());
 }
+
+#[path = "identity_site_tests.rs"]
+mod identity_sites;

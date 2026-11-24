@@ -273,6 +273,11 @@ pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
+pub(crate) mod identity_site_laws;
+#[cfg(test)]
+mod identity_site_tests;
+
+#[cfg(test)]
 mod tests {
     #[test]
     fn version_is_semver_like() {
