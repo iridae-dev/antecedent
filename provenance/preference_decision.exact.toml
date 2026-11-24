@@ -13,6 +13,8 @@ papers = [
  { title = "SMAA - Stochastic multiobjective acceptability analysis", doi = "10.1016/S0377-2217(97)00163-X", sections = ["the acceptability index: the share of a weight distribution over the feasible weight space under which an alternative is best (section numbers not independently verified)"] },
  { title = "New Finite Pivoting Rules for the Simplex Method", doi = "10.1287/moor.2.2.103", sections = ["the smallest-subscript rule for the entering and leaving choice, which prevents cycling"] },
  { title = "Solving Least Squares Problems", doi = "10.1137/1.9781611971217", sections = ["Chapter 23: the NNLS active-set algorithm for non-negative least squares (section number not independently verified)"] },
+ { title = "Polynomial-Time Algorithms for Counting and Sampling Markov Equivalent DAGs", doi = "10.1609/aaai.v35i13.17448", sections = ["the clique-picking count of the members of a Markov equivalence class over the clique trees of its chordal chain components, and uniform sampling of a member from that count (section numbers not independently verified)"] },
+ { title = "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL", doi = "10.1093/biomet/26.4.404", sections = ["the exact binomial confidence interval from beta quantiles"] },
 ]
 implementation_deviations = [
  "The necessary and possible relations are applied to the expected utilities (or expected losses) of actions whose attributes are causal quantities under a supplied law, with value v_a(theta) = c_a0 + sum_j theta_j c_aj affine in the preference parameters, not to rankings of alternatives on fixed criterion evaluations. The parameter set is a declared box cut by linear relations, not necessarily the UTA-GMS set of additive value functions compatible with a reference ranking.",
@@ -23,11 +25,17 @@ implementation_deviations = [
  "The linear programs are solved by a working-set primal simplex over rows g . x <= h (each scaled to unit maximum coefficient), not a tableau method; free variables enter as placeholder rows released first, Bland's smallest-index rule is applied to the rows to release and to the blocking rows, and phase one relaxes every violated row by one auxiliary variable t in [0, 1]. Every outcome is rechecked from first principles before it is returned: feasibility and a non-negative least-squares fit of the objective by the tight rows (Lawson and Hanson's NNLS on Householder least squares) for an optimum, Farkas multipliers for infeasibility, a feasible improving ray for unboundedness. Tolerances are repository choices (pivot 1e-12, singularity ratio 1e-12, dependent-column ratio 1e-10).",
  "Vertex enumeration solves every choice of n hyperplanes among the constraints and finite bounds and keeps the distinct feasible points, refused beyond a cap; it is brute force, not a pivoting enumeration.",
  "The exact-rational linear-program reference (linear_program_reference.py, brute-force basis enumeration in fractions) and the dense-grid cross-check in preference_decision_structural.rs were written by the same author in the same development effort as the implementation, not by an independent reviewer; no method review has been recorded.",
+ "Across the members of a CPDAG or PAG atom of a graph posterior, a member's weight is the atom's posterior weight times a declared conditional mass within the class: uniform under a named assumption, or keyed by member fingerprint and normalised within each class. The measure is a declaration; the data cannot separate Markov equivalent members. For a PAG uniform is over the maximal ancestral graphs it represents. Without a declared measure, bayes_over_structures over class atoms is refused.",
+ "A class with more members than the declared exact limit (32 by default) is sampled only under a uniform measure that declares the draw: CPDAG members by clique-picking from an exact count (forbidden prefixes are the separators on the clique-tree edges from the root, written from the published method), PAG members by drawing every circle endpoint as a tail or an arrowhead with probability one half and keeping draws that are members, within a search budget, so its class size is a lower bound unless enumerated. A sampled decision gives no verdict over every member: under bayes_over_structures the verdict is the one on the sampled measure with Monte Carlo standard errors of the pairwise margins at each vertex; under maximin and invariance each sampled member's verdict with a one-sided 95% Clopper-Pearson bound on the mass where another action is best; identified, unidentified and unevaluated masses of a sampled class are exact Clopper-Pearson intervals of the draw shares scaled by the class mass, never renormalised. These reporting rules are repository constructions outside the cited works.",
+ "The clique-picking count is compared with brute-force enumeration on random chordal graphs and closed-form class sizes, and the draws are checked by chi-square against uniform (mec_uniform_sampling.rs); these checks were written by the same author in the same development effort as the implementation, not by an independent reviewer.",
 ]
 upstream_implementations_observed = []
 modules = [
  "crates/antecedent-design/src/preference_decision.rs",
  "crates/antecedent-stats/src/linear_program.rs",
+ "crates/antecedent-graph/src/mec_uniform.rs",
+ "crates/antecedent-graph/src/pag_uniform.rs",
+ "crates/antecedent/src/analysis/execute/compile_preference/atoms.rs",
 ]
 test_sources = [
  "crates/antecedent-design/tests/preference_decision.rs (hand-derived switch points, policies, measures, refusals)",
@@ -36,4 +44,6 @@ test_sources = [
  "crates/antecedent-stats/tests/linear_program_reference.rs (optima and vertex sets against exact rational basis enumeration)",
  "crates/antecedent-stats/tests/oracle_data/linear_program_reference.py",
  "crates/antecedent-stats/tests/oracle_data/linear_program_reference.json",
+ "crates/antecedent-graph/tests/mec_uniform_sampling.rs (clique-picking counts against enumeration on random chordal graphs, closed-form class sizes, chi-square uniformity of CPDAG and PAG draws, a PAG class beyond the budget)",
+ "crates/antecedent/tests/preference_decision_class_weighting.rs (uniform and keyed class measures, a sampled class never called best for every member, unidentified member mass of a PAG class, Clopper-Pearson bounds against closed forms)",
 ]

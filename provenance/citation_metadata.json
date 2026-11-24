@@ -159,6 +159,19 @@
     "url": "https://api.crossref.org/works/10.1007/978-3-662-12616-5",
     "year": 1992
   },
+  "10.1007/bf01386090": {
+    "authors": [
+      "W. Oettli",
+      "W. Prager"
+    ],
+    "doi": "10.1007/bf01386090",
+    "response_sha256": "30c510cd5076aa29d4f28fa2e1d5dd3cadf02855a8c6d8568104bc956f33bd86",
+    "titles": [
+      "Compatibility of approximate solution of linear equations with given error bounds for coefficients and right-hand sides"
+    ],
+    "url": "https://api.crossref.org/works/10.1007/BF01386090",
+    "year": 1964
+  },
   "10.1007/bf02846028": {
     "authors": [
       "Gisiro Maruyama"
@@ -182,6 +195,18 @@
     ],
     "url": "https://api.crossref.org/works/10.1016/0024-3795%2877%2990069-6",
     "year": 1977
+  },
+  "10.1016/0041-5553(67)90144-9": {
+    "authors": [
+      "I.M Sobol'"
+    ],
+    "doi": "10.1016/0041-5553(67)90144-9",
+    "response_sha256": "dc8a575a516e54160ed7bf976c9724bf42fd29f99723e4f674d0c344a072aa4e",
+    "titles": [
+      "On the distribution of points in a cube and the approximate evaluation of integrals"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/0041-5553%2867%2990144-9",
+    "year": 1967
   },
   "10.1016/0167-2789(92)90102-s": {
     "authors": [
@@ -1050,6 +1075,19 @@
     "url": "https://api.crossref.org/works/10.1093/biomet/25.3-4.285",
     "year": 1933
   },
+  "10.1093/biomet/26.4.404": {
+    "authors": [
+      "C. J. CLOPPER",
+      "E. S. PEARSON"
+    ],
+    "doi": "10.1093/biomet/26.4.404",
+    "response_sha256": "7de009321a6dc4aeeba3586793c97d4ee85f4c8982eab434b5deae7bb6fbf6e8",
+    "titles": [
+      "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/26.4.404",
+    "year": 1934
+  },
   "10.1093/biomet/28.3-4.321": {
     "authors": [
       "H. HOTELLING"
@@ -1711,6 +1749,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1126/sciadv.aau4996",
     "year": 2019
+  },
+  "10.1137/070709359": {
+    "authors": [
+      "Stephen Joe",
+      "Frances Y. Kuo"
+    ],
+    "doi": "10.1137/070709359",
+    "response_sha256": "bfb209f7169850b1b2dc797a675b5ffb84efc7e55752a73cb5a6b69136ca72c4",
+    "titles": [
+      "Constructing Sobol Sequences with Better Two-Dimensional Projections"
+    ],
+    "url": "https://api.crossref.org/works/10.1137/070709359",
+    "year": 2008
   },
   "10.1137/1.9780898717716": {
     "authors": [
@@ -2806,6 +2857,20 @@
     "url": "https://api.crossref.org/works/10.1515/jci-2014-0039",
     "year": 2015
   },
+  "10.1609/aaai.v35i13.17448": {
+    "authors": [
+      "Marcel Wien\u00f6bst",
+      "Max Bannach",
+      "Maciej Liskiewicz"
+    ],
+    "doi": "10.1609/aaai.v35i13.17448",
+    "response_sha256": "9ee8f5491ec3d6663d0a849493566cf4463e1c533300ea5d16615454ad17483c",
+    "titles": [
+      "Polynomial-Time Algorithms for Counting and Sampling Markov Equivalent DAGs"
+    ],
+    "url": "https://api.crossref.org/works/10.1609/aaai.v35i13.17448",
+    "year": 2021
+  },
   "10.17487/rfc8949": {
     "authors": [
       "C. Bormann",
@@ -2983,6 +3048,19 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/2346806",
     "year": 1979
+  },
+  "10.2307/2347496": {
+    "authors": [
+      "D. J. Venzon",
+      "S. H. Moolgavkar"
+    ],
+    "doi": "10.2307/2347496",
+    "response_sha256": "c5444517e89400a2b6e54b53e19a387984e27e5b5746163eb86776882155de1a",
+    "titles": [
+      "A Method for Computing Profile-Likelihood-Based Confidence Intervals"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2347496",
+    "year": 1988
   },
   "10.2307/2525382": {
     "authors": [
