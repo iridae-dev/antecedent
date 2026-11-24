@@ -20,8 +20,9 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use antecedent_contract::{EvidenceOffer, MAX_OBLIGATION_COORDINATES};
 use antecedent_core::{
-    DistributionAvailability, EvidenceKind, EvidenceRegime, InterventionAssignment, RegimeId,
-    RegimeKind, VariableId, blake3_hex, is_blank, reason_code,
+    CanonicalEncode, CanonicalWriter, DistributionAvailability, EvidenceKind, EvidenceRegime,
+    InterventionAssignment, RegimeId, RegimeKind, Value, VariableId, blake3_hex, is_blank,
+    reason_code,
 };
 
 use crate::plan_common::id_list;
@@ -195,31 +196,118 @@ fn set(variables: &[VariableId]) -> BTreeSet<VariableId> {
     variables.iter().copied().collect()
 }
 
+/// Domain tag of the v2 semantic identity ([`DurableStudyCandidate::semantic_id`]).
+const SEMANTIC_ID_V2_TAG: &str = "antecedent.design.study_candidate.semantic_id.v2";
+/// Domain tag of one expected law inside the v2 semantic identity.
+const EXPECTED_EVIDENCE_V2_TAG: &str = "antecedent.design.study_candidate.expected_evidence.v2";
+/// Characters the v1 content string uses as field and list separators.
+const V1_SEPARATORS: [char; 4] = [';', '|', '[', ']'];
+
+/// Whether `text` cannot be confused with a v1 separator.
+fn v1_plain(text: &str) -> bool {
+    !text.contains(&V1_SEPARATORS[..])
+}
+
+/// A variable set: ascending, each variable once.
+fn variable_set(variables: &[VariableId]) -> Vec<VariableId> {
+    set(variables).into_iter().collect()
+}
+
+/// A variable set as the v1 comma-joined id list.
+fn set_list(variables: &[VariableId]) -> String {
+    variable_set(variables).iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(",")
+}
+
+fn write_variable_set(writer: &mut CanonicalWriter, variables: &[VariableId]) {
+    let variables = variable_set(variables);
+    writer.word(variables.len() as u64);
+    for variable in variables {
+        variable.encode(writer);
+    }
+}
+
+/// Whether a level's v1 rendering (`{:?}`) is unambiguous: no separator in a label and no NaN,
+/// whose payload `{:?}` drops.
+fn v1_plain_level(value: &Value) -> bool {
+    match value {
+        Value::Float64(level) => !level.is_nan(),
+        Value::Label(label) => v1_plain(label),
+        Value::Int64(_) | Value::Bool(_) | Value::Category(_) => true,
+    }
+}
+
 impl ExpectedEvidence {
-    /// Canonical, order-independent content string.
+    /// Canonical, order-independent content string (the v1 form, kept for the identities of
+    /// earlier releases; [`DurableStudyCandidate::semantic_id`] decides which form it uses).
     #[must_use]
     pub fn canonical(&self) -> String {
+        self.v1_content(false)
+    }
+
+    /// The v1 content string. With `as_sets`, the variable lists and levels are written as
+    /// sets (each element once), the meaning every consumer reads them with.
+    fn v1_content(&self, as_sets: bool) -> String {
+        let list = |variables: &[VariableId]| {
+            if as_sets { set_list(variables) } else { id_list(variables) }
+        };
         let mut levels: Vec<String> = self
             .intervention_values
             .iter()
             .map(|a| format!("{}={:?}", a.variable.raw(), a.value))
             .collect();
         levels.sort_unstable();
+        if as_sets {
+            levels.dedup();
+        }
         let distribution = match &self.distribution {
             DistributionAvailability::Joint => "joint".to_owned(),
             DistributionAvailability::SeparateMarginals { variables } => {
-                format!("marginals[{}]", id_list(variables))
+                format!("marginals[{}]", list(variables))
             }
         };
         format!(
             "pop={};do=[{}];levels=[{}];cond=[{}];vars=[{}];dist={}",
             self.population,
-            id_list(&self.interventions),
+            list(&self.interventions),
             levels.join("|"),
-            id_list(&self.conditioned_on),
-            id_list(&self.measured),
+            list(&self.conditioned_on),
+            list(&self.measured),
             distribution
         )
+    }
+
+    /// Whether the v1 content string of this law is unambiguous.
+    fn v1_plain(&self) -> bool {
+        v1_plain(&self.population)
+            && self.intervention_values.iter().all(|a| v1_plain_level(&a.value))
+    }
+
+    /// The v2 digest of this law: every field framed on the canonical writer, variable lists
+    /// and levels as sets, levels by their canonical (bit-exact) encoding.
+    fn v2_digest(&self) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new(EXPECTED_EVIDENCE_V2_TAG);
+        writer.text(&self.population);
+        write_variable_set(&mut writer, &self.interventions);
+        let mut levels: Vec<&InterventionAssignment> = self.intervention_values.iter().collect();
+        levels.sort_by_key(|a| a.variable);
+        levels.dedup();
+        writer.word(levels.len() as u64);
+        for level in levels {
+            level.variable.encode(&mut writer);
+            level.value.encode(&mut writer);
+        }
+        write_variable_set(&mut writer, &self.conditioned_on);
+        write_variable_set(&mut writer, &self.measured);
+        match &self.distribution {
+            DistributionAvailability::Joint => {
+                writer.word(0);
+            }
+            DistributionAvailability::SeparateMarginals { variables } => {
+                writer.word(1);
+                write_variable_set(&mut writer, variables);
+            }
+        }
+        writer.finish()
     }
 
     fn check_against(&self, study: &DurableStudyCandidate) -> Result<(), StudyCandidateError> {
@@ -361,22 +449,79 @@ impl DurableStudyCandidate {
         self.expected_evidence.iter().try_for_each(|evidence| evidence.check_against(self))
     }
 
-    /// Order-independent semantic identity (`sc1:<digest>`); the label is not
-    /// part of it.
+    /// Order-independent semantic identity; the label is not part of it.
+    ///
+    /// Variable lists, feasibility notes, levels and expected laws are sets: their order and
+    /// repeats do not reach the identity. A candidate whose free text (population,
+    /// recruitment, timing, unit rules, cost unit, notes, provider) and levels contain none of
+    /// the v1 separators (`;`, `|`, `[`, `]`) keeps the v1 form of earlier releases
+    /// (`sc1:<digest>`), whose content string is then unambiguous. Any other candidate uses
+    /// the v2 form (`sc2:<digest>`), which frames every field, so free text can never move
+    /// content between fields. Stored identities of either form verify through
+    /// [`Self::accepts_semantic_id`].
     #[must_use]
     pub fn semantic_id(&self) -> Arc<str> {
+        if self.v1_plain() { Self::sc1(&self.v1_content(true)) } else { self.semantic_id_v2() }
+    }
+
+    /// The v1 semantic identity exactly as earlier releases computed it (lists sorted, repeats
+    /// kept, fields joined unframed). Computed only to verify identities stored under it.
+    #[must_use]
+    pub fn semantic_id_v1(&self) -> Arc<str> {
+        Self::sc1(&self.v1_content(false))
+    }
+
+    /// Whether `stored` is this candidate's semantic identity, in the current form or as an
+    /// earlier release wrote it.
+    #[must_use]
+    pub fn accepts_semantic_id(&self, stored: &str) -> bool {
+        *self.semantic_id() == *stored || *self.semantic_id_v1() == *stored
+    }
+
+    fn sc1(content: &str) -> Arc<str> {
+        let digest = blake3_hex(content.as_bytes());
+        Arc::from(format!("sc1:{}", &digest[..32]))
+    }
+
+    fn v1_plain(&self) -> bool {
+        [
+            &*self.population,
+            &*self.recruitment,
+            &*self.timing,
+            &*self.unit_rules.unit,
+            &*self.cost.unit_label,
+        ]
+        .into_iter()
+        .all(v1_plain)
+            // `None` and `Some("")` both write nothing in the v1 form.
+            && self.unit_rules.cluster.as_deref().is_none_or(|c| !c.is_empty() && v1_plain(c))
+            && self.external_provider.as_deref().is_none_or(|p| !p.is_empty() && v1_plain(p))
+            // An empty note joins to nothing: `[""]` and `[]` would share the v1 form.
+            && self.feasibility_notes.iter().all(|note| !note.is_empty() && v1_plain(note))
+            && self.expected_evidence.iter().all(ExpectedEvidence::v1_plain)
+    }
+
+    /// The v1 content string; with `as_sets`, lists, notes and laws are written as sets.
+    fn v1_content(&self, as_sets: bool) -> String {
+        let list = |variables: &[VariableId]| {
+            if as_sets { set_list(variables) } else { id_list(variables) }
+        };
         let mut notes: Vec<&str> = self.feasibility_notes.iter().map(AsRef::as_ref).collect();
         notes.sort_unstable();
         let mut evidence: Vec<String> =
-            self.expected_evidence.iter().map(ExpectedEvidence::canonical).collect();
+            self.expected_evidence.iter().map(|e| e.v1_content(as_sets)).collect();
         evidence.sort_unstable();
-        let content = format!(
+        if as_sets {
+            notes.dedup();
+            evidence.dedup();
+        }
+        format!(
             "kind={};pop={};do=[{}];measured=[{}];joint={};n={};recruit={};timing={};unit={};\
              cluster={};whole={};cost={}/{}/{};feasible={};notes=[{}];provider={};evidence=[{}]",
             self.kind.as_str(),
             self.population,
-            id_list(&self.interventions),
-            id_list(&self.measured),
+            list(&self.interventions),
+            list(&self.measured),
             self.joint_measurement,
             self.sample_size,
             self.recruitment,
@@ -391,9 +536,40 @@ impl DurableStudyCandidate {
             notes.join("|"),
             self.external_provider.as_deref().unwrap_or(""),
             evidence.join(" ; "),
-        );
-        let digest = blake3_hex(content.as_bytes());
-        Arc::from(format!("sc1:{}", &digest[..32]))
+        )
+    }
+
+    /// The v2 semantic identity: every field framed on the canonical writer.
+    fn semantic_id_v2(&self) -> Arc<str> {
+        let mut writer = CanonicalWriter::new(SEMANTIC_ID_V2_TAG);
+        writer.text(self.kind.as_str()).text(&self.population);
+        write_variable_set(&mut writer, &self.interventions);
+        write_variable_set(&mut writer, &self.measured);
+        writer
+            .word(u64::from(self.joint_measurement))
+            .word(self.sample_size)
+            .text(&self.recruitment)
+            .text(&self.timing)
+            .text(&self.unit_rules.unit)
+            .opt_text(self.unit_rules.cluster.as_deref())
+            .word(u64::from(self.unit_rules.whole_cluster_sampling))
+            .word(self.cost.units)
+            .text(&self.cost.unit_label)
+            .word(self.cost.sample_budget)
+            .word(u64::from(self.feasible));
+        let mut notes: Vec<&str> = self.feasibility_notes.iter().map(AsRef::as_ref).collect();
+        notes.sort_unstable();
+        notes.dedup();
+        writer.texts(&notes).opt_text(self.external_provider.as_deref());
+        let mut evidence: Vec<[u8; 32]> =
+            self.expected_evidence.iter().map(ExpectedEvidence::v2_digest).collect();
+        evidence.sort_unstable();
+        evidence.dedup();
+        writer.word(evidence.len() as u64);
+        for digest in &evidence {
+            writer.bytes(digest);
+        }
+        Arc::from(format!("sc2:{}", &writer.finish_hex()[..32]))
     }
 
     /// What the study could supply, as screens an obligation can test with
@@ -494,5 +670,78 @@ impl DurableStudyCandidate {
                 tag: 0,
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod semantic_id_tests {
+    use super::*;
+
+    fn variable(raw: u32) -> VariableId {
+        VariableId::from_raw(raw)
+    }
+
+    fn candidate(notes: &[&str], recruitment: &str) -> DurableStudyCandidate {
+        DurableStudyCandidate {
+            label: Arc::from("label"),
+            kind: StudyKind::Observation,
+            population: Arc::from("target"),
+            interventions: Arc::from([]),
+            measured: Arc::from([variable(0), variable(1)]),
+            joint_measurement: true,
+            sample_size: 100,
+            recruitment: Arc::from(recruitment),
+            timing: Arc::from("now"),
+            unit_rules: UnitRules {
+                unit: Arc::from("patient"),
+                cluster: None,
+                whole_cluster_sampling: false,
+            },
+            cost: StudyCostDeclaration {
+                units: 1,
+                unit_label: Arc::from("usd"),
+                sample_budget: 100,
+            },
+            feasible: true,
+            feasibility_notes: notes.iter().map(|note| Arc::from(*note)).collect(),
+            expected_evidence: Arc::from([ExpectedEvidence {
+                population: Arc::from("target"),
+                interventions: Arc::from([]),
+                intervention_values: Arc::from([]),
+                conditioned_on: Arc::from([]),
+                measured: Arc::from([variable(1), variable(0)]),
+                distribution: DistributionAvailability::Joint,
+            }]),
+            external_provider: None,
+        }
+    }
+
+    /// A plain candidate keeps the v1 identity of earlier releases; a repeated note is the
+    /// same set of notes.
+    #[test]
+    fn plain_candidates_keep_the_v1_identity_and_notes_are_a_set() {
+        let plain = candidate(&["b", "a"], "mail");
+        assert_eq!(plain.semantic_id(), plain.semantic_id_v1());
+        assert!(plain.semantic_id().starts_with("sc1:"));
+        let reordered = candidate(&["a", "b"], "mail");
+        assert_eq!(plain.semantic_id(), reordered.semantic_id());
+        let repeated = candidate(&["a", "b", "a"], "mail");
+        assert_eq!(plain.semantic_id(), repeated.semantic_id());
+        assert_ne!(repeated.semantic_id_v1(), repeated.semantic_id());
+        assert!(repeated.accepts_semantic_id(&repeated.semantic_id_v1()));
+        assert_ne!(plain.semantic_id(), candidate(&["a"], "mail").semantic_id());
+    }
+
+    /// The v1 notes join is unframed: notes `["a|b"]` and `["a", "b"]` shared a v1 identity.
+    /// The v2 form keeps them apart.
+    #[test]
+    fn separator_in_free_text_no_longer_collides() {
+        let joined = candidate(&["a|b"], "mail");
+        let split = candidate(&["a", "b"], "mail");
+        assert_eq!(joined.semantic_id_v1(), split.semantic_id_v1());
+        assert_ne!(joined.semantic_id(), split.semantic_id());
+        assert!(joined.semantic_id().starts_with("sc2:"));
+        assert!(joined.accepts_semantic_id(&joined.semantic_id_v1()));
+        assert!(!joined.accepts_semantic_id(&candidate(&["c"], "mail").semantic_id()));
     }
 }

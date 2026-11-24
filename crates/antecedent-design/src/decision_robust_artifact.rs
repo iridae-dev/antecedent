@@ -1168,8 +1168,8 @@ impl RobustResultArtifact {
         atoms: &[StructuralAtom],
         profile: &ClaimProfile,
     ) -> Result<ReplayReceipt, IoError> {
-        let identity = contract.identity().map_err(debug_error)?;
-        if identity != self.result.contract_identity {
+        contract.identity().map_err(debug_error)?;
+        if !contract.accepts_identity(&self.result.contract_identity) {
             return Err(refused("replay_contract", "contract differs from the stored result's"));
         }
         if atom_wires(atoms) != self.atoms {

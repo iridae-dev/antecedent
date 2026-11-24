@@ -399,14 +399,15 @@ impl DecisionContractArtifact {
         let body: ContractBody = decode(bytes, CONTRACT_KIND)?;
         let stored = body.identity.clone();
         let contract = contract_from_body(body)?;
-        let identity = contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
-        if identity != stored || identity != expected_identity {
+        contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
+        // A stored identity written before `applies_to` was read as a set still verifies.
+        if stored != expected_identity || !contract.accepts_identity(&stored) {
             return Err(refused(
                 "identity_expected",
                 "contract identity differs from the consumer's retained identity",
             ));
         }
-        Ok(Self { contract, identity })
+        Ok(Self { contract, identity: stored })
     }
 }
 
@@ -775,15 +776,17 @@ impl DecisionResultArtifact {
         contract: &DecisionContract,
         source: &DistributionArtifact,
     ) -> Result<(), IoError> {
-        let identity = contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
-        if identity != self.result.contract_identity {
+        contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
+        if !contract.accepts_identity(&self.result.contract_identity) {
             return Err(refused("replay_contract", "contract differs from the stored result's"));
         }
         if source_digest(source) != self.source_digest {
             return Err(refused("replay_source", "source differs from the stored result's"));
         }
-        let recomputed = evaluate_contract(contract, source)
+        let mut recomputed = evaluate_contract(contract, source)
             .map_err(|e| refused("replay_evaluation", &format!("{e:?}")))?;
+        // The contract was accepted under the stored spelling of its identity.
+        recomputed.contract_identity.clone_from(&self.result.contract_identity);
         let stored = to_cbor(&result_to_body(&self.result, &self.source_digest))?;
         let fresh = to_cbor(&result_to_body(&recomputed, &self.source_digest))?;
         if stored != fresh {

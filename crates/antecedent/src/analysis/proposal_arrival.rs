@@ -465,7 +465,7 @@ pub fn execute_with_limits(
         .candidates()
         .map_err(native_error)?
         .into_iter()
-        .find(|c| c.semantic_id().as_ref() == r.candidate_id)
+        .find(|c| c.accepts_semantic_id(&r.candidate_id))
         .ok_or_else(|| {
             refused(antecedent_core::reason_details::proposal_arrival::CANDIDATE_MISSING)
         })?;

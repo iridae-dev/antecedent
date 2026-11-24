@@ -620,10 +620,39 @@ impl EvidencePlan {
         self.routes.iter().flat_map(|r| r.obligations.iter()).find(|o| o.id.as_ref() == id)
     }
 
-    /// Order-independent identity of the plan (BLAKE3 hex).
+    /// Identity of the plan (BLAKE3 hex), identity scheme v2.
+    ///
+    /// Routes and options are written in the plan's own deterministic order (options by
+    /// rank), every list with its length. The v1 scheme of earlier releases
+    /// ([`Self::identity_v1`]) wrote an option's resolved and unresolved obligation ids, and an
+    /// unverified route's obligation ids, without lengths, so moving an id from one list to
+    /// the other left it unchanged; stored identities of either scheme verify through
+    /// [`Self::accepts_identity`].
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut writer = CanonicalWriter::new("antecedent.evidence_plan.v1");
+        self.identity_with(true)
+    }
+
+    /// The v1 identity exactly as earlier releases computed it. Computed only to verify
+    /// identities stored under it.
+    #[must_use]
+    pub fn identity_v1(&self) -> String {
+        self.identity_with(false)
+    }
+
+    /// Whether `stored` is this plan's identity under the current or the v1 scheme.
+    #[must_use]
+    pub fn accepts_identity(&self, stored: &str) -> bool {
+        self.identity() == stored || self.identity_v1() == stored
+    }
+
+    /// The identity stream; `framed` selects v2 (every list length-prefixed) over v1.
+    fn identity_with(&self, framed: bool) -> String {
+        let mut writer = CanonicalWriter::new(if framed {
+            "antecedent.evidence_plan.v2"
+        } else {
+            "antecedent.evidence_plan.v1"
+        });
         writer
             .text(self.outcome.as_str())
             .text(self.basis.as_str())
@@ -654,6 +683,9 @@ impl EvidencePlan {
         writer.word(self.unverified.len() as u64);
         for route in &self.unverified {
             writer.text(&route.route).text(&route.reason);
+            if framed {
+                writer.word(route.obligations.len() as u64);
+            }
             for id in &route.obligations {
                 writer.text(id);
             }
@@ -671,8 +703,12 @@ impl EvidencePlan {
             for member in &option.members {
                 writer.text(member);
             }
-            for id in option.resolves.iter().chain(option.unresolved.iter()) {
-                writer.text(id);
+            if framed {
+                writer.texts(&option.resolves).texts(&option.unresolved);
+            } else {
+                for id in option.resolves.iter().chain(option.unresolved.iter()) {
+                    writer.text(id);
+                }
             }
             writer.word(option.reasons.len() as u64);
             for reason in &option.reasons {
