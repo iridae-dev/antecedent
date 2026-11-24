@@ -496,7 +496,7 @@ replacement = "route:FittedModelAttribution"
 [[row]]
 path = "antecedent_attribution::anomaly::population_do_contrast"
 disposition = "deprecated"
-replacement = "route:FittedModelAttribution"
+replacement = "route:GcmAttributeDag"
 
 [[row]]
 path = "antecedent_attribution::anomaly::score_anomalies"
@@ -780,17 +780,17 @@ reason = "kernel API; the compiled GcmSimulateDag counterfactual, unit-effect an
 [[row]]
 path = "antecedent_counterfactual::engine::nested_counterfactual"
 disposition = "deprecated"
-replacement = "route:FittedModelSimulation"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_counterfactual::engine::nested_counterfactual_with_exo"
 disposition = "deprecated"
-replacement = "route:FittedModelSimulation"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_counterfactual::engine::nested_hard_counterfactual"
 disposition = "deprecated"
-replacement = "route:FittedModelSimulation"
+replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_counterfactual::engine::simultaneous_hard_counterfactual"

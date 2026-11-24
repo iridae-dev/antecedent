@@ -3191,6 +3191,18 @@ def model_operation_interventional_mean(
     seed: int = 1,
     threads: int | None = None,
 ) -> ModelOperationAnswer: ...
+def model_operation_nested_counterfactual(
+    names: list[str],
+    columns: list[Any],
+    edges: list[tuple[str, str]],
+    outcome: str,
+    outer: dict[str, float],
+    inner: dict[str, float],
+    frozen: list[str],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> ModelOperationAnswer: ...
 def model_operation_simultaneous_counterfactual(
     names: list[str],
     columns: list[Any],

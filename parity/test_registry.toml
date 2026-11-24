@@ -22687,6 +22687,20 @@ path = "python/tests/test_compiled_twins_gcm_model_operations.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-twins-fitted-model-queries"
+crate = "antecedent"
+cargo_target = "compiled_twins_fitted_model_queries"
+path = "crates/antecedent/tests/compiled_twins_fitted_model_queries.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-fitted-model-queries-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_fitted_model_queries.py"
+gates = ["inventory"]
+
+[[test]]
 id = "population-do-contrast-reference"
 crate = "antecedent-attribution"
 cargo_target = "population_do_contrast_reference"

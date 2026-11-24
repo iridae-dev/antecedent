@@ -1132,6 +1132,9 @@ path = "tests/compiled_twins_gcm_attribution.rs"
 name = "compiled_twins_gcm_model_operations"
 path = "tests/compiled_twins_gcm_model_operations.rs"
 [[test]]
+name = "compiled_twins_fitted_model_queries"
+path = "tests/compiled_twins_fitted_model_queries.rs"
+[[test]]
 name = "compiled_twins_interference"
 path = "tests/compiled_twins_interference.rs"
 
