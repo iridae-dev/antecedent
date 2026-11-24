@@ -410,6 +410,7 @@ pub const fn weight_basis_name(basis: StructuralWeightBasisWire) -> &'static str
         StructuralWeightBasisWire::PosteriorWithDeclaredClassPrior => {
             "posterior_with_declared_class_prior"
         }
+        StructuralWeightBasisWire::SampledClassMeasure => "sampled_class_measure",
     }
 }
 

@@ -242,4 +242,22 @@ mod tests {
         assert!(data.select_rows(&[]).is_err());
         assert!(data.select_rows(&[5]).is_err());
     }
+
+    #[test]
+    fn a_mask_or_weights_leave_the_rows_and_their_origin_unchanged() {
+        let data = float_table(&["t", "y"], 5);
+        let digest = data.storage().content_digest();
+        assert_eq!(data.storage().rows_digest(), digest);
+        let masked = data
+            .with_analysis_mask(ValidityBitmap::from_bools(&[true, false, true, true, false]))
+            .unwrap();
+        let weighted = data.with_weights(Arc::from(vec![1.0, 2.0, 1.0, 0.5, 1.0])).unwrap();
+        for table in [&masked, &weighted] {
+            assert_ne!(table.storage().content_digest(), digest);
+            assert_eq!(table.storage().rows_digest(), digest);
+            assert_eq!(table.select_rows(&[2, 0]).unwrap().row_origin().unwrap().table(), digest);
+            let (projected, _) = table.project(&[VariableId::from_raw(1)]).unwrap();
+            assert_eq!(projected.row_origin(), Some(&RowOrigin::whole(digest)));
+        }
+    }
 }

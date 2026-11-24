@@ -28,7 +28,16 @@
 //! exactly by its seed. Every drawn DAG is checked to be a member of the class.
 //!
 //! The count is exact in `u128`; a class with more members is refused rather than rounded.
-//! Counting is charged to a [`SearchBudget`] (one operation per clique of every subproblem).
+//! Counting is charged to a [`SearchBudget`]: one operation per clique of every subproblem,
+//! and one per undirected edge Meek's rules examine while closing the orientation the clique
+//! fixes, so the charge grows with the closure work.
+//!
+//! The per-component product counts the members of an essential graph: a chain graph (no
+//! directed cycle through its undirected components, no directed edge inside one) whose
+//! components are chordal and with no directed edge `a -> b` next to an undirected `b - c`
+//! whose ends are not adjacent. A graph that breaks any of these (a partially directed graph
+//! closed under background knowledge can) constrains orientations across components, so it
+//! is refused rather than counted.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -62,8 +71,10 @@ pub enum MecUniformError {
     /// An undirected component is not chordal, so the graph represents no Markov
     /// equivalence class.
     NotChordal,
-    /// A directed edge `a -> b` meets an undirected edge `b - c` with `a` and `c` not
-    /// adjacent, so the graph is not the essential graph of a class.
+    /// The graph is not the essential graph of a class: a directed edge `a -> b` meets an
+    /// undirected edge `b - c` with `a` and `c` not adjacent, a directed edge joins two
+    /// vertices of one undirected component, or the directed edges between undirected
+    /// components form a cycle.
     NotEssential,
     /// The class has more members than `u128` holds.
     CountOverflow,
@@ -83,7 +94,9 @@ impl fmt::Display for MecUniformError {
                 formatter.write_str("an undirected component of the CPDAG is not chordal")
             }
             Self::NotEssential => formatter.write_str(
-                "a directed edge points into an undirected edge whose far end it does not touch",
+                "the graph is not an essential graph: a directed edge points into an undirected \
+                 edge whose far end it does not touch, joins two vertices of one undirected \
+                 component, or closes a directed cycle through the undirected components",
             ),
             Self::CountOverflow => formatter.write_str("the class has more members than u128"),
             Self::Stopped(stop) => write!(formatter, "the class count stopped: {}", stop.code()),
@@ -156,8 +169,8 @@ impl MecUniform {
     ///
     /// # Errors
     ///
-    /// A conflict edge, a non-chordal undirected component, a directed edge into an undirected
-    /// one whose far end it does not touch, a count above `u128`, or a budget stop.
+    /// A conflict edge, a non-chordal undirected component, a graph that is not an essential
+    /// graph ([`MecUniformError::NotEssential`]), a count above `u128`, or a budget stop.
     pub fn new(
         cpdag: &Cpdag,
         limits: SearchLimits,
@@ -254,7 +267,7 @@ impl MecUniform {
         let order = admissible_order(choice, state)?;
         let local = Local::new(&sub.vertices, &sub.edges);
         let order: Vec<usize> = order.iter().filter_map(|v| local.position(*v)).collect();
-        let orientation = closure(&local, &order);
+        let (orientation, _) = closure(&local, &order);
         for a in 0..local.n {
             for b in 0..local.n {
                 if orientation.directed(a, b) {
@@ -281,7 +294,10 @@ pub fn mec_size(cpdag: &Cpdag) -> Result<u128, MecUniformError> {
     MecUniform::new(cpdag, limits, &ctx).map(|class| class.class_size())
 }
 
-/// Refuse a directed edge `a -> b` next to an undirected `b - c` with `a`, `c` not adjacent.
+/// Refuse a graph whose members the per-component product does not count: a directed edge
+/// `a -> b` next to an undirected `b - c` with `a`, `c` not adjacent; a directed edge whose
+/// two ends lie in one undirected component; or a cycle of directed edges between undirected
+/// components (so the graph is not a chain graph).
 fn check_essential(cpdag: &Cpdag) -> Result<(), MecUniformError> {
     for edge in cpdag.edges() {
         let Some((from, to)) = edge.parent_child() else {
@@ -293,7 +309,64 @@ fn check_essential(cpdag: &Cpdag) -> Result<(), MecUniformError> {
             }
         }
     }
-    Ok(())
+    let component = component_of_every_vertex(cpdag);
+    let count = component.iter().copied().max().map_or(0, |last| last + 1);
+    let mut successors: Vec<Vec<usize>> = vec![Vec::new(); count];
+    let mut indegree = vec![0_usize; count];
+    for edge in cpdag.edges() {
+        let Some((from, to)) = edge.parent_child() else {
+            continue;
+        };
+        let (Some(&a), Some(&b)) = (component.get(from.as_usize()), component.get(to.as_usize()))
+        else {
+            return Err(MecUniformError::NotEssential);
+        };
+        if a == b {
+            return Err(MecUniformError::NotEssential);
+        }
+        if !successors[a].contains(&b) {
+            successors[a].push(b);
+            indegree[b] += 1;
+        }
+    }
+    // Kahn's order over the components: a component left unordered lies on a cycle.
+    let mut ready: Vec<usize> = (0..count).filter(|&c| indegree[c] == 0).collect();
+    let mut ordered = 0;
+    while let Some(c) = ready.pop() {
+        ordered += 1;
+        for &next in &successors[c] {
+            indegree[next] -= 1;
+            if indegree[next] == 0 {
+                ready.push(next);
+            }
+        }
+    }
+    if ordered == count { Ok(()) } else { Err(MecUniformError::NotEssential) }
+}
+
+/// The undirected component of every vertex, numbered from zero in order of each component's
+/// smallest vertex; a vertex without undirected edges is its own component.
+fn component_of_every_vertex(cpdag: &Cpdag) -> Vec<usize> {
+    let n = cpdag.node_count();
+    let mut component = vec![usize::MAX; n];
+    let mut next = 0;
+    for start in 0..n {
+        if component[start] != usize::MAX {
+            continue;
+        }
+        component[start] = next;
+        let mut queue = VecDeque::from([DenseNodeId::from_index(start)]);
+        while let Some(v) = queue.pop_front() {
+            for w in cpdag.undirected_neighbors(v) {
+                if component[w.as_usize()] == usize::MAX {
+                    component[w.as_usize()] = next;
+                    queue.push_back(w);
+                }
+            }
+        }
+        next += 1;
+    }
+    component
 }
 
 /// The undirected components of `cpdag` with at least one edge, as global vertex ids and
@@ -453,8 +526,9 @@ impl Orientation {
 }
 
 /// Orient `order` (local indices) first: inside it by its order, every edge leaving it away
-/// from it, then close under Meek's rules.
-fn closure(local: &Local, order: &[usize]) -> Orientation {
+/// from it, then close under Meek's rules. Also returns the closure's work: the number of
+/// undirected edges Meek's rules examined over every pass.
+fn closure(local: &Local, order: &[usize]) -> (Orientation, u64) {
     let n = local.n;
     let mut orientation =
         Orientation { n, directed: vec![false; n * n], undirected: vec![false; n * n] };
@@ -479,18 +553,23 @@ fn closure(local: &Local, order: &[usize]) -> Orientation {
             orientation.directed[a * n + b] = true;
         }
     }
+    let mut work: u64 = 0;
     loop {
         let mut changed = false;
         for x in 0..n {
             for y in 0..n {
-                if orientation.undirected(x, y) && orientation.forced(local, x, y) {
+                if !orientation.undirected(x, y) {
+                    continue;
+                }
+                work = work.saturating_add(1);
+                if orientation.forced(local, x, y) {
                     orientation.orient(x, y);
                     changed = true;
                 }
             }
         }
         if !changed {
-            return orientation;
+            return (orientation, work);
         }
     }
 }
@@ -657,7 +736,10 @@ impl Counter<'_> {
             forbidden.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
             let phi =
                 orders_avoiding(clique.len(), &forbidden).ok_or(MecUniformError::CountOverflow)?;
-            let orientation = closure(&local, clique);
+            let (orientation, work) = closure(&local, clique);
+            for _ in 0..work {
+                self.budget.charge(depth, bytes).map_err(MecUniformError::Stopped)?;
+            }
             let mut weight = phi;
             for (sub_vertices, sub_edges) in orientation.undirected_components(&local) {
                 let (_, sub_count) = self.count(sub_vertices, sub_edges, depth + 1)?;
@@ -770,6 +852,43 @@ mod tests {
         let mut g = undirected(3, &[(1, 2)]);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert_eq!(mec_size(&g), Err(MecUniformError::NotEssential));
+    }
+
+    #[test]
+    fn a_directed_edge_inside_an_undirected_component_is_refused() {
+        // `a -> b` with `a - c - b`: the path component counts three orientations, one of
+        // which closes a cycle through `a -> b`, and misses `a -> c <- b`.
+        let mut inside = undirected(3, &[(0, 2), (2, 1)]);
+        inside.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert_eq!(mec_size(&inside), Err(MecUniformError::NotEssential));
+        // `a -> b -> c` with `c - a`: the directed edges between the components `{a, c}` and
+        // `{b}` form a cycle.
+        let mut cycle = undirected(3, &[(0, 2)]);
+        cycle.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        cycle.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        assert_eq!(mec_size(&cycle), Err(MecUniformError::NotEssential));
+        // A compelled edge into a clique it fully touches is an essential graph's.
+        let mut essential = undirected(3, &[(1, 2)]);
+        essential.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        essential.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        assert_eq!(mec_size(&essential), Ok(2));
+    }
+
+    #[test]
+    fn the_count_is_charged_for_its_closure_work() {
+        // A path on thirty nodes has 29 cliques, and fixing each one leaves Meek's rules to
+        // orient the rest of the path edge by edge over many passes: thousands of examined
+        // edges, far more than one operation per clique.
+        let path: Vec<(u32, u32)> = (0..29).map(|a| (a, a + 1)).collect();
+        let graph = undirected(30, &path);
+        let ctx = ExecutionContext::for_tests(0);
+        let starved = SearchLimits { operations: 100, depth: usize::MAX };
+        assert!(matches!(
+            MecUniform::new(&graph, starved, &ctx),
+            Err(MecUniformError::Stopped(SearchStop::Operations))
+        ));
+        let ample = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        assert_eq!(MecUniform::new(&graph, ample, &ctx).map(|class| class.class_size()), Ok(30));
     }
 
     #[test]

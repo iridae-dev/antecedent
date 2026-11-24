@@ -113,6 +113,9 @@ pub enum StructuralWeightBasisWire {
     /// Graph-posterior atom probability times a declared conditional mass over the members
     /// of each equivalence-class atom.
     PosteriorWithDeclaredClassPrior,
+    /// Graph-posterior atom probability times each member's share of a uniform sample of
+    /// its equivalence class: a Monte Carlo estimate of a declared measure.
+    SampledClassMeasure,
 }
 
 /// One graph/completion response atom.

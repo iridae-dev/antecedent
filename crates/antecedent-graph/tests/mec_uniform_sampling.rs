@@ -9,6 +9,10 @@
 //!   reproduces the draws exactly and another seed does not.
 //! * PAG draws: every draw is a member the completion enumerator lists, the draws over a
 //!   25-member class pass the same goodness-of-fit check, and a starved budget is refused.
+//! * Background knowledge: a random essential graph with one edge oriented by background
+//!   knowledge and closed under Meek's rules is either counted and drawn exactly as brute force
+//!   over its orientations finds its members, or refused as not an essential graph; a directed
+//!   edge inside an undirected component (`a -> b` with `a - c - b`) is refused.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -16,8 +20,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchStop, splitmix64};
 use antecedent_graph::{
-    CompletionSampler, Cpdag, CpdagCompletionSampler, DenseNodeId, MecUniform, Pag,
-    PagUniformError, dag_fingerprint, is_mec_member, mag_fingerprint, mec_size, sample_pag_members,
+    CompletionSampler, Cpdag, CpdagCompletionSampler, DenseNodeId, MecUniform, MecUniformError,
+    Pag, PagUniformError, dag_fingerprint, is_mec_member, mag_fingerprint, mec_size,
+    sample_pag_members,
 };
 
 fn id(i: u32) -> DenseNodeId {
@@ -227,4 +232,222 @@ fn a_pag_class_beyond_the_budget_is_refused() {
         sample_pag_members(&pag, &pag, 1, (1, 1), limits(), &ctx),
         Err(PagUniformError::ReferenceNotMember)
     ));
+}
+
+/// A partially directed graph over `n` nodes as two adjacency matrices: `directed[a][b]` for
+/// `a -> b` and the symmetric `undirected[a][b]` for `a - b`.
+#[derive(Clone)]
+struct Partial {
+    n: usize,
+    directed: Vec<Vec<bool>>,
+    undirected: Vec<Vec<bool>>,
+}
+
+impl Partial {
+    fn adjacent(&self, a: usize, b: usize) -> bool {
+        self.directed[a][b] || self.directed[b][a] || self.undirected[a][b]
+    }
+
+    fn orient(&mut self, from: usize, to: usize) {
+        self.undirected[from][to] = false;
+        self.undirected[to][from] = false;
+        self.directed[from][to] = true;
+    }
+
+    /// Whether Meek's rules force the undirected edge `x - y` to `x -> y`.
+    fn forced(&self, x: usize, y: usize) -> bool {
+        let n = self.n;
+        // R1: z -> x - y with z, y not adjacent.
+        if (0..n).any(|z| z != y && self.directed[z][x] && !self.adjacent(z, y)) {
+            return true;
+        }
+        // R2: x -> z -> y.
+        if (0..n).any(|z| self.directed[x][z] && self.directed[z][y]) {
+            return true;
+        }
+        // R3: x - z -> y and x - w -> y with z, w not adjacent.
+        let into: Vec<usize> =
+            (0..n).filter(|&z| self.undirected[x][z] && self.directed[z][y]).collect();
+        for (i, &z) in into.iter().enumerate() {
+            if into[i + 1..].iter().any(|&w| !self.adjacent(z, w)) {
+                return true;
+            }
+        }
+        // R4: w -> z -> y with x - w, x adjacent to z, and w, y not adjacent.
+        (0..n).any(|w| {
+            w != y
+                && self.undirected[x][w]
+                && !self.adjacent(w, y)
+                && (0..n).any(|z| self.directed[w][z] && self.directed[z][y] && self.adjacent(x, z))
+        })
+    }
+
+    fn close(&mut self) {
+        loop {
+            let mut changed = false;
+            for x in 0..self.n {
+                for y in 0..self.n {
+                    if self.undirected[x][y] && self.forced(x, y) {
+                        self.orient(x, y);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                return;
+            }
+        }
+    }
+
+    fn to_cpdag(&self) -> Cpdag {
+        let mut g = Cpdag::with_variables(u32::try_from(self.n).unwrap());
+        for a in 0..self.n {
+            for b in 0..self.n {
+                let (ia, ib) = (id(u32::try_from(a).unwrap()), id(u32::try_from(b).unwrap()));
+                if self.directed[a][b] {
+                    g.insert_directed(ia, ib).unwrap();
+                } else if a < b && self.undirected[a][b] {
+                    g.insert_undirected(ia, ib).unwrap();
+                }
+            }
+        }
+        g
+    }
+}
+
+/// The essential graph of a random DAG on `n` nodes (edges `a -> b` with `a < b`): the
+/// skeleton, its unshielded colliders, closed under Meek's rules. Also returns the DAG's edges.
+fn random_essential(n: usize, state: &mut u64) -> (Partial, Vec<(usize, usize)>) {
+    let mut edges = Vec::new();
+    for b in 0..n {
+        for a in 0..b {
+            if splitmix64(state) % 100 < 45 {
+                edges.push((a, b));
+            }
+        }
+    }
+    let mut graph =
+        Partial { n, directed: vec![vec![false; n]; n], undirected: vec![vec![false; n]; n] };
+    for &(a, b) in &edges {
+        graph.undirected[a][b] = true;
+        graph.undirected[b][a] = true;
+    }
+    let parent = |a: usize, b: usize| edges.contains(&(a, b));
+    let skeleton = graph.clone();
+    for c in 0..n {
+        for a in 0..n {
+            for b in (a + 1)..n {
+                if parent(a, c) && parent(b, c) && !skeleton.adjacent(a, b) {
+                    graph.orient(a, c);
+                    graph.orient(b, c);
+                }
+            }
+        }
+    }
+    graph.close();
+    (graph, edges)
+}
+
+/// Every member of the class `g` represents, by brute force over the orientations of its
+/// undirected edges: the acyclic orientations that are Markov-equivalence members of `g`.
+/// `None` above twelve undirected edges.
+fn brute_members(g: &Cpdag, partial: &Partial) -> Option<BTreeSet<u64>> {
+    let mut undirected = Vec::new();
+    for a in 0..partial.n {
+        for b in (a + 1)..partial.n {
+            if partial.undirected[a][b] {
+                undirected.push((a, b));
+            }
+        }
+    }
+    if undirected.len() > 12 {
+        return None;
+    }
+    let mut members = BTreeSet::new();
+    for choice in 0_u64..(1_u64 << undirected.len()) {
+        let mut oriented = g.clone();
+        let mut valid = true;
+        for (bit, &(a, b)) in undirected.iter().enumerate() {
+            let (from, to) = if (choice >> bit) & 1 == 0 { (a, b) } else { (b, a) };
+            let (from, to) = (id(u32::try_from(from).unwrap()), id(u32::try_from(to).unwrap()));
+            if oriented.orient_undirected(from, to).is_err() {
+                valid = false;
+                break;
+            }
+        }
+        if !valid {
+            continue;
+        }
+        let Ok(dag) = oriented.try_into_dag() else {
+            continue;
+        };
+        if is_mec_member(g, &dag) {
+            members.insert(dag_fingerprint(&dag));
+        }
+    }
+    Some(members)
+}
+
+#[test]
+fn background_orientation_is_counted_and_drawn_as_brute_force_or_refused() {
+    let mut state = 0xbac6_u64;
+    let ctx = ExecutionContext::for_tests(0);
+    let (mut counted, mut refused) = (0, 0);
+    for trial in 0..400_u64 {
+        let n = 3 + usize::try_from(trial % 5).unwrap();
+        let (mut partial, edges) = random_essential(n, &mut state);
+        // Background knowledge orients one undirected edge as the DAG does, then Meek's rules
+        // close the graph again.
+        let open: Vec<(usize, usize)> =
+            edges.iter().copied().filter(|&(a, b)| partial.undirected[a][b]).collect();
+        if open.is_empty() {
+            continue;
+        }
+        let pick = usize::try_from(splitmix64(&mut state)).unwrap() % open.len();
+        let (a, b) = open[pick];
+        partial.orient(a, b);
+        partial.close();
+        let g = partial.to_cpdag();
+        let Some(members) = brute_members(&g, &partial) else {
+            continue;
+        };
+        match MecUniform::new(&g, limits(), &ctx) {
+            Ok(class) => {
+                assert_eq!(class.class_size(), u128::try_from(members.len()).unwrap(), "{edges:?}");
+                let draws = 40 * members.len();
+                let drawn: BTreeSet<u64> = class
+                    .sample_members(draws, trial, 7)
+                    .expect("every draw is a member")
+                    .iter()
+                    .map(dag_fingerprint)
+                    .collect();
+                assert_eq!(drawn, members, "the draws reach every member and nothing else");
+                counted += 1;
+            }
+            Err(error) => {
+                assert_eq!(error, MecUniformError::NotEssential, "{edges:?}");
+                refused += 1;
+            }
+        }
+    }
+    assert!(counted >= 30, "only {counted} graphs were counted");
+    assert!(refused >= 5, "only {refused} graphs were refused");
+}
+
+#[test]
+fn a_directed_edge_inside_an_undirected_component_is_refused() {
+    // `a -> b` with `a - c - b`: brute force finds three members, the path component alone
+    // would count three of which one is cyclic and miss `a -> c <- b`.
+    let mut g = undirected(3, &[(0, 2), (2, 1)]);
+    g.insert_directed(id(0), id(1)).unwrap();
+    let ctx = ExecutionContext::for_tests(0);
+    assert!(matches!(MecUniform::new(&g, limits(), &ctx), Err(MecUniformError::NotEssential)));
+    let mut partial =
+        Partial { n: 3, directed: vec![vec![false; 3]; 3], undirected: vec![vec![false; 3]; 3] };
+    partial.directed[0][1] = true;
+    for (a, b) in [(0, 2), (2, 1)] {
+        partial.undirected[a][b] = true;
+        partial.undirected[b][a] = true;
+    }
+    assert_eq!(brute_members(&g, &partial).map(|members| members.len()), Some(3));
 }

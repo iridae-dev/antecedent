@@ -14,13 +14,15 @@ use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 use crate::temporal::{SamplingRegularity, TimeIndex};
 
-/// The table a derived table's rows were taken from: that table's content digest and, when
+/// The table a derived table's rows were taken from: the digest of that table's rows and, when
 /// rows were selected, the index in it of each derived row.
 ///
 /// A column projection keeps every row in order, so the rows of two projections of one table
 /// are the same observations. A row selection names the rows it kept. Deriving again from a
 /// derived table composes the indices, so the origin is always the first table that was not
-/// itself derived.
+/// itself derived. The digest covers the rows' columns and validity, not an analysis mask or
+/// weights ([`OwnedColumnarStorage::rows_digest`]): the same rows under another mask or
+/// weighting are the same observations.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RowOrigin {
     table: [u8; 32],
@@ -34,7 +36,7 @@ impl RowOrigin {
         Self { table, rows: None }
     }
 
-    /// Content digest ([`OwnedColumnarStorage::content_digest`]) of the source table.
+    /// Rows digest ([`OwnedColumnarStorage::rows_digest`]) of the source table.
     #[must_use]
     pub const fn table(&self) -> [u8; 32] {
         self.table
@@ -97,7 +99,7 @@ impl TabularData {
     pub(crate) fn origin_of_rows(&self) -> Arc<RowOrigin> {
         self.row_origin
             .clone()
-            .unwrap_or_else(|| Arc::new(RowOrigin::whole(self.storage.content_digest())))
+            .unwrap_or_else(|| Arc::new(RowOrigin::whole(self.storage.rows_digest())))
     }
 
     /// `derived`, whose rows are this table's rows in order, remembering their origin.
