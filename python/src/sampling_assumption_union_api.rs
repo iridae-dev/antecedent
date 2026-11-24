@@ -263,9 +263,15 @@ fn invalid_json(message: &str, replay: bool) -> String {
     .to_string()
 }
 
-/// The refusal JSON of a union error; an unreadable artifact raises its serialization error.
+/// The refusal JSON of a union error; an unreadable artifact raises its serialization error and
+/// a cancelled run raises the cancellation, which is no refusal of the declaration.
 fn refusal_json(error: SamplingAssumptionUnionError, replay: bool) -> PyResult<String> {
     match error {
+        SamplingAssumptionUnionError::Chain(refusal)
+            if refusal.code() == antecedent::reason::reason_code!("cancelled_no_claim") =>
+        {
+            Err(cancelled())
+        }
         SamplingAssumptionUnionError::Chain(refusal) => Ok(chain_refusal_json(&refusal, STAGE)),
         SamplingAssumptionUnionError::Invalid(message) => Ok(invalid_json(message, replay)),
         SamplingAssumptionUnionError::Io(error) => Err(crate::py_err(error)),
