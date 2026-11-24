@@ -324,8 +324,12 @@ fn measure_identity(measure: &PreferenceMeasure) -> String {
             writer.text("choice_estimate").text(estimate_identity);
         }
     }
-    writer.word(measure.unresolved.len() as u64);
-    for &index in &measure.unresolved {
+    // The unresolved parameters are a set of indices (validation refuses a repeat): written
+    // sorted, so the order a caller listed them in does not reach the identity.
+    let mut unresolved = measure.unresolved.clone();
+    unresolved.sort_unstable();
+    writer.word(unresolved.len() as u64);
+    for index in unresolved {
         writer.word(index as u64);
     }
     writer.finish_hex()
@@ -1494,5 +1498,91 @@ mod tests {
                 antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH
             );
         }
+    }
+
+    fn measure() -> PreferenceMeasure {
+        PreferenceMeasure {
+            points: vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]],
+            weights: Some(vec![0.25, 0.75]),
+            labels: Some(vec!["cautious".to_owned(), "bold".to_owned()]),
+            origin: MeasureOrigin::Declared { assumption_id: "panel".to_owned() },
+            unresolved: vec![0, 2],
+        }
+    }
+
+    /// `measure_identity`: the unresolved indices are a set (written sorted); points, weights
+    /// and labels are ordered and aligned; an absent part and its presence word are framed.
+    #[test]
+    fn site_measure_identity_sets_and_alignment() {
+        let base = measure_identity(&measure());
+        let mut reordered = measure();
+        reordered.unresolved.reverse();
+        assert_eq!(measure_identity(&reordered), base, "the unresolved indices are a set");
+        let mut fewer = measure();
+        fewer.unresolved.pop();
+        assert_ne!(measure_identity(&fewer), base);
+
+        let edits: [fn(&mut PreferenceMeasure); 7] = [
+            |m| m.points.swap(0, 1),
+            |m| m.weights = None,
+            |m| m.weights.as_mut().unwrap().swap(0, 1),
+            |m| m.labels.as_mut().unwrap().swap(0, 1),
+            |m| m.labels = None,
+            |m| m.origin = MeasureOrigin::ChoiceEstimate { estimate_identity: "panel".to_owned() },
+            |m| m.points[0][0] += 1.0,
+        ];
+        let mut seen = std::collections::BTreeSet::from([base]);
+        for edit in edits {
+            let mut changed = measure();
+            edit(&mut changed);
+            assert!(seen.insert(measure_identity(&changed)), "{changed:?}");
+        }
+        // Reals enter by their bits.
+        let mut zero = measure();
+        zero.points[0][0] = 0.0;
+        let mut negative_zero = measure();
+        negative_zero.points[0][0] = -0.0;
+        assert_ne!(measure_identity(&zero), measure_identity(&negative_zero));
+    }
+
+    /// `options_identity`: every option of both routes enters, each in its own position.
+    #[test]
+    fn site_options_identity_reads_every_option() {
+        let base = PreferenceEvaluationOptions::default();
+        let identity = options_identity(&base);
+        let edits: [fn(&mut PreferenceEvaluationOptions); 8] = [
+            |o| o.exact.tie_tolerance *= 2.0,
+            |o| o.exact.vertex_cap += 1,
+            |o| o.exact.lp.feasibility_tolerance *= 2.0,
+            |o| o.exact.lp.optimality_tolerance *= 2.0,
+            |o| o.exact.lp.max_pivots += 1,
+            |o| o.certified.max_boxes += 1,
+            |o| o.certified.min_width_fraction *= 2.0,
+            |o| o.certified.tie_tolerance *= 2.0,
+        ];
+        let mut seen = std::collections::BTreeSet::from([identity]);
+        for edit in edits {
+            let mut changed = base;
+            edit(&mut changed);
+            assert!(seen.insert(options_identity(&changed)), "{changed:?}");
+        }
+    }
+
+    /// `bind::bound_identity`: the studies' causal bindings are ordered (study order indexes
+    /// the decision's sources) and each pair is framed.
+    #[test]
+    fn site_bound_identity_orders_and_frames_the_studies() {
+        let pair =
+            |target: &str, identification: &str| (target.to_owned(), identification.to_owned());
+        let causal = vec![pair("t1", "i1"), pair("t2", "i2")];
+        let base = bind::bound_identity("contract", &causal);
+        let mut swapped = causal.clone();
+        swapped.swap(0, 1);
+        assert_ne!(bind::bound_identity("contract", &swapped), base, "study order is meaning");
+        // Moving text across a field boundary is another binding.
+        let shifted = vec![pair("t1i", "1"), pair("t2", "i2")];
+        assert_ne!(bind::bound_identity("contract", &shifted), base);
+        assert_ne!(bind::bound_identity("contract", &causal[..1]), base);
+        assert_ne!(bind::bound_identity("contrac", &[pair("tt1", "i1"), pair("t2", "i2")]), base);
     }
 }

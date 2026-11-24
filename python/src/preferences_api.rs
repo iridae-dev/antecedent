@@ -1212,25 +1212,31 @@ fn export_preference_decision<'py>(
 /// Replay a stored decision under the consumer's contract and draws: load it under the
 /// contract's identity and the draws' digest, recompute, and require the stored result.
 /// Returns the result JSON (with `measure` and `options` as stored) or a refusal. The
-/// recomputation reads `cancel` at its work boundaries.
+/// recomputation reads `cancel` at its work boundaries. With `retained_identity`, the bytes
+/// bind to it before they are read (`PreferenceDecisionArtifact::from_bytes_expecting`);
+/// without one, the Python wrapper has already admitted them.
 #[pyfunction]
-#[pyo3(signature = (data, contract_json, source, cancel=None))]
+#[pyo3(signature = (data, contract_json, source, cancel=None, retained_identity=None))]
 fn replay_preference_decision(
     data: &[u8],
     contract_json: &str,
     source: &PyJointDistributionArtifact,
     cancel: Option<crate::PyCancellationToken>,
+    retained_identity: Option<&str>,
 ) -> PyResult<Reply> {
     crate::catch_ffi(|| {
+        let retained = crate::retained_artifact_api::retained(retained_identity)?;
         let contract = contract_from(contract_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
         let run = || -> Result<Value, String> {
             let identity = contract.identity().map_err(|e| refusal(&e.to_refusal()))?;
-            let artifact = PreferenceDecisionArtifact::from_bytes(
-                data,
-                &identity,
-                &source_digest(source.inner()),
-            )
+            let digest = source_digest(source.inner());
+            let artifact = match &retained {
+                Some(retained) => PreferenceDecisionArtifact::from_bytes_expecting(
+                    data, &identity, &digest, retained,
+                ),
+                None => PreferenceDecisionArtifact::from_bytes(data, &identity, &digest),
+            }
             .map_err(|e| refusal(&e.to_refusal()))?;
             artifact
                 .replay_with_context(source.inner(), &ctx)

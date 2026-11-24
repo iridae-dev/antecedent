@@ -693,6 +693,21 @@ impl AcceptedPreferencesArtifact {
         Ok(Self { accepted })
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`], and [`PreferenceArtifactError::Retained`]
+    /// (`external_binding_mismatch`) when the bytes are not the retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: &str,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, PreferenceArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained).map_err(E::Retained)?;
+        Self::from_bytes(bytes, expected_identity)
+    }
+
     /// Relearn from `records` with the stored options and decider selection and require the
     /// stored basis to be reproduced: the records digest, the number of stated comparisons in
     /// the selected scope and every label, count and identity exactly, and every real within
@@ -936,5 +951,27 @@ mod tests {
         );
         let io: IoError = error.into();
         assert!(matches!(io, IoError::Refused { .. }));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::AcceptedPreferencesArtifact;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn accepted_preferences_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &AcceptedPreferencesArtifact::from_bytes(&bytes, "accepted"),
+            &AcceptedPreferencesArtifact::from_bytes_expecting(&bytes, "accepted", &retained),
+        );
+        refused_as_not_retained(&AcceptedPreferencesArtifact::from_bytes_expecting(
+            &bytes,
+            "accepted",
+            &other_artifact(),
+        ));
     }
 }

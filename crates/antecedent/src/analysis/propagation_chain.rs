@@ -1559,8 +1559,11 @@ pub fn deferred_family_table(
             .iter()
             .map(|members| members.iter().map(|&member| slots[member].clone()).collect())
             .collect(),
-        declared_cross: cross
-            .iter()
+        // The declared blocks are a set keyed by their pair of groups (a repeated pair is
+        // refused above): written in pair order, so the order the caller listed them in does
+        // not reach the draft or its identity.
+        declared_cross: declared
+            .values()
             .map(|block| ChainDeclaredBlockWire {
                 first: block.first as u64,
                 second: block.second as u64,

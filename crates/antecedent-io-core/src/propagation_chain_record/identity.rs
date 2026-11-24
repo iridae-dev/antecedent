@@ -50,7 +50,9 @@ const fn factor_kind_tag(kind: SharedFactorKind) -> Option<u64> {
 }
 
 /// The deferred family table's declaration: its construction, rows, seed, slots, the
-/// within-study blocks and the declared cross-study blocks.
+/// within-study blocks and the declared cross-study blocks. Slots and groups are ordered (the
+/// blocks index the groups, the groups name the slots); the declared blocks are a set keyed by
+/// their pair of groups (the plan refuses a repeated pair), written in pair order.
 fn write_deferred(writer: &mut CanonicalWriter, deferred: &ChainDeferredTableWire) {
     writer
         .text(&deferred.construction)
@@ -61,8 +63,10 @@ fn write_deferred(writer: &mut CanonicalWriter, deferred: &ChainDeferredTableWir
     for group in &deferred.within_blocks {
         writer.texts(group);
     }
-    writer.word(word_of(deferred.declared_cross.len()));
-    for block in &deferred.declared_cross {
+    let mut blocks: Vec<_> = deferred.declared_cross.iter().collect();
+    blocks.sort_by_key(|block| (block.first, block.second));
+    writer.word(word_of(blocks.len()));
+    for block in blocks {
         writer.word(block.first).word(block.second).word(word_of(block.terms.len()));
         for term in &block.terms {
             writer.word(*term);

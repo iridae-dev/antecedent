@@ -266,6 +266,14 @@ fn learning_reviewing_and_relearning_each_give_a_new_version_and_identity() {
     assert_eq!(all_reviewed.version(), 4);
     assert!(all_reviewed.pending().is_empty());
     assert_eq!(all_reviewed.acknowledged(), all.as_slice());
+    // The acknowledged items are a set in the identity: acknowledging them at once in either
+    // order gives one handle and one identity.
+    let forward = learned.acknowledge(&all).unwrap();
+    let mut reversed_items = all.clone();
+    reversed_items.reverse();
+    let backward = learned.acknowledge(&reversed_items).unwrap();
+    assert_eq!(forward.identity(), backward.identity());
+    assert_eq!(forward.acknowledged(), backward.acknowledged());
 
     // An item that is no longer pending, or never was, is refused.
     let error = reviewed.acknowledge(&[not_varied("t1")]).unwrap_err();

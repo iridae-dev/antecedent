@@ -245,6 +245,12 @@ pub(super) fn declare(
         OutcomeDependence::SharedEvidence { draws, seed } => ("shared_evidence", draws, seed),
         OutcomeDependence::Undeclared => return Ok(None),
     };
+    // The declared cross-study blocks are a set keyed by their pair of studies (the deferred
+    // table refuses a repeated pair): taken in pair order, so the order the caller listed them
+    // in reaches neither the declaration's digest, the plan's facts nor the chain.
+    let mut cross = cross.to_vec();
+    cross.sort_by_key(|block| (block.first, block.second));
+    let cross = cross.as_slice();
     let none = StudyOverlaps::default();
     let factors = row_factors(studies, overlaps.unwrap_or(&none));
     let (decl, inputs) = declaration(studies, &factors, alignment);

@@ -172,15 +172,22 @@ def replay_tradeoff(
     contract: Any,
     source: JointDistributionArtifact,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TradeoffDecision:
     """Recompute a stored decision across trade-offs from the consumer's contract and draws.
 
     The stored measure and options are reused; agreement is checked natively within the
-    tolerance the linear-program and interval numerics need.
+    tolerance the linear-program and interval numerics need. ``retained_identity`` is the hex
+    retained identity the native binds the bytes to before it reads them (``None`` when the
+    caller already admitted them).
     """
     execution = resolve_execution(execution)
     body, refusal = _replay_decision(
-        data, json.dumps(contract._tradeoff_wire()), source._native, execution.cancel
+        data,
+        json.dumps(contract._tradeoff_wire()),
+        source._native,
+        execution.cancel,
+        retained_identity=retained_identity,
     )
     _raise(refusal)
     assert body is not None

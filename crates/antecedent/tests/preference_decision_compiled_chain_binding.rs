@@ -558,3 +558,33 @@ fn a_deferred_table_refuses_what_its_declaration_cannot_carry() {
         FAMILY_TABLE_WORK_LIMIT
     );
 }
+
+/// The declared cross-group blocks are a set keyed by their pair of groups (a repeated pair is
+/// refused): the order a caller lists them in reaches neither the deferred table nor the
+/// identity of the draft that carries it.
+#[test]
+fn declared_blocks_are_a_set_whatever_order_they_are_listed_in() {
+    let decl = |id: &str, factors: &[&str]| {
+        factors
+            .iter()
+            .fold(FamilyEstimateDecl::new(id, LawMeaning::Posterior), |estimate, factor| {
+                estimate.with_factor(SharedFactorKind::Row, factor)
+            })
+    };
+    let estimates = vec![decl("x", &["ab"]), decl("y", &["ab", "bc"]), decl("z", &["bc"])];
+    let groups = vec![vec![0], vec![1], vec![2]];
+    let first = DeferredCrossBlock { first: 0, second: 1, covariance: vec![0.01] };
+    let second = DeferredCrossBlock { first: 1, second: 2, covariance: vec![0.02] };
+    let table = |blocks: &[DeferredCrossBlock]| {
+        deferred_family_table("t", &estimates, &groups, blocks, 400, 7).expect("a valid table")
+    };
+    let listed = table(&[first.clone(), second.clone()]);
+    let reversed = table(&[second.clone(), first.clone()]);
+    assert_eq!(reversed, listed);
+    let pairs: Vec<(u64, u64)> =
+        listed.table.declared_cross.iter().map(|block| (block.first, block.second)).collect();
+    assert_eq!(pairs, vec![(0, 1), (1, 2)]);
+    // A changed term is another table.
+    let changed = DeferredCrossBlock { covariance: vec![0.03], ..second };
+    assert_ne!(table(&[first, changed]), listed);
+}

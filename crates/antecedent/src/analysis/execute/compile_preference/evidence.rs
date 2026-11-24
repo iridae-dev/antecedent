@@ -1026,3 +1026,41 @@ pub(super) fn row_factors(studies: &[BoundStudy], overlaps: &StudyOverlaps) -> V
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn labels(items: &[&str]) -> BTreeSet<String> {
+        items.iter().map(|item| (*item).to_owned()).collect()
+    }
+
+    /// `unit_factor`: the labels are a set (every caller hands them over from a `BTreeSet`, so
+    /// sorted and each once); the namespace and each label are framed.
+    #[test]
+    fn site_unit_factor_labels_are_a_framed_set() {
+        let factor = |namespace: &str, set: &BTreeSet<String>| {
+            unit_factor("units", namespace, set.iter().cloned())
+        };
+        let base = factor("patients", &labels(&["text:a", "text:b"]));
+        assert_eq!(factor("patients", &labels(&["text:b", "text:a", "text:b"])), base);
+        assert_ne!(factor("patients", &labels(&["text:a"])), base);
+        assert_ne!(factor("patient", &labels(&["stext:a", "text:b"])), base);
+        assert_ne!(factor("patients", &labels(&["text:atext:b"])), base);
+        assert_ne!(
+            unit_factor("shared_units", "patients", labels(&["text:a", "text:b"]).into_iter()),
+            base
+        );
+    }
+
+    /// `row_factor`: the rows are a set (a `BTreeSet`), counted; the source table is framed.
+    #[test]
+    fn site_row_factor_rows_are_a_counted_set() {
+        let rows = |items: &[u64]| items.iter().copied().collect::<BTreeSet<u64>>();
+        let base = row_factor("rows", "table", &rows(&[3, 1, 2]));
+        assert_eq!(row_factor("rows", "table", &rows(&[1, 2, 3, 2])), base);
+        assert_ne!(row_factor("rows", "table", &rows(&[1, 2])), base);
+        assert_ne!(row_factor("rows", "tabl", &rows(&[1, 2, 3])), base);
+        assert_ne!(row_factor("shared_rows", "table", &rows(&[1, 2, 3])), base);
+    }
+}

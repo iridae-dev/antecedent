@@ -16,7 +16,8 @@ import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent import decision_learning as dl
-from antecedent.errors import CausalValueError
+from antecedent.artifacts import artifact_identity
+from antecedent.errors import CausalError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -156,6 +157,19 @@ def test_records_narrow_the_set_then_the_accepted_preferences_decide():
     loaded = dl.load(exported, expected_identity=reviewed.identity, records=records)
     assert loaded.identity == reviewed.identity
     assert loaded.version == 2
+
+    # Bound to the bytes the consumer retained: the same preferences, and other bytes are
+    # refused before they are read.
+    retained = artifact_identity(exported)
+    bound = dl.load(
+        exported, expected_identity=reviewed.identity, records=records, retained_identity=retained
+    )
+    assert bound.identity == loaded.identity
+    assert bound.version == loaded.version
+    changed = bytearray(exported.data)
+    changed[len(changed) // 2] ^= 0x01
+    with pytest.raises(CausalError, match="external_binding_mismatch"):
+        dl.load(bytes(changed), expected_identity=reviewed.identity, retained_identity=retained)
 
 
 def test_an_unavailable_option_teaches_nothing():

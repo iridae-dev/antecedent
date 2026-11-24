@@ -25,6 +25,10 @@ pub enum PreferenceArtifactError {
     /// The container or body is corrupt, of another kind or an unsupported version.
     #[error("container: {0}")]
     Container(IoError),
+    /// The bytes are not the artifact the consumer retained
+    /// ([`antecedent_io_core::bind_retained_artifact`]); nothing was read.
+    #[error("{0}")]
+    Retained(IoError),
     /// A decoded field names nothing this reader knows.
     #[error("malformed field: {what}")]
     Malformed {
@@ -81,6 +85,7 @@ impl PreferenceArtifactError {
         match self {
             Self::Encode(_) => reason_details::preference_artifact::ENCODE_FAILED,
             Self::Container(_) => reason_details::preference_artifact::CONTAINER_REFUSED,
+            Self::Retained(_) => reason_details::preference_artifact::RETAINED_ARTIFACT_MISMATCH,
             Self::Malformed { .. } => reason_details::preference_artifact::WIRE_MALFORMED,
             Self::Accepted(inner) => inner.detail(),
             Self::Contract(inner) => inner.detail(),
@@ -101,13 +106,13 @@ impl PreferenceArtifactError {
 }
 
 impl From<PreferenceArtifactError> for IoError {
-    /// A container error stays itself; every other refusal keeps the registered code and
+    /// A container or retained-binding error stays itself; every other refusal keeps the registered code and
     /// detail of its structured refusal, with the detail id leading the message.
     fn from(error: PreferenceArtifactError) -> Self {
         match error {
-            PreferenceArtifactError::Encode(inner) | PreferenceArtifactError::Container(inner) => {
-                inner
-            }
+            PreferenceArtifactError::Encode(inner)
+            | PreferenceArtifactError::Container(inner)
+            | PreferenceArtifactError::Retained(inner) => inner,
             other => {
                 let refusal = other.to_refusal();
                 Self::Refused {
@@ -147,6 +152,14 @@ impl PreferenceArtifactError {
             Self::Container(error) => invalid(CONSUME, "supply bytes written by this library")
                 .supplied(error.to_string())
                 .build(),
+            Self::Retained(error) => refusal(
+                antecedent_core::reason_code!("external_binding_mismatch"),
+                CONSUME,
+                self.detail(),
+            )
+            .remedy("supply the bytes whose identity was retained")
+            .supplied(error.to_string())
+            .build(),
             Self::Malformed { what } => invalid(CONSUME, "supply bytes written by this library")
                 .offending(what.clone())
                 .build(),

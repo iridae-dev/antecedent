@@ -1301,6 +1301,22 @@ impl PreferenceDecisionArtifact {
         })
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    /// As [`Self::from_bytes`], and [`PreferenceArtifactError::Retained`]
+    /// (`external_binding_mismatch`) when the bytes are not the retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_contract_identity: &str,
+        expected_source_digest: &str,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, PreferenceArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained).map_err(E::Retained)?;
+        Self::from_bytes(bytes, expected_contract_identity, expected_source_digest)
+    }
+
     /// Re-evaluate on `source` with the stored contract, measure and options and require the
     /// stored evaluation to be reproduced: the same route, verdicts, labels, region statuses,
     /// identities and counts exactly, and every real within [`REPLAY_RELATIVE_TOLERANCE`].
@@ -1584,5 +1600,30 @@ mod tests {
         let back: CertifiedWire = antecedent_io_core::convert::from_cbor(&stored).unwrap();
         let result = certified_from(back, 1e-9).unwrap();
         assert_eq!(result.effective_tie_tolerance.to_bits(), 6.4e-8_f64.to_bits());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::PreferenceDecisionArtifact;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn preference_decision_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &PreferenceDecisionArtifact::from_bytes(&bytes, "contract", "source"),
+            &PreferenceDecisionArtifact::from_bytes_expecting(
+                &bytes, "contract", "source", &retained,
+            ),
+        );
+        refused_as_not_retained(&PreferenceDecisionArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            "source",
+            &other_artifact(),
+        ));
     }
 }
