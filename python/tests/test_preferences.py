@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import decision
-from antecedent import preferences as pf
+from antecedent._decision_value import StructuralPolicy as StructuralPolicyClass
 from antecedent.errors import CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
@@ -52,8 +52,8 @@ WAIT_HARM = _quantity("harm", "events", "do(a=0)")
 COLUMNS = (TREAT_BENEFIT, TREAT_HARM, WAIT_BENEFIT, WAIT_HARM)
 ROWS = [[1.0, 0.0, 1.0, 0.0], [3.0, 1.0, 1.0, 0.0]]
 
-BENEFIT = pf.attribute("benefit", units="qaly")
-HARM = pf.attribute("harm", units="events")
+BENEFIT = decision.attribute("benefit", units="qaly")
+HARM = decision.attribute("harm", units="events")
 
 
 def _source(rows: list[list[float]] = ROWS) -> JointDistributionArtifact:
@@ -72,35 +72,35 @@ def _source(rows: list[list[float]] = ROWS) -> JointDistributionArtifact:
     )
 
 
-def _weight(lower: float = 0.5, upper: float = 4.0) -> pf.Parameter:
-    return pf.strength(
+def _weight(lower: float = 0.5, upper: float = 4.0) -> decision.Tradeoff:
+    return decision.tradeoff(
         "harm_weight", units="qaly/event", lower=lower, upper=upper, assumption="panel_judgment"
     )
 
 
-def _actions() -> tuple[pf.Action, ...]:
+def _actions() -> tuple[decision.Action, ...]:
     return (
-        pf.Action("treat", inputs={"benefit": TREAT_BENEFIT, "harm": TREAT_HARM}),
-        pf.Action("wait", inputs={"benefit": WAIT_BENEFIT, "harm": WAIT_HARM}),
+        decision.Action("treat", inputs={"benefit": TREAT_BENEFIT, "harm": TREAT_HARM}),
+        decision.Action("wait", inputs={"benefit": WAIT_BENEFIT, "harm": WAIT_HARM}),
     )
 
 
-def _contract(model: pf.ValueModel, **kwargs: object) -> pf.Contract:
-    return pf.Contract(
-        model=model,
+def _contract(model: decision.Value, **kwargs: object) -> decision.Contract:
+    return decision.Contract(
+        value=model,
         actions=_actions(),
         target_population="target",
         **kwargs,  # type: ignore[arg-type]
     )
 
 
-def _decide(contract: pf.Contract, **kwargs: object) -> pf.PreferenceDecision:
+def _decide(contract: decision.Contract, **kwargs: object) -> decision.TradeoffDecision:
     return require_success(contract.evaluate(_source(), **kwargs))
 
 
 def test_fixed_trade_off_reproduces_the_ordinary_decision():
-    w = pf.fixed("harm_weight", units="qaly/event", value=1.0)
-    result = _decide(_contract(pf.ValueModel(BENEFIT - w * HARM, utility_units="qaly")))
+    w = decision.tradeoff("harm_weight", units="qaly/event", value=1.0)
+    result = _decide(_contract(decision.Value(BENEFIT - w * HARM, units="qaly")))
 
     ordinary = require_success(
         decision.Contract(
@@ -178,14 +178,14 @@ def test_a_fixed_trade_off_decides_as_the_hand_written_contract(criterion, const
     def preference_constraint(spec):
         cid, k, bound, units, p, applies = spec
         expr = -BENEFIT if k == 0 else HARM
-        return pf.constraint(
-            cid, expr, at_most=bound, units=units, min_probability=p, applies_to=applies
+        return decision.Constraint(
+            cid, expr, bound=bound, units=units, min_probability=p, applies_to=applies
         )
 
-    w = pf.fixed("harm_weight", units="qaly/event", value=1.0)
+    w = decision.tradeoff("harm_weight", units="qaly/event", value=1.0)
     result = _decide(
         _contract(
-            pf.ValueModel(BENEFIT - w * HARM, utility_units="qaly"),
+            decision.Value(BENEFIT - w * HARM, units="qaly"),
             criterion=criterion,
             constraints=tuple(preference_constraint(c) for c in constraints),
         )
@@ -224,7 +224,7 @@ def test_a_fixed_trade_off_decides_as_the_hand_written_contract(criterion, const
 
 
 def test_a_range_that_crosses_the_switch_reports_where_the_choice_changes():
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
     result = _decide(_contract(model))
     assert result.kind == "preference_dependent"
     assert result.selected is None
@@ -240,9 +240,7 @@ def test_a_range_that_crosses_the_switch_reports_where_the_choice_changes():
     assert "panel_judgment" in result.assumptions
 
     # The same model over a range below the switch decides.
-    narrow = _decide(
-        _contract(pf.ValueModel(BENEFIT - _weight(0.5, 1.5) * HARM, utility_units="qaly"))
-    )
+    narrow = _decide(_contract(decision.Value(BENEFIT - _weight(0.5, 1.5) * HARM, units="qaly")))
     assert narrow.kind == "necessarily_best"
     assert narrow.selected == "treat"
     treat = {a.id: a for a in narrow.actions}["treat"]
@@ -250,46 +248,54 @@ def test_a_range_that_crosses_the_switch_reports_where_the_choice_changes():
 
 
 def test_a_relation_between_trade_offs_cuts_the_set():
-    cost = pf.attribute("cost", units="usd")
-    w_harm = pf.strength(
+    cost = decision.attribute("cost", units="usd")
+    w_harm = decision.tradeoff(
         "harm_weight", units="qaly/event", lower=0.0, upper=1.0, assumption="panel"
     )
-    w_cost = pf.strength("cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer")
+    w_cost = decision.tradeoff(
+        "cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer"
+    )
     value = BENEFIT - w_harm * HARM - w_cost * cost
     actions = (
-        pf.Action("treat", inputs={"benefit": TREAT_BENEFIT, "harm": TREAT_HARM, "cost": 1.0}),
-        pf.Action("wait", inputs={"benefit": WAIT_BENEFIT, "harm": WAIT_HARM, "cost": 0.0}),
+        decision.Action(
+            "treat", inputs={"benefit": TREAT_BENEFIT, "harm": TREAT_HARM, "cost": 1.0}
+        ),
+        decision.Action("wait", inputs={"benefit": WAIT_BENEFIT, "harm": WAIT_HARM, "cost": 0.0}),
     )
 
-    def decide(model: pf.ValueModel) -> pf.PreferenceDecision:
-        contract = pf.Contract(model=model, actions=actions, target_population="target")
+    def decide(model: decision.Value) -> decision.TradeoffDecision:
+        contract = decision.Contract(value=model, actions=actions, target_population="target")
         return require_success(contract.evaluate(_source()))
 
     # Without a relation the margin 1 - 0.5 w_harm - w_cost reaches -0.5.
-    assert decide(pf.ValueModel(value, utility_units="qaly")).kind == "preference_dependent"
+    assert decide(decision.Value(value, units="qaly")).kind == "preference_dependent"
 
-    rule = pf.relation("harm_outweighs_cost", 4 * w_cost <= w_harm)
+    rule = decision.relation("harm_outweighs_cost", 4 * w_cost <= w_harm)
     assert rule.id == "harm_outweighs_cost"
     with pytest.raises(TypeError, match="not a truth value"):
         bool(w_harm >= w_cost)
-    result = decide(pf.ValueModel(value, utility_units="qaly", relations=(rule,)))
+    result = decide(decision.Value(value, units="qaly", relations=(rule,)))
     # w_cost <= w_harm / 4 <= 0.25, so the margin stays at least 0.25.
     assert result.kind == "necessarily_best"
     assert result.selected == "treat"
     assert result.parameter_ranges["cost_weight"] == pytest.approx((0.0, 0.25))
 
     with pytest.raises(CausalValueError, match="not the attribute 'harm'"):
-        pf.relation("reads_an_attribute", w_harm >= HARM)
+        decision.relation("reads_an_attribute", w_harm >= HARM)
 
 
 def test_a_curve_with_shape_rules_finds_the_switch_on_its_slope():
-    low = pf.strength("slope_low", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
-    high = pf.strength("slope_high", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape")
-    curve = pf.Curve(BENEFIT, breakpoints=(0.0, 1.0, 3.0), slopes=(low, high))
+    low = decision.tradeoff(
+        "slope_low", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape"
+    )
+    high = decision.tradeoff(
+        "slope_high", units="qaly/qaly", lower=0.0, upper=2.0, assumption="shape"
+    )
+    curve = decision.Curve(BENEFIT, breakpoints=(0.0, 1.0, 3.0), slopes=(low, high))
     rules = (*curve.increasing(), *curve.diminishing())
     assert [r.id for r in curve.diminishing()] == ["benefit.curve.diminishing.0"]
-    harm_weight = pf.fixed("harm_weight", units="qaly/event", value=1.0)
-    model = pf.ValueModel(curve - harm_weight * HARM, utility_units="qaly", relations=rules)
+    harm_weight = decision.tradeoff("harm_weight", units="qaly/event", value=1.0)
+    model = decision.Value(curve - harm_weight * HARM, units="qaly", relations=rules)
     assert model.shape_parameters == ()
     result = _decide(_contract(model))
     # treat: segments [1, 1] and [0, 2] -> means 1 and 1; wait: 1 and 0; harm 0.5 vs 0.
@@ -303,13 +309,13 @@ def test_a_curve_with_shape_rules_finds_the_switch_on_its_slope():
 
 
 def test_maximin_and_minimax_regret_choose_across_the_range():
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
     # treat ranges over [0, 1.75], wait is 1: the worst case of treat is lower.
-    maximin = _decide(_contract(model, policy=pf.Policy.maximin()))
+    maximin = _decide(_contract(model, policy=decision.TradeoffPolicy.maximin()))
     assert maximin.kind == "worst_case_choice"
     assert maximin.selected == "wait"
     # Worst regret: treat 1 (at w = 4), wait 0.75 (at w = 0.5).
-    regret = _decide(_contract(model, policy=pf.Policy.minimax_regret()))
+    regret = _decide(_contract(model, policy=decision.TradeoffPolicy.minimax_regret()))
     assert regret.kind == "minimax_regret_choice"
     assert regret.selected == "wait"
     by_id = {a.id: a for a in regret.actions}
@@ -318,13 +324,13 @@ def test_maximin_and_minimax_regret_choose_across_the_range():
 
 
 def test_a_measure_of_named_viewpoints_weighs_the_range():
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
-    views = pf.Measure.viewpoints(
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
+    views = decision.Measure.viewpoints(
         {"clinician": {"harm_weight": 1.0}, "patient": {"harm_weight": 3.0}},
         weights={"clinician": 3.0, "patient": 1.0},
         assumption="stakeholder_weights",
     )
-    contract = _contract(model, policy=pf.Policy.weighted())
+    contract = _contract(model, policy=decision.TradeoffPolicy.weighted())
     result = _decide(contract, measure=views)
     # treat is 1.5 at w = 1 and 0.5 at w = 3; wait is 1 at both.
     assert result.kind == "measure_choice"
@@ -335,14 +341,16 @@ def test_a_measure_of_named_viewpoints_weighs_the_range():
     assert result.measure is not None
     assert result.measure.labels == ("clinician", "patient")
 
-    with pytest.raises(pf.PreferenceRefusal) as missing:
+    with pytest.raises(decision.PreferenceRefusal) as missing:
         _decide(contract)
     assert missing.value.detail == reason_details.preference_decision.MEASURE_REQUIRED
 
 
 def test_a_shape_parameter_is_answered_by_certified_subdivision():
-    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
-    model = pf.ValueModel(BENEFIT - w * w * HARM, utility_units="qaly")
+    w = decision.tradeoff(
+        "harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel"
+    )
+    model = decision.Value(BENEFIT - w * w * HARM, units="qaly")
     assert model.shape_parameters == ("harm_weight",)
     contract = _contract(model)
     assert contract.route == "certified"
@@ -362,7 +370,7 @@ def test_a_shape_parameter_is_answered_by_certified_subdivision():
         snapshot_id="grid-1",
         causal_contract_id="checked-contract",
     )
-    with pytest.raises(pf.PreferenceRefusal) as needs_draws:
+    with pytest.raises(decision.PreferenceRefusal) as needs_draws:
         require_success(contract.evaluate(means))
     assert needs_draws.value.detail == reason_details.preference_evaluation.JOINT_DRAWS_REQUIRED
 
@@ -370,12 +378,12 @@ def test_a_shape_parameter_is_answered_by_certified_subdivision():
 def test_a_mean_source_answers_the_exact_route():
     # A mean source carries means, so its coordinates are the ``mean`` functional.
     mean_columns = tuple(_quantity(q.variable_id, q.units, q.regime_id, "mean") for q in COLUMNS)
-    model = pf.ValueModel(BENEFIT - _weight(0.5, 1.5) * HARM, utility_units="qaly")
-    contract = pf.Contract(
-        model=model,
+    model = decision.Value(BENEFIT - _weight(0.5, 1.5) * HARM, units="qaly")
+    contract = decision.Contract(
+        value=model,
         actions=(
-            pf.Action("treat", inputs={"benefit": mean_columns[0], "harm": mean_columns[1]}),
-            pf.Action("wait", inputs={"benefit": mean_columns[2], "harm": mean_columns[3]}),
+            decision.Action("treat", inputs={"benefit": mean_columns[0], "harm": mean_columns[1]}),
+            decision.Action("wait", inputs={"benefit": mean_columns[2], "harm": mean_columns[3]}),
         ),
         target_population="target",
     )
@@ -394,51 +402,53 @@ def test_a_mean_source_answers_the_exact_route():
 
 
 def test_invalid_declarations_refuse_with_their_detail():
-    reversed_range = pf.strength(
+    reversed_range = decision.tradeoff(
         "harm_weight", units="qaly/event", lower=2.0, upper=1.0, assumption="x"
     )
-    with pytest.raises(pf.PreferenceRefusal) as caught:
-        pf.ValueModel(BENEFIT - reversed_range * HARM, utility_units="qaly").validate()
+    with pytest.raises(decision.PreferenceRefusal) as caught:
+        decision.Value(BENEFIT - reversed_range * HARM, units="qaly").validate()
     assert caught.value.detail == reason_details.preference_model.PARAMETER_RANGE_EMPTY
 
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
-    one_action = pf.Contract(model=model, actions=_actions()[:1], target_population="target")
-    with pytest.raises(pf.PreferenceRefusal) as too_few:
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
+    one_action = decision.Contract(value=model, actions=_actions()[:1], target_population="target")
+    with pytest.raises(decision.PreferenceRefusal) as too_few:
         require_success(one_action.evaluate(_source()))
     assert too_few.value.detail == reason_details.preference_contract.TOO_FEW_ACTIONS
 
     with pytest.raises(CausalValueError, match="exactly once"):
-        pf.Contract(
-            model=model,
-            actions=(pf.Action("treat", inputs={"benefit": TREAT_BENEFIT}), _actions()[1]),
+        decision.Contract(
+            value=model,
+            actions=(decision.Action("treat", inputs={"benefit": TREAT_BENEFIT}), _actions()[1]),
             target_population="target",
-        )._wire()
+        )._tradeoff_wire()
 
 
 def test_export_and_replay_recompute_the_decision():
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
     contract = _contract(model)
     result = _decide(contract)
     exported = result.export()
-    replayed = require_success(pf.replay(exported, contract=contract, source=_source()))
+    replayed = require_success(decision.replay(exported, contract=contract, source=_source()))
     assert replayed.kind == result.kind
     assert replayed.contract_identity == contract.identity
     assert replayed.switches[0].margin_range == pytest.approx(result.switches[0].margin_range)
 
     other = _source([[1.0, 0.0, 1.0, 0.0], [5.0, 1.0, 1.0, 0.0]])
-    with pytest.raises(pf.PreferenceRefusal) as other_draws:
-        require_success(pf.replay(exported, contract=contract, source=other))
+    with pytest.raises(decision.PreferenceRefusal) as other_draws:
+        require_success(decision.replay(exported, contract=contract, source=other))
     assert other_draws.value.reason_code == "decision_contract_unsatisfied"
     assert other_draws.value.detail == reason_details.preference_artifact.SOURCE_EXPECTED
 
 
 def test_replay_keeps_the_stored_evaluation_options():
     # A shape parameter takes the certified route, which reads both options.
-    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
-    contract = _contract(pf.ValueModel(BENEFIT - w * w * HARM, utility_units="qaly"))
+    w = decision.tradeoff(
+        "harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel"
+    )
+    contract = _contract(decision.Value(BENEFIT - w * w * HARM, units="qaly"))
     result = _decide(contract, tie_tolerance=1e-3, max_boxes=64)
     exported = result.export()
-    replayed = require_success(pf.replay(exported, contract=contract, source=_source()))
+    replayed = require_success(decision.replay(exported, contract=contract, source=_source()))
     assert replayed.kind == result.kind
     assert replayed.undecided_fraction == result.undecided_fraction
     # Re-exporting the replayed decision recomputes it under the stored options.
@@ -453,9 +463,11 @@ def test_a_record_written_with_every_option_re_exports_byte_identically():
     # decision re-exports to the same bytes.
     from antecedent._native import export_preference_decision
 
-    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
+    w = decision.tradeoff(
+        "harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel"
+    )
     for value in (BENEFIT - w * w * HARM, BENEFIT - w * HARM):
-        contract = _contract(pf.ValueModel(value, utility_units="qaly"))
+        contract = _contract(decision.Value(value, units="qaly"))
         options = {
             "tie_tolerance": 1e-7,
             "certified_tie_tolerance": 1e-3,
@@ -465,7 +477,7 @@ def test_a_record_written_with_every_option_re_exports_byte_identically():
             "lp_max_pivots": 5_000,
         }
         data, refusal = export_preference_decision(
-            json.dumps(contract._wire()),
+            json.dumps(contract._tradeoff_wire()),
             None,
             json.dumps(options),
             _source()._native,
@@ -473,7 +485,7 @@ def test_a_record_written_with_every_option_re_exports_byte_identically():
         )
         assert refusal is None and data is not None
         written = bytes(data)
-        replayed = require_success(pf.replay(written, contract=contract, source=_source()))
+        replayed = require_success(decision.replay(written, contract=contract, source=_source()))
         assert bytes(replayed.export()) == written
         effective = replayed.effective_tie_tolerance
         assert effective is not None
@@ -484,13 +496,15 @@ def test_a_record_written_with_every_option_re_exports_byte_identically():
 
 
 def test_the_effective_tie_tolerance_is_reported():
-    w = pf.strength("harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel")
-    exact = _decide(_contract(pf.ValueModel(BENEFIT - w * HARM, utility_units="qaly")))
+    w = decision.tradeoff(
+        "harm_weight", units="qaly/event", lower=0.5, upper=1.0, assumption="panel"
+    )
+    exact = _decide(_contract(decision.Value(BENEFIT - w * HARM, units="qaly")))
     assert exact.route == "exact"
     # The declared 1e-9, or the margins' numerical bound when that is larger.
     assert exact.effective_tie_tolerance is not None and exact.effective_tie_tolerance >= 1e-9
     certified = _decide(
-        _contract(pf.ValueModel(BENEFIT - w * w * HARM, utility_units="qaly")),
+        _contract(decision.Value(BENEFIT - w * w * HARM, units="qaly")),
         tie_tolerance=1e-4,
     )
     assert certified.route == "certified"
@@ -537,7 +551,7 @@ RATIO = 2.0 / 1.5
 def test_separately_estimated_outcomes_switch_at_the_ratio_of_their_differences(
     lower: float, upper: float, kind: str, selected: str | None
 ):
-    model = pf.ValueModel(BENEFIT - _weight(lower, upper) * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight(lower, upper) * HARM, units="qaly")
     result = require_success(_contract(model).evaluate([BENEFITS, HARMS]))
     assert result.kind == kind
     assert result.selected == selected
@@ -548,15 +562,17 @@ def test_separately_estimated_outcomes_switch_at_the_ratio_of_their_differences(
         assert switch.threshold.first_leads_above is False
 
     # The joined law is an ordinary joint law: the decision exports and replays on it.
-    joined = pf.joint_law(BENEFITS, HARMS)
-    replayed = require_success(pf.replay(result.export(), contract=_contract(model), source=joined))
+    joined = decision.joint_law(BENEFITS, HARMS)
+    replayed = require_success(
+        decision.replay(result.export(), contract=_contract(model), source=joined)
+    )
     assert replayed.kind == kind
 
 
 def test_separately_sampled_laws_do_not_pair():
     harms = _paired_law((TREAT_HARM, WAIT_HARM), [[1.0, 0.5], [3.0, 0.5]], snapshot="draws-3")
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
-    with pytest.raises(pf.PreferenceRefusal) as unpaired:
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
+    with pytest.raises(decision.PreferenceRefusal) as unpaired:
         require_success(_contract(model).evaluate([BENEFITS, harms]))
     assert unpaired.value.reason_code == "joint_law_required"
 
@@ -595,12 +611,12 @@ def test_a_propagation_chain_joins_its_outputs_under_the_declared_dependence():
             ],
         )
     )
-    model = pf.ValueModel(BENEFIT - _weight(0.5, 3.0) * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight(0.5, 3.0) * HARM, units="qaly")
     actions = (
-        pf.Action("treat", inputs={"benefit": T_BEN, "harm": T_HARM}),
-        pf.Action("wait", inputs={"benefit": W_BEN, "harm": W_HARM}),
+        decision.Action("treat", inputs={"benefit": T_BEN, "harm": T_HARM}),
+        decision.Action("wait", inputs={"benefit": W_BEN, "harm": W_HARM}),
     )
-    contract = pf.Contract(model=model, actions=actions, target_population="target")
+    contract = decision.Contract(value=model, actions=actions, target_population="target")
     result = require_success(contract.evaluate(chain))
     assert result.kind == "preference_dependent"
     (switch,) = result.switches
@@ -648,15 +664,15 @@ def _experiment(clusters: int = 40, rows: int = 12):
     )
 
 
-def _experiment_contract(experiment, model: pf.ValueModel) -> pf.Contract:
+def _experiment_contract(experiment, model: decision.Value) -> decision.Contract:
     def arm(name: str) -> dict[str, ScientificQuantity]:
-        return {o: pf.experiment_quantity(experiment, o, name) for o in ("benefit", "harm")}
+        return {o: decision.experiment_quantity(experiment, o, name) for o in ("benefit", "harm")}
 
-    return pf.Contract(
-        model=model,
+    return decision.Contract(
+        value=model,
         actions=(
-            pf.Action("treat", inputs=arm("treated")),
-            pf.Action("wait", inputs=arm("control")),
+            decision.Action("treat", inputs=arm("treated")),
+            decision.Action("wait", inputs=arm("control")),
         ),
         target_population="target",
     )
@@ -668,7 +684,7 @@ def test_one_experiment_switches_at_the_ratio_of_its_estimated_differences():
     ratio = (treated[0] - control[0]) / (treated[1] - control[1])
     assert ratio > 0.0
 
-    quantity = pf.experiment_quantity(experiment, "harm", "control")
+    quantity = decision.experiment_quantity(experiment, "harm", "control")
     assert quantity.functional_id == "mean"
     assert quantity.regime_id == "do(a=0)"
 
@@ -677,7 +693,7 @@ def test_one_experiment_switches_at_the_ratio_of_its_estimated_differences():
         (1.5 * ratio, 3.0 * ratio, "necessarily_best", "wait"),
         (0.5 * ratio, 2.0 * ratio, "preference_dependent", None),
     ):
-        model = pf.ValueModel(BENEFIT - _weight(lower, upper) * HARM, utility_units="qaly")
+        model = decision.Value(BENEFIT - _weight(lower, upper) * HARM, units="qaly")
         result = require_success(_experiment_contract(experiment, model).evaluate(experiment))
         assert (result.kind, result.selected) == (kind, selected)
         if kind == "preference_dependent":
@@ -688,8 +704,8 @@ def test_one_experiment_switches_at_the_ratio_of_its_estimated_differences():
 
 def test_one_experiment_cannot_answer_a_kinked_term_from_its_means():
     experiment = _experiment()
-    kinked = pf.ValueModel(BENEFIT - _weight() * pf.excess(HARM, 1.0), utility_units="qaly")
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    kinked = decision.Value(BENEFIT - _weight() * decision.excess(HARM, 1.0), units="qaly")
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(_experiment_contract(experiment, kinked).evaluate(experiment))
     # The arm means answer only an affine expectation: the ordinary evaluation of the kinked
     # part refuses the mean source.
@@ -757,18 +773,18 @@ def _cluster_design(clusters: int = 64, rows: int = 10):
     )
 
 
-def _design_contract(model: pf.ValueModel) -> pf.Contract:
+def _design_contract(model: decision.Value) -> decision.Contract:
     def arm(regime: str) -> dict[str, ScientificQuantity]:
         return {
             "benefit": _quantity("benefit", "qaly", regime, "mean"),
             "harm": _quantity("harm", "events", regime, "mean"),
         }
 
-    return pf.Contract(
-        model=model,
+    return decision.Contract(
+        value=model,
         actions=(
-            pf.Action("treat", inputs=arm("do(a=1)")),
-            pf.Action("wait", inputs=arm("do(a=0)")),
+            decision.Action("treat", inputs=arm("do(a=1)")),
+            decision.Action("wait", inputs=arm("do(a=0)")),
         ),
         target_population="target",
     )
@@ -776,19 +792,17 @@ def _design_contract(model: pf.ValueModel) -> pf.Contract:
 
 def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_sampling_premise():
     design = _cluster_design()
-    affine = _design_contract(
-        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * HARM, utility_units="qaly")
-    )
+    affine = _design_contract(decision.Value(BENEFIT - _weight(0.1, 0.3) * HARM, units="qaly"))
     means = require_success(affine.compile(design))
     assert means.inspect()["demand"]["representation"] == "mean"
     assert means.plans[0]["evidence"]["decision"]["preference"]["design_law"] is None
     assert require_success(means.execute()).selected == "treat"
 
     kinked = _design_contract(
-        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+        decision.Value(BENEFIT - _weight(0.1, 0.3) * decision.excess(HARM, 1.2), units="qaly")
     )
     for declared in ({}, {"refits": 99, "seed": 3}):
-        with pytest.raises(pf.PreferenceRefusal) as undeclared:
+        with pytest.raises(decision.PreferenceRefusal) as undeclared:
             require_success(kinked.compile(design, **declared))  # type: ignore[arg-type]
         assert undeclared.value.reason_code == "joint_law_required"
         assert (
@@ -800,7 +814,7 @@ def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_
     compiled = require_success(kinked.compile(design, refits=99, seed=3, sampling=SAMPLING))
     assert compiled.inspect()["demand"]["representation"] == "joint_draws"
     assert means.design_law is None
-    assert compiled.design_law == pf.DesignLawPlan(
+    assert compiled.design_law == decision.DesignLawPlan(
         kind="independent_unit_bootstrap", unit="cluster", replicates=99, seed=3, sampling=SAMPLING
     )
     (plan,) = compiled.plans
@@ -824,9 +838,9 @@ def test_a_cluster_design_reads_its_independent_unit_bootstrap_under_a_declared_
     assert SAMPLING in decided.assumptions
 
     # Ten clusters in each arm are below the bootstrap's floor of thirty.
-    with pytest.raises(pf.PreferenceRefusal) as few:
+    with pytest.raises(decision.PreferenceRefusal) as few:
         require_success(
-            _design_contract(kinked.model).compile(
+            _design_contract(kinked.value).compile(
                 _cluster_design(20), refits=99, sampling=SAMPLING
             )
         )
@@ -881,25 +895,27 @@ def _dose(outcome: str, dose: float, units: str = "points") -> ScientificQuantit
     )
 
 
-def _priced(lower: float, upper: float, *, kink: float | None = None) -> pf.ValueModel:
-    benefit = pf.attribute("benefit", units="points")
-    cost = pf.attribute("cost", units="usd")
-    price = pf.strength("price", units=PRICE_UNITS, lower=lower, upper=upper, assumption="price")
+def _priced(lower: float, upper: float, *, kink: float | None = None) -> decision.Value:
+    benefit = decision.attribute("benefit", units="points")
+    cost = decision.attribute("cost", units="usd")
+    price = decision.tradeoff(
+        "price", units=PRICE_UNITS, lower=lower, upper=upper, assumption="price"
+    )
     value = benefit - price * cost
     if kink is not None:
-        weight = pf.strength(
+        weight = decision.tradeoff(
             "shortfall_weight", units="points/points", lower=0.0, upper=2.0, assumption="floor"
         )
-        value = value - weight * pf.shortfall(benefit, kink)
-    return pf.ValueModel(value, utility_units="points")
+        value = value - weight * decision.shortfall(benefit, kink)
+    return decision.Value(value, units="points")
 
 
-def _dose_contract(model: pf.ValueModel, **kwargs: object) -> pf.Contract:
-    return pf.Contract(
-        model=model,
+def _dose_contract(model: decision.Value, **kwargs: object) -> decision.Contract:
+    return decision.Contract(
+        value=model,
         actions=(
-            pf.Action("low", inputs={"benefit": _dose("y", 0.5), "cost": 0.5}),
-            pf.Action("high", inputs={"benefit": _dose("y", 1.5), "cost": 1.5}),
+            decision.Action("low", inputs={"benefit": _dose("y", 0.5), "cost": 0.5}),
+            decision.Action("high", inputs={"benefit": _dose("y", 1.5), "cost": 1.5}),
         ),
         target_population="target",
         **kwargs,  # type: ignore[arg-type]
@@ -943,7 +959,7 @@ def test_compile_shows_the_plan_before_anything_is_fitted():
         (("low", "benefit"),),
         (("high", "benefit"),),
     ]
-    assert compiled.trade_offs == (pf.TradeOffRange("price", PRICE_UNITS, 0.2, 1.0, "price"),)
+    assert compiled.trade_offs == (decision.TradeOffRange("price", PRICE_UNITS, 0.2, 1.0, "price"),)
     assert compiled.parameter_ranges == {"price": (0.2, 1.0)}
     assert compiled.joint_law is None
     assert compiled.design_law is None
@@ -981,7 +997,7 @@ def test_compile_refuses_a_quantity_no_structure_identifies():
     table = _dose_table()
     table["z"] = np.array([np.sin(i * 0.91) for i in range(len(table["t"]))])
     prepared = _prepared(table, bayes=True, discovery=posterior)
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(_dose_contract(_priced(0.2, 1.0)).compile(prepared))
     assert refused.value.reason_code == "effect_not_identified"
     assert refused.value.detail == reason_details.native_claims.RESPONSE_NOT_POINT_IDENTIFIED
@@ -1021,22 +1037,26 @@ def test_compile_over_a_graph_posterior_keeps_the_unidentified_mass():
 def test_compile_across_several_studies():
     benefit = _prepared(_dose_table("b", 220, 1.2, 1.7), "b", bayes=True)
     harm = _prepared(_dose_table("h", 260, 0.5, 2.9), "h", bayes=True)
-    rate = pf.strength("harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h")
-    weight = pf.strength("excess", units="points/events", lower=0.0, upper=2.0, assumption="x")
-    b = pf.attribute("benefit", units="points")
-    h = pf.attribute("harm", units="events")
-    affine = pf.ValueModel(b - rate * h, utility_units="points")
-    kinked = pf.ValueModel(b - rate * h - weight * pf.excess(h, 1.2), utility_units="points")
+    rate = decision.tradeoff(
+        "harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h"
+    )
+    weight = decision.tradeoff(
+        "excess", units="points/events", lower=0.0, upper=2.0, assumption="x"
+    )
+    b = decision.attribute("benefit", units="points")
+    h = decision.attribute("harm", units="events")
+    affine = decision.Value(b - rate * h, units="points")
+    kinked = decision.Value(b - rate * h - weight * decision.excess(h, 1.2), units="points")
 
-    def contract(model: pf.ValueModel) -> pf.Contract:
-        return pf.Contract(
-            model=model,
+    def contract(model: decision.Value) -> decision.Contract:
+        return decision.Contract(
+            value=model,
             actions=(
-                pf.Action(
+                decision.Action(
                     "high",
                     inputs={"benefit": _dose("b", 1.5), "harm": _dose("h", 1.5, "events")},
                 ),
-                pf.Action(
+                decision.Action(
                     "low", inputs={"benefit": _dose("b", 0.5), "harm": _dose("h", 0.5, "events")}
                 ),
             ),
@@ -1047,7 +1067,7 @@ def test_compile_across_several_studies():
     assert means.inspect()["joint_law"] is None
     assert require_success(means.execute()).selected == "high"
 
-    with pytest.raises(pf.PreferenceRefusal) as undeclared:
+    with pytest.raises(decision.PreferenceRefusal) as undeclared:
         require_success(contract(kinked).compile([benefit, harm]))
     assert undeclared.value.reason_code == "joint_law_required"
 
@@ -1073,7 +1093,7 @@ def test_compile_across_several_studies():
     table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
     first = _prepared(table, "b", bayes=True)
     second = _prepared(table, "h", bayes=True)
-    with pytest.raises(pf.PreferenceRefusal) as shared:
+    with pytest.raises(decision.PreferenceRefusal) as shared:
         require_success(contract(kinked).compile([first, second], draws=2000))
     assert shared.value.reason_code == "evidence_double_counted"
     assert shared.value.detail == reason_details.preference_compile.STUDIES_SHARE_EVIDENCE
@@ -1096,18 +1116,22 @@ def _keyed(outcome: str, rows: int, slope: float, rate: float, patients: list[st
     )
 
 
-def _joined_contract() -> pf.Contract:
-    rate = pf.strength("harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h")
-    weight = pf.strength("excess", units="points/events", lower=0.0, upper=2.0, assumption="x")
-    b = pf.attribute("benefit", units="points")
-    h = pf.attribute("harm", units="events")
-    return pf.Contract(
-        model=pf.ValueModel(b - rate * h - weight * pf.excess(h, 1.2), utility_units="points"),
+def _joined_contract() -> decision.Contract:
+    rate = decision.tradeoff(
+        "harm_rate", units="points/events", lower=0.1, upper=0.3, assumption="h"
+    )
+    weight = decision.tradeoff(
+        "excess", units="points/events", lower=0.0, upper=2.0, assumption="x"
+    )
+    b = decision.attribute("benefit", units="points")
+    h = decision.attribute("harm", units="events")
+    return decision.Contract(
+        value=decision.Value(b - rate * h - weight * decision.excess(h, 1.2), units="points"),
         actions=(
-            pf.Action(
+            decision.Action(
                 "high", inputs={"benefit": _dose("b", 1.5), "harm": _dose("h", 1.5, "events")}
             ),
-            pf.Action(
+            decision.Action(
                 "low", inputs={"benefit": _dose("b", 0.5), "harm": _dose("h", 0.5, "events")}
             ),
         ),
@@ -1120,7 +1144,7 @@ def test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share(
     benefit = _keyed("b", 200, 1.2, 1.7, [f"p{i}" for i in range(200)], unit_key=key)
     # Patients 100-199 are in both tables.
     harm = _keyed("h", 200, 0.5, 2.9, [f"p{i}" for i in range(100, 300)], unit_key=key)
-    with pytest.raises(pf.PreferenceRefusal) as shared:
+    with pytest.raises(decision.PreferenceRefusal) as shared:
         require_success(_joined_contract().compile([benefit, harm], draws=2000, seed=7))
     assert shared.value.reason_code == "evidence_double_counted"
     assert shared.value.detail == reason_details.preference_compile.STUDIES_SHARE_EVIDENCE
@@ -1136,7 +1160,7 @@ def test_unit_keys_judge_studies_of_different_tables_by_the_patients_they_share(
         _keyed("h", 200, 0.5, 2.9, [f"q{i}" for i in range(200)], unit_key=insurer),
         _keyed("h", 200, 0.5, 2.9, [f"q{i}" for i in range(200)]),
     ):
-        with pytest.raises(pf.PreferenceRefusal) as unknown:
+        with pytest.raises(decision.PreferenceRefusal) as unknown:
             require_success(_joined_contract().compile([benefit, other], draws=2000, seed=7))
         assert unknown.value.reason_code == "evidence_overlap_unknown"
 
@@ -1169,7 +1193,7 @@ def test_projections_of_one_table_keep_their_source_rows():
     table["h"] = _dose_table("h", 200, 0.5, 2.9)["h"]
     first = _prepared(table, "b", bayes=True)
     second = _prepared(table, "h", bayes=True)
-    with pytest.raises(pf.PreferenceRefusal) as shared:
+    with pytest.raises(decision.PreferenceRefusal) as shared:
         require_success(_joined_contract().compile([first, second], draws=2000, seed=7))
     assert shared.value.reason_code == "evidence_double_counted"
     # A copy of the table with other values is another source.
@@ -1194,11 +1218,11 @@ def test_a_projection_and_a_study_of_the_whole_table_share_its_rows():
         execution=ant.Execution(seed=11),
     )
     projected = _prepared(table, "h", bayes=True)
-    with pytest.raises(pf.PreferenceRefusal) as shared:
+    with pytest.raises(decision.PreferenceRefusal) as shared:
         require_success(_joined_contract().compile([whole, projected], draws=2000, seed=7))
     assert shared.value.reason_code == "evidence_double_counted"
     # Either order names the one table.
-    with pytest.raises(pf.PreferenceRefusal) as reversed_order:
+    with pytest.raises(decision.PreferenceRefusal) as reversed_order:
         require_success(_joined_contract().compile([projected, whole], draws=2000, seed=7))
     assert reversed_order.value.reason_code == "evidence_double_counted"
 
@@ -1231,7 +1255,7 @@ def test_compile_refuses_an_argument_its_source_does_not_read():
 
     design = _cluster_design()
     kinked = _design_contract(
-        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+        decision.Value(BENEFIT - _weight(0.1, 0.3) * decision.excess(HARM, 1.2), units="qaly")
     )
     for arguments in ({"draws": 2000}, {"shared": block}, {"seed": 3}):
         with pytest.raises(CausalValueError) as on_design:
@@ -1286,7 +1310,7 @@ def test_the_execution_seed_seeds_the_chain_draws_and_the_refits():
     assert chain_seed(seed=8, execution=ant.Execution(seed=5)) == 8
 
     kinked = _design_contract(
-        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * pf.excess(HARM, 1.2), utility_units="qaly")
+        decision.Value(BENEFIT - _weight(0.1, 0.3) * decision.excess(HARM, 1.2), units="qaly")
     )
     refits = require_success(
         kinked.compile(
@@ -1308,38 +1332,36 @@ def test_a_cancelled_compile_or_execution_is_a_preference_refusal():
     contract = _dose_contract(_priced(0.2, 1.0))
 
     # The causal compiler stops at the cancelled token: a compile refusal, not a bare error.
-    with pytest.raises(pf.PreferenceRefusal) as at_compile:
+    with pytest.raises(decision.PreferenceRefusal) as at_compile:
         require_success(contract.compile(prepared, execution=cancelled))
     assert at_compile.value.reason_code == "cancelled_no_claim"
     assert at_compile.value.detail == reason_details.preference_compile.CANCELLED
 
     compiled = require_success(contract.compile(prepared))
-    with pytest.raises(pf.PreferenceRefusal) as at_execute:
+    with pytest.raises(decision.PreferenceRefusal) as at_execute:
         require_success(compiled.execute(execution=cancelled))
     assert at_execute.value.reason_code == "cancelled_no_claim"
     assert at_execute.value.detail == reason_details.preference_compile.CANCELLED
 
     # A compiled design is stopped the same way.
-    affine = _design_contract(
-        pf.ValueModel(BENEFIT - _weight(0.1, 0.3) * HARM, utility_units="qaly")
-    )
-    with pytest.raises(pf.PreferenceRefusal) as on_design:
+    affine = _design_contract(decision.Value(BENEFIT - _weight(0.1, 0.3) * HARM, units="qaly"))
+    with pytest.raises(decision.PreferenceRefusal) as on_design:
         require_success(affine.compile(_cluster_design(), execution=cancelled))
     assert on_design.value.detail == reason_details.preference_compile.CANCELLED
 
 
 def test_policies_are_checked_where_they_are_declared():
     with pytest.raises(CausalValueError, match="Policy.invariant_best"):
-        pf.Policy("minimax")  # type: ignore[arg-type]
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+        decision.TradeoffPolicy("minimax")  # type: ignore[arg-type]
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
     with pytest.raises(CausalValueError, match="structural_policy"):
         _contract(model, structural_policy="minimax")
     with pytest.raises(CausalValueError):
-        pf.StructuralPolicy("minimax")  # type: ignore[arg-type]
+        StructuralPolicyClass("minimax")  # type: ignore[arg-type]
     # The typed structural policy and its kind as a string are the same contract.
-    typed = _contract(model, structural_policy=pf.StructuralPolicy.maximin())
+    typed = _contract(model, structural_policy=StructuralPolicyClass.maximin())
     named = _contract(model, structural_policy="maximin")
-    assert typed.structural_policy == named.structural_policy == pf.StructuralPolicy.maximin()
+    assert typed.structural_policy == named.structural_policy == "maximin"
     assert typed.identity == named.identity
 
 
@@ -1347,9 +1369,9 @@ def test_policies_are_checked_where_they_are_declared():
 
 
 def test_a_hard_constraint_excludes_an_action_whatever_the_trade_off():
-    model = pf.ValueModel(BENEFIT - _weight() * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight() * HARM, units="qaly")
     # treat has harm 0 or 1, each with weight one half; wait has harm 0.
-    cap = pf.constraint("harm_cap", HARM, at_most=0.5, units="events")
+    cap = decision.Constraint("harm_cap", HARM, bound=0.5, units="events")
     result = _decide(_contract(model, constraints=(cap,)))
     by_id = {a.id: a for a in result.actions}
     assert not by_id["treat"].admissible
@@ -1362,23 +1384,23 @@ def test_a_hard_constraint_excludes_an_action_whatever_the_trade_off():
     assert _decide(_contract(model)).kind == "preference_dependent"
     assert result.selected == "wait"
 
-    nothing = pf.constraint("no_harm_at_all", HARM, at_most=-1.0, units="events")
+    nothing = decision.Constraint("no_harm_at_all", HARM, bound=-1.0, units="events")
     none_left = _decide(_contract(model, constraints=(nothing,)))
     assert none_left.kind == "no_admissible_action"
     assert none_left.selected is None
 
     with pytest.raises(CausalValueError, match="never a trade-off"):
-        pf.constraint("reads_a_weight", _weight() * HARM, at_most=1.0, units="events")
+        decision.Constraint("reads_a_weight", _weight() * HARM, bound=1.0, units="events")
 
 
 def test_a_hard_constraint_demands_draws_at_compile():
     # An affine value read by means alone; a constraint probability needs a law of the outcome.
-    benefit = pf.attribute("benefit", units="points")
+    benefit = decision.attribute("benefit", units="points")
     model = _priced(0.2, 1.0)
     affine = _dose_contract(model)
     capped = _dose_contract(
         model,
-        constraints=(pf.constraint("benefit_cap", benefit, at_most=100.0, units="points"),),
+        constraints=(decision.Constraint("benefit_cap", benefit, bound=100.0, units="points"),),
     )
     prepared = _prepared(_dose_table(), bayes=True)
     assert require_success(affine.compile(prepared)).representation == "mean"
@@ -1395,7 +1417,7 @@ def test_a_hard_constraint_demands_draws_at_compile():
 def test_structures_in_hand_are_decided_with_the_trade_offs():
     from antecedent.decision_robust import Claim
 
-    model = pf.ValueModel(BENEFIT - _weight(0.5, 1.5) * HARM, utility_units="qaly")
+    model = decision.Value(BENEFIT - _weight(0.5, 1.5) * HARM, units="qaly")
     # Under both structures treat leads for every weight in [0.5, 1.5]: margins 1 - 0.5 w and
     # 2 - 0.5 w.
     stronger = _source([[1.0, 0.0, 1.0, 0.0], [5.0, 1.0, 1.0, 0.0]])
@@ -1404,7 +1426,9 @@ def test_structures_in_hand_are_decided_with_the_trade_offs():
         Claim.evaluated("stronger", stronger, probability=0.3),
         Claim.unidentified("cycle", probability=0.1),
     )
-    reported = require_success(_contract(model).evaluate(pf.Structures.weighted_atoms(claims)))
+    reported = require_success(
+        _contract(model).evaluate(decision.Structures.weighted_atoms(claims))
+    )
     by_id = {s.id: s for s in reported.structures}
     assert (by_id["direct"].status, by_id["direct"].selected) == ("evaluated", "treat")
     assert (by_id["stronger"].status, by_id["stronger"].selected) == ("evaluated", "treat")
@@ -1412,15 +1436,15 @@ def test_structures_in_hand_are_decided_with_the_trade_offs():
     assert reported.unidentified_mass == pytest.approx(0.1)
     # The kind as a string is the same set of structures.
     named = require_success(
-        _contract(model).evaluate(pf.Structures("weighted_graph_posterior", claims))
+        _contract(model).evaluate(decision.Structures("weighted_graph_posterior", claims))
     )
     assert [(s.id, s.kind) for s in named.structures] == [
         (s.id, s.kind) for s in reported.structures
     ]
 
     # Every structure evaluated, the worst case over them still leaves treat best everywhere.
-    maximin = _contract(model, structural_policy=pf.StructuralPolicy.maximin())
-    combined = require_success(maximin.evaluate(pf.Structures.weighted_atoms(claims[:2])))
+    maximin = _contract(model, structural_policy="maximin")
+    combined = require_success(maximin.evaluate(decision.Structures.weighted_atoms(claims[:2])))
     assert combined.selected == "treat"
 
 
@@ -1433,7 +1457,7 @@ def test_a_compiled_decision_on_draws_exports_and_replays():
     decided = require_success(require_success(contract.compile(prepared)).execute())
     assert isinstance(decided.source, JointDistributionArtifact)
     exported = decided.export()
-    replayed = require_success(pf.replay(exported, contract=contract, source=decided.source))
+    replayed = require_success(decision.replay(exported, contract=contract, source=decided.source))
     assert replayed.kind == decided.kind
     assert replayed.selected == decided.selected
     assert [a.value_range for a in replayed.actions] == [a.value_range for a in decided.actions]
@@ -1442,7 +1466,7 @@ def test_a_compiled_decision_on_draws_exports_and_replays():
     by_means = require_success(
         require_success(_dose_contract(_priced(0.2, 1.0)).compile(prepared)).execute()
     )
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         by_means.export()
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_NOT_REPLAYABLE
@@ -1459,23 +1483,6 @@ def test_a_column_no_analysis_reads_never_fails_preparation():
     table["notes"] = np.zeros((200, 2))
     first = _prepared(table, "b", bayes=True)
     second = _prepared(table, "h", bayes=True)
-    with pytest.raises(pf.PreferenceRefusal) as shared:
+    with pytest.raises(decision.PreferenceRefusal) as shared:
         require_success(_joined_contract().compile([first, second], draws=2000, seed=7))
     assert shared.value.reason_code == "evidence_double_counted"
-
-
-# --------------------------------------------------------------------------- separation
-
-
-def test_the_stated_trade_offs_do_not_load_the_learning_module():
-    import subprocess
-    import sys
-
-    probe = (
-        "import sys\n"
-        "import antecedent.preferences\n"
-        "loaded = sorted(m for m in sys.modules if m.startswith('antecedent.preference'))\n"
-        "assert 'antecedent.preference_learning' not in sys.modules, loaded\n"
-    )
-    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
-    assert run.returncode == 0, run.stderr

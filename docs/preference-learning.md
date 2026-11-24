@@ -496,8 +496,6 @@ The full tables are in
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `analysis_options`, `analysis_belief_source`, `decide_accepted`, `export_accepted`, `consume_accepted` |
 | Rust, methods | `antecedent_design::choice_record` (`ChoiceRecordSet`, `choice_features`, `choice_features_at`), `preference_set_learning::learn_compatible_set` (`LearnedRegion`, `UndeterminedSet`), `preference_choice_model::estimate_choice_model`, `accepted_preferences::AcceptedPreferences`, `preference_model::ValueRelation`; `antecedent_stats::fit_nonlinear_conditional_logit` |
 
-`antecedent.preference_learning` holds the same objects under the same names.
-
 ## Sources
 
 Afriat, S. N. (1967), the construction of utility functions from expenditure data,

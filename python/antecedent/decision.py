@@ -420,8 +420,8 @@ class Action:
             and self.utility in get_args(ActionKind)
             and self.kind == "intervention"
         ):
-            # Named inputs take no utility, so a kind given third by position is the kind, as
-            # the trade-off spelling Action(id, inputs, kind) reads it.
+            # Named inputs take no utility, so a kind given third by position is the kind:
+            # Action(id, inputs, kind).
             object.__setattr__(self, "kind", self.utility)
             object.__setattr__(self, "utility", None)
         if self.utility is not None:
@@ -1519,25 +1519,21 @@ def replay(
     A result computed under a different contract or from different draws, or one whose
     numbers were edited, refuses. An ordinary decision (including a value contract decided as
     an ordinary contract) is recomputed and must match exactly. A decision across trade-off
-    ranges (from :class:`Contract` or :class:`antecedent.preferences.Contract`) reuses its
-    stored measure and options and must match within the relative tolerance its linear-program
-    and interval numerics need; its recomputation reads the execution's cancellation token at
-    its work boundaries, and a cancelled replay is refused with ``cancelled_no_claim``.
+    ranges reuses its stored measure and options and must match within the relative tolerance
+    its linear-program and interval numerics need; its recomputation reads the execution's
+    cancellation token at its work boundaries, and a cancelled replay is refused with
+    ``cancelled_no_claim``.
     """
     data = container_bytes(data)
     source = require_success(source)
-    ranged = not isinstance(contract, Contract)
-    if ranged and not callable(getattr(contract, "_tradeoff_wire", None)):
-        raise CausalTypeError(
-            "replay needs a decision.Contract (or a preferences.Contract), not "
-            f"{type(contract).__name__}"
-        )
+    if not isinstance(contract, Contract):
+        raise CausalTypeError(f"replay needs a decision.Contract, not {type(contract).__name__}")
     if not isinstance(source, JointDistributionArtifact):
         raise CausalTypeError(
             "replay needs the JointDistributionArtifact of aligned draws the result was computed "
             f"from, not {type(source).__name__}; only a joint-draw decision replays"
         )
-    if ranged or contract._engine() == "tradeoff":
+    if contract._engine() == "tradeoff":
         from ._decision_tradeoff import replay_tradeoff
 
         return replay_tradeoff(data, contract, source, execution)

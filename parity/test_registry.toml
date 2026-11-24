@@ -25176,13 +25176,6 @@ path = "python/tests/test_decision_compile.py"
 gates = ["inventory"]
 
 [[test]]
-id = "python-decision-aliases"
-crate = "python"
-cargo_target = "script"
-path = "python/tests/test_decision_aliases.py"
-gates = ["inventory"]
-
-[[test]]
 id = "python-preference-learning"
 crate = "python"
 cargo_target = "script"

@@ -23814,7 +23814,7 @@ routes = [
   { name = "antecedent.preference_decision.experiment_mean_source", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.chain_joint_law", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.joint_law_of", stage = "prepare", status = "supported", claim = "none" },
-  { name = "antecedent.preferences.Contract.evaluate", stage = "evaluate", status = "supported" },
+  { name = "antecedent._decision_tradeoff.evaluate_tradeoff", stage = "evaluate", status = "supported" },
   { name = "antecedent.Study.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.PreparedStudy.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.compile_preference_decision_across_studies", stage = "prepare", status = "supported", claim = "none" },
@@ -23822,7 +23822,7 @@ routes = [
   { name = "antecedent.preference_decision.compile_preference_decision_across_prepared_studies", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.joint_panel.PreparedNativeJointDesign.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.preference_decision.CompiledPreferenceDecision.execute", stage = "evaluate", status = "supported" },
-  { name = "antecedent.preferences.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.decision.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent._decision_compile.CompiledDecision.execute", stage = "evaluate", status = "supported" },
 ]
 fixtures = [

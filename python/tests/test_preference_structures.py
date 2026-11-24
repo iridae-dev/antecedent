@@ -13,7 +13,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
-from antecedent import preferences as pf
+from antecedent import decision
 from antecedent.inference import ClassPrior, _class_prior_kwargs
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
@@ -116,15 +116,15 @@ def _dose(dose: float) -> ScientificQuantity:
     )
 
 
-def _contract(structural_policy: str) -> pf.Contract:
-    benefit = pf.attribute("benefit", units="points")
-    cost = pf.attribute("cost", units="usd")
-    price = pf.strength("price", units="points/usd", lower=0.1, upper=0.5, assumption="price")
-    return pf.Contract(
-        model=pf.ValueModel(benefit - price * cost, utility_units="points"),
+def _contract(structural_policy: str) -> decision.Contract:
+    benefit = decision.attribute("benefit", units="points")
+    cost = decision.attribute("cost", units="usd")
+    price = decision.tradeoff("price", units="points/usd", lower=0.1, upper=0.5, assumption="price")
+    return decision.Contract(
+        value=decision.Value(benefit - price * cost, units="points"),
         actions=(
-            pf.Action("low", inputs={"benefit": _dose(0.5), "cost": 0.5}),
-            pf.Action("high", inputs={"benefit": _dose(1.5), "cost": 1.5}),
+            decision.Action("low", inputs={"benefit": _dose(0.5), "cost": 0.5}),
+            decision.Action("high", inputs={"benefit": _dose(1.5), "cost": 1.5}),
         ),
         target_population="target",
         structural_policy=structural_policy,
@@ -138,7 +138,7 @@ def _path_members(described):
 
 
 def test_bayes_over_structures_without_a_measure_still_refuses():
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(_contract("bayes_over_structures").compile(_prepared(None)))
     assert refused.value.detail == reason_details.decision_adapters.COMPLETION_COUNT_NOT_PROBABILITY
 
@@ -181,7 +181,7 @@ def test_keyed_masses_are_read_by_member_fingerprint():
         assert member["weight"] == pytest.approx(expected)
 
     missing = ClassPrior.from_pairs([(prints[0], 1.0)])
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(_contract("require_invariant_best_action").compile(_prepared(missing)))
     assert refused.value.reason_code == "invalid_argument"
     assert refused.value.detail == reason_details.preference_compile.CLASS_PRIOR_KEYS_MISMATCH
@@ -239,7 +239,7 @@ def test_a_sampled_result_exposes_no_exact_verdict():
 
 def test_above_the_limit_without_a_sample_the_class_is_refused():
     prior = ClassPrior.uniform(UNIFORM).exact_limit(2)
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(_contract("bayes_over_structures").compile(_prepared(prior)))
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == reason_details.preference_compile.CLASS_COMPLETIONS_TRUNCATED

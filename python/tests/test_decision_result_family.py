@@ -11,7 +11,6 @@ from typing import Any
 import numpy as np
 import pytest
 from antecedent import decision, decision_robust
-from antecedent import preferences as pf
 from antecedent._decision_result import DecisionResult
 from antecedent.decision_robust import Claim
 from antecedent.errors import CausalValueError
@@ -230,16 +229,14 @@ def test_standing_of_every_native_kind():
 
 
 def test_refusal_hierarchy():
-    assert issubclass(pf.PreferenceRefusal, decision.DecisionRefusal)
     assert issubclass(decision.PreferenceRefusal, decision.DecisionRefusal)
-    assert decision.PreferenceRefusal is pf.PreferenceRefusal
 
     # A ranged refusal is caught by the ordinary handler and by its own.
     contract = _ranged(policy=decision.TradeoffPolicy.weighted())
-    for handler in (decision.DecisionRefusal, pf.PreferenceRefusal):
+    for handler in (decision.DecisionRefusal, decision.PreferenceRefusal):
         with pytest.raises(handler) as refused:
             require_success(contract.evaluate(_source()))
-        assert isinstance(refused.value, pf.PreferenceRefusal)
+        assert isinstance(refused.value, decision.PreferenceRefusal)
         assert refused.value.reason_code
         assert refused.value.detail
 
@@ -267,7 +264,7 @@ def test_refusal_hierarchy():
     quantile = _contract(criterion=decision.Criterion.quantile(0.5))
     with pytest.raises(decision.DecisionRefusal) as other:
         require_success(quantile.evaluate(means))
-    assert not isinstance(other.value, pf.PreferenceRefusal)
+    assert not isinstance(other.value, decision.PreferenceRefusal)
 
     # A malformed argument is still a ValueError.
     with pytest.raises(CausalValueError):

@@ -12048,7 +12048,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.exact"
-route = "antecedent.preferences.Contract.evaluate"
+route = "antecedent._decision_tradeoff.evaluate_tradeoff"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.mean_source.positive"
@@ -12168,7 +12168,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "preference_decision.exact"
-route = "antecedent.preferences.Contract.compile"
+route = "antecedent.decision.Contract.compile"
 algorithm_provenance = ["provenance/preference_decision.exact.toml", "provenance/preference_decision.value_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "preference_decision.exact.compiled_python.positive"

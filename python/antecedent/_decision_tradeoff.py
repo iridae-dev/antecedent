@@ -1,8 +1,6 @@
 """Deciding across trade-off ranges: the measure and options a decision reads, the source it
-resolves, the native decision and its replay. Both contract spellings use these functions (a
-:class:`antecedent.decision.Contract` whose value has trade-offs, and
-:class:`antecedent.preferences.Contract`); each supplies ``_tradeoff_wire()`` and
-``_preferences()``."""
+resolves, the native decision and its replay, for a :class:`antecedent.decision.Contract`
+whose value has trade-offs (it supplies ``_tradeoff_wire()`` and ``_preferences()``)."""
 
 from __future__ import annotations
 

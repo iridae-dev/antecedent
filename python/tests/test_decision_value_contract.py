@@ -13,13 +13,15 @@ a trade-off decision.
 from __future__ import annotations
 
 import dataclasses
+import subprocess
+import sys
+import textwrap
 from typing import Any
 
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import decision, decision_robust
-from antecedent import preferences as pf
 from antecedent.decision_robust import Claim
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import (
@@ -368,34 +370,19 @@ def test_named_fixed_tradeoff_is_a_trade_off_decision():
         decision.TradeoffPolicy.report_only(),
     ],
 )
-def test_ranged_contract_equals_preferences_contract(policy):
-    value = _range_value()
+def test_ranged_contract_is_decided_across_its_trade_offs(policy):
     kwargs = {} if policy is None else {"policy": policy}
-    unified = _value_contract(value, **kwargs)
-    old = pf.Contract(
-        model=pf.ValueModel(
-            BENEFIT
-            - decision.tradeoff(
-                "harm_weight",
-                units="qaly/event",
-                lower=0.5,
-                upper=4.0,
-                assumption="panel_judgment",
-            )
-            * HARM,
-            utility_units="qaly",
-        ),
-        actions=_named_actions(),
-        target_population="target",
-        **kwargs,
-    )
-    assert unified.form == "tradeoff"
-    assert unified.route == "exact"
-    assert unified.identity == old.identity
-    result = require_success(unified.evaluate(_source()))
-    expected = require_success(old.evaluate(_source()))
-    assert type(result) is type(expected) is decision.TradeoffDecision
-    assert result.to_dict() == expected.to_dict()
+    contract = _value_contract(_range_value(), **kwargs)
+    assert contract.form == "tradeoff"
+    assert contract.route == "exact"
+    result = require_success(contract.evaluate(_source()))
+    assert type(result) is decision.TradeoffDecision
+    assert result.contract_identity == contract.identity
+    # A named trade-off fixed at one value is still decided across trade-offs.
+    fixed = decision.tradeoff("harm_weight", units="qaly/event", value=1.0)
+    pinned = _value_contract(decision.Value(BENEFIT - fixed * HARM, units="qaly"), **kwargs)
+    assert pinned.form == "tradeoff"
+    assert type(require_success(pinned.evaluate(_source()))) is decision.TradeoffDecision
 
 
 def test_ranged_contract_results():
@@ -422,7 +409,7 @@ def test_ranged_contract_results():
     assert worst.choice is not None
 
 
-def test_ranged_contract_with_a_measure_and_structures_equals_preferences():
+def test_ranged_contract_with_a_measure_and_structures():
     value = _range_value(0.5, 1.5)
     measure = decision.Measure.viewpoints(
         {"clinician": {"harm_weight": 0.75}, "patient": {"harm_weight": 1.25}},
@@ -532,10 +519,12 @@ def test_ranged_contract_has_no_ordinary_form():
     assert transported.value.detail == reason_details.preference_contract.NO_ORDINARY_FORM
 
 
-def test_preferences_action_takes_its_kind_third():
+def test_a_value_action_takes_its_kind_third():
     inputs = {"benefit": WAIT_BENEFIT, "harm": 0.0}
-    assert pf.Action("wait", inputs, "policy").kind == "policy"
-    assert pf.Action("wait", inputs, "policy") == decision.Action("wait", inputs, kind="policy")
+    assert decision.Action("wait", inputs, "policy").kind == "policy"
+    assert decision.Action("wait", inputs, "policy") == decision.Action(
+        "wait", inputs, kind="policy"
+    )
     with pytest.raises(CausalTypeError):
         decision.Action("wait", inputs, decision.x(0))
 
@@ -576,3 +565,74 @@ def test_a_cancelled_execution_refuses_the_ordinary_engine():
         require_success(
             decision.replay(exported, contract=contract, source=_source(), execution=cancelled)
         )
+
+
+# --------------------------------------------------------------------------- separation
+
+
+def test_deciding_with_stated_trade_offs_loads_no_learning():
+    probe = textwrap.dedent(
+        """
+        import sys
+        import numpy as np
+        import antecedent
+        from antecedent import decision
+        from antecedent.joint_distribution import (
+            DistributionIdentity, JointDistributionArtifact, ScientificQuantity,
+        )
+        from antecedent.outcomes import require_success
+
+        def q(variable, units, regime):
+            return ScientificQuantity(
+                variable_id=variable, variable_name=variable, role="outcome", units=units,
+                population_id="target", regime_id=regime, horizon=0, functional_id="outcome",
+            )
+
+        cols = (q("benefit", "qaly", "do(a=1)"), q("harm", "events", "do(a=1)"),
+                q("benefit", "qaly", "do(a=0)"), q("harm", "events", "do(a=0)"))
+        identity = DistributionIdentity(
+            semantic="interventional_predictive", quantities=cols, alignment="joint",
+            source_id="enumerated", provider_id="exact-law", rng_id="deterministic_exact",
+            snapshot_id="enumeration-1", causal_contract_id="checked-contract",
+        )
+        source = JointDistributionArtifact(
+            identity, np.array([[1.0, 0.0, 1.0, 0.0], [3.0, 1.0, 1.0, 0.0]]),
+            calibration="exact",
+        )
+        benefit = decision.attribute("benefit", units="qaly")
+        harm = decision.attribute("harm", units="events")
+        w = decision.tradeoff("w", units="qaly/event", lower=0.5, upper=4.0, assumption="a")
+        contract = decision.Contract(
+            value=decision.Value(benefit - w * harm, units="qaly"),
+            actions=(
+                decision.Action("treat", inputs={"benefit": cols[0], "harm": cols[1]}),
+                decision.Action("wait", inputs={"benefit": cols[2], "harm": cols[3]}),
+            ),
+            target_population="target",
+        )
+        assert require_success(contract.evaluate(source)).kind == "preference_dependent"
+        assert callable(contract.compile)
+        loaded = sorted(m for m in sys.modules if "learning" in m and m.startswith("antecedent"))
+        assert "antecedent.decision_learning" not in sys.modules, loaded
+        """
+    )
+    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+
+
+@pytest.mark.parametrize(
+    "module",
+    [
+        "antecedent.decision",
+        "antecedent._decision_tradeoff",
+        "antecedent._decision_tradeoff_results",
+        "antecedent._decision_compile",
+        "antecedent._decision_sources",
+    ],
+)
+def test_importing_a_deciding_module_loads_no_learning(module):
+    probe = (
+        f"import sys\nimport {module}\nassert 'antecedent.decision_learning' not in sys.modules\n"
+    )
+    run = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr

@@ -534,8 +534,7 @@ class TradeoffDecision(DecisionResult):
 
     @property
     def contract(self) -> Contract | Any:
-        """The contract as declared (a :class:`~antecedent.decision.Contract`, or the
-        :class:`antecedent.preferences.Contract` it was declared with)."""
+        """The :class:`~antecedent.decision.Contract` as declared."""
         return self._contract
 
     @property

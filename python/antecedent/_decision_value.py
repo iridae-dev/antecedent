@@ -645,45 +645,6 @@ class Value:
         )
 
 
-class ValueModel(Value):
-    """A :class:`Value` declared as ``ValueModel(value, utility_units, relations=(),
-    attributes=None, parameters=None)``: ``value`` is the expression, ``utility_units`` its
-    units and ``parameters`` the trade-offs in order."""
-
-    __slots__ = ()
-
-    def __init__(
-        self,
-        value: Any,
-        utility_units: str,
-        relations: Iterable[Any] = (),
-        attributes: Sequence[Attribute] | None = None,
-        parameters: Sequence[Tradeoff] | None = None,
-    ) -> None:
-        super().__init__(
-            value,
-            units=utility_units,
-            relations=relations,
-            attributes=attributes,
-            tradeoffs=parameters,
-        )
-
-    @property
-    def value(self) -> ValueExpr:
-        """The value expression."""
-        return self._expr_value
-
-    @property
-    def utility_units(self) -> str:
-        """The utility units the value is in."""
-        return self._units
-
-    @property
-    def parameters(self) -> tuple[Tradeoff, ...]:
-        """The trade-offs the value reads, in order."""
-        return self._tradeoffs
-
-
 # --------------------------------------------------------------------------- policies
 
 
@@ -949,7 +910,6 @@ __all__ = [
     "TradeoffPolicy",
     "Value",
     "ValueExpr",
-    "ValueModel",
     "attribute",
     "both",
     "excess",

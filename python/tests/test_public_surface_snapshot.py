@@ -452,8 +452,6 @@ SNAPSHOT: dict[str, set[str]] = {
         "nonlinear_mediation",
         "observation_query",
         "predictive_assessment",
-        "preference_learning",
-        "preferences",
         "program_claims",
         "proposals",
         "provider_callbacks",

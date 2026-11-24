@@ -30,9 +30,6 @@ decision as ``decision.Contract(value=accepted, ...)``::
     accepted = accepted.acknowledge(*accepted.pending)
     contract = decision.Contract(value=accepted, actions=..., target_population="target")
 
-The same objects are :mod:`antecedent.preference_learning`, and accepted preferences plug into
-``preferences.Contract(preferences=accepted, ...)`` as well.
-
 What each result is and is not:
 
 * A compatible set is an assumption range: the declared ranges cut by the relation each choice
@@ -184,8 +181,8 @@ class Option:
     def from_result(cls, contract: Contract, source: Any, **binding: Any) -> tuple[Option, ...]:
         """What was expected of each action of ``contract``, read from an analysis source.
 
-        ``contract`` is a :class:`antecedent.decision.Contract` with ``value=`` (or a
-        :class:`antecedent.preferences.Contract`); ``source`` is what its ``evaluate`` reads
+        ``contract`` is a :class:`antecedent.decision.Contract` with ``value=``; ``source`` is
+        what its ``evaluate`` reads
         across trade-offs (aligned joint draws, a mean source, or a supported analysis result
         with the same ``program=``, ``outcome_units=``, ``dose_units=`` and ``population=``
         keywords). Each quantity input is located exactly as the decision locates it; a fixed
@@ -353,7 +350,7 @@ class Records:
 
 def _model_wire(model: Value) -> dict[str, Any]:
     if not isinstance(model, Value):
-        raise CausalTypeError("learning reads a decision.Value (or a preferences.ValueModel)")
+        raise CausalTypeError("learning reads a decision.Value")
     return model._wire()
 
 
@@ -881,8 +878,7 @@ class AcceptedPreferences:
 
     Immutable: :meth:`acknowledge` and :meth:`relearn` return a new handle with the version
     increased by one; nothing relearns implicitly. Pass it as ``value=`` to
-    :class:`antecedent.decision.Contract` (or ``preferences=`` to
-    :class:`antecedent.preferences.Contract`); an estimate's measure travels with it.
+    :class:`antecedent.decision.Contract`; an estimate's measure travels with it.
     """
 
     def __init__(self, native: Any) -> None:
@@ -1035,7 +1031,7 @@ class AcceptedPreferences:
         return AcceptedPreferences(native)
 
     def _preference_wire(self) -> dict[str, Any]:
-        """What a contract reads from ``value=`` (or ``preferences=``): the model and the
+        """What a contract reads from ``value=``: the model and the
         measure, if any."""
         return {"model": self._summary["model"], "measure": self._summary.get("measure")}
 

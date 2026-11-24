@@ -163,8 +163,7 @@ inputs by position, `decision.x(k)`. In a value contract it reads attributes by 
 (`decision.attribute("harm", units="events")`), so the same constraint applies to every action
 that supplies the attribute. A constraint reads attributes only, never a trade-off. A
 constraint with `decision.x(k)` inside a value contract, or an attribute inside an ordinary
-contract, raises before anything is evaluated. In the `antecedent.preferences` spelling,
-`x(k)` is attribute `k` of the value.
+contract, raises before anything is evaluated.
 
 ### What each functional needs
 

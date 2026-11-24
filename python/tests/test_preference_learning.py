@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
-from antecedent import preference_learning as pl
-from antecedent import preferences as pf
+from antecedent import decision
+from antecedent import decision_learning as dl
 from antecedent.errors import CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
@@ -24,13 +24,13 @@ from antecedent.joint_distribution import (
 )
 from antecedent.outcomes import require_success
 
-BENEFIT = pf.attribute("benefit", units="qaly")
-HARM = pf.attribute("harm", units="events")
-COST = pf.attribute("cost", units="usd")
-W = pf.strength("harm_weight", units="qaly/event", lower=0.0, upper=4.0, assumption="panel")
-C = pf.strength("cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer")
-MODEL = pf.ValueModel(BENEFIT - W * HARM - C * COST, utility_units="qaly")
-POOLED = pl.Pooled("one_shared_set_of_preferences")
+BENEFIT = decision.attribute("benefit", units="qaly")
+HARM = decision.attribute("harm", units="events")
+COST = decision.attribute("cost", units="usd")
+W = decision.tradeoff("harm_weight", units="qaly/event", lower=0.0, upper=4.0, assumption="panel")
+C = decision.tradeoff("cost_weight", units="qaly/usd", lower=0.0, upper=1.0, assumption="payer")
+MODEL = decision.Value(BENEFIT - W * HARM - C * COST, units="qaly")
+POOLED = dl.Pooled("one_shared_set_of_preferences")
 
 
 def _record(
@@ -39,26 +39,26 @@ def _record(
     rejected: tuple[float, float] | None,
     *,
     unavailable: str | None = None,
-    source: pl.BeliefSource | None = None,
+    source: dl.BeliefSource | None = None,
     decider: str = "clinic",
-) -> pl.Record:
+) -> dl.Record:
     other = (
-        pl.Option("rejected", unavailable=unavailable)
+        dl.Option("rejected", unavailable=unavailable)
         if unavailable is not None
-        else pl.Option(
+        else dl.Option(
             "rejected",
             means={"benefit": rejected[0], "harm": rejected[1], "cost": 0.0},  # type: ignore[index]
         )
     )
-    return pl.Record(
+    return dl.Record(
         id,
         decider=decider,
         options=(
-            pl.Option("chosen", means={"benefit": chosen[0], "harm": chosen[1], "cost": 0.0}),
+            dl.Option("chosen", means={"benefit": chosen[0], "harm": chosen[1], "cost": 0.0}),
             other,
         ),
         chosen="chosen",
-        source=source or pl.Forecast(f"forecast-{id}"),
+        source=source or dl.Forecast(f"forecast-{id}"),
         observation_rows=(f"ledger:{id}",),
     )
 
@@ -103,14 +103,16 @@ def _source() -> JointDistributionArtifact:
     return JointDistributionArtifact(identity, rows, calibration="exact")
 
 
-def _contract(preferences: object, *, with_cost: bool = True, **kwargs: object) -> pf.Contract:
+def _contract(
+    preferences: object, *, with_cost: bool = True, **kwargs: object
+) -> decision.Contract:
     # treat - wait = 1 - 0.5 w: treat for w < 2, wait for w > 2.
     fixed = {"cost": 0.0} if with_cost else {}
-    return pf.Contract(
-        preferences=preferences,
+    return decision.Contract(
+        value=preferences,
         actions=(
-            pf.Action("treat", inputs={"benefit": COLUMNS[0], "harm": COLUMNS[1], **fixed}),
-            pf.Action("wait", inputs={"benefit": COLUMNS[2], "harm": COLUMNS[3], **fixed}),
+            decision.Action("treat", inputs={"benefit": COLUMNS[0], "harm": COLUMNS[1], **fixed}),
+            decision.Action("wait", inputs={"benefit": COLUMNS[2], "harm": COLUMNS[3], **fixed}),
         ),
         target_population="target",
         **kwargs,  # type: ignore[arg-type]
@@ -118,9 +120,9 @@ def _contract(preferences: object, *, with_cost: bool = True, **kwargs: object) 
 
 
 def test_records_narrow_the_set_then_the_accepted_preferences_decide():
-    records = pl.Records((AT_MOST_ONE,), population="target", pooling=POOLED)
-    learned = require_success(pl.CompatibleSet().learn(MODEL, records))
-    assert isinstance(learned.pooled, pl.LearnedSet)
+    records = dl.Records((AT_MOST_ONE,), population="target", pooling=POOLED)
+    learned = require_success(dl.CompatibleSet().learn(MODEL, records))
+    assert isinstance(learned.pooled, dl.LearnedSet)
     harm = {r.parameter: r for r in learned.pooled.ranges}["harm_weight"]
     assert harm.declared == pytest.approx((0.0, 4.0))
     assert harm.learned == pytest.approx((0.0, 1.0))
@@ -131,19 +133,19 @@ def test_records_narrow_the_set_then_the_accepted_preferences_decide():
     declared = require_success(_contract(MODEL).evaluate(_source()))
     assert declared.kind == "preference_dependent"
 
-    accepted = pl.CompatibleSet().accept(MODEL, records)
+    accepted = dl.CompatibleSet().accept(MODEL, records)
     assert accepted.version == 1
     assert accepted.basis == "compatible_set"
     assert accepted.ranges["harm_weight"] == pytest.approx((0.0, 1.0))
     # No record varied the cost weight: a reviewer is asked to look at it.
-    assert accepted.pending == (pl.ReviewItem("parameter_not_varied", "cost_weight"),)
+    assert accepted.pending == (dl.ReviewItem("parameter_not_varied", "cost_weight"),)
     reviewed = accepted.acknowledge(*accepted.pending)
     assert reviewed.version == 2
     assert reviewed.pending == ()
     assert reviewed.identity != accepted.identity
 
-    with pytest.raises(pf.PreferenceRefusal) as again:
-        reviewed.acknowledge(pl.ReviewItem("parameter_not_varied", "cost_weight"))
+    with pytest.raises(decision.PreferenceRefusal) as again:
+        reviewed.acknowledge(dl.ReviewItem("parameter_not_varied", "cost_weight"))
     assert again.value.detail == reason_details.accepted_preferences.NOT_PENDING
 
     result = require_success(_contract(reviewed).evaluate(_source()))
@@ -151,7 +153,7 @@ def test_records_narrow_the_set_then_the_accepted_preferences_decide():
     assert result.selected == "treat"
 
     exported = reviewed.export()
-    loaded = pl.load(exported, expected_identity=reviewed.identity, records=records)
+    loaded = dl.load(exported, expected_identity=reviewed.identity, records=records)
     assert loaded.identity == reviewed.identity
     assert loaded.version == 2
 
@@ -159,9 +161,9 @@ def test_records_narrow_the_set_then_the_accepted_preferences_decide():
 def test_an_unavailable_option_teaches_nothing():
     unavailable = _record("r2", (2.0, 1.0), None, unavailable="budget_cap")
     learned = require_success(
-        pl.CompatibleSet().learn(MODEL, pl.Records((unavailable,), "target", POOLED))
+        dl.CompatibleSet().learn(MODEL, dl.Records((unavailable,), "target", POOLED))
     )
-    assert isinstance(learned.pooled, pl.LearnedSet)
+    assert isinstance(learned.pooled, dl.LearnedSet)
     harm = {r.parameter: r for r in learned.pooled.ranges}["harm_weight"]
     assert harm.learned == pytest.approx((0.0, 4.0))
     assert not harm.varied
@@ -173,55 +175,55 @@ def test_a_stated_comparison_narrows_a_range_under_its_named_assumption():
         "s1",
         (0.0, 0.0),
         (3.0, 1.0),
-        source=pl.Stated("elicitation-2026", "statements_reflect_choices"),
+        source=dl.Stated("elicitation-2026", "statements_reflect_choices"),
     )
     learned = require_success(
-        pl.CompatibleSet().learn(MODEL, pl.Records((stated,), "target", POOLED))
+        dl.CompatibleSet().learn(MODEL, dl.Records((stated,), "target", POOLED))
     )
-    assert isinstance(learned.pooled, pl.LearnedSet)
+    assert isinstance(learned.pooled, dl.LearnedSet)
     assert learned.pooled.range("harm_weight") == pytest.approx((3.0, 4.0))
     assert "statements_reflect_choices" in learned.pooled.assumptions
 
     # Accepted preferences that rest on a statement say so, as a review item.
-    accepted = pl.CompatibleSet().accept(MODEL, pl.Records((stated,), "target", POOLED))
+    accepted = dl.CompatibleSet().accept(MODEL, dl.Records((stated,), "target", POOLED))
     assert accepted.stated_comparisons == 1
-    item = pl.ReviewItem("stated_comparisons_used", None, 1.0)
+    item = dl.ReviewItem("stated_comparisons_used", None, 1.0)
     assert item in accepted.pending
     reviewed = accepted.acknowledge(item)
     assert item in reviewed.acknowledged
     assert item not in reviewed.pending
 
     # Recorded choices alone raise no such item.
-    recorded = pl.CompatibleSet().accept(MODEL, pl.Records((AT_MOST_ONE,), "target", POOLED))
+    recorded = dl.CompatibleSet().accept(MODEL, dl.Records((AT_MOST_ONE,), "target", POOLED))
     assert recorded.stated_comparisons == 0
     assert all(i.kind != "stated_comparisons_used" for i in recorded.pending)
 
 
 def test_contradictory_records_are_reported_with_the_tolerance_needed():
-    records = pl.Records((AT_MOST_ONE, AT_LEAST_THREE), "target", POOLED)
-    learned = require_success(pl.CompatibleSet().learn(MODEL, records))
+    records = dl.Records((AT_MOST_ONE, AT_LEAST_THREE), "target", POOLED)
+    learned = require_success(dl.CompatibleSet().learn(MODEL, records))
     conflict = learned.pooled
-    assert isinstance(conflict, pl.Conflict)
+    assert isinstance(conflict, dl.Conflict)
     # The single decider's own records conflict the same way.
-    assert isinstance(learned.per_decider["clinic"], pl.Conflict)
+    assert isinstance(learned.per_decider["clinic"], dl.Conflict)
     assert len(learned.conflicts) == 2
     assert set(conflict.records) == {"r1", "r3"}
     assert conflict.kind == "smallest"
     # w <= 1 + t and w >= 3 - t hold together from t = 1.
     assert conflict.tolerance_needed == pytest.approx(1.0)
 
-    with pytest.raises(pf.PreferenceRefusal) as refused:
-        pl.CompatibleSet().accept(MODEL, records)
+    with pytest.raises(decision.PreferenceRefusal) as refused:
+        dl.CompatibleSet().accept(MODEL, records)
     assert refused.value.detail == reason_details.accepted_preferences.CHOICES_CONTRADICTORY
 
-    tolerant = require_success(pl.CompatibleSet(tolerance=1.0).learn(MODEL, records))
-    assert isinstance(tolerant.pooled, pl.LearnedSet)
+    tolerant = require_success(dl.CompatibleSet(tolerance=1.0).learn(MODEL, records))
+    assert isinstance(tolerant.pooled, dl.LearnedSet)
 
 
-TWO = pf.ValueModel(BENEFIT - W * HARM, utility_units="qaly")
+TWO = decision.Value(BENEFIT - W * HARM, units="qaly")
 
 
-def _noisy_records(n: int = 400, *, w: float = 1.5, consistency: float = 3.0) -> pl.Records:
+def _noisy_records(n: int = 400, *, w: float = 1.5, consistency: float = 3.0) -> dl.Records:
     """Choices simulated from the logit model with a known trade-off ``w``."""
     rng = np.random.default_rng(20261123)
     records = []
@@ -232,19 +234,19 @@ def _noisy_records(n: int = 400, *, w: float = 1.5, consistency: float = 3.0) ->
         p_first = 1.0 / (1.0 + np.exp(-consistency * (value[0] - value[1])))
         chosen = "a" if rng.uniform() < p_first else "b"
         records.append(
-            pl.Record(
+            dl.Record(
                 f"n{i}",
                 decider="panel",
                 options=(
-                    pl.Option("a", means={"benefit": benefit[0], "harm": harm[0]}),
-                    pl.Option("b", means={"benefit": benefit[1], "harm": harm[1]}),
+                    dl.Option("a", means={"benefit": benefit[0], "harm": harm[0]}),
+                    dl.Option("b", means={"benefit": benefit[1], "harm": harm[1]}),
                 ),
                 chosen=chosen,
-                source=pl.Forecast("forecast-batch"),
+                source=dl.Forecast("forecast-batch"),
                 observation_rows=(f"ledger:n{i}",),
             )
         )
-    return pl.Records(tuple(records), "target", POOLED)
+    return dl.Records(tuple(records), "target", POOLED)
 
 
 def _coverage_recorded(*, functional: str, level: float, records: int) -> bool:
@@ -272,7 +274,7 @@ def _coverage_recorded(*, functional: str, level: float, records: int) -> bool:
 
 def test_the_choice_model_estimates_the_trade_off_and_carries_its_measure():
     records = _noisy_records()
-    fit = require_success(pl.ChoiceModel(draws=500, seed=7).learn(TWO, records))
+    fit = require_success(dl.ChoiceModel(draws=500, seed=7).learn(TWO, records))
     assert fit.pooled is not None
     (estimate,) = fit.pooled.parameters
     assert estimate.parameter == "harm_weight"
@@ -287,57 +289,57 @@ def test_the_choice_model_estimates_the_trade_off_and_carries_its_measure():
     assert fit.pooled.not_learnable == ()
     assert fit.pooled.measure.estimate is not None
 
-    accepted = pl.ChoiceModel(draws=500, seed=7).accept(TWO, records)
+    accepted = dl.ChoiceModel(draws=500, seed=7).accept(TWO, records)
     assert accepted.basis == "choice_estimate"
     assert accepted.measure is not None
-    weighted = _contract(accepted, with_cost=False, policy=pf.Policy.weighted())
+    weighted = _contract(accepted, with_cost=False, policy=decision.TradeoffPolicy.weighted())
     result = require_success(weighted.evaluate(_source()))
     # The draws sit near w = 1.5 < 2, where treat leads.
     assert result.kind == "measure_choice"
     assert result.selected == "treat"
 
-    declared = pf.Measure(points=({"harm_weight": 1.0},), assumption="analyst")
+    declared = decision.Measure(points=({"harm_weight": 1.0},), assumption="analyst")
     with pytest.raises(CausalValueError, match="carry their own measure"):
         require_success(weighted.evaluate(_source(), measure=declared))
 
 
 def test_the_choice_model_refuses_a_fit_mixing_stated_and_recorded_choices():
-    stated = _record("s1", (0.0, 0.0), (3.0, 1.0), source=pl.Stated("elicitation", "acts_on_it"))
-    records = pl.Records((AT_MOST_ONE, stated), "target", POOLED)
-    with pytest.raises(pf.PreferenceRefusal) as mixed:
-        require_success(pl.ChoiceModel().learn(MODEL, records))
+    stated = _record("s1", (0.0, 0.0), (3.0, 1.0), source=dl.Stated("elicitation", "acts_on_it"))
+    records = dl.Records((AT_MOST_ONE, stated), "target", POOLED)
+    with pytest.raises(decision.PreferenceRefusal) as mixed:
+        require_success(dl.ChoiceModel().learn(MODEL, records))
     assert mixed.value.detail == reason_details.preference_choice_model.STATED_AND_RECORDED_MIXED
 
 
 # --------------------------------------------------------------------------- shape parameters
 
-X = pf.attribute("x", units="usd")
-HARM_X = pf.attribute("harm", units="events")
-RISK = pf.strength("risk", units="1/usd", lower=0.1, upper=3.0, assumption="panel")
-RISK_MODEL = pf.ValueModel(-pf.exp(-(RISK * X)), utility_units="u")
+X = decision.attribute("x", units="usd")
+HARM_X = decision.attribute("harm", units="events")
+RISK = decision.tradeoff("risk", units="1/usd", lower=0.1, upper=3.0, assumption="panel")
+RISK_MODEL = decision.Value(-decision.exp(-(RISK * X)), units="u")
 # A sure 1 chosen over an even lottery on 0 and 3 under v = -exp(-risk x) holds exactly for
 # risk >= -ln((sqrt(5) - 1) / 2).
 RISK_THRESHOLD = -math.log((math.sqrt(5.0) - 1.0) / 2.0)
 
 
-def _lottery(id: str, sure: float, chosen: str) -> pl.Record:
-    return pl.Record(
+def _lottery(id: str, sure: float, chosen: str) -> dl.Record:
+    return dl.Record(
         id,
         decider="panel",
         options=(
-            pl.Option("sure", draws={"x": [sure]}),
-            pl.Option("lottery", draws={"x": [0.0, 3.0]}, weights=[0.5, 0.5]),
+            dl.Option("sure", draws={"x": [sure]}),
+            dl.Option("lottery", draws={"x": [0.0, 3.0]}, weights=[0.5, 0.5]),
         ),
         chosen=chosen,
-        source=pl.Forecast(f"forecast-{id}"),
+        source=dl.Forecast(f"forecast-{id}"),
         observation_rows=(f"ledger:{id}",),
     )
 
 
 def test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes():
-    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
-    learned = require_success(pl.CompatibleSet().learn(RISK_MODEL, records))
-    assert isinstance(learned.pooled, pl.LearnedSet)
+    records = dl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    learned = require_success(dl.CompatibleSet().learn(RISK_MODEL, records))
+    assert isinstance(learned.pooled, dl.LearnedSet)
     (risk,) = learned.pooled.ranges
     assert risk.basis == "enclosure"
     assert RISK_THRESHOLD - 1e-2 <= risk.learned[0] <= RISK_THRESHOLD
@@ -351,43 +353,45 @@ def test_a_risk_attitude_is_learned_as_an_outer_range_with_its_boxes():
     assert inside
     assert all(cell.shape["risk"][0] >= RISK_THRESHOLD - 1e-9 for cell in inside)
 
-    accepted = pl.CompatibleSet().accept(RISK_MODEL, records)
+    accepted = dl.CompatibleSet().accept(RISK_MODEL, records)
     assert accepted.basis == "compatible_set"
     assert accepted.ranges["risk"][0] == pytest.approx(risk.learned[0])
 
 
 def test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts():
-    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
-    tight = pl.CompatibleSet(max_boxes=1)
+    records = dl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    tight = dl.CompatibleSet(max_boxes=1)
     undetermined = require_success(tight.learn(RISK_MODEL, records))
-    assert isinstance(undetermined.pooled, pl.Undetermined)
+    assert isinstance(undetermined.pooled, dl.Undetermined)
     assert undetermined.pooled.region is not None
     assert undetermined.pooled.region.budget_exhausted
     assert all(cell.status == "boundary" for cell in undetermined.pooled.region.cells)
     assert undetermined.pooled in undetermined.undetermined
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         tight.accept(RISK_MODEL, records)
     assert refused.value.detail == reason_details.accepted_preferences.SET_UNDETERMINED
 
     # The second record holds only for risk below about 0.275: the two are proven to conflict.
-    both = pl.Records(
+    both = dl.Records(
         (_lottery("r1", 1.0, "sure"), _lottery("r2", 1.2, "lottery")), "target", POOLED
     )
-    conflict = require_success(pl.CompatibleSet().learn(RISK_MODEL, both)).pooled
-    assert isinstance(conflict, pl.Conflict)
+    conflict = require_success(dl.CompatibleSet().learn(RISK_MODEL, both)).pooled
+    assert isinstance(conflict, dl.Conflict)
     assert set(conflict.records) == {"r1", "r2"}
     assert conflict.kind == "smallest"
     assert 0.0 < conflict.tolerance_needed < math.inf
 
 
-SHAPED = pf.strength("risk", units="1/usd", lower=0.05, upper=3.0, assumption="panel")
-HARM_WEIGHT = pf.strength("harm_weight", units="u/event", lower=0.0, upper=3.0, assumption="panel")
-RISK_AND_HARM = pf.ValueModel(-pf.exp(-(SHAPED * X)) - HARM_WEIGHT * HARM_X, utility_units="u")
+SHAPED = decision.tradeoff("risk", units="1/usd", lower=0.05, upper=3.0, assumption="panel")
+HARM_WEIGHT = decision.tradeoff(
+    "harm_weight", units="u/event", lower=0.0, upper=3.0, assumption="panel"
+)
+RISK_AND_HARM = decision.Value(-decision.exp(-(SHAPED * X)) - HARM_WEIGHT * HARM_X, units="u")
 
 
 def _noisy_risk_records(
     n: int, *, risk: float, harm_weight: float, consistency: float, x_upper: float = 4.0
-) -> pl.Records:
+) -> dl.Records:
     """Choices between two sure bundles simulated from the logit model."""
     rng = np.random.default_rng(20261124)
     records = []
@@ -397,24 +401,24 @@ def _noisy_risk_records(
         value = -np.exp(-risk * x) - harm_weight * harm
         p_first = 1.0 / (1.0 + np.exp(-consistency * (value[0] - value[1])))
         records.append(
-            pl.Record(
+            dl.Record(
                 f"n{i}",
                 decider="panel",
                 options=(
-                    pl.Option("a", draws={"x": [x[0]], "harm": [harm[0]]}),
-                    pl.Option("b", draws={"x": [x[1]], "harm": [harm[1]]}),
+                    dl.Option("a", draws={"x": [x[0]], "harm": [harm[0]]}),
+                    dl.Option("b", draws={"x": [x[1]], "harm": [harm[1]]}),
                 ),
                 chosen="a" if rng.uniform() < p_first else "b",
-                source=pl.Forecast("forecast-batch"),
+                source=dl.Forecast("forecast-batch"),
                 observation_rows=(f"ledger:n{i}",),
             )
         )
-    return pl.Records(tuple(records), "target", POOLED)
+    return dl.Records(tuple(records), "target", POOLED)
 
 
 def test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval():
     records = _noisy_risk_records(500, risk=0.8, harm_weight=0.6, consistency=5.0)
-    fit = require_success(pl.ChoiceModel(draws=300, seed=3).learn(RISK_AND_HARM, records))
+    fit = require_success(dl.ChoiceModel(draws=300, seed=3).learn(RISK_AND_HARM, records))
     estimate = fit.pooled
     assert estimate is not None
     assert estimate.shape_parameters == ("risk",)
@@ -428,33 +432,33 @@ def test_the_choice_model_estimates_a_risk_attitude_with_a_profile_interval():
     assert estimate.interval_calibration == "not_measured"
 
     # The search controls travel with the options; too small a limit is refused by name.
-    narrow = pl.ChoiceModel(draws=300, shape_search=pl.ShapeSearch(max_dimensions=0))
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    narrow = dl.ChoiceModel(draws=300, shape_search=dl.ShapeSearch(max_dimensions=0))
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(narrow.learn(RISK_AND_HARM, records))
     assert refused.value.detail == reason_details.preference_choice_model.SHAPE_SEARCH_BUDGET
 
 
 def test_a_risk_attitude_estimated_on_its_declared_bound_is_refused():
-    bounded = pf.strength("risk", units="1/usd", lower=0.3, upper=2.0, assumption="panel")
-    model = pf.ValueModel(-pf.exp(-(bounded * X)), utility_units="u")
+    bounded = decision.tradeoff("risk", units="1/usd", lower=0.3, upper=2.0, assumption="panel")
+    model = decision.Value(-decision.exp(-(bounded * X)), units="u")
     rng = np.random.default_rng(20261125)
     records = []
     for i in range(800):
         x = rng.uniform(0.0, 5.0, size=2)
         p_first = 1.0 / (1.0 + np.exp(-2.0 * (x[0] - x[1])))
         records.append(
-            pl.Record(
+            dl.Record(
                 f"m{i}",
                 decider="panel",
-                options=(pl.Option("a", draws={"x": [x[0]]}), pl.Option("b", draws={"x": [x[1]]})),
+                options=(dl.Option("a", draws={"x": [x[0]]}), dl.Option("b", draws={"x": [x[1]]})),
                 chosen="a" if rng.uniform() < p_first else "b",
-                source=pl.Forecast("forecast-batch"),
+                source=dl.Forecast("forecast-batch"),
                 observation_rows=(f"ledger:m{i}",),
             )
         )
-    with pytest.raises(pf.PreferenceRefusal) as refused:
+    with pytest.raises(decision.PreferenceRefusal) as refused:
         require_success(
-            pl.ChoiceModel(draws=200).learn(model, pl.Records(tuple(records), "target", POOLED))
+            dl.ChoiceModel(draws=200).learn(model, dl.Records(tuple(records), "target", POOLED))
         )
     assert refused.value.detail == reason_details.preference_choice_model.SHAPE_ESTIMATE_AT_BOUND
 
@@ -483,12 +487,12 @@ def test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_dec
     # leaves the sure 1.2 best everywhere.
     columns = (_quantity("x", "usd", "do(a=1)"), _quantity("x", "usd", "do(a=0)"))
 
-    def contract(preferences: object) -> pf.Contract:
-        return pf.Contract(
-            preferences=preferences,
+    def contract(preferences: object) -> decision.Contract:
+        return decision.Contract(
+            value=preferences,
             actions=(
-                pf.Action("sure", inputs={"x": columns[0]}),
-                pf.Action("lottery", inputs={"x": columns[1]}),
+                decision.Action("sure", inputs={"x": columns[0]}),
+                decision.Action("lottery", inputs={"x": columns[1]}),
             ),
             target_population="target",
         )
@@ -496,8 +500,8 @@ def test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_dec
     declared = require_success(contract(RISK_MODEL).evaluate(_lottery_source()))
     assert declared.kind != "necessarily_best"
 
-    records = pl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
-    accepted = pl.CompatibleSet().accept(RISK_MODEL, records)
+    records = dl.Records((_lottery("r1", 1.0, "sure"),), "target", POOLED)
+    accepted = dl.CompatibleSet().accept(RISK_MODEL, records)
     reviewed = accepted.acknowledge(*accepted.pending) if accepted.pending else accepted
     # The accepted set keeps the declared box; the value relation is what narrows it.
     assert reviewed.ranges["risk"][0] > 0.4
@@ -508,7 +512,7 @@ def test_a_shape_learned_accepted_set_decides_on_its_value_relations_not_the_dec
 
 def test_options_read_from_an_analysis_become_a_record():
     # The analysis's draws of each action become the options of a record that read it.
-    options = pl.Option.from_result(_contract(MODEL), _source())
+    options = dl.Option.from_result(_contract(MODEL), _source())
     assert [option.id for option in options] == ["treat", "wait"]
     treat, wait = options
     assert treat.draws is not None and wait.draws is not None
@@ -518,41 +522,41 @@ def test_options_read_from_an_analysis_become_a_record():
     assert list(wait.draws["benefit"]) == pytest.approx([1.0, 1.0])
 
     # Choosing treat with these expectations (2 - 0.5 w over 1) implies w <= 2.
-    record = pl.Record(
+    record = dl.Record(
         "read-the-trial",
         decider="clinic",
         options=options,
         chosen="treat",
-        source=pl.AnalysisAsOf("trial-result-1", "2026-11-01"),
+        source=dl.AnalysisAsOf("trial-result-1", "2026-11-01"),
         observation_rows=("ledger:read-the-trial",),
     )
     learned = require_success(
-        pl.CompatibleSet().learn(MODEL, pl.Records((record,), "target", POOLED))
+        dl.CompatibleSet().learn(MODEL, dl.Records((record,), "target", POOLED))
     )
-    assert isinstance(learned.pooled, pl.LearnedSet)
+    assert isinstance(learned.pooled, dl.LearnedSet)
     assert learned.pooled.range("harm_weight") == pytest.approx((0.0, 2.0))
 
 
 def test_accepted_preferences_relearn_on_request():
-    records = pl.Records((AT_MOST_ONE,), "target", POOLED)
-    accepted = pl.CompatibleSet().accept(MODEL, records)
+    records = dl.Records((AT_MOST_ONE,), "target", POOLED)
+    accepted = dl.CompatibleSet().accept(MODEL, records)
     reviewed = accepted.acknowledge(*accepted.pending)
     assert (reviewed.version, reviewed.pending) == (2, ())
 
     # Relearning with the stored options on other records: a new version, acknowledgements
     # cleared, so the unvaried cost weight is pending again.
-    relearned = reviewed.relearn(pl.Records((AT_LEAST_THREE,), "target", POOLED))
+    relearned = reviewed.relearn(dl.Records((AT_LEAST_THREE,), "target", POOLED))
     assert relearned.version == 3
     assert relearned.basis == "compatible_set"
     assert relearned.ranges["harm_weight"] == pytest.approx((3.0, 4.0))
     assert relearned.acknowledged == ()
-    assert relearned.pending == (pl.ReviewItem("parameter_not_varied", "cost_weight"),)
+    assert relearned.pending == (dl.ReviewItem("parameter_not_varied", "cost_weight"),)
     assert relearned.identity != reviewed.identity
 
     # Declared preferences carry no learning options: the learner is named.
-    declared = pl.AcceptedPreferences.declared(MODEL)
+    declared = dl.AcceptedPreferences.declared(MODEL)
     with pytest.raises(CausalValueError, match="no learning options"):
         declared.relearn(records)
-    learned = declared.relearn(records, using=pl.CompatibleSet())
+    learned = declared.relearn(records, using=dl.CompatibleSet())
     assert learned.basis == "compatible_set"
     assert learned.ranges["harm_weight"] == pytest.approx((0.0, 1.0))

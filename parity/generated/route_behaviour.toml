@@ -8246,7 +8246,7 @@ routes = [
   { route = "antecedent.preference_decision.experiment_mean_source", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preference_decision.chain_joint_law", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preference_decision.joint_law_of", stage = "prepare", status = "supported", claim = "none" },
-  { route = "antecedent.preferences.Contract.evaluate", stage = "evaluate", status = "supported", claim = "assumption_range" },
+  { route = "antecedent._decision_tradeoff.evaluate_tradeoff", stage = "evaluate", status = "supported", claim = "assumption_range" },
   { route = "antecedent.Study.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.PreparedStudy.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preference_decision.compile_preference_decision_across_studies", stage = "prepare", status = "supported", claim = "none" },
@@ -8254,7 +8254,7 @@ routes = [
   { route = "antecedent.preference_decision.compile_preference_decision_across_prepared_studies", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.joint_panel.PreparedNativeJointDesign.compile_for_preference_decision", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.preference_decision.CompiledPreferenceDecision.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
-  { route = "antecedent.preferences.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.decision.Contract.compile", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent._decision_compile.CompiledDecision.execute", stage = "evaluate", status = "supported", claim = "assumption_range" },
 ]
 

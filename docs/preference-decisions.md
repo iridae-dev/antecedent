@@ -865,30 +865,6 @@ in [preference sets and recorded choices](reference/refusal-codes.md#preference-
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |
 
-## Names in `antecedent.preferences`
-
-`antecedent.preferences` holds the same objects under the names below. Both spellings run the
-same engine and give the same identities and results.
-
-| `antecedent.preferences` | `antecedent.decision` |
-| --- | --- |
-| `attribute`, `Attribute`, `exp`, `ln`, `excess`, `shortfall`, `segment`, `interaction`, `both`, `Curve`, `Relation`, `relation`, `Measure`, `Structures`, `Action`, `Criterion` | the same names |
-| `strength(id, units=, lower=, upper=, assumption=)` | `tradeoff(id, units=, lower=, upper=, assumption=)` |
-| `fixed(id, units=, value=, assumption=)` | `tradeoff(id, units=, value=)`, or a plain number for an ordinary contract |
-| `Parameter` | `Tradeoff` |
-| `Expr` | `ValueExpr` |
-| `ValueModel(value, utility_units=)` | `Value(expr, units=)` |
-| `Policy` | `TradeoffPolicy` |
-| `StructuralPolicy` | the string on `structural_policy=` |
-| `constraint(id, expr, at_most=, units=)` | `Constraint(id, expr, bound=, units=)` |
-| `Contract(model=` or `preferences=`, ...)` | `Contract(value=, ...)` |
-| `PreferenceDecision` | `TradeoffDecision` |
-| `PreferenceRefusal` | `PreferenceRefusal`, a `DecisionRefusal` |
-| `CompiledDecision`, `CompiledQuantity`, `TradeOffRange`, `JointLawInput`, `JointLawPlan`, `DesignLawPlan`, `ActionRecord`, `Switch`, `SwitchThreshold`, `Region`, `StructureOutcome`, `ClassSampling`, `SampledMass`, `SampledMargin`, `joint_law`, `chain_law`, `experiment_means`, `experiment_quantity`, `replay` | the same names |
-
-`preferences.Contract` always uses the trade-off engine, also for a value with no trade-off, and
-reads `decision.x(k)` in a constraint as attribute `k` of the value. Neither spelling warns.
-
 ## Sources
 
 Jacquet-Lagrèze, E. and Siskos, J. (1982), assessing a set of additive utility functions, the

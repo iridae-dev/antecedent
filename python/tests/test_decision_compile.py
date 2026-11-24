@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import decision
-from antecedent import preferences as pf
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
 
@@ -325,36 +324,22 @@ def test_fixed_value_compiles_as_its_ordinary_contract():
 # --------------------------------------------------------------------------- ranged contracts
 
 
-def test_ranged_compile_through_decision_equals_preferences():
+def test_ranged_compile_through_decision():
     prepared = _prepared(_dose_table())
-    unified = _priced_contract(_priced_value())
-    price = pf.strength("price", units="points/usd", lower=0.2, upper=1.0, assumption="price")
-    old = pf.Contract(
-        model=pf.ValueModel(
-            pf.attribute("benefit", units="points") - price * pf.attribute("cost", units="usd"),
-            utility_units="points",
-        ),
-        actions=(
-            pf.Action("low", inputs={"benefit": _dose("y", 0.5), "cost": 0.5}),
-            pf.Action("high", inputs={"benefit": _dose("y", 1.5), "cost": 1.5}),
-        ),
-        target_population="target",
-    )
-    compiled = require_success(unified.compile(prepared))
-    expected = require_success(old.compile(prepared))
-    assert compiled.contract_identity == expected.contract_identity
-    assert compiled.bound_identity == expected.bound_identity
+    contract = _priced_contract(_priced_value())
+    compiled = require_success(contract.compile(prepared))
+    assert compiled.contract_identity == contract.identity
     assert compiled.route == "exact"
-    assert compiled.trade_offs == (pf.TradeOffRange("price", "points/usd", 0.2, 1.0, "price"),)
+    assert compiled.trade_offs == (
+        decision.TradeOffRange("price", "points/usd", 0.2, 1.0, "price"),
+    )
     assert compiled.parameter_ranges == {"price": (0.2, 1.0)}
 
     decided = require_success(compiled.execute())
-    again = require_success(expected.execute())
     assert type(decided) is decision.TradeoffDecision
-    assert decided.kind == again.kind == "necessarily_best"
-    assert decided.choice == again.choice == "high"
+    assert decided.kind == "necessarily_best"
+    assert decided.choice == "high"
     assert decided.standing == "best"
-    assert decided.to_dict()["actions"] == again.to_dict()["actions"]
     assert decided.receipt is not None
     assert decided.receipt.contract_identity == compiled.contract_identity
     assert decided.receipt.bound_identity == compiled.bound_identity
