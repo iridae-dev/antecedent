@@ -761,7 +761,24 @@ class RandomizedEffect:
         conservative design-based variance bound, not a calibrated interval
         or a support-matrix support. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
+
+        The stratified design is deprecated here: ``analyze`` with the same query runs the
+        compiled ``RandomizedEffect`` route, which returns the same effect and variance bound.
         """
+        if (
+            not isinstance(self.design, MultiArmExperimentDesign)
+            and isinstance(self.design.assignment, StratifiedRandomization)
+            and not (
+                self.exact_randomization_test
+                or self.ancova_covariates
+                or self.cuped is not None
+                or self.estimated_cuped is not None
+            )
+        ):
+            _deprecation.direct_path_deprecated(
+                "antecedent.experiment.RandomizedEffect.estimate (stratified design)",
+                "antecedent.analyze(data, query=RandomizedEffect(outcome, design))",
+            )
         if isinstance(self.design, MultiArmExperimentDesign):
             raise CausalUnsupportedError(
                 "multi-arm RandomizedEffect requires analyze or prepare to retain every arm and the assignment record",
@@ -799,10 +816,6 @@ class RandomizedEffect:
             names, columns = as_columns(data)
             if self.outcome not in names:
                 raise CausalValueError(f"outcome column {self.outcome!r} is missing from data")
-            _deprecation.direct_path_deprecated(
-                "antecedent.experiment.RandomizedEffect.estimate (stratified design)",
-                "antecedent.analyze(data, query=RandomizedEffect(outcome, design))",
-            )
             estimated_raw = _estimate_stratified_effect(
                 np.asarray(columns[names.index(self.outcome)], dtype=np.float64),
                 list(realized),
