@@ -92,6 +92,36 @@ provider_trust = "original_native_source_replay_factory_only; caller metadata su
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "temporal.dependent_interval"
+route = "antecedent.analysis.compiled_temporal_interval.CompiledTemporalDependentInterval.execute"
+algorithm_provenance = ["provenance/temporal.dependent_interval.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "temporal.dependent_interval.measured_temporal_normal_measured.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Enumerated two-step dynamic SCM (pre-action state s0, action a1, step-2 covariate l ~ P(l=1|s0,a1), action a2, binary outcome with mean m(s0,a1,l,a2)); exact-count repeated-unit panel of 30 units whose unit effect shifts every cell mean by +-0.2. Target initial-state law P(s0=1)=0.7, sequence (0,0)."
+expected_values = "Fixed-state responses 0.33 (s0=0) and 0.46 (s0=1); target-marginalized point 0.3*0.33+0.7*0.46=0.421. Whole-unit resampling is wider than iid-row resampling of the same panel. The new studentized construction is NOT measured; original percentile/basic coverage failures are retained: the engine reports calibration not_measured and the route is not supported (carried forward)."
+tolerance = "absolute 1e-12 for enumerated point values; interval coverage is not claimed until the repeated-unit calibration gate is measured"
+calibration = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95.v2_validation_not_applicable. Original5c76724f whole-method evidence and current main-source replay/attestation authorize only exact named scalar endpoints within native measured protocol guards. Original source artifact fields retain not_measured model-conditional standing."
+artifact_consumer_fixture = "temporal.dependent_interval.measured_temporal_normal_measured.artifact"
+provider_trust = "original_native_source_replay_factory_only; caller metadata supplies no authority"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "temporal.dependent_interval"
+route = "antecedent.python.transport.TemporalUnitPanel.compiled_dependent_interval"
+algorithm_provenance = ["provenance/temporal.dependent_interval.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "temporal.dependent_interval.measured_temporal_normal_measured.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Enumerated two-step dynamic SCM (pre-action state s0, action a1, step-2 covariate l ~ P(l=1|s0,a1), action a2, binary outcome with mean m(s0,a1,l,a2)); exact-count repeated-unit panel of 30 units whose unit effect shifts every cell mean by +-0.2. Target initial-state law P(s0=1)=0.7, sequence (0,0)."
+expected_values = "Fixed-state responses 0.33 (s0=0) and 0.46 (s0=1); target-marginalized point 0.3*0.33+0.7*0.46=0.421. Whole-unit resampling is wider than iid-row resampling of the same panel. The new studentized construction is NOT measured; original percentile/basic coverage failures are retained: the engine reports calibration not_measured and the route is not supported (carried forward)."
+tolerance = "absolute 1e-12 for enumerated point values; interval coverage is not claimed until the repeated-unit calibration gate is measured"
+calibration = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95.v2_validation_not_applicable. Original5c76724f whole-method evidence and current main-source replay/attestation authorize only exact named scalar endpoints within native measured protocol guards. Original source artifact fields retain not_measured model-conditional standing."
+artifact_consumer_fixture = "temporal.dependent_interval.measured_temporal_normal_measured.artifact"
+provider_trust = "original_native_source_replay_factory_only; caller metadata supplies no authority"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "temporal.uncertain_initial_state"
 route = "antecedent.temporal.initial_state"
 algorithm_provenance = ["provenance/temporal.uncertain_initial_state.toml"]
@@ -4540,6 +4570,36 @@ provider_trust = "native_when_built_from_a_verified_analysis_result_declared_mod
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "cohort_decision.interval"
+route = "antecedent.analysis.compiled_cohort_interval.CompiledCohortInterval.execute"
+algorithm_provenance = ["provenance/cohort_decision.interval.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "cohort_decision.interval.hand_variance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "tau(z) = 2 + 0.5 z; cohort z = (-1, 0.5, 1) with weights (0.2, 0.3, 0.5); affine utilities 4x - 1.5 and 10x - 25; covariance [[0.04, -0.01], [-0.01, 0.09]] for the diagnostic."
+expected_values = "Weighted cohort mean 2.225; expected utilities 7.4 and -2.75; variance of the mean 0.049225; every law-valued or interval request refused with its typed code and detail."
+tolerance = "absolute 1e-12 for hand-calculated values on exact inputs; 1e-8 where a fitted producer supplies the coefficients; exact code and detail match for refusals"
+calibration = "student_t_hc3_cohort_mean_interval_measured_native_fit_declared_export_point_only; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "cohort_decision.interval.tampered_model.artifact"
+provider_trust = "native_when_built_from_a_verified_analysis_result_declared_model_is_attested_never_native"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "cohort_decision.interval"
+route = "antecedent.python.cohort_decision.CohortDecisionSource.compiled_interval"
+algorithm_provenance = ["provenance/cohort_decision.interval.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "cohort_decision.interval.hand_variance.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "tau(z) = 2 + 0.5 z; cohort z = (-1, 0.5, 1) with weights (0.2, 0.3, 0.5); affine utilities 4x - 1.5 and 10x - 25; covariance [[0.04, -0.01], [-0.01, 0.09]] for the diagnostic."
+expected_values = "Weighted cohort mean 2.225; expected utilities 7.4 and -2.75; variance of the mean 0.049225; every law-valued or interval request refused with its typed code and detail."
+tolerance = "absolute 1e-12 for hand-calculated values on exact inputs; 1e-8 where a fitted producer supplies the coefficients; exact code and detail match for refusals"
+calibration = "student_t_hc3_cohort_mean_interval_measured_native_fit_declared_export_point_only; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90.v2_validation_not_applicable; cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "cohort_decision.interval.tampered_model.artifact"
+provider_trust = "native_when_built_from_a_verified_analysis_result_declared_model_is_attested_never_native"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "cohort_decision.law_valued_request"
 route = "antecedent.cohort_decision.law_valued_request"
 algorithm_provenance = ["provenance/cohort_decision.law_valued_request.toml"]
@@ -5845,6 +5905,36 @@ provider_trust = "native_numerics_over_retained_history; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "adaptive_inference.unsupported_guarantees"
+route = "antecedent.analysis.compiled_adaptive_interval.CompiledAdaptiveInterval.execute"
+algorithm_provenance = ["provenance/adaptive_inference.unsupported_guarantees.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "adaptive_inference.unsupported_guarantees.point_values_ship_uncalibrated.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The point values and uncalibrated variance are what an adaptive result reports, and the variance tracks the empirical variance in simulation."
+expected_values = "Values asserted in crates/antecedent-stats/tests/adaptive_inference_oracle.rs::simulated_epsilon_greedy_trials_recover_the_contrast_with_calibrated_variance against independent closed forms, enumerations, published values or hand calculation."
+tolerance = "absolute 1e-9 to 1e-12 for closed forms; stated Monte Carlo standard-error multiples for fixed-seed simulations; exact for counts, identities and refusals"
+calibration = "route antecedent.adaptive_inference.interval; interval coverage is measured and attested for this record, route refused as not_supported; measured and attested coverage coordinates: cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "adaptive_inference.unsupported_guarantees.fresh_reader_consumes.artifact"
+provider_trust = "native_numerics_over_retained_history; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "adaptive_inference.unsupported_guarantees"
+route = "antecedent.python.adaptive_inference.AdaptiveInferenceSession.compiled_interval"
+algorithm_provenance = ["provenance/adaptive_inference.unsupported_guarantees.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "adaptive_inference.unsupported_guarantees.point_values_ship_uncalibrated.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The point values and uncalibrated variance are what an adaptive result reports, and the variance tracks the empirical variance in simulation."
+expected_values = "Values asserted in crates/antecedent-stats/tests/adaptive_inference_oracle.rs::simulated_epsilon_greedy_trials_recover_the_contrast_with_calibrated_variance against independent closed forms, enumerations, published values or hand calculation."
+tolerance = "absolute 1e-9 to 1e-12 for closed forms; stated Monte Carlo standard-error multiples for fixed-seed simulations; exact for counts, identities and refusals"
+calibration = "route antecedent.adaptive_inference.interval; interval coverage is measured and attested for this record, route refused as not_supported; measured and attested coverage coordinates: cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_090_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_095_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.bayesian.posterior_quantile.l95.thompson_posterior_prior_predictive_stop_099_boundary_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95.v2_validation_not_applicable cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "adaptive_inference.unsupported_guarantees.fresh_reader_consumes.artifact"
+provider_trust = "native_numerics_over_retained_history; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "decision_reliability.ranking_statement"
 route = "antecedent.decision_reliability.rank"
 algorithm_provenance = ["provenance/decision_reliability.ranking_statement.toml"]
@@ -6762,6 +6852,36 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "observation_query.calibrated_probability"
 route = "antecedent.python.observation_query.CountFittedObservation.interval"
+algorithm_provenance = ["provenance/observation_query.calibrated_probability.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.calibrated_probability.count_fitted_interval.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Hand-built Z to Y counts (60/40 and 48/12/10/30 over 100 rows) with evidence Z = 1; a confounded model fitted from counts."
+expected_values = "Point value (30 + 1) / (40 + 2); a measured interval bound to its coverage record or the typed refusal; the draws replay bit for bit from the retained counts."
+tolerance = "absolute 1e-12 for the hand-computed point value; bit equality for replayed results"
+calibration = "posterior_quantile_interval_measured_count_fitted_tables_declared_model_has_no_sampling_interval; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "observation_query.calibrated_probability.no_interval_in_artifact.artifact"
+provider_trust = "native_computation_only; retained counts and declared tables are bound into the measured source identity"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.calibrated_probability"
+route = "antecedent.analysis.compiled_count_fitted_interval.CompiledCountFittedInterval.execute"
+algorithm_provenance = ["provenance/observation_query.calibrated_probability.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.calibrated_probability.count_fitted_interval.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Hand-built Z to Y counts (60/40 and 48/12/10/30 over 100 rows) with evidence Z = 1; a confounded model fitted from counts."
+expected_values = "Point value (30 + 1) / (40 + 2); a measured interval bound to its coverage record or the typed refusal; the draws replay bit for bit from the retained counts."
+tolerance = "absolute 1e-12 for the hand-computed point value; bit equality for replayed results"
+calibration = "posterior_quantile_interval_measured_count_fitted_tables_declared_model_has_no_sampling_interval; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90.v2_validation_not_applicable; cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95.v2_validation_not_applicable"
+artifact_consumer_fixture = "observation_query.calibrated_probability.no_interval_in_artifact.artifact"
+provider_trust = "native_computation_only; retained counts and declared tables are bound into the measured source identity"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.calibrated_probability"
+route = "antecedent.python.observation_query.CountFittedObservation.compiled_interval"
 algorithm_provenance = ["provenance/observation_query.calibrated_probability.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "observation_query.calibrated_probability.count_fitted_interval.positive"
@@ -7750,6 +7870,36 @@ provider_trust = "native_numerics_over_a_retained_model_and_a_declared_premise_n
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "transport.covariate_shift_cohort_effect"
+route = "antecedent.analysis.compiled_transported_cohort.Study.compile_transported_cohort"
+algorithm_provenance = ["provenance/transport.covariate_shift_cohort_effect.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.covariate_shift_cohort_effect.hand_cohort_mean.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "tau(z, w) = 1 + 2 z - w on the fitted box z in [0,1], w in [0,2] (400 fitted rows); target cohort rows (z, w) = (0.5, 1), (1, 0), (0, 2) with weights (0.5, 0.25, 0.25)."
+expected_values = "Row contrasts (1, 3, -1); weighted mean 1.0; a row outside the box, a disjoint range, a missing or mismatched declaration and a selection arrow into a non-modifier each refuse with their detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.covariate_shift_cohort_effect.identity_follows_inputs.artifact"
+provider_trust = "native_numerics_over_a_retained_model_and_a_declared_premise_never_tested"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.covariate_shift_cohort_effect"
+route = "antecedent.analysis.compiled_transported_cohort.CompiledTransportedCohort.execute"
+algorithm_provenance = ["provenance/transport.covariate_shift_cohort_effect.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.covariate_shift_cohort_effect.hand_cohort_mean.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "tau(z, w) = 1 + 2 z - w on the fitted box z in [0,1], w in [0,2] (400 fitted rows); target cohort rows (z, w) = (0.5, 1), (1, 0), (0, 2) with weights (0.5, 0.25, 0.25)."
+expected_values = "Row contrasts (1, 3, -1); weighted mean 1.0; a row outside the box, a disjoint range, a missing or mismatched declaration and a selection arrow into a non-modifier each refuse with their detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.covariate_shift_cohort_effect.identity_follows_inputs.artifact"
+provider_trust = "native_numerics_over_a_retained_model_and_a_declared_premise_never_tested"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "transport.measurement_model"
 route = "antecedent_estimate.measurement_transport.transport_measurement_model"
 algorithm_provenance = ["provenance/transport.measurement_model.toml"]
@@ -7812,6 +7962,36 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "transport.measurement_model"
 route = "antecedent.python.measurement_models.verify_measurement_transport"
+algorithm_provenance = ["provenance/transport.measurement_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.measurement_model.carried_rates.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Sensitivity 0.9, specificity 0.8, 520 of 1000 observed positive in the target; differential case: target model sensitivity 0.7, specificity 0.95."
+expected_values = "Carried correction (0.52 - 0.2) / 0.7 = 0.32/0.7; differential correction with the target's own rates 0.47/0.65; every undeclared, mismatched or differential request refuses with its detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.measurement_model.receipt_identity.artifact"
+provider_trust = "native_numerics_over_supplied_models_invariance_is_a_declaration"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.measurement_model"
+route = "antecedent.analysis.compiled_measurement_transport.Study.compile_measurement_transport"
+algorithm_provenance = ["provenance/transport.measurement_model.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.measurement_model.carried_rates.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Sensitivity 0.9, specificity 0.8, 520 of 1000 observed positive in the target; differential case: target model sensitivity 0.7, specificity 0.95."
+expected_values = "Carried correction (0.52 - 0.2) / 0.7 = 0.32/0.7; differential correction with the target's own rates 0.47/0.65; every undeclared, mismatched or differential request refuses with its detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.measurement_model.receipt_identity.artifact"
+provider_trust = "native_numerics_over_supplied_models_invariance_is_a_declaration"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.measurement_model"
+route = "antecedent.analysis.compiled_measurement_transport.CompiledMeasurementTransport.execute"
 algorithm_provenance = ["provenance/transport.measurement_model.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "transport.measurement_model.carried_rates.positive"
@@ -8367,6 +8547,51 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "discovery.per_population"
 route = "antecedent.python.selective_discovery.request_selection_targets_from_differences"
+algorithm_provenance = ["provenance/discovery.per_population.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.per_population.edge_comparison_differences.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Two hand-built structures differing in one absent edge and one re-marked edge."
+expected_values = "The comparison lists the absent and the re-marked edge; equal structures agree on every edge."
+tolerance = "exact"
+calibration = "no_interval_structure_only"
+artifact_consumer_fixture = "discovery.per_population.changed_rows_move_only_that_population.artifact"
+provider_trust = "native_discovery_per_population_nothing_pooled"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.per_population"
+route = "antecedent.analysis.compiled_per_population_discovery.Study.compile_per_population_discovery"
+algorithm_provenance = ["provenance/discovery.per_population.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.per_population.edge_comparison_differences.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Two hand-built structures differing in one absent edge and one re-marked edge."
+expected_values = "The comparison lists the absent and the re-marked edge; equal structures agree on every edge."
+tolerance = "exact"
+calibration = "no_interval_structure_only"
+artifact_consumer_fixture = "discovery.per_population.changed_rows_move_only_that_population.artifact"
+provider_trust = "native_discovery_per_population_nothing_pooled"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.per_population"
+route = "antecedent.analysis.compiled_per_population_discovery.CompiledPerPopulationDiscovery.execute"
+algorithm_provenance = ["provenance/discovery.per_population.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.per_population.edge_comparison_differences.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Two hand-built structures differing in one absent edge and one re-marked edge."
+expected_values = "The comparison lists the absent and the re-marked edge; equal structures agree on every edge."
+tolerance = "exact"
+calibration = "no_interval_structure_only"
+artifact_consumer_fixture = "discovery.per_population.changed_rows_move_only_that_population.artifact"
+provider_trust = "native_discovery_per_population_nothing_pooled"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.per_population"
+route = "antecedent.python.selective_discovery.PerPopulationDiscovery.compiled_run"
 algorithm_provenance = ["provenance/discovery.per_population.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "discovery.per_population.edge_comparison_differences.positive"
@@ -11177,6 +11402,111 @@ provider_trust = "native_semantic_validation_only; no external provider"
 exact_request_verification = "requires_original_report_query_source_target_support_options_and_execution_seed"
 
 [[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.analysis.compiled_discovered_transport.Study.compile_discovered_class_transport"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.estimate_pag_truth.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "An FCI oracle PAG of a binary structural model with a latent cause of w and y, selection on z, and source and target samples of 30000 rows."
+expected_values = "The contrast and both levels are covered by the smallest and largest member estimate within 0.03 of the enumerated target truth; the exported artifact replays."
+tolerance = "contained within 0.03 of the enumerated truth; exact refusals"
+calibration = "point_only_no_interval_claim; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.analysis.compiled_discovered_transport.CompiledDiscoveredClassTransport.execute"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.estimate_pag_truth.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "An FCI oracle PAG of a binary structural model with a latent cause of w and y, selection on z, and source and target samples of 30000 rows."
+expected_values = "The contrast and both levels are covered by the smallest and largest member estimate within 0.03 of the enumerated target truth; the exported artifact replays."
+tolerance = "contained within 0.03 of the enumerated truth; exact refusals"
+calibration = "point_only_no_interval_claim; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.python.transport.discovered.analyze_discovered_transport"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.chain_class_members.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The CPDAG 0 - 1 - 2 (three DAG members, no orientation creates a collider) with selection target 1 and an experiment on 0."
+expected_values = "Three members with fixed verdicts, status identified in every member, formulas not one formula; bound 2 on a 4-chain gives two members and status partial."
+tolerance = "exact structural verdicts; exact code and detail match for refusals"
+calibration = "structural_envelope_no_interval; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.python.transport.discovered.analyze_discovered_transport_estimate"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.chain_class_members.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The CPDAG 0 - 1 - 2 (three DAG members, no orientation creates a collider) with selection target 1 and an experiment on 0."
+expected_values = "Three members with fixed verdicts, status identified in every member, formulas not one formula; bound 2 on a 4-chain gives two members and status partial."
+tolerance = "exact structural verdicts; exact code and detail match for refusals"
+calibration = "structural_envelope_no_interval; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_discovered_transport"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.chain_class_members.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The CPDAG 0 - 1 - 2 (three DAG members, no orientation creates a collider) with selection target 1 and an experiment on 0."
+expected_values = "Three members with fixed verdicts, status identified in every member, formulas not one formula; bound 2 on a 4-chain gives two members and status partial."
+tolerance = "exact structural verdicts; exact code and detail match for refusals"
+calibration = "structural_envelope_no_interval; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_transport_confidence_set"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.chain_class_members.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The CPDAG 0 - 1 - 2 (three DAG members, no orientation creates a collider) with selection target 1 and an experiment on 0."
+expected_values = "Three members with fixed verdicts, status identified in every member, formulas not one formula; bound 2 on a 4-chain gives two members and status partial."
+tolerance = "exact structural verdicts; exact code and detail match for refusals"
+calibration = "structural_envelope_no_interval; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.cpdag_class_envelope"
+route = "antecedent.python.transport.trial_compatible.replay_trial_compatible_transport_confidence_set"
+algorithm_provenance = ["provenance/transport.cpdag_class_envelope.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.cpdag_class_envelope.chain_class_members.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The CPDAG 0 - 1 - 2 (three DAG members, no orientation creates a collider) with selection target 1 and an experiment on 0."
+expected_values = "Three members with fixed verdicts, status identified in every member, formulas not one formula; bound 2 on a 4-chain gives two members and status partial."
+tolerance = "exact structural verdicts; exact code and detail match for refusals"
+calibration = "structural_envelope_no_interval; cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1; exact three-variable complete temporal procedure only; static trial and six-variable methods remain separate pending. Capability-level temporal ownership inventory only (these do not support a different route or construction): cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1."
+artifact_consumer_fixture = "transport.cpdag_class_envelope.directed_class_is_still_an_envelope.artifact"
+provider_trust = "native_structural_identifier_over_a_discovered_class_selection_targets_are_declared"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "observation_query.finite_law_conditioning"
 route = "antecedent_model.observation_query.condition_gaussian"
 algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
@@ -11375,13 +11705,13 @@ id = "observation_query.finite_law_conditioning"
 route = "antecedent.fitted_dependent_measurement.PreparedMechanismComposition.compile_fitted_dependent_measurement"
 algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
 parity_registry = "parity/capability_records.toml"
-positive_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_posterior_quadrature.truth"
+positive_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive"
 oracle_kind = "closed_form"
 oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; labelled validation counts 70, 10, 10, 10 under C=0 and 5, 5, 5, 85 under C=1 with a symmetric Dirichlet(1) prior per row, so the joint positive cell has posterior Beta(11, 93) under C=0 and Beta(86, 18) under C=1; both indicators observed positive."
 expected_values = "The posterior draws of P(Y=1 | a=1, b=1) = 0.1 (1 - p) + 0.7 p with p = 0.1 b / (0.9 a + 0.1 b) have the mean and variance of a two-dimensional Beta quadrature of the two independent posterior cells; the plug-in is the value at the posterior-mean cells 11/104 and 86/104."
 tolerance = "draw mean within five Monte Carlo standard errors and draw variance within 12 percent of the quadrature at 1000 fixed-seed draws; absolute 1e-12 for the plug-in"
 calibration = "uncalibrated_spread_no_interval_not_measured"
-artifact_consumer_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_replay.artifact"
 provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
 exact_request_verification = "not_applicable_no_external_provider"
 
@@ -11397,6 +11727,36 @@ expected_values = "Each replay returns the stored result of its claim."
 tolerance = "equality for replayed results"
 calibration = "exact_or_point_only_no_interval"
 artifact_consumer_fixture = "observation_query.finite_law_conditioning.joint_measured_replay.artifact"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.nominal_interval_with_calibration"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; labelled validation counts 70, 10, 10, 10 under C=0 and 5, 5, 5, 85 under C=1 with a symmetric Dirichlet(1) prior per row, so the joint positive cell has posterior Beta(11, 93) under C=0 and Beta(86, 18) under C=1; both indicators observed positive."
+expected_values = "The posterior draws of P(Y=1 | a=1, b=1) = 0.1 (1 - p) + 0.7 p with p = 0.1 b / (0.9 a + 0.1 b) have the mean and variance of a two-dimensional Beta quadrature of the two independent posterior cells; the plug-in is the value at the posterior-mean cells 11/104 and 86/104."
+tolerance = "draw mean within five Monte Carlo standard errors and draw variance within 12 percent of the quadrature at 1000 fixed-seed draws; absolute 1e-12 for the plug-in"
+calibration = "uncalibrated_spread_no_interval_not_measured"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_replay.artifact"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.fitted_dependent_measurement.CompiledFittedDependentMeasurement.consume"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; labelled validation counts 70, 10, 10, 10 under C=0 and 5, 5, 5, 85 under C=1 with a symmetric Dirichlet(1) prior per row, so the joint positive cell has posterior Beta(11, 93) under C=0 and Beta(86, 18) under C=1; both indicators observed positive."
+expected_values = "The posterior draws of P(Y=1 | a=1, b=1) = 0.1 (1 - p) + 0.7 p with p = 0.1 b / (0.9 a + 0.1 b) have the mean and variance of a two-dimensional Beta quadrature of the two independent posterior cells; the plug-in is the value at the posterior-mean cells 11/104 and 86/104."
+tolerance = "draw mean within five Monte Carlo standard errors and draw variance within 12 percent of the quadrature at 1000 fixed-seed draws; absolute 1e-12 for the plug-in"
+calibration = "uncalibrated_spread_no_interval_not_measured"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.fitted_joint_error_replay.artifact"
 provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
 exact_request_verification = "not_applicable_no_external_provider"
 
@@ -11579,6 +11939,36 @@ calibration = "point_only; the simulation interval is explicitly not_measured an
 artifact_consumer_fixture = "measurement.model_contract.python_semantic_mutation.artifact"
 provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider; an external posterior is attested or verified, never native"
 exact_request_verification = "Native pooled computation uses the declared validation sources. The cited artifact fixture belongs to the related measurement-model contract, not this pooled transport result."
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent.analysis.compiled_measurement_transport.CompiledPooledDifferentialTransport.execute"
+algorithm_provenance = ["provenance/measurement.model_contract.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Python surface over the Rust facade: binary prevalence 410/1000 with Se 0.9 and Sp 0.8 (pi = 0.3), shared and differential risk differences, exact confusion class summaries, a simulated classical-error DGP with coefficient 2, replicated measurements, and attested posterior draws; oracles computed in numpy, never by native code."
+expected_values = "Population, regime, arm, representation, proxy and operation mismatches raise MeasurementModelRefusal with the registered code and measurement_model.* detail before any number."
+tolerance = "absolute 1e-12 for algebra; 4 reported standard errors for fixed-seed simulations; 5e-4 against regression calibration at n = 20000; exact codes and details"
+calibration = "exact_or_point_only_no_interval; interval route not supported pending a method for the whole measurement-plus-estimation method"
+artifact_consumer_fixture = "measurement.model_contract.python_semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider; an external posterior is attested or verified, never native"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "measurement.model_contract"
+route = "antecedent.measurement_models.compile_pooled_differential_transport"
+algorithm_provenance = ["provenance/measurement.model_contract.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "measurement.model_contract.matching_request.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Python surface over the Rust facade: binary prevalence 410/1000 with Se 0.9 and Sp 0.8 (pi = 0.3), shared and differential risk differences, exact confusion class summaries, a simulated classical-error DGP with coefficient 2, replicated measurements, and attested posterior draws; oracles computed in numpy, never by native code."
+expected_values = "A fresh interpreter recomputes point and standard error against the retained model identity and refuses another, damaged or truncated bytes."
+tolerance = "absolute 1e-12 for algebra; 4 reported standard errors for fixed-seed simulations; 5e-4 against regression calibration at n = 20000; exact codes and details"
+calibration = "exact_or_point_only_no_interval; interval route not supported pending a method for the whole measurement-plus-estimation method"
+artifact_consumer_fixture = "measurement.model_contract.python_semantic_mutation.artifact"
+provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider; an external posterior is attested or verified, never native"
+exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "joint_law.composed_spread_aligned_functional"
