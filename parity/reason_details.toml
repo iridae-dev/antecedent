@@ -11646,12 +11646,6 @@ codes = ["invalid_argument"]
 meaning = "The tolerance of a value relation is negative or not finite; supply a finite, non-negative tolerance."
 
 [[detail]]
-id = "preference_compile.analysis_refused"
-family = "preference_compile"
-codes = ["effect_not_identified", "route_not_supported", "invalid_argument", "schema_mismatch", "unknown_variable", "required_option_missing", "glm_fit_refused", "design_rank_deficient", "too_few_clusters", "execution_resource_limit"]
-meaning = "The study or design behind a compiled preference decision refused while compiling or fitting the decision's plans; the message names the analysis error and the code is that error's own."
-
-[[detail]]
 id = "preference_compile.atom_kind_not_compiled"
 family = "preference_compile"
 codes = ["route_not_supported"]

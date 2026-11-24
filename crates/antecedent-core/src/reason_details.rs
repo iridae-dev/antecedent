@@ -1869,7 +1869,6 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.too_few_deciders_to_cluster",
     "preference_choice_model.unit_of_account_missing",
-    "preference_compile.analysis_refused",
     "preference_compile.atom_kind_not_compiled",
     "preference_compile.cancelled",
     "preference_compile.class_completions_truncated",
@@ -4853,7 +4852,6 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_choice_model.stated_and_recorded_mixed", &["route_not_supported"]),
     ("preference_choice_model.too_few_deciders_to_cluster", &["uncertainty_representation_insufficient"]),
     ("preference_choice_model.unit_of_account_missing", &["design_rank_deficient"]),
-    ("preference_compile.analysis_refused", &["effect_not_identified", "route_not_supported", "invalid_argument", "schema_mismatch", "unknown_variable", "required_option_missing", "glm_fit_refused", "design_rank_deficient", "too_few_clusters", "execution_resource_limit"]),
     ("preference_compile.atom_kind_not_compiled", &["route_not_supported"]),
     ("preference_compile.cancelled", &["cancelled_no_claim"]),
     ("preference_compile.class_completions_truncated", &["route_not_supported"]),
@@ -10241,8 +10239,6 @@ pub mod preference_choice_model {
 
 /// Details in the `preference_compile` family.
 pub mod preference_compile {
-    /// Detail `preference_compile.analysis_refused`.
-    pub const ANALYSIS_REFUSED: &str = "preference_compile.analysis_refused";
     /// Detail `preference_compile.atom_kind_not_compiled`.
     pub const ATOM_KIND_NOT_COMPILED: &str = "preference_compile.atom_kind_not_compiled";
     /// Detail `preference_compile.cancelled`.

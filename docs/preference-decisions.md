@@ -39,7 +39,8 @@ actions = (
 )
 contract = pf.Contract(model=model, actions=actions, target_population="target")
 compiled = require_success(contract.compile([benefit_study, harm_study]))
-compiled.inspect()   # the quantities, the source needed, the plans: nothing is fitted yet
+compiled.quantities       # what each action reads, and the study that targets it
+compiled.representation   # "mean": the source the contract needs; nothing is fitted yet
 decided = require_success(compiled.execute())
 decided.kind         # "necessarily_best", "never_beaten", "preference_dependent", ...
 decided.selected     # the chosen action, or None
@@ -100,15 +101,33 @@ At compile:
   deferred, and the table's work budget and declared covariance blocks are checked before
   anything is fitted.
 
-`compiled.inspect()` returns what the compile states. Each plan in `compiled.plans` carries the
-decision in its evidence layer: `evidence.decision.preference` lists every quantity (canonical
-identity, schema variable, regime, units, population, horizon, functional, scale), the
-representation the route reads and the ones the contract accepts, the trade-off parameters with
-their declared ranges, the bound contract identity and, for separately estimated outcomes, the
-joint law the propagation chain will produce: its inputs with their row factors and how their
-overlap was judged, the dependence, the declared blocks and `program`, the identity of the
-chain's compiled program. Another range or another chain is another decision, so another plan
-identity.
+The `CompiledDecision` states, before anything is fitted:
+
+| Property | What it states |
+| --- | --- |
+| `contract_identity`, `bound_identity` | the contract, and the contract bound to the analysis's causal contracts |
+| `quantities` | each quantity an action reads (`CompiledQuantity`: the `ScientificQuantity`, the position of the study that targets it, and the `(action, attribute)` pairs that read it) |
+| `representation`, `carrier`, `route` | the source the contract needs (`"mean"` or `"joint_draws"`), what each plan demands of its analysis, and the route that will answer |
+| `trade_offs`, `parameter_ranges` | each trade-off parameter with its units, declared range and assumption (`TradeOffRange`), and the ranges by id |
+| `joint_law` | for separately estimated outcomes joined into one law, a `JointLawPlan`: the dependence, the number of aligned draws, their seed, the study pairs with a declared cross covariance and the columns the chain reads; `None` otherwise |
+| `design_law` | for a compiled design that needs one law of its outcomes, a `DesignLawPlan`: the resampling law, the unit resampled, the refits, their seed and the sampling premise; `None` otherwise |
+| `unidentified_mass`, `class_sampling` | across structures, the mass under which the quantities are not identified and the draw of every sampled class |
+
+`compiled.inspect()` returns everything the compile states as nested mappings, every compiled
+plan included. Each plan carries the decision in its evidence layer:
+`evidence.decision.preference` lists every quantity (canonical identity, schema variable,
+regime, units, population, horizon, functional, scale), the representation the route reads and
+the ones the contract accepts, the trade-off parameters with their declared ranges, the bound
+contract identity and, for separately estimated outcomes, the joint law the propagation chain
+will produce: its inputs with their row factors and how their overlap was judged, the
+dependence, the declared blocks and `program`, the identity of the chain's compiled program.
+Another range or another chain is another decision, so another plan identity.
+
+`compile` takes only the arguments its source reads, and refuses any other with
+`option_not_applicable` rather than dropping it: `draws=` and `shared=` apply to several
+studies, `refits=` and `sampling=` to a compiled design, and `seed=` only when something is
+drawn (`draws=`, `shared=` or `refits=`). `seed=` defaults to the seed of `execution=`, so
+`execution=ant.Execution(seed=11)` alone fixes the chain's draws and a design's refits.
 
 `compiled.execute(measure=None, execution=None)` runs each plan once and returns the same
 `PreferenceDecision` as `evaluate`. When a chain was compiled, execution fits each study, binds
@@ -240,7 +259,7 @@ and be stated in the attribute's units; a mismatch is refused
 | `policy` | `pf.Policy.invariant_best()` | how the answer across the trade-offs is consumed; see [policies](#choose-a-policy) |
 | `constraints` | none | hard constraints over attributes |
 | `horizon` | `0` | the horizon every quantity must be at |
-| `structural_policy` | `"report_only"` | how [structures](#decide-across-uncertain-causal-structures) combine |
+| `structural_policy` | `pf.StructuralPolicy.report_only()` | how [structures](#decide-across-uncertain-causal-structures) combine; the kind as a string is accepted too |
 | `preferences` | | in place of `model`: reviewed [accepted preferences](preference-learning.md#accept-review-and-reuse), which also carry their measure when there is one |
 
 `contract.route` says which route will answer and `contract.identity` is the digest to retain
@@ -351,10 +370,11 @@ expected values of causal quantities rather than to fixed criterion scores, and 
 best action rather than about pairs. Worst-case regret over a set of utility parameters follows
 Boutilier, Patrascu, Poupart and Schuurmans (2006).
 
-On aligned joint draws, the Rust result of a unique winner also reports
-`draw_share_best_everywhere`: the weight of draws in which that action has the highest per-draw
-utility at every vertex of the set. It is a point diagnostic of the supplied law, not a
-calibrated probability. The Python result does not expose it.
+On aligned joint draws, a result with a unique winner also reports
+`draw_share_best_everywhere` (`decided.draw_share_best_everywhere` in Python): the weight of
+draws in which that action has the highest per-draw utility at every vertex of the set. It is a
+point diagnostic of the supplied law, not a calibrated probability. It is `None` for a mean
+source, on the certified route and for a combination across structures.
 
 ## Supply your own weighted viewpoints
 
@@ -394,7 +414,7 @@ each part of the value, and the certified route reads one aligned joint law.
 | Where the outcomes come from | How to compile | What it answers |
 | --- | --- | --- |
 | Separate studies, one outcome each | `contract.compile([study_a, study_b])` | Means side by side for an affine expectation. A value that needs a joint law needs a declared dependence: `draws=` (and `seed=`) under distinct evidence, so the propagation chain draws one aligned law from a family table matched to each study's posterior moments. The chain is declared, checked and compiled at compile with its family table deferred: the plan states its inputs, dependence, joint outputs and program identity, the table's work budget is checked before fitting, and execution binds each study's posterior moments to the table. |
-| Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. The declared block, rows of the first study's coordinates by columns of the second's, is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
+| Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. Each block is a 2-D array keyed by the studies' positions: one row per coordinate of study `i` and one column per coordinate of study `j`, both in grid order (a block keyed `(j, i)` is read as its transpose). A block of another shape raises `CausalValueError`. The block is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
 | One static-regime design of several outcomes | `contract.compile(design, refits=99)` | Its arm means, or with `refits=` its aligned whole-subject bootstrap refits as one law of every outcome under both arms. |
 | One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)`, or `contract.compile(design, refits=99, seed=..., sampling="assumption.units_sampled")` | Its arm means, under an exposure declared free of interference. A value that needs a joint law reads the independent-unit bootstrap of the arm means, and only under a declared premise (`sampling=`, with `refits=`) that the clusters, pairs or sequences were sampled independently from a larger population; see [a joint law of a randomized design](#a-joint-law-of-a-randomized-design). |
 | Laws you already hold whose rows pair | `contract.evaluate(pf.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
@@ -426,6 +446,8 @@ compiled = contract.compile(design, refits=199, seed=11,
 - Without `sampling=`, a value that needs a joint law refuses at compile with
   `preference_compile.design_sampling_undeclared`; `sampling=` without `refits=` raises
   `CausalValueError`. Arm means alone, for an affine expectation, need neither.
+- `seed=` seeds the refits; without it they are seeded by `execution=` (see
+  [compile with the analysis](#compile-with-the-analysis)).
 - A refit the estimator refuses keeps its slot and refuses the decision at execute
   (`native_claims.joint_law_invalid`); no refit is dropped.
 - The premise's identity is listed in the decision's assumptions. The law is labelled a
@@ -489,16 +511,19 @@ read as graph-dependent claims unless you declare a measure over them; see
 On structures you already hold, pass them to `evaluate` in place of the source:
 
 ```python
-structures = pf.Structures("weighted_graph_posterior", claims)
+structures = pf.Structures.weighted_atoms(claims)
 contract = pf.Contract(model=model, actions=actions, target_population="target",
-                       structural_policy="maximin")
+                       structural_policy=pf.StructuralPolicy.maximin())
 decided = require_success(contract.evaluate(structures))
 decided.structures       # each structure's status and its own verdict
 ```
 
 `claims` are `decision_robust.Claim` values (evaluated with draws, unidentified, or unevaluated
 with a reason), read as the [structural decision routes](sensitivity-and-robustness.md) read
-them; the kind is `point`, `graph_dependent`, `weighted_graph_posterior` or `finite_scenarios`.
+them. Build the set by how the claims are read: `Structures.point(claim)`,
+`Structures.graph_dependent(claims)`, `Structures.weighted_atoms(claims)` (graph-posterior atoms
+whose probabilities weigh them) or `Structures.finite_scenarios(claims)`. The same kinds are
+accepted as a string, `Structures("weighted_graph_posterior", claims)`.
 
 The admissible combinations are **every pairing of an admissible structure with an admissible
 trade-off**. A conclusion that holds across structures holds for each structure at each
@@ -507,10 +532,13 @@ not supported.
 
 | `structural_policy` | How structures combine |
 | --- | --- |
-| `"require_invariant_best_action"` | Every structure is evaluated and every structure's verdict must agree; otherwise `structures_disagree` lists each structure's verdict. |
-| `"maximin"` | Each action is scored by its worst value over structures at each trade-off, then the preference policy is applied. Every structure must be evaluated. |
-| `"bayes_over_structures"` | Structure probabilities you supply weight the per-structure values; they are never renormalized. |
-| `"report_only"` | Each structure's result, with no combination. |
+| `StructuralPolicy.invariant_best()` (`"require_invariant_best_action"`) | Every structure is evaluated and every structure's verdict must agree; otherwise `structures_disagree` lists each structure's verdict. |
+| `StructuralPolicy.maximin()` (`"maximin"`) | Each action is scored by its worst value over structures at each trade-off, then the preference policy is applied. Every structure must be evaluated. |
+| `StructuralPolicy.bayes_over_structures()` (`"bayes_over_structures"`) | Structure probabilities you supply weight the per-structure values; they are never renormalized. |
+| `StructuralPolicy.report_only()` (`"report_only"`, the default) | Each structure's result, with no combination. |
+
+`structural_policy=` takes the `pf.StructuralPolicy` value or its kind as a string; a kind that
+does not exist raises `CausalValueError`, as an unknown `Policy` kind does.
 
 Unidentified and unevaluated structure mass is reported (`unidentified_mass`,
 `unevaluated_mass`). A claim that needs every structure returns `insufficient_science` when one
@@ -630,7 +658,10 @@ checked numerical tolerance. Every linear-program outcome is rechecked before it
 feasibility and a non-negative least-squares fit of the objective by the tight rows for an
 optimum, Farkas multipliers for infeasibility, an improving ray for unboundedness. The solver
 uses Bland's (1977) smallest-index rule and the non-negative least-squares method of Lawson
-and Hanson. Margins within the tie tolerance (`1e-9` criterion units by default) count as ties.
+and Hanson. Margins within the tie tolerance count as ties: the declared tolerance (`1e-9`
+criterion units by default) or, when larger, the numerical error bound of the margins (the
+rounding of the expected values, which grows with their magnitude, plus the linear-program
+tolerances times the margin's slope).
 
 What it does not guarantee: the law itself. If the source is a posterior or a set of sampled
 draws, its own sampling error is not part of the ranges. The ranges are over trade-offs only.
@@ -652,10 +683,19 @@ What it guarantees:
   reach zero or below on a box is refused (`preference_certified.logarithm_domain`).
 - **Bounded declared ranges.** Every parameter has a finite range, so the box to cover is
   bounded.
+- **A non-empty set.** The ranges and linear relations are checked by linear program before any
+  box is placed. Relations that conflict jointly, or leave a gap narrower than the smallest box,
+  are refused as an empty set (`preference_certified.preference_set_empty`).
+- **Equalities solved.** Each equality relation is solved for one parameter, so boxes lie inside
+  the equality and the fractions are over the set's own dimensions.
+- **Value relations met.** With value relations, a choosing verdict needs a box wholly inside
+  the set or a point the set accepts; otherwise the verdict is `undetermined`.
 - **No point labels.** A box is certified for an action only when its enclosures prove that
   action better than every admissible rival by more than the tie tolerance on the whole box.
 - **Boundary boxes counted in full.** A box that straddles a relation is kept, flagged as
   touching the boundary and counted in full, although part of it lies outside the set.
+- **Rounding of point scores.** Under a weighted policy, a lead between point scores must also
+  exceed twice the rounding bound of those scores when that is larger than the tie tolerance.
 - **An explicit undecided share.** Splitting stops when every box is decided, when the box
   budget is spent (4,096 boxes by default) or when every width is at most a minimum fraction
   of its range (`1e-6` by default). Volume left undecided is reported as `undecided_fraction`
@@ -685,7 +725,13 @@ compares every stored field; other draws or an edited number refuse.
 ## Refusals you are likely to meet
 
 Each refusal is a `pf.PreferenceRefusal` with a registered `code` and a namespaced `detail`. The
-full tables are in
+compiled route reports a cancelled compile or execution through it too, as
+`preference_compile.cancelled` (`cancelled_no_claim`). An error of the analysis behind the
+decision (the study or design refusing to compile or fit) raises the analysis's own exception,
+as the analysis would alone, with its registered reason code. A malformed
+argument (a `Policy` kind that does not exist, a `shared=` block of the wrong shape, an argument
+`compile` does not read) raises `CausalValueError` before anything runs, and exceeding the
+execution's memory limit raises `CausalResourceError`, as elsewhere. The full tables are in
 [preference sets and recorded choices](reference/refusal-codes.md#preference-sets-and-recorded-choices).
 
 | Detail | Code | Cause | Remedy |
@@ -706,11 +752,15 @@ full tables are in
 | `preference_compile.studies_share_evidence` | `evidence_double_counted` | Compiled studies share observations (rows of one table, or units of one key namespace) and no cross-study covariance is declared; the refusal names how many | Declare it with `shared=`, or estimate the outcomes jointly in one design |
 | `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Studies of different tables whose overlap cannot be judged: unit keys in different namespaces, or a key on one study only | Key both studies in one namespace, or declare their covariance with `shared=` |
 | `preference_compile.unit_key_invalid` | `invalid_argument` | A study's unit key column is its treatment or its outcome | Name a column that identifies the units the rows observe |
-| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | A declared block has the wrong shape, a zero or non-finite term, or names studies that share nothing | Declare one finite, nonzero block per overlapping pair |
+| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | A declared block has the wrong shape, a non-finite term or only zero terms, or names studies that share nothing | Declare one finite block, not all zero, per overlapping pair |
+| `preference_compile.unit_label_types_differ` | `evidence_overlap_unknown` | Two studies keyed in one identifier space carry unit labels of different types | Key both studies by labels of one type |
+| `preference_compile.executed_program_mismatch` | `route_not_lowered` | An executed result reports a program other than the decision program its plan states | Execute the compiled decision's own prepared studies |
+| `preference_compile.sampled_mixture_not_exact` | `route_not_supported` | A mixture of sampled class members was read under a policy other than report-only | Report the sampled shares, or enumerate the class |
 | `preference_compile.design_sampling_undeclared` | `joint_law_required` | A cluster-randomized, matched-pair or switchback design asked for a joint law with no declared sampling premise | Declare `sampling=` with `refits=` (at least 99), or decide with an affine value and an expectation, which its arm means answer |
 | `preference_compile.design_units_too_few` | `too_few_clusters` | The design has fewer than 30 clusters in an arm, 30 matched pairs or 30 switchback sequences for its independent-unit bootstrap | Add units, or decide with an affine value and an expectation |
 | `preference_compile.design_exposure_bounded` | `effect_not_identified` | The design's exposure declares bias bounds | Declare no interference, or decide over the bounded set robustly |
 | `preference_compile.design_not_supported` | `route_not_supported` | The compiled design has no arm coordinates the decision reads | Use a static-regime, cluster-randomized, matched-pair or switchback design |
+| `preference_compile.cancelled` | `cancelled_no_claim` | The execution's cancellation token was set during compile or execute | Run again without cancelling; the stop is not a verdict |
 | `preference_compile.atom_kind_not_compiled` | `route_not_supported` | Lagged temporal graph-posterior atoms, or a structure the single-graph route does not support | Decide over a posterior whose atoms the single-graph compiler compiles |
 | `preference_compile.class_completions_truncated` | `route_not_supported` | An equivalence-class atom has more members than the exact limit (32 unless declared), or its member search hit its budget, and no uniform class prior declares a sample | Declare `ClassPrior.uniform(...).sample(...)`, raise the limit, orient edges or declare the structure |
 | `preference_compile.class_prior_keys_mismatch` | `invalid_argument` | A keyed class prior misses a member fingerprint, names one that is no member, sums to zero over a class, or gives ordered masses | Key the masses by the fingerprints the compile reports, or declare a uniform measure |
@@ -748,7 +798,7 @@ full tables are in
 
 | Language | Entry |
 | --- | --- |
-| Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `Measure`, `Structures`, `Contract(...).compile(...)` with `CompiledDecision.inspect()`, `.class_sampling` and `.execute()`, `Contract(...).evaluate(...)`, `PreferenceDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
+| Python | `antecedent.preferences`: `attribute`, `strength`, `fixed`, `relation`, `Curve`, the shapes, `ValueModel`, `Action`, `constraint`, `Policy`, `StructuralPolicy`, `Measure`, `Structures`, `Contract(...).compile(...)` with `CompiledDecision` (`quantities`, `representation`, `carrier`, `trade_offs`, `parameter_ranges`, `joint_law`, `design_law`, `contract_identity`, `.class_sampling`, `.inspect()` and `.execute()`; `CompiledQuantity`, `TradeOffRange`, `JointLawPlan`, `JointLawInput`, `DesignLawPlan`), `Contract(...).evaluate(...)`, `PreferenceDecision` (with `sampling`, `sampled_masses`, `margins`), `ClassSampling`, `SampledMass`, `SampledMargin`, `replay`; `antecedent.UnitKey` with `antecedent.prepare(unit_key=...)`; `antecedent.inference.ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `prepare(class_prior=...)` |
 | Rust, compiled route | `Study::compile_for_preference_decision`, `PreparedStudy::compile_for_preference_decision`, `PreparedNativeJointDesign::compile_for_preference_decision`, `compile_preference_decision_across_studies`, `compile_preference_decision_with_shared_evidence`, `compile_preference_decision_across_prepared_studies`, `CompiledPreferenceDecision::execute`, `CompiledPreferenceDecision::chain_plan_view`, `CompiledPreferenceDecision::class_sampling`; `UnitKey`, `RowProvenance`, `StudyBuilder::unit_key`, `StudyBuilder::row_provenance`, `TabularData::row_origin` (set by `TabularData::project` and `TabularData::select_rows`); `antecedent::ClassPrior` (`uniform`, `from_pairs`, `exact_limit`, `sample`) with `StudyBuilder::class_prior` |
 | Rust, analysis surface | `antecedent::analysis::preference_decision`: `decide`, `decide_claim`, `structure_claims`, `decide_across_structures`, `experiment_mean_source`, `experiment_arm_quantity`, `chain_joint_law`, `joint_law_of`, `record_decision`, `export_decision`, `consume_decision` |
 | Rust, declarations and routes | `antecedent_design::preference_model` (`ValueModel`, `PreferenceSet`, `Curve`, `shape`), `preference_contract` (`PreferenceContract`, `PreferencePolicy`), `preference_evaluation` (`preference_route`, `decide_preferences`, `decide_preferences_on_means`, `decide_preferences_structural`) |

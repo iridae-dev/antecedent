@@ -2393,7 +2393,6 @@ class preference_choice_model:  # noqa: N801
 
 
 class preference_compile:  # noqa: N801
-    ANALYSIS_REFUSED: Final = "preference_compile.analysis_refused"
     ATOM_KIND_NOT_COMPILED: Final = "preference_compile.atom_kind_not_compiled"
     CANCELLED: Final = "preference_compile.cancelled"
     CLASS_COMPLETIONS_TRUNCATED: Final = "preference_compile.class_completions_truncated"
@@ -5632,7 +5631,6 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.stated_and_recorded_mixed",
     "preference_choice_model.too_few_deciders_to_cluster",
     "preference_choice_model.unit_of_account_missing",
-    "preference_compile.analysis_refused",
     "preference_compile.atom_kind_not_compiled",
     "preference_compile.cancelled",
     "preference_compile.class_completions_truncated",
@@ -8680,18 +8678,6 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "uncertainty_representation_insufficient",
     ),
     "preference_choice_model.unit_of_account_missing": ("design_rank_deficient",),
-    "preference_compile.analysis_refused": (
-        "effect_not_identified",
-        "route_not_supported",
-        "invalid_argument",
-        "schema_mismatch",
-        "unknown_variable",
-        "required_option_missing",
-        "glm_fit_refused",
-        "design_rank_deficient",
-        "too_few_clusters",
-        "execution_resource_limit",
-    ),
     "preference_compile.atom_kind_not_compiled": ("route_not_supported",),
     "preference_compile.cancelled": ("cancelled_no_claim",),
     "preference_compile.class_completions_truncated": ("route_not_supported",),

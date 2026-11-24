@@ -1580,18 +1580,15 @@ pub(crate) fn compiled_reply(
     }
 }
 
-/// Stage of a compiled decision's cancellation and analysis refusals.
+/// Stage of a compiled decision's cancellation refusal.
 type RouteStage = &'static str;
 
-/// The refusal JSON of a route error, so every refusal of the compiled route reaches Python
-/// as one structured refusal with its code and detail: a binding, source or decision refusal
-/// as it is; a cancellation as `preference_compile.cancelled`; a compiler or design error
-/// that carries a registered reason code as `preference_compile.analysis_refused` with that
-/// code and the error's text.
+/// The refusal JSON of a route error: a binding, source or decision refusal as it is, and a
+/// cancellation of the compile or the execution as `preference_compile.cancelled`.
 ///
 /// # Errors
-/// An error with no registered reason code (an exhausted memory limit, an internal fault)
-/// raises its own Python exception, as every other route does.
+/// Any other error of the analysis behind the decision raises its own Python exception, as
+/// every other route does, carrying the error's registered reason code when it has one.
 fn route_error(error: PreferenceRouteError, stage: RouteStage) -> PyResult<String> {
     let code = error.code().map(str::to_owned);
     match error {
@@ -1612,34 +1609,16 @@ fn cancelled_refusal(stage: RouteStage, message: &str) -> String {
     .json()
 }
 
-fn analysis_refusal(code: &str, stage: RouteStage, message: &str, remedy: Option<&str>) -> String {
-    crate::bridge::RefusalJson::new(
-        code,
-        stage,
-        antecedent::reason::reason_details::preference_compile::ANALYSIS_REFUSED,
-        message,
-    )
-    .remedy(remedy)
-    .json()
-}
-
 fn compiler_refusal(error: antecedent::CausalError, stage: RouteStage) -> PyResult<String> {
     if matches!(error.peeled(), antecedent::CausalError::Cancelled { .. }) {
         return Ok(cancelled_refusal(stage, &error.to_string()));
     }
-    match crate::reason_code_of(&error) {
-        Some(code) => {
-            let remedy = error.remedy().map(str::to_owned);
-            Ok(analysis_refusal(&code, stage, &error.to_string(), remedy.as_deref()))
-        }
-        None => Err(crate::py_err(error)),
-    }
+    Err(crate::py_err(error))
 }
 
-/// A compiled design's refusal: the compiler's own refusal as the compiler route reads it, a
-/// cancellation as `preference_compile.cancelled`, and every other error that carries a
-/// registered reason code (`code`, as the route reports it) as
-/// `preference_compile.analysis_refused` under that code.
+/// A compiled design's error: the compiler's own error as the compiler route reads it, a
+/// cancellation as `preference_compile.cancelled`, and every other error as the design route
+/// raises it, carrying the registered reason code the compiled route reports for it (`code`).
 fn design_refusal(
     error: antecedent::analysis::joint_panel::JointPanelError,
     code: Option<String>,
@@ -1652,10 +1631,13 @@ fn design_refusal(
         JointPanelError::Engine(PanelError::Cancelled) => {
             Ok(cancelled_refusal(stage, &error.to_string()))
         }
-        other => match code {
-            Some(code) => Ok(analysis_refusal(&code, stage, &other.to_string(), None)),
-            None => Err(crate::joint_panel_api::joint_panel_error(other)),
-        },
+        other => {
+            let raised = crate::joint_panel_api::joint_panel_error(other);
+            Err(match code {
+                Some(code) => crate::errors::with_reason_code(raised, &code),
+                None => raised,
+            })
+        }
     }
 }
 

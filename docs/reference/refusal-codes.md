@@ -1186,6 +1186,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_decision.coefficient_non_finite` | `decision_contract_unsatisfied` | Check the source and the value's domain. |
 | `preference_decision.linear_program_unbounded` | `invalid_argument` | None: valid input does not produce it; report it with the declaration. |
 | `preference_decision.linear_program_infeasible` | `invalid_argument` | None: valid input does not produce it; report it with the declaration. |
+| `preference_decision.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the stop between linear programs, vertex bases or draws is not a verdict. |
 | `preference_certified.source_refused` | the wrapped refusal's code | The refusal carries the source evaluation's own `decision_evaluation.*` or `decision_contract.*` detail; follow that row. |
 | `preference_certified.structure_inputs_required` | `route_not_supported` | Evaluate across structures. |
 | `preference_certified.options_invalid` | `invalid_argument` | Supply options inside their documented ranges. |
@@ -1206,6 +1207,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_certified.atom_probabilities_invalid` | `decision_contract_unsatisfied` | Supply valid probabilities. |
 | `preference_certified.atom_probabilities_required` | `decision_contract_unsatisfied` | Supply them or choose another structural policy. |
 | `preference_certified.mixture_criterion_unsupported` | `route_not_supported` | Use an expectation criterion or another structural policy. |
+| `preference_certified.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the stop between boxes or measure points is not a verdict. |
 | `preference_decision.value_relations_need_certified_route` | `route_not_supported` | Decide on the certified route: the set holds value relations learned under shape parameters, which are not linear in the parameters. The route choice sends such a set there (`preference_route.value_relations`). |
 
 ### Compiled decisions across studies and structures
@@ -1215,7 +1217,10 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | Detail | Code | What would support the request |
 | --- | --- | --- |
 | `preference_compile.studies_share_evidence` | `evidence_double_counted` | Declare the covariance between the two studies' estimates (`shared=`), or estimate the outcomes jointly in one design. The supplied text counts the shared observations (rows of one table) or the shared units of one unit-key namespace. |
-| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | Declare one finite, nonzero block of the right shape for each pair of studies that share observations, naming the studies in order. |
+| `preference_compile.cross_study_covariance_invalid` | `invalid_argument` | Declare one finite block of the right shape, not all zero, for each pair of studies that share observations, naming the studies in order. |
+| `preference_compile.unit_label_types_differ` | `evidence_overlap_unknown` | Key both studies of one identifier space by unit labels of one type. |
+| `preference_compile.executed_program_mismatch` | `route_not_lowered` | Execute the compiled decision's own prepared studies; the result ran another program than the decision program its plan states. |
+| `preference_compile.sampled_mixture_not_exact` | `route_not_supported` | Read a mixture of sampled class members under the report-only policy, or enumerate the class; a sample supports no verdict over every member. |
 | `decision_evidence.dependence_unknown` | `evidence_overlap_unknown` | Key both studies of different tables in one unit-key namespace, or declare their cross-study covariance. Keys in different namespaces, or a key on one study only, say nothing about the units the two share. |
 | `preference_compile.unit_key_invalid` | `invalid_argument` | Name a unit-key column that identifies the units the rows observe, not the study's treatment or outcome. |
 | `preference_compile.atom_kind_not_compiled` | `route_not_supported` | Decide over a graph posterior whose atoms the single-graph compiler compiles for the bound query. |
@@ -1230,6 +1235,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_compile.design_exposure_bounded` | `effect_not_identified` | Declare no interference, or decide over the bounded set with a robust decision. |
 | `preference_compile.design_not_supported` | `route_not_supported` | Use a static-regime, cluster-randomized, matched-pair or switchback design. |
 | `preference_compile.program_carries_decision` | `invalid_argument` | Compile the design again before attaching another decision. |
+| `preference_compile.cancelled` | `cancelled_no_claim` | Compile or execute again without cancellation; nothing was fitted or decided and the stop is not a verdict. |
 | `propagation_chain.deferred_source_unbound` | `invalid_argument` | Execute the compiled decision, which binds each study's posterior moments to the chain's deferred family table (in Rust, execute the chain program with the bound table). A chain compiled with its table deferred holds no draws until then, so it is not sealed, encoded, replayed or executed as it is. |
 
 ### Learning preferences from recorded choices
@@ -1247,6 +1253,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_set_learning.relation_id_collision` | `invalid_argument` | Rename the declared relation or the record. |
 | `preference_set_learning.program_inconsistent` | `invalid_argument` | Tighten the linear-program tolerances. |
 | `preference_set_learning.region_budget_invalid` | `invalid_argument` | Supply a shape-box budget of at least one and a minimum width fraction in [0, 1]. |
+| `preference_set_learning.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the stop is not a verdict on the records. |
 | `preference_choice_model.level_invalid` | `invalid_argument` | Supply a level in that range. |
 | `preference_choice_model.draws_missing` | `invalid_argument` | Request at least one draw. |
 | `preference_choice_model.fit_options_invalid` | `invalid_argument` | Supply finite, positive values. |
@@ -1258,6 +1265,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_choice_model.separated` | `glm_fit_refused` | Use the compatible-set method. |
 | `preference_choice_model.consistency_not_positive` | `glm_fit_refused` | Check the sign of the fixed part or use the compatible-set method. |
 | `preference_choice_model.not_converged` | `glm_fit_refused` | Raise the iteration limit or use the compatible-set method. |
+| `preference_choice_model.too_few_deciders_to_cluster` | `uncertainty_representation_insufficient` | Record choices from at least `2q + 1` decision-makers for `q` coefficients, or fit one decision-maker's records. |
 | `preference_choice_model.fit_refused` | `glm_fit_refused` | Use the compatible-set method. The supplied text names the fit's own detail and message. |
 | `preference_choice_model.covariance_not_positive_definite` | `glm_fit_refused` | Record more choices or use the compatible-set method. |
 | `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method. |
@@ -1266,6 +1274,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_choice_model.shape_estimate_at_bound` | `uncertainty_representation_insufficient` | Widen the range if the bound is not a limit of the preference, or use the compatible-set method. The profile likelihood-ratio interval truncated at the bound is reported. |
 | `preference_choice_model.profile_multimodal` | `glm_fit_refused` | Narrow the declared range to one mode, or use the compatible-set method. |
 | `preference_choice_model.shape_search_budget` | `invalid_argument` | Fix some shape parameters to single values, or raise the search limit (`ShapeSearch(max_dimensions=...)`). |
+| `preference_choice_model.cancelled` | `cancelled_no_claim` | Rerun without cancellation; the stop is not a verdict on the records. |
 
 ### Accepted preferences and preference artifacts
 
@@ -1274,6 +1283,8 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | Detail | Code | What would support the request |
 | --- | --- | --- |
 | `accepted_preferences.model_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences under the model they were learned from. |
+| `accepted_preferences.declaration_not_kept` | `decision_contract_unsatisfied` | Accept a learned set that keeps every declared parameter, range and relation. |
+| `accepted_preferences.records_mismatch` | `decision_contract_unsatisfied` | Supply the records the set or estimate was learned from. |
 | `accepted_preferences.options_mismatch` | `decision_contract_unsatisfied` | Accept the learned preferences with the options they were learned with. |
 | `accepted_preferences.pooled_not_available` | `invalid_argument` | Name the decider whose preferences to accept. |
 | `accepted_preferences.decider_unknown` | `invalid_argument` | Name a decider the records hold. |
@@ -1286,7 +1297,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `accepted_preferences.version_exhausted` | `invalid_argument` | Accept the preferences anew instead of revising them. |
 | `preference_evaluation.joint_draws_required` | `joint_law_required` | Supply aligned joint draws. |
 | `preference_artifact.encode_failed` | `invalid_argument` | None: the supplied text names the encoding failure. |
-| `preference_artifact.container_refused` | `invalid_argument`, `schema_mismatch` | Supply bytes written by this library. |
+| `preference_artifact.container_refused` | `invalid_argument` | Supply bytes written by this library. |
 | `preference_artifact.wire_malformed` | `invalid_argument` | Supply bytes written by this library. |
 | `preference_artifact.identity_resealed` | `invalid_argument` | Re-export from the producer instead of editing the bytes. |
 | `preference_artifact.identity_expected` | `decision_contract_unsatisfied` | Supply the artifact whose identity was retained. |
@@ -1296,6 +1307,7 @@ Value models, preference contracts, recorded choices, decisions across a prefere
 | `preference_artifact.replay_source_differs` | `decision_contract_unsatisfied` | Replay with the draws the result was computed from. |
 | `preference_artifact.replay_records_differ` | `decision_contract_unsatisfied` | Replay with the records they were learned from. |
 | `preference_artifact.replay_mismatch` | `decision_contract_unsatisfied` | Re-export from the producer and replay again. |
+| `preference_artifact.cancelled` | `cancelled_no_claim` | Replay again without cancellation; nothing was verified and the stop is not a verdict on the artifact. |
 
 ## Other registered refusal codes
 
