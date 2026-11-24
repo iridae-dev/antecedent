@@ -2409,6 +2409,8 @@ class preference_compile:  # noqa: N801
     DESIGN_SAMPLING_UNDECLARED: Final = "preference_compile.design_sampling_undeclared"
     DESIGN_UNITS_TOO_FEW: Final = "preference_compile.design_units_too_few"
     EXECUTED_PROGRAM_MISMATCH: Final = "preference_compile.executed_program_mismatch"
+    ORDINARY_MEASURE_NOT_READ: Final = "preference_compile.ordinary_measure_not_read"
+    ORDINARY_STRUCTURES_NOT_COMPILED: Final = "preference_compile.ordinary_structures_not_compiled"
     PROGRAM_CARRIES_DECISION: Final = "preference_compile.program_carries_decision"
     SAMPLED_MIXTURE_NOT_EXACT: Final = "preference_compile.sampled_mixture_not_exact"
     STUDIES_SHARE_EVIDENCE: Final = "preference_compile.studies_share_evidence"
@@ -2432,6 +2434,7 @@ class preference_contract:  # noqa: N801
     FIXED_INPUT_NON_FINITE: Final = "preference_contract.fixed_input_non_finite"
     FIXED_UNITS_MISMATCH: Final = "preference_contract.fixed_units_mismatch"
     INPUT_COUNT_MISMATCH: Final = "preference_contract.input_count_mismatch"
+    NO_ORDINARY_FORM: Final = "preference_contract.no_ordinary_form"
     NOT_LOWERABLE: Final = "preference_contract.not_lowerable"
     PARAMETER_COUNT_MISMATCH: Final = "preference_contract.parameter_count_mismatch"
     PARAMETER_NON_FINITE: Final = "preference_contract.parameter_non_finite"
@@ -5647,6 +5650,8 @@ ALL: Final[tuple[str, ...]] = (
     "preference_compile.design_sampling_undeclared",
     "preference_compile.design_units_too_few",
     "preference_compile.executed_program_mismatch",
+    "preference_compile.ordinary_measure_not_read",
+    "preference_compile.ordinary_structures_not_compiled",
     "preference_compile.program_carries_decision",
     "preference_compile.sampled_mixture_not_exact",
     "preference_compile.studies_share_evidence",
@@ -5667,6 +5672,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_contract.fixed_input_non_finite",
     "preference_contract.fixed_units_mismatch",
     "preference_contract.input_count_mismatch",
+    "preference_contract.no_ordinary_form",
     "preference_contract.not_lowerable",
     "preference_contract.parameter_count_mismatch",
     "preference_contract.parameter_non_finite",
@@ -8696,6 +8702,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_compile.design_sampling_undeclared": ("joint_law_required",),
     "preference_compile.design_units_too_few": ("too_few_clusters",),
     "preference_compile.executed_program_mismatch": ("route_not_lowered",),
+    "preference_compile.ordinary_measure_not_read": ("option_not_applicable",),
+    "preference_compile.ordinary_structures_not_compiled": ("route_not_supported",),
     "preference_compile.program_carries_decision": ("invalid_argument",),
     "preference_compile.sampled_mixture_not_exact": ("route_not_supported",),
     "preference_compile.studies_share_evidence": ("evidence_double_counted",),
@@ -8720,6 +8728,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_contract.fixed_input_non_finite": ("invalid_argument",),
     "preference_contract.fixed_units_mismatch": ("quantity_semantics_mismatch",),
     "preference_contract.input_count_mismatch": ("invalid_argument",),
+    "preference_contract.no_ordinary_form": ("route_not_supported",),
     "preference_contract.not_lowerable": ("route_not_supported",),
     "preference_contract.parameter_count_mismatch": ("invalid_argument",),
     "preference_contract.parameter_non_finite": ("invalid_argument",),
