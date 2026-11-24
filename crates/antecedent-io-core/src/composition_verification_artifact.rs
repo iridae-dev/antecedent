@@ -502,7 +502,26 @@ fn effects_from_wire(
     Ok(out)
 }
 
+/// Shared-data relations in canonical form (v2): a set, sorted by the whole relation and
+/// with an exact repeat written once, so neither listing order nor a repeated relation reaches
+/// the identity. The v1 order of earlier releases ([`shared_to_wire_v1`]) sorted by the nodes
+/// and kind only and kept repeats; a stored wire in that form still reads.
 fn shared_to_wire(relations: &[SharedDataRelation]) -> Vec<SharedDataWire> {
+    let mut wire = shared_to_wire_v1(relations);
+    wire.sort_by(|a, b| {
+        (&a.first, &a.second, &a.relation, a.shared_observations).cmp(&(
+            &b.first,
+            &b.second,
+            &b.relation,
+            b.shared_observations,
+        ))
+    });
+    wire.dedup();
+    wire
+}
+
+/// The canonical order of earlier releases, kept to read wires written under it.
+fn shared_to_wire_v1(relations: &[SharedDataRelation]) -> Vec<SharedDataWire> {
     let mut wire: Vec<SharedDataWire> = relations
         .iter()
         .map(|r| SharedDataWire {
@@ -544,7 +563,7 @@ fn shared_from_wire(
             shared_observations: r.shared_observations,
         });
     }
-    if shared_to_wire(&out) != wire {
+    if shared_to_wire(&out) != wire && shared_to_wire_v1(&out) != wire {
         return Err(malformed("shared-data relations are not in canonical form"));
     }
     Ok(out)
@@ -939,5 +958,35 @@ impl CompositionVerificationArtifact {
         if let Ok(identity) = compute_identity(meta) {
             meta.identity = identity;
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+
+    fn relation(first: &str, second: &str, shared_observations: u64) -> SharedDataRelation {
+        SharedDataRelation {
+            first: first.into(),
+            second: second.into(),
+            relation: "shared_data",
+            shared_observations,
+        }
+    }
+
+    /// Site `io_core.composition_verification_artifact.shared_to_wire` (canonical form v2):
+    /// the shared-data relations are a set ordered by the whole relation, so two relations
+    /// that tie on their nodes and kind no longer keep the order they were listed in, and an
+    /// exact repeat is written once; a wire in the v1 order still reads.
+    #[test]
+    fn site_shared_to_wire_relations_are_a_set() {
+        let relations = [relation("a", "b", 3), relation("a", "b", 1), relation("b", "c", 2)];
+        set_laws(&relations, |items| Some(shared_to_wire(items)));
+        let tied = [relation("a", "b", 3), relation("a", "b", 1)];
+        let v1 = shared_to_wire_v1(&tied);
+        assert_ne!(v1, shared_to_wire(&tied), "v1 kept the listing order of a tie");
+        let reversed = [tied[1].clone(), tied[0].clone()];
+        assert_eq!(shared_to_wire(&tied), shared_to_wire(&reversed));
     }
 }

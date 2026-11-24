@@ -292,10 +292,50 @@ impl TemporalRecalcArtifactWire {
         wire.validate()?;
         Ok(wire)
     }
-    /// Rehash the declared structural and temporal premises.
+    /// Rehash the declared structural and temporal premises (identity scheme v2).
+    ///
+    /// Directed edges are a set; bidirected edges are unordered pairs (`(a, b)` and `(b, a)`
+    /// are one latent confounder, which the graph builder refuses to insert twice), oriented to
+    /// `a <= b`; selection targets are a set. The v1 digest of earlier releases
+    /// ([`Self::premises_digest_v1`]) wrote the pairs as supplied and the targets in caller
+    /// order; a stored v1 digest still verifies.
     /// # Errors
     /// Encoding failure.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
+        let r = &self.request;
+        let mut edges = r.edges.clone();
+        edges.sort_unstable();
+        edges.dedup();
+        let mut bidirected: Vec<(u32, u32)> =
+            r.bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
+        bidirected.sort_unstable();
+        bidirected.dedup();
+        let mut selection_targets = r.selection_targets.clone();
+        selection_targets.sort_unstable();
+        selection_targets.dedup();
+        crate::digest_hex(
+            IdentityDomain::TransportCertificate,
+            &(
+                "temporal_recalc.premises.v2",
+                layout(r.horizon).1,
+                self.seed,
+                edges,
+                bidirected,
+                selection_targets,
+                r.horizon,
+                &r.lag_alignment,
+                r.period,
+                &r.functional,
+                r.benefit_per_unit.to_bits(),
+                r.cost.to_bits(),
+            ),
+        )
+    }
+    /// The premises digest of earlier releases, kept to verify artifacts sealed under it.
+    /// # Errors
+    /// Encoding failure.
+    #[doc(hidden)]
+    pub fn premises_digest_v1(&self) -> Result<String, IoError> {
         let r = &self.request;
         let mut edges = r.edges.clone();
         edges.sort_unstable();
@@ -319,6 +359,14 @@ impl TemporalRecalcArtifactWire {
                 r.cost.to_bits(),
             ),
         )
+    }
+    /// Whether the stored premises digest is this request's v2 digest or, for an artifact
+    /// sealed by an earlier release, its v1 digest.
+    /// # Errors
+    /// Encoding failure.
+    pub fn premises_digest_verifies(&self) -> Result<bool, IoError> {
+        Ok(self.premises_digest == self.expected_premises_digest()?
+            || self.premises_digest == self.premises_digest_v1()?)
     }
     /// Rehash every history's actual unit/time ownership and the target law.
     /// # Errors
@@ -372,12 +420,9 @@ impl TemporalRecalcArtifactWire {
                 "unsupported or unbounded empirical point shape",
             ));
         }
-        crate::require_digest(
-            &self.premises_digest,
-            self.expected_premises_digest(),
-            std::convert::identity,
-            || invalid_temporal_artifact("premise/data identity mismatch"),
-        )?;
+        if !self.premises_digest_verifies()? {
+            return Err(invalid_temporal_artifact("premise/data identity mismatch"));
+        }
         crate::require_digest(
             &self.data_digest,
             self.expected_data_digest(),
@@ -414,5 +459,85 @@ impl TemporalRecalcArtifactWire {
     ) -> Result<bool, IoError> {
         Ok(crate::to_cbor(&self.reports)? == crate::to_cbor(&reports)?
             && self.value.to_bits() == value.to_bits())
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{ordered_laws, set_laws};
+
+    fn wire() -> TemporalRecalcArtifactWire {
+        TemporalRecalcArtifactWire {
+            version: TEMPORAL_RECALC_VERSION,
+            required_features: vec![TEMPORAL_RECALC_FEATURE.into()],
+            request: TemporalRecalcRequestWire {
+                edges: vec![(0, 1), (1, 2), (0, 2)],
+                bidirected: vec![(0, 2)],
+                selection_targets: vec![0],
+                horizon: 1,
+                lag_alignment: vec![0, 1, 2],
+                period: (0, 1),
+                units: Vec::new(),
+                snapshot_id: "snap".into(),
+                initial_state: [0.5, 0.5],
+                initial_state_id: "init".into(),
+                functional: TemporalFunctionalWire::Response { sequence: vec![1] },
+                benefit_per_unit: 1.0,
+                cost: 0.0,
+            },
+            seed: 7,
+            reports: Vec::new(),
+            value: 0.0,
+            inference: TEMPORAL_RECALC_INFERENCE.into(),
+            premises_digest: String::new(),
+            data_digest: String::new(),
+        }
+    }
+
+    fn premises(edit: impl FnOnce(&mut TemporalRecalcRequestWire)) -> Option<String> {
+        let mut wire = wire();
+        edit(&mut wire.request);
+        wire.expected_premises_digest().ok()
+    }
+
+    /// Site `io_core.temporal_recalc_artifact.TemporalRecalcArtifactWire.expected_premises_digest`
+    /// (identity scheme v2): directed edges, bidirected pairs (unordered) and selection
+    /// targets are sets; the lag alignment is ordered.
+    #[test]
+    fn site_temporal_recalc_premises_sets() {
+        set_laws(&[(0u32, 1u32), (1, 2), (0, 2)], |items| {
+            premises(|request| request.edges = items.to_vec())
+        });
+        set_laws(&[(0u32, 2u32), (1, 3), (2, 4)], |items| {
+            premises(|request| request.bidirected = items.to_vec())
+        });
+        set_laws(&[0u32, 2, 4], |items| {
+            premises(|request| request.selection_targets = items.to_vec())
+        });
+        ordered_laws(&[0u8, 1, 2], |items| {
+            premises(|request| request.lag_alignment = items.to_vec())
+        });
+        // One latent confounder however its pair is oriented.
+        assert_eq!(
+            premises(|request| request.bidirected = vec![(0, 2)]),
+            premises(|request| request.bidirected = vec![(2, 0)])
+        );
+    }
+
+    /// A premises digest sealed under v1 still verifies; a digest of other premises does not.
+    #[test]
+    fn v1_premises_digest_still_verifies() {
+        let mut wire = wire();
+        wire.request.selection_targets = vec![2, 0];
+        wire.request.bidirected = vec![(2, 0)];
+        let v1 = wire.premises_digest_v1().unwrap();
+        assert_ne!(v1, wire.expected_premises_digest().unwrap());
+        wire.premises_digest = v1;
+        assert!(wire.premises_digest_verifies().unwrap());
+        wire.premises_digest = wire.expected_premises_digest().unwrap();
+        assert!(wire.premises_digest_verifies().unwrap());
+        wire.premises_digest = "0".repeat(64);
+        assert!(!wire.premises_digest_verifies().unwrap());
     }
 }

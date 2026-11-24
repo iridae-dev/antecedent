@@ -514,6 +514,50 @@ fn retained_from_wire(item: &RetainedMechanismWire) -> RetainedMechanism {
     }
 }
 
+/// How the intervened regime of redrawn draws is named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RegimeNaming {
+    /// v2: `do(v=level,...)` when no variable or level contains `=`, `,`, `(` or `)` (the
+    /// names every regime in the library uses, unchanged from v1), else `do[...]` of
+    /// JSON-quoted `[variable, level]` pairs, so no text can imitate a separator.
+    Framed,
+    /// v1 of earlier releases: `do(v=level,...)` joined without framing; kept to verify
+    /// artifacts sealed under it.
+    Joined,
+}
+
+/// A recorded or assigned Gaussian value as coordinate text: its shortest round-trip
+/// decimal (distinct for distinct finite values, `-0` for negative zero).
+fn real_text(bits: u64) -> String {
+    format!("{}", f64::from_bits(bits))
+}
+
+/// The regime id of an intervention assignment `(variable, level text)` under `naming`.
+fn regime_id_of(mut pairs: Vec<(String, String)>, naming: RegimeNaming) -> String {
+    match naming {
+        RegimeNaming::Framed => {
+            pairs.sort();
+            let separator = |text: &str| text.contains(['=', ',', '(', ')']);
+            if pairs.iter().any(|(v, level)| separator(v) || separator(level)) {
+                let framed = serde_json::to_string(&pairs).unwrap_or_default();
+                format!("do{framed}")
+            } else {
+                // Sorted as text, exactly as v1, so these names keep their v1 regime id.
+                let mut joined: Vec<String> =
+                    pairs.iter().map(|(v, level)| format!("{v}={level}")).collect();
+                joined.sort();
+                format!("do({})", joined.join(","))
+            }
+        }
+        RegimeNaming::Joined => {
+            let mut set: Vec<String> =
+                pairs.iter().map(|(v, level)| format!("{v}={level}")).collect();
+            set.sort();
+            format!("do({})", set.join(","))
+        }
+    }
+}
+
 /// The quantity coordinates of redrawn draws: one per queried functional of the
 /// outcome, at the composition's population, under the intervened regime, with
 /// the recorded values as conditioning.
@@ -521,6 +565,15 @@ fn draw_quantities(
     spec: &ComposedModelSpec,
     target: &RedrawTargetWire,
     functionals: &[String],
+) -> Vec<ScientificQuantity> {
+    draw_quantities_named(spec, target, functionals, RegimeNaming::Framed)
+}
+
+fn draw_quantities_named(
+    spec: &ComposedModelSpec,
+    target: &RedrawTargetWire,
+    functionals: &[String],
+    naming: RegimeNaming,
 ) -> Vec<ScientificQuantity> {
     let outcome = target.outcome();
     let units = spec
@@ -532,22 +585,19 @@ fn draw_quantities(
         .unwrap_or_else(|| "dimensionless".to_owned());
     let mut conditions: Vec<(String, String)> = match target {
         RedrawTargetWire::Gaussian { observed, .. } => {
-            observed.iter().map(|(v, b)| (v.clone(), format!("{}", f64::from_bits(*b)))).collect()
+            observed.iter().map(|(v, b)| (v.clone(), real_text(*b))).collect()
         }
         RedrawTargetWire::Finite { observed, .. } => observed.clone(),
     };
     conditions.sort();
     let regime = if target.has_interventions() {
-        let mut set: Vec<String> = match target {
+        let pairs: Vec<(String, String)> = match target {
             RedrawTargetWire::Gaussian { interventions, .. } => {
-                interventions.iter().map(|(v, b)| format!("{v}={}", f64::from_bits(*b))).collect()
+                interventions.iter().map(|(v, b)| (v.clone(), real_text(*b))).collect()
             }
-            RedrawTargetWire::Finite { interventions, .. } => {
-                interventions.iter().map(|(v, l)| format!("{v}={l}")).collect()
-            }
+            RedrawTargetWire::Finite { interventions, .. } => interventions.clone(),
         };
-        set.sort();
-        format!("do({})", set.join(","))
+        regime_id_of(pairs, naming)
     } else {
         spec.target.regime.clone()
     };
@@ -578,6 +628,50 @@ fn digest_error(error: &IoError) -> ObservationQueryArtifactError {
     ObservationQueryArtifactError::Encode(error.to_string())
 }
 
+/// The replayed result with the alignment identity an artifact sealed before the framed
+/// regime naming carries ([`RegimeNaming::Joined`]); any other result is returned unchanged.
+fn legacy_alignment(
+    spec: Option<&ComposedModelSpec>,
+    query: &ObservationQueryWire,
+    result: &ObservationResultWire,
+) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
+    let (
+        Some(spec),
+        ObservationResultWire::ParameterDraws {
+            quantities,
+            draws,
+            point_bits,
+            values_bits,
+            reading,
+            ..
+        },
+    ) = (spec, result)
+    else {
+        return Ok(result.clone());
+    };
+    let alignment_identity = parameter_draws_distribution_named(
+        spec,
+        query,
+        &ParameterDraws {
+            quantities: quantities.clone(),
+            draws: *draws as usize,
+            values: bits(values_bits),
+            point: bits(point_bits),
+        },
+        RegimeNaming::Joined,
+    )?
+    .alignment_identity()
+    .map_err(|error| digest_error(&error))?;
+    Ok(ObservationResultWire::ParameterDraws {
+        quantities: quantities.clone(),
+        draws: *draws,
+        point_bits: point_bits.clone(),
+        values_bits: values_bits.clone(),
+        alignment_identity,
+        reading: reading.clone(),
+    })
+}
+
 /// The aligned draws of a redraw query as the repo's distribution artifact.
 ///
 /// Every row is one joint realization of the queried quantities (one parameter
@@ -588,6 +682,15 @@ fn parameter_draws_distribution(
     spec: &ComposedModelSpec,
     query: &ObservationQueryWire,
     draws: &ParameterDraws,
+) -> Result<DistributionArtifact, ObservationQueryArtifactError> {
+    parameter_draws_distribution_named(spec, query, draws, RegimeNaming::Framed)
+}
+
+fn parameter_draws_distribution_named(
+    spec: &ComposedModelSpec,
+    query: &ObservationQueryWire,
+    draws: &ParameterDraws,
+    naming: RegimeNaming,
 ) -> Result<DistributionArtifact, ObservationQueryArtifactError> {
     let ObservationQueryWire::ParameterRedraw { target, retained, prior, draws: n, seed } = query
     else {
@@ -607,7 +710,7 @@ fn parameter_draws_distribution(
     let contract =
         crate::digest_hex(IdentityDomain::Program, &("observation_query_premises_v1", &premises))
             .map_err(|error| digest_error(&error))?;
-    let quantities = draw_quantities(spec, target, &draws.quantities);
+    let quantities = draw_quantities_named(spec, target, &draws.quantities, naming);
     let semantic = if target.has_interventions() {
         DistributionMeaningWire::InterventionalPredictive
     } else {
@@ -1292,7 +1395,9 @@ impl ObservationQueryArtifactWire {
             }
         }
         let result = evaluate_observation_query(spec.as_ref(), &self.query, ctx)?;
-        if !self.result.replays_as(&result) {
+        if !self.result.replays_as(&result)
+            && !self.result.replays_as(&legacy_alignment(spec.as_ref(), &self.query, &result)?)
+        {
             return Err(ObservationQueryArtifactError::ResultMismatch);
         }
         Ok(ConsumedObservationQuery {
@@ -1301,5 +1406,126 @@ impl ObservationQueryArtifactWire {
             inference_basis: self.inference_basis.clone(),
             result,
         })
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{multiset_laws, set_laws};
+
+    fn pairs(items: &[(&str, &str)]) -> Vec<(String, String)> {
+        items.iter().map(|(v, l)| ((*v).to_owned(), (*l).to_owned())).collect()
+    }
+
+    /// Site `io_core.observation_query_artifact.draw_quantities`: the intervened regime is a
+    /// set of assignments, and its id is injective (v2): a variable or level text containing
+    /// a separator can no longer imitate two assignments, while names without separators keep
+    /// their v1 id.
+    #[test]
+    fn site_draw_quantities_regime_id_is_a_framed_set() {
+        let assignments = pairs(&[("a", "1"), ("b", "2"), ("c", "x")]);
+        set_laws(&assignments, |items| {
+            let mut distinct = items.to_vec();
+            distinct.sort();
+            distinct.dedup();
+            Some(regime_id_of(distinct, RegimeNaming::Framed))
+        });
+        // v1 collision: one variable named `a=1,b` set to 2 reads as two assignments.
+        let crafted = pairs(&[("a=1,b", "2")]);
+        let honest = pairs(&[("a", "1"), ("b", "2")]);
+        assert_eq!(
+            regime_id_of(crafted.clone(), RegimeNaming::Joined),
+            regime_id_of(honest.clone(), RegimeNaming::Joined)
+        );
+        assert_ne!(
+            regime_id_of(crafted, RegimeNaming::Framed),
+            regime_id_of(honest.clone(), RegimeNaming::Framed)
+        );
+        // Plain names keep the v1 id (sorted as text: `a1` before `a`).
+        let plain = pairs(&[("a", "1"), ("a1", "2")]);
+        assert_eq!(regime_id_of(plain.clone(), RegimeNaming::Framed), "do(a1=2,a=1)");
+        assert_eq!(
+            regime_id_of(plain.clone(), RegimeNaming::Framed),
+            regime_id_of(plain, RegimeNaming::Joined)
+        );
+        // Every separator-bearing spelling of these parts is told apart.
+        let texts = ["a", "a=", "=a", "a,", ",a", "(", ")", "a=1", "1,b"];
+        let mut seen = std::collections::BTreeMap::new();
+        for variable in texts {
+            for level in texts {
+                let id = regime_id_of(pairs(&[(variable, level)]), RegimeNaming::Framed);
+                if let Some(previous) = seen.insert(id.clone(), (variable, level)) {
+                    panic!("{previous:?} and {:?} share {id}", (variable, level));
+                }
+            }
+        }
+        // Gaussian levels render by shortest round trip; `-0.0` and `0.0` differ.
+        assert_ne!(real_text((-0.0f64).to_bits()), real_text(0.0f64.to_bits()));
+    }
+
+    fn gaussian(observed: &[(String, u64)]) -> ObservationQueryWire {
+        ObservationQueryWire::GaussianOutcome {
+            outcome: "y".into(),
+            interventions: vec![("a".into(), 1.0f64.to_bits())],
+            observed: observed.to_vec(),
+        }
+    }
+
+    /// Site `io_core.observation_query_artifact.wire.ObservationQueryWire.canonical`: every
+    /// assignment list is a set (canonical form v2: an exact repeat is written once; one
+    /// variable with two levels is refused by the evaluator).
+    #[test]
+    fn site_observation_query_canonical_assignment_lists_are_sets() {
+        let observed: Vec<(String, u64)> = vec![
+            ("m".into(), 0.5f64.to_bits()),
+            ("w".into(), 1.5f64.to_bits()),
+            ("z".into(), (-2.0f64).to_bits()),
+        ];
+        set_laws(&observed, |items| {
+            observation_query_identity(None, &gaussian(items).canonical(), "declared").ok()
+        });
+        let background = pairs(&[("b", "0"), ("c", "1"), ("d", "1")]);
+        set_laws(&background, |items| {
+            let query = ObservationQueryWire::ThresholdCrossing {
+                outcome: "y".into(),
+                outcome_level: "1".into(),
+                signal: "s".into(),
+                background: items.to_vec(),
+                threshold_bits: 0.5f64.to_bits(),
+                direction: "above".into(),
+            };
+            observation_query_identity(None, &query.canonical(), "declared").ok()
+        });
+        // Retained table rows are a weighted dataset: a repeated row is more data.
+        let parent = |level: &str| vec![("x".to_owned(), level.to_owned())];
+        let rows: Vec<(Vec<(String, String)>, Vec<(String, u64)>)> = vec![
+            (parent("0"), vec![("0".into(), 3), ("1".into(), 1)]),
+            (parent("1"), vec![("0".into(), 1), ("1".into(), 2)]),
+            (parent("2"), vec![("1".into(), 4)]),
+        ];
+        multiset_laws(&rows, |items| {
+            let mut query = ObservationQueryWire::ParameterRedraw {
+                target: RedrawTargetWire::Finite {
+                    outcome: "y".into(),
+                    interventions: Vec::new(),
+                    observed: Vec::new(),
+                },
+                retained: vec![RetainedMechanismWire::Table {
+                    variable: "y".into(),
+                    rows: items.to_vec(),
+                }],
+                prior: RedrawPriorWire {
+                    dirichlet_alpha_bits: 1.0f64.to_bits(),
+                    coefficient_precision_bits: 1.0f64.to_bits(),
+                    variance_shape_bits: 1.0f64.to_bits(),
+                    variance_scale_bits: 1.0f64.to_bits(),
+                },
+                draws: 10,
+                seed: 1,
+            };
+            query = query.canonical();
+            observation_query_identity(None, &query, "declared").ok()
+        });
     }
 }

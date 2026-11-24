@@ -464,10 +464,22 @@ fn canonical_law(law: &mut LawWire) {
     law.points.sort_by(point_order);
 }
 
-/// The request in canonical order: covariates, mechanisms, parents, slopes, support points,
-/// selections, assignment children and evidence all sorted, so the identity and the evaluated
-/// result do not depend on the order anything was supplied in.
+/// The request in canonical order (canonical form v2): covariates, mechanisms, parents,
+/// slopes, support points, selections, assignment children and evidence all sorted, so the
+/// identity and the evaluated result do not depend on the order anything was supplied in.
+/// Selection nodes are a set: the evaluator reads the diagram's selected variables as a set,
+/// so a repeated selection node is the same diagram and is written once. The v1 form of
+/// earlier releases ([`canonical_v1`]) kept the repeat; a stored v1 identity still verifies.
 fn canonical(
+    request: &TransportedCounterfactualRequestWire,
+) -> TransportedCounterfactualRequestWire {
+    let mut out = canonical_v1(request);
+    out.selections.dedup();
+    out
+}
+
+/// The canonical form of earlier releases, kept to verify artifacts sealed under it.
+fn canonical_v1(
     request: &TransportedCounterfactualRequestWire,
 ) -> TransportedCounterfactualRequestWire {
     let mut out = request.clone();
@@ -1135,9 +1147,19 @@ impl TransportedCounterfactualArtifact {
         if meta.inference_claim != TRANSPORTED_COUNTERFACTUAL_INFERENCE_CLAIM {
             return Err(Failure::UnsupportedSemantics("inference claim"));
         }
-        let request = canonical(&meta.request);
+        let mut request = canonical(&meta.request);
         let replayed = evaluate(&request, limits)?;
-        let recomputed = identity_of(&request, &replayed);
+        let mut recomputed = identity_of(&request, &replayed);
+        if identity_diff(&meta.identity, &recomputed).is_some() {
+            // An artifact sealed under the v1 canonical form: the same request and answer,
+            // kept in its v1 form so the verified artifact still carries its own identity.
+            let legacy_request = canonical_v1(&meta.request);
+            let legacy = identity_of(&legacy_request, &replayed);
+            if identity_diff(&meta.identity, &legacy).is_none() {
+                recomputed = legacy;
+                request = legacy_request;
+            }
+        }
         if let Some(field) = identity_diff(&meta.identity, &recomputed) {
             // Only the result digest differing means the request is as stored and the stored
             // answer is not the replayed one.
@@ -1180,5 +1202,137 @@ mod error_text_tests {
             Error::LimitsExceeded("units").to_string(),
             "transported counterfactual consumer limit exceeded: units"
         );
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{multiset_laws, set_laws};
+
+    fn result() -> TransportedCounterfactualResultWire {
+        TransportedCounterfactualResultWire {
+            target_contrast: 0.5,
+            source_contrast: 0.25,
+            unit_contrasts: Vec::new(),
+            derivation: DerivationWire {
+                theorem: "t".into(),
+                checked: Vec::new(),
+                declared: Vec::new(),
+                claim: "c".into(),
+            },
+        }
+    }
+
+    /// The identity of `request` after canonicalization, as the seal computes it.
+    fn identity(
+        request: &TransportedCounterfactualRequestWire,
+    ) -> TransportedCounterfactualIdentity {
+        identity_of(&canonical(request), &result())
+    }
+
+    fn selection(label: &str, target: &str) -> SelectionWire {
+        SelectionWire { label: label.into(), target: target.into() }
+    }
+
+    fn evidence(role: &str, regime: &str, label: &str) -> EvidenceWire {
+        EvidenceWire { role: role.into(), regime: regime.into(), label: label.into() }
+    }
+
+    /// Site `io_core.transported_counterfactual_artifact.canonical`: covariates and evidence
+    /// are sets whose repeats the evaluator refuses (the canonical form keeps them, so the
+    /// law here is the multiset law on the canonicalizer); selections are a set read as a set,
+    /// written once (canonical form v2); assignment children are a set.
+    #[test]
+    fn site_transported_canonical_collections() {
+        let covariates = ["age".to_owned(), "sex".to_owned(), "site".to_owned()];
+        multiset_laws(&covariates, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.model.covariates = items.to_vec();
+            Some(identity(&request).model_digest)
+        });
+        let selections = [selection("s1", "m"), selection("s2", "y"), selection("s3", "z")];
+        set_laws(&selections, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.selections = items.to_vec();
+            Some(identity(&request).selection_digest)
+        });
+        let evidence_items = [
+            evidence("source", "r1", "a"),
+            evidence("target", "r1", "b"),
+            evidence("target", "r2", "c"),
+        ];
+        multiset_laws(&evidence_items, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.evidence = items.to_vec();
+            Some(identity(&request).evidence_digest)
+        });
+        let children = ["m".to_owned(), "y".to_owned(), "z".to_owned()];
+        set_laws(&children, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.assignment.plus = items.to_vec();
+            Some(identity(&request).assignment_digest)
+        });
+    }
+
+    /// A stored identity sealed under the v1 canonical form (a repeated selection kept) is the
+    /// v1 identity of the same request, which the reader accepts.
+    #[test]
+    fn v1_canonical_keeps_a_repeated_selection_v2_writes_it_once() {
+        let mut request = TransportedCounterfactualRequestWire::default();
+        request.selections = vec![selection("s1", "m"), selection("s1", "m")];
+        let v1 = identity_of(&canonical_v1(&request), &result());
+        let v2 = identity_of(&canonical(&request), &result());
+        assert_ne!(v1.selection_digest, v2.selection_digest);
+        request.selections.pop();
+        assert_eq!(
+            identity_of(&canonical(&request), &result()).selection_digest,
+            v2.selection_digest
+        );
+    }
+
+    /// Site `io_core.transported_counterfactual_artifact.canonical_affine`: covariate slopes
+    /// are a set of (covariate, slope) pairs (a repeated covariate is refused by the
+    /// evaluator); slopes enter by bit pattern.
+    #[test]
+    fn site_transported_canonical_affine_slopes() {
+        let slopes = [("age".to_owned(), 0.5), ("sex".to_owned(), -1.0), ("site".to_owned(), 2.0)];
+        multiset_laws(&slopes, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.model.mechanisms =
+                vec![MechanismWire { node: "y".into(), ..MechanismWire::default() }];
+            request.model.mechanisms[0].intercept.covariate_slopes = items.to_vec();
+            Some(identity(&request).model_digest)
+        });
+        let digest = |slope: f64| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.model.mechanisms = vec![MechanismWire::default()];
+            request.model.mechanisms[0].intercept.covariate_slopes = vec![("age".into(), slope)];
+            identity(&request).model_digest
+        };
+        assert_ne!(digest(0.0), digest(-0.0));
+    }
+
+    /// Site `io_core.transported_counterfactual_artifact.canonical_law`: a support point's
+    /// values are a set of (covariate, value) pairs and the points are a weighted multiset.
+    #[test]
+    fn site_transported_canonical_law_points() {
+        let point = |a: f64, weight: f64| SupportPointWire {
+            values: vec![("age".into(), a), ("sex".into(), 1.0)],
+            weight,
+        };
+        let points = [point(1.0, 0.25), point(2.0, 0.5), point(3.0, 0.25)];
+        multiset_laws(&points, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.source_law.points = items.to_vec();
+            Some(identity(&request).source_law_digest)
+        });
+        let values = [("age".to_owned(), 1.0), ("sex".to_owned(), 0.0), ("site".to_owned(), 3.0)];
+        multiset_laws(&values, |items| {
+            let mut request = TransportedCounterfactualRequestWire::default();
+            request.target_law.points =
+                vec![SupportPointWire { values: items.to_vec(), weight: 1.0 }];
+            Some(identity(&request).target_law_digest)
+        });
     }
 }

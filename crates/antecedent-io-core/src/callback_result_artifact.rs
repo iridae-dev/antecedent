@@ -1227,3 +1227,104 @@ impl CallbackResultArtifact {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+    use antecedent_contract::interface_contract::SupportDomain;
+    use antecedent_contract::{DistributionMeaning, QuantityRole};
+
+    fn declaration() -> CallbackDeclaration {
+        CallbackDeclaration {
+            component: "gaussian_law".into(),
+            kind: CallbackKind::Law,
+            identity: ProviderObjectIdentity {
+                provider_id: "lab".into(),
+                object_id: "gaussian".into(),
+                version_id: "1.0".into(),
+                snapshot_id: "snap-1".into(),
+                request_id: "req-1".into(),
+            },
+            quantity: ScientificQuantity {
+                variable_id: "schema:systolic".into(),
+                variable_name: "systolic".into(),
+                role: QuantityRole::Outcome,
+                units: "mmHg".into(),
+                population_id: "trial".into(),
+                regime_id: "do(a=1)".into(),
+                horizon: 0,
+                functional_id: "outcome".into(),
+                conditioning: Vec::new(),
+                transform_id: "identity".into(),
+            },
+            semantic_identity: "estimand:outcome_law".into(),
+            meaning: DistributionMeaning::InterventionalPredictive,
+            support: SupportDomain::Real,
+            operations: [
+                CallbackOperation::Mean,
+                CallbackOperation::Sample,
+                CallbackOperation::Cdf,
+                CallbackOperation::Quantile,
+            ]
+            .into_iter()
+            .collect(),
+            update: None,
+            inputs: Vec::new(),
+            dependencies: DependencyDeclaration::Opaque,
+            replay: ReplayContract::SeededStochastic { stream_id: "outcome_draws".into() },
+            trust: CallbackTrust::ExternallyAttested { attestor: "lab".into() },
+            evidence: EvidenceBasis::Declared(BTreeSet::new()),
+        }
+    }
+
+    /// Site `io_core.callback_result_artifact.protocol_to_wire`: complete dependencies and
+    /// operations are sets (a repeated dependency name is refused by validation).
+    #[test]
+    fn site_protocol_to_wire_dependencies_and_operations_are_sets() {
+        let dependencies = [
+            CallbackDependency::new(DependencyKind::Model, "parameters", "mu=2;sd=1.5"),
+            CallbackDependency::new(DependencyKind::File, "weights", "sha:abc"),
+            CallbackDependency::new(DependencyKind::Model, "sampler", "v3"),
+        ];
+        set_laws(&dependencies, |items| {
+            let mut declaration = declaration();
+            declaration.dependencies = DependencyDeclaration::Complete(items.to_vec());
+            declaration.validate().ok()?;
+            Some(protocol_to_wire(&declaration))
+        });
+        let operations =
+            [CallbackOperation::Mean, CallbackOperation::Sample, CallbackOperation::Cdf];
+        set_laws(&operations, |items| {
+            let mut declaration = declaration();
+            declaration.operations = items.iter().copied().collect();
+            declaration.validate().ok()?;
+            Some(protocol_to_wire(&declaration))
+        });
+    }
+
+    /// Site `io_core.interface_contract_artifact.contract_to_wire`: produced ports are a set
+    /// keyed by name (contract validation refuses a repeated port name).
+    #[test]
+    fn site_contract_to_wire_ports_are_a_set() {
+        let contract = declaration().interface_contract();
+        let port = contract.produces[0].clone();
+        let ports: Vec<_> = ["first", "second", "third"]
+            .iter()
+            .map(|name| {
+                let mut port = port.clone();
+                port.name = (*name).to_owned();
+                port.quantity.variable_id = format!("schema:{name}");
+                port.quantity.variable_name = (*name).to_owned();
+                port.semantic_identity = format!("estimand:{name}");
+                port
+            })
+            .collect();
+        set_laws(&ports, |items| {
+            let mut contract = contract.clone();
+            contract.produces = items.to_vec();
+            contract.validate().ok()?;
+            Some(contract_to_wire(&contract))
+        });
+    }
+}

@@ -782,3 +782,49 @@ impl TransportRevalidationArtifact {
         encode_meta(meta, artifact_id)
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+
+    fn digest(byte: u8) -> SemanticDigest {
+        SemanticDigest::from_bytes([byte; 32])
+    }
+
+    fn scene(sources: &[SceneSource]) -> TransportScene {
+        TransportScene {
+            target: SceneTarget { identity: digest(1), support: SupportStanding::Supported },
+            selection_diagram: digest(2),
+            sources: sources.to_vec(),
+            claims: Vec::new(),
+        }
+    }
+
+    /// Site `io_core.transport_revalidation_artifact.scene_to_wire`: the scene's sources are
+    /// a set keyed by name (the scene graph refuses a repeated key).
+    #[test]
+    fn site_scene_to_wire_sources_are_a_set() {
+        let sources: Vec<SceneSource> = ["s1", "s2", "s3"]
+            .iter()
+            .enumerate()
+            .map(|(index, key)| SceneSource {
+                key: (*key).to_owned(),
+                identity: digest(10 + u8::try_from(index).unwrap()),
+            })
+            .collect();
+        set_laws(&sources, |items| {
+            let scene = scene(items);
+            scene.graph().ok()?;
+            Some(scene_to_wire(&scene))
+        });
+    }
+
+    /// Site `io_core.transport_revalidation_artifact.sorted_distinct`: claim sources and
+    /// `rests_on` lists are sets.
+    #[test]
+    fn site_sorted_distinct_is_a_set() {
+        let values = ["b".to_owned(), "a".to_owned(), "c".to_owned()];
+        set_laws(&values, |items| Some(sorted_distinct(items)));
+    }
+}
