@@ -37,6 +37,7 @@ use antecedent::analysis::kernel_programs::exposure_measurement::{
     DetectionColumns, RepeatCodings, SoftExposureColumns, SoftExposureMethod,
 };
 use antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns;
+use antecedent::analysis::recovery_chain::RecoveryChain;
 use antecedent::planner::PlanView;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::measurement::{
@@ -358,6 +359,32 @@ fn compiled_chain_recovery_equals_the_direct_evaluation_on_every_reference_case(
             same_all(d, c, name);
         }
         assert_eq!(direct, twin);
+    }
+}
+
+#[test]
+fn recovery_chain_recover_with_context_equals_recover_on_every_reference_case() {
+    let v = VariableId::from_raw;
+    let query = ChainRecoveryQuery {
+        first: ChainPartial { variable: v(0), response: v(2), proxy: v(4) },
+        second: ChainPartial { variable: v(1), response: v(3), proxy: v(5) },
+    };
+    let names: Vec<String> = ["X1", "X2", "R1", "R2", "P1", "P2"].map(String::from).to_vec();
+    for case in chain_reference()["cases"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let head = usize::try_from(case["head"].as_u64().unwrap()).unwrap();
+        let graph = chain_graph(&chain_edges(head, case["dependent"].as_bool().unwrap()));
+        let law = chain_law(case);
+        let decided = RecoveryChain::decide(&graph, &query, &names, &ctx()).unwrap();
+        let direct = decided.clone().recover(law).unwrap();
+        let compiled = decided.recover_with_context(law, &ctx()).unwrap();
+        let (d, c) = (direct.recovered().unwrap(), compiled.recovered().unwrap());
+        for (dr, cr) in d.cells().iter().zip(c.cells()) {
+            same_all(dr, cr, name);
+        }
+        assert_eq!(d, c, "{name}");
+        assert_eq!(direct.observed(), compiled.observed(), "{name}");
+        assert_eq!(direct.export().unwrap(), compiled.export().unwrap(), "{name}: artifact");
     }
 }
 
