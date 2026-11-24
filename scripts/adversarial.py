@@ -23,7 +23,9 @@ review digests are bound under, with the extension already built into that envir
 
 from __future__ import annotations
 
+import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -139,17 +141,24 @@ def _run_group(root: Path, runner: str, spec: dict, cases: list[dict]) -> dict[s
     if "case_args" in spec:
         command += [arg.format(test=cases[0]["test"]) for arg in spec["case_args"]]
     try:
-        proc = subprocess.run(
-            command, cwd=root / spec["directory"], capture_output=True, text=True, timeout=spec.get("timeout")
+        # A session of its own, so a timeout ends the whole process group (cargo kani leaves
+        # its CBMC solver running when only cargo is killed).
+        proc = subprocess.Popen(
+            command, cwd=root / spec["directory"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True,
         )
     except OSError as error:
         print(f"adversarial: runner {runner} could not start: {error}", file=sys.stderr)
         return {c["id"]: "not run" for c in cases}
+    try:
+        stdout, stderr = proc.communicate(timeout=spec.get("timeout"))
     except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
         names = ", ".join(c["test"] for c in cases)
         print(f"adversarial: runner {runner} exceeded {spec['timeout']} s on {names}", file=sys.stderr)
         return {c["id"]: "not run" for c in cases}
-    output = proc.stdout + proc.stderr
+    output = stdout + stderr
     names = _outcomes(runner, output, proc.returncode, [c["test"] for c in cases])
     if proc.returncode != 0 and all(names[c["test"]] == "not run" for c in cases):
         print(f"adversarial: runner {runner} failed before running its cases:\n{output[-3000:]}", file=sys.stderr)
