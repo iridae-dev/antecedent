@@ -33,6 +33,7 @@ use super::latency::{ComputeBudget, LatencyMode};
 mod admission;
 mod finish;
 mod policy_constraints;
+mod randomized_adjustment;
 mod routes;
 mod settings;
 mod stub_graph;
@@ -1623,6 +1624,7 @@ impl StudyBuilder {
         })?;
         super::declared_learners::admit(&study)?;
         super::binary_policy_constraints::admit(&study)?;
+        super::randomized_adjustment::admit(&study)?;
         super::structure_route::attach_specifications(
             &mut study,
             discovery,

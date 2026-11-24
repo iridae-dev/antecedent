@@ -95,7 +95,7 @@ pub(super) fn model_variables(
         }
         return Ok(float_ids);
     }
-    let mut ids = super::missing_imputation_vector::query_variables(&study.query);
+    let mut ids = super::missing_imputation_vector::study_variables(study);
     if ids.is_empty() {
         return Err(refused("this query names no variable the imputation model can anchor on"));
     }

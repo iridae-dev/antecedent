@@ -521,8 +521,10 @@ impl Study {
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{IdentifierId, identify_static_query};
         if let CausalQuery::RandomizedEffect(query) = &self.query {
-            let (identification, estimand) =
-                crate::analysis::execute::randomized_identification(query);
+            let (identification, estimand) = crate::analysis::execute::randomized_identification(
+                query,
+                self.declared.randomized_adjustment.as_ref(),
+            );
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::PanelDid(query) = &self.query {

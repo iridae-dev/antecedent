@@ -84,7 +84,7 @@ impl CheckedRandomizedOperation {
         data: &TabularData,
         _ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        admit(&self.query, self.extra.as_ref())?;
+        admit(&self.query, self.extra.missing.as_ref())?;
         let antecedent_core::RandomizationDesign::MultiArm { assignment, probabilities, arms } =
             &self.query.design
         else {

@@ -136,11 +136,6 @@ pub enum RandomizedEffectFault {
         "a switchback needs at least two distinct periods; with one period for every sequence the assignment never switches back, so it is a single-period randomized trial. Next attempt: the static randomized effect (a Bernoulli, complete, cluster or stratified design) for one period, or add the later periods of each sequence"
     )]
     SwitchbackSinglePeriod,
-    /// Refused: estimated-slope CUPED requires independent Bernoulli assignment, a distinct pre-assignment covariate, and no other adjustment or exact test.
-    #[error(
-        "estimated-slope CUPED requires independent Bernoulli assignment, a distinct pre-assignment covariate, and no other adjustment or exact test"
-    )]
-    EstimatedCupedDesign,
 }
 
 /// Errors from query construction or validation.

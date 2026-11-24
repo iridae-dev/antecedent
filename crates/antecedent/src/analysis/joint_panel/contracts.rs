@@ -601,7 +601,7 @@ pub(super) fn compile_support(
     }
     let product = match evidence {
         Ok(query) => {
-            let (mut result, _) = crate::analysis::execute::randomized_identification(&query);
+            let (mut result, _) = crate::analysis::execute::randomized_identification(&query, None);
             result
                 .required_assumptions
                 .extend_unique(&request.target.assumptions().records().entries);

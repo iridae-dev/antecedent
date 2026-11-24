@@ -1467,18 +1467,14 @@ impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyIn
 }
 
 /// Randomized ITT design metadata wire form.
-///
-/// A same-sample CUPED declaration is held in [`RandomizedEffectQueryWire::fixed_cuped`] with
-/// the coefficient [`antecedent_core::RandomizedEffectQuery::ESTIMATED_SLOPE`], as the query
-/// holds it, and is written as its own `estimated_cuped` field: read the two declarations with
-/// [`RandomizedEffectQueryWire::fixed_cuped_coefficient`] and
-/// [`RandomizedEffectQueryWire::estimated_cuped`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(try_from = "RandomizedEffectQueryWireFields", into = "RandomizedEffectQueryWireFields")]
+#[serde(deny_unknown_fields)]
 pub struct RandomizedEffectQueryWire {
     /// Assignment ITT or randomized-encouragement CACE/LATE.
+    #[serde(default)]
     pub estimand: RandomizedEstimandWire,
     /// Declared assignment mechanism.
+    #[serde(default)]
     pub design: RandomizationDesignWire,
     /// Outcome variable id.
     pub outcome: u32,
@@ -1493,188 +1489,44 @@ pub struct RandomizedEffectQueryWire {
     /// Control and treatment labels.
     pub treatment_arms: (String, String),
     /// Block labels in row order (stratified designs only).
+    #[serde(default)]
     pub blocks: Vec<String>,
     /// Declared treated count for each row's block (stratified designs only).
+    #[serde(default)]
     pub treated_per_row: Vec<usize>,
     /// Row-aligned switchback period labels.
+    #[serde(default)]
     pub periods: Vec<String>,
     /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
+    #[serde(default)]
     pub fixed_cuped: Option<(u32, f64)>,
     /// Pre-assignment covariates jointly fitted by ANCOVA.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ancova_covariates: Vec<u32>,
     /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
     pub received_treatment: Option<Vec<bool>>,
     /// Exhaustive two-sided Fisher sharp-null test for complete randomization.
+    #[serde(default)]
     pub exact_randomization_test: bool,
     /// Row-aligned assignment to the second factor in a 2×2 design.
+    #[serde(default)]
     pub second_factor_assignment: Vec<bool>,
     /// Fixed cell counts in 00, 10, 01, 11 order.
+    #[serde(default)]
     pub factorial_cell_counts: Option<[usize; 4]>,
     /// Labels for the second factor's two levels.
+    #[serde(default)]
     pub second_factor_arms: Option<(String, String)>,
     /// Ordered multi-arm labels, first being the reference action.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub multi_arm_labels: Vec<String>,
     /// Observed multi-arm action indices in row order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub multi_arm_assignment: Vec<usize>,
     /// Known action probabilities in declared label order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub multi_arm_probabilities: Vec<Vec<f64>>,
-}
-
-/// The written form of [`RandomizedEffectQueryWire`]: a same-sample CUPED declaration is its
-/// own field, never a coefficient.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RandomizedEffectQueryWireFields {
-    /// Assignment ITT or randomized-encouragement CACE/LATE.
-    #[serde(default)]
-    estimand: RandomizedEstimandWire,
-    /// Declared assignment mechanism.
-    #[serde(default)]
-    design: RandomizationDesignWire,
-    /// Outcome variable id.
-    outcome: u32,
-    /// Realized assignment in row order.
-    realized_assignment: Vec<bool>,
-    /// Known Bernoulli probabilities in row order.
-    assignment_probabilities: Vec<f64>,
-    /// Assignment unit labels in row order.
-    assignment_units: Vec<String>,
-    /// Outcome unit labels in row order.
-    outcome_units: Vec<String>,
-    /// Control and treatment labels.
-    treatment_arms: (String, String),
-    /// Block labels in row order (stratified designs only).
-    #[serde(default)]
-    blocks: Vec<String>,
-    /// Declared treated count for each row's block (stratified designs only).
-    #[serde(default)]
-    treated_per_row: Vec<usize>,
-    /// Row-aligned switchback period labels.
-    #[serde(default)]
-    periods: Vec<String>,
-    /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
-    #[serde(default)]
-    fixed_cuped: Option<(u32, f64)>,
-    /// Pre-assignment covariate whose pooled slope is estimated from the rows (same-sample CUPED).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    estimated_cuped: Option<u32>,
-    /// Pre-assignment covariates jointly fitted by ANCOVA.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    ancova_covariates: Vec<u32>,
-    /// Row-aligned observed receipt for CACE/LATE.
-    #[serde(default)]
-    received_treatment: Option<Vec<bool>>,
-    /// Exhaustive two-sided Fisher sharp-null test for complete randomization.
-    #[serde(default)]
-    exact_randomization_test: bool,
-    /// Row-aligned assignment to the second factor in a 2×2 design.
-    #[serde(default)]
-    second_factor_assignment: Vec<bool>,
-    /// Fixed cell counts in 00, 10, 01, 11 order.
-    #[serde(default)]
-    factorial_cell_counts: Option<[usize; 4]>,
-    /// Labels for the second factor's two levels.
-    #[serde(default)]
-    second_factor_arms: Option<(String, String)>,
-    /// Ordered multi-arm labels, first being the reference action.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    multi_arm_labels: Vec<String>,
-    /// Observed multi-arm action indices in row order.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    multi_arm_assignment: Vec<usize>,
-    /// Known action probabilities in declared label order.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    multi_arm_probabilities: Vec<Vec<f64>>,
-}
-
-impl RandomizedEffectQueryWire {
-    /// The covariate whose pooled slope is estimated from the rows, when the query declares
-    /// same-sample CUPED.
-    #[must_use]
-    pub fn estimated_cuped(&self) -> Option<u32> {
-        self.fixed_cuped.and_then(|(covariate, coefficient)| {
-            (coefficient == antecedent_core::RandomizedEffectQuery::ESTIMATED_SLOPE)
-                .then_some(covariate)
-        })
-    }
-
-    /// The covariate and externally fixed coefficient, when the query declares fixed CUPED.
-    #[must_use]
-    pub fn fixed_cuped_coefficient(&self) -> Option<(u32, f64)> {
-        self.fixed_cuped.filter(|&(_, coefficient)| {
-            coefficient != antecedent_core::RandomizedEffectQuery::ESTIMATED_SLOPE
-        })
-    }
-}
-
-impl TryFrom<RandomizedEffectQueryWireFields> for RandomizedEffectQueryWire {
-    type Error = &'static str;
-
-    fn try_from(fields: RandomizedEffectQueryWireFields) -> Result<Self, Self::Error> {
-        let fixed_cuped = match (fields.fixed_cuped, fields.estimated_cuped) {
-            (Some(_), Some(_)) => {
-                return Err("fixed_cuped and estimated_cuped are exclusive CUPED declarations");
-            }
-            (Some(fixed), None) => Some(fixed),
-            (None, Some(covariate)) => {
-                Some((covariate, antecedent_core::RandomizedEffectQuery::ESTIMATED_SLOPE))
-            }
-            (None, None) => None,
-        };
-        Ok(Self {
-            fixed_cuped,
-            estimand: fields.estimand,
-            design: fields.design,
-            outcome: fields.outcome,
-            realized_assignment: fields.realized_assignment,
-            assignment_probabilities: fields.assignment_probabilities,
-            assignment_units: fields.assignment_units,
-            outcome_units: fields.outcome_units,
-            treatment_arms: fields.treatment_arms,
-            blocks: fields.blocks,
-            treated_per_row: fields.treated_per_row,
-            periods: fields.periods,
-            ancova_covariates: fields.ancova_covariates,
-            received_treatment: fields.received_treatment,
-            exact_randomization_test: fields.exact_randomization_test,
-            second_factor_assignment: fields.second_factor_assignment,
-            factorial_cell_counts: fields.factorial_cell_counts,
-            second_factor_arms: fields.second_factor_arms,
-            multi_arm_labels: fields.multi_arm_labels,
-            multi_arm_assignment: fields.multi_arm_assignment,
-            multi_arm_probabilities: fields.multi_arm_probabilities,
-        })
-    }
-}
-
-impl From<RandomizedEffectQueryWire> for RandomizedEffectQueryWireFields {
-    fn from(wire: RandomizedEffectQueryWire) -> Self {
-        let estimated_cuped = wire.estimated_cuped();
-        Self {
-            fixed_cuped: wire.fixed_cuped_coefficient(),
-            estimated_cuped,
-            estimand: wire.estimand,
-            design: wire.design,
-            outcome: wire.outcome,
-            realized_assignment: wire.realized_assignment,
-            assignment_probabilities: wire.assignment_probabilities,
-            assignment_units: wire.assignment_units,
-            outcome_units: wire.outcome_units,
-            treatment_arms: wire.treatment_arms,
-            blocks: wire.blocks,
-            treated_per_row: wire.treated_per_row,
-            periods: wire.periods,
-            ancova_covariates: wire.ancova_covariates,
-            received_treatment: wire.received_treatment,
-            exact_randomization_test: wire.exact_randomization_test,
-            second_factor_assignment: wire.second_factor_assignment,
-            factorial_cell_counts: wire.factorial_cell_counts,
-            second_factor_arms: wire.second_factor_arms,
-            multi_arm_labels: wire.multi_arm_labels,
-            multi_arm_assignment: wire.multi_arm_assignment,
-            multi_arm_probabilities: wire.multi_arm_probabilities,
-        }
-    }
 }
 
 /// Target estimand serialized with a randomized query.
