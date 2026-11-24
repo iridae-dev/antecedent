@@ -1477,6 +1477,21 @@ pub(in crate::contract_section) fn verify_claim_calibration(
     }
 }
 
+/// The query axis an off-axis compiled query writes into its calibration basis: the query family
+/// name the producer stamps on the contract for a query the support matrix has no axis for. A
+/// basis may name it only for a contract whose target is that query family.
+fn off_axis_query_kind(query: &crate::CausalQueryWire) -> Option<&'static str> {
+    match query {
+        crate::CausalQueryWire::Discover(_) => Some("Discover"),
+        crate::CausalQueryWire::Attribute(_) => Some("Attribute"),
+        crate::CausalQueryWire::Simulate(_) => Some("Simulate"),
+        crate::CausalQueryWire::TemporalDesign(_) => Some("TemporalDesign"),
+        crate::CausalQueryWire::IvBounds(_) => Some("IvBounds"),
+        crate::CausalQueryWire::Association(_) => Some("Association"),
+        _ => None,
+    }
+}
+
 /// The basis fields a consumer can recompute from rehashed payloads: the
 /// support coordinate (query, graph axis, structure, inference), the resolved
 /// estimator, the snapshot row count and modality, and the identification
@@ -1595,8 +1610,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()
                 && (key.query == "Unknown"
-                    || (key.query == "Discover"
-                        && matches!(contract.target.query, crate::CausalQueryWire::Discover(_))))
+                    || off_axis_query_kind(&contract.target.query) == Some(key.query.as_str()))
                 && (key.interval_method == "none"
                     || (key.inference.eq_ignore_ascii_case("bayesian")
                         && key.interval_method == "posterior_quantile")

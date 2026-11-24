@@ -490,3 +490,32 @@ fn a_nested_operation_that_freezes_its_outcome_is_refused_before_it_runs() {
         assert!(prepared.model_operation(&operation, &ctx()).is_err());
     });
 }
+
+/// A compiled interventional sample seals with a contract whose claim verifies against the
+/// sealed body: its calibration basis names the off-axis `Simulate` query the contract targets.
+#[test]
+fn a_sealed_interventional_sample_verifies_against_its_body() {
+    on_large_stack("sealed_interventional_sample", || {
+        let (data, graph) = linear();
+        let ctx = ctx();
+        let worlds: [Arc<[Intervention]>; 2] = [Arc::from([]), Arc::from([hard(1, 0.25)])];
+        for interventions in worlds {
+            let query =
+                CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::InterventionalSample {
+                    interventions,
+                    draws: 64,
+                    seed: 13,
+                }));
+            let prepared = study(&data, &graph, query).prepare(&ctx).unwrap();
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            let bytes = prepared.encode_contracted_result(&result, "simulation", &ctx).unwrap();
+            let retained = antecedent_io::RetainedArtifactIdentity::of_bytes(&bytes);
+            let consumed = antecedent_io::replay_analysis_result_expecting(&bytes, &retained)
+                .expect("the sealed contract verifies against the sealed body");
+            let contract = consumed.contract.expect("the sealed artifact carries its contract");
+            let basis = contract.claim.as_ref().unwrap().calibration.basis.as_ref();
+            let basis = basis.expect("the claim carries the calibration basis it was matched by");
+            assert_eq!(basis.key.query, "Simulate");
+        }
+    });
+}
