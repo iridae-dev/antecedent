@@ -21,9 +21,19 @@
 //! Information. With `g_i = d(lambda V_i)/d psi` (first derivatives of the value only), the
 //! information is `sum_s sum_i p_i (g_i - gbar_s)(g_i - gbar_s)'`, the expected information of a
 //! multinomial choice with a nonlinear linear predictor; its inverse is the model covariance, and
-//! the sandwich with per-cluster score sums is the cluster covariance. A null direction of the
-//! information (pivoted Cholesky with a relative tolerance) is refused, naming the parameters in
-//! it.
+//! the sandwich with per-cluster score sums, times `C / (C - 1)` for `C` clusters (the
+//! finite-cluster correction of Cameron and Miller, 2015), is the cluster covariance. A null
+//! direction of the information (pivoted Cholesky with a relative tolerance) is refused, naming
+//! the parameters in it.
+//!
+//! Convergence. The polish must end at a point whose bound-projected score passes the inner
+//! fits' convergence test (or where a further accepted step no longer moves any coordinate);
+//! otherwise the fit is refused as not converged. The profiles are then maximised from the
+//! polished point: when a profile value exceeds the polished log-likelihood by more than
+//! `1e-6 (1 + |l|)`, the search and the polish stopped at a lower maximum, so the polish is
+//! started once more from the best profile point, and the fit is refused as not converged if a
+//! profile still lies above it. The estimate, its covariance and its intervals are therefore
+//! read at the maximum the profiles show.
 //!
 //! Identification of the shape parameters. For each shape parameter the profile over its declared
 //! range (maximising over the other shape parameters) is evaluated on an even grid. The fit is
@@ -285,6 +295,11 @@ const BOUND_FRACTION: f64 = 1e-6;
 const STEP_FRACTION: f64 = 1e-9;
 /// Bisection of an interval end stops below this fraction of the declared width.
 const BISECTION_FRACTION: f64 = 1e-9;
+/// A profile value above the polished log-likelihood by more than this fraction of
+/// `1 + |log-likelihood|` shows the polish stopped below the maximum.
+const PROFILE_EXCESS_RELATIVE: f64 = 1e-6;
+/// A profile log-likelihood with the shape point attaining it.
+type ProfileTop = (f64, Vec<f64>);
 /// Largest number of bisection steps for one interval end.
 const MAX_BISECTIONS: usize = 60;
 /// Pivots of the information below this fraction of its largest diagonal are null directions.
@@ -682,7 +697,36 @@ impl Fitter<'_> {
         Ok(PsiEvaluation { log_likelihood, score, information, set_scores, scale })
     }
 
+    /// The score with every shape component that pushes against the bound it sits on set to
+    /// zero, and its largest absolute entry.
+    fn projected_score(&self, psi: &[f64], evaluation: &PsiEvaluation) -> (Vec<f64>, f64) {
+        let columns = self.p_beta();
+        let mut score = evaluation.score.clone();
+        for (m, (lo, hi)) in self.bounds.iter().enumerate() {
+            let value = psi[columns + m];
+            let j = columns + m;
+            if (value <= *lo && score[j] < 0.0) || (value >= *hi && score[j] > 0.0) {
+                score[j] = 0.0;
+            }
+        }
+        let largest = score.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+        (score, largest)
+    }
+
+    /// Whether the projected score passes the convergence test of the inner fits: its largest
+    /// entry at most the gradient tolerance times the gradient scale.
+    fn stationary(&self, largest: f64, evaluation: &PsiEvaluation) -> bool {
+        largest <= self.options.fit.gradient_tolerance * evaluation.scale.max(f64::MIN_POSITIVE)
+    }
+
     /// Fisher scoring in `psi` from `start`, shape parameters kept inside their bounds.
+    ///
+    /// The polish ends when the projected score passes the convergence test, or when an
+    /// accepted step leaves every coordinate unchanged (the maximum is located to the precision
+    /// of the coordinates). Ending otherwise (the information cannot be solved, no halved step is
+    /// accepted, or the iteration limit is reached) at a point whose projected score fails the
+    /// test refuses with [`NonlinearChoiceError::NotConverged`]: the covariance and the profile
+    /// intervals would be read at a point that is not a maximum.
     fn polish(&self, start: Vec<f64>) -> Result<(Vec<f64>, PsiEvaluation), NonlinearChoiceError> {
         let columns = self.p_beta();
         let q = columns + self.bounds.len();
@@ -691,19 +735,13 @@ impl Fitter<'_> {
         };
         let mut psi = start;
         let mut current = self.evaluate_psi(&psi).map_err(|_| not_evaluable(&psi))?;
+        let mut iterations = 0;
+        let mut settled = false;
         for _ in 0..self.options.fit.max_iterations {
             self.observe()?;
-            let mut score = current.score.clone();
-            for (m, (lo, hi)) in self.bounds.iter().enumerate() {
-                let value = psi[columns + m];
-                let j = columns + m;
-                if (value <= *lo && score[j] < 0.0) || (value >= *hi && score[j] > 0.0) {
-                    score[j] = 0.0;
-                }
-            }
-            let largest = score.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-            if largest <= self.options.fit.gradient_tolerance * current.scale.max(f64::MIN_POSITIVE)
-            {
+            let (score, largest) = self.projected_score(&psi, &current);
+            if self.stationary(largest, &current) {
+                settled = true;
                 break;
             }
             let Some(step) = solve_spd(&current.information, q, &score) else {
@@ -732,11 +770,39 @@ impl Fitter<'_> {
             let moved = next.iter().zip(&psi).any(|(a, b)| a.total_cmp(b).is_ne());
             psi = next;
             current = evaluation;
+            iterations += 1;
             if !moved {
+                settled = true;
                 break;
             }
         }
+        if !settled {
+            let (_, largest) = self.projected_score(&psi, &current);
+            if !self.stationary(largest, &current) {
+                return Err(NonlinearChoiceError::NotConverged {
+                    iterations,
+                    gradient_norm: largest,
+                });
+            }
+        }
         Ok((psi, current))
+    }
+
+    /// The polished direct parameters started from the profile at `shape`.
+    fn polish_from(
+        &self,
+        shape: &[f64],
+    ) -> Result<(Vec<f64>, PsiEvaluation), NonlinearChoiceError> {
+        let beta = self.profile(shape)?.beta;
+        let consistency = beta[0];
+        if consistency.is_nan() || consistency <= 0.0 {
+            return Err(NonlinearChoiceError::ConsistencyNotPositive { consistency });
+        }
+        let mut start = Vec::with_capacity(beta.len() + shape.len());
+        start.push(consistency);
+        start.extend(beta[1..].iter().map(|b| b / consistency));
+        start.extend(shape.iter().copied());
+        self.polish(start)
     }
 
     #[allow(clippy::too_many_lines, reason = "the fit's stages in the order the module documents")]
@@ -746,7 +812,7 @@ impl Fitter<'_> {
         let n_shape = self.bounds.len();
         let q = columns + n_shape;
         let null = null_log_likelihood(self.utility.set_starts());
-        let (shape, beta) = if n_shape == 0 {
+        let (mut psi, mut evaluation) = if n_shape == 0 {
             let features = self
                 .utility
                 .features(&[])
@@ -758,39 +824,63 @@ impl Fitter<'_> {
                 other => Self::map_inner(other, &[]),
             })?;
             self.evaluations.set(1);
-            (Vec::new(), fit.coefficients)
-        } else {
-            let shape = self.search()?;
-            let point = self.profile(&shape)?;
-            (shape, point.beta)
-        };
-        let consistency = beta[0];
-        if consistency.is_nan() || consistency <= 0.0 {
-            return Err(NonlinearChoiceError::ConsistencyNotPositive { consistency });
-        }
-        let mut start = Vec::with_capacity(q);
-        start.push(consistency);
-        start.extend(beta[1..].iter().map(|b| b / consistency));
-        start.extend(shape.iter().copied());
-        let (psi, evaluation) = if n_shape == 0 {
+            let beta = fit.coefficients;
+            let consistency = beta[0];
+            if consistency.is_nan() || consistency <= 0.0 {
+                return Err(NonlinearChoiceError::ConsistencyNotPositive { consistency });
+            }
+            let mut start = Vec::with_capacity(q);
+            start.push(consistency);
+            start.extend(beta[1..].iter().map(|b| b / consistency));
             let evaluation = self
                 .evaluate_psi(&start)
                 .map_err(|_| NonlinearChoiceError::UtilityNotEvaluable { shape: Vec::new() })?;
             (start, evaluation)
         } else {
-            self.polish(start)?
+            let shape = self.search()?;
+            self.polish_from(&shape)?
         };
         if psi[0].is_nan() || psi[0] <= 0.0 {
             return Err(NonlinearChoiceError::ConsistencyNotPositive { consistency: psi[0] });
         }
+        // The profiles are maximised from the polished point. A profile value above the polished
+        // log-likelihood means the search and the polish stopped at a lower maximum: polish once
+        // more from the best profile point, and refuse if a profile still lies above.
         let mut profiles = Vec::with_capacity(n_shape);
-        let mut log_likelihood = evaluation.log_likelihood;
-        for m in 0..n_shape {
-            let profile = self.shape_profile(&psi[columns..], m, log_likelihood)?;
-            let top = profile.log_likelihood.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            log_likelihood = log_likelihood.max(top);
-            profiles.push(profile);
+        let mut repolished = false;
+        loop {
+            profiles.clear();
+            let mut best: Option<ProfileTop> = None;
+            for m in 0..n_shape {
+                let (profile, top) =
+                    self.shape_profile(&psi[columns..], m, evaluation.log_likelihood)?;
+                if let Some((value, point)) = top
+                    && best.as_ref().is_none_or(|(current, _)| value > *current)
+                {
+                    best = Some((value, point));
+                }
+                profiles.push(profile);
+            }
+            let excess = PROFILE_EXCESS_RELATIVE * (1.0 + evaluation.log_likelihood.abs());
+            let Some((_, point)) =
+                best.filter(|(value, _)| *value > evaluation.log_likelihood + excess)
+            else {
+                break;
+            };
+            if repolished {
+                let (_, largest) = self.projected_score(&psi, &evaluation);
+                return Err(NonlinearChoiceError::NotConverged {
+                    iterations: self.options.fit.max_iterations,
+                    gradient_norm: largest,
+                });
+            }
+            repolished = true;
+            (psi, evaluation) = self.polish_from(&point)?;
+            if psi[0].is_nan() || psi[0] <= 0.0 {
+                return Err(NonlinearChoiceError::ConsistencyNotPositive { consistency: psi[0] });
+            }
         }
+        let log_likelihood = evaluation.log_likelihood;
         let threshold = self.threshold();
         for (m, profile) in profiles.iter().enumerate() {
             let finite = profile.log_likelihood.iter().copied().filter(|v| v.is_finite());
@@ -852,31 +942,35 @@ impl Fitter<'_> {
     }
 
     /// The profile of shape parameter `m` at `value`, maximised over the other shape
-    /// parameters from `estimate`; `None` where the utility is not defined.
+    /// parameters from `estimate`, with the shape point attaining it; `None` where the utility is
+    /// not defined.
     fn profile_at(
         &self,
         estimate: &[f64],
         m: usize,
         value: f64,
-    ) -> Result<Option<f64>, NonlinearChoiceError> {
+    ) -> Result<Option<ProfileTop>, NonlinearChoiceError> {
         let mut start = estimate.to_vec();
         start[m] = value;
         let Some(point) = self.profile_or_none(&start)? else {
             return Ok(None);
         };
         if estimate.len() == 1 {
-            return Ok(Some(point.log_likelihood));
+            return Ok(Some((point.log_likelihood, start)));
         }
         let free: Vec<usize> = (0..estimate.len()).filter(|k| *k != m).collect();
-        Ok(Some(self.compass(start, point.log_likelihood, &free)?.1))
+        let (best, value) = self.compass(start, point.log_likelihood, &free)?;
+        Ok(Some((value, best)))
     }
 
+    /// The profile of shape parameter `m` and its largest value with the shape point attaining
+    /// it.
     fn shape_profile(
         &self,
         estimate: &[f64],
         m: usize,
         maximum: f64,
-    ) -> Result<ShapeProfile, NonlinearChoiceError> {
+    ) -> Result<(ShapeProfile, Option<ProfileTop>), NonlinearChoiceError> {
         let (lo, hi) = self.bounds[m];
         let n = self.options.search.profile_points;
         let mut values: Vec<f64> =
@@ -885,8 +979,17 @@ impl Fitter<'_> {
         values.sort_by(f64::total_cmp);
         values.dedup_by(|a, b| a.total_cmp(b).is_eq());
         let mut log_likelihood = Vec::with_capacity(values.len());
+        let mut best: Option<ProfileTop> = None;
         for &value in &values {
-            log_likelihood.push(self.profile_at(estimate, m, value)?.unwrap_or(f64::NEG_INFINITY));
+            match self.profile_at(estimate, m, value)? {
+                Some((profile, point)) => {
+                    if best.as_ref().is_none_or(|(current, _)| profile > *current) {
+                        best = Some((profile, point));
+                    }
+                    log_likelihood.push(profile);
+                }
+                None => log_likelihood.push(f64::NEG_INFINITY),
+            }
         }
         let top = log_likelihood.iter().copied().fold(maximum, f64::max);
         let cutoff = top - self.threshold();
@@ -895,13 +998,16 @@ impl Fitter<'_> {
             self.interval_end(estimate, m, &values, &log_likelihood, centre, cutoff, false)?;
         let (upper, upper_truncated) =
             self.interval_end(estimate, m, &values, &log_likelihood, centre, cutoff, true)?;
-        Ok(ShapeProfile {
-            values,
-            log_likelihood,
-            interval: (lower, upper),
-            lower_truncated,
-            upper_truncated,
-        })
+        Ok((
+            ShapeProfile {
+                values,
+                log_likelihood,
+                interval: (lower, upper),
+                lower_truncated,
+                upper_truncated,
+            },
+            best,
+        ))
     }
 
     /// One end of the likelihood-ratio interval: the first grid value past the centre whose
@@ -930,7 +1036,7 @@ impl Fitter<'_> {
                     }
                     let middle = 0.5 * inside + 0.5 * outside;
                     match self.profile_at(estimate, m, middle)? {
-                        Some(value) if value >= cutoff => inside = middle,
+                        Some((value, _)) if value >= cutoff => inside = middle,
                         _ => outside = middle,
                     }
                 }
@@ -1044,7 +1150,8 @@ fn symmetrise(m: &mut [f64], p: usize) {
     }
 }
 
-/// `C (sum_c s_c s_c') C` with `s_c` the per-cluster sum of set scores, clusters in label order.
+/// `K/(K - 1) C (sum_c s_c s_c') C` with `s_c` the per-cluster sum of set scores, `K` clusters,
+/// clusters in label order.
 fn cluster_sandwich(
     covariance: &[f64],
     set_scores: &[f64],
@@ -1080,7 +1187,19 @@ fn cluster_sandwich(
     };
     let mut sandwich = product(&product(covariance, &meat), covariance);
     symmetrise(&mut sandwich, q);
+    let correction = finite_cluster_correction(sums.len());
+    for value in &mut sandwich {
+        *value *= correction;
+    }
     sandwich
+}
+
+/// `C / (C - 1)` for `C` clusters, one for a single cluster: the finite-cluster correction of the
+/// sandwich for a maximum-likelihood estimator (Cameron and Miller, 2015, *A Practitioner's
+/// Guide to Cluster-Robust Inference*).
+#[allow(clippy::cast_precision_loss, reason = "cluster counts are far below 2^53")]
+fn finite_cluster_correction(clusters: usize) -> f64 {
+    if clusters < 2 { 1.0 } else { clusters as f64 / (clusters as f64 - 1.0) }
 }
 
 #[cfg(test)]

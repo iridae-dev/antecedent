@@ -324,3 +324,119 @@ fn controls_bounds_and_the_search_limit_are_checked() {
         NonlinearChoiceError::InvalidOptions
     );
 }
+
+/// Forty two-option sets whose first option's value is `z + 20 (b1(s) x + b2(s) y)` and second
+/// option's value zero, with bumps `b1` at `s = 0.2` and `b2` at `s = 0.5` of width 0.05. The
+/// first option is chosen in sets 0..30. `x` favours the first option in every set (three in four
+/// choices agree), `y` agrees with 26 of 40 choices and `z` is balanced against the choices, so
+/// the profile has its maximum near 0.2 (about -22.50), a lower local maximum at 0.5 (about
+/// -25.94) and falls to the null value between and beyond them.
+struct Ridge {
+    starts: Vec<usize>,
+    chosen: Vec<usize>,
+    x: Vec<f64>,
+    y: Vec<f64>,
+    z: Vec<f64>,
+    /// Added to the shape derivative of the second option of sets 0..20: a wrong derivative.
+    jacobian_error: f64,
+}
+
+impl Ridge {
+    fn new(jacobian_error: f64) -> Self {
+        let sets = 40;
+        Self {
+            starts: (0..=sets).map(|s| 2 * s).collect(),
+            chosen: (0..sets).map(|s| usize::from(s >= 30)).collect(),
+            x: vec![1.0; sets],
+            y: (0..sets).map(|s| if (22..34).contains(&s) { -1.0 } else { 1.0 }).collect(),
+            z: (0..sets)
+                .map(|s| if s < 15 || (30..35).contains(&s) { 1.0 } else { -1.0 })
+                .collect(),
+            jacobian_error,
+        }
+    }
+
+    fn bump(s: f64, centre: f64) -> (f64, f64) {
+        let u = (s - centre) / 0.05;
+        let value = (-u * u).exp();
+        (value, -2.0 * u / 0.05 * value)
+    }
+}
+
+impl ChoiceUtility for Ridge {
+    fn n_linear(&self) -> usize {
+        0
+    }
+
+    fn n_shape(&self) -> usize {
+        1
+    }
+
+    fn set_starts(&self) -> &[usize] {
+        &self.starts
+    }
+
+    fn chosen(&self) -> &[usize] {
+        &self.chosen
+    }
+
+    fn clusters(&self) -> Option<&[u32]> {
+        None
+    }
+
+    fn features(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
+        let (b1, _) = Self::bump(shape[0], 0.2);
+        let (b2, _) = Self::bump(shape[0], 0.5);
+        Ok((0..self.x.len())
+            .flat_map(|s| [self.z[s] + 20.0 * (b1 * self.x[s] + b2 * self.y[s]), 0.0])
+            .collect())
+    }
+
+    fn shape_jacobian(&self, shape: &[f64]) -> Result<Vec<f64>, UtilityNotEvaluable> {
+        let (_, d1) = Self::bump(shape[0], 0.2);
+        let (_, d2) = Self::bump(shape[0], 0.5);
+        Ok((0..self.x.len())
+            .flat_map(|s| {
+                let error = if s < 20 { self.jacobian_error } else { 0.0 };
+                [20.0 * (d1 * self.x[s] + d2 * self.y[s]), error]
+            })
+            .collect())
+    }
+}
+
+#[test]
+fn a_profile_above_the_polished_point_moves_the_estimate_to_the_maximum() {
+    // The search sees only the box centre, where the profile has a lower local maximum, and the
+    // polish stays there; the profile grid finds the higher maximum near 0.2.
+    let ridge = Ridge::new(0.0);
+    let narrow = NonlinearConditionalLogitOptions {
+        search: ShapeSearchOptions { grid_points: 1, max_refinements: 1, ..Default::default() },
+        ..options()
+    };
+    let fit = fit_nonlinear_conditional_logit(&ridge, &[(0.0, 1.0)], narrow, None).unwrap();
+    assert!((fit.shape[0] - 0.2).abs() < 0.01, "shape {}", fit.shape[0]);
+    let profile = &fit.profiles[0];
+    let top = profile.log_likelihood.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    assert!(top <= fit.log_likelihood + 1e-6 * (1.0 + fit.log_likelihood.abs()), "{top}");
+    assert!(fit.log_likelihood > -22.6 && fit.log_likelihood < -22.4, "{}", fit.log_likelihood);
+    // The likelihood-ratio interval is centred on the maximum it is cut from.
+    assert!(profile.interval.0 < fit.shape[0] && fit.shape[0] < profile.interval.1);
+    assert!(profile.interval.0 > 0.09 && profile.interval.1 < 0.32, "{:?}", profile.interval);
+    // A full search reaches the same maximum.
+    let searched = fit_nonlinear_conditional_logit(&ridge, &[(0.0, 1.0)], options(), None).unwrap();
+    assert!((searched.shape[0] - fit.shape[0]).abs() < 1e-5);
+}
+
+#[test]
+fn a_polish_that_cannot_reach_a_stationary_point_is_refused() {
+    // A wrong shape derivative leaves the scored gradient away from zero at the maximum, so
+    // Fisher scoring stops without passing the convergence test.
+    let ridge = Ridge::new(10.0);
+    let error =
+        fit_nonlinear_conditional_logit(&ridge, &[(0.0, 1.0)], options(), None).unwrap_err();
+    let NonlinearChoiceError::NotConverged { gradient_norm, .. } = error else {
+        panic!("{error:?}");
+    };
+    assert!(gradient_norm > 1e-6, "{gradient_norm}");
+    assert_eq!(error.detail(), "nonlinear_conditional_logit.not_converged");
+}

@@ -525,8 +525,8 @@ fn matmul(a: &[f64], b: &[f64], p: usize) -> Vec<f64> {
     out
 }
 
-/// `H^-1 (sum_c s_c s_c') H^-1`, with `s_c` the sum of the per-set scores of cluster `c`.
-/// Clusters are visited in ascending label order.
+/// `C / (C - 1) H^-1 (sum_c s_c s_c') H^-1`, with `s_c` the sum of the per-set scores of cluster
+/// `c` and `C` the number of clusters. Clusters are visited in ascending label order.
 fn cluster_sandwich(
     covariance: &[f64],
     set_scores: &[f64],
@@ -550,7 +550,19 @@ fn cluster_sandwich(
     }
     let mut sandwich = matmul(&matmul(covariance, &meat, p), covariance, p);
     symmetrise(&mut sandwich, p);
+    let correction = finite_cluster_correction(sums.len());
+    for value in &mut sandwich {
+        *value *= correction;
+    }
     sandwich
+}
+
+/// `C / (C - 1)` for `C` clusters, one for a single cluster: the finite-cluster correction of the
+/// sandwich for a maximum-likelihood estimator (Cameron and Miller, 2015, *A Practitioner's
+/// Guide to Cluster-Robust Inference*).
+#[allow(clippy::cast_precision_loss, reason = "cluster counts are far below 2^53")]
+fn finite_cluster_correction(clusters: usize) -> f64 {
+    if clusters < 2 { 1.0 } else { clusters as f64 / (clusters as f64 - 1.0) }
 }
 
 /// Fit a conditional logit by Newton's method on the concave log-likelihood.
@@ -577,8 +589,12 @@ fn cluster_sandwich(
 /// the direction of `beta`.
 ///
 /// `covariance` is the inverse observed information at the maximum. `cluster_covariance` is the
-/// sandwich `I^-1 (sum_c s_c s_c') I^-1` with `s_c` the sum of the per-set score vectors of
-/// cluster `c`; no small-sample multiplier (such as `C / (C - 1)`) is applied.
+/// sandwich `C / (C - 1) I^-1 (sum_c s_c s_c') I^-1` with `s_c` the sum of the per-set score
+/// vectors of cluster `c` and `C` the number of clusters (no multiplier for a single cluster):
+/// the finite-cluster correction recommended for maximum-likelihood estimators by Cameron and
+/// Miller (2015). The cluster score sums add up to the gradient, which is zero at the maximum,
+/// so the sandwich has rank at most `C - 1`; a caller needs `C - 1` well above the number of
+/// coefficients before relying on it.
 ///
 /// # Errors
 ///

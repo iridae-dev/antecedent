@@ -18,8 +18,8 @@ with p_j = exp(x_j . b) / sum_k exp(x_k . b).  The Newton system H d = g and the
 solved by Gauss-Jordan elimination with partial pivoting in the same 50-digit arithmetic.  Steps
 are halved while the log-likelihood decreases; iteration stops when every step entry is below
 1e-40.  The covariance is H^-1 at the maximum; the cluster covariance is
-H^-1 (sum_c s_c s_c') H^-1 with s_c the sum over the sets of cluster c of their score vectors, and
-no small-sample multiplier.
+C / (C - 1) H^-1 (sum_c s_c s_c') H^-1 with s_c the sum over the sets of cluster c of their score
+vectors and C the number of clusters (the finite-cluster correction).
 
 This script and its output are repository-authored (MIT OR Apache-2.0).
 """
@@ -156,8 +156,10 @@ def sandwich(cov, scores, clusters, p):
     meat = [[sum((v[i] * v[j] for v in sums.values()), D(0)) for j in range(p)] for i in range(p)]
     left = [[sum((cov[i][k] * meat[k][j] for k in range(p)), D(0)) for j in range(p)]
             for i in range(p)]
-    return [[sum((left[i][k] * cov[k][j] for k in range(p)), D(0)) for j in range(p)]
-            for i in range(p)]
+    c = len(sums)
+    correction = D(c) / D(c - 1) if c >= 2 else D(1)
+    return [[correction * sum((left[i][k] * cov[k][j] for k in range(p)), D(0))
+             for j in range(p)] for i in range(p)]
 
 
 def flat(m):

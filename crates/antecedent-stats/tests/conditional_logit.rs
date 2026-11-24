@@ -296,20 +296,20 @@ fn cluster_sandwich_matches_the_hand_formula_in_the_two_option_case() {
     let s0 = -p * d;
 
     // Every set its own cluster: the meat a s1^2 + b s0^2 equals the information, so the
-    // sandwich equals the model covariance.
+    // sandwich equals the model covariance times the finite-cluster correction 8 / 7.
     let own = fit(&binary(a, b, 0.25, d, Some((0..8).collect())));
     let meat = a as f64 * s1 * s1 + b as f64 * s0 * s0;
     assert!(close(meat, info, 1e-14));
     let sandwich = own.cluster_covariance.unwrap();
-    assert!(close(sandwich[0], meat / (info * info), 1e-10));
-    assert!(close(sandwich[0], own.covariance[0], 1e-10));
+    assert!(close(sandwich[0], 8.0 / 7.0 * meat / (info * info), 1e-10));
+    assert!(close(sandwich[0], 8.0 / 7.0 * own.covariance[0], 1e-10));
 
-    // Repeated clusters: {0, 6}, {1, 7}, {2, 3}, {4, 5}.
+    // Repeated clusters: {0, 6}, {1, 7}, {2, 3}, {4, 5}; four clusters, correction 4 / 3.
     let paired = fit(&binary(a, b, 0.25, d, Some(vec![0, 1, 2, 2, 3, 3, 0, 1])));
     let sums = [s1 + s0, s1 + s0, 2.0 * s1, 2.0 * s1];
     let meat: f64 = sums.iter().map(|s| s * s).sum();
     let sandwich = paired.cluster_covariance.unwrap();
-    assert!(close(sandwich[0], meat / (info * info), 1e-10));
+    assert!(close(sandwich[0], 4.0 / 3.0 * meat / (info * info), 1e-10));
     assert!((sandwich[0] - paired.covariance[0]).abs() > 0.1 * paired.covariance[0]);
 }
 
@@ -345,12 +345,14 @@ fn cluster_sandwich_matches_scores_recomputed_from_the_features() {
         }
     }
     let c = &fit.covariance;
+    let clusters = cluster_scores.len() as f64;
+    let correction = clusters / (clusters - 1.0);
     let mut want = vec![0.0; p * p];
     for i in 0..p {
         for j in 0..p {
             for k in 0..p {
                 for l in 0..p {
-                    want[i * p + j] += c[i * p + k] * meat[k * p + l] * c[l * p + j];
+                    want[i * p + j] += correction * c[i * p + k] * meat[k * p + l] * c[l * p + j];
                 }
             }
         }
