@@ -8891,6 +8891,33 @@ evidence_test = "python/tests/test_per_population_discovery.py"
 evidence_assertion = "test_each_population_is_discovered_on_its_own_rows_and_the_edges_are_lined_up"
 
 [[routes]]
+route = "antecedent.analysis.compiled_per_population_discovery.Study.compile_per_population_discovery"
+graph = "not_applicable_static_structure_per_population"
+evidence = "one_discovery_contract_and_per_population_tabular_rows"
+functional = "per_population_discovered_structures_and_edge_comparison"
+guarantee = "independent_per_population_runs_of_one_contract_no_pooling_differences_descriptive_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_discovery_engines.rs"
+evidence_assertion = "the_per_population_identity_is_the_sorted_populations_their_rows_and_the_search"
+
+[[routes]]
+route = "antecedent.analysis.compiled_per_population_discovery.CompiledPerPopulationDiscovery.execute"
+graph = "not_applicable_static_structure_per_population"
+evidence = "one_discovery_contract_and_per_population_tabular_rows"
+functional = "per_population_discovered_structures_and_edge_comparison"
+guarantee = "independent_per_population_runs_of_one_contract_no_pooling_differences_descriptive_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_discovery_engines.rs"
+evidence_assertion = "the_compiled_per_population_structures_differ_on_exactly_the_hand_derived_marks"
+
+[[routes]]
+route = "antecedent.python.selective_discovery.PerPopulationDiscovery.compiled_run"
+graph = "not_applicable_static_structure_per_population"
+evidence = "one_discovery_contract_and_per_population_tabular_rows"
+functional = "per_population_discovered_structures_and_edge_comparison"
+guarantee = "independent_per_population_runs_of_one_contract_no_pooling_differences_descriptive_only"
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_the_compiled_per_population_run_equals_the_driver_run"
+
+[[routes]]
 route = "antecedent.per_population_discovery.request_selection_targets_from_differences"
 notes = "A difference between two discovered structures is not a selection target; the route always refuses."
 
@@ -10526,6 +10553,79 @@ evidence_test = "crates/antecedent/src/analysis/discovered_transport_trial.rs"
 evidence_assertion = "selected_latent_cause_returns_a_scientific_set_after_completed_identification"
 
 [[routes]]
+route = "antecedent.analysis.compiled_discovered_transport.Study.compile_discovered_class_transport"
+graph = "complete_static_cpdag_or_pag_class"
+evidence = "searched_table_with_a_static_selective_contract_and_declared_selection_targets"
+functional = "structural_envelope_or_target_mean_response_or_contrast_set_over_the_class"
+guarantee = "compiled_composition_over_the_discover_static_program_same_kernels_as_the_direct_entries"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "crates/antecedent/tests/compiled_twins_discovery_engines.rs"
+evidence_assertion = "the_discovered_transport_identity_binds_the_search_the_rows_the_query_and_the_stage"
+notes = "Compiles the DiscoverStatic search of the declared table and binds the transport request and stage over its class; the request and its evidence are checked by their kernels when the program runs."
+
+[[routes]]
+route = "antecedent.analysis.compiled_discovered_transport.CompiledDiscoveredClassTransport.execute"
+graph = "complete_static_cpdag_or_pag_class"
+evidence = "searched_table_source_and_target_rows_integer_coded"
+functional = "structural_envelope_or_target_mean_response_or_contrast_set_over_the_class"
+guarantee = "point_only_uncalibrated_no_probability_over_members"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "crates/antecedent/tests/compiled_twins_discovery_engines.rs"
+evidence_assertion = "the_compiled_pag_class_estimate_is_the_direct_estimate_and_covers_the_enumerated_truth"
+notes = "Runs the compiled search, then transport_discovered_structure_with_context and the stage kernel (estimate, trial-compatible estimate, confidence set or its replay) with the direct inputs; a transport or stage refusal keeps the discovery."
+
+[[routes]]
+route = "antecedent.python.transport.discovered.analyze_discovered_transport"
+graph = "cpdag_equivalence_class_members_enumerated_causal_sufficiency"
+evidence = "discovered_cpdag_declared_selection_targets_and_transport_query"
+functional = "structural_transport_verdict_and_expression_per_class_member"
+guarantee = "sound_incomplete"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+limits = "Python surface of the compiled DiscoveredClassTransport envelope stage: the envelope discover_and_transport returns, through the compiled DiscoverStatic search; a refusal of the search is the compiler's error."
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_discover_and_transport_warns_and_equals_the_compiled_envelope"
+
+[[routes]]
+route = "antecedent.python.transport.discovered.analyze_discovered_transport_estimate"
+graph = "pag_or_cpdag_equivalence_class_members_enumerated"
+evidence = "source_experiment_rows_and_target_observational_rows_integer_coded"
+functional = "target_mean_response_per_treatment_level_point_or_labelled_structural_range"
+guarantee = "point_only_uncalibrated_no_probability_over_members"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_estimate_discovered_transport_warns_and_equals_the_compiled_estimate"
+
+[[routes]]
+route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_discovered_transport"
+graph = "complete_static_cpdag_or_pag_class"
+evidence = "independent_randomized_binary_source_trial_and_target_observations"
+functional = "target_mean_response_over_trial_compatible_members"
+guarantee = "point_only_uncalibrated_no_probability_over_members"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_the_trial_compatible_estimate_warns_and_equals_the_compiled_estimate"
+
+[[routes]]
+route = "antecedent.python.transport.trial_compatible.analyze_trial_compatible_transport_confidence_set"
+graph = "complete_static_cpdag_or_pag_class"
+evidence = "independent_randomized_binary_source_trial_target_observations_and_declared_potential_outcome_support"
+functional = "target_interventional_contrast_confidence_set"
+guarantee = "distinct_logical_or_sampling_set_no_automatic_calibration"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_the_confidence_set_and_its_replay_warn_and_equal_the_compiled_set"
+
+[[routes]]
+route = "antecedent.python.transport.trial_compatible.replay_trial_compatible_transport_confidence_set"
+graph = "complete_static_cpdag_or_pag_class"
+evidence = "independent_randomized_binary_source_trial_target_observations_and_declared_potential_outcome_support"
+functional = "target_interventional_contrast_confidence_set"
+guarantee = "distinct_logical_or_sampling_set_no_automatic_calibration"
+reference = "provenance/transport.cpdag_class_envelope.toml"
+evidence_test = "python/tests/test_compiled_twins_discovery_engines.py"
+evidence_assertion = "test_a_receipt_that_does_not_replay_is_the_same_refusal_through_the_program"
+
+[[routes]]
 route = "antecedent_model.observation_query.condition_gaussian"
 graph = "linear_gaussian_acyclic_composition"
 evidence = "declared_conditional_gaussian_law"
@@ -11618,6 +11718,46 @@ evidence_assertion = "the_compiled_smoothed_dose_with_caller_learners_matches_th
 notes = "Cross-fits the caller learners and evaluates the grid; point_only, calibration not_measured."
 
 [[routes]]
+route = "antecedent.analysis.compiled_trial_aipw_learners.Study.compile_trial_aipw_learners"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "randomized_trial_and_target_rows_with_known_randomization_and_caller_learner_factories"
+functional = "transported_binary_trial_contrast_for_target_nonparticipants"
+guarantee = "cross_fitted_trial_transport_score_on_unverified_caller_learners_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs"
+evidence_assertion = "the_trial_aipw_program_identity_binds_the_rows_the_options_and_the_learners"
+notes = "Decides the transport by sID and validates the request before any learner is fitted; calibration not_measured."
+
+[[routes]]
+route = "antecedent.analysis.compiled_trial_aipw_learners.CompiledTrialAipwLearners.execute"
+graph = "selection_admg_with_a_direct_or_standardizing_sid_certificate"
+evidence = "randomized_trial_and_target_rows_with_known_randomization_and_caller_learner_factories"
+functional = "transported_binary_trial_contrast_for_target_nonparticipants"
+guarantee = "cross_fitted_trial_transport_score_on_unverified_caller_learners_point_only"
+evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs"
+evidence_assertion = "the_compiled_trial_aipw_with_the_library_learners_recovers_the_known_contrast"
+notes = "Cross-fits the caller learners and evaluates the target contrast; point_only, calibration not_measured, labelled with the declared learners."
+
+[[routes]]
+route = "antecedent.analysis.compiled_joint_cells_learners.Study.compile_joint_cells_learners"
+graph = "caller_declared_adjustment_set_for_a_joint_binary_intervention"
+evidence = "binary_component_outcome_and_adjustment_rows_with_caller_learner_factories"
+functional = "joint_cell_interventional_means"
+guarantee = "cross_fitted_point_only_per_cell_refusal_on_unverified_caller_learners"
+evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs"
+evidence_assertion = "the_joint_cells_program_identity_binds_the_rows_the_query_and_the_learners"
+notes = "Binds the table, components, adjustment set, orderings, configuration and learner identity into a lowered program; nothing is fitted."
+
+[[routes]]
+route = "antecedent.analysis.compiled_joint_cells_learners.CompiledJointCellsLearners.execute"
+graph = "caller_declared_adjustment_set_for_a_joint_binary_intervention"
+evidence = "binary_component_outcome_and_adjustment_rows_with_caller_learner_factories"
+functional = "joint_cell_interventional_means"
+guarantee = "cross_fitted_point_only_per_cell_refusal_on_unverified_caller_learners"
+evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs"
+evidence_assertion = "the_compiled_joint_cells_with_the_library_learners_recover_the_known_cell_means"
+notes = "Fits the caller learners and evaluates every joint cell; point_only, calibration not_measured, labelled with the declared learners."
+
+[[routes]]
 route = "antecedent.analysis.compiled_external_feedback.Study.compile_external_feedback_fit"
 graph = "specified_feedback_system_with_registered_external_mechanisms"
 evidence = "known_hard_clamp_regime_rows"
@@ -11698,6 +11838,17 @@ guarantee = "each_scenario_decided_once_by_the_supported_classical_catalog_route
 evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
 evidence_assertion = "compiled_scenarios_report_what_the_prepared_set_evaluates"
 notes = "Runs PreparedScenarioSet::evaluate on the retained plans; refresh keeps the decisions and lowers again."
+
+[[routes]]
+route = "antecedent.analysis.compiled_transport_scenarios.CompiledTransportScenarios.estimate"
+graph = "finite_supplied_fixed_selection_admg_scenarios_over_shared_coordinates"
+evidence = "one_catalog_bound_independently_per_scenario"
+functional = "per_scenario_target_interventional_distribution"
+observation = "exact_or_empirical_plugin_laws"
+guarantee = "each_scenario_decided_once_by_the_supported_classical_catalog_route_and_compiled_once"
+evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
+evidence_assertion = "the_prepared_stage_estimate_through_the_program_is_the_prepared_estimate"
+notes = "What the Python prepare_transport_scenarios(...).estimate() runs: the prepared set's estimate under the program's scope, with the prepared set's refusals."
 
 [[routes]]
 route = "antecedent.analysis.compiled_measurement_transport.Study.compile_measurement_transport"

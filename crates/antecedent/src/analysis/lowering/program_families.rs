@@ -310,6 +310,15 @@ macro_rules! program_families {
             SuppliedEstimateEValue => PropagationChain, unit "sensitivity.supplied_estimate_evalue";
             /// The outcome-kernel contamination range of a checked z-transport formula.
             ZTransportMechanismSensitivity => Structural, unit "sensitivity.joint_mechanism";
+            /// Transport over the equivalence class a compiled static selective search returns:
+            /// its envelope, an estimate, a trial-compatible estimate or a confidence set.
+            DiscoveredClassTransport => DesignBased, unit "transport.cpdag_class_envelope";
+            /// One static selective structure search per declared population, nothing pooled.
+            PerPopulationStructureSearch => Discovery, unit "discovery.per_population";
+            /// Trial-to-target AIPW transport fitted with caller-supplied learners.
+            TrialAipwLearnerTransport => DesignBased, unit "transport.trial_aipw_caller_learners";
+            /// Factorized joint-cell AIPW fitted with caller-supplied learners.
+            JointCellsLearnerFit => DesignBased, unit "estimate.joint_cells_caller_learners";
         }
     };
 }

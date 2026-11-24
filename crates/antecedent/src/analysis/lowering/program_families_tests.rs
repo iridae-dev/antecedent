@@ -626,6 +626,25 @@ const PINNED: &[(C, R, &str, F)] = &[
         "ZTransportMechanismSensitivity",
         F::Structural,
     ),
+    (
+        C::DiscoveredClassTransport,
+        R::DiscoveredClassTransport,
+        "DiscoveredClassTransport",
+        F::DesignBased,
+    ),
+    (
+        C::PerPopulationStructureSearch,
+        R::PerPopulationStructureSearch,
+        "PerPopulationStructureSearch",
+        F::Discovery,
+    ),
+    (
+        C::TrialAipwLearnerTransport,
+        R::TrialAipwLearnerTransport,
+        "TrialAipwLearnerTransport",
+        F::DesignBased,
+    ),
+    (C::JointCellsLearnerFit, R::JointCellsLearnerFit, "JointCellsLearnerFit", F::DesignBased),
 ];
 
 #[test]

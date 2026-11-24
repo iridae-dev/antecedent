@@ -1231,6 +1231,10 @@ name = "compiled_twins_learner_factories"
 path = "tests/compiled_twins_learner_factories.rs"
 
 [[test]]
+name = "compiled_twins_trial_joint_learners"
+path = "tests/compiled_twins_trial_joint_learners.rs"
+
+[[test]]
 name = "compiled_twins_cyclic_posterior"
 path = "tests/compiled_twins_cyclic_posterior.rs"
 
@@ -1288,6 +1292,9 @@ path = "tests/compiled_twins_z_mechanism_sensitivity.rs"
 [[test]]
 name = "compiled_twins_selective_and_observed"
 path = "tests/compiled_twins_selective_and_observed.rs"
+[[test]]
+name = "compiled_twins_discovery_engines"
+path = "tests/compiled_twins_discovery_engines.rs"
 [[test]]
 name = "compiled_twins_discovery_validation"
 path = "tests/compiled_twins_discovery_validation.rs"

@@ -252,8 +252,13 @@ replacement = "route:CountFittedInterval"
 
 [[row]]
 path = "antecedent::analysis::discovered_transport::discover_and_transport"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
+
+[[row]]
+path = "antecedent::analysis::compiled_discovered_transport::CompiledDiscoveredClassTransport::execute"
+disposition = "compiled"
+route = "DiscoveredClassTransport"
 
 [[row]]
 path = "antecedent::analysis::graph_imputation::GraphImputationPoint::measured"
@@ -1522,8 +1527,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_discovery::selective::populations::PerPopulationDiscovery::run"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "kernel"
+reason = "kernel API; the compiled PerPopulationStructureSearch program (antecedent::analysis::compiled_per_population_discovery: Study::compile_per_population_discovery, CompiledPerPopulationDiscovery::execute) runs this driver on the declared population row sets, each population's search being the selective adapter the DiscoverStatic route runs"
 
 [[row]]
 path = "antecedent_discovery::selective::request_selection_diagram"
@@ -2090,8 +2095,8 @@ replacement = "route:SmoothedDoseLearnerTransport"
 
 [[row]]
 path = "antecedent_estimate::estimate_trial_aipw_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "deprecated"
+replacement = "route:TrialAipwLearnerTransport"
 
 [[row]]
 path = "antecedent_estimate::evaluate_chain_recovery"
@@ -2110,8 +2115,8 @@ replacement = "route:RandomizedEffect"
 
 [[row]]
 path = "antecedent_estimate::fit_factorized_joint_cells_with_factories"
-disposition = "pending"
-owner = "caller-supplied learner factories"
+disposition = "deprecated"
+replacement = "route:JointCellsLearnerFit"
 
 [[row]]
 path = "antecedent_estimate::joint_design::compiled::JointDesignRecipe::execute"
@@ -2684,8 +2689,8 @@ disposition = "internal"
 
 [[row]]
 path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::measure_interval"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the artifact is the sealed result the compiled AdaptiveResultInterval family replays: CompiledAdaptiveInterval::execute (crates/antecedent/src/analysis/compiled_adaptive_interval.rs) seals the named result and measures it through this method (AdaptiveInferenceSession::measure_result_interval)"
 
 [[row]]
 path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::seal"
@@ -2767,8 +2772,8 @@ disposition = "internal"
 
 [[row]]
 path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::measure_interval"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the artifact is the sealed result the compiled ChoiceResultInterval family replays: CompiledChoiceInterval::execute (crates/antecedent/src/analysis/compiled_choice_interval.rs) seals the named result and measures it through this method (ChoiceInferenceSession::measure_result_interval)"
 
 [[row]]
 path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::seal"
@@ -2947,8 +2952,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::measure"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the wire is the retained cohort source the compiled CohortMeanInterval family replays: CompiledCohortInterval::execute (crates/antecedent/src/analysis/compiled_cohort_interval.rs) encodes the fit and cohort and measures them through this method (cohort_decision::measure_cohort_interval)"
 
 [[row]]
 path = "antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured"
@@ -2956,8 +2961,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::measure"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the wire is the retained count-fitted source the compiled CountFittedInterval family binds and replays: CompiledCountFittedInterval::execute (crates/antecedent/src/analysis/compiled_count_fitted_interval.rs) measures it through this method (CountFittedObservation::measured_interval_at)"
 
 [[row]]
 path = "antecedent_io::measured_inference::split_parent_set_effect::governing_topologies"
@@ -3150,8 +3155,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the wire is the whole-unit candidate the compiled TemporalDependentInterval family builds and replays: CompiledTemporalDependentInterval::execute (crates/antecedent/src/analysis/compiled_temporal_interval.rs) measures it through this method (temporal_extensions::measure_dependent_interval)"
 
 [[row]]
 path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::verify"
@@ -4214,27 +4219,27 @@ replacement = "route:Survival"
 
 [[python]]
 path = "python/antecedent/transport/discovered.py::discover_and_transport"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
 [[python]]
 path = "python/antecedent/transport/discovered.py::estimate_discovered_transport"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
 
 [[python]]
 path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_discovered_transport"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
 
 [[python]]
 path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_transport_confidence_set"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
 
 [[python]]
 path = "python/antecedent/transport/trial_compatible.py::verify_trial_compatible_transport_confidence_set_against"
-disposition = "pending"
-owner = "discovery engines"
+disposition = "deprecated"
+replacement = "route:DiscoveredClassTransport"
 
 [[python]]
 path = "python/antecedent/validation.py::evalue"

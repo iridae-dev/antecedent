@@ -10708,6 +10708,25 @@ def discovered_transport_trial_confidence_set_run(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
+def discovered_class_transport_compiled(
+    stage: str,
+    contract_json: str,
+    names: list[str],
+    columns: list[NDArray[np.float64]],
+    query_json: str,
+    selection_targets: list[int],
+    member_bound: int | None = None,
+    *,
+    source_columns: list[NDArray[np.float64]] | None = None,
+    target_columns: list[NDArray[np.float64]] | None = None,
+    bootstrap_replicates: int = 0,
+    alpha: float | None = None,
+    support_lower: float | None = None,
+    support_upper: float | None = None,
+    receipt: bytes | None = None,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None, str, str, bytes | None]: ...
 def verify_trial_confidence_set_against_inputs(
     receipt: bytes,
     contract_json: str,
@@ -10889,6 +10908,16 @@ class PerPopulationDiscoveryHandle:
         threads: int | None = None,
         cancel: Any = None,
     ) -> tuple[str | None, str | None]: ...
+    def compiled_run(
+        self,
+        contract_json: str,
+        populations: list[str],
+        names: list[str],
+        columns: list[list[Any]],
+        *,
+        threads: int | None = None,
+        cancel: Any = None,
+    ) -> tuple[str | None, str | None, str | None]: ...
     def report_json(self) -> str | None: ...
     def add_claims(self, graph_json: str | None, prefix: str) -> tuple[str | None, str | None]: ...
     def outcome_json(self, population: str) -> str | None: ...

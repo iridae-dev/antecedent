@@ -6684,6 +6684,12 @@ codes = ["joint_cell_unsupported"]
 meaning = "A cell's outcome model has no residual degrees of freedom in a training fold or its fit failed (refused for that cell alone)."
 
 [[detail]]
+id = "joint_cells_caller_learners.built_in_learner_declared"
+family = "joint_cells_caller_learners"
+codes = ["option_not_applicable"]
+meaning = "A compiled joint-cell fit with caller learners also declares a built-in learner specification; the declared learners replace it."
+
+[[detail]]
 id = "joint_law_propagation.alignment_mismatch"
 family = "joint_law_propagation"
 codes = ["joint_law_required"]
@@ -16660,6 +16666,12 @@ id = "treatment_levels.undeclared_level"
 family = "treatment_levels"
 codes = ["treatment_level_undeclared"]
 meaning = "A binary propensity estimator or the pairwise preparation meets a row at neither declared level and the exclusion is not declared."
+
+[[detail]]
+id = "trial_aipw_caller_learners.bootstrap_not_supported"
+family = "trial_aipw_caller_learners"
+codes = ["route_not_supported"]
+meaning = "A compiled trial AIPW transport with caller learners requests joint outer bootstrap replicates; caller learners run point-only."
 
 [[detail]]
 id = "two_step_posterior.band_not_constructed"

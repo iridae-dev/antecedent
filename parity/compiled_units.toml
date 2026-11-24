@@ -245,6 +245,18 @@ unit = "transport.smoothed_dose_caller_learners"
 entry = { rust = "crates/antecedent/src/analysis/compiled_smoothed_dose_learners.rs", python = "python/antecedent/transport/_smoothed_dose.py" }
 
 [[route]]
+lowering = "TrialAipwLearnerTransport"
+unit_kind = "capability"
+unit = "transport.trial_aipw_caller_learners"
+entry = { rust = "crates/antecedent/src/analysis/compiled_trial_aipw_learners.rs", python = "python/antecedent/transport/_wrap.py" }
+
+[[route]]
+lowering = "JointCellsLearnerFit"
+unit_kind = "capability"
+unit = "estimate.joint_cells_caller_learners"
+entry = { rust = "crates/antecedent/src/analysis/compiled_joint_cells_learners.rs", python = "python/antecedent/derived.py" }
+
+[[route]]
 lowering = "ExternalFeedbackFit"
 unit_kind = "capability"
 unit = "cyclic.external_mechanisms"
@@ -941,3 +953,15 @@ lowering = "DiscoveryValidation"
 unit_kind = "capability"
 unit = "validate.discovery_stability"
 entry = { rust = "crates/antecedent/src/analysis/discovery_validation.rs", python = "python/antecedent/discovery_validation.py" }
+
+[[route]]
+lowering = "DiscoveredClassTransport"
+unit_kind = "capability"
+unit = "transport.cpdag_class_envelope"
+entry = { rust = "crates/antecedent/src/analysis/compiled_discovered_transport.rs", python = "python/antecedent/transport/discovered.py" }
+
+[[route]]
+lowering = "PerPopulationStructureSearch"
+unit_kind = "capability"
+unit = "discovery.per_population"
+entry = { rust = "crates/antecedent/src/analysis/compiled_per_population_discovery.rs", python = "python/antecedent/selective_discovery.py" }

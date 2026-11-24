@@ -23819,6 +23819,20 @@ path = "python/tests/test_compiled_twins_supplied_sensitivity.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-twins-discovery-engines"
+crate = "antecedent"
+cargo_target = "compiled_twins_discovery_engines"
+path = "crates/antecedent/tests/compiled_twins_discovery_engines.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-compiled-twins-discovery-engines"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_twins_discovery_engines.py"
+gates = ["inventory"]
+
+[[test]]
 id = "python-compiled-robust"
 crate = "python"
 cargo_target = "script"
@@ -24123,6 +24137,13 @@ id = "compiled-twins-learner-factories"
 crate = "antecedent"
 cargo_target = "compiled_twins_learner_factories"
 path = "crates/antecedent/tests/compiled_twins_learner_factories.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-trial-joint-learners"
+crate = "antecedent"
+cargo_target = "compiled_twins_trial_joint_learners"
+path = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs"
 gates = ["inventory", "named"]
 
 [[test]]
