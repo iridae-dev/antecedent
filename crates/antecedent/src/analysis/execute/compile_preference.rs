@@ -55,10 +55,10 @@ use std::sync::Arc;
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::reason_details::native_claims;
-use antecedent_core::{ExecutionContext, ResponseIdentification, SemanticDigest};
+use antecedent_core::{CanonicalWriter, ExecutionContext, ResponseIdentification, SemanticDigest};
 use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
 use antecedent_design::preference_contract::PreferenceContract;
-use antecedent_design::preference_decision::PreferenceMeasure;
+use antecedent_design::preference_decision::{MeasureOrigin, PreferenceMeasure};
 use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationOptions, RouteChoice, StructuralPreferenceEvaluation,
     preference_route,
@@ -118,12 +118,16 @@ pub enum PreferenceRouteError {
 }
 
 impl PreferenceRouteError {
-    /// Registered reason code, when the refusal carries one.
+    /// Registered reason code, when the refusal carries one. A compiled design's refusal
+    /// carries the compiler's code, `route_not_supported` for a causal claim the design does
+    /// not earn, `cancelled_no_claim` and `execution_resource_limit` for its engine's
+    /// cancellation and resource refusals, and `invalid_argument` for a compilation refusal or
+    /// an input or numerical failure of its engine.
     #[must_use]
     pub fn code(&self) -> Option<&str> {
         match self {
             Self::Compiler(error) => error.reason_code(),
-            Self::Design(_) => None,
+            Self::Design(error) => design_code(error),
             Self::Refused(refusal) => Some(refusal.code),
         }
     }
@@ -202,6 +206,111 @@ impl From<JointPanelError> for PreferenceRouteError {
     fn from(error: JointPanelError) -> Self {
         Self::Design(Box::new(error))
     }
+}
+
+/// The registered reason code of a compiled design's refusal.
+fn design_code(error: &JointPanelError) -> Option<&str> {
+    use antecedent_estimate::joint_panel::PanelError;
+    match error {
+        JointPanelError::Compiler(error) => error.reason_code(),
+        JointPanelError::Unsupported(_) => {
+            Some(antecedent_core::reason_code!("route_not_supported"))
+        }
+        JointPanelError::Engine(PanelError::Cancelled) => {
+            Some(antecedent_core::reason_code!("cancelled_no_claim"))
+        }
+        JointPanelError::Engine(PanelError::Resource(_)) => {
+            Some(antecedent_core::reason_code!("execution_resource_limit"))
+        }
+        JointPanelError::Compile(_)
+        | JointPanelError::Engine(PanelError::Invalid(_) | PanelError::Numerical(_)) => {
+            Some(antecedent_core::reason_code!("invalid_argument"))
+        }
+    }
+}
+
+const MEASURE_TAG: &str = "antecedent.preference_route.measure";
+const OPTIONS_TAG: &str = "antecedent.preference_route.evaluation_options";
+
+/// The identity the executed `result` reports, checked against the plan compiled for it: the
+/// decision program the plan states is the program that ran.
+fn executed_identity(
+    plan: Option<&PlanView>,
+    result: &crate::StudyResult,
+) -> Result<Option<SemanticDigest>, PreferenceRouteError> {
+    let compiled = plan.and_then(PlanView::semantic_identity);
+    let executed = result.lowered_program_identity();
+    if executed != compiled {
+        let hex = |digest: Option<SemanticDigest>| {
+            digest.map_or_else(|| "none".to_owned(), |digest| digest.to_hex())
+        };
+        return Err(ExternalRefusal::new(
+            antecedent_core::reason_code!("route_not_lowered"),
+            STAGE_EVALUATE,
+            antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH,
+        )
+        .with_expected(format!("the compiled decision program {}", hex(compiled)))
+        .with_supplied(format!("a result of the lowered program {}", hex(executed)))
+        .with_remedy("compile the decision again from the study, and execute what it compiled")
+        .into());
+    }
+    Ok(executed)
+}
+
+/// Identity of the measure over the preference set an execution read.
+fn measure_identity(measure: &PreferenceMeasure) -> String {
+    let mut writer = CanonicalWriter::new(MEASURE_TAG);
+    writer.word(measure.points.len() as u64);
+    for point in &measure.points {
+        writer.reals(point);
+    }
+    match &measure.weights {
+        Some(weights) => {
+            writer.word(1).reals(weights);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match &measure.labels {
+        Some(labels) => {
+            writer.word(1).texts(labels.as_slice());
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match &measure.origin {
+        MeasureOrigin::Declared { assumption_id } => {
+            writer.text("declared").text(assumption_id);
+        }
+        MeasureOrigin::ChoiceEstimate { estimate_identity } => {
+            writer.text("choice_estimate").text(estimate_identity);
+        }
+    }
+    writer.word(measure.unresolved.len() as u64);
+    for &index in &measure.unresolved {
+        writer.word(index as u64);
+    }
+    writer.finish_hex()
+}
+
+/// Identity of the options of the exact and certified routes an execution read.
+fn options_identity(options: &PreferenceEvaluationOptions) -> String {
+    let mut writer = CanonicalWriter::new(OPTIONS_TAG);
+    let exact = &options.exact;
+    writer
+        .real(exact.tie_tolerance)
+        .word(exact.vertex_cap as u64)
+        .real(exact.lp.feasibility_tolerance)
+        .real(exact.lp.optimality_tolerance)
+        .word(exact.lp.max_pivots as u64);
+    let certified = &options.certified;
+    writer
+        .word(certified.max_boxes as u64)
+        .real(certified.min_width_fraction)
+        .real(certified.tie_tolerance);
+    writer.finish_hex()
 }
 
 fn at(action: &str, attribute: &str) -> String {
@@ -583,9 +692,20 @@ pub struct PreferenceDecisionReceipt {
     /// `(causal target, causal identification)` of every study, or the program and
     /// dependency identities of a compiled design.
     pub causal: Vec<(String, String)>,
-    /// Lowered program identity of every plan the execution ran: each structure's decision
-    /// plan, the design's program, and the chain that joined separately estimated outcomes.
+    /// Lowered program identity of every plan the execution ran, as compiled: each
+    /// structure's decision plan, the design's program, and the chain that joined separately
+    /// estimated outcomes.
     pub programs: Vec<SemanticDigest>,
+    /// The lowered program identity each executed result reports, in the order of
+    /// [`Self::programs`]. Execution refuses a result whose identity is not its plan's
+    /// (`preference_compile.executed_program_mismatch`), so the two agree; a runtime-callback
+    /// program, which has no semantic identity, reports none and is not listed.
+    pub executed: Vec<SemanticDigest>,
+    /// Identity of the measure over the preference set the execution read; `None` without
+    /// one.
+    pub measure: Option<String>,
+    /// Identity of the options of the exact and certified routes the execution read.
+    pub options: String,
 }
 
 /// An executed compiled decision.
@@ -711,12 +831,20 @@ impl CompiledPreferenceDecision {
         }
     }
 
-    fn receipt(&self, programs: Vec<SemanticDigest>) -> PreferenceDecisionReceipt {
+    fn receipt(
+        &self,
+        (programs, executed): (Vec<SemanticDigest>, Vec<SemanticDigest>),
+        measure: Option<&PreferenceMeasure>,
+        options: &PreferenceEvaluationOptions,
+    ) -> PreferenceDecisionReceipt {
         PreferenceDecisionReceipt {
             bound_identity: self.identity.clone(),
             contract_identity: self.contract_identity.clone(),
             causal: self.causal.clone(),
             programs,
+            executed,
+            measure: measure.map(measure_identity),
+            options: options_identity(options),
         }
     }
 
@@ -757,12 +885,13 @@ impl CompiledPreferenceDecision {
                 let mut evaluation =
                     decide_with_context(&self.contract, &source, measure, options, ctx)?;
                 design.state_premise(&mut evaluation);
+                let executed = programs.clone();
                 Ok(PreferenceDecisionExecution {
                     evaluation: CompiledPreferenceEvaluation::Single(evaluation),
                     source: Some(source),
                     inputs: Vec::new(),
                     mixture: None,
-                    receipt: self.receipt(programs),
+                    receipt: self.receipt((programs, executed), measure, &options),
                 })
             }
         }
@@ -779,12 +908,14 @@ impl CompiledPreferenceDecision {
         let requirement = means_requirement(self.demand.representation);
         let mut inputs = Vec::with_capacity(structures.len());
         let mut programs = Vec::with_capacity(structures.len() + 1);
+        let mut executed = Vec::with_capacity(structures.len() + 1);
         for structure in structures {
             let (Some(runner), Some(study)) = (&structure.runner, studies.get(structure.source))
             else {
                 return Err(not_identified(&self.demand.quantities, 1.0, "no prepared structure"));
             };
             let result = runner.estimate_retained(ctx)?;
+            executed.extend(executed_identity(structure.plan.as_ref(), &result)?);
             let response = retained_response(&result).ok_or_else(no_response)?;
             let claim =
                 NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
@@ -796,7 +927,10 @@ impl CompiledPreferenceDecision {
         } else {
             let (source, chain) =
                 outcomes::join_studies(&inputs, studies, self.joint.as_ref(), ctx)?;
-            programs.extend(chain);
+            if let Some(chain) = chain {
+                programs.extend(self.joint.as_ref().map(|joint| joint.fact().program()));
+                executed.push(chain);
+            }
             source
         };
         let evaluation = decide_with_context(&self.contract, &source, measure, options, ctx)?;
@@ -805,7 +939,7 @@ impl CompiledPreferenceDecision {
             source: Some(source),
             inputs,
             mixture: None,
-            receipt: self.receipt(programs),
+            receipt: self.receipt((programs, executed), measure, &options),
         })
     }
 }

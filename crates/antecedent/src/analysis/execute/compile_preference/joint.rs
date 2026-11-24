@@ -261,8 +261,8 @@ pub(super) fn declare(
             .word(input.study as u64)
             .text(&input.quantity)
             .text(&input.factor);
-        // An input whose overlap was judged by unit key states how; an unkeyed input's
-        // encoding is unchanged.
+        // An input whose overlap was judged by unit key states its basis, namespace and
+        // factors; an unkeyed input is named by its first factor alone.
         if let Some(namespace) = &input.namespace {
             writer.text(&input.basis).text(namespace).texts(&input.factors);
         }
@@ -277,8 +277,16 @@ pub(super) fn declare(
             writer.real(*term);
         }
     }
+    let pairs: Vec<(usize, usize, Arc<str>)> = overlaps.map_or_else(Vec::new, |overlaps| {
+        overlaps
+            .bases
+            .iter()
+            .map(|&(first, second, basis)| (first, second, Arc::from(basis)))
+            .collect()
+    });
     let fact = PreferenceJointLawFact {
         inputs: Arc::from(inputs),
+        pairs: Arc::from(pairs),
         dependence: Arc::from(name),
         cross_blocks: Arc::from(
             cross.iter().map(|block| (block.first, block.second)).collect::<Vec<_>>(),

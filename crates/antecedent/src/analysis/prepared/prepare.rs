@@ -868,6 +868,53 @@ fn install_cache(analysis: &mut Study, cache: &IdentificationCache) {
 }
 
 impl PreparedStudy {
+    /// This handle executing the decision program compile lowered for its study.
+    ///
+    /// `compiled` is the study's program with a decision in layer four. When it is this
+    /// handle's own program with that decision added (every other layer the same), the handle
+    /// executes `compiled` itself. Otherwise the decision `compiled` carries is attached to
+    /// layer four of the handle's own program
+    /// ([`crate::planner::lowered::LoweredProgram::with_decision`]), so the handle executes
+    /// what it prepared with the decision beside it. Either way every result the handle
+    /// produces reports the identity of the program its plan holds, which is never the
+    /// ordinary program without the decision.
+    ///
+    /// # Errors
+    /// `route_not_lowered` when this handle carries no lowered program, when `compiled`
+    /// carries no decision, or when the handle's own program already carries one; a failure
+    /// to seal the handle's inspection metadata.
+    pub(crate) fn executing_decision(
+        &self,
+        compiled: &Arc<crate::planner::lowered::LoweredProgram>,
+    ) -> Result<Self, CausalError> {
+        let own = self.plan.require_lowered(None)?;
+        let program = if compiled.decides_over(own) {
+            Arc::clone(compiled)
+        } else {
+            let decision = compiled.evidence().decision().cloned().ok_or_else(|| {
+                crate::compile_reason!(
+                    "route_not_lowered",
+                    "the compiled program carries no decision for the prepared study to execute"
+                )
+            })?;
+            Arc::new(own.with_decision(decision).ok_or_else(|| {
+                crate::compile_reason!(
+                    "route_not_lowered",
+                    "the prepared study's program already carries a decision"
+                )
+            })?)
+        };
+        let mut plan = (*self.plan).clone();
+        plan.lowered = Some(program);
+        let mut ready = self.clone();
+        ready.plan = Arc::new(plan);
+        ready.program_cache = std::sync::OnceLock::new();
+        ready.contract_cache = std::sync::OnceLock::new();
+        ready.inspection_header = std::sync::OnceLock::new();
+        ready.seal_inspection_metadata()?;
+        Ok(ready)
+    }
+
     /// Materialize the retained statistical plan at an explicit execution boundary.
     /// Identification, declarations, and the physical plan remain those of preparation.
     ///

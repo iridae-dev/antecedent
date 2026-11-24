@@ -19,14 +19,20 @@ mod preference_decision_compiled;
 mod preference_decision_compiled_atoms;
 #[path = "preference_decision_compiled_chain_binding.rs"]
 mod preference_decision_compiled_chain_binding;
+#[path = "preference_decision_compiled_class_marks.rs"]
+mod preference_decision_compiled_class_marks;
 #[path = "preference_decision_compiled_design.rs"]
 mod preference_decision_compiled_design;
+#[path = "preference_decision_compiled_evidence_basis.rs"]
+mod preference_decision_compiled_evidence_basis;
 #[path = "preference_decision_compiled_joint_law.rs"]
 mod preference_decision_compiled_joint_law;
 #[path = "preference_decision_compiled_outcomes.rs"]
 mod preference_decision_compiled_outcomes;
 #[path = "preference_decision_compiled_plan_facts.rs"]
 mod preference_decision_compiled_plan_facts;
+#[path = "preference_decision_compiled_program_identity.rs"]
+mod preference_decision_compiled_program_identity;
 #[path = "preference_decision_compiled_structures.rs"]
 mod preference_decision_compiled_structures;
 #[path = "preference_decision_compiled_unit_keys.rs"]

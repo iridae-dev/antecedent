@@ -185,10 +185,12 @@ fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / f64::from(u32::try_from(values.len()).unwrap())
 }
 
+/// Sample covariance (divisor `n - 1`) of two aligned columns of draws: the convention the
+/// binding of a study's posterior moments reads.
 fn covariance(x: &[f64], y: &[f64]) -> f64 {
     let (mx, my) = (mean(x), mean(y));
     x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>()
-        / f64::from(u32::try_from(x.len()).unwrap())
+        / f64::from(u32::try_from(x.len() - 1).unwrap())
 }
 
 /// The law the chain draws when it is declared and compiled only once the studies are fitted:

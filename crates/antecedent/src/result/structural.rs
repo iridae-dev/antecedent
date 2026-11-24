@@ -19,6 +19,11 @@ pub enum StructuralWeightBasis {
     /// equivalence class every member fits score-equivalent data equally well, so the
     /// within-class measure is declared, never learned.
     PosteriorWithDeclaredClassPrior,
+    /// Graph-posterior probability of each equivalence-class atom times the share of a
+    /// uniform sample of the class's members that drew each member: a Monte Carlo estimate of
+    /// a declared uniform class measure, not that measure over every member. A reader may not
+    /// take a minimum over the structures or a verdict over every member from it.
+    SampledClassMeasure,
 }
 
 impl StructuralWeightBasis {
@@ -30,6 +35,7 @@ impl StructuralWeightBasis {
             Self::CompletionEnumeration => "completion_enumeration",
             Self::CallerSuppliedClassPrior => "caller_supplied_class_prior",
             Self::PosteriorWithDeclaredClassPrior => "posterior_with_declared_class_prior",
+            Self::SampledClassMeasure => "sampled_class_measure",
         }
     }
 }
@@ -43,6 +49,7 @@ impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
             StructuralWeightBasis::PosteriorWithDeclaredClassPrior => {
                 Self::PosteriorWithDeclaredClassPrior
             }
+            StructuralWeightBasis::SampledClassMeasure => Self::SampledClassMeasure,
         }
     }
 }

@@ -2,21 +2,31 @@
 //!
 //! Studies whose outcomes are joined into one law are judged by the evidence ledger, the same
 //! overlap judgment choice inference and the composition bundle use: each study is a source
-//! whose observations are its rows, identified by the content identity of the table the rows
-//! came from and the row's index in that table ([`ObservationId::from_key`]). A study's table is
-//! its own source unless it was taken from a larger one: a column projection declares its
-//! [`RowProvenance`] (the source table's content identity and, when the rows were selected,
-//! their original indices), so two studies that read different columns of the same rows share
-//! those rows. A table made by [`TabularData::project`] or [`TabularData::select_rows`]
-//! remembers that origin itself, and a study built on it uses it unless another is declared. The content identity binds the table's columns and rows, not its schema roles or
-//! the analysis compiled over it, so two studies of one table share every row whatever outcome
-//! each targets; studies of different tables share none.
+//! whose observations are the rows its analysis reads (masked rows excluded), identified by the
+//! identity of the table the rows came from and the row's index in that table
+//! ([`ObservationId::from_key`]). A study's table is its own source unless it was taken from a
+//! larger one: a column projection declares its [`RowProvenance`] (the source table's identity
+//! and, when the rows were selected, their original indices), so two studies that read
+//! different columns of the same rows share those rows. A table made by
+//! [`TabularData::project`] or [`TabularData::select_rows`] remembers that origin itself, and a
+//! study built on it uses it unless another is declared. The identity binds the table's columns
+//! and rows ([`antecedent_data::OwnedColumnarStorage::rows_digest`]), not its analysis mask, its
+//! weights, its schema roles or the analysis compiled over it, so two studies of one table share
+//! every row both analyse whatever outcome, mask or weighting each reads.
 //!
 //! Studies of different tables may still observe the same subjects. A study that declares a
 //! [`UnitKey`] names its rows by unit identifiers in a declared identifier space, and two keyed
 //! studies in one space are judged by the units they share (each unit counted once, masked
-//! rows excluded). Keys in different spaces, or a key on one study only, leave the overlap of
-//! different tables unknown, and that is refused, never assumed away.
+//! rows excluded), whether or not their rows come from one table: they share evidence when
+//! they share units or rows. Labels of one space must carry the same type tags on both
+//! studies; keys in different spaces, or a key on one study only, leave the overlap of
+//! different tables unknown. Each is refused, never assumed away.
+//!
+//! Studies of different tables without unit keys are not compared by the ledger: their rows
+//! are other observations only on the caller's declaration that the studies rest on distinct
+//! evidence (or, under shared evidence, by the absence of a declared block for the pair). The
+//! plan states the basis of every pair's judgement: `shared_rows`, `shared_units`,
+//! `disjoint_rows`, `disjoint_units` or `declared_distinct`.
 //!
 //! Studies that share observations are not independent evidence. Under distinct evidence they
 //! are refused (`evidence_double_counted`). Under shared evidence the caller declares, for
@@ -54,6 +64,17 @@ const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor";
 /// Longest namespace or unit label, in bytes.
 const MAX_UNIT_TEXT_BYTES: usize = 4096;
 
+/// Basis of a pair the ledger found sharing rows of one source table.
+pub(super) const PAIR_SHARED_ROWS: &str = "shared_rows";
+/// Basis of a pair the ledger found sharing units of one identifier space.
+pub(super) const PAIR_SHARED_UNITS: &str = "shared_units";
+/// Basis of a pair of one source table whose analysed rows are disjoint.
+pub(super) const PAIR_DISJOINT_ROWS: &str = "disjoint_rows";
+/// Basis of a pair keyed in one identifier space whose units are disjoint.
+pub(super) const PAIR_DISJOINT_UNITS: &str = "disjoint_units";
+/// Basis of a pair of different tables without unit keys: distinct on the caller's declaration.
+pub(super) const PAIR_DECLARED_DISTINCT: &str = "declared_distinct";
+
 /// The declared covariance between the estimates of two studies that share observations.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CrossStudyCovariance {
@@ -63,8 +84,11 @@ pub struct CrossStudyCovariance {
     pub second: usize,
     /// Row-major covariance between every coordinate of the first study's response (rows,
     /// in its grid order) and every coordinate of the second's (columns). Every term is
-    /// finite and nonzero: the studies share their rows, and the chain reads a shared factor
-    /// with a zero term as an undeclared overlap.
+    /// finite. A term may be zero, declaring those two coordinates' estimates uncorrelated
+    /// although the studies share observations; a block whose every term is zero is refused,
+    /// since it declares the shared observations contribute nothing, which is what distinct
+    /// evidence declares for studies that share none. The whole matrix is checked for
+    /// positive semi-definiteness when it is bound to the studies' posterior covariances.
     pub covariance: Vec<f64>,
 }
 
@@ -89,8 +113,9 @@ pub struct SharedEvidence {
 ///
 /// A study built on a column projection of a larger table declares the larger table here, so
 /// its rows are the same observations as the rows of any other projection of that table. The
-/// identity is compared as declared text; [`Self::of_table`] uses the stored content identity
-/// of a table, the same identity a study of that table carries itself.
+/// identity is compared as declared text; [`Self::of_table`] uses the identity of a table's
+/// rows ([`antecedent_data::OwnedColumnarStorage::rows_digest`]: its columns and validity,
+/// without a mask or weights), the same identity a study of that table carries itself.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RowProvenance {
     table: Arc<str>,
@@ -106,7 +131,7 @@ impl RowProvenance {
         source.row_origin().map_or_else(
             || Self {
                 table: Arc::from(
-                    SemanticDigest::from_bytes(source.storage().content_digest()).to_hex(),
+                    SemanticDigest::from_bytes(source.storage().rows_digest()).to_hex(),
                 ),
                 rows: None,
             },
@@ -344,19 +369,34 @@ impl EvidenceRows {
 pub(super) struct StudyUnits {
     pub(super) namespace: Arc<str>,
     pub(super) labels: BTreeSet<String>,
+    /// The type tags of the labels (the text before the first `:`, empty for a label without
+    /// one), so labels of one space stored under different types are not read as other units.
+    pub(super) tags: BTreeSet<String>,
+}
+
+/// The type tag of a canonical unit label: the text before its first `:`, or empty.
+fn label_tag(label: &str) -> &str {
+    label.split_once(':').map_or("", |(tag, _)| tag)
 }
 
 /// The distinct unit labels of the rows `data` keeps for analysis.
 pub(super) fn study_units(units: &ResolvedUnits, data: &TabularData) -> StudyUnits {
     let mask = data.storage().analysis_mask();
-    let labels = units
+    let labels: BTreeSet<String> = units
         .labels
         .iter()
         .enumerate()
         .filter(|(row, _)| mask.is_none_or(|mask| mask.is_valid(*row)))
         .map(|(_, label)| label.clone())
         .collect();
-    StudyUnits { namespace: Arc::clone(&units.namespace), labels }
+    let tags = labels.iter().map(|label| label_tag(label).to_owned()).collect();
+    StudyUnits { namespace: Arc::clone(&units.namespace), labels, tags }
+}
+
+/// The rows of `data` its analysis reads, when an analysis mask leaves some out.
+pub(super) fn analysed_rows(data: &TabularData) -> Option<Arc<[usize]>> {
+    let mask = data.storage().analysis_mask()?;
+    Some((0..data.row_count()).filter(|row| mask.is_valid(*row)).collect())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -372,7 +412,7 @@ fn invalid(offending: String, supplied: impl Into<String>) -> PreferenceRouteErr
     .with_offending(offending)
     .with_supplied(supplied)
     .with_remedy(
-        "declare one finite, nonzero covariance block per pair of studies that share \
+        "declare one finite covariance block, not all zero, per pair of studies that share \
          observations, rows of the first study's coordinates by columns of the second's",
     )
     .into()
@@ -415,10 +455,13 @@ fn check_blocks(
                 format!("{} terms for a {shape}-term block", block.covariance.len()),
             ));
         }
-        if !block.covariance.iter().all(|term| term.is_finite() && term.abs() > 0.0) {
+        if !block.covariance.iter().all(|term| term.is_finite()) {
+            return Err(invalid(pair(studies, block.first, block.second), "a non-finite term"));
+        }
+        if !block.covariance.iter().any(|term| term.abs() > 0.0) {
             return Err(invalid(
                 pair(studies, block.first, block.second),
-                "a non-finite or zero term",
+                "a block whose every term is zero",
             ));
         }
     }
@@ -437,8 +480,24 @@ fn ledger_refusal(
     refusal.into()
 }
 
-/// The ledger of the studies' rows, one observation set per study: each row is identified by
-/// the table it came from and its index there.
+/// The index in its source table of every row a study's analysis reads, in row order: masked
+/// rows are not observations the study rests on.
+fn analysed_source_rows(study: &BoundStudy) -> Vec<u64> {
+    let index = |row: usize| {
+        study
+            .origin_rows
+            .as_ref()
+            .and_then(|indices| indices.get(row).copied())
+            .unwrap_or(row as u64)
+    };
+    match &study.analysed {
+        Some(rows) => rows.iter().map(|&row| index(row)).collect(),
+        None => (0..study.rows).map(index).collect(),
+    }
+}
+
+/// The ledger of the studies' analysed rows, one observation set per study: each row is
+/// identified by the table it came from and its index there.
 fn ledger_of(
     studies: &[BoundStudy],
     ctx: &ExecutionContext,
@@ -450,12 +509,7 @@ fn ledger_of(
             return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
         }
         let table = study.origin.as_bytes();
-        let rows = (0..study.rows).map(|row| {
-            let index = study
-                .origin_rows
-                .as_ref()
-                .and_then(|indices| indices.get(row).copied())
-                .unwrap_or(row as u64);
+        let rows = analysed_source_rows(study).into_iter().map(|index| {
             let mut key = Vec::with_capacity(table.len() + 8);
             key.extend_from_slice(table);
             key.extend_from_slice(&index.to_le_bytes());
@@ -526,16 +580,23 @@ pub(super) struct SharedPair {
     pub(super) basis: SharedBasis,
 }
 
-/// Every pair of studies the ledger found sharing observations.
+/// Every pair of studies the ledger found sharing observations, and the basis of the
+/// judgement of every pair.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct StudyOverlaps {
     pub(super) pairs: Vec<SharedPair>,
+    /// `(first, second, basis)` of every pair of studies, in pair order: one of
+    /// [`PAIR_SHARED_ROWS`], [`PAIR_SHARED_UNITS`], [`PAIR_DISJOINT_ROWS`],
+    /// [`PAIR_DISJOINT_UNITS`] or [`PAIR_DECLARED_DISTINCT`].
+    pub(super) bases: Vec<(usize, usize, &'static str)>,
 }
 
-/// How the overlap of two studies is judged and what was found.
+/// How the overlap of two studies is judged and what was found: the overlap, what a shared
+/// overlap shares, and the basis stated when nothing is shared.
 enum Judged {
-    Overlap(Overlap, SharedBasis),
+    Overlap(Overlap, SharedBasis, &'static str),
     NotComparable(String),
+    LabelTypesDiffer(String),
 }
 
 /// A ledger of every study's rows and each study's source in it.
@@ -543,28 +604,46 @@ type RowLedger<'a> = (&'a EvidenceLedger, &'a [SourceId]);
 /// A ledger of keyed studies' units and each keyed study's source in it.
 type UnitLedger<'a> = (&'a EvidenceLedger, &'a [Option<SourceId>]);
 
+fn tags_of(units: &StudyUnits) -> String {
+    units.tags.iter().map(String::as_str).collect::<Vec<_>>().join(", ")
+}
+
 fn judge_pair(
     studies: &[BoundStudy],
     (i, j): (usize, usize),
     (rows, units): (RowLedger<'_>, UnitLedger<'_>),
 ) -> Result<Judged, PreferenceRouteError> {
     let (a, b) = (&studies[i], &studies[j]);
-    let by_rows = || -> Result<Judged, PreferenceRouteError> {
+    let by_rows = |independent: &'static str| -> Result<Judged, PreferenceRouteError> {
         let overlap = rows.0.overlap(rows.1[i], rows.1[j]).map_err(|e| ledger_refusal(e, None))?;
-        Ok(Judged::Overlap(overlap, SharedBasis::Rows))
+        Ok(Judged::Overlap(overlap, SharedBasis::Rows, independent))
     };
+    if let (Some(left), Some(right)) = (&a.units, &b.units)
+        && left.namespace == right.namespace
+    {
+        if left.tags != right.tags {
+            return Ok(Judged::LabelTypesDiffer(format!(
+                "labels of namespace {} typed {} and {}",
+                left.namespace,
+                tags_of(left),
+                tags_of(right)
+            )));
+        }
+        let (Some(left), Some(right)) = (units.1[i], units.1[j]) else {
+            return Ok(Judged::NotComparable("a unit key was not entered".to_owned()));
+        };
+        let overlap = units.0.overlap(left, right).map_err(|e| ledger_refusal(e, None))?;
+        // Studies of one source table that share no unit may still share rows.
+        if a.origin == b.origin && matches!(overlap, Overlap::Independent) {
+            return by_rows(PAIR_DISJOINT_ROWS);
+        }
+        return Ok(Judged::Overlap(overlap, SharedBasis::Units, PAIR_DISJOINT_UNITS));
+    }
     if a.origin == b.origin {
-        return by_rows();
+        return by_rows(PAIR_DISJOINT_ROWS);
     }
     match (&a.units, &b.units) {
-        (None, None) => by_rows(),
-        (Some(left), Some(right)) if left.namespace == right.namespace => {
-            let (Some(left), Some(right)) = (units.1[i], units.1[j]) else {
-                return Ok(Judged::NotComparable("a unit key was not entered".to_owned()));
-            };
-            let overlap = units.0.overlap(left, right).map_err(|e| ledger_refusal(e, None))?;
-            Ok(Judged::Overlap(overlap, SharedBasis::Units))
-        }
+        (None, None) => by_rows(PAIR_DECLARED_DISTINCT),
         (Some(left), Some(right)) => Ok(Judged::NotComparable(format!(
             "unit keys of different identifier spaces ({} and {}) are not compared",
             left.namespace, right.namespace
@@ -584,18 +663,22 @@ fn judge_pair(
 
 /// Judge whether the studies' outcomes may be joined under `dependence`: every pair the
 /// ledger finds overlapping is refused under distinct evidence and needs a declared block
-/// under shared evidence; a block for a pair that shares nothing is refused. Studies of one
-/// source table are judged by its rows, whatever keys they declare; keyed studies of different
-/// tables by the units of their identifier space; unkeyed studies of different tables share
-/// nothing. Returns the pairs that share observations.
+/// under shared evidence; a block for a pair that shares nothing is refused. Studies keyed in
+/// one identifier space are judged by their units and, when their rows come from one source
+/// table, by its rows as well (they share evidence when either overlaps); other studies of one
+/// source table by its analysed rows; unkeyed studies of different tables are distinct on the
+/// caller's declaration. Returns the pairs that share observations and the basis of every
+/// pair's judgement.
 ///
 /// # Errors
 /// `evidence_double_counted` (`preference_compile.studies_share_evidence`) for studies that
 /// share observations without a declared block; `evidence_overlap_unknown`
 /// (`decision_evidence.dependence_unknown`) for an overlap the ledger cannot compute or one
-/// between a keyed study and a study of another table without a comparable key;
-/// `invalid_argument` (`preference_compile.cross_study_covariance_invalid`) for a malformed
-/// block or one naming studies that share nothing; a ledger refusal; cancellation.
+/// between a keyed study and a study of another table without a comparable key, and
+/// (`preference_compile.unit_label_types_differ`) for studies keyed in one space whose labels
+/// carry different type tags; `invalid_argument`
+/// (`preference_compile.cross_study_covariance_invalid`) for a malformed block or one naming
+/// studies that share nothing or whose every term is zero; a ledger refusal; cancellation.
 pub(super) fn judge(
     studies: &[BoundStudy],
     dependence: OutcomeDependence,
@@ -611,8 +694,23 @@ pub(super) fn judge(
             let declared = cross.iter().any(|block| (block.first, block.second) == (i, j));
             let judged =
                 judge_pair(studies, (i, j), ((&rows, &row_sources), (&units, &unit_sources)))?;
-            let (overlap, basis) = match judged {
-                Judged::Overlap(overlap, basis) => (overlap, basis),
+            let (overlap, basis, independent) = match judged {
+                Judged::Overlap(overlap, basis, independent) => (overlap, basis, independent),
+                Judged::LabelTypesDiffer(reason) => {
+                    return Err(ExternalRefusal::new(
+                        antecedent_core::reason_code!("evidence_overlap_unknown"),
+                        STAGE_COMPILE,
+                        preference_compile::UNIT_LABEL_TYPES_DIFFER,
+                    )
+                    .with_offending(pair(studies, i, j))
+                    .with_supplied(reason)
+                    .with_remedy(
+                        "store the unit identifiers under one type on both studies (an integer \
+                         identifier read as a real after missing values, for example), or \
+                         declare labels of one type",
+                    )
+                    .into());
+                }
                 Judged::NotComparable(reason) => {
                     return Err(ExternalRefusal::new(
                         antecedent_core::reason_code!("evidence_overlap_unknown"),
@@ -632,11 +730,16 @@ pub(super) fn judge(
                 Overlap::Independent if declared => {
                     return Err(invalid(pair(studies, i, j), "studies that share no observations"));
                 }
-                Overlap::Independent => {}
+                Overlap::Independent => overlaps.bases.push((i, j, independent)),
                 Overlap::SharedObservations { .. }
                     if declared
                         && matches!(dependence, OutcomeDependence::SharedEvidence { .. }) =>
                 {
+                    let shared = match &basis {
+                        SharedBasis::Rows => PAIR_SHARED_ROWS,
+                        SharedBasis::Units => PAIR_SHARED_UNITS,
+                    };
+                    overlaps.bases.push((i, j, shared));
                     overlaps.pairs.push(SharedPair { first: i, second: j, basis });
                 }
                 Overlap::SharedObservations { shared } => {
@@ -702,66 +805,33 @@ fn row_factor(prefix: &str, origin: &str, rows: &BTreeSet<u64>) -> String {
     format!("{prefix}:{}", writer.finish_hex())
 }
 
-/// The indices in its source table of the rows a study reads.
+/// The indices in its source table of the rows a study's analysis reads.
 fn source_rows(study: &BoundStudy) -> BTreeSet<u64> {
-    match &study.origin_rows {
-        Some(rows) => rows.iter().copied().collect(),
-        None => (0..study.rows).map(|row| row as u64).collect(),
-    }
+    analysed_source_rows(study).into_iter().collect()
 }
 
 /// The row factors of every study's chain sources.
 ///
-/// A study without a unit key declares the content identity of the table its rows came from,
-/// as it always has, unless some study of the same source table selected rows of it: then,
-/// like a keyed study, it declares one factor per study it shares rows with, naming the shared
-/// rows (`shared_rows:<digest>`), or `rows:<digest>` naming its own rows when it shares none,
-/// so studies of disjoint rows of one table are not read as sharing it. A keyed study declares one factor per study it shares observations with:
-/// the source table's identity for a pair of one table, and `shared_units:<digest>` naming the
-/// shared units of its identifier space otherwise; a keyed study that shares nothing declares
-/// `units:<digest>` naming its own units. The chain rule then sees exactly the pairwise
-/// overlaps the ledger found, and a declared block is required exactly where two studies share
-/// a factor.
+/// A study declares one factor per study it shares observations with. A pair that shares
+/// units of one identifier space is named by those units (`shared_units:<digest>`). A pair
+/// that shares rows of one source table is named by that table's identity, or, when some study
+/// of the table reads only some of its rows (a row selection or an analysis mask), by the rows
+/// both read (`shared_rows:<digest>`), so studies of disjoint rows of one table are not read as
+/// sharing it. A study that shares nothing declares its own units (`units:<digest>`) when it is
+/// keyed, else the rows it reads of a partly read table (`rows:<digest>`), else its table's
+/// identity. Both studies of a pair compute the same factor, so the chain rule sees exactly
+/// the pairwise overlaps the ledger found, and a declared block is required exactly where two
+/// studies share a factor.
 pub(super) fn row_factors(studies: &[BoundStudy], overlaps: &StudyOverlaps) -> Vec<Vec<String>> {
+    let partly_read = |origin: &str| {
+        studies.iter().any(|study| {
+            study.origin == origin && (study.origin_rows.is_some() || study.analysed.is_some())
+        })
+    };
     studies
         .iter()
         .enumerate()
         .map(|(index, study)| {
-            let Some(units) = &study.units else {
-                let selected = studies.iter().any(|other| {
-                    other.units.is_none()
-                        && other.origin == study.origin
-                        && other.origin_rows.is_some()
-                });
-                if !selected {
-                    return vec![study.origin.clone()];
-                }
-                let mine = source_rows(study);
-                let mut factors = Vec::new();
-                for shared in &overlaps.pairs {
-                    let other = if shared.first == index {
-                        shared.second
-                    } else if shared.second == index {
-                        shared.first
-                    } else {
-                        continue;
-                    };
-                    let factor = match studies.get(other) {
-                        Some(theirs) if theirs.units.is_none() && theirs.origin == study.origin => {
-                            let both = mine.intersection(&source_rows(theirs)).copied().collect();
-                            row_factor("shared_rows", &study.origin, &both)
-                        }
-                        _ => study.origin.clone(),
-                    };
-                    if !factors.contains(&factor) {
-                        factors.push(factor);
-                    }
-                }
-                if factors.is_empty() {
-                    factors.push(row_factor("rows", &study.origin, &mine));
-                }
-                return factors;
-            };
             let mut factors = Vec::new();
             for shared in &overlaps.pairs {
                 let other = if shared.first == index {
@@ -771,21 +841,38 @@ pub(super) fn row_factors(studies: &[BoundStudy], overlaps: &StudyOverlaps) -> V
                 } else {
                     continue;
                 };
-                let factor =
-                    match (&shared.basis, studies.get(other).and_then(|s| s.units.as_ref())) {
-                        (SharedBasis::Units, Some(theirs)) => unit_factor(
-                            "shared_units",
-                            &units.namespace,
-                            units.labels.intersection(&theirs.labels).cloned(),
-                        ),
-                        _ => study.origin.clone(),
-                    };
+                let Some(theirs) = studies.get(other) else {
+                    continue;
+                };
+                let factor = match (&shared.basis, &study.units, &theirs.units) {
+                    (SharedBasis::Units, Some(mine), Some(their_units)) => unit_factor(
+                        "shared_units",
+                        &mine.namespace,
+                        mine.labels.intersection(&their_units.labels).cloned(),
+                    ),
+                    _ if partly_read(&study.origin) => {
+                        let both = source_rows(study)
+                            .intersection(&source_rows(theirs))
+                            .copied()
+                            .collect();
+                        row_factor("shared_rows", &study.origin, &both)
+                    }
+                    _ => study.origin.clone(),
+                };
                 if !factors.contains(&factor) {
                     factors.push(factor);
                 }
             }
             if factors.is_empty() {
-                factors.push(unit_factor("units", &units.namespace, units.labels.iter().cloned()));
+                factors.push(match &study.units {
+                    Some(units) => {
+                        unit_factor("units", &units.namespace, units.labels.iter().cloned())
+                    }
+                    None if partly_read(&study.origin) => {
+                        row_factor("rows", &study.origin, &source_rows(study))
+                    }
+                    None => study.origin.clone(),
+                });
             }
             factors
         })

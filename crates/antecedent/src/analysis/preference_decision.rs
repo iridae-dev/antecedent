@@ -62,7 +62,7 @@ use std::sync::Arc;
 
 use antecedent_contract::propagation_chain::{ChainReading, TableConstruction};
 use antecedent_contract::{
-    InputAlignment, QuantityRole, ScientificQuantity, check_rows_pairable_across,
+    ExternalRefusal, InputAlignment, QuantityRole, ScientificQuantity, check_rows_pairable_across,
 };
 use antecedent_core::{
     CanonicalWriter, CausalResponse, CausalSchema, ExecutionContext, IdentificationStatus,
@@ -378,18 +378,52 @@ pub fn decide_accepted_with_context(
 /// each class atom ([`StructuralWeightBasis::PosteriorWithDeclaredClassPrior`]), under that
 /// declaration; caller-supplied class priors are declared weights ([`adapt_finite_scenarios`]);
 /// completion-enumeration weights are not probabilities, so completions are graph-dependent
-/// claims without weights ([`adapt_graph_dependent_claims`]).
+/// claims without weights ([`adapt_graph_dependent_claims`]). Weights of sampled class members
+/// ([`StructuralWeightBasis::SampledClassMeasure`]) are a Monte Carlo estimate of a declared
+/// measure, from which no verdict over every member follows: they are read only under
+/// `ReportOnly` here, and decided by [`decide_on_sampled_structures`].
 ///
 /// # Errors
 /// A `per_structure` key that is repeated or names no identified structure of the mixture
-/// (`decision_adapters.invalid_claims`); a response the claim conversion refuses (another
-/// program, grid or population, missing support labels, no retained joint draws); every
-/// refusal of the adapter (including `BayesOverStructures` without genuine probabilities).
+/// (`decision_adapters.invalid_claims`); a mixture of sampled class members read under a
+/// policy other than `ReportOnly` (`route_not_supported`,
+/// `preference_compile.sampled_mixture_not_exact`); a response the claim conversion refuses
+/// (another program, grid or population, missing support labels, no retained joint draws);
+/// every refusal of the adapter (including `BayesOverStructures` without genuine
+/// probabilities).
 pub fn structure_claims(
     mixture: &StructuralResponseMixture,
     per_structure: &[(u64, &CausalResponse)],
     schema: &CausalSchema,
     context: &NativeResponseContext,
+    policy: StructuralPolicy,
+) -> Result<AdaptedClaims, DecisionFacadeRefusal> {
+    if mixture.weight_basis == StructuralWeightBasis::SampledClassMeasure
+        && policy != StructuralPolicy::ReportOnly
+    {
+        return Err(ExternalRefusal::new(
+            antecedent_core::reason_code!("route_not_supported"),
+            "evaluate",
+            antecedent_core::reason_details::preference_compile::SAMPLED_MIXTURE_NOT_EXACT,
+        )
+        .with_offending(format!("structural policy {policy:?}"))
+        .with_expected("ReportOnly, or decide_on_sampled_structures")
+        .with_supplied("a mixture whose class members were sampled, not enumerated")
+        .with_remedy(
+            "decide a sampled mixture with decide_on_sampled_structures, which states what the \
+             sample supports, or raise the class's exact limit so every member is enumerated",
+        ));
+    }
+    claims_of_structures(mixture, per_structure, (schema, context), policy)
+}
+
+/// [`structure_claims`] without its guard: the weights of a sampled mixture are read as the
+/// probabilities they estimate, for [`decide_on_sampled_structures`], which reports what that
+/// estimate supports.
+fn claims_of_structures(
+    mixture: &StructuralResponseMixture,
+    per_structure: &[(u64, &CausalResponse)],
+    (schema, context): (&CausalSchema, &NativeResponseContext),
     policy: StructuralPolicy,
 ) -> Result<AdaptedClaims, DecisionFacadeRefusal> {
     let identified = |status: IdentificationStatus| {
@@ -414,6 +448,7 @@ pub fn structure_claims(
         StructuralWeightBasis::PosteriorProbability
             | StructuralWeightBasis::CallerSuppliedClassPrior
             | StructuralWeightBasis::PosteriorWithDeclaredClassPrior
+            | StructuralWeightBasis::SampledClassMeasure
     );
     let requirement = joint_draws();
     let mut claims = Vec::with_capacity(mixture.atoms.len());
@@ -456,9 +491,8 @@ pub fn structure_claims(
     }
     match mixture.weight_basis {
         StructuralWeightBasis::PosteriorProbability
-        | StructuralWeightBasis::PosteriorWithDeclaredClassPrior => {
-            adapt_weighted_graph_atoms(claims, policy)
-        }
+        | StructuralWeightBasis::PosteriorWithDeclaredClassPrior
+        | StructuralWeightBasis::SampledClassMeasure => adapt_weighted_graph_atoms(claims, policy),
         StructuralWeightBasis::CallerSuppliedClassPrior => adapt_finite_scenarios(claims, policy),
         StructuralWeightBasis::CompletionEnumeration => {
             adapt_graph_dependent_claims(claims, policy)
@@ -677,7 +711,9 @@ pub struct SampledStructuralEvaluation {
     /// The evaluation on the sampled structures: under the contract's policy for
     /// `BayesOverStructures` and `ReportOnly`; each structure on its own (the report-only
     /// policy) for `Maximin` and `RequireInvariantBestAction`, whose minimum over a sample
-    /// would overstate the worst case and is never computed.
+    /// would overstate the worst case and is never computed. It carries no verdict over every
+    /// member: a combined verdict is report-only and the combined table flags no action best
+    /// everywhere; what the sample supports is [`Self::verdict`].
     pub evaluation: StructuralPreferenceEvaluation,
     /// What may be claimed from the sample.
     pub verdict: SampledStructuralVerdict,
@@ -1188,7 +1224,8 @@ pub fn decide_on_sampled_structures(
     if per_member {
         evaluated.structural_policy = StructuralPolicy::ReportOnly;
     }
-    let claims = structure_claims(mixture, &[], schema, context, evaluated.structural_policy)?;
+    let claims =
+        claims_of_structures(mixture, &[], (schema, context), evaluated.structural_policy)?;
     let evaluation =
         decide_across_structures_with_context(&evaluated, &claims, measure, options, ctx)?;
     let classes = sampled_classes(mixture, members);
@@ -1222,13 +1259,47 @@ pub fn decide_on_sampled_structures(
         }
     };
     Ok(SampledStructuralEvaluation {
-        evaluation,
+        evaluation: without_combined_verdict(evaluation),
         verdict,
         sampling: classes.values().map(|(_, sampling, _)| sampling.as_ref().clone()).collect(),
         masses: class_masses(mixture, &classes),
         margins,
         level: SAMPLED_MASS_LEVEL,
     })
+}
+
+/// The evaluation on sampled members with nothing in it that reads as a verdict over every
+/// member: a combined verdict becomes report-only, and the combined table flags no action as
+/// best everywhere and gives no share of draws best everywhere. Its ranges and margins on the
+/// sampled measure stay; what the sample supports is [`SampledStructuralEvaluation::verdict`].
+fn without_combined_verdict(
+    evaluation: StructuralPreferenceEvaluation,
+) -> StructuralPreferenceEvaluation {
+    match evaluation {
+        StructuralPreferenceEvaluation::Exact(mut result) => {
+            if matches!(result.verdict, StructuralPreferenceVerdict::Combined(_)) {
+                result.verdict = StructuralPreferenceVerdict::ReportOnly;
+            }
+            if let Some(combined) = result.combined.as_mut() {
+                combined.verdict = PreferenceVerdict::ReportOnly;
+                combined.draw_share_best_everywhere = None;
+                for action in &mut combined.actions {
+                    action.necessarily_best = false;
+                    action.uniquely_best = false;
+                }
+            }
+            StructuralPreferenceEvaluation::Exact(result)
+        }
+        StructuralPreferenceEvaluation::Certified(mut result) => {
+            if matches!(result.verdict, StructuralCertifiedVerdict::Combined(_)) {
+                result.verdict = StructuralCertifiedVerdict::ReportOnly;
+            }
+            if let Some(combined) = result.combined.as_mut() {
+                combined.verdict = CertifiedVerdict::ReportOnly;
+            }
+            StructuralPreferenceEvaluation::Certified(result)
+        }
+    }
 }
 
 /// What was expected of each action of `contract`, read from an analysis source, as the

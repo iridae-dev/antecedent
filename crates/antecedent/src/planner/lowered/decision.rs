@@ -361,6 +361,7 @@ impl PreferenceChainInputFact {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreferenceJointLawFact {
     pub(crate) inputs: Arc<[PreferenceChainInputFact]>,
+    pub(crate) pairs: Arc<[(usize, usize, Arc<str>)]>,
     pub(crate) dependence: Arc<str>,
     pub(crate) cross_blocks: Arc<[(usize, usize)]>,
     pub(crate) draws: usize,
@@ -376,6 +377,18 @@ impl PreferenceJointLawFact {
     #[must_use]
     pub fn inputs(&self) -> &[PreferenceChainInputFact] {
         &self.inputs
+    }
+
+    /// `(first, second, basis)` of every pair of studies, in pair order: how the evidence
+    /// ledger judged whether the pair shares observations. `shared_rows` and `shared_units`
+    /// for a pair that shares rows of one source table or units of one identifier space (it
+    /// has a declared cross-study block); `disjoint_rows` and `disjoint_units` for a pair the
+    /// ledger found sharing none; `declared_distinct` for studies of different tables without
+    /// unit keys, which the ledger cannot compare and which are distinct on the declared
+    /// dependence alone. Stated, not part of the declaration's digest.
+    #[must_use]
+    pub fn pairs(&self) -> &[(usize, usize, Arc<str>)] {
+        &self.pairs
     }
 
     /// The declared dependence between the studies (`distinct_evidence` or

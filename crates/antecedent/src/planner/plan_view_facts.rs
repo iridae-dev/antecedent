@@ -127,6 +127,15 @@ fn preference_json(
                 .iter()
                 .map(|(first, second)| fact!({"first": first, "second": second}))
                 .collect::<Vec<_>>(),
+            "pairs": joint
+                .pairs()
+                .iter()
+                .map(|(first, second, basis)| fact!({
+                    "first": first,
+                    "second": second,
+                    "basis": &**basis,
+                }))
+                .collect::<Vec<_>>(),
             "inputs": joint
                 .inputs()
                 .iter()
@@ -219,8 +228,8 @@ pub(super) fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
             "scenario_source_identity": decision.scenario_source_identity(),
             "information_value": evsi,
         });
-        // Only a preference value states more; every other decision keeps its facts as they
-        // were.
+        // A preference value adds its own facts under `preference`; other decisions state
+        // only the fields above.
         if let (Some(facts), Fact::Map(map)) = (decision.utility().preference_facts(), &mut stated)
         {
             map.insert("preference".to_owned(), preference_json(facts, decision));

@@ -22,7 +22,7 @@ use antecedent_data::TableView;
 use antecedent_design::preference_contract::{ActionInput, PreferenceContract};
 use antecedent_io::distribution_artifact::DistributionCalibration;
 
-use super::evidence::{StudyUnits, study_units};
+use super::evidence::{StudyUnits, analysed_rows, study_units};
 use super::{
     BOUND_TAG, DemandedQuantity, IDENTITY_TRANSFORM, MEAN_FUNCTIONAL, PreferenceRouteError,
     STAGE_BIND, UNDECLARED_UNITS, at, unsupported_query,
@@ -46,6 +46,7 @@ struct StudyQuery {
     rows: usize,
     origin: String,
     origin_rows: Option<Arc<[u64]>>,
+    analysed: Option<Arc<[usize]>>,
     units: Option<StudyUnits>,
 }
 
@@ -60,13 +61,16 @@ pub(super) struct BoundStudy {
     pub(super) snapshot: String,
     /// Rows of the study's table: the observations its analysis reads.
     pub(super) rows: usize,
-    /// Content identity of the table the study's rows came from: the source table of a
-    /// declared column projection, else the study's own stored table (its columns, rows, mask
-    /// and weights, not its schema roles or the analysis compiled over it), so studies of one
-    /// table share it whatever outcome they target.
+    /// Identity of the table the study's rows came from: the source table of a declared or
+    /// remembered projection, else the study's own table. It binds the table's columns and
+    /// rows, not its analysis mask, its weights, its schema roles or the analysis compiled
+    /// over it, so studies of one table share it whatever outcome, mask or weighting they read.
     pub(super) origin: String,
     /// Index in the source table of each row, when the projection selected rows.
     pub(super) origin_rows: Option<Arc<[u64]>>,
+    /// The rows of the study's table its analysis reads, when an analysis mask leaves some
+    /// out; masked rows are not observations the study rests on.
+    pub(super) analysed: Option<Arc<[usize]>>,
     /// The units the analysis reads, when the study declares a unit key.
     pub(super) units: Option<StudyUnits>,
 }
@@ -122,7 +126,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
     let (outcome_id, treatment_id) = (*outcome, treatment.variable);
     let (outcome, outcome_units) = variable(outcome_id)?;
     let (treatment, dose_units) = variable(treatment_id)?;
-    let observations = SemanticDigest::from_bytes(data.storage().content_digest()).to_hex();
+    let observations = SemanticDigest::from_bytes(data.storage().rows_digest()).to_hex();
     let declared = study.evidence_rows.as_deref();
     let provenance = declared.and_then(|rows| rows.provenance.as_ref());
     let resolved = declared.and_then(|rows| rows.units.as_ref());
@@ -151,6 +155,7 @@ fn study_query(study: &Study, causal: &CausalContract) -> Result<StudyQuery, Pre
         snapshot: causal.identities.data_snapshot.to_hex(),
         origin: provenance.map_or(observations, |p| p.table().to_owned()),
         origin_rows: provenance.and_then(|p| p.rows().map(Arc::from)),
+        analysed: analysed_rows(data),
         units: resolved.map(|units| study_units(units, data)),
         rows: data.row_count(),
     })
@@ -305,6 +310,7 @@ fn bind_studies(
                 rows: study.rows,
                 origin: study.origin,
                 origin_rows: study.origin_rows,
+                analysed: study.analysed,
                 units: study.units,
             }
         })

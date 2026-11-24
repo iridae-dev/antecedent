@@ -46,7 +46,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, SearchLimits, SearchSto
 use antecedent_design::decision_adapters::AdapterError;
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_discovery::adjacency_mask::{
-    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
+    AdjacencyMask, admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
     pag_from_adjacency_mask,
 };
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
@@ -71,6 +71,7 @@ use crate::support::StructureSource;
 use crate::{CausalError, Study};
 
 const MEMBER_KEY_TAG: &str = "antecedent.preference_route.class_member_key";
+const CLASS_KEY_TAG: &str = "antecedent.preference_route.class_key";
 
 /// Operations a class sample may charge: four times the enumeration budget, since every
 /// accepted PAG member is audited against a full m-separation model.
@@ -241,10 +242,39 @@ fn structure(
 fn member_key(class: u64, fingerprint: u64) -> u64 {
     let mut writer = CanonicalWriter::new(MEMBER_KEY_TAG);
     writer.word(class).word(fingerprint);
-    let bytes = writer.finish();
+    digest_word(&writer.finish())
+}
+
+/// The first word of a digest.
+fn digest_word(bytes: &[u8; 32]) -> u64 {
     let mut word = [0_u8; 8];
     word.copy_from_slice(&bytes[..8]);
     u64::from_le_bytes(word)
+}
+
+/// The key of every class atom, in atom order: its graph key, which names its adjacency set.
+/// PAG atoms of one adjacency set that carry different circle marks are different classes;
+/// each of those is keyed by its graph key and its marks, so no two classes share a key and
+/// every other atom keeps its graph key.
+fn class_keys(posterior: &GraphPosterior) -> Vec<u64> {
+    let graph_key =
+        |index: usize| posterior.graph_keys().get(index).copied().unwrap_or(index as u64);
+    let mut marks_of: BTreeMap<u64, BTreeSet<AdjacencyMask>> = BTreeMap::new();
+    for index in 0..posterior.n_graphs() {
+        marks_of.entry(graph_key(index)).or_default().insert(posterior.mark_atom(index));
+    }
+    (0..posterior.n_graphs())
+        .map(|index| {
+            let key = graph_key(index);
+            if marks_of.get(&key).is_some_and(|marks| marks.len() > 1) {
+                let mut writer = CanonicalWriter::new(CLASS_KEY_TAG);
+                writer.word(key).word(posterior.mark_atom(index).key());
+                digest_word(&writer.finish())
+            } else {
+                key
+            }
+        })
+        .collect()
 }
 
 /// One distinct member of a class atom: its graph, content fingerprint and how many draws
@@ -617,9 +647,11 @@ pub(super) fn compile_posterior(
     }
     let total: f64 = posterior.weights().iter().sum();
     let mut structures: Vec<CompiledStructure> = Vec::new();
+    let keys = if class { class_keys(posterior) } else { Vec::new() };
     // Where each class atom's members start, with their conditional masses, so a repeated
-    // atom adds its weight in the same proportions.
-    let mut classes: BTreeMap<u64, (usize, Vec<f64>)> = BTreeMap::new();
+    // atom (the same adjacency set and the same circle marks) adds its weight in the same
+    // proportions.
+    let mut classes: BTreeMap<(u64, AdjacencyMask), (usize, Vec<f64>)> = BTreeMap::new();
     for index in 0..posterior.n_graphs() {
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
@@ -627,8 +659,10 @@ pub(super) fn compile_posterior(
         let key = posterior.graph_keys().get(index).copied();
         let weight = posterior.weights().get(index).copied().unwrap_or(0.0) / total;
         if class {
-            let class_key = key.unwrap_or(index as u64);
-            if let Some((start, shares)) = classes.get(&class_key) {
+            let graph_key = key.unwrap_or(index as u64);
+            let atom_class = (graph_key, posterior.mark_atom(index));
+            let class_key = keys.get(index).copied().unwrap_or(graph_key);
+            if let Some((start, shares)) = classes.get(&atom_class) {
                 for (offset, share) in shares.iter().enumerate() {
                     if let Some(member) = structures.get_mut(start + offset) {
                         member.weight += weight * share;
@@ -646,7 +680,7 @@ pub(super) fn compile_posterior(
                 ctx,
             )?;
             structures.extend(compiled);
-            classes.insert(class_key, (start, shares));
+            classes.insert(atom_class, (start, shares));
             continue;
         }
         if let Some(existing) = structures.iter_mut().find(|s| s.key == key) {

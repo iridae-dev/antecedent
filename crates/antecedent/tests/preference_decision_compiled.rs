@@ -294,7 +294,11 @@ fn means_answer_an_affine_value_and_agree_with_the_result_level_functions() {
         assert_eq!(evaluation.exact().unwrap().verdict, expected);
         assert_eq!(executed.inputs[0].representation, SourceRepresentation::Mean);
         assert_eq!(executed.receipt.bound_identity, compiled.bound_identity());
-        assert_eq!(executed.receipt.programs, [compiled.plan_views()[0].identity()]);
+        // The receipt states the compiled decision program, and the executed result reported
+        // that program's identity: the decision program is what ran.
+        let stated = compiled.plan_views()[0].identity();
+        assert_eq!(executed.receipt.programs, [stated]);
+        assert_eq!(executed.receipt.executed, [stated]);
 
         let by_hand = pd::decide_claim(&decided, &claim, None, options()).unwrap();
         assert_eq!(evaluation, &by_hand.evaluation);

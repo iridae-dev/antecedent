@@ -41,10 +41,16 @@ pub enum OutcomeDependence {
     /// expectation of a value affine in the outcomes; a contract that needs a joint law is
     /// refused at compile.
     Undeclared,
-    /// The studies rest on distinct evidence (their tables share no rows): each study's
+    /// The caller declares that the studies rest on distinct evidence: each study's
     /// posterior covariance is kept within it and nothing is shared between studies. The
     /// joint law is the propagation chain's family table matched to those moments, with
     /// `draws` aligned rows drawn under `seed`.
+    ///
+    /// The evidence ledger still checks the declaration where it can: studies whose analysed
+    /// rows come from one source table, or that are keyed in one identifier space, are refused
+    /// when they share rows or units. Studies of different tables without unit keys cannot be
+    /// compared, so they are distinct on this declaration alone, and the plan states that
+    /// basis for the pair (`declared_distinct`).
     DistinctEvidence {
         /// Aligned rows of the joined law.
         draws: usize,
@@ -260,10 +266,13 @@ fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
 
-/// Covariance of two aligned columns of equally weighted draws.
+/// Sample covariance (divisor `n - 1`) of two aligned columns of `n >= 2` equally weighted
+/// draws: the convention the family table matches its rows to, so an equally weighted reader
+/// of the joined rows sees each study's own covariance.
 fn covariance(x: &[f64], y: &[f64]) -> f64 {
     let (mx, my) = (mean(x), mean(y));
-    x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / x.len() as f64
+    let divisor = x.len().saturating_sub(1).max(1) as f64;
+    x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / divisor
 }
 
 fn chain_refusal(refusal: &ChainRefusal) -> PreferenceRouteError {
@@ -284,7 +293,9 @@ pub(super) fn law_refusal(supplied: String) -> PreferenceRouteError {
 }
 
 /// The posterior moments of every study's law, in the deferred table's slot and group order:
-/// each column's mean, and each study's covariance within it.
+/// each column's mean, and each study's sample covariance within it (divisor `n - 1`). The
+/// family table's rows have exactly that sample covariance (divisor `rows - 1`), so the
+/// joined law reproduces each study's own covariance under one convention.
 fn table_binding(
     laws: &[&DistributionArtifact],
     ctx: &ExecutionContext,

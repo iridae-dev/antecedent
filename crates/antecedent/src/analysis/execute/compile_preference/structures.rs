@@ -1,10 +1,12 @@
 //! The structures a decision is compiled under, and the decision across them.
 //!
 //! Each structure is compiled with the decision in layer four, its identification read from
-//! the plan, and prepared. At execution every prepared structure is estimated once; its
-//! response is retained beside its weight, and the unidentified and unevaluated mass are
-//! reported, never renormalized. When some class atom was sampled rather than enumerated,
-//! the verdict is read on the sampled measure and reported as such
+//! the plan, and prepared; the prepared handle executes that decision program, so the plan's
+//! identity is the identity of what runs. At execution every prepared structure is estimated
+//! once and its result's program identity is checked against the plan's; its response is
+//! retained beside its weight, and the unidentified and unevaluated mass are reported, never
+//! renormalized. When some class atom was sampled rather than enumerated, the mixture's
+//! weights are marked as a sampled measure and the verdict is read on it and reported as such
 //! ([`crate::analysis::preference_decision::SampledStructuralEvaluation`]).
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -17,8 +19,8 @@ use antecedent_design::preference_evaluation::PreferenceEvaluationOptions;
 
 use super::{
     BoundStudy, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
-    PreferenceDecisionExecution, PreferenceRouteError, no_response, retained_response,
-    unsupported_query,
+    PreferenceDecisionExecution, PreferenceRouteError, executed_identity, no_response,
+    retained_response, unsupported_query,
 };
 use crate::analysis::lowering::CompileGoal;
 use crate::analysis::preference_decision::{
@@ -131,6 +133,14 @@ impl CompiledStructure {
     pub const fn plan_view(&self) -> Option<&PlanView> {
         self.plan.as_ref()
     }
+
+    /// The prepared handle that executes this structure: its plan holds the decision program
+    /// [`Self::plan_view`] states, so every result it produces reports that program's
+    /// identity. `None` when the quantity is not identified under the structure.
+    #[must_use]
+    pub const fn prepared(&self) -> Option<&PreparedStudy> {
+        self.runner.as_ref()
+    }
 }
 
 const fn point_identified(status: IdentificationStatus) -> bool {
@@ -146,8 +156,12 @@ pub(super) type StructureOutcome =
     Result<(PlanView, StructureIdentification, PreparedStudy), String>;
 
 /// Compile `study` with the decision in layer four, read its identification from the plan
-/// and prepare it (or take the caller's prepared handle). An identification refusal is the
-/// structure's outcome; any other refusal ends the compile.
+/// and prepare it (or take the caller's prepared handle), then make the handle execute the
+/// decision program: the compiled program itself when it is the handle's own program with the
+/// decision added, else the handle's own program with the compiled decision attached to its
+/// layer four. The plan view returned is the handle's, so its identity is the identity of the
+/// program that runs. An identification refusal is the structure's outcome; any other refusal
+/// ends the compile.
 pub(super) fn compile_structure(
     study: &Study,
     goal: &CompileGoal,
@@ -178,7 +192,10 @@ pub(super) fn compile_structure(
             return Err(unsupported_query("a program without a graphical identification"));
         }
     };
-    let runner = match prepared {
+    let Some(program) = plan.lowered.as_ref() else {
+        return Err(unsupported_query("a compiled plan without a lowered program"));
+    };
+    let handle = match prepared {
         Some(prepared) => prepared.clone(),
         None => match study.prepare(ctx) {
             Ok(prepared) => prepared,
@@ -188,6 +205,14 @@ pub(super) fn compile_structure(
             Err(error) => return Err(error.into()),
         },
     };
+    let runner = handle.executing_decision(program)?;
+    let view = PlanView::of_plan(
+        runner.plan(),
+        PlanStage::Compiled,
+        Some(study),
+        Some(ctx.kernel_policy),
+        None,
+    )?;
     Ok(Ok((view, identified, runner)))
 }
 
@@ -224,6 +249,7 @@ impl CompiledPreferenceDecision {
         let study = studies.first().ok_or_else(no_response)?;
         let mut atoms = Vec::with_capacity(structures.len());
         let mut programs = Vec::with_capacity(structures.len());
+        let mut executed = Vec::with_capacity(structures.len());
         let (mut identified, mut unidentified, mut unevaluable) = (0.0, 0.0, 0.0);
         for structure in structures {
             let graph_key = structure.key.unwrap_or_default();
@@ -236,6 +262,7 @@ impl CompiledPreferenceDecision {
             programs.extend(structure.plan.as_ref().map(PlanView::identity));
             match runner.estimate_retained(ctx) {
                 Ok(result) => {
+                    executed.extend(executed_identity(structure.plan.as_ref(), &result)?);
                     if let Some(response) = retained_response(&result) {
                         identified += weight;
                         atoms.push(structural_atom(graph_key, weight, Some(response)));
@@ -251,8 +278,14 @@ impl CompiledPreferenceDecision {
                 }
             }
         }
+        let sampled = structures
+            .iter()
+            .any(|structure| structure.member.as_ref().is_some_and(|m| m.sampling.is_some()));
         let mixture = StructuralResponseMixture {
-            weight_basis: basis,
+            // Draws of a sampled class weigh its members by their share of the draws: a Monte
+            // Carlo estimate of the declared measure, marked so no reader takes it for the
+            // measure over every member.
+            weight_basis: if sampled { StructuralWeightBasis::SampledClassMeasure } else { basis },
             atoms,
             identified_mass: identified,
             unidentified_mass: unidentified,
@@ -265,9 +298,7 @@ impl CompiledPreferenceDecision {
             truncated_atoms: 0,
             aggregation_policy: None,
         };
-        let sampled = structures
-            .iter()
-            .any(|structure| structure.member.as_ref().is_some_and(|m| m.sampling.is_some()));
+        let receipt = self.receipt((programs, executed), measure, &options);
         if sampled {
             let members: Vec<Option<ClassMember>> =
                 structures.iter().map(|structure| structure.member.clone()).collect();
@@ -284,7 +315,7 @@ impl CompiledPreferenceDecision {
                 source: None,
                 inputs: Vec::new(),
                 mixture: Some(mixture),
-                receipt: self.receipt(programs),
+                receipt,
             });
         }
         let claims = structure_claims(
@@ -301,7 +332,7 @@ impl CompiledPreferenceDecision {
             source: None,
             inputs: Vec::new(),
             mixture: Some(mixture),
-            receipt: self.receipt(programs),
+            receipt,
         })
     }
 }

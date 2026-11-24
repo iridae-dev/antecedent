@@ -215,7 +215,7 @@ impl ClassPrior {
     }
 
     /// Canonical identity: exact mass bits, keyed pairs sorted by fingerprint. A prior with no
-    /// assumption, limit or sample has the identity it always had; otherwise the masses are
+    /// assumption, limit or sample is identified by its masses alone; otherwise the masses are
     /// wrapped with those declarations.
     pub(crate) fn identity_wire(&self) -> antecedent_io::ClassPriorIdentityWire {
         use antecedent_io::ClassPriorIdentityWire as Wire;

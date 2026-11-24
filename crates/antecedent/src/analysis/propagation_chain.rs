@@ -834,10 +834,6 @@ fn dependence_source(
 /// factors; a ledger overlap request without authorizing sources, with a
 /// retired source or with undeclared observations; a table the arithmetic
 /// refuses.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the complete route keeps related contract checks together"
-)]
 pub fn family_table(
     alignment: &str,
     estimates: &[FamilyEstimate],
@@ -845,6 +841,24 @@ pub fn family_table(
     ledger: Option<&EvidenceLedger>,
     rows: usize,
     seed: u64,
+) -> Result<FamilyTable, ChainRefusal> {
+    family_table_with_declared_terms(alignment, estimates, dependence, ledger, (rows, seed), None)
+}
+
+/// [`family_table`] whose covariance terms marked in `declared` (row-major, `k` by `k`) were
+/// each declared one by one: a zero among them states two estimates uncorrelated although
+/// they share a factor, and is not read as an undeclared overlap.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
+fn family_table_with_declared_terms(
+    alignment: &str,
+    estimates: &[FamilyEstimate],
+    dependence: &FamilyDependence,
+    ledger: Option<&EvidenceLedger>,
+    (rows, seed): (usize, u64),
+    declared: Option<&[bool]>,
 ) -> Result<FamilyTable, ChainRefusal> {
     let k = estimates.len();
     if k == 0 || k.checked_mul(k).is_none_or(|cells| cells > MAX_FAMILY_TABLE_CELLS) {
@@ -931,7 +945,13 @@ pub fn family_table(
         .zip(&derived)
         .map(|(estimate, extra)| dependence_source(estimate, extra))
         .collect::<Result<_, _>>()?;
-    check_family_dependence(estimates, &sources, dependence, &standard_error, &covariance)?;
+    check_family_dependence(
+        estimates,
+        &sources,
+        (dependence, declared),
+        &standard_error,
+        &covariance,
+    )?;
     let means: Vec<f64> = estimates.iter().map(|e| e.estimate).collect();
     let table = antecedent_stats::moment_matched_normal_table(&means, &covariance, rows, seed)
         .map_err(|error| table_refusal(&error))?;
@@ -1080,10 +1100,12 @@ fn apply_family_ledger_overlap(
 }
 
 /// Check the declared covariance against the same dependence factors used by the chain rule.
+/// A zero term between estimates that share a factor is an undeclared overlap unless
+/// `declared` marks that term as declared on its own.
 fn check_family_dependence(
     estimates: &[FamilyEstimate],
     sources: &[DependenceSource],
-    dependence: &FamilyDependence,
+    (dependence, declared): (&FamilyDependence, Option<&[bool]>),
     standard_error: &[f64],
     covariance: &[f64],
 ) -> Result<(), ChainRefusal> {
@@ -1111,7 +1133,8 @@ fn check_family_dependence(
                             antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
                         ));
                     }
-                    if live && term == 0.0 && shares {
+                    let stated = declared.and_then(|marks| marks.get(i * k + j)).copied();
+                    if live && term == 0.0 && shares && stated != Some(true) {
                         return Err(ChainRefusal::new(
                             antecedent_core::reason_code!("evidence_double_counted"),
                             "propagation_chain.family_dependence",
@@ -1237,8 +1260,10 @@ pub struct ChainTableBinding {
 ///
 /// Everything [`family_table`] checks that does not depend on those numbers is checked here:
 /// the table's shape and work budget, every estimate's meaning, identity and factors, the
-/// groups, the declared blocks between groups, and that a declared block is nonzero exactly
-/// where the two groups' estimates share a declared factor. The diagonal and the positive
+/// groups, the declared blocks between groups, that a nonzero covariance is declared only
+/// between estimates that share a declared factor, and that estimates which share one have a
+/// declared block. A term of a declared block may be zero: the block declares those two
+/// estimates uncorrelated although they share evidence. The diagonal and the positive
 /// semi-definiteness of the assembled covariance are checked when it is bound
 /// ([`PropagationChainPlan::execute_bound`]). Each estimate belongs to exactly one of `groups`
 /// (indices into `estimates`); the covariance within a group is bound at execution, and
@@ -1368,7 +1393,7 @@ pub fn deferred_family_table(
                             antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS,
                         ));
                     }
-                    if term == 0.0 && shares {
+                    if shares && block.is_none() {
                         return Err(ChainRefusal::new(
                             antecedent_core::reason_code!("evidence_double_counted"),
                             "propagation_chain.family_dependence",
@@ -1494,6 +1519,7 @@ impl PropagationChainPlan {
                 .collect()
         };
         let mut covariance = vec![0.0; k * k];
+        let mut declared = vec![false; k * k];
         for (group, terms) in table.within_blocks.iter().zip(&binding.within) {
             let at = members(group.as_slice())?;
             let m = at.len();
@@ -1506,6 +1532,7 @@ impl PropagationChainPlan {
             for (p, &row) in at.iter().enumerate() {
                 for (q, &column) in at.iter().enumerate() {
                     covariance[row * k + column] = terms[p * m + q];
+                    declared[row * k + column] = true;
                 }
             }
         }
@@ -1527,6 +1554,8 @@ impl PropagationChainPlan {
                     let term = f64::from_bits(block.terms[p * columns_of.len() + q]);
                     covariance[row * k + column] = term;
                     covariance[column * k + row] = term;
+                    declared[row * k + column] = true;
+                    declared[column * k + row] = true;
                 }
             }
         }
@@ -1566,13 +1595,13 @@ impl PropagationChainPlan {
         }
         let rows = usize::try_from(table.rows)
             .map_err(|_| bind_refusal("the table's rows do not fit this platform"))?;
-        let family = family_table(
+        let family = family_table_with_declared_terms(
             alignment.unwrap_or_default(),
             &estimates,
             &FamilyDependence::Covariance(covariance),
             None,
-            rows,
-            table.seed,
+            (rows, table.seed),
+            Some(&declared),
         )?;
         let mut concrete = draft.clone();
         concrete.deferred = None;
