@@ -33,15 +33,40 @@ fn mediation_effects_summary(
         let t = schema_var_id(series.schema(), &treatment)?;
         let m = schema_var_id(series.schema(), &mediator)?;
         let y = schema_var_id(series.schema(), &outcome)?;
+        // The summary reads the lag-one treatment acting on the outcome directly and through
+        // the contemporaneous mediator. That structure, written as a temporal DAG, runs the
+        // compiled temporal mediation route (TemporalMediationEffect x TemporalDag): it
+        // identifies an empty adjustment set and fits the same three mechanism regressions on
+        // the same lag-aligned rows, so the components are the ones the summary always reported.
+        let graph = temporal_dag_from_schema_edges(
+            series.schema(),
+            &[
+                (treatment.clone(), 1, mediator.clone(), 0),
+                (treatment.clone(), 1, outcome.clone(), 0),
+                (mediator.clone(), 0, outcome.clone(), 0),
+            ],
+        )?;
         let q = MediationQuery::binary(t, y, [m], MediationContrast::Total);
-        let mut arena = CausalExprArena::new();
-        let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
-        let estimand =
-            IdentifiedEstimand::frontdoor("temporal_mediation.total", Arc::from([m]), functional);
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let surface = TemporalMediationEstimator::new()
-            .effect_surface(&series, &estimand, &q, &ctx)
+        let result = Study::series(series)
+            .graph(graph)
+            .query(antecedent::query::CausalQuery::Mediation(q))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .and_then(|study| study.run(&ctx))
             .map_err(py_err)?;
+        let decomposition = result.mediation().ok_or_else(|| {
+            crate::value_err("the compiled temporal mediation route returned no decomposition")
+        })?;
+        // A component the route did not compute is refused, never read as zero.
+        let surface = antecedent::estimate::TemporalEffectSurface::from_components(
+            decomposition.total,
+            decomposition.direct,
+            decomposition.mediated,
+        )
+        .map_err(py_err)?;
         Ok(MediationEffectsSummary {
             total: surface.total,
             direct: surface.direct,
